@@ -411,19 +411,84 @@ correct behaviour provided that `p` is able to prove the existence of a
 
 ## Functions
 
-The [pseudo-code][pseudo-code] of the consensus algorithm includes calls to
-functions that are not defined in the pseudo-code itself, but are assumed to be
+The [pseudo-code][pseudo-code] of the algorithm includes calls to functions
+that are not defined in the pseudo-code itself, but are assumed to be
 implemented by the processes running the consensus protocol.
 
 ### Proposer Selection
 
-The first external function is `proposer(h, r)` that returns the process
-selected as the proposer of round `r` of height `h` of consensus. The roles of
-the proposer of a round are described in the [propose round step](#propose).
+The `proposer(h, r)` function receives a height `h >= 0` and a round `r >= 0`
+and returns the process, among the processes running height `h`, selected as
+the proposer of round `r` of height `h`.
+The role of the proposer is described in the [`propose`](#propose) round step.
 
-> The formalization of the properties requires for the proposer selection
-> algorithm is a work in progress, see
-> https://github.com/informalsystems/malachite/issues/396.
+The `proposer(h, r)` function requires the knowledge of the set of processes
+running the height `h` of consensus.
+The set of processes running a given height of consensus is fixed:
+it cannot vary over rounds.
+But different heights on consensus may be run by distinct set of processes and
+processes may have distinct associated [voting powers](#voting-power) in different heights.
+
+#### Determinism
+
+Given a consensus height `h` and the set of processes running height `h`,
+the `proposer(h, r)` function **must be deterministic**.
+This means that any two correct processes that invoke `proposer(h, r)` with the
+same inputs, including the implicit input that is the set of processes running
+consensus height `h` and associated voting powers, should receive the exactly
+same output (process).
+
+#### Correctness
+
+The main goal of the `proposer(h, r)` function is to eventually select a
+correct process to coordinate a round of consensus and to propose an
+appropriate value for it.
+A correct implementation of the function must guarantee that, for every height
+`h`, there is a round `r* >= 0` where `proposer(h, r*)` returns a process `p`
+that is a correct process: `p` does not misbehave nor crash.
+
+Fortunately, it is relatively simple to produce a correct implementation of the
+`proposer(h, r)` method: it is enough to ensure that every process running
+consensus height `h` is selected as the proposer for at least one round.
+In other words, it is enough that processes take turns as the proposers of
+different rounds of a height.
+
+#### Fairness
+
+Tendermint is a consensus algorithm that adheres to the _rotating coordinator_
+approach.
+This means that the role of coordinating rounds and proposing values is
+expected to be played by different processes over time, in successive
+heights of consensus.
+(In contrast to the _fixed coordinator_ approach, where the coordinator or
+proposer is only replaced when it is suspected to be faulty).
+
+While a correct `proposer(h, r)` implementation eventually selects every
+process as the proposer of a round of height `h`, being the proposer of the
+first round of a height is the most relevant role, since most heights of
+consensus are expected to be finalized in round 0.
+A fair proposer selection algorithm should therefore ensure that all processes
+have, over a reasonable long sequence of heights `h`, a similar chance of being
+selected as `proposer(h, 0)`, thus to propose the value that is most likely to be
+decided on that height.
+
+In the case of Proof-of-Stake (PoS) blockchains, where processes are assumed to
+have distinct voting powers, a fair proposer selection algorithm should ensure
+that every process is chosen,  over a reasonable long sequence of heights, as
+`proposer(h, 0)` in a number of heights `h` that is proportional to its voting
+power.
+Observe that when the set of processes running consensus varies over heights,
+so as the voting power associated to each process, producing a fair proposer
+selection algorithm becomes more challenging.
+
+> The [proposer selection procedure of CometBFT][cometbft-proposer], which
+> implements Tendermint in Go, is a useful reference of how a fair proposer
+> selection can be achieved with a dynamic set of processes and voting powers.
+> It is worth noting that this algorithm maintains an internal state, which is
+> updated whenever a new proposer is selected.
+> This means that reproducing the algorithm output requires, in addition to the
+> inputs mentioned in the [Determinism section](#determinism), retrieving or
+> recomputing the associated algorithm's internal state.
 
 ### Proposal value
 
@@ -487,3 +552,4 @@ to the current time plus the duration returned by the corresponding functions
 [pseudo-code]: ./pseudo-code.md
 [tendermint-arxiv]: https://arxiv.org/abs/1807.04938
 [accountable-tendermint]: ./misbehavior.md#misbehavior-detection-and-verification-in-accountable-tendermint
+[cometbft-proposer]: https://github.com/cometbft/cometbft/blob/main/spec/consensus/proposer-selection.md
