@@ -1,7 +1,5 @@
 //! Example application using channels
 
-mod app;
-
 use eyre::{eyre, Result};
 use tracing::{info, trace};
 
@@ -13,8 +11,10 @@ use malachitebft_test_cli::cmd::start::StartCmd;
 use malachitebft_test_cli::cmd::testnet::TestnetCmd;
 use malachitebft_test_cli::{config, logging, runtime};
 
+mod app;
 mod node;
 mod state;
+mod store;
 mod streaming;
 
 use node::App;

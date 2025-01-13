@@ -10,7 +10,7 @@ use malachitebft_engine::network::Msg as NetworkActorMsg;
 
 use crate::app::types::core::{CommitCertificate, Context, Round, ValueId};
 use crate::app::types::streaming::StreamMessage;
-use crate::app::types::sync::DecidedValue;
+use crate::app::types::sync::RawDecidedValue;
 use crate::app::types::{LocallyProposedValue, PeerId, ProposedValue};
 
 pub type Reply<T> = oneshot::Sender<T>;
@@ -126,7 +126,7 @@ pub enum AppMsg<Ctx: Context> {
         /// Height of the decided value to retrieve
         height: Ctx::Height,
         /// Channel for sending back the decided value
-        reply: Reply<Option<DecidedValue<Ctx>>>,
+        reply: Reply<Option<RawDecidedValue<Ctx>>>,
     },
 
     /// Notifies the application that a value has been synced from the network.

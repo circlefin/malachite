@@ -1,0 +1,46 @@
+name: Auto Label Issues
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check if opener is CODEOWNER
+        id: check-codeowner
+        run: |
+          # Get the CODEOWNERS file content
+          if [ -f .github/CODEOWNERS ]; then
+            # Extract GitHub usernames from CODEOWNERS file
+            CODEOWNERS=$(grep -v '^#' .github/CODEOWNERS | grep -o '@[a-zA-Z0-9-]*' | sed 's/@//')
+
+            # Check if issue opener is in CODEOWNERS
+            if echo "$CODEOWNERS" | grep -q "^${{ github.event.issue.user.login }}$"; then
+              echo "is_codeowner=true" >> $GITHUB_OUTPUT
+            else
+              echo "is_codeowner=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "is_codeowner=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Add need-triage label
+        if: steps.check-codeowner.outputs.is_codeowner == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                labels: ['need-triage']
+              });
+              console.log('Successfully added `need-triage` label');
+            } catch (error) {
+              console.log('Error adding label:', error);
+            }
