@@ -12,12 +12,12 @@ lint-fix:
 
 unit-tests:
 	cargo nextest run \
-      	--workspace \
-	  	--all-features \
-      	--no-fail-fast \
-    	--failure-output final \
-        --exclude informalsystems-malachitebft-starknet-test \
-        --exclude informalsystems-malachitebft-discovery-test
+		--workspace \
+		--all-features \
+		--no-fail-fast \
+		--failure-output final \
+		--exclude informalsystems-malachitebft-starknet-test \
+		--exclude informalsystems-malachitebft-discovery-test
 
 
 test: unit-tests
