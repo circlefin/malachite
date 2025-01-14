@@ -717,13 +717,19 @@ deadlocks and ensure liveness.
 The `schedule` primitive is adopted in the pseudo-code to schedule the
 execution of `OnTimeout<Step>(height, round)` functions to after the duration
 returned by `timeout<Step>(round)`,
-where `<Step>` is one of `Propose`, `Prevote`, and `Precommit` - i.e., the
-three [round steps](#round-steps).
+where `<Step>` is one of `Propose`, `Prevote`, and `Precommit` - the three
+[round steps](#round-steps).
+
+The `OnTimeout<Step>` functions define the actions taken upon an unsuccessful
+corresponding round step: the process votes `nil` or abandons the current round.
+These functions are guarded by conditions that check if the state, in
+particular the round step, has not changed since when their execution was
+scheduled.
+
+> Implementations could cancel scheduled timeouts when the state changes and
+> the associated conditions are no longer observed.
 
 > TODO: assumptions regarding timeouts, they should increase over time, GST, etc.
-
-> TODO: most timeouts can be cancelled when the associated conditions are not
-> any longer observed (round or height changed, round step changed).
 
 [^1]: This document adopts _process_ to refer to the active participants of the
   consensus algorithm, which can propose and vote for values.
