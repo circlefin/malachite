@@ -30,11 +30,11 @@ use crate::streaming::{PartStreamsMap, ProposalParts};
 pub struct State {
     ctx: TestContext,
     address: Address,
-    store: Store,
     stream_id: u64,
     streams_map: PartStreamsMap,
     rng: StdRng,
 
+    pub store: Store,
     pub current_height: Height,
     pub current_round: Round,
     pub current_proposer: Option<Address>,

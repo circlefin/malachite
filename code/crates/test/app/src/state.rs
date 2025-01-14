@@ -36,7 +36,8 @@ pub struct State {
     pub current_round: Round,
     pub current_proposer: Option<Address>,
     pub peers: HashSet<PeerId>,
-    store: Store,
+    pub store: Store,
+
     stream_id: u64,
     streams_map: PartStreamsMap,
     rng: StdRng,

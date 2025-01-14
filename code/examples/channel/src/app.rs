@@ -24,11 +24,19 @@ pub async fn run(
             AppMsg::ConsensusReady { reply } => {
                 info!("Consensus is ready");
 
+                let latest_height = state
+                    .store
+                    .max_decided_value_height()
+                    .await
+                    .unwrap_or_default();
+
+                let start_height = latest_height.increment();
+
                 // We can simply respond by telling the engine to start consensus
                 // at the current height, which is initially 1
                 if reply
                     .send(ConsensusMsg::StartHeight(
-                        state.current_height,
+                        start_height,
                         genesis.validator_set.clone(),
                     ))
                     .is_err()
