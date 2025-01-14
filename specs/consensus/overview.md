@@ -734,9 +734,17 @@ The `timeout<Step>(round)` functions return a duration, the minimum amount of
 time from when `schedule` was called, for the scheduled timeout.
 The function receives the current `round` as parameter because it is assumed
 that the **duration of timeouts should increase over rounds**.
-In other words, `timeout<Step>(round + 1) > timeout<Step>(round)`.
+In other words, the implementation should ensure that
+`timeout<Step>(round + 1) > timeout<Step>(round)`.
 
-> TODO: assumptions regarding timeouts, they should increase over time, GST, etc.
+Tendermint is designed for the [partially synchronous][partially-synchronous]
+distributed system model.
+This model assumes that there is an (possibly unknown) upper-bound for the
+end-to-end communication delays `∆`, as happens in synchronous systems.
+But `∆` is not always observed by the system, which may operate asynchronously
+for an arbitrary amount of time.
+There is, however, a (possibly unknown) Global Stabilization Time (`GST`), a
+time from which the system becomes synchronous and `∆` is observed.
 
 [^1]: This document adopts _process_ to refer to the active participants of the
   consensus algorithm, which can propose and vote for values.
@@ -751,3 +759,4 @@ In other words, `timeout<Step>(round + 1) > timeout<Step>(round)`.
 [starkware-proofs]: ../starknet/proofs-scheduling/README.md
 [synchronization-issue]: https://github.com/informalsystems/malachite/issues/260
 [synchronization-spec]: ../synchronization/README.md
+[partially-synchronous]: https://dl.acm.org/doi/10.1145/42282.42283
