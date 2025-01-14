@@ -698,7 +698,7 @@ This property is not trivial to ensure.
 > In other words, the `broadcast` primitive cannot be just implemented by
 > sending the same message (via "unicast") to every process.
 
-[comment]: <> (I wonder whether the next paragraph is more abou design)
+[comment]: <> (I wonder whether the next paragraph is more design related)
 
 Fortunately, it turns out that the Gossip communication property does not need
 to be ensured for _every_ broadcast message.
