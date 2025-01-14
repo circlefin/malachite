@@ -92,7 +92,7 @@ jobs:
         run: |
           cargo maelstrom \
             --slots 16 \
-            --include 'package.match(informalsystems-malachitebft-test) || package.match(informalsystems-malachitebft-starknet-test) || package.match(informalsystems-malachitebft-discovery-test)'
+            --include 'package.equals(informalsystems-malachitebft-test) || package.equals(informalsystems-malachitebft-starknet-test) || package.equals(informalsystems-malachitebft-discovery-test)'
 
   clippy:
     name: Clippy
