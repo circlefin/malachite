@@ -722,12 +722,19 @@ where `<Step>` is one of `Propose`, `Prevote`, and `Precommit` - the three
 
 The `OnTimeout<Step>` functions define the actions taken upon an unsuccessful
 corresponding round step: the process votes `nil` or abandons the current round.
-These functions are guarded by conditions that check if the state, in
+These functions are guarded by conditions that verify if the state, in
 particular the round step, has not changed since when their execution was
 scheduled.
+It the state has changed, the execution may not produce any action.
 
 > Implementations could cancel scheduled timeouts when the state changes and
 > the associated conditions are no longer observed.
+
+The `timeout<Step>(round)` functions return a duration, the minimum amount of
+time from when `schedule` was called, for the scheduled timeout.
+The function receives the current `round` as parameter because it is assumed
+that the **duration of timeouts should increase over rounds**.
+In other words, `timeout<Step>(round + 1) > timeout<Step>(round)`.
 
 > TODO: assumptions regarding timeouts, they should increase over time, GST, etc.
 
