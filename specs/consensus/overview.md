@@ -534,9 +534,11 @@ Implementations of the validity check are typically not pure:
 as already mentioned in the [Tendermint paper][tendermint-arxiv], "In the context of blockchain systems, 
 for example, a value is not valid if it does not
 contain an appropriate hash of the last value (block) added to the blockchain." That is, 
-rather than `valid(v)` the implementation looks something like `valid(v, chain, height)`, 
-that is, 
-it depends on the state of the blockchain at a given height and a value. This implies that
+rather than `valid(v)` the implementation uses
+the state of the blockchain at a given height and a value, that is, it 
+looks something like `valid(v, chain, height)`. (In the [Tendermint paper][tendermint-arxiv],
+the data about the blockchain state, that is, past decisions etc., is captured in `decision_p`.) 
+This implies that
 a value that might be valid at blockchain height 5, might be invalid at height 6. Observe 
 that this, strictly speaking, the above defined property 1.
 However, as long as all processes agree on 
