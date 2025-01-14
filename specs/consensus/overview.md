@@ -751,11 +751,21 @@ In practical systems, `GST` is usually unknown, although it is assumed that the
 system eventually stabilizes.
 The same applies to `∆`, which however can be stipulated from the observation
 of the behavior of a particular system.
-The timeout durations should represent conservative stipulations for `∆`,
+The timeout durations should represent safe or conservative stipulations for `∆`,
 specific for each round step.
 Since any stipulation can be wrong, the timeout durations increase over rounds,
-so that they eventually reach the actual `∆` observed in the system, when it
-stabilizes, namely, after `GST`.
+so that they eventually reach the actual `∆` observed in the system when it
+stabilizes - namely, after `GST`.
+
+The **Gossip communication** property presented in the [Network](#network)
+section includes, in addition to the reliable communication assumptions, the
+requirement of timely delivery of messages from `GST`.
+Namely, a message broadcast by a correct process at time `t >= GST` is received
+by every correct process by `t + ∆`.
+But observe that it also requires all correct process to receive by `GST + ∆`
+messages broadcast or received by correct processes at times `t < GST`.
+Which renders this property even more complex to achieve, since it imposes
+conditions for messages sent or received _before_ `GST`.
 
 [^1]: This document adopts _process_ to refer to the active participants of the
   consensus algorithm, which can propose and vote for values.
