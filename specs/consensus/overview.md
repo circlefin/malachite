@@ -651,7 +651,35 @@ be implemented by the processes running the consensus protocol.
 
 The only network primitive adopted in the pseudo-code is the `broadcast`
 primitive, which should send a given [consensus message](#messages) to all
-processes, thus implementing a 1-to-n communication primitive.
+processes.
+But a closer look to the [Tendermint paper][tendermint-arxiv] reveals that the
+`broadcast` primitive is associated to a stronger assumption:
+
+- **Gossip communication**: If a correct process `p` sends some message `m` at
+  time `t`, all correct processes will receive `m` before `max{t, GST} + ∆`.
+  Furthermore, if a correct process `p` receives some message `m` at time `t`,
+  all correct processes will receive `m` before `max{t, GST} + ∆`.
+
+If we ignore for now (they are covered later) the timing parameters (`t`, `∆`,
+and `GST`), the assumption comprises two liveness properties:
+
+1. If a correct process sends a message, then every correct process eventually
+   delivers that message
+2. If a correct process delivers a message, then every correct process
+   eventually delivers that message
+
+Property 1 defines that the `broadcast` primitive must reliably ship messages
+among correct processes.
+Property 2, however, also affects messages potentially produced by Byzantine
+processes.
+As previously described, Byzantine processes may produce and disseminate
+equivocating [proposals](#byzantine-proposers) and [votes](#byzantine-voters).
+Namely, produce for the same round step conflicting messages `m` and `m'` and
+try to get delivered to some processes `m` and to others `m'`.
+What Property 2 above defines is that if any correct process receives and
+processes `m`, then all correct processes must eventually receive `m` as well;
+the same applies to the conflicting message `m'`.
+This property is not trivial to ensure.
 
 > TODO: reliable broadcast properties needed for consensus messages, and the
 > more comprehensive and strong properties required for certificates (sets of
