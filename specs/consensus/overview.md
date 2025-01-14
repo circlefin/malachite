@@ -511,8 +511,14 @@ provide the value to be proposed.
 > - During regular execution, typically a single or few processes are allowed
 >   to propose new values (i.e., the proposers of the first round or rounds).
 >   The values produced by most processes are therefore likely to be completely
->   disregarded by the algorithm, which becomes particularly inefficient when
->   producing a value to propose is expensive;
+>   disregarded by the algorithm;
+> - In some cases producing a value to propose can be really expensive.
+>   For instance, the [Starknet Proofs Scheduling][starkware-proofs] protocol
+>   assumes that a process `p` starts producing proofs to be included in the
+>   value proposed in a height `h` once it learns that `p = proposer(h, 0)`.
+>   Values proposed in rounds greater than `0` are not expected to include
+>   proofs since proofs may take the ordinary duration of several heights to be
+>   produced;
 > - Proposed values are likely to aggregate multiple inputs received from
 >   clients (e.g., transactions that form a proposed block).
 >   By providing the proposed value at the beginning of a height to a process
@@ -630,8 +636,6 @@ of previously decided values.
 context of soft upgrades [here](
 https://github.com/informalsystems/malachite/issues/510#issuecomment-2589858811).
 
-
-
 ## Primitives
 
 The [pseudo-code][pseudo-code] of the consensus algorithm invokes some
@@ -670,3 +674,4 @@ to the current time plus the duration returned by the corresponding functions
 [tendermint-arxiv]: https://arxiv.org/abs/1807.04938
 [accountable-tendermint]: ./misbehavior.md#misbehavior-detection-and-verification-in-accountable-tendermint
 [cometbft-proposer]: https://github.com/cometbft/cometbft/blob/main/spec/consensus/proposer-selection.md
+[starkware-proofs]: ../starknet/proofs-scheduling/README.md
