@@ -3,16 +3,17 @@ use crate::handle::signature::sign_proposal;
 use crate::handle::signature::sign_vote;
 use crate::handle::vote::on_vote;
 use crate::prelude::*;
+#[cfg(not(feature = "std"))]
+use crate::types::Metrics;
 use crate::types::SignedConsensusMsg;
 use crate::util::pretty::PrettyVal;
 use malachitebft_core_driver::Input as DriverInput;
 use malachitebft_core_driver::Output as DriverOutput;
-
 #[async_recursion]
 pub async fn apply_driver_input<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: &Metrics,
+    metrics: Option<&Metrics>,
     input: DriverInput<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
@@ -20,7 +21,8 @@ where
 {
     match &input {
         DriverInput::NewRound(height, round, proposer) => {
-            metrics.round.set(round.as_i64());
+            #[cfg(feature = "std")]
+            metrics.unwrap().round.set(round.as_i64());
 
             info!(%height, %round, %proposer, "Starting new round");
             perform!(co, Effect::CancelAllTimeouts(Default::default()));
@@ -103,8 +105,11 @@ where
                 );
             }
         }
-        metrics.step_end(prev_step);
-        metrics.step_start(new_step);
+        #[cfg(feature = "std")]
+        {
+            metrics.unwrap().step_end(prev_step);
+            metrics.unwrap().step_start(new_step);
+        }
     }
 
     if prev_step != new_step {
@@ -152,7 +157,7 @@ where
 async fn process_driver_outputs<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: &Metrics,
+    metrics: Option<&Metrics>,
     outputs: Vec<DriverOutput<Ctx>>,
 ) -> Result<(), Error<Ctx>>
 where
@@ -168,7 +173,7 @@ where
 async fn process_driver_output<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: &Metrics,
+    metrics: Option<&Metrics>,
     output: DriverOutput<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
@@ -177,7 +182,6 @@ where
     match output {
         DriverOutput::NewRound(height, round) => {
             let proposer = state.get_proposer(height, round);
-
             apply_driver_input(
                 co,
                 state,
@@ -209,7 +213,6 @@ where
                     )
                 );
             }
-
             on_proposal(co, state, metrics, signed_proposal.clone()).await?;
 
             // Proposal messages should not be broadcasted if they are implicit,

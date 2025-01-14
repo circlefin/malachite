@@ -3,6 +3,7 @@ pub use tracing::{debug, info, warn};
 
 pub use malachitebft_core_driver::Input as DriverInput;
 pub use malachitebft_core_types::*;
+#[cfg(feature = "std")]
 pub use malachitebft_metrics::Metrics;
 
 pub use crate::effect::{Effect, Resume};

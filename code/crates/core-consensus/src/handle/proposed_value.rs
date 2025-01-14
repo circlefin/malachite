@@ -1,4 +1,6 @@
 use crate::prelude::*;
+#[cfg(not(feature = "std"))]
+use crate::types::Metrics;
 
 use crate::handle::driver::apply_driver_input;
 use crate::types::ProposedValue;
@@ -17,7 +19,7 @@ use super::signature::sign_proposal;
 pub async fn on_proposed_value<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: &Metrics,
+    metrics: Option<&Metrics>,
     proposed_value: ProposedValue<Ctx>,
     origin: ValueOrigin,
 ) -> Result<(), Error<Ctx>>

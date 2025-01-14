@@ -1,4 +1,6 @@
 use crate::prelude::*;
+#[cfg(not(feature = "std"))]
+use crate::types::Metrics;
 
 use crate::handle::driver::apply_driver_input;
 use crate::handle::handle_input;
@@ -6,7 +8,7 @@ use crate::handle::handle_input;
 pub async fn reset_and_start_height<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: &Metrics,
+    metrics: Option<&Metrics>,
     height: Ctx::Height,
     validator_set: Ctx::ValidatorSet,
 ) -> Result<(), Error<Ctx>>
@@ -15,8 +17,8 @@ where
 {
     perform!(co, Effect::CancelAllTimeouts(Default::default()));
     perform!(co, Effect::ResetTimeouts(Default::default()));
-
-    metrics.step_end(state.driver.step());
+    #[cfg(feature = "std")]
+    metrics.unwrap().step_end(state.driver.step());
 
     state.driver.move_to_height(height, validator_set);
 
@@ -29,7 +31,7 @@ where
 pub async fn start_height<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: &Metrics,
+    metrics: Option<&Metrics>,
     height: Ctx::Height,
 ) -> Result<(), Error<Ctx>>
 where
@@ -37,11 +39,12 @@ where
 {
     let round = Round::new(0);
     info!(%height, "Starting new height");
-
-    metrics.block_start();
-    metrics.height.set(height.as_u64() as i64);
-    metrics.round.set(round.as_i64());
-
+    #[cfg(feature = "std")]
+    {
+        metrics.unwrap().block_start();
+        metrics.unwrap().height.set(height.as_u64() as i64);
+        metrics.unwrap().round.set(round.as_i64());
+    }
     let proposer = state.get_proposer(height, round);
 
     apply_driver_input(
@@ -60,7 +63,7 @@ where
 async fn replay_pending_msgs<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: &Metrics,
+    metrics: Option<&Metrics>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,

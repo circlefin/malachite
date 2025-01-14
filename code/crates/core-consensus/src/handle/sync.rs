@@ -2,11 +2,13 @@ use crate::handle::driver::apply_driver_input;
 use crate::handle::signature::verify_certificate;
 use crate::handle::validator_set::get_validator_set;
 use crate::prelude::*;
+#[cfg(not(feature = "std"))]
+use crate::types::Metrics;
 
 pub async fn on_commit_certificate<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: &Metrics,
+    metrics: Option<&Metrics>,
     certificate: CommitCertificate<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
@@ -33,7 +35,6 @@ where
         return Err(Error::InvalidCertificate(certificate, e));
     }
 
-    // Go to Commit step via L49
     apply_driver_input(
         co,
         state,

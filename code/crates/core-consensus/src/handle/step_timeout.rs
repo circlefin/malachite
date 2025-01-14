@@ -1,9 +1,11 @@
 use crate::prelude::*;
+#[cfg(not(feature = "std"))]
+use crate::types::Metrics;
 
 pub async fn on_step_limit_timeout<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: &Metrics,
+    metrics: Option<&Metrics>,
     round: Round,
 ) -> Result<(), Error<Ctx>>
 where
@@ -17,7 +19,8 @@ where
         co,
         Effect::GetVoteSet(state.driver.height(), round, Default::default())
     );
-    metrics.step_timeouts.inc();
+    #[cfg(feature = "std")]
+    metrics.unwrap().step_timeouts.inc();
 
     if state.driver.step_is_prevote() {
         perform!(

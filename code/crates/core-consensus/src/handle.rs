@@ -1,5 +1,6 @@
 use crate::prelude::*;
-
+#[cfg(not(feature = "std"))]
+use crate::types::Metrics;
 mod decide;
 mod driver;
 mod proposal;
@@ -33,14 +34,22 @@ pub async fn handle<Ctx>(
 where
     Ctx: Context,
 {
-    handle_input(&co, state, metrics, input).await
+    #[cfg(feature = "std")]
+    {
+        handle_input(&co, state, Some(metrics), input).await
+    }
+
+    #[cfg(not(feature = "std"))]
+    {
+        handle_input(&co, state, None, input).await
+    }
 }
 
 #[async_recursion]
 async fn handle_input<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: &Metrics,
+    metrics: Option<&Metrics>,
     input: Input<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where

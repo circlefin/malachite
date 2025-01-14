@@ -1,3 +1,5 @@
+#[cfg(not(feature = "std"))]
+use crate::types::Metrics;
 use crate::{prelude::*, SignedConsensusMsg};
 
 use crate::handle::driver::apply_driver_input;
@@ -10,7 +12,7 @@ use crate::util::pretty::PrettyVote;
 pub async fn on_vote<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: &Metrics,
+    metrics: Option<&Metrics>,
     signed_vote: SignedVote<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where

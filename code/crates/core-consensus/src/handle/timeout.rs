@@ -2,11 +2,13 @@ use crate::handle::decide::decide;
 use crate::handle::driver::apply_driver_input;
 use crate::handle::step_timeout::on_step_limit_timeout;
 use crate::prelude::*;
+#[cfg(not(feature = "std"))]
+use crate::types::Metrics;
 
 pub async fn on_timeout_elapsed<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: &Metrics,
+    metrics: Option<&Metrics>,
     timeout: Timeout,
 ) -> Result<(), Error<Ctx>>
 where
