@@ -229,7 +229,7 @@ thus `⟨PROPOSAL, h, r, validValue_p, validRound_p⟩`.
 
 If the proposer `p` of a round `r` of height `h` has `validValue_p = nil`, `p`
 may propose any value it wants.
-The function `getValue()` is invoked and returns a value to be proposed.
+The [function `getValue()`](#proposal-value) is invoked and returns a value to be proposed.
 The message it broadcasts when entering the `prevote` step of round `r` is
 thus `⟨PROPOSAL, h, r, getValue(), -1⟩`.
 Observe that this is always the case in round 0 and the most common case in
@@ -502,7 +502,7 @@ implements the **propose** consensus primitive.
 Instead of having the context/application that uses the consensus protocol
 invoking it with a value to be proposed, when a process running Tendermint can
 propose a value, it invokes this function so that the context/application can
-provided the value to be proposed.
+provide the value to be proposed.
 
 > Notice that this is a design concern that is encoded in Tendermint's
 > pseudo-code.
