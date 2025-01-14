@@ -530,6 +530,9 @@ then `v` was the value returned by the context/application running at a process
 `p` when in invoked, as part of a round `r` where `proposer(h, r) = p`,  the
 `getValue()` function.
 
+> Observe that there is no function that passes decided values in the other direction. In Malachite's
+state machine design, this data is passed as consensus/driver output, 
+
 ### Validation
 
 The external function `valid` is used to guard any value-specific action in 
