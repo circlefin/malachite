@@ -686,8 +686,8 @@ This property is not trivial to ensure.
 > In this case, if the sender of the message is correct, then every correct
 > destination eventually receives the message.
 >
-> In the same environment, ensuring Property 2 requires correct processes to
-> relay the received messages.
+> In the same environment, ensuring Property 2 requires correct to relay the
+> received messages.
 > In this way, if the sender crashes and the message is not received by some
 > correct processes, the other correct processes will relay it to them.
 > In the same way, if the sender is Byzantine and purposely does not send the
@@ -696,11 +696,21 @@ This property is not trivial to ensure.
 > The complexity added by Property 2 is the need for a protocol for reliably
 > broadcasting messages in a Byzantine setup.
 > In other words, the `broadcast` primitive cannot be just implemented by
-> sending the same message to every process.
+> sending the same message (via "unicast") to every process.
 
-> TODO: strong Property 2 may only required for certificates (sets of 2f + 1
-> identical votes), and certified proposals.
-> See discussion in https://github.com/informalsystems/malachite/issues/260.
+[comment]: <> (I wonder whether the next paragraph is more abou design)
+
+Fortunately, it turns out that the Gossip communication property does not need
+to be ensured for _every_ message broadcast by the algorithm.
+As discussed in [#260][synchronization-issue], only messages whose reception
+produce a relevant action in the consensus state-machine (in particular,
+produce a valid, locked, or decided value) of a correct process need to be
+eventually received by all correct processes.
+This opens up the possibility of implementing the `broadcast` primitive using a
+best-effort protocol, that does not guarantee Property 2, while resorting on
+the generically called [synchronization protocols][synchronization-spec] to
+ensure Property 2 for particular subsets of messages required to get out from
+deadlocks and ensure liveness.
 
 ### Timeouts
 
@@ -725,3 +735,5 @@ to the current time plus the duration returned by the corresponding functions
 [accountable-tendermint]: ./misbehavior.md#misbehavior-detection-and-verification-in-accountable-tendermint
 [cometbft-proposer]: https://github.com/cometbft/cometbft/blob/main/spec/consensus/proposer-selection.md
 [starkware-proofs]: ../starknet/proofs-scheduling/README.md
+[synchronization-issue]: https://github.com/informalsystems/malachite/issues/260
+[synchronization-spec]: ../synchronization/README.md
