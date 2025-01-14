@@ -744,7 +744,18 @@ end-to-end communication delays `∆`, as happens in synchronous systems.
 But `∆` is not always observed by the system, which may operate asynchronously
 for an arbitrary amount of time.
 There is, however, a (possibly unknown) Global Stabilization Time (`GST`), a
-time from which the system becomes synchronous and `∆` is observed.
+time from which the system becomes synchronous and `∆` is observed for all
+messages sent by correct processes.
+
+In practical systems, `GST` is usually unknown, although it is assumed that the
+system eventually stabilizes.
+The same applies to `∆`, which however can be stipulated from the observation
+of the behavior of a particular system.
+The timeout durations should represent conservative stipulations for `∆`,
+specific for each round step.
+Since any stipulation can be wrong, the timeout durations increase over rounds,
+so that they eventually reach the actual `∆` observed in the system, when it
+stabilizes, namely, after `GST`.
 
 [^1]: This document adopts _process_ to refer to the active participants of the
   consensus algorithm, which can propose and vote for values.
