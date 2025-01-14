@@ -715,10 +715,10 @@ deadlocks and ensure liveness.
 ### Timeouts
 
 The `schedule` primitive is adopted in the pseudo-code to schedule the
-execution of `OnTimeout<Step>(height, round)` functions, where `<Step>` is one
-of `Propose`, `Prevote`, and `Precommit` (i.e., the three [round steps](#round-steps)),
-to the current time plus the duration returned by the corresponding functions
-`timeout<Step>(round)`.
+execution of `OnTimeout<Step>(height, round)` functions to after the duration
+returned by `timeout<Step>(round)`,
+where `<Step>` is one of `Propose`, `Prevote`, and `Precommit` - i.e., the
+three [round steps](#round-steps).
 
 > TODO: assumptions regarding timeouts, they should increase over time, GST, etc.
 
