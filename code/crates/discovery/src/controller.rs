@@ -140,11 +140,12 @@ impl Controller {
     }
 
     pub(crate) fn dial_is_done_on(&self, connection_data: &ConnectionData) -> bool {
-        connection_data.peer_id().map_or(false, |peer_id| {
-            self.dial.is_done_on(&PeerData::PeerId(peer_id))
-        }) || self
-            .dial
-            .is_done_on(&PeerData::Multiaddr(connection_data.multiaddr()))
+        connection_data
+            .peer_id()
+            .is_some_and(|peer_id| self.dial.is_done_on(&PeerData::PeerId(peer_id)))
+            || self
+                .dial
+                .is_done_on(&PeerData::Multiaddr(connection_data.multiaddr()))
     }
 
     pub(crate) fn dial_add_peer_id_to_connection_data(

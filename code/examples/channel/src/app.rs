@@ -2,9 +2,12 @@ use eyre::eyre;
 use tracing::{error, info};
 
 use malachitebft_app_channel::app::streaming::StreamContent;
+use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::{Round, Validity};
+use malachitebft_app_channel::app::types::sync::RawDecidedValue;
 use malachitebft_app_channel::app::types::ProposedValue;
 use malachitebft_app_channel::{AppMsg, Channels, ConsensusMsg, NetworkMsg};
+use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{Genesis, TestContext};
 
 use crate::state::{decode_value, State};
@@ -67,7 +70,7 @@ pub async fn run(
                 // we send back the very same value. We will not go into details here but this has to do
                 // with crash recovery and is not strictly necessary in this example app since all our state
                 // is kept in-memory and therefore is not crash tolerant at all.
-                if let Some(proposal) = state.get_previously_built_value(height, round) {
+                if let Some(proposal) = state.get_previously_built_value(height, round).await? {
                     info!(value = %proposal.value.id(), "Re-using previously built value");
 
                     if reply.send(proposal).is_err() {
@@ -79,7 +82,7 @@ pub async fn run(
 
                 // If we have not previously built a value for that very same height and round,
                 // we need to create a new value to propose and send it back to consensus.
-                let proposal = state.propose_value(height, round);
+                let proposal = state.propose_value(height, round).await?;
 
                 // Send it to consensus
                 if reply.send(proposal.clone()).is_err() {
@@ -116,7 +119,7 @@ pub async fn run(
 
                 info!(%from, %part.sequence, part.type = %part_type, "Received proposal part");
 
-                let proposed_value = state.received_proposal_part(from, part);
+                let proposed_value = state.received_proposal_part(from, part).await?;
 
                 if reply.send(proposed_value).is_err() {
                     error!("Failed to send ReceivedProposalPart reply");
@@ -148,7 +151,7 @@ pub async fn run(
                 );
 
                 // When that happens, we store the decided value in our store
-                state.commit(certificate);
+                state.commit(certificate).await?;
 
                 // And then we instruct consensus to start the next height
                 if reply
@@ -201,9 +204,14 @@ pub async fn run(
             // that was decided at some lower height. In that case, we fetch it from our store
             // and send it to consensus.
             AppMsg::GetDecidedValue { height, reply } => {
-                let decided_value = state.get_decided_value(&height).cloned();
+                let decided_value = state.get_decided_value(height).await;
 
-                if reply.send(decided_value).is_err() {
+                let raw_decided_value = decided_value.map(|decided_value| RawDecidedValue {
+                    certificate: decided_value.certificate,
+                    value_bytes: ProtobufCodec.encode(&decided_value.value).unwrap(), // FIXME: unwrap
+                });
+
+                if reply.send(raw_decided_value).is_err() {
                     error!("Failed to send GetDecidedValue reply");
                 }
             }
@@ -211,7 +219,9 @@ pub async fn run(
             // In order to figure out if we can help a peer that is lagging behind,
             // the engine may ask us for the height of the earliest available value in our store.
             AppMsg::GetHistoryMinHeight { reply } => {
-                if reply.send(state.get_earliest_height()).is_err() {
+                let min_height = state.get_earliest_height().await;
+
+                if reply.send(min_height).is_err() {
                     error!("Failed to send GetHistoryMinHeight reply");
                 }
             }

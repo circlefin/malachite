@@ -6,7 +6,7 @@ use ractor::{ActorRef, RpcReplyPort};
 
 use malachitebft_core_consensus::PeerId;
 use malachitebft_core_types::{CommitCertificate, Context, Round, SignedExtension, ValueId};
-use malachitebft_sync::DecidedValue;
+use malachitebft_sync::RawDecidedValue;
 
 use crate::consensus::ConsensusRef;
 use crate::util::streaming::StreamMessage;
@@ -100,7 +100,7 @@ pub enum HostMsg<Ctx: Context> {
     // Retrieve decided value from the block store
     GetDecidedValue {
         height: Ctx::Height,
-        reply_to: RpcReplyPort<Option<DecidedValue<Ctx>>>,
+        reply_to: RpcReplyPort<Option<RawDecidedValue<Ctx>>>,
     },
 
     // Process a value synced from another node via the ValueSync protocol.

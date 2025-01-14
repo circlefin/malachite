@@ -8,7 +8,7 @@ use malachitebft_core_types::{CertificateError, CommitCertificate, Context, Heig
 
 use crate::co::Co;
 use crate::{
-    perform, DecidedValue, InboundRequestId, Metrics, OutboundRequestId, PeerId, Request, State,
+    perform, InboundRequestId, Metrics, OutboundRequestId, PeerId, RawDecidedValue, Request, State,
     Status, ValueRequest, ValueResponse, VoteSetRequest, VoteSetResponse,
 };
 
@@ -71,7 +71,7 @@ pub enum Input<Ctx: Context> {
     ValueResponse(OutboundRequestId, PeerId, ValueResponse<Ctx>),
 
     /// Got a response from the application to our `GetValue` request
-    GotDecidedValue(InboundRequestId, Ctx::Height, Option<DecidedValue<Ctx>>),
+    GotDecidedValue(InboundRequestId, Ctx::Height, Option<RawDecidedValue<Ctx>>),
 
     /// A request for a value or vote set timed out
     SyncRequestTimedOut(PeerId, Request<Ctx>),
@@ -281,7 +281,7 @@ pub async fn on_value<Ctx>(
     metrics: &Metrics,
     request_id: InboundRequestId,
     height: Ctx::Height,
-    value: Option<DecidedValue<Ctx>>,
+    value: Option<RawDecidedValue<Ctx>>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,

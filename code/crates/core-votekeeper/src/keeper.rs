@@ -268,7 +268,7 @@ where
         vote_type: VoteType,
         threshold: Threshold<ValueId<Ctx>>,
     ) -> bool {
-        self.per_round.get(round).map_or(false, |per_round| {
+        self.per_round.get(round).is_some_and(|per_round| {
             per_round.votes.is_threshold_met(
                 vote_type,
                 threshold,

@@ -2,9 +2,10 @@ use malachitebft_core_types::{
     CertificateError, CommitCertificate, CommitSignature, NilOrVal, SignedProposal,
     SignedProposalPart, SignedVote, SigningProvider, VotingPower,
 };
-pub use malachitebft_signing_ed25519::*;
 
 use crate::{Proposal, ProposalPart, TestContext, Validator, Vote};
+
+pub use malachitebft_signing_ed25519::*;
 
 pub trait Hashable {
     type Output;

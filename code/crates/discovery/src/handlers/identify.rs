@@ -25,7 +25,7 @@ where
         if self
             .active_connections
             .get(&peer_id)
-            .map_or(false, |connections| connections.contains(&connection_id))
+            .is_some_and(|connections| connections.contains(&connection_id))
         {
             return;
         }
@@ -76,7 +76,7 @@ where
             if self
                 .outbound_connections
                 .get(&peer_id)
-                .map_or(false, |out_conn| out_conn.connection_id.is_none())
+                .is_some_and(|out_conn| out_conn.connection_id.is_none())
             {
                 // This case happens when the peer was selected to be part of the outbound connections
                 // but no connection was established yet. No need to trigger a connect request, it

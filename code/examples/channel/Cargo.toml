@@ -13,13 +13,17 @@ bytes.workspace = true
 color-eyre.workspace = true
 derive-where.workspace = true
 eyre.workspace = true
+prost.workspace = true
 rand.workspace = true
+redb.workspace = true
 serde_json.workspace = true
 sha3.workspace = true
-tracing.workspace = true
+thiserror.workspace = true
 tokio.workspace = true
+tracing.workspace = true
 
 malachitebft-app-channel.workspace = true
+malachitebft-proto.workspace = true
 malachitebft-test.workspace = true
 malachitebft-test-cli.workspace = true
 

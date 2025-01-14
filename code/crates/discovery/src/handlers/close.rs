@@ -34,7 +34,7 @@ where
         if self
             .active_connections
             .get(&peer_id)
-            .map_or(false, |connections| connections.contains(&connection_id))
+            .is_some_and(|connections| connections.contains(&connection_id))
         {
             if swarm.close_connection(connection_id) {
                 info!("Closing connection {connection_id} to peer {peer_id}");
@@ -70,9 +70,7 @@ where
         if self
             .outbound_connections
             .get(&peer_id)
-            .map_or(false, |out_conn| {
-                out_conn.connection_id == Some(connection_id)
-            })
+            .is_some_and(|out_conn| out_conn.connection_id == Some(connection_id))
         {
             warn!("Outbound connection {connection_id} to peer {peer_id} closed");
 
