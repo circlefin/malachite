@@ -492,10 +492,22 @@ selection algorithm becomes more challenging.
 
 ### Proposal value
 
-The external function `getValue()` is invoked by the proposer of a round as
-part of the transition to the [propose round step](#propose).
-It should return a value to be proposed by the process `p` for the current
-height of consensus `h_p`.
+The `getValue()` function  is invoked by the [proposer](#proposer-selection) of
+a round when it is free to produce a new value to be proposed, namely in the
+first round of a height or when `validValue_p = nil` (more details in the
+[Value Selection](#value-selection) section).
+
+In other words, the `getValue()` function is the way in which Tendermint
+implements the **propose** consensus primitive.
+Instead of having the context/application that uses the consensus protocol
+invoking it with a value to be proposed, when a process running Tendermint can
+propose a value, it invokes this function so that the context/application can
+provided the value to be proposed.
+
+Since only proposed values can be decided, the decision `v` of a height `h` is
+the value returned by a previous invocation of `getValue()` in a process
+running consensus height `h`.
+
 
 > TODO: synchronous/asynchronous implementations, currently discussed
 > [here](../english/consensus/README.md#asynchronous-getvalue-and-proposevaluev).
