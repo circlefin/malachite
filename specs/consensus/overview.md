@@ -504,8 +504,25 @@ invoking it with a value to be proposed, when a process running Tendermint can
 propose a value, it invokes this function so that the context/application can
 provided the value to be proposed.
 
+> Notice that this is a design concern that is encoded in Tendermint's
+> pseudo-code.
+> A priori, every process running a consensus height could provide its proposed
+> value for that height, but this approach has some disadvantages:
+> - During regular execution, typically a single or few processes are allowed
+>   to propose new values (i.e., the proposers of the first round or rounds).
+>   The values produced by most processes are therefore likely to be completely
+>   disregarded by the algorithm, which becomes particularly inefficient when
+>   producing a value to propose is expensive;
+> - Proposed values are likely to aggregate multiple inputs received from
+>   clients (e.g., transactions that form a proposed block).
+>   By providing the proposed value at the beginning of a height to a process
+>   that will only be the proposer of a high-numbered round, when this round is
+>   reached the proposal is likely to be incomplete or outdated.
+
 Since only proposed values can be decided, if `v` is decided at height `h`,
-then `v` was the value returned to a process that has invoked `getValue()`.
+then `v` was the value returned by the context/application running at a process
+`p` when in invoked, as part of a round `r` where `proposer(h, r) = p`,  the
+`getValue()` function.
 
 ### Validation
 
