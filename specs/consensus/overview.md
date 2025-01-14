@@ -504,13 +504,8 @@ invoking it with a value to be proposed, when a process running Tendermint can
 propose a value, it invokes this function so that the context/application can
 provided the value to be proposed.
 
-Since only proposed values can be decided, the decision `v` of a height `h` is
-the value returned by a previous invocation of `getValue()` in a process
-running consensus height `h`.
-
-
-> TODO: synchronous/asynchronous implementations, currently discussed
-> [here](../english/consensus/README.md#asynchronous-getvalue-and-proposevaluev).
+Since only proposed values can be decided, if `v` is decided at height `h`,
+then `v` was the value returned to a process that has invoked `getValue()`.
 
 ### Validation
 
