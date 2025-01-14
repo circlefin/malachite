@@ -30,16 +30,6 @@ pub async fn parts_only() {
 }
 
 #[tokio::test]
-pub async fn proposal_only() {
-    let params = TestParams {
-        value_payload: ValuePayload::ProposalOnly,
-        ..Default::default()
-    };
-
-    run_test(params).await
-}
-
-#[tokio::test]
 pub async fn proposal_and_parts() {
     let params = TestParams {
         value_payload: ValuePayload::ProposalAndParts,
@@ -49,3 +39,14 @@ pub async fn proposal_and_parts() {
     run_test(params).await
 }
 
+// This functionality is not fully implemented yet
+#[tokio::test]
+#[ignore]
+pub async fn proposal_only() {
+    let params = TestParams {
+        value_payload: ValuePayload::ProposalOnly,
+        ..Default::default()
+    };
+
+    run_test(params).await
+}

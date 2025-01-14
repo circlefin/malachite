@@ -89,6 +89,10 @@ pub async fn run(
                     error!("Failed to send GetValue reply");
                 }
 
+                if !state.config.consensus.value_payload.include_parts() {
+                    return Ok(());
+                }
+
                 // Now what's left to do is to break down the value to propose into parts,
                 // and send those parts over the network to our peers, for them to re-assemble the full value.
                 for stream_message in state.stream_proposal(proposal) {
@@ -231,6 +235,10 @@ pub async fn run(
                 address,
                 value_id,
             } => {
+                if !state.config.consensus.value_payload.include_parts() {
+                    return Ok(());
+                }
+
                 info!(%height, %round, %value_id, "Restreaming existing proposal...");
 
                 let Some(proposal) = state

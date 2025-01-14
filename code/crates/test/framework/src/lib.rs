@@ -545,7 +545,7 @@ async fn run_node<S>(
                 info!("Resetting database");
 
                 let db_path = home_dir.join("db");
-                remove_dir_all(&db_path).expect("Database must be removed");
+                let _ = remove_dir_all(&db_path);
                 create_dir_all(&db_path).expect("Database must be created");
             }
 

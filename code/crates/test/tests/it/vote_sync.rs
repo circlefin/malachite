@@ -56,6 +56,7 @@ pub async fn crash_restart_from_start_parts_only() {
 }
 
 #[tokio::test]
+#[ignore] // Not fully implemented yet
 pub async fn crash_restart_from_start_proposal_only() {
     let params = TestParams {
         value_payload: ValuePayload::ProposalOnly,

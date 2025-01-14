@@ -403,6 +403,22 @@ pub enum ValuePayload {
     ProposalAndParts,
 }
 
+impl ValuePayload {
+    pub fn include_parts(&self) -> bool {
+        match self {
+            Self::ProposalOnly => false,
+            Self::PartsOnly | Self::ProposalAndParts => true,
+        }
+    }
+
+    pub fn include_proposal(&self) -> bool {
+        match self {
+            Self::PartsOnly => false,
+            Self::ProposalOnly | Self::ProposalAndParts => true,
+        }
+    }
+}
+
 /// Timeouts
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TimeoutConfig {
