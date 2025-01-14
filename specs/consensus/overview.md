@@ -701,11 +701,11 @@ This property is not trivial to ensure.
 [comment]: <> (I wonder whether the next paragraph is more abou design)
 
 Fortunately, it turns out that the Gossip communication property does not need
-to be ensured for _every_ message broadcast by the algorithm.
+to be ensured for _every_ broadcast message.
 As discussed in [#260][synchronization-issue], only messages whose reception
 produce a relevant action in the consensus state-machine (in particular,
-produce a valid, locked, or decided value) of a correct process need to be
-eventually received by all correct processes.
+produce a valid, locked, or decided value) need to be eventually received by
+all correct processes.
 This opens up the possibility of implementing the `broadcast` primitive using a
 best-effort protocol, that does not guarantee Property 2, while resorting on
 the generically called [synchronization protocols][synchronization-spec] to
@@ -726,9 +726,10 @@ to the current time plus the duration returned by the corresponding functions
 > any longer observed (round or height changed, round step changed).
 
 [^1]: This document adopts _process_ to refer to the active participants of the
-  consensus algorithm, which can propose and vote for values. In the blockchain
-  terminology, a _process_ would be a _validator_. In the specification both
-  names are adopted and are equivalent.
+  consensus algorithm, which can propose and vote for values.
+  In the blockchain terminology, a _process_ would be an active _validator_.
+  In this document we prefer the first and more generic name, although in this
+  specification _validator_ is also used.
 
 [pseudo-code]: ./pseudo-code.md
 [tendermint-arxiv]: https://arxiv.org/abs/1807.04938
