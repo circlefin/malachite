@@ -199,7 +199,7 @@ where
             if signed_proposal.pol_round().is_defined() {
                 perform!(
                     co,
-                    Effect::RestreamValue(
+                    Effect::RestreamProposal(
                         signed_proposal.height(),
                         signed_proposal.round(),
                         signed_proposal.pol_round(),

@@ -226,8 +226,31 @@ pub async fn run(
                 }
             }
 
-            AppMsg::RestreamProposal { .. } => {
-                error!("RestreamProposal not implemented");
+            AppMsg::RestreamProposal {
+                height,
+                round,
+                valid_round,
+                address,
+                value_id,
+            } => {
+                info!(%height, %round, "Restreaming existing proposal...");
+
+                let Some(proposal) = state
+                    .get_proposal(height, round, valid_round, address, value_id)
+                    .await
+                else {
+                    error!(%height, %round, "Failed to find proposal to restream");
+                    return Ok(());
+                };
+
+                for stream_message in state.stream_proposal(proposal) {
+                    info!(%height, %round, "Publishing proposal part: {stream_message:?}");
+
+                    channels
+                        .network
+                        .send(NetworkMsg::PublishProposalPart(stream_message))
+                        .await?;
+                }
             }
 
             AppMsg::PeerJoined { peer_id } => {

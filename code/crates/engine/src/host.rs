@@ -58,7 +58,7 @@ pub enum HostMsg<Ctx: Context> {
         proposer: Ctx::Address,
     },
 
-    /// Request to build a local block/value from Driver
+    /// Request to build a local value to propose
     GetValue {
         height: Ctx::Height,
         round: Round,
@@ -66,8 +66,8 @@ pub enum HostMsg<Ctx: Context> {
         reply_to: RpcReplyPort<LocallyProposedValue<Ctx>>,
     },
 
-    /// Request to restream an existing block/value from Driver
-    RestreamValue {
+    /// Request to restream an existing proposal
+    RestreamProposal {
         height: Ctx::Height,
         round: Round,
         valid_round: Round,

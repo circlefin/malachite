@@ -20,6 +20,7 @@ use malachitebft_app_channel::app::types::PeerId;
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{
     Address, Height, ProposalData, ProposalFin, ProposalInit, ProposalPart, TestContext, Value,
+    ValueId,
 };
 
 use crate::store::{DecidedValue, Store};
@@ -216,6 +217,22 @@ impl State {
     fn make_value(&mut self) -> Value {
         let value = self.rng.gen_range(100..=100000);
         Value::new(value)
+    }
+
+    pub async fn get_proposal(
+        &self,
+        height: Height,
+        round: Round,
+        _valid_round: Round,
+        _proposer: Address,
+        value_id: ValueId,
+    ) -> Option<LocallyProposedValue<TestContext>> {
+        Some(LocallyProposedValue::new(
+            height,
+            round,
+            Value::new(value_id.as_u64()),
+            None,
+        ))
     }
 
     /// Creates a new proposal value for the given height

@@ -19,6 +19,7 @@ use malachitebft_app_channel::app::types::PeerId;
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{
     Address, Height, ProposalData, ProposalFin, ProposalInit, ProposalPart, TestContext, Value,
+    ValueId,
 };
 
 use crate::store::{DecidedValue, Store};
@@ -299,6 +300,22 @@ impl State {
         }
 
         parts
+    }
+
+    pub async fn get_proposal(
+        &self,
+        height: Height,
+        round: Round,
+        _valid_round: Round,
+        _proposer: Address,
+        value_id: ValueId,
+    ) -> Option<LocallyProposedValue<TestContext>> {
+        Some(LocallyProposedValue::new(
+            height,
+            round,
+            Value::new(value_id.as_u64()),
+            None,
+        ))
     }
 }
 

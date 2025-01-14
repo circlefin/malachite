@@ -904,9 +904,9 @@ where
                 Ok(r.resume_with(validator_set))
             }
 
-            Effect::RestreamValue(height, round, valid_round, address, value_id, r) => {
+            Effect::RestreamProposal(height, round, valid_round, address, value_id, r) => {
                 self.host
-                    .cast(HostMsg::RestreamValue {
+                    .cast(HostMsg::RestreamProposal {
                         height,
                         round,
                         valid_round,

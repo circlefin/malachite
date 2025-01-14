@@ -98,7 +98,7 @@ where
                 reply_to.send(rx.await?)?;
             }
 
-            HostMsg::RestreamValue {
+            HostMsg::RestreamProposal {
                 height,
                 round,
                 valid_round,
