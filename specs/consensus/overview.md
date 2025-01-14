@@ -676,14 +676,31 @@ As previously described, Byzantine processes may produce and disseminate
 equivocating [proposals](#byzantine-proposers) and [votes](#byzantine-voters).
 Namely, produce for the same round step conflicting messages `m` and `m'` and
 try to get delivered to some processes `m` and to others `m'`.
-What Property 2 above defines is that if any correct process receives and
-processes `m`, then all correct processes must eventually receive `m` as well;
+What Property 2 defines is that if any correct process receives and processes
+`m`, then all correct processes must eventually receive `m` as well;
 the same applies to the conflicting message `m'`.
 This property is not trivial to ensure.
 
-> TODO: reliable broadcast properties needed for consensus messages, and the
-> more comprehensive and strong properties required for certificates (sets of
-> 2f + 1 identical votes), and certified proposals.
+> Property 1 can be ensured in a fully-connected network, where every pair of
+> processes is connected via a reliable channel.
+> In this case, if the sender of the message is correct, then every correct
+> destination eventually receives the message.
+>
+> In the same environment, ensuring Property 2 requires correct processes to
+> relay the received messages.
+> In this way, if the sender crashes and the message is not received by some
+> correct processes, the other correct processes will relay it to them.
+> In the same way, if the sender is Byzantine and purposely does not send the
+> message to a subset of processes, the message will be relayed to them.
+>
+> The complexity added by Property 2 is the need for a protocol for reliably
+> broadcasting messages in a Byzantine setup.
+> In other words, the `broadcast` primitive cannot be just implemented by
+> sending the same message to every process.
+
+> TODO: strong Property 2 may only required for certificates (sets of 2f + 1
+> identical votes), and certified proposals.
+> See discussion in https://github.com/informalsystems/malachite/issues/260.
 
 ### Timeouts
 
