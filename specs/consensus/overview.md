@@ -482,7 +482,7 @@ liveness. (There have been cases of
 non-determinism in the application level that led to processes disagreeing on the 
 application state and thus consensus being blocked at a given height)
 
-**Remark.** We have seen slight (ab)uses of valid, that use external data. Consider he toy 
+> **Remark.** We have seen slight (ab)uses of valid, that use external data. Consider he toy 
 example of the proposer proposing the current room temperature, and the processes 
 checking in `valid` whether the temperature is within one degree of their room 
 temperature. It is easy to see that this a priori violates the points 1-3 above. 
@@ -498,7 +498,7 @@ can be ensured that if `v` is a value returned
 by the  `getValue()` function of a correct process in the current height, then
 `valid(v)` evaluates to `true`.
 
-**Remark.** Point 1 above also forbids that the current consensus round influences
+> **Remark.** Point 1 above also forbids that the current consensus round influences
 validity. For instance, one may say to get out of the liveness issue from the previous
 remark, to just find all blocks valid that have been proposed after, say, round 10. 
 Similarly, one might consider more stricter validity requirements for the proposal in
@@ -537,34 +537,11 @@ The logical implications allows to be more permissive in later versions (as requ
 fix the bug), while maintaining the need that newer versions allow to check validity
 of previously decided values.
 
-#### Backward compatibility of `valid(v, chain, height)`
+>**Remark.** A similar way to address these concerns in implementations has been discussed in the
+context of soft upgrades [here](
+https://github.com/informalsystems/malachite/issues/510#issuecomment-2589858811).
 
-As mentioned above, a typical use case is that the validity depends on the 
-state of the blockchain at a given height. In this scenario, the two requirements
-from above can be achieved without the implication:
-The idea is that if `valid` should be changed in that from height 
-`h`on, a function `new_valid` should be used to check validity, while up to height
-`h-1` the function `old_valid` has been used, then we can get something 
-along these lines:
-```
-valid(v, chain, height) = 
-  if (height >= h)
-    new_valid(v, chain, height)
-  else
-    old_valid(v, chain, height)
-```
 
-In this way, we effectively split evaluation of `valid` into different height 
-intervals. Whenever
-a new version is needed, and new interval is added on top. Moreover
-if in
-the future validity of a value is checked with a new version of `valid`, effectively
-the logic that was in place for that height is used by using the proper "if" branch. 
-This addresses Requirement 1 and 2 from above.
-
-TODO: I think in this [remark](https://github.com/informalsystems/malachite/issues/510#issuecomment-2505632410), different use cases (soft upgrades) are mixed.
-I am not sure what should
-be captured in this document.
 
 ## Primitives
 
