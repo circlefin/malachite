@@ -37,7 +37,7 @@ where
 
         return Ok(());
     }
-
+    #[cfg(feature = "metrics")]
     metrics.consensus_start();
 
     state.store_value(&ProposedValue {

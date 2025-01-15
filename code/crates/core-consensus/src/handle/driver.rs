@@ -1,3 +1,6 @@
+use malachitebft_core_driver::Input as DriverInput;
+use malachitebft_core_driver::Output as DriverOutput;
+
 use crate::handle::on_proposal;
 use crate::handle::signature::sign_proposal;
 use crate::handle::signature::sign_vote;
@@ -5,8 +8,6 @@ use crate::handle::vote::on_vote;
 use crate::prelude::*;
 use crate::types::SignedConsensusMsg;
 use crate::util::pretty::PrettyVal;
-use malachitebft_core_driver::Input as DriverInput;
-use malachitebft_core_driver::Output as DriverOutput;
 
 #[async_recursion]
 pub async fn apply_driver_input<Ctx>(
@@ -20,9 +21,11 @@ where
 {
     match &input {
         DriverInput::NewRound(height, round, proposer) => {
+            #[cfg(feature = "metrics")]
             metrics.round.set(round.as_i64());
 
             info!(%height, %round, %proposer, "Starting new round");
+
             perform!(co, Effect::CancelAllTimeouts(Default::default()));
             perform!(
                 co,
@@ -95,6 +98,7 @@ where
     // If the step has changed, update the metrics
     if prev_step != new_step {
         debug!(step.previous = ?prev_step, step.new = ?new_step, "Transitioned to new step");
+
         if let Some(valid) = &state.driver.valid_value() {
             if state.driver.step_is_propose() {
                 info!(
@@ -103,8 +107,12 @@ where
                 );
             }
         }
-        metrics.step_end(prev_step);
-        metrics.step_start(new_step);
+
+        #[cfg(feature = "metrics")]
+        {
+            metrics.step_end(prev_step);
+            metrics.step_start(new_step);
+        }
     }
 
     if prev_step != new_step {
@@ -117,6 +125,7 @@ where
                 )
             );
         }
+
         if state.driver.step_is_precommit() {
             perform!(
                 co,
@@ -133,6 +142,7 @@ where
                 )
             );
         }
+
         if state.driver.step_is_commit() {
             perform!(
                 co,
@@ -177,7 +187,6 @@ where
     match output {
         DriverOutput::NewRound(height, round) => {
             let proposer = state.get_proposer(height, round);
-
             apply_driver_input(
                 co,
                 state,
@@ -194,35 +203,38 @@ where
                 "Proposing value"
             );
 
-            let signed_proposal = sign_proposal(co, proposal).await?;
+            // Only sign and publish if we're in the validator set
+            if state.is_validator() {
+                let signed_proposal = sign_proposal(co, proposal).await?;
 
-            if signed_proposal.pol_round().is_defined() {
-                perform!(
-                    co,
-                    Effect::RestreamValue(
-                        signed_proposal.height(),
-                        signed_proposal.round(),
-                        signed_proposal.pol_round(),
-                        signed_proposal.validator_address().clone(),
-                        signed_proposal.value().id(),
-                        Default::default()
-                    )
-                );
+                if signed_proposal.pol_round().is_defined() {
+                    perform!(
+                        co,
+                        Effect::RestreamValue(
+                            signed_proposal.height(),
+                            signed_proposal.round(),
+                            signed_proposal.pol_round(),
+                            signed_proposal.validator_address().clone(),
+                            signed_proposal.value().id(),
+                            Default::default()
+                        )
+                    );
+                }
+
+                on_proposal(co, state, metrics, signed_proposal.clone()).await?;
+
+                // Proposal messages should not be broadcasted if they are implicit,
+                // instead they should be inferred from the block parts.
+                if state.params.value_payload.include_proposal() {
+                    perform!(
+                        co,
+                        Effect::Publish(
+                            SignedConsensusMsg::Proposal(signed_proposal),
+                            Default::default()
+                        )
+                    );
+                };
             }
-
-            on_proposal(co, state, metrics, signed_proposal.clone()).await?;
-
-            // Proposal messages should not be broadcasted if they are implicit,
-            // instead they should be inferred from the block parts.
-            if state.params.value_payload.include_proposal() {
-                perform!(
-                    co,
-                    Effect::Publish(
-                        SignedConsensusMsg::Proposal(signed_proposal),
-                        Default::default()
-                    )
-                );
-            };
 
             Ok(())
         }
@@ -235,15 +247,18 @@ where
                 "Voting",
             );
 
-            let extended_vote = extend_vote(vote, state);
-            let signed_vote = sign_vote(co, extended_vote).await?;
+            // Only sign and publish if we're in the validator set
+            if state.is_validator() {
+                let extended_vote = extend_vote(vote, state);
+                let signed_vote = sign_vote(co, extended_vote).await?;
 
-            on_vote(co, state, metrics, signed_vote.clone()).await?;
+                on_vote(co, state, metrics, signed_vote.clone()).await?;
 
-            perform!(
-                co,
-                Effect::Publish(SignedConsensusMsg::Vote(signed_vote), Default::default())
-            );
+                perform!(
+                    co,
+                    Effect::Publish(SignedConsensusMsg::Vote(signed_vote), Default::default())
+                );
+            }
 
             Ok(())
         }

@@ -1,0 +1,100 @@
+name: TODOs Tracking
+
+on:
+  schedule:
+    # Runs at 00:00 UTC every day
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  update-todos:
+    name: Update TODOs and FIXMEs
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+
+      - name: Generate TODOs list
+        run: python scripts/todos.py
+
+      - name: Update issue and timestamp
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const todoContent = fs.readFileSync('TODO.md', 'utf8');
+
+            // Find or create the tracking issue
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['todo-tracking'],
+              state: 'open'
+            });
+
+            let issueNumber;
+            if (issues.data.length === 0) {
+              const newIssue = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: 'code: TODOs and FIXMES',
+                body: todoContent,
+                labels: ['todo-tracking']
+              });
+              issueNumber = newIssue.data.number;
+
+              // Create initial timestamp comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: `Last updated: ${new Date().toISOString()}`
+              });
+            } else {
+              issueNumber = issues.data[0].number;
+
+              // Update issue content
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: todoContent
+              });
+
+              // Find and update the timestamp comment
+              const comments = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber
+              });
+
+              const timestampComment = comments.data.find(comment =>
+                comment.body.startsWith('Last updated:')
+              );
+
+              if (timestampComment) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: timestampComment.id,
+                  body: `Last updated: ${new Date().toISOString()}`
+                });
+              } else {
+                // Create timestamp comment if it doesn't exist
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  body: `Last updated: ${new Date().toISOString()}`
+                });
+              }
+            }
