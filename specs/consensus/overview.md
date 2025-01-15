@@ -727,7 +727,7 @@ scheduled.
 If the state has changed, the execution may not produce any action.
 
 > Implementations could cancel scheduled timeouts when the state changes and
-> the associated conditions are no longer observed.
+> the associated guard conditions are no longer observed.
 
 The `timeout<Step>(round)` functions return a duration, the minimum amount of
 time from when `schedule` was called, for the scheduled timeout.
