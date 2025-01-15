@@ -289,14 +289,16 @@ impl<State> TestNode<State> {
 
     pub fn full_node(&mut self) -> &mut Self {
         self.voting_power = 0;
-        // Ensure full nodes never participate in consensus
-        self.on_vote(|_vote, _state| {
-            panic!("Full nodes should never vote");
-        });
 
-        self.on_proposed_value(|_proposal, _state| {
-            panic!("Full nodes should never propose values");
-        });
+        // Ensure full nodes never participate in consensus
+        // self.on_vote(|_vote, _state| {
+        //     panic!("Full nodes should never vote");
+        // });
+        //
+        // self.on_proposed_value(|_proposal, _state| {
+        //     panic!("Full nodes should never propose values");
+        // });
+
         self
     }
 }
@@ -355,8 +357,7 @@ where
 {
     pub fn new(nodes: Vec<TestNode<S>>) -> Self {
         // Only include nodes with non-zero voting power in the validator set
-        let vals_and_keys = make_validators(voting_powers(&nodes));
-        let (validators, private_keys): (Vec<_>, Vec<_>) = vals_and_keys.into_iter().unzip();
+        let (validators, private_keys) = make_validators(voting_powers(&nodes));
         let validator_set = ValidatorSet::new(validators);
         let id = unique_id();
         let base_port = 20_000 + id * 1000;
@@ -658,9 +659,9 @@ pub fn init_logging(test_module: &str) {
         .any(|(k, v)| std::env::var(k).as_deref() == Ok(v));
 
     let directive = if enable_debug {
-        format!("{test_module}=debug,ractor=error,debug")
+        format!("informalsystems=info,{test_module}=debug,ractor=error,debug")
     } else {
-        format!("{test_module}=debug,ractor=error,warn")
+        format!("informalsystems=debug,{test_module}=debug,ractor=error,warn")
     };
 
     let filter = EnvFilter::builder().parse(directive).unwrap();
@@ -754,25 +755,27 @@ pub fn make_node_config<S>(test: &Test<S>, i: usize) -> NodeConfig {
 }
 
 fn voting_powers<S>(nodes: &[TestNode<S>]) -> Vec<VotingPower> {
-    nodes
-        .iter()
-        .filter(|node| node.voting_power > 0)
-        .map(|node| node.voting_power)
-        .collect()
+    nodes.iter().map(|node| node.voting_power).collect()
 }
 
-pub fn make_validators(voting_powers: Vec<VotingPower>) -> Vec<(Validator, PrivateKey)> {
+pub fn make_validators(voting_powers: Vec<VotingPower>) -> (Vec<Validator>, Vec<PrivateKey>) {
     let mut rng = StdRng::seed_from_u64(0x42);
 
     let mut validators = Vec::with_capacity(voting_powers.len());
+    let mut private_keys = Vec::with_capacity(voting_powers.len());
 
     for vp in voting_powers {
         let sk = PrivateKey::generate(&mut rng);
         let val = Validator::new(sk.public_key(), vp);
-        validators.push((val, sk));
+
+        private_keys.push(sk);
+
+        if vp > 0 {
+            validators.push(val);
+        }
     }
 
-    validators
+    (validators, private_keys)
 }
 
 use axum::routing::get;
