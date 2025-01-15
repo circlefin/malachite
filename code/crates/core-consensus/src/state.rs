@@ -220,4 +220,11 @@ where
             );
         }
     }
+
+    /// Check if we are a validator node, i.e. we are present in the current validator set.
+    pub fn is_validator(&self) -> bool {
+        self.validator_set()
+            .get_by_address(self.address())
+            .is_some()
+    }
 }

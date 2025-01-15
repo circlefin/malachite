@@ -688,8 +688,9 @@ This property is not trivial to ensure.
 >
 > In the same environment, ensuring Property 2 requires correct to relay the
 > received messages.
-> In this way, if the sender crashes and the message is not received by some
-> correct processes, the other correct processes will relay it to them.
+> In this way, if the sender crashes and the message is received by some
+> correct processes but not received by other correct processes, then the ones
+> that received the message will relay it to those that did not.
 > In the same way, if the sender is Byzantine and purposely does not send the
 > message to a subset of processes, the message will be relayed to them.
 >
@@ -697,8 +698,6 @@ This property is not trivial to ensure.
 > broadcasting messages in a Byzantine setup.
 > In other words, the `broadcast` primitive cannot be just implemented by
 > sending the same message (via "unicast") to every process.
-
-[comment]: <> (I wonder whether the next paragraph is more design related)
 
 Fortunately, it turns out that the Gossip communication property does not need
 to be ensured for _every_ broadcast message.
@@ -725,10 +724,10 @@ corresponding round step: the process votes `nil` or abandons the current round.
 These functions are guarded by conditions that verify if the state, in
 particular the round step, has not changed since when their execution was
 scheduled.
-It the state has changed, the execution may not produce any action.
+If the state has changed, the execution may not produce any action.
 
-> Implementations could cancel scheduled timeouts when the state changes and
-> the associated conditions are no longer observed.
+> Implementations could cancel scheduled timeouts when the conditions that
+> guard the scheduled functions are no longer observed.
 
 The `timeout<Step>(round)` functions return a duration, the minimum amount of
 time from when `schedule` was called, for the scheduled timeout.

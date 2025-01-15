@@ -63,12 +63,12 @@ jobs:
       - name: Generate text report
         run: cargo llvm-cov report
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: integration-coverage
           path: code/lcov-integration.info
       - name: Upload test results artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: integration-test-results
           path: code/target/nextest/default/junit.xml
@@ -108,7 +108,7 @@ jobs:
       - name: Generate text report
         run: cargo llvm-cov report
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: mbt-coverage
           path: code/lcov-mbt.info
@@ -119,15 +119,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download integration coverage
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: integration-coverage
       - name: Download MBT coverage
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: mbt-coverage
       - name: Download integration test results
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: integration-test-results
       - name: Upload integration coverage to Codecov
@@ -143,7 +143,7 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: code/lcov-mbt.info
+          files: lcov-mbt.info
           flags: mbt
           fail_ci_if_error: false
       - name: Upload test results to Codecov
