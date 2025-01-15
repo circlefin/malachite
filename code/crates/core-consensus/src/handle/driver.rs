@@ -198,34 +198,38 @@ where
                 "Proposing value"
             );
 
-            let signed_proposal = sign_proposal(co, proposal).await?;
+            // Only sign and publish if we're in the validator set
+            if state.is_validator() {
+                let signed_proposal = sign_proposal(co, proposal).await?;
 
-            if signed_proposal.pol_round().is_defined() {
-                perform!(
-                    co,
-                    Effect::RestreamValue(
-                        signed_proposal.height(),
-                        signed_proposal.round(),
-                        signed_proposal.pol_round(),
-                        signed_proposal.validator_address().clone(),
-                        signed_proposal.value().id(),
-                        Default::default()
-                    )
-                );
+                if signed_proposal.pol_round().is_defined() {
+                    perform!(
+                        co,
+                        Effect::RestreamValue(
+                            signed_proposal.height(),
+                            signed_proposal.round(),
+                            signed_proposal.pol_round(),
+                            signed_proposal.validator_address().clone(),
+                            signed_proposal.value().id(),
+                            Default::default()
+                        )
+                    );
+                }
+
+                on_proposal(co, state, metrics, signed_proposal.clone()).await?;
+
+                // Proposal messages should not be broadcasted if they are implicit,
+                // instead they should be inferred from the block parts.
+                if state.params.value_payload.include_proposal() {
+                    perform!(
+                        co,
+                        Effect::Publish(
+                            SignedConsensusMsg::Proposal(signed_proposal),
+                            Default::default()
+                        )
+                    );
+                };
             }
-            on_proposal(co, state, metrics, signed_proposal.clone()).await?;
-
-            // Proposal messages should not be broadcasted if they are implicit,
-            // instead they should be inferred from the block parts.
-            if state.params.value_payload.include_proposal() {
-                perform!(
-                    co,
-                    Effect::Publish(
-                        SignedConsensusMsg::Proposal(signed_proposal),
-                        Default::default()
-                    )
-                );
-            };
 
             Ok(())
         }
@@ -238,15 +242,18 @@ where
                 "Voting",
             );
 
-            let extended_vote = extend_vote(vote, state);
-            let signed_vote = sign_vote(co, extended_vote).await?;
+            // Only sign and publish if we're in the validator set
+            if state.is_validator() {
+                let extended_vote = extend_vote(vote, state);
+                let signed_vote = sign_vote(co, extended_vote).await?;
 
-            on_vote(co, state, metrics, signed_vote.clone()).await?;
+                on_vote(co, state, metrics, signed_vote.clone()).await?;
 
-            perform!(
-                co,
-                Effect::Publish(SignedConsensusMsg::Vote(signed_vote), Default::default())
-            );
+                perform!(
+                    co,
+                    Effect::Publish(SignedConsensusMsg::Vote(signed_vote), Default::default())
+                );
+            }
 
             Ok(())
         }

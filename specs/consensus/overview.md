@@ -229,7 +229,7 @@ thus `⟨PROPOSAL, h, r, validValue_p, validRound_p⟩`.
 
 If the proposer `p` of a round `r` of height `h` has `validValue_p = nil`, `p`
 may propose any value it wants.
-The function `getValue()` is invoked and returns a value to be proposed.
+The [function `getValue()`](#proposal-value) is invoked and returns a value to be proposed.
 The message it broadcasts when entering the `prevote` step of round `r` is
 thus `⟨PROPOSAL, h, r, getValue(), -1⟩`.
 Observe that this is always the case in round 0 and the most common case in
@@ -492,13 +492,48 @@ selection algorithm becomes more challenging.
 
 ### Proposal value
 
-The external function `getValue()` is invoked by the proposer of a round as
-part of the transition to the [propose round step](#propose).
-It should return a value to be proposed by the process `p` for the current
-height of consensus `h_p`.
+The `getValue()` function  is invoked by the [proposer](#proposer-selection) of
+a round when it is free to produce a new value to be proposed, namely in the
+first round of a height or when `validValue_p = nil` (more details in the
+[Value Selection](#value-selection) section).
 
-> TODO: synchronous/asynchronous implementations, currently discussed
-> [here](../english/consensus/README.md#asynchronous-getvalue-and-proposevaluev).
+In other words, the `getValue()` function is the way in which Tendermint
+implements the **propose** consensus primitive.
+Instead of having the context/application that uses the consensus protocol
+invoking it with a value to be proposed, when a process running Tendermint can
+propose a value, it invokes this function so that the context/application can
+provide the value to be proposed.
+
+> Notice that this is a design concern that is encoded in Tendermint's
+> pseudo-code.
+> A priori, every process running a consensus height could provide its proposed
+> value for that height, but this approach has some disadvantages:
+> - During regular execution, typically a single or few processes are allowed
+>   to propose new values (i.e., the proposers of the first round or rounds).
+>   The values produced by most processes are therefore likely to be completely
+>   disregarded by the algorithm;
+> - In some cases producing a value to propose can be really expensive.
+>   For instance, in the [Starknet Proofs Scheduling][starkware-proofs]
+>   protocol, a process `p` starts producing proofs to be included in the
+>   value proposed in a height `h` once it learns that `p = proposer(h, 0)`,
+>   as its production may may take the ordinary duration of several heights.
+>   For the same reason, values proposed in rounds greater than `0` are not
+>   expected to include proofs;
+> - Proposed values are likely to aggregate multiple inputs received from
+>   clients (e.g., transactions that form a proposed block).
+>   By providing the proposed value at the beginning of a height to a process
+>   that will only be the proposer of a high-numbered round, when this round is
+>   reached the proposal is likely to be incomplete or outdated.
+
+Since only proposed values can be decided, if `v` is decided at height `h`,
+then `v` was the value returned by the context/application running at a process
+`p` when in invoked, as part of a round `r` where `proposer(h, r) = p`,  the
+`getValue()` function.
+
+> Observe that there is no function in the pseudo-code to inform the
+> context/application about the value decided in a height of consensus.
+> As described in the [Heights section](#heights), a decided value is just
+> appended to the `decision_p` variable.
 
 ### Validation
 
@@ -606,8 +641,6 @@ of previously decided values.
 context of soft upgrades [here](
 https://github.com/informalsystems/malachite/issues/510#issuecomment-2589858811).
 
-
-
 ## Primitives
 
 The [pseudo-code][pseudo-code] of the consensus algorithm invokes some
@@ -646,3 +679,4 @@ to the current time plus the duration returned by the corresponding functions
 [tendermint-arxiv]: https://arxiv.org/abs/1807.04938
 [accountable-tendermint]: ./misbehavior.md#misbehavior-detection-and-verification-in-accountable-tendermint
 [cometbft-proposer]: https://github.com/cometbft/cometbft/blob/main/spec/consensus/proposer-selection.md
+[starkware-proofs]: ../starknet/proofs-scheduling/README.md

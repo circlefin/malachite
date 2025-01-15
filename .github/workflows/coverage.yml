@@ -25,6 +25,8 @@ jobs:
     defaults:
       run:
         working-directory: code
+    env:
+      CARGO_TERM_COLOR: always
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -57,25 +59,19 @@ jobs:
             --no-capture \
             --ignore-run-fail \
             --lcov \
-            --output-path lcov.info
+            --output-path lcov-integration.info
       - name: Generate text report
         run: cargo llvm-cov report
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        if: ${{ !cancelled() }}
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: code/lcov.info
-          flags: integration
-          fail_ci_if_error: false
-      - name: Upload test results to Codecov
-        if: ${{ !cancelled() }}
-        uses: codecov/test-results-action@v1
+          name: integration-coverage
+          path: code/lcov-integration.info
+      - name: Upload test results artifact
+        uses: actions/upload-artifact@v4
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          file: code/target/nextest/default/junit.xml
-          flags: integration
-          fail_ci_if_error: false
+          name: integration-test-results
+          path: code/target/nextest/default/junit.xml
 
   mbt:
     name: MBT
@@ -108,13 +104,53 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
-        run: cargo llvm-cov nextest -p informalsystems-malachitebft-test-mbt --all-features --lcov --output-path lcov.info
+        run: cargo llvm-cov nextest -p informalsystems-malachitebft-test-mbt --all-features --lcov --output-path lcov-mbt.info
       - name: Generate text report
         run: cargo llvm-cov report
-      - name: Upload coverage to Codecov
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mbt-coverage
+          path: code/lcov-mbt.info
+
+  upload-coverage:
+    name: Upload Coverage
+    needs: [integration, mbt]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download integration coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: integration-coverage
+      - name: Download MBT coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: mbt-coverage
+      - name: Download integration test results
+        uses: actions/download-artifact@v4
+        with:
+          name: integration-test-results
+      - name: Upload integration coverage to Codecov
         uses: codecov/codecov-action@v4
+        if: ${{ !cancelled() }}
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: code/lcov.info
+          files: lcov-integration.info
+          flags: integration
+          fail_ci_if_error: false
+      - name: Upload MBT coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: ${{ !cancelled() }}
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: lcov-mbt.info
           flags: mbt
+          fail_ci_if_error: false
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: junit.xml
+          flags: integration
           fail_ci_if_error: false

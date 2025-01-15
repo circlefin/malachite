@@ -286,6 +286,19 @@ impl<State> TestNode<State> {
         self.steps.push(Step::Success);
         self
     }
+
+    pub fn full_node(&mut self) -> &mut Self {
+        self.voting_power = 0;
+        // Ensure full nodes never participate in consensus
+        self.on_vote(|_vote, _state| {
+            panic!("Full nodes should never vote");
+        });
+
+        self.on_proposed_value(|_proposal, _state| {
+            panic!("Full nodes should never propose values");
+        });
+        self
+    }
 }
 
 fn unique_id() -> usize {
@@ -341,6 +354,7 @@ where
     S: Send + Sync + 'static,
 {
     pub fn new(nodes: Vec<TestNode<S>>) -> Self {
+        // Only include nodes with non-zero voting power in the validator set
         let vals_and_keys = make_validators(voting_powers(&nodes));
         let (validators, private_keys): (Vec<_>, Vec<_>) = vals_and_keys.into_iter().unzip();
         let validator_set = ValidatorSet::new(validators);
@@ -740,7 +754,11 @@ pub fn make_node_config<S>(test: &Test<S>, i: usize) -> NodeConfig {
 }
 
 fn voting_powers<S>(nodes: &[TestNode<S>]) -> Vec<VotingPower> {
-    nodes.iter().map(|node| node.voting_power).collect()
+    nodes
+        .iter()
+        .filter(|node| node.voting_power > 0)
+        .map(|node| node.voting_power)
+        .collect()
 }
 
 pub fn make_validators(voting_powers: Vec<VotingPower>) -> Vec<(Validator, PrivateKey)> {
