@@ -773,7 +773,7 @@ and liveness, of the Tendermint consensus algorithm.
 For a complete proof of correctness, please refer to the 
 [Tendermint paper][tendermint-arxiv].
 
-### Locking
+### Locked Value
 
 As many consensus algorithms in the literature, Tendermint adopts a locking
 mechanism to prevent the decision of different values in different rounds of
@@ -781,8 +781,8 @@ a consensus instance.
 The general approach is that a process, before issuing a vote that may lead to
 the decision of a value `v` in a round `r`, locks value `v` at the associated
 round `r`.
-Once a process locks value in a round, it rejects any value different from the
-locked one in future rounds.
+Once a process locks value in a round, it rejects any value proposed in future
+rounds that is different from its locked value.
 
 The message that may lead to the decision of a proposed value in Tendermint is
 the `PRECOMMIT` message, in the case it carries a value identifier `id(v)`.
@@ -791,11 +791,11 @@ So in the pseudo-code block starting from line 36, a process `p` in the
 its current round `round_p` _before_ signing and broadcasting a
 `⟨PRECOMMIT, h_p, round_p, id(v)⟩` message.
 
-From this point on, the process can only accept a proposed value, by
-broadcasting a `PREVOTE` for it, that matches its `lockedValue_p`.
+From this point on, the process can only accept a proposed value `v`, by
+broadcasting a `PREVOTE` for `id(v)`, if `v = lockedValue_p`.
 This logic is present in the pseudo-code blocks starting from lines 22 and 28:
-if a value not matching `lockedValue_p` is proposed, the process issues a
-`PREVOTE` for `nil`.
+if a value `v != lockedValue_p` is proposed, the process rejects it by issuing
+a `PREVOTE` for `nil`.
 
 There is, however, an exception to this rule, presented in the pseudo-code
 block starting from line 28.
@@ -806,17 +806,17 @@ The rationale is that `p` _could have_ locked and issued a `PRECOMMIT` for `v`
 in round `vr`, if `p` _had received_ the POL messages while in the `prevote`
 round step of round `vr`.
 If `p` could have locked `v` in round `vr`, then any correct process could
-have, and more recent (from high-numbered rounds) locks prevail.
+have produced the same lock.
+And more recent (from high-numbered rounds) locks prevail.
 
-> Notice that the actual condition in line 29 is `vr >= lockedRound_p`.
+> **Remark**: notice that the actual condition in line 29 is `vr >= lockedRound_p`.
 > But, as discussed in this [issue][line29-issue], if `vr = lockedRound_p` then
-> necessarily `v = lockedValue_p`.
-> Otherwise, in round `vr` two POL for distinct values were produced: one for
+> by the algorithm necessarily `v = lockedValue_p`.
+> Otherwise, in round `vr` two POLs for distinct values were produced: one for
 > `lockedValue_p`, observed by `p`, and another for `v`, observed by the
 > proposer of the current round.
 > But this would require more than one third of the voting power to be owned by
-> Byzantine processes, which is a violation of Tendermint's assumption on
-> voting power associated to Byzantine processes.
+> Byzantine processes, which is a violation of the failure model adopted by Tendermint.
 
 It is worth discussing why the above described exception for locking rule is
 needed in Tendermint.
@@ -833,9 +833,12 @@ possible to produce another lock in a round `r' > r`.
 None of the locked values can be decided, for the lack of votes, but liveness
 is under threat, as detailed in this [discussion][equivocation-discussion].
 The only way out of this _hidden locks_ scenario is when the processes locked
-in round `r` learn the POL for round `r' > r` (this should eventually happen by
-the [gossip communication property](#network)), so that they can disregard
+in round `r` learn the POL for round `r' > r`, so that they can disregard
 their own lock.
+
+### Valid Value
+
+TODO:
 
 [^1]: This document adopts _process_ to refer to the active participants of the
   consensus algorithm, which can propose and vote for values.
