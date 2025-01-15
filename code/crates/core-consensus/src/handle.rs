@@ -1,6 +1,4 @@
-use crate::prelude::*;
-#[cfg(not(feature = "std"))]
-use crate::types::Metrics;
+
 mod decide;
 mod driver;
 mod proposal;
@@ -24,11 +22,13 @@ use timeout::on_timeout_elapsed;
 use vote::on_vote;
 use vote_set::{on_vote_set_request, on_vote_set_response};
 
+use crate::prelude::*;
+
 #[allow(private_interfaces)]
 pub async fn handle<Ctx>(
     co: Co<Ctx>,
     state: &mut State<Ctx>,
-    #[allow(unused_variables)] metrics: &Metrics,
+    metrics: &Metrics,
     input: Input<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where

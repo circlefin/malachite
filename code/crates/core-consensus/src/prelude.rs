@@ -11,8 +11,8 @@ pub use crate::input::Input;
 pub use crate::perform;
 pub use crate::state::State;
 
-#[cfg(feature = "std")]
+#[cfg(feature = "metrics")]
 pub use malachitebft_metrics::Metrics;
 
-#[cfg(not(feature = "std"))]
+#[cfg(not(feature = "metrics"))]
 pub type Metrics = ();

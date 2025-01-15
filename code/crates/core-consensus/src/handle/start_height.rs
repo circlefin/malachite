@@ -15,7 +15,8 @@ where
 {
     perform!(co, Effect::CancelAllTimeouts(Default::default()));
     perform!(co, Effect::ResetTimeouts(Default::default()));
-    #[cfg(feature = "std")]
+
+    #[cfg(feature = "metrics")]
     metrics.step_end(state.driver.step());
 
     state.driver.move_to_height(height, validator_set);
@@ -37,12 +38,14 @@ where
 {
     let round = Round::new(0);
     info!(%height, "Starting new height");
-    #[cfg(feature = "std")]
+
+    #[cfg(feature = "metrics")]
     {
         metrics.block_start();
         metrics.height.set(height.as_u64() as i64);
         metrics.round.set(round.as_i64());
     }
+
     let proposer = state.get_proposer(height, round);
 
     apply_driver_input(

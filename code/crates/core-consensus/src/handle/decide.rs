@@ -1,9 +1,10 @@
 use crate::prelude::*;
 
+#[cfg_attr(not(feature = "metrics"), allow(unused_variables))]
 pub async fn decide<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    #[allow(unused_variables)] metrics: &Metrics,
+    metrics: &Metrics,
     consensus_round: Round,
     proposal: SignedProposal<Ctx>,
 ) -> Result<(), Error<Ctx>>
@@ -21,7 +22,7 @@ where
     state.remove_full_proposals(height);
 
     // Update metrics
-    #[cfg(feature = "std")]
+    #[cfg(feature = "metrics")]
     {
         // We are only interested in consensus time for round 0, ie. in the happy path.
         if consensus_round == Round::new(0) {
