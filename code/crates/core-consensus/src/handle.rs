@@ -1,4 +1,3 @@
-
 mod decide;
 mod driver;
 mod proposal;
