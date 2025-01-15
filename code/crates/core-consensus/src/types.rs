@@ -7,9 +7,7 @@ use malachitebft_core_types::{
 
 pub use malachitebft_peer::PeerId;
 pub use multiaddr::Multiaddr;
-// Dummy metrics structure
-#[cfg(not(feature = "std"))]
-pub type Metrics = ();
+
 /// A signed consensus message, ie. a signed vote or a signed proposal.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub enum SignedConsensusMsg<Ctx: Context> {

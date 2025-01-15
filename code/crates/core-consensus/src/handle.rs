@@ -24,12 +24,11 @@ use timeout::on_timeout_elapsed;
 use vote::on_vote;
 use vote_set::{on_vote_set_request, on_vote_set_response};
 
-#[allow(unused_variables)]
 #[allow(private_interfaces)]
 pub async fn handle<Ctx>(
     co: Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: &Metrics,
+    #[allow(unused_variables)] metrics: &Metrics,
     input: Input<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where

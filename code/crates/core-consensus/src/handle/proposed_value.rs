@@ -1,6 +1,4 @@
 use crate::prelude::*;
-#[cfg(not(feature = "std"))]
-use crate::types::Metrics;
 
 use crate::handle::driver::apply_driver_input;
 use crate::types::ProposedValue;

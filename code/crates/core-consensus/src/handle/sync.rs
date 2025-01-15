@@ -2,8 +2,6 @@ use crate::handle::driver::apply_driver_input;
 use crate::handle::signature::verify_certificate;
 use crate::handle::validator_set::get_validator_set;
 use crate::prelude::*;
-#[cfg(not(feature = "std"))]
-use crate::types::Metrics;
 
 pub async fn on_commit_certificate<Ctx>(
     co: &Co<Ctx>,

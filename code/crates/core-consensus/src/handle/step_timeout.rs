@@ -1,8 +1,5 @@
 use crate::prelude::*;
-#[cfg(not(feature = "std"))]
-use crate::types::Metrics;
 
-#[allow(unused_variables)]
 pub async fn on_step_limit_timeout<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,

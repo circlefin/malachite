@@ -1,12 +1,9 @@
 use crate::prelude::*;
-#[cfg(not(feature = "std"))]
-use crate::types::Metrics;
 
-#[allow(unused_variables)]
 pub async fn decide<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: &Metrics,
+    #[allow(unused_variables)] metrics: &Metrics,
     consensus_round: Round,
     proposal: SignedProposal<Ctx>,
 ) -> Result<(), Error<Ctx>>

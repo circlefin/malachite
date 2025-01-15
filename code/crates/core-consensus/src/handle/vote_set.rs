@@ -1,8 +1,6 @@
 use crate::handle::vote::on_vote;
 use crate::input::RequestId;
 use crate::prelude::*;
-#[cfg(not(feature = "std"))]
-use crate::types::Metrics;
 
 pub async fn on_vote_set_request<Ctx>(
     co: &Co<Ctx>,

@@ -1,14 +1,14 @@
+use malachitebft_core_driver::Input as DriverInput;
+use malachitebft_core_driver::Output as DriverOutput;
+
 use crate::handle::on_proposal;
 use crate::handle::signature::sign_proposal;
 use crate::handle::signature::sign_vote;
 use crate::handle::vote::on_vote;
 use crate::prelude::*;
-#[cfg(not(feature = "std"))]
-use crate::types::Metrics;
 use crate::types::SignedConsensusMsg;
 use crate::util::pretty::PrettyVal;
-use malachitebft_core_driver::Input as DriverInput;
-use malachitebft_core_driver::Output as DriverOutput;
+
 #[async_recursion]
 pub async fn apply_driver_input<Ctx>(
     co: &Co<Ctx>,
