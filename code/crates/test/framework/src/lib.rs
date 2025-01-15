@@ -282,6 +282,15 @@ impl<State> TestNode<State> {
         self.steps.push(Step::Success);
         self
     }
+
+    pub fn full_node(&mut self) -> &mut Self {
+        self.voting_power = 0;
+        self
+    }
+
+    pub fn is_full_node(&self) -> bool {
+        self.voting_power == 0
+    }
 }
 
 fn unique_id() -> usize {
@@ -478,6 +487,7 @@ async fn run_node<S>(
 
     let decisions = Arc::new(AtomicUsize::new(0));
     let current_height = Arc::new(AtomicUsize::new(0));
+    let is_full_node = node.is_full_node();
 
     let spawn_bg = |mut rx: RxEvent<TestContext>| {
         tokio::spawn({
@@ -492,6 +502,9 @@ async fn run_node<S>(
                         }
                         Event::Decided(_) => {
                             decisions.fetch_add(1, Ordering::SeqCst);
+                        }
+                        Event::Published(msg) if is_full_node => {
+                            panic!("Full nodes unexpectedly publish a consensus message: {msg:?}");
                         }
                         _ => (),
                     }

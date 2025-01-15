@@ -229,7 +229,7 @@ thus `⟨PROPOSAL, h, r, validValue_p, validRound_p⟩`.
 
 If the proposer `p` of a round `r` of height `h` has `validValue_p = nil`, `p`
 may propose any value it wants.
-The function `getValue()` is invoked and returns a value to be proposed.
+The [function `getValue()`](#proposal-value) is invoked and returns a value to be proposed.
 The message it broadcasts when entering the `prevote` step of round `r` is
 thus `⟨PROPOSAL, h, r, getValue(), -1⟩`.
 Observe that this is always the case in round 0 and the most common case in
@@ -413,42 +413,233 @@ correct behaviour provided that `p` is able to prove the existence of a
 
 The [pseudo-code][pseudo-code] of the consensus algorithm includes calls to
 functions that are not defined in the pseudo-code itself, but are assumed to be
-implemented by the processes running the consensus protocol.
+implemented by the context/application that uses the consensus protocol.
 
 ### Proposer Selection
 
-The first external function is `proposer(h, r)` that returns the process
-selected as the proposer of round `r` of height `h` of consensus. The roles of
-the proposer of a round are described in the [propose round step](#propose).
+The `proposer(h, r)` function receives a height `h >= 0` and a round `r >= 0`
+and returns the process, among the processes running height `h`, selected as
+the proposer of round `r` of height `h`.
+The role of the proposer is described in the [`propose`](#propose) round step.
 
-> The formalization of the properties requires for the proposer selection
-> algorithm is a work in progress, see
-> https://github.com/informalsystems/malachite/issues/396.
+The `proposer(h, r)` function requires the knowledge of the set of processes
+running the height `h` of consensus.
+The set of processes running a given height of consensus is fixed:
+it cannot vary over rounds.
+But different heights on consensus may be run by distinct set of processes and
+processes may have distinct associated [voting powers](#voting-power) in different heights.
+
+#### Determinism
+
+Given a consensus height `h` and the set of processes running height `h`,
+the `proposer(h, r)` function **must be deterministic**.
+This means that any two correct processes that invoke `proposer(h, r)` with the
+same inputs, including the implicit input that is the set of processes running
+consensus height `h` and associated voting powers, should receive the exactly
+same output (process).
+
+#### Correctness
+
+The main goal of the `proposer(h, r)` function is to eventually select a
+correct process to coordinate a round of consensus and to propose an
+appropriate value for it.
+A correct implementation of the function must guarantee that, for every height
+`h`, there is a round `r* >= 0` where `proposer(h, r*)` returns a process `p`
+that is a correct process: `p` does not misbehave nor crash.
+
+Fortunately, it is relatively simple to produce a correct implementation of the
+`proposer(h, r)` method: it is enough to ensure that every process running
+consensus height `h` is selected as the proposer for at least one round.
+In other words, it is enough that processes take turns as the proposers of
+different rounds of a height.
+
+#### Fairness
+
+Tendermint is a consensus algorithm that adheres to the _rotating coordinator_
+approach.
+This means that the role of coordinating rounds and proposing values is
+expected to be played by different processes over time, in successive
+heights of consensus.
+(In contrast to the _fixed coordinator_ approach, where the coordinator or
+proposer is only replaced when it is suspected to be faulty).
+
+While a correct `proposer(h, r)` implementation eventually selects every
+process as the proposer of a round of height `h`, being the proposer of the
+first round of a height is the most relevant role, since most heights of
+consensus are expected to be finalized in round 0.
+A fair proposer selection algorithm should therefore ensure that all processes
+have, over a reasonable long sequence of heights `h`, a similar chance of being
+selected as `proposer(h, 0)`, thus to propose the value that is most likely to be
+decided on that height.
+
+In the case of Proof-of-Stake (PoS) blockchains, where processes are assumed to
+have distinct voting powers, a fair proposer selection algorithm should ensure
+that every process is chosen,  over a reasonable long sequence of heights, as
+`proposer(h, 0)` in a number of heights `h` that is proportional to its voting
+power.
+Observe that when the set of processes running consensus varies over heights,
+so as the voting power associated to each process, producing a fair proposer
+selection algorithm becomes more challenging.
+
+> The [proposer selection procedure of CometBFT][cometbft-proposer], which
+> implements Tendermint in Go, is a useful reference of how a fair proposer
+> selection can be achieved with a dynamic set of processes and voting powers.
+> It is worth noting that this algorithm maintains an internal state, which is
+> updated whenever a new proposer is selected.
+> This means that reproducing the algorithm output requires, in addition to the
+> inputs mentioned in the [Determinism section](#determinism), retrieving or
+> recomputing the associated algorithm's internal state.
 
 ### Proposal value
 
-The external function `getValue()` is invoked by the proposer of a round as
-part of the transition to the [propose round step](#propose).
-It should return a value to be proposed by the process `p` for the current
-height of consensus `h_p`.
+The `getValue()` function  is invoked by the [proposer](#proposer-selection) of
+a round when it is free to produce a new value to be proposed, namely in the
+first round of a height or when `validValue_p = nil` (more details in the
+[Value Selection](#value-selection) section).
 
-> TODO: synchronous/asynchronous implementations, currently discussed
-> [here](../english/consensus/README.md#asynchronous-getvalue-and-proposevaluev).
+In other words, the `getValue()` function is the way in which Tendermint
+implements the **propose** consensus primitive.
+Instead of having the context/application that uses the consensus protocol
+invoking it with a value to be proposed, when a process running Tendermint can
+propose a value, it invokes this function so that the context/application can
+provide the value to be proposed.
+
+> Notice that this is a design concern that is encoded in Tendermint's
+> pseudo-code.
+> A priori, every process running a consensus height could provide its proposed
+> value for that height, but this approach has some disadvantages:
+> - During regular execution, typically a single or few processes are allowed
+>   to propose new values (i.e., the proposers of the first round or rounds).
+>   The values produced by most processes are therefore likely to be completely
+>   disregarded by the algorithm;
+> - In some cases producing a value to propose can be really expensive.
+>   For instance, in the [Starknet Proofs Scheduling][starkware-proofs]
+>   protocol, a process `p` starts producing proofs to be included in the
+>   value proposed in a height `h` once it learns that `p = proposer(h, 0)`,
+>   as its production may may take the ordinary duration of several heights.
+>   For the same reason, values proposed in rounds greater than `0` are not
+>   expected to include proofs;
+> - Proposed values are likely to aggregate multiple inputs received from
+>   clients (e.g., transactions that form a proposed block).
+>   By providing the proposed value at the beginning of a height to a process
+>   that will only be the proposer of a high-numbered round, when this round is
+>   reached the proposal is likely to be incomplete or outdated.
+
+Since only proposed values can be decided, if `v` is decided at height `h`,
+then `v` was the value returned by the context/application running at a process
+`p` when in invoked, as part of a round `r` where `proposer(h, r) = p`,  the
+`getValue()` function.
+
+> Observe that there is no function in the pseudo-code to inform the
+> context/application about the value decided in a height of consensus.
+> As described in the [Heights section](#heights), a decided value is just
+> appended to the `decision_p` variable.
 
 ### Validation
 
-The external function `valid(v)` is invoked by a process when it receives a
-`⟨PROPOSAL, h, r, v, *⟩` from the proposer of round `r` of height `h`.
-It should return whether the `v` is a valid value according to the semantics of 
-the "client" of the consensus protocol, i.e., the application that uses
-consensus to agree on proposed values.
+The external function `valid` is used to guard any value-specific action in 
+the algorithm. The purpose is to restrict the domain of values that consensus 
+may decide. There is the assumption that if `v` is a value returned
+by the  [`getValue()` function](#proposal-value) of a correct process in the current height, then
+`valid(v)` evaluates to `true`. Under this assumption, as long as the proposer
+is correct, `valid(v)` does not serve any purpose. It only becomes relevant if
+there is a faulty proposer; it limits "how bad" proposed values can be.
 
-> TODO: relevant observation:
-> - Validation typically depends on `h` as well, in particular on the
->   application state at blockchain height `h`. It should not ordinarily
->   depend on `r`, since the application state should not change over rounds.
-> - Determinism: is `valid(v)` a function?
-> - Needed because of validity property of consensus, defined in the paper
+The [pseudo-code][pseudo-code] uses `valid(v)`, that is, a function that
+maps a value to a boolean. Observe that this should be understood in terms
+of a mathematical (pure) function, with the following properties:
+1. the function must only depend on `v` but not on other data 
+(e.g., an application state at a given point in time, the current local time 
+or temperature).
+2. If invoked several times for the same input, the function always returns 
+the same boolean value (determinism).
+3. If invoked on different processes for the same input, the function always 
+returns the same boolean value. 
+
+The correctness of the consensus algorithm depends heavily on these points. 
+Most obviously for termination, we require that all correct processes find 
+the value proposed by a correct process valid under all circumstances, because we
+need them to accept the value. A deviation in `valid` would 
+result in some processes
+rejecting values proposed by correct processes, and consequently, there might never be enough votes to decide a value.
+
+#### Implementation
+
+Implementations of the validity check are typically not pure:
+as already mentioned in the [Tendermint paper][tendermint-arxiv], "In the context of blockchain systems, 
+for example, a value is not valid if it does not
+contain an appropriate hash of the last value (block) added to the blockchain." That is, 
+rather than `valid(v)` the implementation uses
+the state of the blockchain at a given height and a value, that is, it 
+looks something like `valid(v, chain, height)`. (In the [Tendermint paper][tendermint-arxiv],
+the data about the blockchain state, that is, past decisions etc., is captured in `decision_p`.) 
+This implies that
+a value that might be valid at blockchain height 5, might be invalid at height 6. Observe 
+that this, strictly speaking, the above defined property 1.
+However, as long as all processes agree on 
+the state of the chain up to height 5 when they 
+start consensus for height 6, this still satisfies properties 2 and 3 and it will not harm 
+liveness. (There have been cases of 
+non-determinism in the application level that led to processes disagreeing on the 
+application state and thus consensus being blocked at a given height)
+
+> **Remark.** We have seen slight (ab)uses of valid, that use external data. Consider he toy 
+example of the proposer proposing the current room temperature, and the processes 
+checking in `valid` whether the temperature is within one degree of their room 
+temperature. It is easy to see that this a priori violates the points 1-3 above. 
+One the one hand, this requires additional assumption on the environment to 
+ensure termination, on the other hand, it is impossible to check validity after 
+the fact (e.g., a late joiner cannot check validity of a value that processes have 
+decided some time ago). So this use is not encouraged, and we ignore it in the 
+remainder. However, for some applications this use case might still be beneficial: in
+this case it is important to understand that one needs to make an argument (which
+also needs to involve
+the environment) why it
+can be ensured that if `v` is a value returned
+by the  `getValue()` function of a correct process in the current height, then
+`valid(v)` evaluates to `true`.
+
+> **Remark.** Point 1 above also forbids that the current consensus round influences
+validity. For instance, one may say to get out of the liveness issue from the previous
+remark, to just find all blocks valid that have been proposed after, say, round 10. 
+Similarly, one might consider more stricter validity requirements for the proposal in
+round 0 (the lucky path), while in unlucky situations one might want to simplify 
+reaching a decision by weakening validity. In general this leads to complexity down
+the road when someone reads the decisions much later, and needs to understand the 
+different semantics of different blocks based on the decision round. We strongly
+suggest to not use round numbers in validation of values for this reason.
+
+#### Backwards compatibility
+
+**Requirement 1 (Fixing bugs).**
+There might be a bug in the implementation of `valid(v)`. Then it might be possible that due to a bug,
+`valid` returns `false` 
+for values proposed by correct processes, and we are stuck at a given height. 
+A way to get out of the 
+situation is to produce a new implementation of `valid(v)` that returns `true` for the values proposed by correct processes.
+To be prepared for such a scenario we need to allow a change in the function.
+
+**Requirement 2 (Future use).**
+If we allow changes to `valid`, we need to understand all uses of this function. Some
+synchronization protocols may use `valid(v)` for consistency checks, for instance, if a node
+fell behind, it might need to learn several past decisions. In doing so, it typically also
+uses (the current version) of `valid(v)` to check the decided values before accepting them.
+In this scenario, a value decided in the past (potentially using a now old version of 
+`valid(v)`) should be deemed valid with the current version of the function. 
+
+These two requirements lead us to the following requirement on the implementations:
+we consider a sequence of `valid_i(v)` implementations, with increasing versions `i`, 
+so that to represent multiple _backwards compatible_ implementations of the validity checks.
+Formally we require that
+`valid_i(v) == true` implies `valid_j(v) == true `, for `j > i` and every value `v`.
+
+The logical implication allows newer versions of `valid(v)` to be more permissive (as required to
+fix bugs), while ensuring that newer versions allow to check validity
+of previously decided values.
+
+>**Remark.** A similar way to address these concerns in implementations has been discussed in the
+context of soft upgrades [here](
+https://github.com/informalsystems/malachite/issues/510#issuecomment-2589858811).
 
 ## Primitives
 
@@ -487,3 +678,5 @@ to the current time plus the duration returned by the corresponding functions
 [pseudo-code]: ./pseudo-code.md
 [tendermint-arxiv]: https://arxiv.org/abs/1807.04938
 [accountable-tendermint]: ./misbehavior.md#misbehavior-detection-and-verification-in-accountable-tendermint
+[cometbft-proposer]: https://github.com/cometbft/cometbft/blob/main/spec/consensus/proposer-selection.md
+[starkware-proofs]: ../starknet/proofs-scheduling/README.md

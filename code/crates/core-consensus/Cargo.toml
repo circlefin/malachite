@@ -13,13 +13,15 @@ readme = "../../../README.md"
 all-features = true
 
 [features]
+default = ["std", "metrics"]
 std = []
+metrics = ["std", "dep:malachitebft-metrics"]
 debug = ["std", "malachitebft-core-driver/debug"]
 
 [dependencies]
 malachitebft-core-types.workspace = true
 malachitebft-core-driver.workspace = true
-malachitebft-metrics.workspace = true
+malachitebft-metrics = { workspace = true, optional = true }
 malachitebft-peer.workspace = true
 
 async-recursion = { workspace = true }
