@@ -1,5 +1,6 @@
 use crate::prelude::*;
 
+#[cfg_attr(not(feature = "metrics"), allow(unused_variables))]
 pub async fn on_step_limit_timeout<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
@@ -17,6 +18,8 @@ where
         co,
         Effect::GetVoteSet(state.driver.height(), round, Default::default())
     );
+
+    #[cfg(feature = "metrics")]
     metrics.step_timeouts.inc();
 
     if state.driver.step_is_prevote() {

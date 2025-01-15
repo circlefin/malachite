@@ -33,7 +33,6 @@ where
         return Err(Error::InvalidCertificate(certificate, e));
     }
 
-    // Go to Commit step via L49
     apply_driver_input(
         co,
         state,
