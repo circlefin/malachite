@@ -688,8 +688,9 @@ This property is not trivial to ensure.
 >
 > In the same environment, ensuring Property 2 requires correct to relay the
 > received messages.
-> In this way, if the sender crashes and the message is not received by some
-> correct processes, the other correct processes will relay it to them.
+> In this way, if the sender crashes and the message is received by some
+> correct processes but not received by other 
+> correct processes, then the ones that received the message will relay it to those who didn't.
 > In the same way, if the sender is Byzantine and purposely does not send the
 > message to a subset of processes, the message will be relayed to them.
 >
