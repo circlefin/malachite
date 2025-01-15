@@ -12,7 +12,7 @@ use crate::util::pretty::PrettyVote;
 pub async fn on_vote<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: Option<&Metrics>,
+    metrics: &Metrics,
     signed_vote: SignedVote<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where

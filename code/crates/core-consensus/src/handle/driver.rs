@@ -13,7 +13,7 @@ use malachitebft_core_driver::Output as DriverOutput;
 pub async fn apply_driver_input<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: Option<&Metrics>,
+    metrics: &Metrics,
     input: DriverInput<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
@@ -22,7 +22,7 @@ where
     match &input {
         DriverInput::NewRound(height, round, proposer) => {
             #[cfg(feature = "std")]
-            metrics.unwrap().round.set(round.as_i64());
+            metrics.round.set(round.as_i64());
 
             info!(%height, %round, %proposer, "Starting new round");
             perform!(co, Effect::CancelAllTimeouts(Default::default()));
@@ -107,8 +107,8 @@ where
         }
         #[cfg(feature = "std")]
         {
-            metrics.unwrap().step_end(prev_step);
-            metrics.unwrap().step_start(new_step);
+            metrics.step_end(prev_step);
+            metrics.step_start(new_step);
         }
     }
 
@@ -157,7 +157,7 @@ where
 async fn process_driver_outputs<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: Option<&Metrics>,
+    metrics: &Metrics,
     outputs: Vec<DriverOutput<Ctx>>,
 ) -> Result<(), Error<Ctx>>
 where
@@ -173,7 +173,7 @@ where
 async fn process_driver_output<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: Option<&Metrics>,
+    metrics: &Metrics,
     output: DriverOutput<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where

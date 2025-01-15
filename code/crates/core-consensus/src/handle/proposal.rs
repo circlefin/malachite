@@ -11,7 +11,7 @@ use crate::{prelude::*, SignedConsensusMsg};
 pub async fn on_proposal<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: Option<&Metrics>,
+    metrics: &Metrics,
     signed_proposal: SignedProposal<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where

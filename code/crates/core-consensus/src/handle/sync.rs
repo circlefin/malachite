@@ -8,7 +8,7 @@ use crate::types::Metrics;
 pub async fn on_commit_certificate<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: Option<&Metrics>,
+    metrics: &Metrics,
     certificate: CommitCertificate<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where

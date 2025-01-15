@@ -24,6 +24,7 @@ use timeout::on_timeout_elapsed;
 use vote::on_vote;
 use vote_set::{on_vote_set_request, on_vote_set_response};
 
+#[allow(unused_variables)]
 #[allow(private_interfaces)]
 pub async fn handle<Ctx>(
     co: Co<Ctx>,
@@ -34,22 +35,14 @@ pub async fn handle<Ctx>(
 where
     Ctx: Context,
 {
-    #[cfg(feature = "std")]
-    {
-        handle_input(&co, state, Some(metrics), input).await
-    }
-
-    #[cfg(not(feature = "std"))]
-    {
-        handle_input(&co, state, None, input).await
-    }
+    handle_input(&co, state, metrics, input).await
 }
 
 #[async_recursion]
 async fn handle_input<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: Option<&Metrics>,
+    metrics: &Metrics,
     input: Input<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where

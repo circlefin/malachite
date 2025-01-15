@@ -1,10 +1,12 @@
 use crate::prelude::*;
 #[cfg(not(feature = "std"))]
 use crate::types::Metrics;
+
+#[allow(unused_variables)]
 pub async fn decide<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: Option<&Metrics>,
+    metrics: &Metrics,
     consensus_round: Round,
     proposal: SignedProposal<Ctx>,
 ) -> Result<(), Error<Ctx>>
@@ -26,19 +28,17 @@ where
     {
         // We are only interested in consensus time for round 0, ie. in the happy path.
         if consensus_round == Round::new(0) {
-            metrics.unwrap().consensus_end();
+            metrics.consensus_end();
         }
 
-        metrics.unwrap().block_end();
-        metrics.unwrap().finalized_blocks.inc();
+        metrics.block_end();
+        metrics.finalized_blocks.inc();
 
         metrics
-            .unwrap()
             .consensus_round
             .observe(consensus_round.as_i64() as f64);
 
         metrics
-            .unwrap()
             .proposal_round
             .observe(proposal_round.as_i64() as f64);
     }

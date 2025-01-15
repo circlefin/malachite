@@ -8,7 +8,7 @@ use crate::types::Metrics;
 pub async fn on_timeout_elapsed<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: Option<&Metrics>,
+    metrics: &Metrics,
     timeout: Timeout,
 ) -> Result<(), Error<Ctx>>
 where

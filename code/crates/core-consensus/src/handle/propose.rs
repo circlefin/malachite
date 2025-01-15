@@ -8,7 +8,7 @@ use crate::types::{ProposedValue, ValueToPropose};
 pub async fn on_propose<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: Option<&Metrics>,
+    metrics: &Metrics,
     value: ValueToPropose<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
@@ -40,7 +40,7 @@ where
         return Ok(());
     }
     #[cfg(feature = "std")]
-    metrics.unwrap().consensus_start();
+    metrics.consensus_start();
 
     state.store_value(&ProposedValue {
         height,

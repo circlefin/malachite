@@ -7,7 +7,7 @@ use crate::types::Metrics;
 pub async fn on_vote_set_request<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    _metrics: Option<&Metrics>,
+    _metrics: &Metrics,
     request_id: RequestId,
     height: Ctx::Height,
     round: Round,
@@ -34,7 +34,7 @@ where
 pub async fn on_vote_set_response<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: Option<&Metrics>,
+    metrics: &Metrics,
     response: VoteSet<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where

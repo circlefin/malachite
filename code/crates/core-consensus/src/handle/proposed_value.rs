@@ -19,7 +19,7 @@ use super::signature::sign_proposal;
 pub async fn on_proposed_value<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: Option<&Metrics>,
+    metrics: &Metrics,
     proposed_value: ProposedValue<Ctx>,
     origin: ValueOrigin,
 ) -> Result<(), Error<Ctx>>
