@@ -72,7 +72,7 @@ def find_todos(root_dir):
 
 def generate_markdown(todos, remote_url, commit_hash):
     """Generate markdown document from found TODOs and FIXMEs."""
-    markdown = f"# TODO and FIXME Items\n\n"
+    markdown = f"# TODOs and FIXMEs\n\n"
     markdown += f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
     markdown += f"Commit: [{commit_hash[:7]}]({remote_url}/commit/{commit_hash})\n\n"
 
@@ -84,19 +84,19 @@ def generate_markdown(todos, remote_url, commit_hash):
     todos_list = [t for t in todos if t['type'] == 'TODO']
     fixmes_list = [t for t in todos if t['type'] == 'FIXME']
 
-    if todos_list:
-        markdown += "## TODOs\n\n"
-        for todo in todos_list:
-            file_link = f"{remote_url}/blob/{commit_hash}/{todo['file']}#L{todo['line_num']}"
-            markdown += f"- [{todo['file']}:{todo['line_num']}]({file_link})\n"
-            markdown += f"  ```\n  {todo['content']}\n  ```\n\n"
-
     if fixmes_list:
         markdown += "## FIXMEs\n\n"
         for fixme in fixmes_list:
             file_link = f"{remote_url}/blob/{commit_hash}/{fixme['file']}#L{fixme['line_num']}"
             markdown += f"- [{fixme['file']}:{fixme['line_num']}]({file_link})\n"
             markdown += f"  ```\n  {fixme['content']}\n  ```\n\n"
+
+    if todos_list:
+        markdown += "## TODOs\n\n"
+        for todo in todos_list:
+            file_link = f"{remote_url}/blob/{commit_hash}/{todo['file']}#L{todo['line_num']}"
+            markdown += f"- [{todo['file']}:{todo['line_num']}]({file_link})\n"
+            markdown += f"  ```\n  {todo['content']}\n  ```\n\n"
 
     return markdown
 
