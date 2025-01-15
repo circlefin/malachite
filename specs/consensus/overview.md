@@ -724,7 +724,7 @@ corresponding round step: the process votes `nil` or abandons the current round.
 These functions are guarded by conditions that verify if the state, in
 particular the round step, has not changed since when their execution was
 scheduled.
-It the state has changed, the execution may not produce any action.
+If the state has changed, the execution may not produce any action.
 
 > Implementations could cancel scheduled timeouts when the state changes and
 > the associated conditions are no longer observed.
