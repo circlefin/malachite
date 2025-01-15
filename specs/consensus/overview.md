@@ -689,8 +689,8 @@ This property is not trivial to ensure.
 > In the same environment, ensuring Property 2 requires correct to relay the
 > received messages.
 > In this way, if the sender crashes and the message is received by some
-> correct processes but not received by other 
-> correct processes, then the ones that received the message will relay it to those who didn't.
+> correct processes but not received by other correct processes, then the ones
+> that received the message will relay it to those that did not.
 > In the same way, if the sender is Byzantine and purposely does not send the
 > message to a subset of processes, the message will be relayed to them.
 >
@@ -698,8 +698,6 @@ This property is not trivial to ensure.
 > broadcasting messages in a Byzantine setup.
 > In other words, the `broadcast` primitive cannot be just implemented by
 > sending the same message (via "unicast") to every process.
-
-[comment]: <> (I wonder whether the next paragraph is more design related)
 
 Fortunately, it turns out that the Gossip communication property does not need
 to be ensured for _every_ broadcast message.
