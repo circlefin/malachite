@@ -35,14 +35,9 @@ enum State {
     Idle,
 }
 
-// TODO: The usage of `OutboundConnection` is to keep track of the persistent connection status
-// of a peer with its connection id. This is because the request-response protocol
-// does not expose the connection id of the peer we are communicating with.
-// Moreover, the connection id absence also brings an issue when upgrading a connection
-// to inbound or outbound: if a peer has multiple connections, we need to know which
-// connection to upgrade.
-// Ideally, one would need to make a PR on the rust-libp2p repository to expose the connection id
-// in the request-response protocol.
+// The usage of `OutboundConnection` is to keep track of the persistent connection status
+// of a peer with its connection id. The connection id is an option as one can try to upgrade
+// a connection that does not exist yet (hence, no connection id exists yet).
 #[derive(Debug)]
 struct OutboundConnection {
     connection_id: Option<ConnectionId>,
@@ -170,26 +165,28 @@ where
                 match event {
                     request_response::Event::Message {
                         peer,
+                        connection_id,
                         message:
                             request_response::Message::Request {
                                 request, channel, ..
                             },
                     } => match request {
                         behaviour::Request::Peers(peers) => {
-                            debug!(peer_id = %peer, "Received peers request from peer");
+                            debug!(peer_id = %peer, %connection_id, "Received peers request from peer");
 
                             self.handle_peers_request(swarm, peer, channel, peers);
                         }
 
                         behaviour::Request::Connect() => {
-                            debug!(peer_id = %peer, "Received connect request from peer");
+                            debug!(peer_id = %peer, %connection_id, "Received connect request from peer");
 
-                            self.handle_connect_request(swarm, channel, peer);
+                            self.handle_connect_request(swarm, channel, peer, connection_id);
                         }
                     },
 
                     request_response::Event::Message {
                         peer,
+                        connection_id,
                         message:
                             request_response::Message::Response {
                                 response,
@@ -198,21 +195,28 @@ where
                             },
                     } => match response {
                         behaviour::Response::Peers(peers) => {
-                            debug!(peer_id = %peer, count = peers.len(), "Received peers response from peer");
+                            debug!(peer_id = %peer, %connection_id, count = peers.len(), "Received peers response from peer");
 
                             self.handle_peers_response(swarm, request_id, peers);
                         }
 
                         behaviour::Response::Connect(accepted) => {
-                            debug!(peer_id = %peer, accepted, "Received connect response from peer");
+                            debug!(peer_id = %peer, %connection_id, accepted, "Received connect response from peer");
 
-                            self.handle_connect_response(swarm, request_id, peer, accepted);
+                            self.handle_connect_response(
+                                swarm,
+                                request_id,
+                                peer,
+                                connection_id,
+                                accepted,
+                            );
                         }
                     },
 
                     request_response::Event::OutboundFailure {
                         peer,
                         request_id,
+                        connection_id: _,
                         error,
                     } => {
                         error!("Outbound request to {peer} failed: {error}");

@@ -325,12 +325,10 @@ package = "informalsystems-malachitebft-app-channel"
 
 [dependencies.malachitebft-test]
 version = "0.0.1"
-git = "ssh://git@github.com/informalsystems/malachite.git"
 package = "informalsystems-malachitebft-test"
 
 [dependencies.malachitebft-test-cli]
 version = "0.0.1"
-git = "ssh://git@github.com/informalsystems/malachite.git"
 package = "informalsystems-malachitebft-test-cli"
 ```
 

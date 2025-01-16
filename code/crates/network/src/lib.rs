@@ -549,8 +549,19 @@ async fn handle_gossipsub_event(
                 return ControlFlow::Break(());
             }
         }
+
+        gossipsub::Event::SlowPeer {
+            peer_id,
+            failed_messages,
+        } => {
+            trace!(
+                "Slow peer detected: {peer_id}, total failed messages: {}",
+                failed_messages.total()
+            );
+        }
+
         gossipsub::Event::GossipsubNotSupported { peer_id } => {
-            trace!("Peer {peer_id} does not support GossipSub");
+            trace!("Peer does not support GossipSub: {peer_id}");
         }
     }
 
@@ -618,7 +629,7 @@ async fn handle_sync_event(
     tx_event: &mpsc::Sender<Event>,
 ) -> ControlFlow<()> {
     match event {
-        sync::Event::Message { peer, message } => {
+        sync::Event::Message { peer, message, .. } => {
             match message {
                 libp2p::request_response::Message::Request {
                     request_id,
@@ -655,32 +666,15 @@ async fn handle_sync_event(
                         });
                 }
             }
+
             ControlFlow::Continue(())
         }
 
-        sync::Event::ResponseSent { peer, request_id } => {
-            // TODO
-            let _ = (peer, request_id);
-            ControlFlow::Continue(())
-        }
+        sync::Event::ResponseSent { .. } => ControlFlow::Continue(()),
 
-        sync::Event::OutboundFailure {
-            peer,
-            request_id,
-            error,
-        } => {
-            let _ = (peer, request_id, error);
-            ControlFlow::Continue(())
-        }
+        sync::Event::OutboundFailure { .. } => ControlFlow::Continue(()),
 
-        sync::Event::InboundFailure {
-            peer,
-            request_id,
-            error,
-        } => {
-            let _ = (peer, request_id, error);
-            ControlFlow::Continue(())
-        }
+        sync::Event::InboundFailure { .. } => ControlFlow::Continue(()),
     }
 }
 

@@ -31,7 +31,7 @@ byteorder = { workspace = true }
 derive-where = { workspace = true }
 eyre = { workspace = true }
 libp2p = { workspace = true }
-ractor = { workspace = true, features = ["async-trait"] }
+ractor = { workspace = true }
 rand = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true }
