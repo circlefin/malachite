@@ -36,27 +36,13 @@ where
         };
 
         for peer_id in peers {
-            if let Some(connection_ids) = self.active_connections.get(&peer_id) {
-                if connection_ids.len() > 1 {
-                    warn!("Peer {peer_id} has more than one connection");
-                }
-                self.outbound_connections.insert(
-                    peer_id,
-                    OutboundConnection {
-                        connection_id: connection_ids.first().cloned(),
-                        is_persistent: false,
-                    },
-                );
-            } else {
-                warn!("Peer {peer_id} has no active connection");
-                self.outbound_connections.insert(
-                    peer_id,
-                    OutboundConnection {
-                        connection_id: None,
-                        is_persistent: false,
-                    },
-                );
-            }
+            self.outbound_connections.insert(
+                peer_id,
+                OutboundConnection {
+                    connection_id: None, // Will be set once the response is received
+                    is_persistent: false,
+                },
+            );
 
             self.controller
                 .connect_request
@@ -147,7 +133,7 @@ where
             self.outbound_connections.insert(
                 peer_id,
                 OutboundConnection {
-                    connection_id: Some(connection_id),
+                    connection_id: None, // Will be set once the response is received
                     is_persistent: true, // persistent connection already established
                 },
             );
@@ -170,27 +156,13 @@ where
             Selection::Exactly(peers) => {
                 if let Some(peer_id) = peers.first() {
                     info!("Trying to connect to peer {peer_id} to repair outbound connections");
-                    if let Some(connection_ids) = self.active_connections.get(peer_id) {
-                        if connection_ids.len() > 1 {
-                            warn!("Peer {peer_id} has more than one connection");
-                        }
-                        self.outbound_connections.insert(
-                            *peer_id,
-                            OutboundConnection {
-                                connection_id: connection_ids.first().cloned(),
-                                is_persistent: false,
-                            },
-                        );
-                    } else {
-                        warn!("Peer {peer_id} has no active connection");
-                        self.outbound_connections.insert(
-                            *peer_id,
-                            OutboundConnection {
-                                connection_id: None,
-                                is_persistent: false,
-                            },
-                        );
-                    }
+                    self.outbound_connections.insert(
+                        *peer_id,
+                        OutboundConnection {
+                            connection_id: None, // Will be set once the response is received
+                            is_persistent: false,
+                        },
+                    );
 
                     self.controller
                         .connect_request
