@@ -988,7 +988,23 @@ In this way, with properly configured and increasing timeouts, combined with
 the [Gossip communication property](#network), from `GST` on messages broadcast
 by correct processes are received by correct processes before the associated
 timeouts expire.
-Which is a straightforward requirement for the success of a round of consensus.
+Which is a clear requirement for the success of any round of consensus.
+
+It remains to argue that from `GST` on the Condition 2 for the proposer of a
+successful round is observed.
+In other words, it should be ensured that, from `GST` on, if any correct
+process executes pseudo-code line 36 for a round `r*`, then every correct
+process executes the same line while still in round `r*`.
+This is achieved by the means of, and it is actually the reason for which
+Tendermint has, the `timeoutPrecommit(r*)`.
+Before moving to the next round, because the current one has not succeeded,
+processes wait for a while to ensure that they have received all the `PREVOTE`
+messages from that round, broadcast or received by other correct processes.
+As a result, if a correct process has locked or updated its valid value in
+round `r*`, then every correct process will at least update its valid value in
+round `r*`.
+This enables the next correct proposer, of a round `r > r*` to fulfill
+Condition 2, thus enabling `r` to be a successful round.
 
 [^1]: This document adopts _process_ to refer to the active participants of the
   consensus algorithm, which can propose and vote for values.
