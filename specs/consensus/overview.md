@@ -851,9 +851,10 @@ There is a scenario (detailed below) where a process `p` does not lock a
 specific value `v` in a round, but the process observes that other processes
 may have locked `v` in this round.
 In this case, to ensure liveness, if the process becomes a proposer in a future
-round, , it should re-propose `v`.
+round, it should re-propose `v`.
 This is achieved by setting `validValue_p` to `v` the in the pseudo-code line
-42 then using it as the proposal value in line 16.
+42 then using it as the proposal value when it becomes the proposer of a round,
+in line 16.
 The concrete scenario is detailed as follows.
 
 A proposed value `v` becomes _globally_ valid (in opposition to the _local_
