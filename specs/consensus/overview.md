@@ -651,32 +651,132 @@ be implemented by the processes running the consensus protocol.
 
 The only network primitive adopted in the pseudo-code is the `broadcast`
 primitive, which should send a given [consensus message](#messages) to all
-processes, thus implementing a 1-to-n communication primitive.
+processes.
+But a closer look to the [Tendermint paper][tendermint-arxiv] reveals that the
+`broadcast` primitive is associated to a stronger assumption:
 
-> TODO: reliable broadcast properties needed for consensus messages, and the
-> more comprehensive and strong properties required for certificates (sets of
-> 2f + 1 identical votes), and certified proposals.
+- **Gossip communication**: If a correct process `p` sends some message `m` at
+  time `t`, all correct processes will receive `m` before `max{t, GST} + ∆`.
+  Furthermore, if a correct process `p` receives some message `m` at time `t`,
+  all correct processes will receive `m` before `max{t, GST} + ∆`.
+
+If we ignore for now (they are covered later) the timing parameters (`t`, `∆`,
+and `GST`), the assumption comprises two liveness properties:
+
+1. If a correct process sends a message, then every correct process eventually
+   delivers that message
+2. If a correct process delivers a message, then every correct process
+   eventually delivers that message
+
+Property 1 defines that the `broadcast` primitive must reliably ship messages
+among correct processes.
+Property 2, however, also affects messages potentially produced by Byzantine
+processes.
+As previously described, Byzantine processes may produce and disseminate
+equivocating [proposals](#byzantine-proposers) and [votes](#byzantine-voters).
+Namely, produce for the same round step conflicting messages `m` and `m'` and
+try to get delivered to some processes `m` and to others `m'`.
+What Property 2 defines is that if any correct process receives and processes
+`m`, then all correct processes must eventually receive `m` as well;
+the same applies to the conflicting message `m'`.
+This property is not trivial to ensure.
+
+> Property 1 can be ensured in a fully-connected network, where every pair of
+> processes is connected via a reliable channel.
+> In this case, if the sender of the message is correct, then every correct
+> destination eventually receives the message.
+>
+> In the same environment, ensuring Property 2 requires correct to relay the
+> received messages.
+> In this way, if the sender crashes and the message is received by some
+> correct processes but not received by other correct processes, then the ones
+> that received the message will relay it to those that did not.
+> In the same way, if the sender is Byzantine and purposely does not send the
+> message to a subset of processes, the message will be relayed to them.
+>
+> The complexity added by Property 2 is the need for a protocol for reliably
+> broadcasting messages in a Byzantine setup.
+> In other words, the `broadcast` primitive cannot be just implemented by
+> sending the same message (via "unicast") to every process.
+
+Fortunately, it turns out that the Gossip communication property does not need
+to be ensured for _every_ broadcast message.
+As discussed in [#260][synchronization-issue], only messages whose reception
+produce a relevant action in the consensus state-machine (in particular,
+produce a valid, locked, or decided value) need to be eventually received by
+all correct processes.
+This opens up the possibility of implementing the `broadcast` primitive using a
+best-effort protocol, that does not guarantee Property 2, while resorting on
+the generically called [synchronization protocols][synchronization-spec] to
+ensure Property 2 for particular subsets of messages required to get out from
+deadlocks and ensure liveness.
 
 ### Timeouts
 
 The `schedule` primitive is adopted in the pseudo-code to schedule the
-execution of `OnTimeout<Step>(height, round)` functions, where `<Step>` is one
-of `Propose`, `Prevote`, and `Precommit` (i.e., the three [round steps](#round-steps)),
-to the current time plus the duration returned by the corresponding functions
-`timeout<Step>(round)`.
+execution of `OnTimeout<Step>(height, round)` functions to after the duration
+returned by `timeout<Step>(round)`,
+where `<Step>` is one of `Propose`, `Prevote`, and `Precommit` - the three
+[round steps](#round-steps).
 
-> TODO: assumptions regarding timeouts, they should increase over time, GST, etc.
+The `OnTimeout<Step>` functions define the actions taken upon an unsuccessful
+corresponding round step: the process votes `nil` or abandons the current round.
+These functions are guarded by conditions that verify if the state, in
+particular the round step, has not changed since when their execution was
+scheduled.
+If the state has changed, the execution may not produce any action.
 
-> TODO: most timeouts can be cancelled when the associated conditions are not
-> any longer observed (round or height changed, round step changed).
+> Implementations could cancel scheduled timeouts when the conditions that
+> guard the scheduled functions are no longer observed.
+
+The `timeout<Step>(round)` functions return a duration, the minimum amount of
+time from when `schedule` was called, for the scheduled timeout.
+The function receives the current `round` as parameter because it is assumed
+that the **duration of timeouts should increase over rounds**.
+In other words, the implementation should ensure that
+`timeout<Step>(round + 1) > timeout<Step>(round)`.
+
+Tendermint is designed for the [partially synchronous][partially-synchronous]
+distributed system model.
+This model assumes that there is an (possibly unknown) upper-bound for the
+end-to-end communication delays `∆`, as happens in synchronous systems.
+But `∆` is not always observed by the system, which may operate asynchronously
+for an arbitrary amount of time.
+There is, however, a (possibly unknown) Global Stabilization Time (`GST`), a
+time from which the system becomes synchronous and `∆` is observed for all
+messages sent by correct processes.
+
+In practical systems, `GST` is usually unknown, although it is assumed that the
+system eventually stabilizes.
+The same applies to `∆`, which however can be stipulated from the observation
+of the behavior of a particular system.
+The timeout durations should represent safe or conservative stipulations for `∆`,
+specific for each round step.
+Since any stipulation can be wrong, the timeout durations increase over rounds,
+so that they eventually reach the actual `∆` observed in the system when it
+stabilizes - namely, after `GST`.
+
+The **Gossip communication** property presented in the [Network](#network)
+section includes, in addition to the reliable communication assumptions, the
+requirement of timely delivery of messages from `GST`.
+Namely, a message broadcast by a correct process at time `t >= GST` is received
+by every correct process by `t + ∆`.
+But observe that it also requires all correct process to receive by `GST + ∆`
+messages broadcast or received by correct processes at times `t < GST`.
+Which renders this property even more complex to achieve, since it imposes
+conditions for messages sent or received _before_ `GST`.
 
 [^1]: This document adopts _process_ to refer to the active participants of the
-  consensus algorithm, which can propose and vote for values. In the blockchain
-  terminology, a _process_ would be a _validator_. In the specification both
-  names are adopted and are equivalent.
+  consensus algorithm, which can propose and vote for values.
+  In the blockchain terminology, a _process_ would be an active _validator_.
+  In this document we prefer the first and more generic name, although in this
+  specification _validator_ is also used.
 
 [pseudo-code]: ./pseudo-code.md
 [tendermint-arxiv]: https://arxiv.org/abs/1807.04938
 [accountable-tendermint]: ./misbehavior.md#misbehavior-detection-and-verification-in-accountable-tendermint
 [cometbft-proposer]: https://github.com/cometbft/cometbft/blob/main/spec/consensus/proposer-selection.md
 [starkware-proofs]: ../starknet/proofs-scheduling/README.md
+[synchronization-issue]: https://github.com/informalsystems/malachite/issues/260
+[synchronization-spec]: ../synchronization/README.md
+[partially-synchronous]: https://dl.acm.org/doi/10.1145/42282.42283

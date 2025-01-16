@@ -170,6 +170,7 @@ where
                 match event {
                     request_response::Event::Message {
                         peer,
+                        connection_id: _,
                         message:
                             request_response::Message::Request {
                                 request, channel, ..
@@ -190,6 +191,7 @@ where
 
                     request_response::Event::Message {
                         peer,
+                        connection_id: _,
                         message:
                             request_response::Message::Response {
                                 response,
@@ -213,6 +215,7 @@ where
                     request_response::Event::OutboundFailure {
                         peer,
                         request_id,
+                        connection_id: _,
                         error,
                     } => {
                         error!("Outbound request to {peer} failed: {error}");
