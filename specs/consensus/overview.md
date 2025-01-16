@@ -845,11 +845,11 @@ and round can be updated, a process `p` sets `validValue_p` to the proposed
 value `v` and `validRound_p` to the current round `round_p`.
 But while the [locked value](#locked-value) is intended to preserve safety (two
 rounds do not decide different values), the valid value has the role of
-providing liveliness (correct processes eventually decide).
+providing liveness (correct processes eventually decide).
 
 A proposed value `v` becomes _globally_ valid (in opposition to the _local_
 validity represented by the [`valid(v)` function](#validation)) in a round `r`
-when it is accepted by an enough number of processes; they accept it by
+when it is accepted by a big enough number of processes; they accept it by
 broadcasting a `PREVOTE` for `id(v)`.
 If a process `p` observes these conditions, while still in round `r`, line 36
 of the pseudo-code is eventually triggered.
@@ -872,8 +872,8 @@ valid value and round are equal to the locked value and round.
 In scenario 3, `p` has already broadcast a `PRECOMMIT` for `nil` in round `r`;
 broadcasting a conflicting `PRECOMMIT` for `id(v)` when the conditions of
 pseudo-code line 36 are observed would constitute a misbehavior.
-In fact, because `p` has not observed the conditions of line 36 - a `PROPOSAL`
-for `v` and enough `PREVOTE`s for `id(v)` belonging to round `r = round_p` - while
+In fact, because `p` has not observed the conditions of line 36 (that is, a `PROPOSAL`
+for `v` and enough `PREVOTE`s for `id(v)` belonging to round `r = round_p`) while
 `step_p = prevote`, it has scheduled a `timeoutPrevote` (lines 34-35) that has
 eventually expired (lines 61-64), leading `p` to broadcast a `PRECOMMIT` for `nil`.
 
