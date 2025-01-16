@@ -766,6 +766,8 @@ messages broadcast or received by correct processes at times `t < GST`.
 Which renders this property even more complex to achieve, since it imposes
 conditions for messages sent or received _before_ `GST`.
 
+[comment]: <> (We should rename this section so to not conflict with the last one)
+
 ## Correctness
 
 This section presents the core principles that ensure the correctness, safety
@@ -887,6 +889,45 @@ re-propose `v`, since it has learned that `v` has become a globally valid
 value in round `r`.
 This is the reason for which pseudo-code lines 15-16 adopt `validValue_p`
 instead of `lockedValue_p`.
+
+### Safety
+
+This section argues that Tendermint is a safe consensus algorithm.
+For a complete proof, please refer to the [Tendermint paper][tendermint-arxiv].
+
+If a value `v` is decided by a correct process in round `r` of a height `h`,
+then:
+
+- the correct process has received a `⟨PROPOSAL, h, r, v, *⟩` broadcast by
+  `proposer(h, r)`;
+- the correct process has received `⟨PRECOMMIT, h, r, id(v)⟩` messages from a
+  set `Q` of processes;
+- the aggregated voting power of processes in set `Q` represents more 2/3 of
+  the total voting power in height `h`.
+
+From this initial definition, lets `C` be the subset of `Q` formed only by
+correct processes, and consider the [Locked Value](#locked-value) handling:
+
+- processes in `C` own more than 1/3 of the total voting power in height `h`;
+- every process `p` in `C` has set `lockedValue_p` to `v` and `lockedRound_p`
+  to `r` ;
+- every process `p` in `C` will broadcast a `PREVOTE` for `nil` in rounds
+  `r' > r` where a value `v' != v` is proposed.
+
+Next, lets define a `Q'` any set of processes that does not include process in
+`C`, i.e. `Q' ∩ C = ∅`:
+
+- `Q'` has less than 2/3 of the total voting power in height `h`;
+- if all processes in `Q'` broadcast a `PREVOTE` for `v' != v` in a round
+  `r' > r`, then:
+  - no correct process will lock `v'`, set `v'` as valid, or broadcast a
+    `PRECOMMIT` for `id(v')` in round `r'`;
+  - no correct process will execute pseudo-code line 28 with `vr = r'` relying
+    on the `PREVOTE` messages from process in `Q'`.
+    This is the exception on the [Locked Value](#locked-value) rules that could
+    have made processes in `C` to disregard their locks;
+- even if all processes in `Q'` broadcast a `PRECOMMIT` for `v' != v` in a
+  round `r' > r`, no correct process will decide `v'`.
 
 [^1]: This document adopts _process_ to refer to the active participants of the
   consensus algorithm, which can propose and vote for values.
