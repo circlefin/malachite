@@ -845,7 +845,7 @@ and round can be updated, a process `p` sets `validValue_p` to the proposed
 value `v` and `validRound_p` to the current round `round_p`.
 But while the [locked value](#locked-value) is intended to preserve safety (two
 rounds do not decide different values), the valid value has the role of
-providing liveliness (correct processess eventually decide).
+providing liveliness (correct processes eventually decide).
 
 A proposed value `v` becomes _globally_ valid (in opposition to the _local_
 validity represented by the [`valid(v)` function](#validation)) in a round `r`
@@ -988,7 +988,7 @@ In this way, with properly configured and increasing timeouts, combined with
 the [Gossip communication property](#network), from `GST` on messages broadcast
 by correct processes are received by correct processes before the associated
 timeouts expire.
-Which is a clear requirement for the success of any round of consensus.
+Which is a requirement for the success of any round of consensus.
 
 It remains to argue that from `GST` on the Condition 2 for the proposer of a
 successful round is observed.
