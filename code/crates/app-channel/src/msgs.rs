@@ -8,7 +8,7 @@ use tokio::sync::oneshot;
 use malachitebft_engine::consensus::Msg as ConsensusActorMsg;
 use malachitebft_engine::network::Msg as NetworkActorMsg;
 
-use crate::app::types::core::{CommitCertificate, Context, Round, ValueId};
+use crate::app::types::core::{CommitCertificate, Context, Extension, Round, ValueId};
 use crate::app::types::streaming::StreamMessage;
 use crate::app::types::sync::RawDecidedValue;
 use crate::app::types::{LocallyProposedValue, PeerId, ProposedValue};
@@ -58,6 +58,14 @@ pub enum AppMsg<Ctx: Context> {
         timeout: Duration,
         /// Channel for sending back the value just built to consensus
         reply: Reply<LocallyProposedValue<Ctx>>,
+    },
+
+    // TODO
+    ExtendVote {
+        height: Ctx::Height,
+        round: Round,
+        value_id: ValueId<Ctx>,
+        reply: Reply<Option<Extension>>,
     },
 
     /// Requests the application to re-stream a proposal that it has already seen.

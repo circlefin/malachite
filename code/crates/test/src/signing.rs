@@ -1,6 +1,6 @@
 use malachitebft_core_types::{
-    CertificateError, CommitCertificate, CommitSignature, NilOrVal, SignedProposal,
-    SignedProposalPart, SignedVote, SigningProvider, VotingPower,
+    CertificateError, CommitCertificate, CommitSignature, Extension, NilOrVal, SignedExtension,
+    SignedProposal, SignedProposalPart, SignedVote, SigningProvider, VotingPower,
 };
 
 use crate::{Proposal, ProposalPart, TestContext, Validator, Vote};
@@ -95,6 +95,22 @@ impl SigningProvider<TestContext> for Ed25519Provider {
         public_key
             .verify(&proposal_part.to_sign_bytes(), signature)
             .is_ok()
+    }
+
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn sign_vote_extension(&self, extension: Extension) -> SignedExtension<TestContext> {
+        let signature = self.private_key.sign(extension.as_bytes());
+        malachitebft_core_types::SignedMessage::new(extension, signature)
+    }
+
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn verify_signed_vote_extension(
+        &self,
+        extension: &Extension,
+        signature: &Signature,
+        public_key: &PublicKey,
+    ) -> bool {
+        public_key.verify(extension.as_bytes(), signature).is_ok()
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]

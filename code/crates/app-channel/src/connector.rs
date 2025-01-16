@@ -98,6 +98,26 @@ where
                 reply_to.send(rx.await?)?;
             }
 
+            HostMsg::ExtendVote {
+                height,
+                round,
+                value_id,
+                reply_to,
+            } => {
+                let (reply, rx) = oneshot::channel();
+
+                self.sender
+                    .send(AppMsg::ExtendVote {
+                        height,
+                        round,
+                        value_id,
+                        reply,
+                    })
+                    .await?;
+
+                reply_to.send(rx.await?)?;
+            }
+
             HostMsg::RestreamValue {
                 height,
                 round,

@@ -90,6 +90,9 @@ where
     /// Resume with: [`resume::Continue`]
     GetValue(Ctx::Height, Round, Timeout, resume::Continue),
 
+    /// TODO
+    ExtendVote(Ctx::Height, Round, ValueId<Ctx>, resume::VoteExtension),
+
     /// Requests the application to re-stream a proposal that it has already seen.
     ///
     /// The application MUST re-publish again to its pwers all
@@ -209,6 +212,9 @@ where
     /// Resume execution with the signed proposal
     SignedProposal(SignedMessage<Ctx, Ctx::Proposal>),
 
+    /// TODO
+    VoteExtension(Option<SignedExtension<Ctx>>),
+
     /// Resume execution with the result of the verification of the [`CommitCertificate`]
     CertificateValidity(Result<(), CertificateError<Ctx>>),
 }
@@ -268,6 +274,17 @@ pub mod resume {
 
         fn resume_with(self, a: Self::Value) -> Resume<Ctx> {
             Resume::SignedProposal(a)
+        }
+    }
+
+    #[derive(Debug, Default)]
+    pub struct VoteExtension;
+
+    impl<Ctx: Context> Resumable<Ctx> for VoteExtension {
+        type Value = Option<SignedExtension<Ctx>>;
+
+        fn resume_with(self, value: Self::Value) -> Resume<Ctx> {
+            Resume::VoteExtension(value)
         }
     }
 

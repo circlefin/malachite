@@ -54,6 +54,20 @@ impl<Value> NilOrVal<Value> {
     }
 }
 
+impl<Value> NilOrVal<&Value> {
+    /// Clone the underlying value
+    #[must_use = "`self` will be dropped if the result is not used"]
+    pub fn cloned(self) -> NilOrVal<Value>
+    where
+        Value: Clone,
+    {
+        match self {
+            NilOrVal::Nil => NilOrVal::Nil,
+            NilOrVal::Val(value) => NilOrVal::Val(value.clone()),
+        }
+    }
+}
+
 /// Defines the requirements for the type of value to decide on.
 pub trait Value
 where

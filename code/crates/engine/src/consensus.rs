@@ -13,8 +13,8 @@ use malachitebft_core_consensus::{
     Effect, PeerId, Resumable, Resume, SignedConsensusMsg, ValueToPropose,
 };
 use malachitebft_core_types::{
-    Context, Round, SignedExtension, SigningProvider, SigningProviderExt, Timeout, TimeoutKind,
-    ValidatorSet, ValueOrigin,
+    Context, Extension, Round, SignedExtension, SigningProvider, SigningProviderExt, Timeout,
+    TimeoutKind, ValidatorSet, ValueId, ValueOrigin,
 };
 use malachitebft_metrics::Metrics;
 use malachitebft_sync::{
@@ -709,6 +709,21 @@ where
         Ok(validator_set)
     }
 
+    async fn extend_vote(
+        &self,
+        height: Ctx::Height,
+        round: Round,
+        value_id: ValueId<Ctx>,
+    ) -> Result<Option<Extension>, ActorProcessingErr> {
+        ractor::call!(self.host, |reply_to| HostMsg::ExtendVote {
+            height,
+            round,
+            value_id,
+            reply_to
+        })
+        .map_err(|e| eyre!("Failed to get earliest block height: {e:?}").into())
+    }
+
     async fn get_history_min_height(&self) -> Result<Ctx::Height, ActorProcessingErr> {
         ractor::call!(self.host, |reply_to| HostMsg::GetHistoryMinHeight {
             reply_to
@@ -868,6 +883,16 @@ where
                 );
 
                 Ok(r.resume_with(valid))
+            }
+
+            Effect::ExtendVote(height, round, value_id, r) => {
+                if let Some(extension) = self.extend_vote(height, round, value_id).await? {
+                    let signer = self.ctx.signing_provider();
+                    let signed_extension = signer.sign_vote_extension(extension);
+                    Ok(r.resume_with(Some(signed_extension)))
+                } else {
+                    Ok(r.resume_with(None))
+                }
             }
 
             Effect::Publish(msg, r) => {

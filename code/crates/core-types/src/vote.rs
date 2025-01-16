@@ -28,6 +28,11 @@ impl Extension {
         Self { data }
     }
 
+    /// Return the extension data as a byte slice.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.data
+    }
+
     /// Get the size of the extension in bytes.
     pub fn size_bytes(&self) -> usize {
         self.data.len()

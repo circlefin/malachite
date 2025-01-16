@@ -106,6 +106,18 @@ pub async fn run(
                 // avoid blowing up the bandwidth requirements by gossiping a single huge message.
             }
 
+            AppMsg::ExtendVote {
+                height,
+                round,
+                value_id,
+                reply,
+            } => {
+                // TODO
+                if reply.send(None).is_err() {
+                    error!("Failed to send ExtendVote reply");
+                }
+            }
+
             // On the receiving end of these proposal parts (ie. when we are not the proposer),
             // we need to process these parts and re-assemble the full value.
             // To this end, we store each part that we receive and assemble the full value once we
