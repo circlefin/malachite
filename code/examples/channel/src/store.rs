@@ -1,6 +1,7 @@
 use std::ops::RangeBounds;
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Instant;
 
 use bytes::Bytes;
 use prost::Message;
@@ -85,7 +86,9 @@ impl Db {
     }
 
     fn get_decided_value(&self, height: Height) -> Result<Option<DecidedValue>, StoreError> {
+        let start = Instant::now();
         let tx = self.db.begin_read()?;
+
         let value = {
             let table = tx.open_table(DECIDED_VALUES_TABLE)?;
             let value = table.get(&height)?;
@@ -96,6 +99,7 @@ impl Db {
             let value = table.get(&height)?;
             value.and_then(|value| decode_certificate(&value.value()).ok())
         };
+        self.metrics.observe_read_time(start.elapsed());
 
         let values_bytes = value.unwrap().to_bytes()?.to_vec().len() as u64;
         let certificates_bytes = encode_certificate(&certificate.clone().unwrap())?.len() as u64;
@@ -115,6 +119,7 @@ impl Db {
     fn insert_decided_value(&self, decided_value: DecidedValue) -> Result<(), StoreError> {
         let height = decided_value.certificate.height;
         let mut write_bytes: u64 = 0;
+        let start = Instant::now();
         let tx = self.db.begin_write()?;
         {
             let mut values = tx.open_table(DECIDED_VALUES_TABLE)?;
@@ -129,7 +134,7 @@ impl Db {
             certificates.insert(height, encoded_certificate)?;
         }
         tx.commit()?;
-
+        self.metrics.observe_write_time(start.elapsed());
         self.metrics.add_write_bytes(write_bytes);
 
         Ok(())
@@ -141,23 +146,24 @@ impl Db {
         height: Height,
         round: Round,
     ) -> Result<Option<ProposedValue<TestContext>>, StoreError> {
+        let mut read_bytes: u64 = 0;
+        let start = Instant::now();
         let tx = self.db.begin_read()?;
         let table = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
 
         let value = if let Ok(Some(value)) = table.get(&(height, round)) {
-            self.metrics.add_read_bytes(value.value().len() as u64);
-
+            read_bytes += value.value().len() as u64;
             Some(
                 ProtobufCodec
                     .decode(Bytes::from(value.value()))
                     .map_err(StoreError::Protobuf)?,
             )
         } else {
-            self.metrics.add_read_bytes(0);
-
             None
         };
 
+        self.metrics.observe_read_time(start.elapsed());
+        self.metrics.add_read_bytes(read_bytes);
         self.metrics
             .add_key_read_bytes(std::mem::size_of::<(Height, Round)>() as u64);
 
@@ -170,12 +176,15 @@ impl Db {
     ) -> Result<(), StoreError> {
         let key = (proposal.height, proposal.round);
         let value = ProtobufCodec.encode(&proposal)?;
+        let start = Instant::now();
         let tx = self.db.begin_write()?;
         {
             let mut table = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
             table.insert(key, value.to_vec())?;
         }
         tx.commit()?;
+
+        self.metrics.observe_write_time(start.elapsed());
         self.metrics.add_write_bytes(value.len() as u64);
 
         Ok(())
@@ -212,6 +221,7 @@ impl Db {
     }
 
     fn prune(&self, retain_height: Height) -> Result<Vec<Height>, StoreError> {
+        let start = Instant::now();
         let tx = self.db.begin_write().unwrap();
         let pruned = {
             let mut undecided = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
@@ -231,14 +241,21 @@ impl Db {
             keys
         };
         tx.commit()?;
+        self.metrics.observe_delete_time(start.elapsed());
 
         Ok(pruned)
     }
 
     fn min_decided_value_height(&self) -> Option<Height> {
+        let start = Instant::now();
         let tx = self.db.begin_read().unwrap();
         let table = tx.open_table(DECIDED_VALUES_TABLE).unwrap();
-        let (key, _) = table.first().ok()??;
+        let (key, value) = table.first().ok()??;
+        self.metrics.observe_read_time(start.elapsed());
+        self.metrics.add_read_bytes(value.value().len() as u64);
+        self.metrics
+            .add_key_read_bytes(std::mem::size_of::<Height>() as u64);
+
         Some(key.value())
     }
 

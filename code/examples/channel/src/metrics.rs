@@ -168,17 +168,14 @@ impl DbMetrics {
         self.db_key_read_bytes.inc_by(bytes);
     }
 
-    #[allow(dead_code)]
     pub fn observe_read_time(&self, duration: Duration) {
         self.db_read_time.observe(duration.as_secs_f64());
     }
 
-    #[allow(dead_code)]
     pub fn observe_write_time(&self, duration: Duration) {
         self.db_write_time.observe(duration.as_secs_f64());
     }
 
-    #[allow(dead_code)]
     pub fn observe_delete_time(&self, duration: Duration) {
         self.db_delete_time.observe(duration.as_secs_f64());
     }
