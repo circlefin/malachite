@@ -864,16 +864,17 @@ In scenarios 1 and 2, `p` locks the proposed value `v` and therefore cannot
 accept any value different than `v` in rounds greater than `r`.
 To provide liveness, if `p` becomes the proposer of a upcoming round, it must
 re-propose the only value that it can accept, namely `v`.
-This is implemented by line 15 of the pseudo-code, in particular because in
-these scenarios, the valid value and round are equal to the locked value and round.
+This is implemented by line 15 of the pseudo-code, in particular because the
+valid value and round are equal to the locked value and round.
 
 In scenario 3, `p` has already broadcast a `PRECOMMIT` for `nil` in round `r`;
 broadcasting a conflicting `PRECOMMIT` for `id(v)` when the conditions of
 pseudo-code line 36 are observed would constitute a misbehavior.
 In fact, because `p` has not observed the conditions of line 36 (a `PROPOSAL`
-for `v` and enough `PREVOTE`s for `id(v)`) while `step_p = prevote`, it has
-scheduled a `timeoutPrevote` (lines 34-35) that has expired (lines 61-64),
-leading to the broadcast of a `PRECOMMIT` for `nil`.
+for `v` and enough `PREVOTE`s for `id(v)` in round `r = round_p`) while
+`step_p = prevote`, it has scheduled a `timeoutPrevote` (lines 34-35) that has
+eventually expired (lines 61-64), leading to the broadcast of a `PRECOMMIT` for
+`nil` and moving to `step_p = precommit`.
 
 [^1]: This document adopts _process_ to refer to the active participants of the
   consensus algorithm, which can propose and vote for values.
