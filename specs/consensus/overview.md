@@ -948,21 +948,23 @@ does not equivocate) in round `r`, including a proposed value `v` that will be
 considered valid, by the [`valid(v)` function](#validation), by every correct
 process.
 This means that any correct process `q` will only reject the proposed value `v`
-if `lockedRound_q > -1` and `lockedValue_q != v`.
+if it is locked on a different value, i.e., if `lockedRound_q > -1` and
+`lockedValue_q != v`.
 
 Condition 2 states that if there is a correct process `q` with `lockedRound_q > -1`,
 then `validRound_p >= lockedRound_q > -1` (notice that, for any process `q`,
-`validRound_q >= lockedRound_q`).
+`validRound_q >= lockedRound_q`, from the pseudo-code block starting from line 36).
 In this case, `p` re-proposes in round `r` the value `validValue_p` that has
-become a [globally valid value](#valid-value) in round `validRound_p`.
+become a [globally valid value](#valid-value) in round `vr = validRound_p`.
 This means that `p` knows `validValue_p` value and, very important, has
-received `⟨PREVOTE, h, validRound_p, id(v)⟩` messages from processes owning
-more than 2/3 of the total voting power of height `h`, in order words, the
-Proof-of-Lock (POL) for `v` in round `vr = validRound_p < r`.
+received `⟨PREVOTE, h, vr, id(v)⟩` messages from processes owning more than 2/3
+of the total voting power of height `h`, in order words, the Proof-of-Lock
+(POL) for `v` in round `vr < r`.
 
 When Conditions 1 and 2 are observed, the only possibility for a correct
-process `q` to reject `p`'s proposal is when `vr > -1` (i.e., `v` is a
-re-proposed value) but `q` has not received the POL for `v` in round `vr`.
+process `q` to reject `p`'s `PROPOSAL` message is when its field `vr > -1`
+(i.e., `v = validValue_p` is a re-proposed value) but `q` has not received the
+POL for `v` in round `vr`.
 Notice, however, that from the [Gossip communication property](#network), `q`
 should eventually receive the POL for `v` in round `vr`, since `p` is a correct
 process.
