@@ -20,6 +20,8 @@ use malachitebft_test::{Height, TestContext, Value};
 mod keys;
 use keys::{HeightKey, UndecidedValueKey};
 
+use crate::metrics::DbMetrics;
+
 #[derive(Clone, Debug)]
 pub struct DecidedValue {
     pub value: Value,
@@ -71,12 +73,14 @@ const UNDECIDED_PROPOSALS_TABLE: redb::TableDefinition<UndecidedValueKey, Vec<u8
 
 struct Db {
     db: redb::Database,
+    metrics: DbMetrics,
 }
 
 impl Db {
-    fn new(path: impl AsRef<Path>) -> Result<Self, StoreError> {
+    fn new(path: impl AsRef<Path>, metrics: DbMetrics) -> Result<Self, StoreError> {
         Ok(Self {
             db: redb::Database::create(path).map_err(StoreError::Database)?,
+            metrics,
         })
     }
 
@@ -92,6 +96,14 @@ impl Db {
             let value = table.get(&height)?;
             value.and_then(|value| decode_certificate(&value.value()).ok())
         };
+
+        let values_bytes = value.unwrap().to_bytes()?.to_vec().len() as u64;
+        let certificates_bytes = encode_certificate(&certificate.clone().unwrap())?.len() as u64;
+
+        self.metrics
+            .add_read_bytes(values_bytes + certificates_bytes);
+        self.metrics
+            .add_key_read_bytes(Height::to_bytes(&height)?.len() as u64);
 
         let decided_value = value
             .zip(certificate)
@@ -113,6 +125,11 @@ impl Db {
             certificates.insert(height, encode_certificate(&decided_value.certificate)?)?;
         }
         tx.commit()?;
+        let values_bytes = decided_value.value.to_bytes()?.to_vec().len() as u64;
+        let certificates_bytes = encode_certificate(&decided_value.certificate)?.len() as u64;
+
+        self.metrics
+            .add_write_bytes(values_bytes + certificates_bytes);
 
         Ok(())
     }
@@ -127,14 +144,21 @@ impl Db {
         let table = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
 
         let value = if let Ok(Some(value)) = table.get(&(height, round)) {
+            self.metrics.add_read_bytes(value.value().len() as u64);
+
             Some(
                 ProtobufCodec
                     .decode(Bytes::from(value.value()))
                     .map_err(StoreError::Protobuf)?,
             )
         } else {
+            self.metrics.add_read_bytes(0);
+
             None
         };
+
+        self.metrics
+            .add_key_read_bytes(std::mem::size_of::<(Height, Round)>() as u64);
 
         Ok(value)
     }
@@ -151,6 +175,8 @@ impl Db {
             table.insert(key, value.to_vec())?;
         }
         tx.commit()?;
+        self.metrics.add_write_bytes(value.len() as u64);
+
         Ok(())
     }
 
@@ -239,8 +265,8 @@ pub struct Store {
 }
 
 impl Store {
-    pub fn open(path: impl AsRef<Path>) -> Result<Self, StoreError> {
-        let db = Db::new(path)?;
+    pub fn open(path: impl AsRef<Path>, metrics: DbMetrics) -> Result<Self, StoreError> {
+        let db = Db::new(path, metrics)?;
         db.create_tables()?;
 
         Ok(Self { db: Arc::new(db) })
@@ -267,6 +293,7 @@ impl Store {
         height: Height,
     ) -> Result<Option<DecidedValue>, StoreError> {
         let db = Arc::clone(&self.db);
+
         tokio::task::spawn_blocking(move || db.get_decided_value(height)).await?
     }
 

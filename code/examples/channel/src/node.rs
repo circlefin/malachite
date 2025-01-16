@@ -4,6 +4,7 @@
 use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
+use malachitebft_app_channel::app::metrics::SharedRegistry;
 use rand::{CryptoRng, RngCore};
 
 use malachitebft_app_channel::app::types::config::Config;
@@ -18,6 +19,7 @@ use malachitebft_test::{
     Address, Genesis, Height, PrivateKey, PublicKey, TestContext, Validator, ValidatorSet,
 };
 
+use crate::metrics::DbMetrics;
 use crate::state::State;
 use crate::store::Store;
 
@@ -116,8 +118,10 @@ impl Node for App {
             initial_validator_set,
         )
         .await?;
+        let registry = SharedRegistry::global().with_moniker(self.config.moniker.as_str());
+        let metrics = DbMetrics::register(&registry);
 
-        let store = Store::open(self.get_home_dir().join("store.db"))?;
+        let store = Store::open(self.get_home_dir().join("store.db"), metrics)?;
         let start_height = self.start_height.unwrap_or_default();
         let mut state = State::new(ctx, address, start_height, store);
 
