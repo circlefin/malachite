@@ -847,6 +847,8 @@ But while the [locked value](#locked-value) is intended to preserve safety (two
 rounds do not decide different values), the valid value has the role of
 providing liveness (correct processes eventually decide).
 
+There is a scenario (which we discuss below) where a process does not lock a specific value `v` in a round, but the process observes that other processes may have locked `v` in this round. In this case, to ensure liveness, if the process becomes a proposer in the future, it should propose `v`. This is achieved by setting `validValue` in line 42 and using it to propose in line 16. But let's look at the concrete scenario:
+
 A proposed value `v` becomes _globally_ valid (in opposition to the _local_
 validity represented by the [`valid(v)` function](#validation)) in a round `r`
 when it is accepted by a big enough number of processes; they accept it by
