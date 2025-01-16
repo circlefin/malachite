@@ -929,6 +929,44 @@ Next, lets define a `Q'` any set of processes that does not include process in
 - even if all processes in `Q'` broadcast a `PRECOMMIT` for `v' != v` in a
   round `r' > r`, no correct process will decide `v'`.
 
+Thus, based on the assumption that less than 1/3 of total voting power is owned
+by Byzantine processes, and the locking rules, two correct processes cannot
+decide different values in a height of consensus.
+
+### Liveness
+
+This section argues that Tendermint is a live consensus algorithm.
+For a complete proof, please refer to the [Tendermint paper][tendermint-arxiv].
+
+The first set of conditions for the success of a round `r` depends on its proposer:
+
+1. The [`proposer(h, r)` function](#proposer-selection) returns a correct process `p`;
+2. And `validRound_p` equals the maximum `validRound_q` among every correct process `q`.
+
+A correct proposer `p` (Condition 1) broadcasts a single `PROPOSAL` message (it
+does not equivocate) in round `r`, including a proposed value `v` that will be
+considered valid, by the [`valid(v)` function](#validation), by every correct
+process.
+This means that any correct process `q` will only reject the proposed value `v`
+if `lockedRound_q > -1` and `lockedValue_q != v`.
+
+Condition 2 states that if there is a correct process `q` with `lockedRound_q > -1`,
+then `validRound_p >= lockedRound_q > -1` (notice that, for any process `q`,
+`validRound_q >= lockedRound_q`).
+In this case, `p` re-proposes in round `r` the value `validValue_p` that has
+become a [globally valid value](#valid-value) in round `validRound_p`.
+This means that `p` knows `validValue_p` value and, very important, has
+received `⟨PREVOTE, h, validRound_p, id(v)⟩` messages from processes owning
+more than 2/3 of the total voting power of height `h`, in order words, the
+Proof-of-Lock (POL) for `v` in round `vr = validRound_p < r`.
+
+When Conditions 1 and 2 are observed, the only possibility for a correct
+process `q` to reject `p`'s proposal is when `vr > -1` (i.e., `v` is a
+re-proposed value) but `q` has not received the POL for `v` in round `vr`.
+Notice, however, that from the [Gossip communication property](#network), `q`
+should eventually receive the POL for `v` in round `vr`, since `p` is a correct
+process.
+
 [^1]: This document adopts _process_ to refer to the active participants of the
   consensus algorithm, which can propose and vote for values.
   In the blockchain terminology, a _process_ would be an active _validator_.
