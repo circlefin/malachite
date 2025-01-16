@@ -770,13 +770,17 @@ conditions for messages sent or received _before_ `GST`.
 
 ## Correctness
 
-The goal of this section is to help you to convince yourself that the Tendermint consensus
-algorithm actually is doing what is supposed to do. For a complete proof of correctness, please refer to the 
-[Tendermint paper][tendermint-arxiv].
+This section argues that the Tendermint consensus algorithm is actually doing
+what is supposed to do. 
+For a complete proof of correctness, please refer to the [Tendermint
+paper][tendermint-arxiv].
 
-There are two concepts in the Tendermint algorithm that repeatedly raise questions, namely `lockedValue/lockedRound` and `validValue/validRound`. It is quite subtle how these variables
-help the algorithm to achieve its goal. We will discuss those two concepts first, before discussing
-safety and liveness of Tendermint more broadly.
+There are two concepts in Tendermint that repeatedly raise questions, namely
+the pairs `lockedValue/lockedRound` and `validValue/validRound`.
+It is quite subtle how these pairs of variables help the algorithm to achieve
+its goal.
+We discuss those two concepts first, before discussing safety and liveness of
+Tendermint more broadly.
 
 ### Locked Value
 
