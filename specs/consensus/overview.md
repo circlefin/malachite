@@ -969,6 +969,17 @@ Notice, however, that from the [Gossip communication property](#network), `q`
 should eventually receive the POL for `v` in round `vr`, since `p` is a correct
 process.
 
+The remaining liveness conditions are essentially associated to the synchronous
+behavior of the system.
+More specifically, even if Conditions 1 and 2 are observed, a round `r` may
+still _not_ succeed if:
+i. the `timeoutPropose(r)` scheduled by correct processes expires before they
+execute pseudo-code lines 22 or 28;
+ii. the `timeoutPrevote(r)` scheduled by correct processes expires before they
+execute pseudo-code line 36;
+iii. or the `timeoutPrecommit(r)` scheduled by correct processes expires before they
+execute pseudo-code line 49.
+
 [^1]: This document adopts _process_ to refer to the active participants of the
   consensus algorithm, which can propose and vote for values.
   In the blockchain terminology, a _process_ would be an active _validator_.
