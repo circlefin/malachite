@@ -980,6 +980,16 @@ execute pseudo-code line 36;
 iii. or the `timeoutPrecommit(r)` scheduled by correct processes expires before they
 execute pseudo-code line 49.
 
+As described in the [Timeouts section](#timeouts), Tendermint is designed for
+the [partially synchronous][partially-synchronous] distributed system model.
+In this model, there is a Global Stabilization Time (`GST`), from when the
+system starts behaving synchronously.
+In this way, with properly configured and increasing timeouts, combined with
+the [Gossip communication property](#network), from `GST` on messages broadcast
+by correct processes are received by correct processes before the associated
+timeouts expire.
+Which is a straightforward requirement for the success of a round of consensus.
+
 [^1]: This document adopts _process_ to refer to the active participants of the
   consensus algorithm, which can propose and vote for values.
   In the blockchain terminology, a _process_ would be an active _validator_.
