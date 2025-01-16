@@ -951,27 +951,39 @@ decide different values in a height of consensus.
 This section argues that Tendermint is a live consensus algorithm.
 For a complete proof, please refer to the [Tendermint paper][tendermint-arxiv].
 
-Tendermint is a round-based algorithm. Liveness arguments for such algorithms typically have two ingredients
-A. If there is a good round, then all processes decide before or in this round.
-B. Eventually, there will be a good round.
+Tendermint is a round-based algorithm.
+Liveness arguments for such algorithms typically have two ingredients:
+(i) if there is a good round, then all processes decide before or in this
+round; and (ii) eventually, there will be a good round.
 
-Regarding Point A, a good round is one in which
-- the proposer sends the same proposal `v` to everyone
-- all correct processes receive the proposal before the timeouts expire
-- all correct processes accept the proposal and send a `prevote` for `v`
-- all correct processes receive the prevotes from all correct processes and send precommit for that value (before the timeouts expire)
-- all correct processes receive the precommits from all correct processes (before the timeouts expire) 
+Regarding (i), a _good round_ is a round in which:
 
-In such a round, all correct processes decide in line 51.
+- the proposer sends the same proposed value `v` to all processes;
+- all correct processes receive the proposed value `v` before the timeouts expire;
+- all correct processes accept the proposed value and broadcast a `PREVOTE` for `id(v)`;
+- all correct processes receive the `PREVOTE` messages for `id(v)` from all
+  correct processes (before the timeouts expire).
+  They thus lock value `v` and broadcast a `PRECOMMIT` for `id(v)`;
+- all correct processes receive the `PRECOMMIT` messages for `id(v)` from all
+  correct processes (before the timeouts expire).
+  Since they also received the proposed value `v`, all correct processes decide
+  `v` (line 51).
 
-The challenge that remains is to prove that eventually there is such a good round. There are two crucial points
-- **Synchrony.** Messages should be delivered and timeouts should not expire 
-- **Value handling.** Correct processes need to accept `v`. The complication comes from the following features: 
-    - for accepting, processes check `v` against `lockedValue`,  
-    - the proposer might use `validValue` to choose `v`, 
-    - the evaluations of `lockedValue` and `validValue` change in a rather complicated manner at different processes in arbitrary asynchronous prefixes of the computation.
+The challenge that remains is to prove that (ii) eventually there is such a
+good round. There are two crucial points:
 
-Let's go through these points one-by-one.
+- **Synchrony.** Messages should be delivered and timeouts should not expire.
+- **Value handling.** Correct processes need to accept the proposed value `v`.
+  The complication for that are:
+    - The proposer `p` of a round might use `validValue_p` as the proposed value `v`,
+    - For accepting a proposed value `v`, a process `q` checks `v` against `lockedValue_q`,
+    - The content of the variables `lockedValue_p` and `validValue_p` change in
+      a rather complicated manner at different processes in arbitrary
+      asynchronous prefixes of the computation.
+
+In the following we first discuss these two crucial points.
+
+#### Value Handling
 
 The first set of conditions for the success of a round `r` depends on its proposer:
 
@@ -1003,6 +1015,8 @@ POL for `v` in round `vr`.
 Notice, however, that from the [Gossip communication property](#network), `q`
 should eventually receive the POL for `v` in round `vr`, since `p` is a correct
 process.
+
+#### Synchrony
 
 The remaining liveness conditions are essentially associated to the synchronous
 behavior of the system.
