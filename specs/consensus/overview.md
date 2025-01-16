@@ -806,7 +806,7 @@ The rationale is that `p` _could have_ locked and issued a `PRECOMMIT` for `v`
 in round `vr`, if `p` _had received_ the POL messages while in the `prevote`
 round step of round `vr`.
 If `p` could have locked `v` in round `vr`, then any correct process could
-have produced the same lock.
+have produced a valid lock in round `vr`.
 And more recent (from high-numbered rounds) locks prevail.
 
 > **Remark**: notice that the actual condition in line 29 is `vr >= lockedRound_p`.
@@ -816,7 +816,7 @@ And more recent (from high-numbered rounds) locks prevail.
 > `lockedValue_p`, observed by `p`, and another for `v`, observed by the
 > proposer of the current round.
 > But this would require more than one third of the voting power to be owned by
-> Byzantine processes, which is a violation of the failure model adopted by Tendermint.
+> Byzantine processes, which is a violation of Tendermint's failure model.
 
 It is worth discussing why the above described exception for locking rule is
 needed in Tendermint.
@@ -838,7 +838,13 @@ their own lock.
 
 ### Valid Value
 
-TODO:
+In the same pseudo-code block, starting from line 36, where the locked value
+and round can be updated, a process `p` sets `validValue_p` to the proposed
+value `v` and `validRound_p` to the current round `round_p`.
+But while the [locked value](#locked-value) is intended to preserve safety (two
+rounds do not decide different values), the valid value has the role of
+providing liveliness.
+
 
 [^1]: This document adopts _process_ to refer to the active participants of the
   consensus algorithm, which can propose and vote for values.
