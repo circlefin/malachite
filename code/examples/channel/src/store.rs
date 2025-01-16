@@ -103,7 +103,7 @@ impl Db {
         self.metrics
             .add_read_bytes(values_bytes + certificates_bytes);
         self.metrics
-            .add_key_read_bytes(Height::to_bytes(&height)?.len() as u64);
+            .add_key_read_bytes(std::mem::size_of::<Height>() as u64);
 
         let decided_value = value
             .zip(certificate)
@@ -114,22 +114,23 @@ impl Db {
 
     fn insert_decided_value(&self, decided_value: DecidedValue) -> Result<(), StoreError> {
         let height = decided_value.certificate.height;
-
+        let mut write_bytes: u64 = 0;
         let tx = self.db.begin_write()?;
         {
             let mut values = tx.open_table(DECIDED_VALUES_TABLE)?;
-            values.insert(height, decided_value.value.to_bytes()?.to_vec())?;
+            let values_bytes = decided_value.value.to_bytes()?.to_vec();
+            write_bytes += values_bytes.len() as u64;
+            values.insert(height, values_bytes)?;
         }
         {
             let mut certificates = tx.open_table(CERTIFICATES_TABLE)?;
-            certificates.insert(height, encode_certificate(&decided_value.certificate)?)?;
+            let encoded_certificate = encode_certificate(&decided_value.certificate)?;
+            write_bytes += encoded_certificate.len() as u64;
+            certificates.insert(height, encoded_certificate)?;
         }
         tx.commit()?;
-        let values_bytes = decided_value.value.to_bytes()?.to_vec().len() as u64;
-        let certificates_bytes = encode_certificate(&decided_value.certificate)?.len() as u64;
 
-        self.metrics
-            .add_write_bytes(values_bytes + certificates_bytes);
+        self.metrics.add_write_bytes(write_bytes);
 
         Ok(())
     }
