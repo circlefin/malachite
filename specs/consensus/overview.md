@@ -873,8 +873,19 @@ pseudo-code line 36 are observed would constitute a misbehavior.
 In fact, because `p` has not observed the conditions of line 36 (a `PROPOSAL`
 for `v` and enough `PREVOTE`s for `id(v)` in round `r = round_p`) while
 `step_p = prevote`, it has scheduled a `timeoutPrevote` (lines 34-35) that has
-eventually expired (lines 61-64), leading to the broadcast of a `PRECOMMIT` for
-`nil` and moving to `step_p = precommit`.
+eventually expired (lines 61-64), leading `p` to broadcast a `PRECOMMIT` for `nil`.
+
+> Notice that, assuming that less than 1/3 of the voting power is owned by
+> Byzantine processes, line 36 cannot be triggered by any correct process in
+> round `r` for a distinct proposed value `v' != v`.
+
+Still in scenario 3, although `p` could not lock `v` in round `r`, it realizes
+that some correct process may have done so.
+To provide liveness, if `p` becomes the proposer of a upcoming round, it should
+re-propose `v`, since it has learned that `v` has become a globally valid
+value in round `r`, therefore a potential decision value.
+This is the reason for which pseudo-code lines 15-16 adopt `validValue_p`
+instead of `lockedValue_p`.
 
 [^1]: This document adopts _process_ to refer to the active participants of the
   consensus algorithm, which can propose and vote for values.
