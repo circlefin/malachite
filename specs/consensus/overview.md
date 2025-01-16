@@ -958,11 +958,10 @@ For a complete proof, please refer to the [Tendermint paper][tendermint-arxiv].
 Tendermint is a round-based algorithm.
 Liveness arguments for such algorithms typically have two ingredients:
 
-1. If there is a good round, then all processes decide before or in this round
-   (i.e., the round is successful);
+1. If there is a good round, then all processes decide before or in this round;
 2. Eventually there will be a good round.
 
-Regarding point 1, a _good round_ is a round in which:
+Regarding ingredient 1, a _good round_ is a round in which:
 
 - the proposer sends the same proposed value `v` to all processes;
 - all correct processes receive the proposed value `v` before the timeouts expire;
@@ -975,10 +974,9 @@ Regarding point 1, a _good round_ is a round in which:
   Since they also received the proposed value `v`, all correct processes decide
   `v` (line 51).
 
-The challenge that remains is to prove the Point 2: eventually there is such a
-good round. Here, there are two crucial points:
+The challenge that remains is to exhibit the ingredient 2: eventually there is
+such a good round. Here, there are two crucial points:
 
-- **Synchrony.** Messages should be delivered and timeouts should not expire.
 - **Value handling.** Correct processes need to accept the proposed value `v`.
   The complication for that are:
     - The proposer `p` of a round might use `validValue_p` as the proposed value `v`,
@@ -986,8 +984,7 @@ good round. Here, there are two crucial points:
     - The content of the variables `lockedValue_p` and `validValue_p` change in
       a rather complicated manner at different processes in arbitrary
       asynchronous prefixes of the computation.
-
-In the following we first discuss these two crucial points.
+- **Synchrony.** Messages should be delivered and timeouts should not expire.
 
 #### Value Handling
 
