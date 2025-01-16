@@ -44,7 +44,7 @@ pub enum Effect<Ctx: Context> {
     SendValueResponse(InboundRequestId, ValueResponse<Ctx>),
 
     /// Retrieve a value from the application
-    GetValue(InboundRequestId, Ctx::Height),
+    GetDecidedValue(InboundRequestId, Ctx::Height),
 
     /// Send a VoteSet request to a peer
     SendVoteSetRequest(PeerId, VoteSetRequest<Ctx>),
@@ -212,7 +212,7 @@ where
 
     metrics.decided_value_request_received(request.height.as_u64());
 
-    perform!(co, Effect::GetValue(request_id, request.height));
+    perform!(co, Effect::GetDecidedValue(request_id, request.height));
 
     Ok(())
 }

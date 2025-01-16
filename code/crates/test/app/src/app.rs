@@ -203,6 +203,8 @@ pub async fn run(
                     extension: None,
                 };
 
+                state.store_synced_value(proposal.clone()).await?;
+
                 if reply.send(proposal).is_err() {
                     error!("Failed to send ProcessSyncedValue reply");
                 }
@@ -214,7 +216,10 @@ pub async fn run(
             // that was decided at some lower height. In that case, we fetch it from our store
             // and send it to consensus.
             AppMsg::GetDecidedValue { height, reply } => {
+                info!(%height, "Received sync request for decided value");
+
                 let decided_value = state.get_decided_value(height).await;
+                info!(%height, "Found decided value: {decided_value:?}");
 
                 let raw_decided_value = decided_value.map(|decided_value| RawDecidedValue {
                     certificate: decided_value.certificate,

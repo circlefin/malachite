@@ -26,6 +26,9 @@ use malachitebft_test::{
 use crate::store::{DecidedValue, Store};
 use crate::streaming::{PartStreamsMap, ProposalParts};
 
+/// Number of historical values to keep in the store
+const HISTORY_LENGTH: u64 = 100;
+
 /// Represents the internal state of the application node
 /// Contains information about current height, round, proposals and blocks
 pub struct State {
@@ -151,14 +154,22 @@ impl State {
             .store_decided_value(&certificate, proposal.value)
             .await?;
 
-        // Prune the store, keep the last 5 heights
-        let retain_height = Height::new(certificate.height.as_u64().saturating_sub(5));
+        // Prune the store, keep the last HISTORY_LENGTH values
+        let retain_height = Height::new(certificate.height.as_u64().saturating_sub(HISTORY_LENGTH));
         self.store.prune(retain_height).await?;
 
         // Move to next height
         self.current_height = self.current_height.increment();
         self.current_round = Round::new(0);
 
+        Ok(())
+    }
+
+    pub async fn store_synced_value(
+        &mut self,
+        proposal: ProposedValue<TestContext>,
+    ) -> eyre::Result<()> {
+        self.store.store_undecided_proposal(proposal).await?;
         Ok(())
     }
 
