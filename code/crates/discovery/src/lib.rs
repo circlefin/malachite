@@ -36,7 +36,7 @@ enum State {
 }
 
 // The usage of `OutboundConnection` is to keep track of the persistent connection status
-// of a peer with its connection id. The connection id is an option as one may try to upgrade
+// of a peer with its connection id. The connection id is an option as one can try to upgrade
 // a connection that does not exist yet (hence, no connection id exists yet).
 #[derive(Debug)]
 struct OutboundConnection {
