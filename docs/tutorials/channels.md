@@ -3,42 +3,45 @@
 <!-- TOC start (generated with https://github.com/derlin/bitdowntoc) -->
 
 ## Table of contents
+
 - [Introduction](#introduction)
 - [Naming](#naming)
 - [Prerequisites](#prerequisites)
 - [Concepts](#concepts)
-   * [The `malachitebft-app-channel` crate](#the-malachitebft-app-channel-crate)
-   * [The `Context` trait](#the-context-trait)
-   * [Consensus types](#consensus-types)
-   * [The `Codec` trait](#the-codec-trait)
-   * [The `Node` trait](#the-node-trait)
-   * [Messages from consensus to the application](#messages-from-consensus-to-the-application)
-   * [Application state](#application-state)
+  - [The `malachitebft-app-channel` crate](#the-malachitebft-app-channel-crate)
+  - [The `Context` trait](#the-context-trait)
+  - [Consensus types](#consensus-types)
+  - [The `Codec` trait](#the-codec-trait)
+  - [The `Node` trait](#the-node-trait)
+  - [Messages from consensus to the application](#messages-from-consensus-to-the-application)
+  - [Application state](#application-state)
 - [Putting it all together](#putting-it-all-together)
-   * [Create a new Rust project](#create-a-new-rust-project)
-   * [Application state](#application-state-1)
-   * [Handle consensus messages](#handle-consensus-messages)
-   * [The consensus dialog](#the-consensus-dialog)
-   * [Command-line interface](#command-line-interface)
-   * [Logging](#logging)
-   * [Creating an instance of the `Node` trait](#creating-an-instance-of-the-node-trait)
-   * [Starting our application from `main`](#starting-our-application-from-main)
+  - [Create a new Rust project](#create-a-new-rust-project)
+  - [Application state](#application-state-1)
+  - [Handle consensus messages](#handle-consensus-messages)
+  - [The consensus dialog](#the-consensus-dialog)
+  - [Command-line interface](#command-line-interface)
+  - [Logging](#logging)
+  - [Creating an instance of the `Node` trait](#creating-an-instance-of-the-node-trait)
+  - [Starting our application from `main`](#starting-our-application-from-main)
 - [Run a local testnet](#run-a-local-testnet)
 
 <!-- TOC end -->
 
-
 ## Introduction
+
 In this tutorial we will build an example validator application using the Malachite libraries. The focus is
 integration with the Malachite consensus engine using [Tokio](https://tokio.rs) channels.
 
 ## Naming
+
 While Malachite is comprised of several crates whose name start `informalsystems-malachitebft-`,
 in this document we will use a shortened prefix `malachitebft-`, thanks to Cargo's ability
 to expose a dependency under a different name than the one derived from its crate name.
 More about this in the [Putting it all together](#putting-it-all-together) section.
 
 ## Prerequisites
+
 The tutorial assumes basic knowledge of asynchronous programming in Rust using the Tokio library.
 The beginner Rust knowledge is essential, the asynchronous programming knowledge is recommended.
 
@@ -48,12 +51,14 @@ Knowledge of [CometBFT](https://cometbft.com) or other Byzantine-fault tolerant 
 understanding the consensus engine concepts, however it is not required.
 
 ## Concepts
+
 Before going any further, the reader might want to go over the [`ARCHITECTURE.md`](/ARCHITECTURE.md) document
 for background information on Malachite and the ideas behind its architecture.
 
 We can now get familiar with the concepts pertaining to building an application for Malachite.
 
 ### The `malachitebft-app-channel` crate
+
 An example application will require only a few of the Malachite crates. The `malachitebft-app-channel` crate has all the
 necessary components for building an application that interacts with the consensus engine through Tokio channels.
 The crate also re-exports the necessary types and traits from the `malachitebft-app` crate under
@@ -158,17 +163,20 @@ pub trait Context {
 ```
 
 ### Consensus types
+
 The basic consensus types, like the `Height` of a network, the `Address` of a wallet, the description of a `Validator`, or a set of
 validators (`ValidatorSet`) are defined as traits in `malachitebft_app_channel::app::types`.
 
 For example, the `Height` trait requires these three methods to be implemented:
-* `increment_by`
-* `decrement_by`
-* `as_u64`
+
+- `increment_by`
+- `decrement_by`
+- `as_u64`
 
 Additional methods, like `increment` or `decrement` have default implementations that can be overwritten.
 
 Example implementation of the `Height` trait:
+
 ```rust
 /// A blockchain height
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -188,12 +196,14 @@ impl malachitebft_app_channel::app::types::core::Height for Height {
     }
 }
 ```
+
 This implementation is an excerpt from a struct implemented in the `malachitebft_test` crate.
 
 In this tutorial, for the sake of simplicity, we will use these pre-defined types from the `malachitebft_test` crate
 instead of defining our own.
 
 Note the `malachitebft_test::Value` implementation:
+
 ```rust
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Value(u64);
@@ -209,11 +219,11 @@ impl malachitebft_app_channel::app::types::core::Value for Value {
 
 The test implementation defines a very simple type of values for consensus to decide on.
 We will use this for now, but a real application would likely use something more akin
-to a [*block*](https://github.com/tendermint/spec/blob/8dd2ed4c6fe12459edeb9b783bdaaaeb590ec15c/spec/core/data_structures.md#block),
+to a [_block_](https://github.com/tendermint/spec/blob/8dd2ed4c6fe12459edeb9b783bdaaaeb590ec15c/spec/core/data_structures.md#block),
 with a proper header and a list of transactions included in that block, etc.
 
-
 ### The `Codec` trait
+
 Nodes on the network need to communicate with each other. Implementing the `encode` and `decode` methods of the
 `malachitebft_codec::Codec` trait defines how messages are encoded and decoded when sent over the wire.
 Typically, Protobuf is a very common choice for encoding/decoding messages but to keep modularity flexible, there is no default implementation.
@@ -221,20 +231,24 @@ The `malachitebft_test::codec::proto::ProtobufCodec` implementation can be used 
 
 The following types defined by the `Context`, need to have a `Codec` implementation,
 where `Ctx` is the type of the concrete `Context` used by the application.
-* `Ctx::ProposalPart`
+
+- `Ctx::ProposalPart`
 
 The following types are also sent over the wire and need a `Codec` implementation,
 where `Ctx` is the type of the concrete `Context` used by the application.
-* `malachitebft_app_channel::app::types::SignedConsensusMsg<Ctx>`
-* `malachitebft_app_channel::app::types::streaming::StreamMessage<Ctx::ProposalPart>`
+
+- `malachitebft_app_channel::app::types::SignedConsensusMsg<Ctx>`
+- `malachitebft_app_channel::app::types::streaming::StreamMessage<Ctx::ProposalPart>`
 
 Moreover, some messages are used during synchronization among different nodes.
 These messages also need to be encoded and decoded when sent over the wire:
-* `malachitebft_app_channel::app::types::sync::Status`
-* `malachitebft_app_channel::app::types::sync::Request`
-* `malachitebft_app_channel::app::types::sync::Response`
+
+- `malachitebft_app_channel::app::types::sync::Status`
+- `malachitebft_app_channel::app::types::sync::Request`
+- `malachitebft_app_channel::app::types::sync::Response`
 
 ### The `Node` trait
+
 The `malachitebft_app_channel::app::Node` trait allows the application to define how to load its configuration, genesis file and private key
 from the filesystem or some other medium.
 
@@ -245,8 +259,8 @@ a wallet address from it. It is also responsible for loading the genesis file fr
 The `Node::run()` method is the entry point for the application where the initial configuration is loaded and parsed and
 the Malachite actors (consensus engine, network, etc.) are started.
 
-
 ### Messages from consensus to the application
+
 While running, the consensus engine will send messages to the application, describing steps taken by consensus,
 or requesting an action to be performed by the application.
 In cases when a `reply_to` field is present, the application will need to send a response back to the engine.
@@ -262,19 +276,20 @@ The messages that can be received and have to be handled by the application are 
 A brief description of each message can be found below:
 
 | Message                | Description                                                                                                                                                                                                                                                                                                                                                                                                                                |
-|------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --- |
 | `ConsensusReady`       | Notifies the application that consensus is ready. The application MAY reply with a message to instruct consensus to start at a given height.                                                                                                                                                                                                                                                                                               |
 | `StartedRound`         | Notifies the application that a new consensus round has begun.                                                                                                                                                                                                                                                                                                                                                                             |
 | `GetValue`             | Requests the application to build a value for consensus to run on. The application MUST reply to this message with the requested value within the specified timeout duration.                                                                                                                                                                                                                                                              |
 | `GetHistoryMinHeight`  | Requests the earliest height available in the history maintained by the application. The application MUST respond with its earliest available height.                                                                                                                                                                                                                                                                                      |
 | `GetValidatorSet`      | Requests the validator set for a specific height.                                                                                                                                                                                                                                                                                                                                                                                          |
-| `ReceivedProposalPart` | Notifies the application that consensus has received a proposal part over the network. If this part completes the full proposal, the application MUST respond with the complete proposed value. Otherwise, it MUST respond with `None`.                                                                                                                                                                                                    |                                                                                                                                                                                                                    |
+| `ReceivedProposalPart` | Notifies the application that consensus has received a proposal part over the network. If this part completes the full proposal, the application MUST respond with the complete proposed value. Otherwise, it MUST respond with `None`.                                                                                                                                                                                                    |     |
 | `Decided`              | Notifies the application that consensus has decided on a value. This message includes a commit certificate containing the ID of the value that was decided on, the height and round at which it was decided, and the aggregated signatures of the validators that committed to it. In response to this message, the application MAY send a `ConsensusMsg::StartHeight` message back to consensus, instructing it to start the next height. |
 | `GetDecidedValue`      | Requests a previously decided value from the application's storage. The application MUST respond with that value if available, or `None` otherwise.                                                                                                                                                                                                                                                                                        |
 | `ProcessSyncedValue`   | Notifies the application that a value has been synced from the network. This may happen when the node is catching up with the network. If a value can be decoded from the bytes provided, then the application MUST reply to this message with the decoded value.                                                                                                                                                                          |
 | `RestreamProposal`     | Requests the application to re-stream a proposal that it has already seen. The application MUST re-publish again all the proposal parts pertaining to that value by sending `NetworkMsg::PublishProposalPart` messages through the `Channels::network` channel.                                                                                                                                                                            |
 
 ### Application state
+
 The application needs to maintain its internal state so it can react to the messages received from consensus.
 Usually, this means implementing mempool, storing the data in a database, running an RPC server for queries and
 submitting transaction or interacting with other parties off-the-network.
@@ -282,6 +297,7 @@ submitting transaction or interacting with other parties off-the-network.
 This is out of scope for this tutorial, and we will instead store data in memory and make up random values to propose and decide on.
 
 ## Putting it all together
+
 Now that we have all the context necessary to interact with the Malachite consensus engine, we can start building our
 application.
 
@@ -321,14 +337,17 @@ tokio = "1.42"
 version = "0.0.1"
 # This adds the `informalsystems-malachitebft-app-channel` as a dependency, but exposes it
 # under `malachitebft_app_channel` instead of its full package name.
+git = "ssh://git@github.com/informalsystems/malachite.git"
 package = "informalsystems-malachitebft-app-channel"
 
 [dependencies.malachitebft-test]
 version = "0.0.1"
+git = "ssh://git@github.com/informalsystems/malachite.git"
 package = "informalsystems-malachitebft-test"
 
 [dependencies.malachitebft-test-cli]
 version = "0.0.1"
+git = "ssh://git@github.com/informalsystems/malachite.git"
 package = "informalsystems-malachitebft-test-cli"
 ```
 
@@ -427,7 +446,6 @@ will then ask us for a value to propose to the other validators.
                 info!(%height, %round, "Consensus is requesting a value to propose");
 ```
 
-
 > [!NOTE]
 > We can ignore the timeout as we are building the value right away.
 > If we were let's say reaping as many txes from a mempool and executing them,
@@ -468,11 +486,11 @@ Now what's left to do is to break down the value to propose into parts,
 and send those parts over the network to our peers, for them to re-assemble the full value.
 
 > [!NOTE]
-In this tutorial, the value is simply an integer and therefore results in a very small
-message to gossip over the network, but if we were building a real application,
-say building blocks containing thousands of transactions, the proposal would typically only
-carry the block hash and the full block itself would be split into parts in order to
-avoid blowing up the bandwidth requirements by gossiping a single huge message.
+> In this tutorial, the value is simply an integer and therefore results in a very small
+> message to gossip over the network, but if we were building a real application,
+> say building blocks containing thousands of transactions, the proposal would typically only
+> carry the block hash and the full block itself would be split into parts in order to
+> avoid blowing up the bandwidth requirements by gossiping a single huge message.
 
 ```rust
 
@@ -619,7 +637,6 @@ the engine may ask us for the height of the earliest available value in our stor
             }
 ```
 
-
 The last message is left unimplemented for now. To be updated in a later version of this tutorial.
 
 ```rust
@@ -629,8 +646,6 @@ The last message is left unimplemented for now. To be updated in a later version
         }
 
 ```
-
-
 
 ```rust
     // End of the match statement
@@ -759,7 +774,6 @@ pub struct State {
 
 Let's look at its methods, one by one:
 
-
 ```rust
     /// Returns the earliest height available in the state
     pub fn get_earliest_height(&self) -> Height {
@@ -801,7 +815,6 @@ This one returns the value that has been decided at the specified height, if it 
 ```
 
 Once again, this method is quite self-explanatory, so let's move on.
-
 
 ```rust
     /// Creates a new proposal value for the given height
@@ -995,7 +1008,7 @@ and a signature (`Fin`).
 ```
 
 This method takes care of the receiving end of a proposal part. It stores the part it just received
-in a *streams map* to associate it with the other ones which are part of the same stream.
+in a _streams map_ to associate it with the other ones which are part of the same stream.
 If not all parts have been received, then we exit early and return `None`.
 
 Otherwise, all parts have been received, and we have a full proposal made up of one or more parts.
@@ -1067,8 +1080,8 @@ This method also moves the undecided proposal we had stored earlier to the store
 
 And that's it! For the full code of the `State` struct, [see the example app](/code/examples/channel/src/state.rs),
 
-
 ### Command-line interface
+
 Most applications will expect to receive arguments over the command-line, eg. to point it at a configuration file.
 This is outside the scope of Malachite, but for the purpose of this tutorial we can use Malachite's test CLI instead of creating our own.
 
@@ -1099,6 +1112,7 @@ These work similarly to CometBFT: `init` creates initial configuration in `$HOME
 it creates multiple configurations (make sure `--nodes` is set) for running a local testnet, and `start` runs the node.
 
 ### Logging
+
 It is up to the application integrator to implement logging. However, given that Malachite uses the the `tracing` library
 for logging internally, it is natural to use it as well for the application, so we will just do that by using
 the `logging` module from the `malachitebft_test_cli` crate.
@@ -1133,6 +1147,7 @@ async fn main() {
 Note that we override the default logging configuration with the input parameters provided on the command-line.
 
 ### Creating an instance of the `Node` trait
+
 Now we are getting to the meat of it. The configuration loaded, we have to load the private key used for signing and
 start the application. This is where the `Node::run` method comes in.
 
