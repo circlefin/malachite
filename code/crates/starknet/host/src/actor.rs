@@ -298,7 +298,6 @@ async fn on_get_value(
             value.height,
             value.round,
             value.value,
-            value.extension,
         ))?;
 
         return Ok(());
@@ -356,7 +355,6 @@ async fn on_get_value(
         value.height,
         value.round,
         value.value,
-        value.extension,
     ))?;
 
     Ok(())
@@ -366,11 +364,11 @@ async fn on_extend_vote(
     state: &mut HostState,
     height: Height,
     round: Round,
-    value_id: ValueId<MockContext>,
+    _value_id: ValueId<MockContext>,
     reply_to: RpcReplyPort<Option<Extension>>,
 ) -> Result<(), ActorProcessingErr> {
-    // TODO
-    reply_to.send(None)?;
+    let extension = state.host.generate_vote_extension(height, round);
+    reply_to.send(extension)?;
     Ok(())
 }
 
@@ -463,7 +461,6 @@ fn on_process_synced_value(
             proposer,
             value: block.block_hash,
             validity: Validity::Valid,
-            extension: None,
         };
 
         reply_to.send(proposed_value)?;

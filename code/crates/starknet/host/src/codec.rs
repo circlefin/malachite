@@ -114,7 +114,6 @@ pub fn decode_proposed_value(
         valid_round: Round::from(proto.valid_round),
         proposer: Address::from_proto(proposer)?,
         validity: Validity::from_bool(proto.validity),
-        extension: proto.extension.map(decode_extension).transpose()?,
     })
 }
 
@@ -132,7 +131,6 @@ pub fn encode_proposed_value(
             Validity::Valid => true,
             Validity::Invalid => false,
         },
-        extension: msg.extension.as_ref().map(encode_extension).transpose()?,
     };
 
     Ok(proto)

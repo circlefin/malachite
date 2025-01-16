@@ -9,7 +9,7 @@ use tracing::{debug, Instrument};
 
 use malachitebft_config::VoteExtensionsConfig;
 use malachitebft_core_consensus::ValuePayload;
-use malachitebft_core_types::{CommitCertificate, Extension, Round, SignedExtension, SignedVote};
+use malachitebft_core_types::{CommitCertificate, Extension, Round, SignedVote};
 
 use crate::host::Host;
 use crate::mempool::MempoolRef;
@@ -57,13 +57,8 @@ impl StarknetHost {
         }
     }
 
-    pub fn generate_vote_extension(
-        &self,
-        _height: Height,
-        _round: Round,
-    ) -> Option<SignedExtension<MockContext>> {
+    pub fn generate_vote_extension(&self, _height: Height, _round: Round) -> Option<Extension> {
         use rand::RngCore;
-        use sha3::Digest;
 
         if !self.params.vote_extensions.enabled {
             return None;
@@ -75,11 +70,7 @@ impl StarknetHost {
         let mut bytes = vec![0u8; size];
         rand::thread_rng().fill_bytes(&mut bytes);
 
-        let hash = Hash::new(sha3::Keccak256::digest(&bytes).into());
-        let extension = Extension::from(bytes);
-        let signature = self.private_key.sign(&hash.as_felt());
-
-        Some(SignedExtension::new(extension, signature))
+        Some(Extension::from(bytes))
     }
 }
 

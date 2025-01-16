@@ -174,7 +174,6 @@ impl Codec<ProposedValue<TestContext>> for ProtobufCodec {
             proposer: Address::from_proto(proposer)?,
             value: Value::from_proto(value)?,
             validity: Validity::from_bool(proto.validity),
-            extension: proto.extension.map(decode_extension).transpose()?,
         })
     }
 
@@ -186,7 +185,6 @@ impl Codec<ProposedValue<TestContext>> for ProtobufCodec {
             proposer: Some(msg.proposer.to_proto()?),
             value: Some(msg.value.to_proto()?),
             validity: msg.validity.to_bool(),
-            extension: msg.extension.as_ref().map(encode_extension).transpose()?,
         };
 
         Ok(Bytes::from(proto.encode_to_vec()))

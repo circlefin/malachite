@@ -202,7 +202,6 @@ pub async fn run(
                         proposer,
                         value,
                         validity: Validity::Valid,
-                        extension: None,
                     })
                     .is_err()
                 {

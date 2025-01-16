@@ -1,8 +1,7 @@
 use derive_where::derive_where;
 
 use malachitebft_core_types::{
-    Context, Proposal, Round, Signature, SignedExtension, SignedProposal, SignedVote, Validity,
-    Vote,
+    Context, Proposal, Round, Signature, SignedProposal, SignedVote, Validity, Vote,
 };
 
 pub use malachitebft_peer::PeerId;
@@ -46,7 +45,6 @@ pub struct ValueToPropose<Ctx: Context> {
     pub round: Round,
     pub valid_round: Round,
     pub value: Ctx::Value,
-    pub extension: Option<SignedExtension<Ctx>>,
 }
 
 /// A value proposed by a validator
@@ -58,7 +56,6 @@ pub struct ProposedValue<Ctx: Context> {
     pub proposer: Ctx::Address,
     pub value: Ctx::Value,
     pub validity: Validity,
-    pub extension: Option<SignedExtension<Ctx>>,
 }
 
 /// The possible messages used to deliver proposals

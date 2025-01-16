@@ -61,7 +61,6 @@ fn value(
         proposer,
         value: Value::new(value),
         validity,
-        extension: Default::default(),
     }
 }
 
@@ -74,7 +73,6 @@ fn val_msg(proposer: Address, round: u32, value: u64, validity: Validity) -> Inp
             value: Value::new(value),
             validity,
             proposer,
-            extension: Default::default(),
         },
         ValueOrigin::Consensus,
     )

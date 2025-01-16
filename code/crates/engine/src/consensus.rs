@@ -13,8 +13,8 @@ use malachitebft_core_consensus::{
     Effect, PeerId, Resumable, Resume, SignedConsensusMsg, ValueToPropose,
 };
 use malachitebft_core_types::{
-    Context, Extension, Round, SignedExtension, SigningProvider, SigningProviderExt, Timeout,
-    TimeoutKind, ValidatorSet, ValueId, ValueOrigin,
+    Context, Extension, Round, SigningProvider, SigningProviderExt, Timeout, TimeoutKind,
+    ValidatorSet, ValueId, ValueOrigin,
 };
 use malachitebft_metrics::Metrics;
 use malachitebft_sync::{
@@ -89,7 +89,7 @@ pub enum Msg<Ctx: Context> {
     TimeoutElapsed(TimeoutElapsed<Timeout>),
 
     /// The proposal builder has built a value and can be used in a new proposal consensus message
-    ProposeValue(Ctx::Height, Round, Ctx::Value, Option<SignedExtension<Ctx>>),
+    ProposeValue(Ctx::Height, Round, Ctx::Value),
 
     /// Received and assembled the full value proposed by a validator
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
@@ -281,13 +281,12 @@ where
                 Ok(())
             }
 
-            Msg::ProposeValue(height, round, value, extension) => {
+            Msg::ProposeValue(height, round, value) => {
                 let value_to_propose = ValueToPropose {
                     height,
                     round,
                     valid_round: Round::Nil,
                     value: value.clone(),
-                    extension,
                 };
 
                 let result = self
@@ -683,12 +682,7 @@ where
             },
             myself,
             |proposed: LocallyProposedValue<Ctx>| {
-                Msg::<Ctx>::ProposeValue(
-                    proposed.height,
-                    proposed.round,
-                    proposed.value,
-                    proposed.extension,
-                )
+                Msg::<Ctx>::ProposeValue(proposed.height, proposed.round, proposed.value)
             },
             None,
         )?;

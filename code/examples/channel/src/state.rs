@@ -165,7 +165,6 @@ impl State {
             proposal.height,
             proposal.round,
             proposal.value,
-            proposal.extension.clone(),
         )))
     }
 
@@ -189,7 +188,6 @@ impl State {
             proposer: self.address, // We are the proposer
             value,
             validity: Validity::Valid, // Our proposals are de facto valid
-            extension: None,           // Vote extension can be added here
         };
 
         // Insert the new proposal into the undecided proposals.
@@ -225,7 +223,6 @@ impl State {
             proposal.height,
             proposal.round,
             proposal.value,
-            proposal.extension,
         ))
     }
 
@@ -273,10 +270,6 @@ impl State {
 
             hasher.update(value.height.as_u64().to_be_bytes().as_slice());
             hasher.update(value.round.as_i64().to_be_bytes().as_slice());
-
-            if let Some(ext) = &value.extension {
-                hasher.update(ext.data.as_ref());
-            }
         }
 
         // Data
@@ -318,7 +311,6 @@ fn assemble_value_from_parts(parts: ProposalParts) -> ProposedValue<TestContext>
         proposer: parts.proposer,
         value: Value::new(value),
         validity: Validity::Valid, // TODO: Check signature in Fin part
-        extension: None,
     }
 }
 

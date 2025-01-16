@@ -89,7 +89,6 @@ where
             proposer: signed_proposal.validator_address().clone(),
             value: signed_proposal.value().clone(),
             validity: Validity::Valid,
-            extension: Default::default(),
         };
 
         state.store_value(&new_value);

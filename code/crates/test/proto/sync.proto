@@ -53,7 +53,6 @@ message ProposedValue {
     Address proposer = 4;
     Value value = 5;
     bool validity = 6;
-    optional Extension extension = 7;
 }
 
 message VoteSetRequest {
