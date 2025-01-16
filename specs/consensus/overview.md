@@ -843,8 +843,37 @@ and round can be updated, a process `p` sets `validValue_p` to the proposed
 value `v` and `validRound_p` to the current round `round_p`.
 But while the [locked value](#locked-value) is intended to preserve safety (two
 rounds do not decide different values), the valid value has the role of
-providing liveliness.
+providing liveliness (correct processess eventually decide).
 
+A proposed value `v` becomes _globally_ valid (in opposition to the _local_
+validity represented by the [`valid(v)` function](#validation)) in a round `r`
+when it is accepted by an enough number of processes; they accept it by
+broadcasting a `PREVOTE` for `id(v)`.
+If a process `p` observes these conditions, while still in round `r`, line 36
+of the pseudo-code is eventually triggered.
+There are however some scenarios to consider:
+
+1. `step_p = propose`: in this case, `p` eventually moves to the `prevote`
+   round step below;
+2. `step_p = prevote`: in this case, `p` locks `v` at round `r` and broadcast a
+   `PRECOMMIT` for `id(v)`;
+3. `step_p = precommit`: in this case, `p` only updates `validValue_p` to `v`
+   and `validRound_p` to `r`.
+
+In scenarios 1 and 2, `p` locks the proposed value `v` and therefore cannot
+accept any value different than `v` in rounds greater than `r`.
+To provide liveness, if `p` becomes the proposer of a upcoming round, it must
+re-propose the only value that it can accept, namely `v`.
+This is implemented by line 15 of the pseudo-code, in particular because in
+these scenarios, the valid value and round are equal to the locked value and round.
+
+In scenario 3, `p` has already broadcast a `PRECOMMIT` for `nil` in round `r`;
+broadcasting a conflicting `PRECOMMIT` for `id(v)` when the conditions of
+pseudo-code line 36 are observed would constitute a misbehavior.
+In fact, because `p` has not observed the conditions of line 36 (a `PROPOSAL`
+for `v` and enough `PREVOTE`s for `id(v)`) while `step_p = prevote`, it has
+scheduled a `timeoutPrevote` (lines 34-35) that has expired (lines 61-64),
+leading to the broadcast of a `PRECOMMIT` for `nil`.
 
 [^1]: This document adopts _process_ to refer to the active participants of the
   consensus algorithm, which can propose and vote for values.
