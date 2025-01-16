@@ -169,6 +169,8 @@ pub async fn aggressive_pruning() {
 
 #[tokio::test]
 pub async fn start_late() {
+    init_logging(module_path!());
+
     const HEIGHT: u64 = 5;
 
     let mut test = TestBuilder::<()>::new();
