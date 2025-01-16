@@ -172,13 +172,13 @@ where
                             },
                     } => match request {
                         behaviour::Request::Peers(peers) => {
-                            debug!(peer_id = %peer, connection_id = %connection_id, "Received peers request from peer");
+                            debug!(peer_id = %peer, %connection_id, "Received peers request from peer");
 
                             self.handle_peers_request(swarm, peer, channel, peers);
                         }
 
                         behaviour::Request::Connect() => {
-                            debug!(peer_id = %peer, connection_id = %connection_id, "Received connect request from peer");
+                            debug!(peer_id = %peer, %connection_id, "Received connect request from peer");
 
                             self.handle_connect_request(swarm, channel, peer, connection_id);
                         }
@@ -195,13 +195,13 @@ where
                             },
                     } => match response {
                         behaviour::Response::Peers(peers) => {
-                            debug!(peer_id = %peer, connection_id = %connection_id, count = peers.len(), "Received peers response from peer");
+                            debug!(peer_id = %peer, %connection_id, count = peers.len(), "Received peers response from peer");
 
                             self.handle_peers_response(swarm, request_id, peers);
                         }
 
                         behaviour::Response::Connect(accepted) => {
-                            debug!(peer_id = %peer, connection_id = %connection_id, accepted, "Received connect response from peer");
+                            debug!(peer_id = %peer, %connection_id, accepted, "Received connect response from peer");
 
                             self.handle_connect_response(
                                 swarm,
