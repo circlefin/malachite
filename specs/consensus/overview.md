@@ -957,10 +957,12 @@ For a complete proof, please refer to the [Tendermint paper][tendermint-arxiv].
 
 Tendermint is a round-based algorithm.
 Liveness arguments for such algorithms typically have two ingredients:
-(i) if there is a good round, then all processes decide before or in this
-round; and (ii) eventually, there will be a good round.
 
-Regarding (i), a _good round_ is a round in which:
+1. If there is a good round, then all processes decide before or in this round
+   (i.e., the round is successful);
+2. Eventually there will be a good round.
+
+Regarding point 1, a _good round_ is a round in which:
 
 - the proposer sends the same proposed value `v` to all processes;
 - all correct processes receive the proposed value `v` before the timeouts expire;
@@ -973,8 +975,8 @@ Regarding (i), a _good round_ is a round in which:
   Since they also received the proposed value `v`, all correct processes decide
   `v` (line 51).
 
-The challenge that remains is to prove that (ii) eventually there is such a
-good round. There are two crucial points:
+The challenge that remains is to prove the Point 2: eventually there is such a
+good round. Here, there are two crucial points:
 
 - **Synchrony.** Messages should be delivered and timeouts should not expire.
 - **Value handling.** Correct processes need to accept the proposed value `v`.
@@ -1026,11 +1028,11 @@ The remaining liveness conditions are essentially associated to the synchronous
 behavior of the system.
 More specifically, even if Conditions 1 and 2 are observed, a round `r` may
 still _not_ succeed if:
-i. the `timeoutPropose(r)` scheduled by correct processes expires before they
+(i) the `timeoutPropose(r)` scheduled by correct processes expires before they
 execute pseudo-code lines 22 or 28;
-ii. the `timeoutPrevote(r)` scheduled by correct processes expires before they
+(ii) the `timeoutPrevote(r)` scheduled by correct processes expires before they
 execute pseudo-code line 36;
-iii. or the `timeoutPrecommit(r)` scheduled by correct processes expires before they
+or (iii) the `timeoutPrecommit(r)` scheduled by correct processes expires before they
 execute pseudo-code line 49.
 
 As described in the [Timeouts section](#timeouts), Tendermint is designed for
