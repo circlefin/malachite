@@ -4,9 +4,9 @@
 use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
-use malachitebft_app_channel::app::metrics::SharedRegistry;
 use rand::{CryptoRng, RngCore};
 
+use malachitebft_app_channel::app::metrics::SharedRegistry;
 use malachitebft_app_channel::app::types::config::Config;
 use malachitebft_app_channel::app::types::core::VotingPower;
 use malachitebft_app_channel::app::types::Keypair;
