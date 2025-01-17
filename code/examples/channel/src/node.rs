@@ -108,6 +108,12 @@ impl Node for App {
 
         let codec = ProtobufCodec;
 
+        if self.config.metrics.enabled {
+            tokio::spawn(malachitebft_test_cli::metrics::serve(
+                self.config.metrics.clone(),
+            ));
+        }
+
         let mut channels = malachitebft_app_channel::run(
             ctx.clone(),
             codec,
