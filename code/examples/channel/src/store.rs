@@ -124,23 +124,28 @@ impl Db {
     }
 
     fn insert_decided_value(&self, decided_value: DecidedValue) -> Result<(), StoreError> {
-        let height = decided_value.certificate.height;
-        let mut write_bytes: u64 = 0;
         let start = Instant::now();
+        let mut write_bytes = 0;
+
+        let height = decided_value.certificate.height;
         let tx = self.db.begin_write()?;
+
         {
             let mut values = tx.open_table(DECIDED_VALUES_TABLE)?;
             let values_bytes = decided_value.value.to_bytes()?.to_vec();
             write_bytes += values_bytes.len() as u64;
             values.insert(height, values_bytes)?;
         }
+
         {
             let mut certificates = tx.open_table(CERTIFICATES_TABLE)?;
             let encoded_certificate = encode_certificate(&decided_value.certificate)?;
             write_bytes += encoded_certificate.len() as u64;
             certificates.insert(height, encoded_certificate)?;
         }
+
         tx.commit()?;
+
         self.metrics.observe_write_time(start.elapsed());
         self.metrics.add_write_bytes(write_bytes);
 
@@ -184,9 +189,11 @@ impl Db {
         &self,
         proposal: ProposedValue<TestContext>,
     ) -> Result<(), StoreError> {
+        let start = Instant::now();
+
         let key = (proposal.height, proposal.round);
         let value = ProtobufCodec.encode(&proposal)?;
-        let start = Instant::now();
+
         let tx = self.db.begin_write()?;
         {
             let mut table = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
@@ -232,7 +239,9 @@ impl Db {
 
     fn prune(&self, retain_height: Height) -> Result<Vec<Height>, StoreError> {
         let start = Instant::now();
+
         let tx = self.db.begin_write().unwrap();
+
         let pruned = {
             let mut undecided = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
             let keys = self.undecided_proposals_range(&undecided, ..(retain_height, Round::Nil))?;
@@ -250,7 +259,9 @@ impl Db {
             }
             keys
         };
+
         tx.commit()?;
+
         self.metrics.observe_delete_time(start.elapsed());
 
         Ok(pruned)
@@ -279,11 +290,14 @@ impl Db {
 
     fn create_tables(&self) -> Result<(), StoreError> {
         let tx = self.db.begin_write()?;
+
         // Implicitly creates the tables if they do not exist yet
         let _ = tx.open_table(DECIDED_VALUES_TABLE)?;
         let _ = tx.open_table(CERTIFICATES_TABLE)?;
         let _ = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
+
         tx.commit()?;
+
         Ok(())
     }
 }
