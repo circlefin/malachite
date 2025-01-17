@@ -18,6 +18,7 @@ use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{
     Address, Genesis, Height, PrivateKey, PublicKey, TestContext, Validator, ValidatorSet,
 };
+use malachitebft_test_cli::metrics;
 
 use crate::metrics::DbMetrics;
 use crate::state::State;
@@ -108,12 +109,6 @@ impl Node for App {
 
         let codec = ProtobufCodec;
 
-        if self.config.metrics.enabled {
-            tokio::spawn(malachitebft_test_cli::metrics::serve(
-                self.config.metrics.clone(),
-            ));
-        }
-
         let mut channels = malachitebft_app_channel::run(
             ctx.clone(),
             codec,
@@ -124,8 +119,13 @@ impl Node for App {
             initial_validator_set,
         )
         .await?;
-        let registry = SharedRegistry::global().with_moniker(self.config.moniker.as_str());
+
+        let registry = SharedRegistry::global().with_moniker(&self.config.moniker);
         let metrics = DbMetrics::register(&registry);
+
+        if self.config.metrics.enabled {
+            tokio::spawn(metrics::serve(self.config.metrics.listen_addr));
+        }
 
         let store = Store::open(self.get_home_dir().join("store.db"), metrics)?;
         let start_height = self.start_height.unwrap_or_default();
