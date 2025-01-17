@@ -1,3 +1,4 @@
+use std::mem::size_of;
 use std::ops::RangeBounds;
 use std::path::Path;
 use std::sync::Arc;
@@ -87,27 +88,33 @@ impl Db {
 
     fn get_decided_value(&self, height: Height) -> Result<Option<DecidedValue>, StoreError> {
         let start = Instant::now();
+        let mut read_bytes = 0;
+
         let tx = self.db.begin_read()?;
 
         let value = {
             let table = tx.open_table(DECIDED_VALUES_TABLE)?;
             let value = table.get(&height)?;
-            value.and_then(|value| Value::from_bytes(&value.value()).ok())
+            value.and_then(|value| {
+                let bytes = value.value();
+                read_bytes = bytes.len() as u64;
+                Value::from_bytes(&bytes).ok()
+            })
         };
+
         let certificate = {
             let table = tx.open_table(CERTIFICATES_TABLE)?;
             let value = table.get(&height)?;
-            value.and_then(|value| decode_certificate(&value.value()).ok())
+            value.and_then(|value| {
+                let bytes = value.value();
+                read_bytes += bytes.len() as u64;
+                decode_certificate(&bytes).ok()
+            })
         };
+
         self.metrics.observe_read_time(start.elapsed());
-
-        let values_bytes = value.unwrap().to_bytes()?.to_vec().len() as u64;
-        let certificates_bytes = encode_certificate(&certificate.clone().unwrap())?.len() as u64;
-
-        self.metrics
-            .add_read_bytes(values_bytes + certificates_bytes);
-        self.metrics
-            .add_key_read_bytes(std::mem::size_of::<Height>() as u64);
+        self.metrics.add_read_bytes(read_bytes);
+        self.metrics.add_key_read_bytes(size_of::<Height>() as u64);
 
         let decided_value = value
             .zip(certificate)
@@ -146,18 +153,21 @@ impl Db {
         height: Height,
         round: Round,
     ) -> Result<Option<ProposedValue<TestContext>>, StoreError> {
-        let mut read_bytes: u64 = 0;
         let start = Instant::now();
+        let mut read_bytes = 0;
+
         let tx = self.db.begin_read()?;
         let table = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
 
         let value = if let Ok(Some(value)) = table.get(&(height, round)) {
-            read_bytes += value.value().len() as u64;
-            Some(
-                ProtobufCodec
-                    .decode(Bytes::from(value.value()))
-                    .map_err(StoreError::Protobuf)?,
-            )
+            let bytes = value.value();
+            read_bytes += bytes.len() as u64;
+
+            let proposal = ProtobufCodec
+                .decode(Bytes::from(bytes))
+                .map_err(StoreError::Protobuf)?;
+
+            Some(proposal)
         } else {
             None
         };
@@ -165,7 +175,7 @@ impl Db {
         self.metrics.observe_read_time(start.elapsed());
         self.metrics.add_read_bytes(read_bytes);
         self.metrics
-            .add_key_read_bytes(std::mem::size_of::<(Height, Round)>() as u64);
+            .add_key_read_bytes(size_of::<(Height, Round)>() as u64);
 
         Ok(value)
     }
@@ -248,13 +258,14 @@ impl Db {
 
     fn min_decided_value_height(&self) -> Option<Height> {
         let start = Instant::now();
+
         let tx = self.db.begin_read().unwrap();
         let table = tx.open_table(DECIDED_VALUES_TABLE).unwrap();
         let (key, value) = table.first().ok()??;
+
         self.metrics.observe_read_time(start.elapsed());
         self.metrics.add_read_bytes(value.value().len() as u64);
-        self.metrics
-            .add_key_read_bytes(std::mem::size_of::<Height>() as u64);
+        self.metrics.add_key_read_bytes(size_of::<Height>() as u64);
 
         Some(key.value())
     }
