@@ -318,19 +318,19 @@ tracing = "0.1"
 tokio = "1.42"
 
 [dependencies.malachitebft-app-channel]
-version = "0.1.0"
-git = "ssh://git@github.com/informalsystems/malachite.git"
+version = "0.0.1"
 # This adds the `informalsystems-malachitebft-app-channel` as a dependency, but exposes it
 # under `malachitebft_app_channel` instead of its full package name.
+git = "ssh://git@github.com/informalsystems/malachite.git"
 package = "informalsystems-malachitebft-app-channel"
 
 [dependencies.malachitebft-test]
-version = "0.1.0"
+version = "0.0.1"
 git = "ssh://git@github.com/informalsystems/malachite.git"
 package = "informalsystems-malachitebft-test"
 
 [dependencies.malachitebft-test-cli]
-version = "0.1.0"
+version = "0.0.1"
 git = "ssh://git@github.com/informalsystems/malachite.git"
 package = "informalsystems-malachitebft-test-cli"
 ```
