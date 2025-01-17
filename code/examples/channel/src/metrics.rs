@@ -84,7 +84,7 @@ impl DbMetrics {
     pub fn register(registry: &SharedRegistry) -> Self {
         let metrics = Self::new();
 
-        registry.with_prefix("blockstore", |registry| {
+        registry.with_prefix("app_channel", |registry| {
             registry.register(
                 "db_size",
                 "Size of the database (bytes)",
