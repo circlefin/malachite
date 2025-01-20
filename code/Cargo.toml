@@ -95,7 +95,7 @@ malachitebft-starknet-p2p-types = { version = "0.0.1", package = "informalsystem
 
 # Starknet
 starknet-core   = "0.11.1"
-starknet-crypto = "0.7.3"
+starknet-crypto = "0.7.4"
 
 advisory-lock      = "0.3.0"
 async-recursion    = "1.1"
