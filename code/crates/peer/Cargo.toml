@@ -17,8 +17,7 @@ rand = ["dep:rand"]
 serde = ["dep:serde"]
 
 [dependencies]
-# TODO: Remove `std` once https://github.com/multiformats/rust-multihash/issues/375 is resolved
-multihash = { workspace = true, features = ["std", "alloc"] }
+multihash = { workspace = true, features = ["alloc"] }
 
 bs58 = { workspace = true }
 thiserror = { workspace = true }

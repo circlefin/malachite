@@ -17,10 +17,11 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
+#![no_std]
+extern crate alloc;
 
-// FIXME: Make the crate no_std compatible once https://github.com/multiformats/rust-multihash/issues/375 is resolved
-
-use std::{fmt, str::FromStr};
+use alloc::{string::String, vec::Vec};
+use core::{fmt, str::FromStr};
 
 use thiserror::Error;
 
