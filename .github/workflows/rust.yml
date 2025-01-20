@@ -111,7 +111,7 @@ jobs:
         with: 
           cache-workspaces: "code"
           target: thumbv7m-none-eabi
-      - name: Check no_std compatability
+      - name: Check no_std compatibility
         run: cargo build --target thumbv7m-none-eabi -p informalsystems-malachitebft-peer
 
   clippy:
