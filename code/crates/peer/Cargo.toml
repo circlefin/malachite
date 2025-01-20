@@ -19,7 +19,7 @@ serde = ["dep:serde"]
 [dependencies]
 multihash = { workspace = true, features = ["alloc"] }
 
-bs58 = { workspace = true }
+bs58 = { workspace = true, features = ["alloc"] }
 thiserror = { workspace = true }
 rand = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
