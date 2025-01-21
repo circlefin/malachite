@@ -17,7 +17,8 @@ use malachitebft_app_channel::app::types::core::{CommitCertificate, Round, Valid
 use malachitebft_app_channel::app::types::PeerId;
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{
-    Address, Height, ProposalData, ProposalFin, ProposalInit, ProposalPart, TestContext, Value,
+    Address, Height, ProposalData, ProposalFin, ProposalInit, ProposalPart, PublicKey, TestContext,
+    Value,
 };
 
 use crate::store::{DecidedValue, Store};
@@ -81,6 +82,7 @@ impl State {
     pub async fn received_proposal_part(
         &mut self,
         from: PeerId,
+        from_pub_key: &PublicKey,
         part: StreamMessage<ProposalPart>,
     ) -> eyre::Result<Option<ProposedValue<TestContext>>> {
         let sequence = part.sequence;
@@ -89,6 +91,41 @@ impl State {
         let Some(parts) = self.streams_map.insert(from, part) else {
             return Ok(None);
         };
+
+        // Verify the signature in the Fin part
+        {
+            let mut hasher = sha3::Keccak256::new();
+            let mut signature = None;
+
+            // Recreate the hash and extract the signature during traversal
+            for part in &parts.parts {
+                match part {
+                    ProposalPart::Init(init) => {
+                        hasher.update(init.height.as_u64().to_be_bytes().as_slice());
+                        hasher.update(init.round.as_i64().to_be_bytes().as_slice());
+                    }
+                    ProposalPart::Data(data) => {
+                        hasher.update(data.factor.to_be_bytes().as_slice());
+                    }
+                    ProposalPart::Fin(fin) => {
+                        signature = Some(&fin.signature);
+                    }
+                }
+            }
+
+            let hash = hasher.finalize().to_vec();
+            let signature =
+                signature.expect("Fin part is guaranteed to exist due to checks on lines 90-92");
+
+            // Verify the signature
+            if !self
+                .ctx
+                .signing_provider
+                .verify(&hash, signature, from_pub_key)
+            {
+                error!("Invalid signature in Fin part, rejecting proposal");
+            }
+        }
 
         // Check if the proposal is outdated
         if parts.height < self.current_height {
@@ -273,10 +310,6 @@ impl State {
 
             hasher.update(value.height.as_u64().to_be_bytes().as_slice());
             hasher.update(value.round.as_i64().to_be_bytes().as_slice());
-
-            if let Some(ext) = &value.extension {
-                hasher.update(ext.data.as_ref());
-            }
         }
 
         // Data
