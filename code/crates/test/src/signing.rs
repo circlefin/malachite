@@ -49,7 +49,7 @@ impl Ed25519Provider {
 
 impl SigningProvider<TestContext> for Ed25519Provider {
     fn sign_vote(&self, vote: Vote) -> SignedVote<TestContext> {
-        let signature = self.sign(&vote.to_bytes());
+        let signature = self.sign(&vote.to_sign_bytes());
         SignedVote::new(vote, signature)
     }
 
@@ -59,11 +59,11 @@ impl SigningProvider<TestContext> for Ed25519Provider {
         signature: &Signature,
         public_key: &PublicKey,
     ) -> bool {
-        public_key.verify(&vote.to_bytes(), signature).is_ok()
+        public_key.verify(&vote.to_sign_bytes(), signature).is_ok()
     }
 
     fn sign_proposal(&self, proposal: Proposal) -> SignedProposal<TestContext> {
-        let signature = self.private_key.sign(&proposal.to_bytes());
+        let signature = self.private_key.sign(&proposal.to_sign_bytes());
         SignedProposal::new(proposal, signature)
     }
 
@@ -73,7 +73,9 @@ impl SigningProvider<TestContext> for Ed25519Provider {
         signature: &Signature,
         public_key: &PublicKey,
     ) -> bool {
-        public_key.verify(&proposal.to_bytes(), signature).is_ok()
+        public_key
+            .verify(&proposal.to_sign_bytes(), signature)
+            .is_ok()
     }
 
     fn sign_proposal_part(&self, proposal_part: ProposalPart) -> SignedProposalPart<TestContext> {
