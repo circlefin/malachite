@@ -365,7 +365,7 @@ async fn on_extend_vote(
     height: Height,
     round: Round,
     _value_id: ValueId<MockContext>,
-    reply_to: RpcReplyPort<Option<Extension>>,
+    reply_to: RpcReplyPort<Option<Bytes>>,
 ) -> Result<(), ActorProcessingErr> {
     let extension = state.host.generate_vote_extension(height, round);
     reply_to.send(extension)?;

@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use bytes::Bytes;
 use malachitebft_core_types::{Context, NilOrVal, Round, ValidatorSet as _};
 
 use crate::signing::EcdsaProvider;
@@ -32,6 +33,7 @@ impl Context for MockContext {
     type Validator = Validator;
     type Value = BlockHash;
     type Vote = Vote;
+    type Extension = Bytes;
     type SigningScheme = Ecdsa;
     type SigningProvider = EcdsaProvider;
 

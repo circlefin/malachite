@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use bytesize::ByteSize;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
@@ -9,7 +10,7 @@ use tracing::{debug, Instrument};
 
 use malachitebft_config::VoteExtensionsConfig;
 use malachitebft_core_consensus::ValuePayload;
-use malachitebft_core_types::{CommitCertificate, Extension, Round, SignedVote};
+use malachitebft_core_types::{CommitCertificate, Round, SignedVote};
 
 use crate::host::Host;
 use crate::mempool::MempoolRef;
@@ -57,7 +58,7 @@ impl StarknetHost {
         }
     }
 
-    pub fn generate_vote_extension(&self, _height: Height, _round: Round) -> Option<Extension> {
+    pub fn generate_vote_extension(&self, _height: Height, _round: Round) -> Option<Bytes> {
         use rand::RngCore;
 
         if !self.params.vote_extensions.enabled {
@@ -70,7 +71,7 @@ impl StarknetHost {
         let mut bytes = vec![0u8; size];
         rand::thread_rng().fill_bytes(&mut bytes);
 
-        Some(Extension::from(bytes))
+        Some(Bytes::from(bytes))
     }
 }
 

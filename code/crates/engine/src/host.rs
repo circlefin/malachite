@@ -5,7 +5,7 @@ use derive_where::derive_where;
 use ractor::{ActorRef, RpcReplyPort};
 
 use malachitebft_core_consensus::PeerId;
-use malachitebft_core_types::{CommitCertificate, Context, Extension, Round, ValueId};
+use malachitebft_core_types::{CommitCertificate, Context, Round, ValueId};
 use malachitebft_sync::RawDecidedValue;
 
 use crate::consensus::ConsensusRef;
@@ -42,7 +42,7 @@ pub enum HostMsg<Ctx: Context> {
         height: Ctx::Height,
         round: Round,
         value_id: ValueId<Ctx>,
-        reply_to: RpcReplyPort<Option<Extension>>,
+        reply_to: RpcReplyPort<Option<Ctx::Extension>>,
     },
 
     /// Request to restream an existing block/value from Driver

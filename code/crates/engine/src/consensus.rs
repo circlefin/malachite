@@ -11,8 +11,8 @@ use malachitebft_codec as codec;
 use malachitebft_config::TimeoutConfig;
 use malachitebft_core_consensus::{Effect, PeerId, Resumable, Resume, SignedConsensusMsg};
 use malachitebft_core_types::{
-    Context, Extension, Round, SigningProvider, SigningProviderExt, Timeout, TimeoutKind,
-    ValidatorSet, ValueId, ValueOrigin,
+    Context, Round, SigningProvider, SigningProviderExt, Timeout, TimeoutKind, ValidatorSet,
+    ValueId, ValueOrigin,
 };
 use malachitebft_metrics::Metrics;
 use malachitebft_sync::{
@@ -705,7 +705,7 @@ where
         height: Ctx::Height,
         round: Round,
         value_id: ValueId<Ctx>,
-    ) -> Result<Option<Extension>, ActorProcessingErr> {
+    ) -> Result<Option<Ctx::Extension>, ActorProcessingErr> {
         ractor::call!(self.host, |reply_to| HostMsg::ExtendVote {
             height,
             round,
