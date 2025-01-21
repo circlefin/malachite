@@ -65,7 +65,6 @@ where
     ///
     /// Called when consensus is started and initialized with the first height.
     /// Re-initialization for subsequent heights is done using `move_to_height()`.
-    ///
     pub fn new(
         ctx: Ctx,
         height: Ctx::Height,
