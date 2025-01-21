@@ -5,7 +5,7 @@ use rand::RngCore;
 use sha3::Digest;
 use tracing::{debug, error, trace};
 
-use malachitebft_core_types::{Round, SignedExtension, Validity};
+use malachitebft_core_types::{Round, Validity};
 use malachitebft_engine::consensus::ConsensusRef;
 use malachitebft_engine::host::ProposedValue;
 use malachitebft_engine::util::streaming::StreamId;
