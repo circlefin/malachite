@@ -131,7 +131,7 @@ mod tests {
     use crate::PrivateKey;
 
     #[test]
-    fn add_update_remove() {
+    fn new_validator_set_vp() {
         let mut rng = StdRng::seed_from_u64(0x42);
 
         let sk1 = PrivateKey::generate(&mut rng);
