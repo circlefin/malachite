@@ -3,15 +3,7 @@ name: Rust
 on:
   push:
     branches: main
-    paths:
-      - code/**
-      - specs/quint/**
-      - .github/workflows/rust.yml
   pull_request:
-    paths:
-      - code/**
-      - specs/quint/**
-      - .github/workflows/rust.yml
 
 env:
   CARGO_INCREMENTAL: 0
@@ -23,8 +15,25 @@ env:
   RUSTUP_MAX_RETRIES: 10
 
 jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - 'code/**'
+
   test:
     name: Unit Tests
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -60,6 +69,8 @@ jobs:
 
   integration:
     name: Integration Tests
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -95,6 +106,8 @@ jobs:
 
   no_std:
     name: no_std compatibility
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -108,7 +121,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Setup Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
-        with: 
+        with:
           cache-workspaces: "code"
           target: thumbv7m-none-eabi
       - name: Check no_std compatibility
@@ -116,6 +129,8 @@ jobs:
 
   clippy:
     name: Clippy
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -137,6 +152,8 @@ jobs:
 
   fmt:
     name: Formatting
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -153,6 +170,8 @@ jobs:
 
   msrv:
     name: MSRV
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -176,6 +195,8 @@ jobs:
 
   standalone:
     name: Standalone
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     defaults:
       run:

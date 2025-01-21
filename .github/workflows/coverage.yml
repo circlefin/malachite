@@ -4,10 +4,6 @@ on:
   push:
     branches: main
   pull_request:
-    paths:
-      - code/**
-      - specs/quint/**
-      - .github/workflows/coverage.yml
 
 env:
   CARGO_TERM_COLOR: always
@@ -19,8 +15,28 @@ env:
   RUSTUP_MAX_RETRIES: 10
 
 jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+      specs: ${{ steps.filter.outputs.specs }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - 'code/**'
+            specs:
+              - 'specs/**'
+
   integration:
     name: Integration
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -31,7 +47,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Install Protoc
-        uses: arduino/setup-protoc@v3
+        uses: arduino/setup-protoc@v
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Setup Node
@@ -75,6 +91,8 @@ jobs:
 
   mbt:
     name: MBT
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' || needs.changes.outputs.specs == 'true' }}
     runs-on: ubuntu-latest
     defaults:
       run:

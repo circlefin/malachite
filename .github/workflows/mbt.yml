@@ -1,21 +1,32 @@
 name: MBT
 on:
   push:
-    branches:
-      - main
-    paths:
-      - specs/quint/**
-      - code/**
-      - .github/workflows/mbt.yml
+    branches: main
   pull_request:
-    paths:
-      - specs/quint/**
-      - code/**
-      - .github/workflows/mbt.yml
 
 jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+      specs: ${{ steps.filter.outputs.specs }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - 'code/**'
+            specs:
+              - 'specs/**'
+
   mbt-tests:
     name: Run MBT Tests
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' || needs.changes.outputs.specs == 'true' }}
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: 0
