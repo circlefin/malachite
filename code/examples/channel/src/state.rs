@@ -123,7 +123,11 @@ impl State {
                 .signing_provider
                 .verify(&hash, signature, from_pub_key)
             {
-                error!("Invalid signature in Fin part, rejecting proposal");
+                error!(
+                    "Invalid signature in Fin part from PeerId: {:?}, rejecting proposal",
+                    from
+                );
+                return Ok(None);
             }
         }
 
