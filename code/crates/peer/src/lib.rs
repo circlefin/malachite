@@ -17,10 +17,14 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
+#![no_std]
+extern crate alloc;
 
-// FIXME: Make the crate no_std compatible once https://github.com/multiformats/rust-multihash/issues/375 is resolved
-
-use std::{fmt, str::FromStr};
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
+use core::{fmt, str::FromStr};
 
 use thiserror::Error;
 
@@ -68,8 +72,10 @@ impl fmt::Display for PeerId {
 impl PeerId {
     /// Parses a `PeerId` from bytes.
     pub fn from_bytes(data: &[u8]) -> Result<PeerId, ParseError> {
-        PeerId::from_multihash(Multihash::from_bytes(data)?)
-            .map_err(|mh| ParseError::UnsupportedCode(mh.code()))
+        PeerId::from_multihash(
+            Multihash::from_bytes(data).map_err(|e| ParseError::InvalidMultihash(e.to_string()))?,
+        )
+        .map_err(|mh| ParseError::UnsupportedCode(mh.code()))
     }
 
     /// Tries to turn a `Multihash` into a `PeerId`.
@@ -201,11 +207,11 @@ impl<'de> Deserialize<'de> for PeerId {
 #[derive(Debug, Error)]
 pub enum ParseError {
     #[error("base-58 decode error: {0}")]
-    B58(#[from] bs58::decode::Error),
+    B58(String),
     #[error("unsupported multihash code '{0}'")]
     UnsupportedCode(u64),
-    #[error("invalid multihash")]
-    InvalidMultihash(#[from] multihash::Error),
+    #[error("invalid multihash: {0}")]
+    InvalidMultihash(String),
 }
 
 impl FromStr for PeerId {
@@ -213,7 +219,9 @@ impl FromStr for PeerId {
 
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let bytes = bs58::decode(s).into_vec()?;
+        let bytes = bs58::decode(s)
+            .into_vec()
+            .map_err(|e| ParseError::B58(e.to_string()))?;
         let peer_id = PeerId::from_bytes(&bytes)?;
 
         Ok(peer_id)

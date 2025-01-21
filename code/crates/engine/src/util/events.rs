@@ -3,7 +3,7 @@ use core::fmt;
 use derive_where::derive_where;
 use tokio::sync::broadcast;
 
-use malachitebft_core_consensus::{ProposedValue, SignedConsensusMsg, ValueToPropose};
+use malachitebft_core_consensus::{LocallyProposedValue, ProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{CommitCertificate, Context, Round, Timeout, ValueOrigin};
 
 pub type RxEvent<Ctx> = broadcast::Receiver<Event<Ctx>>;
@@ -40,7 +40,7 @@ pub enum Event<Ctx: Context> {
     StartedHeight(Ctx::Height),
     StartedRound(Ctx::Height, Round),
     Published(SignedConsensusMsg<Ctx>),
-    ProposedValue(ValueToPropose<Ctx>),
+    ProposedValue(LocallyProposedValue<Ctx>),
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
     Decided(CommitCertificate<Ctx>),
     RequestedVoteSet(Ctx::Height, Round),

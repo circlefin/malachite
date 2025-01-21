@@ -10,11 +10,10 @@ use sha3::Digest;
 use tracing::{debug, error};
 
 use malachitebft_app_channel::app::consensus::ProposedValue;
-use malachitebft_app_channel::app::host::LocallyProposedValue;
 use malachitebft_app_channel::app::streaming::{StreamContent, StreamMessage};
 use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::{CommitCertificate, Round, Validity};
-use malachitebft_app_channel::app::types::PeerId;
+use malachitebft_app_channel::app::types::{LocallyProposedValue, PeerId};
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{
     Address, Height, ProposalData, ProposalFin, ProposalInit, ProposalPart, TestContext, Value,

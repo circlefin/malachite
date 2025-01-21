@@ -21,11 +21,6 @@ pub mod streaming {
     pub use malachitebft_engine::util::streaming::*;
 }
 
-pub mod host {
-    // TODO: Move this under `types`
-    pub use malachitebft_engine::host::LocallyProposedValue;
-}
-
 pub mod consensus {
     pub use malachitebft_core_consensus::*;
 }
