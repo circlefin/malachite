@@ -15,7 +15,6 @@ where
     let LocallyProposedValue {
         height,
         round,
-        valid_round,
         value,
         extension,
     } = value;
@@ -37,13 +36,14 @@ where
 
         return Ok(());
     }
+
     #[cfg(feature = "metrics")]
     metrics.consensus_start();
 
     state.store_value(&ProposedValue {
         height,
         round,
-        valid_round,
+        valid_round: Round::Nil,
         proposer: state.address().clone(),
         value: value.clone(),
         validity: Validity::Valid,

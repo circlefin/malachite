@@ -44,7 +44,6 @@ pub enum ConsensusMsg<Ctx: Context> {
 pub struct LocallyProposedValue<Ctx: Context> {
     pub height: Ctx::Height,
     pub round: Round,
-    pub valid_round: Round,
     pub value: Ctx::Value,
     pub extension: Option<SignedExtension<Ctx>>,
 }

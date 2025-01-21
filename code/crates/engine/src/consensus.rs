@@ -283,7 +283,6 @@ where
                 let value_to_propose = LocallyProposedValue {
                     height,
                     round,
-                    valid_round: Round::Nil,
                     value: value.clone(),
                     extension,
                 };
