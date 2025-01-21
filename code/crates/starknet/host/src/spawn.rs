@@ -282,8 +282,9 @@ async fn spawn_mempool_actor(
 ) -> MempoolRef {
     Mempool::spawn(
         mempool_network,
-        mempool_config.clone(),
-        *test_config,
+        mempool_config.gossip_batch_size,
+        mempool_config.max_tx_count,
+        test_config.tx_size,
         span.clone(),
     )
     .await
