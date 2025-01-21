@@ -592,21 +592,13 @@ async fn on_decided(
     }
 
     // Update metrics
-    let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
-    let extension_size: usize = certificate
-        .aggregated_signature
-        .signatures
-        .iter()
-        .map(|c| c.extension.as_ref().map_or(0, |e| e.size_bytes()))
-        .sum();
-
-    let block_and_commits_size = block_size + extension_size;
     let tx_count: usize = all_parts.iter().map(|p| p.tx_count()).sum();
+    let parts_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
+    let extensions_size = aggregated_extensions_size(&certificate);
+    let block_size = parts_size + extensions_size;
 
     metrics.block_tx_count.observe(tx_count as f64);
-    metrics
-        .block_size_bytes
-        .observe(block_and_commits_size as f64);
+    metrics.block_size_bytes.observe(block_size as f64);
     metrics.finalized_txes.inc_by(tx_count as u64);
 
     // Gather hashes of all the tx-es included in the block,
@@ -637,6 +629,15 @@ async fn on_decided(
     ))?;
 
     Ok(())
+}
+
+fn aggregated_extensions_size(certificate: &CommitCertificate<MockContext>) -> usize {
+    certificate
+        .aggregated_signature
+        .signatures
+        .iter()
+        .map(|c| c.extension.as_ref().map_or(0, |e| e.size_bytes()))
+        .sum()
 }
 
 async fn prune_block_store(state: &mut HostState) {
