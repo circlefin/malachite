@@ -216,11 +216,8 @@ impl Actor for Mempool {
                 reply.send(txes)?;
             }
 
-            Msg::Update { .. } => {
-                // FIXME: Remove only the given txes
-                // tx_hashes.iter().for_each(|hash| state.remove_tx(hash));
-
-                state.transactions.clear();
+            Msg::Update { tx_hashes } => {
+                tx_hashes.iter().for_each(|hash| state.remove_tx(hash));
             }
         }
 
