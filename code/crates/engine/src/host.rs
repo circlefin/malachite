@@ -11,29 +11,7 @@ use malachitebft_sync::RawDecidedValue;
 use crate::consensus::ConsensusRef;
 use crate::util::streaming::StreamMessage;
 
-/// A value to propose that has just been received.
-pub use malachitebft_core_consensus::ProposedValue;
-
-/// This is the value that the application constructed
-/// and has finished streaming on gossip.
-///
-/// This is passed back to the consensus layer.
-#[derive_where(Clone, Debug, PartialEq, Eq)]
-pub struct LocallyProposedValue<Ctx: Context> {
-    pub height: Ctx::Height,
-    pub round: Round,
-    pub value: Ctx::Value,
-}
-
-impl<Ctx: Context> LocallyProposedValue<Ctx> {
-    pub fn new(height: Ctx::Height, round: Round, value: Ctx::Value) -> Self {
-        Self {
-            height,
-            round,
-            value,
-        }
-    }
-}
+pub use malachitebft_core_consensus::{LocallyProposedValue, ProposedValue};
 
 /// A reference to the host actor.
 pub type HostRef<Ctx> = ActorRef<HostMsg<Ctx>>;

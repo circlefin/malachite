@@ -17,7 +17,7 @@ use malachitebft_config::{
     Config as NodeConfig, Config, DiscoveryConfig, LoggingConfig, PubSubProtocol, SyncConfig,
     TestConfig, TransportProtocol,
 };
-use malachitebft_core_consensus::{SignedConsensusMsg, ValueToPropose};
+use malachitebft_core_consensus::{LocallyProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{SignedVote, VotingPower};
 use malachitebft_engine::util::events::{Event, RxEvent, TxEvent};
 use malachitebft_starknet_host::spawn::spawn_node_actor;
@@ -247,7 +247,7 @@ impl<State> TestNode<State> {
 
     pub fn on_proposed_value<F>(&mut self, f: F) -> &mut Self
     where
-        F: Fn(ValueToPropose<MockContext>, &mut State) -> Result<HandlerResult, eyre::Report>
+        F: Fn(LocallyProposedValue<MockContext>, &mut State) -> Result<HandlerResult, eyre::Report>
             + Send
             + Sync
             + 'static,

@@ -766,6 +766,298 @@ messages broadcast or received by correct processes at times `t < GST`.
 Which renders this property even more complex to achieve, since it imposes
 conditions for messages sent or received _before_ `GST`.
 
+[comment]: <> (We should rename this section so to not conflict with the last one)
+
+## Correctness
+
+This section argues that the Tendermint consensus algorithm is actually doing
+what is supposed to do. 
+For a complete proof of correctness, please refer to the [Tendermint
+paper][tendermint-arxiv].
+
+There are two concepts in Tendermint that repeatedly raise questions, namely
+the pairs `lockedValue/lockedRound` and `validValue/validRound`.
+It is quite subtle how these pairs of variables help the algorithm to achieve
+its goal.
+We discuss those two concepts first, before discussing safety and liveness of
+Tendermint more broadly.
+
+### Locked Value
+
+As many consensus algorithms in the literature, Tendermint adopts a locking
+mechanism to prevent the decision of different values in different rounds of
+a consensus instance.
+The general approach is that a process, before issuing a vote that may lead to
+the decision of a value `v` in a round `r`, locks value `v` at the associated
+round `r`.
+Once a process locks value in a round, it rejects any value proposed in future
+rounds that is different from its locked value.
+
+The message that may lead to the decision of a proposed value in Tendermint is
+the `PRECOMMIT` message, in the case it carries a value identifier `id(v)`.
+So in the pseudo-code block starting from line 36, a process `p` in the
+`prevote` round step sets `lockedValue_p` to `v` and `lockedRound_p` to
+its current round `round_p` _before_ signing and broadcasting a
+`⟨PRECOMMIT, h_p, round_p, id(v)⟩` message.
+
+From this point on, the process can only accept a proposed value `v`, by
+broadcasting a `PREVOTE` for `id(v)`, if `v = lockedValue_p`.
+This logic is present in the pseudo-code blocks starting from lines 22 and 28:
+if a value `v != lockedValue_p` is proposed, the process rejects it by issuing
+a `PREVOTE` for `nil`.
+
+There is, however, an exception to this rule, presented in the pseudo-code
+block starting from line 28.
+If the proposer of the current round `round_p` re-proposes a value `v`, and
+there is a valid Proof-of-Lock (POL) for `v` in a round `vr > lockedRound_p`,
+process `p` accepts the proposed value `v` even though `v != lockedValue_p`.
+The rationale is that `p` _could have_ locked and issued a `PRECOMMIT` for `v`
+in round `vr`, if `p` _had received_ the POL messages while in the `prevote`
+round step of round `vr`.
+If `p` could have locked `v` in round `vr`, then any correct process could
+have produced a valid lock in round `vr`.
+And more recent (from high-numbered rounds) locks prevail.
+
+> **Remark**: notice that the actual condition in line 29 is `vr >= lockedRound_p`.
+> But, as discussed in this [issue][line29-issue], if `vr = lockedRound_p` then
+> by the algorithm necessarily `v = lockedValue_p`.
+> Otherwise, in round `vr` two POLs for distinct values were produced: one for
+> `lockedValue_p`, observed by `p`, and another for `v`, observed by the
+> proposer of the current round.
+> But this would require more than one third of the voting power to be owned by
+> Byzantine processes, which is a violation of Tendermint's failure model.
+
+It is worth discussing why the above described exception for locking rule is
+needed in Tendermint.
+It is possible that in a round `r` a single or few correct processes have
+locked the proposed value and issued a `PRECOMMIT` for it.
+The proposed value, in this case, will not be decided, for the lack of enough
+`PRECOMMIT`s, but this or these processes are locked on it.
+In an unfavorable scenario, the proposers of subsequent rounds are Byzantine or
+unaware of the lock in round `r`, therefore propose new values.
+Those values are rejected by processes locked in round `r`, but they are
+accepted by correct processes that have no locks.
+With the votes of Byzantine processes, which may misbehave, it is then
+possible to produce another lock in a round `r' > r`.
+None of the locked values can be decided, for the lack of votes, but liveness
+is under threat, as detailed in this [discussion][equivocation-discussion].
+The only way out of this _hidden locks_ scenario is when the processes locked
+in round `r` learn the POL for round `r' > r`, so that they can disregard
+their own lock.
+
+### Valid Value
+
+In the same pseudo-code block, starting from line 36, where the locked value
+and round can be updated, a process `p` sets `validValue_p` to the proposed
+value `v` and `validRound_p` to the current round `round_p`.
+But while the [locked value](#locked-value) is intended to preserve safety (two
+rounds do not decide different values), the valid value has the role of
+providing liveness (correct processes eventually decide).
+
+There is a scenario (detailed below) where a process `p` does not lock a
+specific value `v` in a round, but the process observes that other processes
+may have locked `v` in this round.
+In this case, to ensure liveness, if the process becomes a proposer in a future
+round, it should re-propose `v`.
+This is achieved by setting `validValue_p` to `v` the in the pseudo-code line
+42 then using it as the proposal value when it becomes the proposer of a round,
+in line 16.
+The concrete scenario is detailed as follows.
+
+A proposed value `v` becomes _globally_ valid (in opposition to the _local_
+validity represented by the [`valid(v)` function](#validation)) in a round `r`
+when it is accepted by a big enough number of processes; they accept it by
+broadcasting a `PREVOTE` for `id(v)`.
+If a process `p` observes these conditions, while still in round `r`, line 36
+of the pseudo-code is eventually triggered.
+There are however some scenarios to consider:
+
+1. `step_p = propose`: in this case, `p` eventually moves to the `prevote`
+   round step below;
+2. `step_p = prevote`: in this case, `p` locks `v` at round `r` and broadcast a
+   `PRECOMMIT` for `id(v)`;
+3. `step_p = precommit`: in this case, `p` only updates `validValue_p` to `v`
+   and `validRound_p` to `r`.
+
+In scenarios 1 and 2, `p` locks the proposed value `v` and therefore cannot
+accept any value different than `v` in rounds greater than `r`.
+To provide liveness, if `p` becomes the proposer of a upcoming round, it must
+re-propose the only value that it can accept, namely `v`.
+This is implemented by line 15 of the pseudo-code, in particular because the
+valid value and round are equal to the locked value and round.
+
+In scenario 3, `p` has already broadcast a `PRECOMMIT` for `nil` in round `r`;
+broadcasting a conflicting `PRECOMMIT` for `id(v)` when the conditions of
+pseudo-code line 36 are observed would constitute a misbehavior.
+In fact, because `p` has not observed the conditions of line 36 (that is, a `PROPOSAL`
+for `v` and enough `PREVOTE`s for `id(v)` belonging to round `r = round_p`) while
+`step_p = prevote`, it has scheduled a `timeoutPrevote` (lines 34-35) that has
+eventually expired (lines 61-64), leading `p` to broadcast a `PRECOMMIT` for `nil`.
+
+> Notice that, assuming that less than 1/3 of the voting power is owned by
+> Byzantine processes, pseudo-code line 36 cannot be triggered in the
+> considered scenarios by any correct process in round `r` for a distinct
+> proposed value `v' != v`.
+
+Still in scenario 3, although `p` could not lock `v` in round `r`, it realizes
+that some correct process may have done so.
+To provide liveness, if `p` becomes the proposer of a upcoming round, it should
+re-propose `v`, since it has learned that `v` has become a globally valid
+value in round `r`.
+This is the reason for which pseudo-code lines 15-16 adopt `validValue_p`
+instead of `lockedValue_p`.
+
+### Safety
+
+This section argues that Tendermint is a safe consensus algorithm.
+For a complete proof, please refer to the [Tendermint paper][tendermint-arxiv].
+
+If a value `v` is decided by a correct process in round `r` of a height `h`,
+then:
+
+- the correct process has received a `⟨PROPOSAL, h, r, v, *⟩` broadcast by
+  `proposer(h, r)`;
+- the correct process has received `⟨PRECOMMIT, h, r, id(v)⟩` messages from a
+  set `Q` of processes;
+- the aggregated voting power of processes in set `Q` represents more 2/3 of
+  the total voting power in height `h`.
+
+From this initial definition, lets `C` be the subset of `Q` formed only by
+correct processes, and consider the [Locked Value](#locked-value) handling:
+
+- processes in `C` own more than 1/3 of the total voting power in height `h`;
+- every process `p` in `C` has set `lockedValue_p` to `v` and `lockedRound_p`
+  to `r` ;
+- every process `p` in `C` will broadcast a `PREVOTE` for `nil` in rounds
+  `r' > r` where a value `v' != v` is proposed.
+
+Next, lets define a `Q'` any set of processes that does not include process in
+`C`, i.e. `Q' ∩ C = ∅`:
+
+- `Q'` has less than 2/3 of the total voting power in height `h`;
+- if all processes in `Q'` broadcast a `PREVOTE` for `v' != v` in a round
+  `r' > r`, then:
+  - no correct process will lock `v'`, set `v'` as valid, or broadcast a
+    `PRECOMMIT` for `id(v')` in round `r'`;
+  - no correct process will execute pseudo-code line 28 with `vr = r'` relying
+    on the `PREVOTE` messages from process in `Q'`.
+    This is the exception on the [Locked Value](#locked-value) rules that could
+    have made processes in `C` to disregard their locks;
+- even if all processes in `Q'` broadcast a `PRECOMMIT` for `v' != v` in a
+  round `r' > r`, no correct process will decide `v'`.
+
+Thus, based on the assumption that less than 1/3 of total voting power is owned
+by Byzantine processes, and the locking rules, two correct processes cannot
+decide different values in a height of consensus.
+
+### Liveness
+
+This section argues that Tendermint is a live consensus algorithm.
+For a complete proof, please refer to the [Tendermint paper][tendermint-arxiv].
+
+Tendermint is a round-based algorithm.
+Liveness arguments for such algorithms typically have two ingredients:
+
+1. If there is a good round, then all processes decide before or in this round;
+2. Eventually there will be a good round.
+
+Regarding ingredient 1, a _good round_ is a round in which:
+
+- the proposer sends the same proposed value `v` to all processes;
+- all correct processes receive the proposed value `v` before the timeouts expire;
+- all correct processes accept the proposed value and broadcast a `PREVOTE` for `id(v)`;
+- all correct processes receive the `PREVOTE` messages for `id(v)` from all
+  correct processes (before the timeouts expire).
+  They thus lock value `v` and broadcast a `PRECOMMIT` for `id(v)`;
+- all correct processes receive the `PRECOMMIT` messages for `id(v)` from all
+  correct processes (before the timeouts expire).
+  Since they also received the proposed value `v`, all correct processes decide
+  `v` (line 51).
+
+The challenge that remains is to exhibit the ingredient 2: eventually there is
+such a good round. Here, there are two crucial points:
+
+- **Value handling.** Correct processes need to accept the proposed value `v`.
+  The complication for that are:
+    - The proposer `p` of a round might use `validValue_p` as the proposed value `v`,
+    - For accepting a proposed value `v`, a process `q` checks `v` against `lockedValue_q`,
+    - The content of the variables `lockedValue_p` and `validValue_p` change in
+      a rather complicated manner at different processes in arbitrary
+      asynchronous prefixes of the computation.
+- **Synchrony.** Messages should be delivered and timeouts should not expire.
+
+#### Value Handling
+
+The first set of conditions for the success of a round `r` depends on its proposer:
+
+1. The [`proposer(h, r)` function](#proposer-selection) returns a correct process `p`;
+2. And `validRound_p` equals the maximum `validRound_q` among every correct process `q`.
+
+A correct proposer `p` (Condition 1) broadcasts a single `PROPOSAL` message (it
+does not equivocate) in round `r`, including a proposed value `v` that will be
+considered valid, by the [`valid(v)` function](#validation), by every correct
+process.
+This means that any correct process `q` will only reject the proposed value `v`
+if it is locked on a different value, i.e., if `lockedRound_q > -1` and
+`lockedValue_q != v`.
+
+Condition 2 states that if there is a correct process `q` with `lockedRound_q > -1`,
+then `validRound_p >= lockedRound_q > -1` (notice that, for any process `q`,
+`validRound_q >= lockedRound_q`, from the pseudo-code block starting from line 36).
+In this case, `p` re-proposes in round `r` the value `validValue_p` that has
+become a [globally valid value](#valid-value) in round `vr = validRound_p`.
+This means that `p` knows `validValue_p` value and, very important, has
+received `⟨PREVOTE, h, vr, id(v)⟩` messages from processes owning more than 2/3
+of the total voting power of height `h`, in order words, the Proof-of-Lock
+(POL) for `v` in round `vr < r`.
+
+When Conditions 1 and 2 are observed, the only possibility for a correct
+process `q` to reject `p`'s `PROPOSAL` message is when its field `vr > -1`
+(i.e., `v = validValue_p` is a re-proposed value) but `q` has not received the
+POL for `v` in round `vr`.
+Notice, however, that from the [Gossip communication property](#network), `q`
+should eventually receive the POL for `v` in round `vr`, since `p` is a correct
+process.
+
+#### Synchrony
+
+The remaining liveness conditions are essentially associated to the synchronous
+behavior of the system.
+More specifically, even if Conditions 1 and 2 are observed, a round `r` may
+still _not_ succeed if:
+(i) the `timeoutPropose(r)` scheduled by correct processes expires before they
+execute pseudo-code lines 22 or 28;
+(ii) the `timeoutPrevote(r)` scheduled by correct processes expires before they
+execute pseudo-code line 36;
+or (iii) the `timeoutPrecommit(r)` scheduled by correct processes expires before they
+execute pseudo-code line 49.
+
+As described in the [Timeouts section](#timeouts), Tendermint is designed for
+the [partially synchronous][partially-synchronous] distributed system model.
+In this model, there is a Global Stabilization Time (`GST`), from when the
+system starts behaving synchronously.
+In this way, with properly configured and increasing timeouts, combined with
+the [Gossip communication property](#network), from `GST` on messages broadcast
+by correct processes are received by correct processes before the associated
+timeouts expire.
+Which is a requirement for the success of any round of consensus.
+
+It remains to argue that from `GST` on the Condition 2 for the proposer of a
+successful round is observed.
+In other words, it should be ensured that, from `GST` on, if any correct
+process executes pseudo-code line 36 for a round `r*`, then every correct
+process executes the same line while still in round `r*`.
+This is achieved by the means of, and it is actually the reason for which
+Tendermint has, the `timeoutPrecommit(r*)`.
+Before moving to the next round, because the current one has not succeeded,
+processes wait for a while to ensure that they have received all the `PREVOTE`
+messages from that round, broadcast or received by other correct processes.
+As a result, if a correct process has locked or updated its valid value in
+round `r*`, then every correct process will at least update its valid value in
+round `r*`.
+This enables the next correct proposer, of a round `r > r*` to fulfill
+Condition 2, thus enabling `r` to be a successful round.
+
 [^1]: This document adopts _process_ to refer to the active participants of the
   consensus algorithm, which can propose and vote for values.
   In the blockchain terminology, a _process_ would be an active _validator_.
@@ -780,3 +1072,5 @@ conditions for messages sent or received _before_ `GST`.
 [synchronization-issue]: https://github.com/informalsystems/malachite/issues/260
 [synchronization-spec]: ../synchronization/README.md
 [partially-synchronous]: https://dl.acm.org/doi/10.1145/42282.42283
+[line29-issue]: https://github.com/informalsystems/malachite/issues/366
+[equivocation-discussion]: https://github.com/informalsystems/malachite/discussions/380

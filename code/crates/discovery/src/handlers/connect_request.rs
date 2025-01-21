@@ -1,8 +1,9 @@
 use libp2p::{
     request_response::{OutboundRequestId, ResponseChannel},
+    swarm::ConnectionId,
     PeerId, Swarm,
 };
-use tracing::{debug, error, info, trace, warn};
+use tracing::{error, info, trace};
 
 use crate::{
     behaviour::{self, Response},
@@ -61,6 +62,7 @@ where
         swarm: &mut Swarm<C>,
         channel: ResponseChannel<Response>,
         peer: PeerId,
+        connection_id: ConnectionId,
     ) {
         let mut accepted: bool = false;
 
@@ -69,24 +71,9 @@ where
 
             accepted = true;
         } else if self.inbound_connections.len() < self.config.num_inbound_peers {
-            info!("Upgrading connection of peer {peer} to inbound connection");
+            info!("Upgrading connection {connection_id} of peer {peer} to inbound connection");
 
-            if let Some(connection_ids) = self.active_connections.get(&peer) {
-                if connection_ids.len() > 1 {
-                    // TODO: refer to `OutboundConnection` struct TODO in lib.rs
-                    warn!("Peer {peer} has more than one connection");
-                }
-                match connection_ids.first() {
-                    Some(connection_id) => {
-                        debug!("Upgrading connection {connection_id} to inbound connection");
-                        self.inbound_connections.insert(peer, *connection_id);
-                    }
-                    None => {
-                        // This should not happen
-                    }
-                }
-            }
-
+            self.inbound_connections.insert(peer, connection_id);
             accepted = true;
         } else {
             info!("Rejecting connection upgrade of peer {peer} to inbound connection as the limit is reached");
@@ -110,6 +97,7 @@ where
         swarm: &mut Swarm<C>,
         request_id: OutboundRequestId,
         peer: PeerId,
+        connection_id: ConnectionId,
         accepted: bool,
     ) {
         self.controller
@@ -117,10 +105,12 @@ where
             .remove_in_progress(&request_id);
 
         if accepted {
-            info!("Successfully upgraded connection of peer {peer} to outbound connection");
+            info!("Successfully upgraded connection {connection_id} of peer {peer} to outbound connection");
 
             if let Some(out_conn) = self.outbound_connections.get_mut(&peer) {
                 out_conn.is_persistent = true;
+                // Update connection data with the correct connection id.
+                out_conn.connection_id = Some(connection_id);
             }
 
             // if all outbound connections are persistent, discovery is done

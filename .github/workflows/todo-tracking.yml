@@ -1,10 +1,13 @@
 name: TODOs Tracking
 
 on:
-  schedule:
-    # Runs at 00:00 UTC every day
-    - cron: "0 0 * * *"
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - code/**
+      - .github/workflows/todo-tracking.yml
 
 jobs:
   update-todos:

@@ -107,9 +107,9 @@ pub async fn run(
             }
 
             AppMsg::ExtendVote {
-                height,
-                round,
-                value_id,
+                height: _,
+                round: _,
+                value_id: _,
                 reply,
             } => {
                 // TODO

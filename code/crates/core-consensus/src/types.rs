@@ -40,11 +40,20 @@ pub enum ConsensusMsg<Ctx: Context> {
 /// A value to propose by the current node.
 /// Used only when the node is the proposer.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
-pub struct ValueToPropose<Ctx: Context> {
+pub struct LocallyProposedValue<Ctx: Context> {
     pub height: Ctx::Height,
     pub round: Round,
-    pub valid_round: Round,
     pub value: Ctx::Value,
+}
+
+impl<Ctx: Context> LocallyProposedValue<Ctx> {
+    pub fn new(height: Ctx::Height, round: Round, value: Ctx::Value) -> Self {
+        Self {
+            height,
+            round,
+            value,
+        }
+    }
 }
 
 /// A value proposed by a validator
