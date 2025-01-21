@@ -1,18 +1,18 @@
 use crate::prelude::*;
 
 use crate::handle::driver::apply_driver_input;
-use crate::types::{ProposedValue, ValueToPropose};
+use crate::types::{LocallyProposedValue, ProposedValue};
 
 pub async fn on_propose<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    value: ValueToPropose<Ctx>,
+    value: LocallyProposedValue<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
-    let ValueToPropose {
+    let LocallyProposedValue {
         height,
         round,
         valid_round,
