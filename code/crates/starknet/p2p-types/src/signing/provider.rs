@@ -1,7 +1,8 @@
+use bytes::Bytes;
 use starknet_core::utils::starknet_keccak;
 
 use malachitebft_core_types::{
-    CertificateError, CommitCertificate, CommitSignature, Extension, NilOrVal, SignedExtension,
+    CertificateError, CommitCertificate, CommitSignature, NilOrVal, SignedExtension,
     SignedProposal, SignedProposalPart, SignedVote, SigningProvider, VotingPower,
 };
 
@@ -69,19 +70,19 @@ impl SigningProvider<MockContext> for EcdsaProvider {
         public_key.verify(&hash, signature)
     }
 
-    fn sign_vote_extension(&self, extension: Extension) -> SignedExtension<MockContext> {
-        let hash = starknet_keccak(extension.as_bytes());
+    fn sign_vote_extension(&self, extension: Bytes) -> SignedExtension<MockContext> {
+        let hash = starknet_keccak(extension.as_ref());
         let signature = self.private_key.sign(&hash);
         SignedExtension::new(extension, signature)
     }
 
     fn verify_signed_vote_extension(
         &self,
-        extension: &Extension,
+        extension: &Bytes,
         signature: &Signature,
         public_key: &PublicKey,
     ) -> bool {
-        let hash = starknet_keccak(extension.as_bytes());
+        let hash = starknet_keccak(extension.as_ref());
         public_key.verify(&hash, signature)
     }
 

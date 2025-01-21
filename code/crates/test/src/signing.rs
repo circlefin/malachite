@@ -1,5 +1,6 @@
+use bytes::Bytes;
 use malachitebft_core_types::{
-    CertificateError, CommitCertificate, CommitSignature, Extension, NilOrVal, SignedExtension,
+    CertificateError, CommitCertificate, CommitSignature, NilOrVal, SignedExtension,
     SignedProposal, SignedProposalPart, SignedVote, SigningProvider, VotingPower,
 };
 
@@ -98,19 +99,19 @@ impl SigningProvider<TestContext> for Ed25519Provider {
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn sign_vote_extension(&self, extension: Extension) -> SignedExtension<TestContext> {
-        let signature = self.private_key.sign(extension.as_bytes());
+    fn sign_vote_extension(&self, extension: Bytes) -> SignedExtension<TestContext> {
+        let signature = self.private_key.sign(extension.as_ref());
         malachitebft_core_types::SignedMessage::new(extension, signature)
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn verify_signed_vote_extension(
         &self,
-        extension: &Extension,
+        extension: &Bytes,
         signature: &Signature,
         public_key: &PublicKey,
     ) -> bool {
-        public_key.verify(extension.as_bytes(), signature).is_ok()
+        public_key.verify(extension.as_ref(), signature).is_ok()
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]

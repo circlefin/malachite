@@ -1,6 +1,6 @@
 use bytes::Bytes;
 
-use malachitebft_core_types::{Extension, NilOrVal, Round, SignedExtension, VoteType};
+use malachitebft_core_types::{NilOrVal, Round, SignedExtension, VoteType};
 use malachitebft_proto as proto;
 use malachitebft_starknet_p2p_proto as p2p_proto;
 
@@ -81,13 +81,12 @@ impl proto::Protobuf for Vote {
         let extension = proto
             .extension
             .map(|data| -> Result<_, proto::Error> {
-                let extension = Extension::from(data.data);
                 let signature = data.signature.ok_or_else(|| {
                     proto::Error::missing_field::<Self::Proto>("extension.signature")
                 })?;
 
                 Ok(SignedExtension::new(
-                    extension,
+                    data.data,
                     Signature::from_proto(signature)?,
                 ))
             })
@@ -127,7 +126,7 @@ impl proto::Protobuf for Vote {
                 .as_ref()
                 .map(|ext| -> Result<_, proto::Error> {
                     Ok(p2p_proto::Extension {
-                        data: ext.message.data.clone(),
+                        data: ext.message.clone(),
                         signature: Some(ext.signature.to_proto()?),
                     })
                 })

@@ -5,7 +5,7 @@ use malachitebft_app::streaming::{StreamContent, StreamMessage};
 use malachitebft_codec::Codec;
 use malachitebft_core_consensus::{ProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{
-    AggregatedSignature, CommitCertificate, CommitSignature, Extension, Round, SignedExtension,
+    AggregatedSignature, CommitCertificate, CommitSignature, Round, SignedExtension,
     SignedProposal, SignedVote, Validity, VoteSet,
 };
 use malachitebft_proto::{Error as ProtoError, Protobuf};
@@ -450,20 +450,19 @@ pub fn encode_aggregate_signature(
 }
 
 pub fn decode_extension(ext: proto::Extension) -> Result<SignedExtension<TestContext>, ProtoError> {
-    let extension = Extension::from(ext.data);
     let signature = ext
         .signature
         .ok_or_else(|| ProtoError::missing_field::<proto::Extension>("signature"))
         .and_then(decode_signature)?;
 
-    Ok(SignedExtension::new(extension, signature))
+    Ok(SignedExtension::new(ext.data, signature))
 }
 
 pub fn encode_extension(
     ext: &SignedExtension<TestContext>,
 ) -> Result<proto::Extension, ProtoError> {
     Ok(proto::Extension {
-        data: ext.message.data.clone(),
+        data: ext.message.clone(),
         signature: Some(encode_signature(&ext.signature)),
     })
 }

@@ -3,7 +3,7 @@ use prost::Message;
 
 use malachitebft_codec::Codec;
 use malachitebft_core_types::{
-    AggregatedSignature, CommitCertificate, CommitSignature, Extension, Round, SignedExtension,
+    AggregatedSignature, CommitCertificate, CommitSignature, Round, SignedExtension,
     SignedProposal, SignedVote, Validity,
 };
 use malachitebft_engine::util::streaming::{StreamContent, StreamMessage};
@@ -70,20 +70,19 @@ impl Codec<ProposalPart> for ProtobufCodec {
 }
 
 pub fn decode_extension(ext: proto::Extension) -> Result<SignedExtension<MockContext>, ProtoError> {
-    let extension = Extension::from(ext.data);
     let signature = ext
         .signature
         .ok_or_else(|| ProtoError::missing_field::<proto::Extension>("signature"))
         .and_then(p2p::Signature::from_proto)?;
 
-    Ok(SignedExtension::new(extension, signature))
+    Ok(SignedExtension::new(ext.data, signature))
 }
 
 pub fn encode_extension(
     ext: &SignedExtension<MockContext>,
 ) -> Result<proto::Extension, ProtoError> {
     Ok(proto::Extension {
-        data: ext.message.data.clone(),
+        data: ext.message.clone(),
         signature: Some(ext.signature.to_proto()?),
     })
 }

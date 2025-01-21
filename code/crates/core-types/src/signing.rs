@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use core::fmt::{Debug, Display};
 
 use crate::{
-    CertificateError, CommitCertificate, CommitSignature, Context, Extension, PublicKey, Signature,
+    CertificateError, CommitCertificate, CommitSignature, Context, PublicKey, Signature,
     SignedMessage, ThresholdParams, VotingPower,
 };
 
@@ -87,12 +87,12 @@ where
     ) -> bool;
 
     /// Sign the given vote extension with our private key.
-    fn sign_vote_extension(&self, extension: Extension) -> SignedMessage<Ctx, Extension>;
+    fn sign_vote_extension(&self, extension: Ctx::Extension) -> SignedMessage<Ctx, Ctx::Extension>;
 
     /// Verify the given vote extension's signature using the given public key.
     fn verify_signed_vote_extension(
         &self,
-        extension: &Extension,
+        extension: &Ctx::Extension,
         signature: &Signature<Ctx>,
         public_key: &PublicKey<Ctx>,
     ) -> bool;
