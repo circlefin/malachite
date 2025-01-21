@@ -597,7 +597,7 @@ async fn on_decided(
         .aggregated_signature
         .signatures
         .iter()
-        .map(|c| c.extension.as_ref().map(|e| e.size_bytes()).unwrap_or(0))
+        .map(|c| c.extension.as_ref().map_or(0, |e| e.size_bytes()))
         .sum();
 
     let block_and_commits_size = block_size + extension_size;
