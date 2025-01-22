@@ -129,9 +129,7 @@ impl State {
             // Get proposal's public key
             let public_key = self
                 .get_validator_set()
-                .validators
-                .iter()
-                .find(|v| v.address == parts.proposer)
+                .get_by_address(&parts.proposer)
                 .map(|v| v.public_key);
 
             let Some(public_key) = public_key else {
