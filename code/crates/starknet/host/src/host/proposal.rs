@@ -12,7 +12,7 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::{error, trace};
 
-use malachitebft_core_types::Round;
+use malachitebft_core_types::{Round, VoteExtensions};
 
 use crate::host::starknet::StarknetParams;
 use crate::mempool::{MempoolMsg, MempoolRef};
@@ -23,6 +23,7 @@ pub async fn build_proposal_task(
     round: Round,
     proposer: Address,
     private_key: PrivateKey,
+    vote_extensions: VoteExtensions<MockContext>,
     params: StarknetParams,
     deadline: Instant,
     mempool: MempoolRef,
@@ -34,6 +35,7 @@ pub async fn build_proposal_task(
         round,
         proposer,
         private_key,
+        vote_extensions,
         params,
         deadline,
         mempool,
@@ -51,6 +53,7 @@ async fn run_build_proposal_task(
     round: Round,
     proposer: Address,
     private_key: PrivateKey,
+    vote_extensions: VoteExtensions<MockContext>,
     params: StarknetParams,
     deadline: Instant,
     mempool: MempoolRef,
@@ -147,6 +150,22 @@ async fn run_build_proposal_task(
             trace!("Time allowance exceeded, stopping tx generation");
             break;
         }
+    }
+
+    // Vote extensions
+    if !vote_extensions.extensions.is_empty() {
+        let transactions = vote_extensions
+            .extensions
+            .into_iter()
+            .map(|(_, e)| e.message)
+            .map(Transaction::new)
+            .collect();
+
+        let part = ProposalPart::Transactions(Transactions::new(transactions));
+
+        block_hasher.update(part.to_sign_bytes());
+        tx_part.send(part).await?;
+        sequence += 1;
     }
 
     // BlockProof
