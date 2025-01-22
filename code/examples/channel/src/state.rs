@@ -4,6 +4,7 @@
 use std::collections::HashSet;
 
 use bytes::Bytes;
+use eyre::eyre;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use sha3::Digest;
@@ -122,8 +123,9 @@ impl State {
 
             let hash = hasher.finalize().to_vec();
             let Some(signature) = signature else {
-                error!(proposer = %parts.proposer, "Fin proposal part is missing");
-                return Ok(None);
+                return Err(eyre!(
+                    "Expected to have full proposal but `Fin` proposal part is missing"
+                ));
             };
 
             // Get proposal's public key
