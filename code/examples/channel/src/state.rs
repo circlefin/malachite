@@ -42,6 +42,19 @@ pub struct State {
     pub peers: HashSet<PeerId>,
 }
 
+/// Represents errors that can occur during the verification of a proposal's signature.
+#[derive(Debug)]
+enum SignatureVerificationError {
+    /// Indicates that the `Fin` part of the proposal is missing.
+    MissingFinPart,
+
+    /// Indicates that the proposer was not found in the validator set.
+    ProposerNotFound,
+
+    /// Indicates that the signature in the `Fin` part is invalid.
+    InvalidSignature,
+}
+
 // Make up a seed for the rng based on our address in
 // order for each node to likely propose different values at
 // each round.
@@ -100,51 +113,22 @@ impl State {
             return Ok(None);
         };
 
-        // Verify the signature in the Fin part
-        {
-            let mut hasher = sha3::Keccak256::new();
-            let mut signature = None;
-
-            // Recreate the hash and extract the signature during traversal
-            for part in &parts.parts {
-                match part {
-                    ProposalPart::Init(init) => {
-                        hasher.update(init.height.as_u64().to_be_bytes().as_slice());
-                        hasher.update(init.round.as_i64().to_be_bytes().as_slice());
-                    }
-                    ProposalPart::Data(data) => {
-                        hasher.update(data.factor.to_be_bytes().as_slice());
-                    }
-                    ProposalPart::Fin(fin) => {
-                        signature = Some(&fin.signature);
-                    }
-                }
+        // Verify the proposal signature
+        match self.verify_proposal_signature(&parts) {
+            Ok(()) => {
+                // Signature verified successfully, continue processing
             }
-
-            let hash = hasher.finalize().to_vec();
-            let Some(signature) = signature else {
+            Err(SignatureVerificationError::MissingFinPart) => {
                 return Err(eyre!(
-                    "Expected to have full proposal but `Fin` proposal part is missing"
+                    "Expected to have full proposal but `Fin` proposal part is missing for proposer: {}", 
+                    parts.proposer
                 ));
-            };
-
-            // Get proposal's public key
-            let public_key = self
-                .get_validator_set()
-                .get_by_address(&parts.proposer)
-                .map(|v| v.public_key);
-
-            let Some(public_key) = public_key else {
+            }
+            Err(SignatureVerificationError::ProposerNotFound) => {
                 error!(proposer = %parts.proposer, "Proposer not found in validator set");
                 return Ok(None);
-            };
-
-            // Verify the signature
-            if !self
-                .ctx
-                .signing_provider
-                .verify(&hash, signature, &public_key)
-            {
+            }
+            Err(SignatureVerificationError::InvalidSignature) => {
                 error!(proposer = %parts.proposer, "Invalid signature in Fin part");
                 return Ok(None);
             }
@@ -356,8 +340,57 @@ impl State {
         parts
     }
 
+    /// Returns the set of validators.
     pub fn get_validator_set(&self) -> &ValidatorSet {
         &self.genesis.validator_set
+    }
+
+    /// Verifies the signature of the proposal.
+    /// Returns `Ok(())` if the signature is valid, or an appropriate `SignatureVerificationError`.
+    fn verify_proposal_signature(
+        &self,
+        parts: &ProposalParts,
+    ) -> Result<(), SignatureVerificationError> {
+        let mut hasher = sha3::Keccak256::new();
+        let mut signature = None;
+
+        // Recreate the hash and extract the signature during traversal
+        for part in &parts.parts {
+            match part {
+                ProposalPart::Init(init) => {
+                    hasher.update(init.height.as_u64().to_be_bytes());
+                    hasher.update(init.round.as_i64().to_be_bytes());
+                }
+                ProposalPart::Data(data) => {
+                    hasher.update(data.factor.to_be_bytes());
+                }
+                ProposalPart::Fin(fin) => {
+                    signature = Some(&fin.signature);
+                }
+            }
+        }
+
+        let hash = hasher.finalize();
+        let signature = signature.ok_or(SignatureVerificationError::MissingFinPart)?;
+
+        // Retrieve the public key of the proposer
+        let public_key = self
+            .get_validator_set()
+            .get_by_address(&parts.proposer)
+            .map(|v| v.public_key);
+
+        let public_key = public_key.ok_or(SignatureVerificationError::ProposerNotFound)?;
+
+        // Verify the signature
+        if !self
+            .ctx
+            .signing_provider
+            .verify(&hash, signature, &public_key)
+        {
+            return Err(SignatureVerificationError::InvalidSignature);
+        }
+
+        Ok(())
     }
 }
 
