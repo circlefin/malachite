@@ -3,7 +3,7 @@ use derive_where::derive_where;
 use thiserror::Error;
 
 use crate::{
-    Context, NilOrVal, Round, Signature, SignedExtension, SignedVote, ValueId, Vote, VoteType,
+    Context, NilOrVal, Round, Signature, SignedVote, ValueId, Vote, VoteExtensions, VoteType,
     VotingPower,
 };
 
@@ -57,7 +57,7 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
         round: Round,
         value_id: ValueId<Ctx>,
         commits: Vec<SignedVote<Ctx>>,
-    ) -> (Self, Vec<SignedExtension<Ctx>>) {
+    ) -> (Self, VoteExtensions<Ctx>) {
         let mut extensions = Vec::new();
 
         // Collect all commit signatures and extensions from the signed votes
@@ -92,7 +92,7 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
             aggregated_signature,
         };
 
-        (certificate, extensions)
+        (certificate, VoteExtensions::new(extensions))
     }
 }
 

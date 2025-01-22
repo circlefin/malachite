@@ -12,7 +12,7 @@ use tracing::{debug, error, info, trace, warn};
 
 use malachitebft_core_consensus::PeerId;
 use malachitebft_core_types::{
-    CommitCertificate, Extension, Round, SignedExtension, Validity, ValueId, ValueOrigin,
+    CommitCertificate, Round, Validity, ValueId, ValueOrigin, VoteExtensions,
 };
 use malachitebft_engine::consensus::{ConsensusMsg, ConsensusRef};
 use malachitebft_engine::host::{LocallyProposedValue, ProposedValue};
@@ -579,7 +579,7 @@ async fn on_decided(
     consensus: &ConsensusRef<MockContext>,
     mempool: &MempoolRef,
     certificate: CommitCertificate<MockContext>,
-    extensions: Vec<SignedExtension<MockContext>>,
+    extensions: VoteExtensions<MockContext>,
     metrics: &Metrics,
 ) -> Result<(), ActorProcessingErr> {
     let (height, round) = (certificate.height, certificate.round);
@@ -606,7 +606,7 @@ async fn on_decided(
     // Update metrics
     let tx_count: usize = all_parts.iter().map(|p| p.tx_count()).sum();
     let parts_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
-    let extensions_size = aggregated_extensions_size(&extensions);
+    let extensions_size = extensions.size_bytes();
     let block_size = parts_size + extensions_size;
 
     metrics.block_tx_count.observe(tx_count as f64);
@@ -641,10 +641,6 @@ async fn on_decided(
     ))?;
 
     Ok(())
-}
-
-fn aggregated_extensions_size(extensions: &[SignedExtension<MockContext>]) -> usize {
-    extensions.iter().map(|e| e.message.size_bytes()).sum()
 }
 
 async fn prune_block_store(state: &mut HostState) {

@@ -130,7 +130,7 @@ where
     /// Resume with: [`resume::Continue`]
     Decide(
         CommitCertificate<Ctx>,
-        Vec<SignedExtension<Ctx>>,
+        VoteExtensions<Ctx>,
         resume::Continue,
     ),
 

@@ -8,7 +8,7 @@ use tokio::sync::oneshot;
 use malachitebft_engine::consensus::Msg as ConsensusActorMsg;
 use malachitebft_engine::network::Msg as NetworkActorMsg;
 
-use crate::app::types::core::{CommitCertificate, Context, Round, SignedExtension, ValueId};
+use crate::app::types::core::{CommitCertificate, Context, Round, ValueId, VoteExtensions};
 use crate::app::types::streaming::StreamMessage;
 use crate::app::types::sync::RawDecidedValue;
 use crate::app::types::{LocallyProposedValue, PeerId, ProposedValue};
@@ -126,7 +126,7 @@ pub enum AppMsg<Ctx: Context> {
         certificate: CommitCertificate<Ctx>,
 
         /// The vote extensions received for that height
-        extensions: Vec<SignedExtension<Ctx>>,
+        extensions: VoteExtensions<Ctx>,
 
         /// Channel for instructing consensus to start the next height, if desired
         reply: Reply<ConsensusMsg<Ctx>>,

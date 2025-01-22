@@ -53,7 +53,7 @@ where
         .driver
         .get_certificate(proposal_round, value.id())
         .cloned()
-        .map(|certificate| (certificate, Vec::new()))
+        .map(|certificate| (certificate, VoteExtensions::default()))
         .unwrap_or_else(|| {
             // Restore the commits. Note that they will be removed from `state`
             let commits = state.restore_precommits(height, proposal_round, value);

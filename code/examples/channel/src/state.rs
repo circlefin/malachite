@@ -14,7 +14,7 @@ use malachitebft_app_channel::app::host::LocallyProposedValue;
 use malachitebft_app_channel::app::streaming::{StreamContent, StreamMessage};
 use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::{
-    CommitCertificate, Round, SignedExtension, Validity,
+    CommitCertificate, Round, Validity, VoteExtensions,
 };
 use malachitebft_app_channel::app::types::PeerId;
 use malachitebft_test::codec::proto::ProtobufCodec;
@@ -31,7 +31,7 @@ pub struct State {
     ctx: TestContext,
     address: Address,
     store: Store,
-    extensions: HashMap<Height, Vec<SignedExtension<TestContext>>>,
+    extensions: HashMap<Height, VoteExtensions<TestContext>>,
     stream_id: u64,
     streams_map: PartStreamsMap,
     rng: StdRng,
@@ -126,7 +126,7 @@ impl State {
     pub async fn commit(
         &mut self,
         certificate: CommitCertificate<TestContext>,
-        extensions: Vec<SignedExtension<TestContext>>,
+        extensions: VoteExtensions<TestContext>,
     ) -> eyre::Result<()> {
         // Store extensions for use at next height if we are the proposer
         self.extensions

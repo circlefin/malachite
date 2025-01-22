@@ -5,7 +5,7 @@ use derive_where::derive_where;
 use ractor::{ActorRef, RpcReplyPort};
 
 use malachitebft_core_consensus::PeerId;
-use malachitebft_core_types::{CommitCertificate, Context, Round, SignedExtension, ValueId};
+use malachitebft_core_types::{CommitCertificate, Context, Round, ValueId, VoteExtensions};
 use malachitebft_sync::RawDecidedValue;
 
 use crate::consensus::ConsensusRef;
@@ -78,7 +78,7 @@ pub enum HostMsg<Ctx: Context> {
         certificate: CommitCertificate<Ctx>,
 
         /// Vote extensions that were received for this height.
-        extensions: Vec<SignedExtension<Ctx>>,
+        extensions: VoteExtensions<Ctx>,
 
         /// Reference to the `Consensus` actor for starting a new height.
         consensus: ConsensusRef<Ctx>,

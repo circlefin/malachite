@@ -66,5 +66,5 @@ pub use timeout::{Timeout, TimeoutKind};
 pub use validator_set::{Address, Validator, ValidatorSet, VotingPower};
 pub use value::{NilOrVal, Value, ValueOrigin};
 pub use vote::{Vote, VoteType};
-pub use vote_extension::Extension;
+pub use vote_extension::{Extension, VoteExtensions};
 pub use vote_set::VoteSet;
