@@ -65,8 +65,6 @@ where
     ///
     /// Called when consensus is started and initialized with the first height.
     /// Re-initialization for subsequent heights is done using `move_to_height()`.
-    ///
-    /// TODO: Consider wrapping the validator set in a Arc to avoid cloning
     pub fn new(
         ctx: Ctx,
         height: Ctx::Height,

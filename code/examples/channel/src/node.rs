@@ -129,8 +129,8 @@ impl Node for App {
 
         let store = Store::open(self.get_home_dir().join("store.db"), metrics)?;
         let start_height = self.start_height.unwrap_or_default();
-        let mut state = State::new(ctx, address, start_height, store);
+        let mut state = State::new(genesis, ctx, address, start_height, store);
 
-        crate::app::run(genesis, &mut state, &mut channels).await
+        crate::app::run(&mut state, &mut channels).await
     }
 }

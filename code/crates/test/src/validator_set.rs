@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use malachitebft_core_types::VotingPower;
 use serde::{Deserialize, Serialize};
 
@@ -52,7 +54,7 @@ impl malachitebft_core_types::Validator<TestContext> for Validator {
 /// A validator set contains a list of validators sorted by address.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ValidatorSet {
-    pub validators: Vec<Validator>,
+    pub validators: Arc<Vec<Validator>>,
 }
 
 impl ValidatorSet {
@@ -62,39 +64,14 @@ impl ValidatorSet {
 
         assert!(!validators.is_empty());
 
-        Self { validators }
+        Self {
+            validators: Arc::new(validators),
+        }
     }
 
     /// The total voting power of the validator set
     pub fn total_voting_power(&self) -> VotingPower {
         self.validators.iter().map(|v| v.voting_power).sum()
-    }
-
-    /// Add a validator to the set
-    pub fn add(&mut self, validator: Validator) {
-        self.validators.push(validator);
-
-        ValidatorSet::sort_validators(&mut self.validators);
-    }
-
-    /// Update the voting power of the given validator
-    pub fn update(&mut self, val: Validator) {
-        if let Some(v) = self
-            .validators
-            .iter_mut()
-            .find(|v| v.address == val.address)
-        {
-            v.voting_power = val.voting_power;
-        }
-
-        Self::sort_validators(&mut self.validators);
-    }
-
-    /// Remove a validator from the set
-    pub fn remove(&mut self, address: &Address) {
-        self.validators.retain(|v| &v.address != address);
-
-        Self::sort_validators(&mut self.validators);
     }
 
     /// Get a validator by its address
@@ -154,43 +131,18 @@ mod tests {
     use crate::PrivateKey;
 
     #[test]
-    fn add_update_remove() {
+    fn new_validator_set_vp() {
         let mut rng = StdRng::seed_from_u64(0x42);
 
         let sk1 = PrivateKey::generate(&mut rng);
         let sk2 = PrivateKey::generate(&mut rng);
         let sk3 = PrivateKey::generate(&mut rng);
-        let sk4 = PrivateKey::generate(&mut rng);
-        let sk5 = PrivateKey::generate(&mut rng);
-        let sk6 = PrivateKey::generate(&mut rng);
 
         let v1 = Validator::new(sk1.public_key(), 1);
         let v2 = Validator::new(sk2.public_key(), 2);
         let v3 = Validator::new(sk3.public_key(), 3);
 
-        let mut vs = ValidatorSet::new(vec![v1, v2, v3]);
+        let vs = ValidatorSet::new(vec![v1, v2, v3]);
         assert_eq!(vs.total_voting_power(), 6);
-
-        let v4 = Validator::new(sk4.public_key(), 4);
-        vs.add(v4);
-        assert_eq!(vs.total_voting_power(), 10);
-
-        let mut v5 = Validator::new(sk5.public_key(), 5);
-        vs.update(v5.clone()); // no effect
-        assert_eq!(vs.total_voting_power(), 10);
-
-        vs.add(v5.clone());
-        assert_eq!(vs.total_voting_power(), 15);
-
-        v5.voting_power = 100;
-        vs.update(v5.clone());
-        assert_eq!(vs.total_voting_power(), 110);
-
-        vs.remove(&v5.address);
-        assert_eq!(vs.total_voting_power(), 10);
-
-        let v6 = Validator::new(sk6.public_key(), 6);
-        vs.remove(&v6.address); // no effect
-        assert_eq!(vs.total_voting_power(), 10);
     }
 }
