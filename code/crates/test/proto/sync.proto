@@ -32,7 +32,6 @@ message CommitSignature {
     // TODO: Add flag (no vote, nil, value?)
     Address validator_address = 1;
     Signature signature = 2;
-    optional Extension extension = 3;
 }
 
 message AggregatedSignature {

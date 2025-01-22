@@ -934,7 +934,7 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::Decide(certificate, r) => {
+            Effect::Decide(certificate, extensions, r) => {
                 self.wal_flush(phase).await?;
 
                 self.tx_event.send(|| Event::Decided(certificate.clone()));
@@ -944,6 +944,7 @@ where
                 self.host
                     .cast(HostMsg::Decided {
                         certificate,
+                        extensions,
                         consensus: myself.clone(),
                     })
                     .map_err(|e| eyre!("Error when sending decided value to host: {e:?}"))?;

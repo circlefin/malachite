@@ -1,7 +1,7 @@
 //! Internal state of the application. This is a simplified abstract to keep it simple.
 //! A regular application would have mempool implemented, a proper database and input methods like RPC.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use bytes::Bytes;
 use rand::rngs::StdRng;
@@ -13,7 +13,9 @@ use malachitebft_app_channel::app::consensus::ProposedValue;
 use malachitebft_app_channel::app::host::LocallyProposedValue;
 use malachitebft_app_channel::app::streaming::{StreamContent, StreamMessage};
 use malachitebft_app_channel::app::types::codec::Codec;
-use malachitebft_app_channel::app::types::core::{CommitCertificate, Round, Validity};
+use malachitebft_app_channel::app::types::core::{
+    CommitCertificate, Round, SignedExtension, Validity,
+};
 use malachitebft_app_channel::app::types::PeerId;
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{
@@ -29,6 +31,7 @@ pub struct State {
     ctx: TestContext,
     address: Address,
     store: Store,
+    extensions: HashMap<Height, Vec<SignedExtension<TestContext>>>,
     stream_id: u64,
     streams_map: PartStreamsMap,
     rng: StdRng,
@@ -61,6 +64,7 @@ impl State {
             current_proposer: None,
             address,
             store,
+            extensions: HashMap::new(),
             stream_id: 0,
             streams_map: PartStreamsMap::new(),
             rng: StdRng::seed_from_u64(seed_from_address(&address)),
@@ -122,7 +126,12 @@ impl State {
     pub async fn commit(
         &mut self,
         certificate: CommitCertificate<TestContext>,
+        extensions: Vec<SignedExtension<TestContext>>,
     ) -> eyre::Result<()> {
+        // Store extensions for use at next height if we are the proposer
+        self.extensions
+            .insert(certificate.height.increment(), extensions);
+
         let Ok(Some(proposal)) = self
             .store
             .get_undecided_proposal(certificate.height, certificate.round)
@@ -179,7 +188,7 @@ impl State {
         assert_eq!(round, self.current_round);
 
         // We create a new value.
-        let value = self.make_value();
+        let value = self.make_value(height, round);
 
         let proposal = ProposedValue {
             height,
@@ -202,7 +211,11 @@ impl State {
     /// A real application would have a more complex logic here,
     /// typically reaping transactions from a mempool and executing them against its state,
     /// before computing the merkle root of the new app state.
-    fn make_value(&mut self) -> Value {
+    fn make_value(&mut self, height: Height, _round: Round) -> Value {
+        if let Some(extensions) = self.extensions.get(&height) {
+            // TODO: Include extensions in value
+        }
+
         let value = self.rng.gen_range(100..=100000);
         Value::new(value)
     }

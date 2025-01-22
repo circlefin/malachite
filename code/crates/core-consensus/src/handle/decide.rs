@@ -49,18 +49,24 @@ where
     }
 
     // Look for an existing certificate
-    let certificate = state
+    let (certificate, extensions) = state
         .driver
         .get_certificate(proposal_round, value.id())
         .cloned()
+        .map(|certificate| (certificate, Vec::new()))
         .unwrap_or_else(|| {
             // Restore the commits. Note that they will be removed from `state`
             let commits = state.restore_precommits(height, proposal_round, value);
-            // TODO: should we verify we have 2/3rd commits?
+
+            // TODO(romac): Refactor extraction of extensions
+            // TODO: Should we verify we have 2/3rd commits?
             CommitCertificate::new(height, proposal_round, value.id(), commits)
         });
 
-    perform!(co, Effect::Decide(certificate, Default::default()));
+    perform!(
+        co,
+        Effect::Decide(certificate, extensions, Default::default())
+    );
 
     // Reinitialize to remove any previous round or equivocating precommits.
     // TODO: Revise when evidence module is added.

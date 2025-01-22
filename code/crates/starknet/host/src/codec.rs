@@ -457,13 +457,7 @@ pub fn decode_aggregated_signature(
                 })
                 .and_then(Address::from_proto)?;
 
-            let extension = s.extension.map(decode_extension).transpose()?;
-
-            Ok(CommitSignature {
-                address,
-                signature,
-                extension,
-            })
+            Ok(CommitSignature { address, signature })
         })
         .collect::<Result<Vec<_>, ProtoError>>()?;
 
@@ -483,7 +477,6 @@ pub fn encode_aggregate_signature(
             Ok(proto::sync::CommitSignature {
                 validator_address: Some(validator_address),
                 signature: Some(signature),
-                extension: s.extension.as_ref().map(encode_extension).transpose()?,
             })
         })
         .collect::<Result<_, ProtoError>>()?;

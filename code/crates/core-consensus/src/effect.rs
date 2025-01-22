@@ -125,8 +125,14 @@ where
     /// the value that was decided on, the height and round at which it was decided,
     /// and the aggregated signatures of the validators that committed to it.
     ///
+    /// It also includes the vote extensions that were received for this height.
+    ///
     /// Resume with: [`resume::Continue`]
-    Decide(CommitCertificate<Ctx>, resume::Continue),
+    Decide(
+        CommitCertificate<Ctx>,
+        Vec<SignedExtension<Ctx>>,
+        resume::Continue,
+    ),
 
     /// Consensus has been stuck in Prevote or Precommit step, ask for vote sets from peers
     ///

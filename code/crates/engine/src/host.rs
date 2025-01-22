@@ -5,7 +5,7 @@ use derive_where::derive_where;
 use ractor::{ActorRef, RpcReplyPort};
 
 use malachitebft_core_consensus::PeerId;
-use malachitebft_core_types::{CommitCertificate, Context, Round, ValueId};
+use malachitebft_core_types::{CommitCertificate, Context, Round, SignedExtension, ValueId};
 use malachitebft_sync::RawDecidedValue;
 
 use crate::consensus::ConsensusRef;
@@ -70,9 +70,17 @@ pub enum HostMsg<Ctx: Context> {
         reply_to: RpcReplyPort<Ctx::ValidatorSet>,
     },
 
-    // Consensus has decided on a value
+    /// Consensus has decided on a value.
     Decided {
+        /// The commit certificate containing the ID of the value that was decided on,
+        /// the the height and round at which it was decided, and the aggregated signatures
+        /// of the validators that committed to it.
         certificate: CommitCertificate<Ctx>,
+
+        /// Vote extensions that were received for this height.
+        extensions: Vec<SignedExtension<Ctx>>,
+
+        /// Reference to the `Consensus` actor for starting a new height.
         consensus: ConsensusRef<Ctx>,
     },
 

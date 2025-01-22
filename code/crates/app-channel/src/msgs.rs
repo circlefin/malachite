@@ -8,7 +8,7 @@ use tokio::sync::oneshot;
 use malachitebft_engine::consensus::Msg as ConsensusActorMsg;
 use malachitebft_engine::network::Msg as NetworkActorMsg;
 
-use crate::app::types::core::{CommitCertificate, Context, Round, ValueId};
+use crate::app::types::core::{CommitCertificate, Context, Round, SignedExtension, ValueId};
 use crate::app::types::streaming::StreamMessage;
 use crate::app::types::sync::RawDecidedValue;
 use crate::app::types::{LocallyProposedValue, PeerId, ProposedValue};
@@ -117,12 +117,17 @@ pub enum AppMsg<Ctx: Context> {
     /// This message includes a commit certificate containing the ID of
     /// the value that was decided on, the height and round at which it was decided,
     /// and the aggregated signatures of the validators that committed to it.
+    /// It also includes to the vote extensions received for that height.
     ///
     /// In response to this message, the application MAY send a [`ConsensusMsg::StartHeight`]
     /// message back to consensus, instructing it to start the next height.
     Decided {
         /// The certificate for the decided value
         certificate: CommitCertificate<Ctx>,
+
+        /// The vote extensions received for that height
+        extensions: Vec<SignedExtension<Ctx>>,
+
         /// Channel for instructing consensus to start the next height, if desired
         reply: Reply<ConsensusMsg<Ctx>>,
     },

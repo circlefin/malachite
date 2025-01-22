@@ -174,15 +174,20 @@ where
 
             HostMsg::Decided {
                 certificate,
-                consensus: consensus_ref,
+                extensions,
+                consensus,
             } => {
                 let (reply, rx) = oneshot::channel();
 
                 self.sender
-                    .send(AppMsg::Decided { certificate, reply })
+                    .send(AppMsg::Decided {
+                        certificate,
+                        extensions,
+                        reply,
+                    })
                     .await?;
 
-                consensus_ref.cast(rx.await?.into())?;
+                consensus.cast(rx.await?.into())?;
             }
 
             HostMsg::GetDecidedValue { height, reply_to } => {

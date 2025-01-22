@@ -155,15 +155,20 @@ pub async fn run(
             // providing it with a commit certificate which contains the ID of the value
             // that was decided on as well as the set of commits for that value,
             // ie. the precommits together with their (aggregated) signatures.
-            AppMsg::Decided { certificate, reply } => {
+            AppMsg::Decided {
+                certificate,
+                extensions,
+                reply,
+            } => {
                 info!(
-                    height = %certificate.height, round = %certificate.round,
+                    height = %certificate.height,
+                    round = %certificate.round,
                     value = %certificate.value_id,
                     "Consensus has decided on value"
                 );
 
                 // When that happens, we store the decided value in our store
-                state.commit(certificate).await?;
+                state.commit(certificate, extensions).await?;
 
                 // And then we instruct consensus to start the next height
                 if reply

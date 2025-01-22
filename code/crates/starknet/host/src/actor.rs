@@ -12,7 +12,7 @@ use tracing::{debug, error, info, trace, warn};
 
 use malachitebft_core_consensus::PeerId;
 use malachitebft_core_types::{
-    CommitCertificate, Extension, Round, Validity, ValueId, ValueOrigin,
+    CommitCertificate, Extension, Round, SignedExtension, Validity, ValueId, ValueOrigin,
 };
 use malachitebft_engine::consensus::{ConsensusMsg, ConsensusRef};
 use malachitebft_engine::host::{LocallyProposedValue, ProposedValue};
@@ -175,8 +175,19 @@ impl Host {
 
             HostMsg::Decided {
                 certificate,
+                extensions,
                 consensus,
-            } => on_decided(state, &consensus, &self.mempool, certificate, &self.metrics).await,
+            } => {
+                on_decided(
+                    state,
+                    &consensus,
+                    &self.mempool,
+                    certificate,
+                    extensions,
+                    &self.metrics,
+                )
+                .await
+            }
 
             HostMsg::GetDecidedValue { height, reply_to } => {
                 on_get_decided_block(height, state, reply_to).await
@@ -568,6 +579,7 @@ async fn on_decided(
     consensus: &ConsensusRef<MockContext>,
     mempool: &MempoolRef,
     certificate: CommitCertificate<MockContext>,
+    extensions: Vec<SignedExtension<MockContext>>,
     metrics: &Metrics,
 ) -> Result<(), ActorProcessingErr> {
     let (height, round) = (certificate.height, certificate.round);
@@ -594,7 +606,7 @@ async fn on_decided(
     // Update metrics
     let tx_count: usize = all_parts.iter().map(|p| p.tx_count()).sum();
     let parts_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
-    let extensions_size = aggregated_extensions_size(&certificate);
+    let extensions_size = aggregated_extensions_size(&extensions);
     let block_size = parts_size + extensions_size;
 
     metrics.block_tx_count.observe(tx_count as f64);
@@ -631,13 +643,8 @@ async fn on_decided(
     Ok(())
 }
 
-fn aggregated_extensions_size(certificate: &CommitCertificate<MockContext>) -> usize {
-    certificate
-        .aggregated_signature
-        .signatures
-        .iter()
-        .map(|c| c.extension.as_ref().map_or(0, |e| e.size_bytes()))
-        .sum()
+fn aggregated_extensions_size(extensions: &[SignedExtension<MockContext>]) -> usize {
+    extensions.iter().map(|e| e.message.size_bytes()).sum()
 }
 
 async fn prune_block_store(state: &mut HostState) {
