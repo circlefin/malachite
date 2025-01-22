@@ -3,7 +3,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use eyre::eyre;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -33,7 +33,7 @@ pub struct State {
     ctx: TestContext,
     address: Address,
     store: Store,
-    extensions: HashMap<Height, VoteExtensions<TestContext>>,
+    vote_extensions: HashMap<Height, VoteExtensions<TestContext>>,
     stream_id: u64,
     streams_map: PartStreamsMap,
     rng: StdRng,
@@ -86,7 +86,7 @@ impl State {
             current_proposer: None,
             address,
             store,
-            extensions: HashMap::new(),
+            vote_extensions: HashMap::new(),
             stream_id: 0,
             streams_map: PartStreamsMap::new(),
             rng: StdRng::seed_from_u64(seed_from_address(&address)),
@@ -172,7 +172,7 @@ impl State {
         extensions: VoteExtensions<TestContext>,
     ) -> eyre::Result<()> {
         // Store extensions for use at next height if we are the proposer
-        self.extensions
+        self.vote_extensions
             .insert(certificate.height.increment(), extensions);
 
         let Ok(Some(proposal)) = self
@@ -255,12 +255,23 @@ impl State {
     /// typically reaping transactions from a mempool and executing them against its state,
     /// before computing the merkle root of the new app state.
     fn make_value(&mut self, height: Height, _round: Round) -> Value {
-        if let Some(_extensions) = self.extensions.get(&height) {
-            // TODO: Include extensions in value
-        }
-
         let value = self.rng.gen_range(100..=100000);
-        Value::new(value)
+
+        // TODO: Where should we verify signatures?
+        let extensions = self
+            .vote_extensions
+            .remove(&height)
+            .unwrap_or_default()
+            .extensions
+            .into_iter()
+            .map(|(_, e)| e.message)
+            .fold(BytesMut::new(), |mut acc, e| {
+                acc.extend_from_slice(&e);
+                acc
+            })
+            .freeze();
+
+        Value { value, extensions }
     }
 
     /// Creates a new proposal value for the given height
