@@ -9,19 +9,22 @@ use crate::{Context, SignedExtension};
 /// A set of vote extensions.
 #[derive_where(Clone, Debug, Default, PartialEq, Eq)]
 pub struct VoteExtensions<Ctx: Context> {
-    /// The vote extensions
-    pub extensions: Vec<SignedExtension<Ctx>>,
+    /// The vote extensions together with the address of their proposer.
+    pub extensions: Vec<(Ctx::Address, SignedExtension<Ctx>)>,
 }
 
 impl<Ctx: Context> VoteExtensions<Ctx> {
     /// Creates a new set of vote extensions.
-    pub fn new(extensions: Vec<SignedExtension<Ctx>>) -> Self {
+    pub fn new(mut extensions: Vec<(Ctx::Address, SignedExtension<Ctx>)>) -> Self {
+        // Sort vote extensions by their proposer's address
+        extensions.sort_by(|(a, _), (b, _)| a.cmp(b));
+
         Self { extensions }
     }
 
     /// Returns the size of the extensions in bytes.
     pub fn size_bytes(&self) -> usize {
-        self.extensions.iter().map(|e| e.size_bytes()).sum()
+        self.extensions.iter().map(|(_, e)| e.size_bytes()).sum()
     }
 }
 

@@ -56,11 +56,14 @@ where
         .map(|certificate| (certificate, VoteExtensions::default()))
         .unwrap_or_else(|| {
             // Restore the commits. Note that they will be removed from `state`
-            let commits = state.restore_precommits(height, proposal_round, value);
+            let mut commits = state.restore_precommits(height, proposal_round, value);
 
-            // TODO(romac): Refactor extraction of extensions
+            let extensions = extract_vote_extensions(&mut commits);
+
             // TODO: Should we verify we have 2/3rd commits?
-            CommitCertificate::new(height, proposal_round, value.id(), commits)
+            let certificate = CommitCertificate::new(height, proposal_round, value.id(), commits);
+
+            (certificate, extensions)
         });
 
     perform!(
@@ -73,4 +76,19 @@ where
     state.signed_precommits.clear();
 
     Ok(())
+}
+
+// Extract vote extensions from a list of votes,
+// removing them from each vote in the process.
+pub fn extract_vote_extensions<Ctx: Context>(votes: &mut [SignedVote<Ctx>]) -> VoteExtensions<Ctx> {
+    let extensions = votes
+        .iter_mut()
+        .filter_map(|vote| {
+            vote.message
+                .take_extension()
+                .map(|e| (vote.validator_address().clone(), e))
+        })
+        .collect();
+
+    VoteExtensions::new(extensions)
 }

@@ -42,6 +42,10 @@ where
     /// Votes extensions
     fn extension(&self) -> Option<&SignedExtension<Ctx>>;
 
+    /// Return an owned reference to this vote's extensions,
+    /// removing them from the vote in the process.
+    fn take_extension(&mut self) -> Option<SignedExtension<Ctx>>;
+
     /// Extend this vote with an extension, overriding any existing extension.
     fn extend(self, extension: SignedExtension<Ctx>) -> Self;
 }

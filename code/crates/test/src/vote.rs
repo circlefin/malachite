@@ -94,6 +94,10 @@ impl malachitebft_core_types::Vote<TestContext> for Vote {
         self.extension.as_ref()
     }
 
+    fn take_extension(&mut self) -> Option<SignedExtension<TestContext>> {
+        self.extension.take()
+    }
+
     fn extend(self, extension: SignedExtension<TestContext>) -> Self {
         Self {
             extension: Some(extension),

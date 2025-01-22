@@ -3,8 +3,7 @@ use derive_where::derive_where;
 use thiserror::Error;
 
 use crate::{
-    Context, NilOrVal, Round, Signature, SignedVote, ValueId, Vote, VoteExtensions, VoteType,
-    VotingPower,
+    Context, NilOrVal, Round, Signature, SignedVote, ValueId, Vote, VoteType, VotingPower,
 };
 
 /// Represents a signature for a certificate, including the address and the signature itself.
@@ -57,10 +56,8 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
         round: Round,
         value_id: ValueId<Ctx>,
         commits: Vec<SignedVote<Ctx>>,
-    ) -> (Self, VoteExtensions<Ctx>) {
-        let mut extensions = Vec::new();
-
-        // Collect all commit signatures and extensions from the signed votes
+    ) -> Self {
+        // Collect all commit signatures from the signed votes
         let commit_signatures = commits
             .into_iter()
             .filter(|vote| {
@@ -70,11 +67,6 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
                     && vote.height() == height
             })
             .map(|signed_vote| {
-                // Collect non-empty extensions
-                if let Some(extension) = signed_vote.message.extension().cloned() {
-                    extensions.push(extension);
-                }
-
                 CommitSignature::new(
                     signed_vote.validator_address().clone(),
                     signed_vote.signature,
@@ -85,14 +77,12 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
         // Create the aggregated signature
         let aggregated_signature = AggregatedSignature::new(commit_signatures);
 
-        let certificate = Self {
+        Self {
             height,
             round,
             value_id,
             aggregated_signature,
-        };
-
-        (certificate, VoteExtensions::new(extensions))
+        }
     }
 }
 
