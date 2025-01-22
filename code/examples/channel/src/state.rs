@@ -17,8 +17,8 @@ use malachitebft_app_channel::app::types::core::{CommitCertificate, Round, Valid
 use malachitebft_app_channel::app::types::PeerId;
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{
-    Address, Height, ProposalData, ProposalFin, ProposalInit, ProposalPart, PublicKey, TestContext,
-    Value,
+    Address, Genesis, Height, ProposalData, ProposalFin, ProposalInit, ProposalPart, TestContext,
+    ValidatorSet, Value,
 };
 
 use crate::store::{DecidedValue, Store};
@@ -27,6 +27,7 @@ use crate::streaming::{PartStreamsMap, ProposalParts};
 /// Represents the internal state of the application node
 /// Contains information about current height, round, proposals and blocks
 pub struct State {
+    genesis: Genesis,
     ctx: TestContext,
     address: Address,
     store: Store,
@@ -54,8 +55,15 @@ fn seed_from_address(address: &Address) -> u64 {
 
 impl State {
     /// Creates a new State instance with the given validator address and starting height
-    pub fn new(ctx: TestContext, address: Address, height: Height, store: Store) -> Self {
+    pub fn new(
+        genesis: Genesis,
+        ctx: TestContext,
+        address: Address,
+        height: Height,
+        store: Store,
+    ) -> Self {
         Self {
+            genesis,
             ctx,
             current_height: height,
             current_round: Round::new(0),
@@ -82,7 +90,6 @@ impl State {
     pub async fn received_proposal_part(
         &mut self,
         from: PeerId,
-        from_pub_key: &PublicKey,
         part: StreamMessage<ProposalPart>,
     ) -> eyre::Result<Option<ProposedValue<TestContext>>> {
         let sequence = part.sequence;
@@ -114,19 +121,31 @@ impl State {
             }
 
             let hash = hasher.finalize().to_vec();
-            let signature =
-                signature.expect("Fin part is guaranteed to exist due to checks on lines 90-92");
+            let Some(signature) = signature else {
+                error!(proposer = %parts.proposer, "Fin proposal part is missing");
+                return Ok(None);
+            };
+
+            // Get proposal's public key
+            let public_key = self
+                .get_validator_set()
+                .validators
+                .iter()
+                .find(|v| v.address == parts.proposer)
+                .map(|v| v.public_key);
+
+            let Some(public_key) = public_key else {
+                error!(proposer = %parts.proposer, "Proposer not found in validator set");
+                return Ok(None);
+            };
 
             // Verify the signature
             if !self
                 .ctx
                 .signing_provider
-                .verify(&hash, signature, from_pub_key)
+                .verify(&hash, signature, &public_key)
             {
-                error!(
-                    "Invalid signature in Fin part from PeerId: {:?}, rejecting proposal",
-                    from
-                );
+                error!(proposer = %parts.proposer, "Invalid signature in Fin part");
                 return Ok(None);
             }
         }
@@ -336,6 +355,10 @@ impl State {
 
         parts
     }
+
+    pub fn get_validator_set(&self) -> &ValidatorSet {
+        &self.genesis.validator_set
+    }
 }
 
 /// Re-assemble a [`ProposedValue`] from its [`ProposalParts`].
@@ -354,7 +377,7 @@ fn assemble_value_from_parts(parts: ProposalParts) -> ProposedValue<TestContext>
         valid_round: Round::Nil,
         proposer: parts.proposer,
         value: Value::new(value),
-        validity: Validity::Valid, // TODO: Check signature in Fin part
+        validity: Validity::Valid,
         extension: None,
     }
 }
