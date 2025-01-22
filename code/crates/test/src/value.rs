@@ -1,4 +1,4 @@
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use core::fmt;
 use malachitebft_proto::{Error as ProtoError, Protobuf};
 use serde::{Deserialize, Serialize};
@@ -60,44 +60,25 @@ impl Protobuf for ValueId {
 
 /// The value to decide on
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct Value(Bytes);
+pub struct Value {
+    pub value: u64,
+    pub extensions: Bytes,
+}
 
 impl Value {
     pub fn new(value: u64) -> Self {
-        Self(Bytes::copy_from_slice(&value.to_be_bytes()))
-    }
-
-    pub fn as_u64(&self) -> u64 {
-        let x: [u8; 8] = self.0.as_ref()[0..8].try_into().unwrap();
-        u64::from_be_bytes(x)
+        Self {
+            value,
+            extensions: Bytes::new(),
+        }
     }
 
     pub fn id(&self) -> ValueId {
-        let hash: u64 = {
-            use std::hash::{DefaultHasher, Hash, Hasher};
-
-            let mut hasher = DefaultHasher::new();
-            self.0.hash(&mut hasher);
-            hasher.finish()
-        };
-
-        ValueId(hash)
+        ValueId(self.value)
     }
 
     pub fn size_bytes(&self) -> usize {
-        self.0.len()
-    }
-}
-
-impl From<Bytes> for Value {
-    fn from(value: Bytes) -> Self {
-        Self(value)
-    }
-}
-
-impl From<Vec<u8>> for Value {
-    fn from(value: Vec<u8>) -> Self {
-        Self(Bytes::from(value))
+        std::mem::size_of_val(&self.value) + self.extensions.len()
     }
 }
 
@@ -118,13 +99,29 @@ impl Protobuf for Value {
             .value
             .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("value"))?;
 
-        Ok(Value::from(bytes))
+        let value = bytes[0..8].try_into().map_err(|_| {
+            ProtoError::Other(format!(
+                "Too few bytes, expected at least {}",
+                u64::BITS / 8
+            ))
+        })?;
+
+        let extensions = bytes.slice(8..);
+
+        Ok(Value {
+            value: u64::from_be_bytes(value),
+            extensions,
+        })
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
+        let mut bytes = BytesMut::new();
+        bytes.extend_from_slice(&self.value.to_be_bytes());
+        bytes.extend_from_slice(&self.extensions);
+
         Ok(proto::Value {
-            value: Some(self.0.clone()),
+            value: Some(bytes.freeze()),
         })
     }
 }

@@ -119,7 +119,7 @@ impl State {
             }
             Err(SignatureVerificationError::MissingFinPart) => {
                 return Err(eyre!(
-                    "Expected to have full proposal but `Fin` proposal part is missing for proposer: {}", 
+                    "Expected to have full proposal but `Fin` proposal part is missing for proposer: {}",
                     parts.proposer
                 ));
             }
@@ -426,7 +426,7 @@ pub fn decode_value(bytes: Bytes) -> Value {
 /// to duplication of gossip messages.
 fn factor_value(value: Value) -> Vec<u64> {
     let mut factors = Vec::new();
-    let mut n = value.as_u64();
+    let mut n = value.value;
 
     let mut i = 2;
     while i * i <= n {
