@@ -212,7 +212,7 @@ impl State {
     /// typically reaping transactions from a mempool and executing them against its state,
     /// before computing the merkle root of the new app state.
     fn make_value(&mut self, height: Height, _round: Round) -> Value {
-        if let Some(extensions) = self.extensions.get(&height) {
+        if let Some(_extensions) = self.extensions.get(&height) {
             // TODO: Include extensions in value
         }
 

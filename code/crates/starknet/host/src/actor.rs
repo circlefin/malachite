@@ -632,6 +632,7 @@ async fn on_decided(
     mempool.cast(MempoolMsg::Update { tx_hashes })?;
 
     // Notify Starknet Host of the decision
+    // TODO: Pass extensions along as well?
     state.host.decision(certificate).await;
 
     // Start the next height
