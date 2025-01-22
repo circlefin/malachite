@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use core::fmt;
 use malachitebft_proto::{Error as ProtoError, Protobuf};
 use serde::{Deserialize, Serialize};
@@ -58,24 +59,45 @@ impl Protobuf for ValueId {
 }
 
 /// The value to decide on
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct Value(u64);
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct Value(Bytes);
 
 impl Value {
-    pub const fn new(value: u64) -> Self {
-        Self(value)
+    pub fn new(value: u64) -> Self {
+        Self(Bytes::copy_from_slice(&value.to_be_bytes()))
     }
 
-    pub const fn as_u64(&self) -> u64 {
-        self.0
+    pub fn as_u64(&self) -> u64 {
+        let x: [u8; 8] = self.0.as_ref()[0..8].try_into().unwrap();
+        u64::from_be_bytes(x)
     }
 
-    pub const fn id(&self) -> ValueId {
-        ValueId(self.0)
+    pub fn id(&self) -> ValueId {
+        let hash: u64 = {
+            use std::hash::{DefaultHasher, Hash, Hasher};
+
+            let mut hasher = DefaultHasher::new();
+            self.0.hash(&mut hasher);
+            hasher.finish()
+        };
+
+        ValueId(hash)
     }
 
     pub fn size_bytes(&self) -> usize {
-        8
+        self.0.len()
+    }
+}
+
+impl From<Bytes> for Value {
+    fn from(value: Bytes) -> Self {
+        Self(value)
+    }
+}
+
+impl From<Vec<u8>> for Value {
+    fn from(value: Vec<u8>) -> Self {
+        Self(Bytes::from(value))
     }
 }
 
@@ -96,21 +118,13 @@ impl Protobuf for Value {
             .value
             .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("value"))?;
 
-        let len = bytes.len();
-        let bytes = <[u8; 8]>::try_from(bytes.as_ref()).map_err(|_| {
-            ProtoError::Other(format!(
-                "Invalid value length, got {len} bytes expected {}",
-                u64::BITS / 8
-            ))
-        })?;
-
-        Ok(Value::new(u64::from_be_bytes(bytes)))
+        Ok(Value::from(bytes))
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(proto::Value {
-            value: Some(self.0.to_be_bytes().to_vec().into()),
+            value: Some(self.0.clone()),
         })
     }
 }

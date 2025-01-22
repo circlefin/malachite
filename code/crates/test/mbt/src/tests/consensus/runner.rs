@@ -241,8 +241,8 @@ impl ItfRunner for ConsensusRunner {
                     assert_eq!(proposal.round.as_i64(), expected_proposal.round);
                     assert_eq!(proposal.pol_round.as_i64(), expected_proposal.valid_round);
                     assert_eq!(
-                        Some(proposal.value),
-                        value_from_string(&expected_proposal.proposal),
+                        Some(&proposal.value),
+                        value_from_string(&expected_proposal.proposal).as_ref(),
                         "unexpected proposal value"
                     );
                 }
@@ -292,8 +292,8 @@ impl ItfRunner for ConsensusRunner {
                     assert_eq!(round.as_i64(), *expected_round, "unexpected decided round");
 
                     assert_eq!(
-                        Some(proposal.value),
-                        value_from_string(expected_decided_value),
+                        Some(&proposal.value),
+                        value_from_string(expected_decided_value).as_ref(),
                         "unexpected decided value"
                     );
                 }

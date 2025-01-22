@@ -30,7 +30,7 @@ fn new_signed_proposal(
     address: Address,
 ) -> SignedProposal<TestContext> {
     SignedProposal::new(
-        Proposal::new(height, round, value, pol_round, address),
+        Proposal::new(height, round, value.clone(), pol_round, address),
         Signature::test(),
     )
 }
@@ -95,7 +95,13 @@ fn driver_steps_proposer() {
 
     let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
-    let proposal = new_signed_proposal(Height::new(1), Round::new(0), value, Round::Nil, my_addr);
+    let proposal = new_signed_proposal(
+        Height::new(1),
+        Round::new(0),
+        value.clone(),
+        Round::Nil,
+        my_addr,
+    );
 
     let steps = vec![
         TestStep {
@@ -119,7 +125,7 @@ fn driver_steps_proposer() {
         },
         TestStep {
             desc: "Feed a value to propose, propose that value",
-            input: Some(Input::ProposeValue(Round::new(0), value)),
+            input: Some(Input::ProposeValue(Round::new(0), value.clone())),
             expected_outputs: vec![Output::Propose(proposal.message.clone())],
             expected_round: Round::new(0),
             new_state: State {
@@ -195,11 +201,11 @@ fn driver_steps_proposer() {
                 round: Round::new(0),
                 step: Step::Precommit,
                 locked: Some(RoundValue {
-                    value,
+                    value: value.clone(),
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value,
+                    value: value.clone(),
                     round: Round::new(0),
                 }),
                 ..Default::default()
@@ -215,11 +221,11 @@ fn driver_steps_proposer() {
                 round: Round::new(0),
                 step: Step::Precommit,
                 locked: Some(RoundValue {
-                    value,
+                    value: value.clone(),
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value,
+                    value: value.clone(),
                     round: Round::new(0),
                 }),
                 ..Default::default()
@@ -240,11 +246,11 @@ fn driver_steps_proposer() {
                 round: Round::new(0),
                 step: Step::Precommit,
                 locked: Some(RoundValue {
-                    value,
+                    value: value.clone(),
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value,
+                    value: value.clone(),
                     round: Round::new(0),
                 }),
                 ..Default::default()
@@ -265,11 +271,11 @@ fn driver_steps_proposer() {
                 round: Round::new(0),
                 step: Step::Commit,
                 locked: Some(RoundValue {
-                    value,
+                    value: value.clone(),
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value,
+                    value: value.clone(),
                     round: Round::new(0),
                 }),
                 decision: Some(value),
@@ -351,8 +357,13 @@ fn driver_steps_not_proposer_valid() {
 
     let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
-    let proposal =
-        new_signed_proposal(Height::new(1), Round::new(0), value, Round::Nil, v1.address);
+    let proposal = new_signed_proposal(
+        Height::new(1),
+        Round::new(0),
+        value.clone(),
+        Round::Nil,
+        v1.address,
+    );
 
     let steps = vec![
         TestStep {
@@ -437,11 +448,11 @@ fn driver_steps_not_proposer_valid() {
                 round: Round::new(0),
                 step: Step::Precommit,
                 locked: Some(RoundValue {
-                    value,
+                    value: value.clone(),
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value,
+                    value: value.clone(),
                     round: Round::new(0),
                 }),
                 ..Default::default()
@@ -457,11 +468,11 @@ fn driver_steps_not_proposer_valid() {
                 round: Round::new(0),
                 step: Step::Precommit,
                 locked: Some(RoundValue {
-                    value,
+                    value: value.clone(),
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value,
+                    value: value.clone(),
                     round: Round::new(0),
                 }),
                 ..Default::default()
@@ -482,11 +493,11 @@ fn driver_steps_not_proposer_valid() {
                 round: Round::new(0),
                 step: Step::Precommit,
                 locked: Some(RoundValue {
-                    value,
+                    value: value.clone(),
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value,
+                    value: value.clone(),
                     round: Round::new(0),
                 }),
                 ..Default::default()
@@ -507,11 +518,11 @@ fn driver_steps_not_proposer_valid() {
                 round: Round::new(0),
                 step: Step::Commit,
                 locked: Some(RoundValue {
-                    value,
+                    value: value.clone(),
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value,
+                    value: value.clone(),
                     round: Round::new(0),
                 }),
                 decision: Some(value),
@@ -539,8 +550,13 @@ fn driver_steps_not_proposer_invalid() {
 
     let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
-    let proposal =
-        new_signed_proposal(Height::new(1), Round::new(0), value, Round::Nil, v1.address);
+    let proposal = new_signed_proposal(
+        Height::new(1),
+        Round::new(0),
+        value.clone(),
+        Round::Nil,
+        v1.address,
+    );
 
     let steps = vec![
         TestStep {
@@ -662,8 +678,13 @@ fn driver_steps_not_proposer_other_height() {
     let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
     // Proposal is for another height
-    let proposal =
-        new_signed_proposal(Height::new(2), Round::new(0), value, Round::Nil, v1.address);
+    let proposal = new_signed_proposal(
+        Height::new(2),
+        Round::new(0),
+        value.clone(),
+        Round::Nil,
+        v1.address,
+    );
 
     let steps = vec![
         TestStep {
@@ -721,8 +742,13 @@ fn driver_steps_not_proposer_other_round() {
     let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
     // Proposal is for another round
-    let proposal =
-        new_signed_proposal(Height::new(1), Round::new(1), value, Round::Nil, v2.address);
+    let proposal = new_signed_proposal(
+        Height::new(1),
+        Round::new(1),
+        value.clone(),
+        Round::Nil,
+        v2.address,
+    );
 
     let steps = vec![
         TestStep {
