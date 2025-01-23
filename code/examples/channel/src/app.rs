@@ -8,15 +8,11 @@ use malachitebft_app_channel::app::types::sync::RawDecidedValue;
 use malachitebft_app_channel::app::types::ProposedValue;
 use malachitebft_app_channel::{AppMsg, Channels, ConsensusMsg, NetworkMsg};
 use malachitebft_test::codec::proto::ProtobufCodec;
-use malachitebft_test::{Genesis, TestContext};
+use malachitebft_test::TestContext;
 
 use crate::state::{decode_value, State};
 
-pub async fn run(
-    genesis: Genesis,
-    state: &mut State,
-    channels: &mut Channels<TestContext>,
-) -> eyre::Result<()> {
+pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyre::Result<()> {
     while let Some(msg) = channels.consensus.recv().await {
         match msg {
             // The first message to handle is the `ConsensusReady` message, signaling to the app
@@ -37,7 +33,7 @@ pub async fn run(
                 if reply
                     .send(ConsensusMsg::StartHeight(
                         start_height,
-                        genesis.validator_set.clone(),
+                        state.get_validator_set().clone(),
                     ))
                     .is_err()
                 {
@@ -141,7 +137,7 @@ pub async fn run(
             // In our case, our validator set stays constant between heights so we can
             // send back the validator set found in our genesis state.
             AppMsg::GetValidatorSet { height: _, reply } => {
-                if reply.send(genesis.validator_set.clone()).is_err() {
+                if reply.send(state.get_validator_set().clone()).is_err() {
                     error!("Failed to send GetValidatorSet reply");
                 }
             }
@@ -165,7 +161,7 @@ pub async fn run(
                 if reply
                     .send(ConsensusMsg::StartHeight(
                         state.current_height,
-                        genesis.validator_set.clone(),
+                        state.get_validator_set().clone(),
                     ))
                     .is_err()
                 {
@@ -219,7 +215,7 @@ pub async fn run(
 
                 let raw_decided_value = decided_value.map(|decided_value| RawDecidedValue {
                     certificate: decided_value.certificate,
-                    value_bytes: ProtobufCodec.encode(&decided_value.value).unwrap(), // FIXME: unwrap
+                    value_bytes: ProtobufCodec.encode(&decided_value.value).unwrap(),
                 });
 
                 if reply.send(raw_decided_value).is_err() {

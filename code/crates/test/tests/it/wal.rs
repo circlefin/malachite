@@ -6,7 +6,7 @@ use tracing::info;
 use informalsystems_malachitebft_test as malachitebft_test;
 
 use malachitebft_config::ValuePayload;
-use malachitebft_core_consensus::ValueToPropose;
+use malachitebft_core_consensus::LocallyProposedValue;
 use malachitebft_core_types::SignedVote;
 use malachitebft_engine::util::events::Event;
 use malachitebft_test::TestContext;
@@ -45,7 +45,7 @@ async fn proposer_crashes_after_proposing(params: TestParams) {
 
     #[derive(Clone, Debug, Default)]
     struct State {
-        first_proposed_value: Option<ValueToPropose<TestContext>>,
+        first_proposed_value: Option<LocallyProposedValue<TestContext>>,
     }
 
     const CRASH_HEIGHT: u64 = 4;

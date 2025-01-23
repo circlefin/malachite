@@ -12,6 +12,7 @@ use malachitebft_test_cli::cmd::testnet::TestnetCmd;
 use malachitebft_test_cli::{config, logging, runtime};
 
 mod app;
+mod metrics;
 mod node;
 mod state;
 mod store;

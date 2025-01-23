@@ -181,7 +181,7 @@ pub fn propose_state_with_proposal_and_locked_and_valid(
         round,
         step: Step::Propose,
         valid: Some(RoundValue {
-            value: proposal.value,
+            value: proposal.value.clone(),
             round: Round::new(0),
         }),
         locked: Some(RoundValue {
@@ -227,7 +227,7 @@ pub fn prevote_state_with_proposal_and_locked_and_valid(
         round,
         step: Step::Prevote,
         valid: Some(RoundValue {
-            value: proposal.value,
+            value: proposal.value.clone(),
             round: Round::new(0),
         }),
         locked: Some(RoundValue {
@@ -247,7 +247,7 @@ pub fn precommit_state_with_proposal_and_locked_and_valid(
         round,
         step: Step::Precommit,
         valid: Some(RoundValue {
-            value: proposal.value,
+            value: proposal.value.clone(),
             round: proposal.round,
         }),
         locked: Some(RoundValue {
@@ -310,7 +310,7 @@ pub fn new_round_with_proposal_and_locked_and_valid(
         round,
         step: Step::Unstarted,
         valid: Some(RoundValue {
-            value: proposal.value,
+            value: proposal.value.clone(),
             round: Round::new(0),
         }),
         locked: Some(RoundValue {
@@ -340,11 +340,11 @@ pub fn decided_state_with_proposal_and_locked_and_valid(
         round,
         step: Step::Commit,
         valid: Some(RoundValue {
-            value: proposal.value,
+            value: proposal.value.clone(),
             round: Round::new(0),
         }),
         locked: Some(RoundValue {
-            value: proposal.value,
+            value: proposal.value.clone(),
             round: Round::new(0),
         }),
         decision: Some(proposal.value),

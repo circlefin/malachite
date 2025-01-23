@@ -4,7 +4,7 @@ use eyre::bail;
 use tracing::info;
 
 use malachitebft_config::ValuePayload;
-use malachitebft_core_consensus::ValueToPropose;
+use malachitebft_core_consensus::LocallyProposedValue;
 use malachitebft_core_types::SignedVote;
 use malachitebft_engine::util::events::Event;
 use malachitebft_starknet_host::types::MockContext;
@@ -43,7 +43,7 @@ async fn proposer_crashes_after_proposing(params: TestParams) {
 
     #[derive(Clone, Debug, Default)]
     struct State {
-        first_proposed_value: Option<ValueToPropose<MockContext>>,
+        first_proposed_value: Option<LocallyProposedValue<MockContext>>,
     }
 
     const CRASH_HEIGHT: u64 = 4;

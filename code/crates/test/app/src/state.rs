@@ -11,12 +11,11 @@ use sha3::Digest;
 use tracing::debug;
 
 use malachitebft_app_channel::app::consensus::ProposedValue;
-use malachitebft_app_channel::app::host::LocallyProposedValue;
 use malachitebft_app_channel::app::streaming::{StreamContent, StreamMessage};
 use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::config::Config; // TODO: Move into test app
 use malachitebft_app_channel::app::types::core::{CommitCertificate, Round, Validity};
-use malachitebft_app_channel::app::types::PeerId;
+use malachitebft_app_channel::app::types::{LocallyProposedValue, PeerId};
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{
     Address, Height, ProposalData, ProposalFin, ProposalInit, ProposalPart, TestContext, Value,
@@ -372,7 +371,7 @@ pub fn decode_value(bytes: Bytes) -> Value {
 /// to duplication of gossip messages.
 fn factor_value(value: Value) -> Vec<u64> {
     let mut factors = Vec::new();
-    let mut n = value.as_u64();
+    let mut n = value.value;
 
     let mut i = 2;
     while i * i <= n {

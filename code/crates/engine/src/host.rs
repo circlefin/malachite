@@ -5,42 +5,13 @@ use derive_where::derive_where;
 use ractor::{ActorRef, RpcReplyPort};
 
 use malachitebft_core_consensus::PeerId;
-use malachitebft_core_types::{CommitCertificate, Context, Round, SignedExtension, ValueId};
+use malachitebft_core_types::{CommitCertificate, Context, Round, ValueId};
 use malachitebft_sync::RawDecidedValue;
 
 use crate::consensus::ConsensusRef;
 use crate::util::streaming::StreamMessage;
 
-/// A value to propose that has just been received.
-pub use malachitebft_core_consensus::ProposedValue;
-
-/// This is the value that the application constructed
-/// and has finished streaming on gossip.
-///
-/// This is passed back to the consensus layer.
-#[derive_where(Clone, Debug, PartialEq, Eq)]
-pub struct LocallyProposedValue<Ctx: Context> {
-    pub height: Ctx::Height,
-    pub round: Round,
-    pub value: Ctx::Value,
-    pub extension: Option<SignedExtension<Ctx>>,
-}
-
-impl<Ctx: Context> LocallyProposedValue<Ctx> {
-    pub fn new(
-        height: Ctx::Height,
-        round: Round,
-        value: Ctx::Value,
-        extension: Option<SignedExtension<Ctx>>,
-    ) -> Self {
-        Self {
-            height,
-            round,
-            value,
-            extension,
-        }
-    }
-}
+pub use malachitebft_core_consensus::{LocallyProposedValue, ProposedValue};
 
 /// A reference to the host actor.
 pub type HostRef<Ctx> = ActorRef<HostMsg<Ctx>>;

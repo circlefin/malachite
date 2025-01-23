@@ -99,7 +99,7 @@ where
                 self.outbound_connections.insert(
                     peer_id,
                     OutboundConnection {
-                        connection_id: Some(connection_id),
+                        connection_id: None, // Will be set once the response is received
                         is_persistent: false,
                     },
                 );
@@ -140,7 +140,7 @@ where
                 self.outbound_connections.insert(
                     peer_id,
                     OutboundConnection {
-                        connection_id: Some(connection_id),
+                        connection_id: None, // Will be set once the response is received
                         is_persistent: false,
                     },
                 );

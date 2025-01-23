@@ -4,8 +4,10 @@ import os
 import re
 import subprocess
 from datetime import datetime
+from typing import TypedDict
 
-def get_git_root():
+
+def get_git_root() -> str:
     """Get the root directory of the git repository."""
     try:
         root = subprocess.check_output(['git', 'rev-parse', '--show-toplevel'])
@@ -14,7 +16,7 @@ def get_git_root():
         print("Error: Not a git repository")
         exit(1)
 
-def get_remote_url():
+def get_remote_url() -> str:
     """Get the GitHub remote URL of the repository."""
     try:
         remote = subprocess.check_output(['git', 'remote', 'get-url', 'origin'])
@@ -29,7 +31,7 @@ def get_remote_url():
         print("Error: Cannot get remote URL")
         exit(1)
 
-def get_current_commit():
+def get_current_commit() -> str:
     """Get the current commit hash."""
     try:
         commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'])
@@ -38,7 +40,17 @@ def get_current_commit():
         print("Error: Cannot get current commit hash")
         exit(1)
 
-def find_todos(root_dir):
+class Todo(TypedDict):
+    file: str
+    line_num: int
+    content: str
+    type: str
+
+class Todos(TypedDict):
+    todos: list[Todo]
+    fixmes: list[Todo]
+
+def find_todos(root_dir: str) -> Todos:
     """Find all TODO and FIXME comments in the repository."""
     todos = []
 
@@ -68,11 +80,16 @@ def find_todos(root_dir):
                 except UnicodeDecodeError:
                     continue
 
-    return todos
 
-def generate_markdown(todos, remote_url, commit_hash):
+    # Separate TODOs and FIXMEs
+    todos_list = [t for t in todos if t['type'] == 'TODO']
+    fixmes_list = [t for t in todos if t['type'] == 'FIXME']
+
+    return { 'todos': todos_list, 'fixmes': fixmes_list }
+
+def generate_markdown(todos: Todos, remote_url: str, commit_hash: str) -> str:
     """Generate markdown document from found TODOs and FIXMEs."""
-    markdown = f"# TODOs and FIXMEs\n\n"
+    markdown = "# TODOs and FIXMEs\n\n"
     markdown += f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
     markdown += f"Commit: [{commit_hash[:7]}]({remote_url}/commit/{commit_hash})\n\n"
 
@@ -80,20 +97,20 @@ def generate_markdown(todos, remote_url, commit_hash):
         markdown += "No TODO or FIXME items found.\n"
         return markdown
 
-    # Separate TODOs and FIXMEs
-    todos_list = [t for t in todos if t['type'] == 'TODO']
-    fixmes_list = [t for t in todos if t['type'] == 'FIXME']
+    markdown += "## Stats\n"
+    markdown += f"- {len(todos['fixmes'])} FIXMEs\n"
+    markdown += f"- {len(todos['todos'])} TODOs\n\n"
 
-    if fixmes_list:
+    if todos['fixmes']:
         markdown += "## FIXMEs\n\n"
-        for fixme in fixmes_list:
+        for fixme in todos['fixmes']:
             file_link = f"{remote_url}/blob/{commit_hash}/{fixme['file']}#L{fixme['line_num']}"
             markdown += f"- [{fixme['file']}:{fixme['line_num']}]({file_link})\n"
             markdown += f"  ```\n  {fixme['content']}\n  ```\n\n"
 
-    if todos_list:
+    if todos['todos']:
         markdown += "## TODOs\n\n"
-        for todo in todos_list:
+        for todo in todos['todos']:
             file_link = f"{remote_url}/blob/{commit_hash}/{todo['file']}#L{todo['line_num']}"
             markdown += f"- [{todo['file']}:{todo['line_num']}]({file_link})\n"
             markdown += f"  ```\n  {todo['content']}\n  ```\n\n"

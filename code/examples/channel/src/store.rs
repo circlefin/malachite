@@ -1,6 +1,8 @@
+use std::mem::size_of;
 use std::ops::RangeBounds;
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Instant;
 
 use bytes::Bytes;
 use prost::Message;
@@ -19,6 +21,8 @@ use malachitebft_test::{Height, TestContext, Value};
 
 mod keys;
 use keys::{HeightKey, UndecidedValueKey};
+
+use crate::metrics::DbMetrics;
 
 #[derive(Clone, Debug)]
 pub struct DecidedValue {
@@ -71,27 +75,46 @@ const UNDECIDED_PROPOSALS_TABLE: redb::TableDefinition<UndecidedValueKey, Vec<u8
 
 struct Db {
     db: redb::Database,
+    metrics: DbMetrics,
 }
 
 impl Db {
-    fn new(path: impl AsRef<Path>) -> Result<Self, StoreError> {
+    fn new(path: impl AsRef<Path>, metrics: DbMetrics) -> Result<Self, StoreError> {
         Ok(Self {
             db: redb::Database::create(path).map_err(StoreError::Database)?,
+            metrics,
         })
     }
 
     fn get_decided_value(&self, height: Height) -> Result<Option<DecidedValue>, StoreError> {
+        let start = Instant::now();
+        let mut read_bytes = 0;
+
         let tx = self.db.begin_read()?;
+
         let value = {
             let table = tx.open_table(DECIDED_VALUES_TABLE)?;
             let value = table.get(&height)?;
-            value.and_then(|value| Value::from_bytes(&value.value()).ok())
+            value.and_then(|value| {
+                let bytes = value.value();
+                read_bytes = bytes.len() as u64;
+                Value::from_bytes(&bytes).ok()
+            })
         };
+
         let certificate = {
             let table = tx.open_table(CERTIFICATES_TABLE)?;
             let value = table.get(&height)?;
-            value.and_then(|value| decode_certificate(&value.value()).ok())
+            value.and_then(|value| {
+                let bytes = value.value();
+                read_bytes += bytes.len() as u64;
+                decode_certificate(&bytes).ok()
+            })
         };
+
+        self.metrics.observe_read_time(start.elapsed());
+        self.metrics.add_read_bytes(read_bytes);
+        self.metrics.add_key_read_bytes(size_of::<Height>() as u64);
 
         let decided_value = value
             .zip(certificate)
@@ -101,18 +124,30 @@ impl Db {
     }
 
     fn insert_decided_value(&self, decided_value: DecidedValue) -> Result<(), StoreError> {
-        let height = decided_value.certificate.height;
+        let start = Instant::now();
+        let mut write_bytes = 0;
 
+        let height = decided_value.certificate.height;
         let tx = self.db.begin_write()?;
+
         {
             let mut values = tx.open_table(DECIDED_VALUES_TABLE)?;
-            values.insert(height, decided_value.value.to_bytes()?.to_vec())?;
+            let values_bytes = decided_value.value.to_bytes()?.to_vec();
+            write_bytes += values_bytes.len() as u64;
+            values.insert(height, values_bytes)?;
         }
+
         {
             let mut certificates = tx.open_table(CERTIFICATES_TABLE)?;
-            certificates.insert(height, encode_certificate(&decided_value.certificate)?)?;
+            let encoded_certificate = encode_certificate(&decided_value.certificate)?;
+            write_bytes += encoded_certificate.len() as u64;
+            certificates.insert(height, encoded_certificate)?;
         }
+
         tx.commit()?;
+
+        self.metrics.observe_write_time(start.elapsed());
+        self.metrics.add_write_bytes(write_bytes);
 
         Ok(())
     }
@@ -123,18 +158,29 @@ impl Db {
         height: Height,
         round: Round,
     ) -> Result<Option<ProposedValue<TestContext>>, StoreError> {
+        let start = Instant::now();
+        let mut read_bytes = 0;
+
         let tx = self.db.begin_read()?;
         let table = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
 
         let value = if let Ok(Some(value)) = table.get(&(height, round)) {
-            Some(
-                ProtobufCodec
-                    .decode(Bytes::from(value.value()))
-                    .map_err(StoreError::Protobuf)?,
-            )
+            let bytes = value.value();
+            read_bytes += bytes.len() as u64;
+
+            let proposal = ProtobufCodec
+                .decode(Bytes::from(bytes))
+                .map_err(StoreError::Protobuf)?;
+
+            Some(proposal)
         } else {
             None
         };
+
+        self.metrics.observe_read_time(start.elapsed());
+        self.metrics.add_read_bytes(read_bytes);
+        self.metrics
+            .add_key_read_bytes(size_of::<(Height, Round)>() as u64);
 
         Ok(value)
     }
@@ -143,14 +189,21 @@ impl Db {
         &self,
         proposal: ProposedValue<TestContext>,
     ) -> Result<(), StoreError> {
+        let start = Instant::now();
+
         let key = (proposal.height, proposal.round);
         let value = ProtobufCodec.encode(&proposal)?;
+
         let tx = self.db.begin_write()?;
         {
             let mut table = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
             table.insert(key, value.to_vec())?;
         }
         tx.commit()?;
+
+        self.metrics.observe_write_time(start.elapsed());
+        self.metrics.add_write_bytes(value.len() as u64);
+
         Ok(())
     }
 
@@ -185,7 +238,10 @@ impl Db {
     }
 
     fn prune(&self, retain_height: Height) -> Result<Vec<Height>, StoreError> {
+        let start = Instant::now();
+
         let tx = self.db.begin_write().unwrap();
+
         let pruned = {
             let mut undecided = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
             let keys = self.undecided_proposals_range(&undecided, ..(retain_height, Round::Nil))?;
@@ -203,15 +259,25 @@ impl Db {
             }
             keys
         };
+
         tx.commit()?;
+
+        self.metrics.observe_delete_time(start.elapsed());
 
         Ok(pruned)
     }
 
     fn min_decided_value_height(&self) -> Option<Height> {
+        let start = Instant::now();
+
         let tx = self.db.begin_read().unwrap();
         let table = tx.open_table(DECIDED_VALUES_TABLE).unwrap();
-        let (key, _) = table.first().ok()??;
+        let (key, value) = table.first().ok()??;
+
+        self.metrics.observe_read_time(start.elapsed());
+        self.metrics.add_read_bytes(value.value().len() as u64);
+        self.metrics.add_key_read_bytes(size_of::<Height>() as u64);
+
         Some(key.value())
     }
 
@@ -224,11 +290,14 @@ impl Db {
 
     fn create_tables(&self) -> Result<(), StoreError> {
         let tx = self.db.begin_write()?;
+
         // Implicitly creates the tables if they do not exist yet
         let _ = tx.open_table(DECIDED_VALUES_TABLE)?;
         let _ = tx.open_table(CERTIFICATES_TABLE)?;
         let _ = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
+
         tx.commit()?;
+
         Ok(())
     }
 }
@@ -239,8 +308,8 @@ pub struct Store {
 }
 
 impl Store {
-    pub fn open(path: impl AsRef<Path>) -> Result<Self, StoreError> {
-        let db = Db::new(path)?;
+    pub fn open(path: impl AsRef<Path>, metrics: DbMetrics) -> Result<Self, StoreError> {
+        let db = Db::new(path, metrics)?;
         db.create_tables()?;
 
         Ok(Self { db: Arc::new(db) })
@@ -267,6 +336,7 @@ impl Store {
         height: Height,
     ) -> Result<Option<DecidedValue>, StoreError> {
         let db = Arc::clone(&self.db);
+
         tokio::task::spawn_blocking(move || db.get_decided_value(height)).await?
     }
 
