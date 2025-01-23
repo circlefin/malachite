@@ -256,7 +256,9 @@ fn generate_and_broadcast_txes(
     // Start with transactions already in the mempool
     let mut transactions = std::mem::take(&mut state.transactions)
         .into_values()
+        .take(count)
         .collect::<Vec<_>>();
+
     let initial_count = transactions.len();
 
     let mut tx_batch = Transactions::default();
