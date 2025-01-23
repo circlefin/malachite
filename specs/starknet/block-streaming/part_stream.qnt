@@ -1,5 +1,13 @@
 // -*- mode: Bluespec; -*-
 
+// TODO:
+// Explore case when duplicate messages are sent and write tests:
+    // Change isDone logic
+        // val emittedFinMessage: bool = {
+        //    state.emitted.toSet().exists(msg => msg.msgType == FIN)
+        // }
+
+
 module part_stream {
     import spells.* from "./spells"
     import binary_heap.* from "./binary_heap"
@@ -20,7 +28,6 @@ module part_stream {
 
     type State = {
         buffer: BinaryHeap[Message],
-        initReceived: bool,
         finReceived: bool,
         initMessage: Option[Message],
         nextSequence: Sequence,
@@ -43,7 +50,6 @@ module part_stream {
     action init = {
         state' = {
             buffer: List(),
-            initReceived: false,
             nextSequence: 0,
             totalMessages: 0,
             initMessage: None,
@@ -55,7 +61,8 @@ module part_stream {
 
     action step = any {
         done,
-        {
+        all{
+            messages.exclude(state.received).size() > 0,
             nondet msg = oneOf(messages.exclude(state.received))
             processMessage(msg)
         }
@@ -66,6 +73,7 @@ module part_stream {
         state' = state,
     }
 
+    // There is no check if duplicate message arrived
     action processMessage(message: Message): bool = {
         match message.msgType {
             | INIT => handleInit(message)
@@ -81,7 +89,6 @@ module part_stream {
         val state1 = { 
             ...state, 
             initMessage: Some(message), 
-            initReceived: true,
             received: state.received.union(Set(message))
         }
         val state2 = emit(state1, message)
@@ -144,17 +151,49 @@ module part_stream {
 
     val inv = {
         if (isDone) all {
-            state.initReceived,
+            state.initMessage != None,
             state.finReceived,
             state.received == messages,
             state.emitted == orderedMessages,
             state.emitted.length() == state.totalMessages,
         } else all {
-            state.initReceived implies state.initMessage != None,
             state.finReceived implies (state.totalMessages > 0 and state.nextSequence <= state.totalMessages),
             state.received.subseteq(messages),
             state.emitted.toSet().subseteq(messages),
         }
+    }
+
+
+    run MessagesInRightOrderTest = {
+        init
+        .then(processMessage(createMessage(0, INIT, "Init")))
+        .then(processMessage(createMessage(1, DATA, "Data 1")))
+        .then(processMessage (createMessage(2, DATA, "Data 2")))
+        .then(processMessage(createMessage(3, FIN, "Fin")))
+        .expect(state.emitted == List(createMessage(0, INIT, "Init"), createMessage(1, DATA, "Data 1"), createMessage(2, DATA, "Data 2"), createMessage(3, FIN, "Fin")))
+    }
+
+    run MessagesInWrongOrderTest = {
+        init
+        .then(processMessage(createMessage(1, DATA, "Data 1")))
+        .then(processMessage(createMessage(0, INIT, "Init")))
+        .then(processMessage(createMessage(3, FIN, "Fin")))
+        .then(processMessage (createMessage(2, DATA, "Data 2")))
+        .expect(state.emitted == List(createMessage(0, INIT, "Init"), createMessage(1, DATA, "Data 1"), createMessage(2, DATA, "Data 2"), createMessage(3, FIN, "Fin")))
+    }
+
+    run InitReceivedTest = {
+        init
+        .then(processMessage(createMessage(0, INIT, "Init")))
+        .then(processMessage (createMessage(2, DATA, "Data 2")))
+        .expect(state.initMessage == Some(createMessage(0, INIT, "Init")))
+    }
+
+    run FinReceivedTest = {
+        init
+        .then(processMessage(createMessage(3, FIN, "Fin")))
+        .then(processMessage(createMessage(1, DATA, "Data 1")))
+        .expect(state.finReceived == true)
     }
 
     temporal eventuallyDone =

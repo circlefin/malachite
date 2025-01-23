@@ -175,7 +175,6 @@ impl HostState {
 
         if let ProposalPart::Transactions(_txes) = &part {
             debug!("Simulating tx execution and proof verification");
-
             // Simulate Tx execution and proof verification (assumes success)
             // TODO: Add config knob for invalid blocks
             let num_txes = part.tx_count() as u32;

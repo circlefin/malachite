@@ -486,6 +486,11 @@ async fn on_get_decided_block(
     Ok(())
 }
 
+/// This function handles receiving parts of proposals
+/// And assembling proposal in right sequence when all parts are collected
+///
+/// For each proposal from distinct peer separate stream is opened
+/// Bookkeeping of streams is done inside HostState.part_streams_map ((peerId + streamId) -> streamState)
 async fn on_received_proposal_part(
     state: &mut HostState,
     part: StreamMessage<ProposalPart>,
@@ -495,6 +500,15 @@ async fn on_received_proposal_part(
     // TODO - use state.host.receive_proposal() and move some of the logic below there
     let sequence = part.sequence;
 
+    // When inserting part in a map, stream tries to connect all received parts in the right order,
+    // starting from beginning and emits parts sequence chunks  when it succeeds
+    // If it can't connect part, it buffers it
+    // E.g. buffered: 1 3 7
+    // part 0 (first) arrives -> 0 and 1 are emitted
+    // 4 arrives -> gets buffered
+    // 2 arrives -> 2, 3 and 4 are emitted
+
+    // 'insert' returns connected sequence of parts if any is emitted
     let Some(parts) = state.part_streams_map.insert(from, part) else {
         return Ok(());
     };
@@ -512,6 +526,8 @@ async fn on_received_proposal_part(
         return Ok(());
     }
 
+    // Emitted parts are stored and simulated (if it is tx)
+    // When finish part is stored, proposal value is built from all of them
     for part in parts.parts {
         debug!(
             part.sequence = %sequence,

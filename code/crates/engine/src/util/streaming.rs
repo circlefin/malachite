@@ -39,6 +39,7 @@ pub enum StreamContent<T> {
     Data(T),
 
     /// Fin must be set to true.
+    /// Q: Why not just leave out the bool then?
     Fin(bool),
 }
 

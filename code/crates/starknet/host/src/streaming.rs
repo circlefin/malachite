@@ -1,3 +1,5 @@
+/// The most of algorithm logic is explained in '/malachite/code/crates/starknet/host/src/actor.rs'
+/// Above 'on_received_proposal_part'
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BinaryHeap, HashSet};
 
@@ -9,6 +11,10 @@ use malachitebft_engine::util::streaming::{Sequence, StreamId, StreamMessage};
 
 use crate::types::{Address, Height, ProposalInit, ProposalPart};
 
+// Wraps StreamMessage to implement custom ordering for a BinaryHeap
+// The default BinaryHeap is a max-heap, so we reverse the ordering
+// by implementing Ord in reverse to make it min-heap, which suits the purpose of efficiently
+// providing available proposal part with smallest sequence number
 struct MinSeq<T>(StreamMessage<T>);
 
 impl<T> PartialEq for MinSeq<T> {
@@ -52,7 +58,6 @@ impl<T> MinHeap<T> {
         self.0.peek().map(|msg| &msg.0)
     }
 }
-
 #[derive_where(Default)]
 struct StreamState<T> {
     buffer: MinHeap<T>,
@@ -78,6 +83,7 @@ impl<T> StreamState<T> {
         self.emitted_messages += 1;
     }
 
+    // Emits all buffered successive parts if they are next in sequence
     fn emit_eligible_messages(&mut self, to_emit: &mut Vec<T>) {
         while let Some(msg) = self.buffer.peek() {
             if msg.sequence == self.next_sequence {

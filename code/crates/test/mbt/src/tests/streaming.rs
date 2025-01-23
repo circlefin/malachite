@@ -2,19 +2,17 @@ use glob::glob;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use crate::consensus::State;
+use crate::streaming::State;
 use crate::utils::{generate_test_traces, quint_seed};
 
 pub mod runner;
-pub mod utils;
-
-use runner::ConsensusRunner;
 
 const RANDOM_SEED: u64 = 0x42;
 
+// generates ITF traces from the Quint spec and runs the traces as Rust tests
 #[test]
 fn test_itf() {
-    let temp_dir = tempfile::TempDir::with_prefix("informalsystems-malachitebft-core-consensus-")
+    let temp_dir = tempfile::TempDir::with_prefix("informalsystems-malachitebft-part-streaming")
         .expect("Failed to create temp dir");
     let temp_path = temp_dir.path().to_owned();
 
@@ -24,8 +22,9 @@ fn test_itf() {
 
     let quint_seed = quint_seed();
 
+    print!("{}\n", temp_path.to_string_lossy());
     generate_test_traces(
-        "consensus/quint/tests/consensus/consensusTest.qnt",
+        "starknet/block-streaming/part_stream.qnt",
         &temp_path.to_string_lossy(),
         quint_seed,
     );
@@ -42,12 +41,16 @@ fn test_itf() {
         let json = std::fs::read_to_string(&json_fixture).unwrap();
         let trace = itf::trace_from_str::<State>(&json).unwrap();
 
-        let mut rng = StdRng::seed_from_u64(RANDOM_SEED);
+        // For debugging
+        print!("\n{:#?}\n", trace);
 
-        // Build mapping from model addresses to real addresses
-        let address_map = utils::build_address_map(&trace, &mut rng);
+        //TODO:
+        // let mut rng = StdRng::seed_from_u64(RANDOM_SEED);
 
-        let consensus_runner = ConsensusRunner::new(address_map);
-        trace.run_on(consensus_runner).unwrap();
+        // // Build mapping from model addresses to real addresses
+        // let address_map = utils::build_address_map(&trace, &mut rng);
+
+        // let consensus_runner = ConsensusRunner::new(address_map);
+        // trace.run_on(consensus_runner).unwrap();
     }
 }
