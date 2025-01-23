@@ -217,6 +217,12 @@ impl Actor for Mempool {
             }
 
             Msg::Update { .. } => {
+                // Clear all transactions from the mempool, given that we consume
+                // the full mempool when proposing a block.
+                //
+                // This reduces the mempool protocol overhead and allow us to
+                // observe issues strictly related to consensus.
+                // It also bumps performance, as we reduce the mempool's background traffic.
                 state.transactions.clear();
             }
         }
