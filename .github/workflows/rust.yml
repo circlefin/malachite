@@ -107,8 +107,8 @@ jobs:
             --slots 16 \
             --include 'package.equals(informalsystems-malachitebft-starknet-test) || package.equals(informalsystems-malachitebft-discovery-test)'
 
-  integration_beta:
-    name: Integration Tests (beta)
+  integration_test_app:
+    name: Integration Tests (test app)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -130,17 +130,24 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           cache-workspaces: "code"
-      - name: Install cargo-maelstrom
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-maelstrom
-      - name: Disable apparmor container restrictions
-        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Run integration tests
         run: |
-          cargo maelstrom \
-            --slots 8 \
-            --include 'package.equals(informalsystems-malachitebft-test)'
+          cargo nextest run \
+            -p informalsystems-malachitebft-test \
+            --test-threads 1 \
+            --no-fail-fast \
+            --failure-output final
+      # - name: Install cargo-maelstrom
+      #   uses: taiki-e/install-action@v2
+      #   with:
+      #     tool: cargo-maelstrom
+      # - name: Disable apparmor container restrictions
+      #   run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      # - name: Run integration tests
+      #   run: |
+      #     cargo maelstrom \
+      #       --slots 8 \
+      #       --include 'package.equals(informalsystems-malachitebft-test)'
 
   no_std:
     name: no_std compatibility
