@@ -84,7 +84,9 @@ async fn run_build_proposal_task(
         init
     };
 
-    loop {
+    let max_block_size = params.max_block_size.as_u64() as usize;
+
+    'reap: loop {
         trace!(%height, %round, %sequence, "Building local value");
 
         let reaped_txes = mempool
@@ -102,10 +104,8 @@ async fn run_build_proposal_task(
         trace!("Reaped {} transactions from the mempool", reaped_txes.len());
 
         if reaped_txes.is_empty() {
-            break;
+            break 'reap;
         }
-
-        let max_block_size = params.max_block_size.as_u64() as usize;
 
         let mut txes = Vec::new();
         let mut tx_count = 0;
@@ -113,7 +113,7 @@ async fn run_build_proposal_task(
         for tx in reaped_txes {
             if block_size + tx.size_bytes() > max_block_size {
                 max_block_size_reached = true;
-                continue;
+                continue 'reap;
             }
 
             block_size += tx.size_bytes();
@@ -145,10 +145,10 @@ async fn run_build_proposal_task(
 
         if max_block_size_reached {
             trace!("Max block size reached, stopping tx generation");
-            break;
+            break 'reap;
         } else if start.elapsed() > build_duration {
             trace!("Time allowance exceeded, stopping tx generation");
-            break;
+            break 'reap;
         }
     }
 
