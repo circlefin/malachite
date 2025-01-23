@@ -153,11 +153,19 @@ async fn run_build_proposal_task(
     }
 
     // Vote extensions
-    if !vote_extensions.extensions.is_empty() {
+    if !max_block_size_reached && !vote_extensions.extensions.is_empty() {
         let transactions = vote_extensions
             .extensions
             .into_iter()
             .map(|(_, e)| e.message)
+            .take_while(|e| {
+                let keep_going = block_size + e.len() <= max_block_size;
+                if keep_going {
+                    block_size += e.len();
+                    block_tx_count += 1;
+                }
+                keep_going
+            })
             .map(Transaction::new)
             .collect();
 
