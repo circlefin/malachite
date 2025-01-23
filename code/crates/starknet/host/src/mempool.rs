@@ -278,14 +278,8 @@ fn generate_and_broadcast_txes(
 
         // Gossip tx-es to peers in batches
         if gossip_enabled && tx_batch.len() >= batch_size {
-            let tx_batch = std::mem::take(&mut tx_batch);
-
-            let Ok(tx_batch_any) = tx_batch.to_any() else {
-                // TODO: Handle error
-                continue;
-            };
-
-            let mempool_batch = MempoolTransactionBatch::new(tx_batch_any);
+            let tx_batch = std::mem::take(&mut tx_batch).to_any().unwrap();
+            let mempool_batch = MempoolTransactionBatch::new(tx_batch);
             mempool_network.cast(MempoolNetworkMsg::BroadcastMsg(mempool_batch))?;
         }
     }
