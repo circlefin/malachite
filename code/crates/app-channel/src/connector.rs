@@ -196,6 +196,14 @@ where
 
                 reply_to.send(rx.await?)?;
             }
+
+            HostMsg::PeerJoined { peer_id } => {
+                self.sender.send(AppMsg::PeerJoined { peer_id }).await?;
+            }
+
+            HostMsg::PeerLeft { peer_id } => {
+                self.sender.send(AppMsg::PeerLeft { peer_id }).await?;
+            }
         };
 
         Ok(())

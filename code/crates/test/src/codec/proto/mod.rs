@@ -3,10 +3,10 @@ use prost::Message;
 
 use malachitebft_app::streaming::{StreamContent, StreamMessage};
 use malachitebft_codec::Codec;
-use malachitebft_core_consensus::SignedConsensusMsg;
+use malachitebft_core_consensus::{ProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{
     AggregatedSignature, CommitCertificate, CommitSignature, Extension, Round, SignedExtension,
-    SignedProposal, SignedVote, VoteSet,
+    SignedProposal, SignedVote, Validity, VoteSet,
 };
 use malachitebft_proto::{Error as ProtoError, Protobuf};
 use malachitebft_signing_ed25519::Signature;
@@ -39,6 +39,24 @@ impl Codec<ProposalPart> for ProtobufCodec {
 
     fn encode(&self, msg: &ProposalPart) -> Result<Bytes, Self::Error> {
         Protobuf::to_bytes(msg)
+    }
+}
+
+impl Codec<Signature> for ProtobufCodec {
+    type Error = ProtoError;
+
+    fn decode(&self, bytes: Bytes) -> Result<Signature, Self::Error> {
+        let proto = proto::Signature::decode(bytes.as_ref())?;
+        decode_signature(proto)
+    }
+
+    fn encode(&self, msg: &Signature) -> Result<Bytes, Self::Error> {
+        Ok(Bytes::from(
+            proto::Signature {
+                bytes: Bytes::copy_from_slice(msg.to_bytes().as_ref()),
+            }
+            .encode_to_vec(),
+        ))
     }
 }
 
@@ -135,6 +153,46 @@ impl Codec<StreamMessage<ProposalPart>> for ProtobufCodec {
     }
 }
 
+impl Codec<ProposedValue<TestContext>> for ProtobufCodec {
+    type Error = ProtoError;
+
+    fn decode(&self, bytes: Bytes) -> Result<ProposedValue<TestContext>, Self::Error> {
+        let proto = proto::ProposedValue::decode(bytes.as_ref())?;
+
+        let proposer = proto
+            .proposer
+            .ok_or_else(|| ProtoError::missing_field::<proto::ProposedValue>("proposer"))?;
+
+        let value = proto
+            .value
+            .ok_or_else(|| ProtoError::missing_field::<proto::ProposedValue>("value"))?;
+
+        Ok(ProposedValue {
+            height: Height::new(proto.height),
+            round: Round::new(proto.round),
+            valid_round: proto.valid_round.map(Round::new).unwrap_or(Round::Nil),
+            proposer: Address::from_proto(proposer)?,
+            value: Value::from_proto(value)?,
+            validity: Validity::from_bool(proto.validity),
+            extension: proto.extension.map(decode_extension).transpose()?,
+        })
+    }
+
+    fn encode(&self, msg: &ProposedValue<TestContext>) -> Result<Bytes, Self::Error> {
+        let proto = proto::ProposedValue {
+            height: msg.height.as_u64(),
+            round: msg.round.as_u32().unwrap(),
+            valid_round: msg.valid_round.as_u32(),
+            proposer: Some(msg.proposer.to_proto()?),
+            value: Some(msg.value.to_proto()?),
+            validity: msg.validity.to_bool(),
+            extension: msg.extension.as_ref().map(encode_extension).transpose()?,
+        };
+
+        Ok(Bytes::from(proto.encode_to_vec()))
+    }
+}
+
 impl Codec<sync::Status<TestContext>> for ProtobufCodec {
     type Error = ProtoError;
 
@@ -219,7 +277,7 @@ impl Codec<sync::Response<TestContext>> for ProtobufCodec {
     }
 }
 
-fn decode_sync_response(
+pub fn decode_sync_response(
     proto_response: proto::SyncResponse,
 ) -> Result<sync::Response<TestContext>, ProtoError> {
     let response = proto_response
@@ -250,7 +308,7 @@ fn decode_sync_response(
     Ok(response)
 }
 
-fn encode_sync_response(
+pub fn encode_sync_response(
     response: &sync::Response<TestContext>,
 ) -> Result<proto::SyncResponse, ProtoError> {
     let proto = match response {
@@ -283,8 +341,8 @@ fn encode_sync_response(
     Ok(proto)
 }
 
-fn encode_synced_value(
-    synced_value: &sync::DecidedValue<TestContext>,
+pub fn encode_synced_value(
+    synced_value: &sync::RawDecidedValue<TestContext>,
 ) -> Result<proto::SyncedValue, ProtoError> {
     Ok(proto::SyncedValue {
         value_bytes: synced_value.value_bytes.clone(),
@@ -292,20 +350,20 @@ fn encode_synced_value(
     })
 }
 
-fn decode_synced_value(
+pub fn decode_synced_value(
     proto: proto::SyncedValue,
-) -> Result<sync::DecidedValue<TestContext>, ProtoError> {
+) -> Result<sync::RawDecidedValue<TestContext>, ProtoError> {
     let certificate = proto
         .certificate
         .ok_or_else(|| ProtoError::missing_field::<proto::SyncedValue>("certificate"))?;
 
-    Ok(sync::DecidedValue {
+    Ok(sync::RawDecidedValue {
         value_bytes: proto.value_bytes,
         certificate: decode_certificate(certificate)?,
     })
 }
 
-fn decode_certificate(
+pub fn decode_certificate(
     certificate: proto::CommitCertificate,
 ) -> Result<CommitCertificate<TestContext>, ProtoError> {
     let value_id = certificate
@@ -330,7 +388,7 @@ fn decode_certificate(
     Ok(certificate)
 }
 
-fn encode_certificate(
+pub fn encode_certificate(
     certificate: &CommitCertificate<TestContext>,
 ) -> Result<proto::CommitCertificate, ProtoError> {
     Ok(proto::CommitCertificate {
@@ -343,7 +401,7 @@ fn encode_certificate(
     })
 }
 
-fn decode_aggregated_signature(
+pub fn decode_aggregated_signature(
     signature: proto::AggregatedSignature,
 ) -> Result<AggregatedSignature<TestContext>, ProtoError> {
     let signatures = signature
@@ -375,7 +433,7 @@ fn decode_aggregated_signature(
     Ok(AggregatedSignature { signatures })
 }
 
-fn encode_aggregate_signature(
+pub fn encode_aggregate_signature(
     aggregated_signature: &AggregatedSignature<TestContext>,
 ) -> Result<proto::AggregatedSignature, ProtoError> {
     let signatures = aggregated_signature
@@ -393,7 +451,7 @@ fn encode_aggregate_signature(
     Ok(proto::AggregatedSignature { signatures })
 }
 
-fn decode_extension(ext: proto::Extension) -> Result<SignedExtension<TestContext>, ProtoError> {
+pub fn decode_extension(ext: proto::Extension) -> Result<SignedExtension<TestContext>, ProtoError> {
     let extension = Extension::from(ext.data);
     let signature = ext
         .signature
@@ -403,14 +461,16 @@ fn decode_extension(ext: proto::Extension) -> Result<SignedExtension<TestContext
     Ok(SignedExtension::new(extension, signature))
 }
 
-fn encode_extension(ext: &SignedExtension<TestContext>) -> Result<proto::Extension, ProtoError> {
+pub fn encode_extension(
+    ext: &SignedExtension<TestContext>,
+) -> Result<proto::Extension, ProtoError> {
     Ok(proto::Extension {
         data: ext.message.data.clone(),
         signature: Some(encode_signature(&ext.signature)),
     })
 }
 
-fn encode_vote_set(vote_set: &VoteSet<TestContext>) -> Result<proto::VoteSet, ProtoError> {
+pub fn encode_vote_set(vote_set: &VoteSet<TestContext>) -> Result<proto::VoteSet, ProtoError> {
     Ok(proto::VoteSet {
         signed_votes: vote_set
             .votes
@@ -420,7 +480,7 @@ fn encode_vote_set(vote_set: &VoteSet<TestContext>) -> Result<proto::VoteSet, Pr
     })
 }
 
-fn encode_vote(vote: &SignedVote<TestContext>) -> Result<proto::SignedMessage, ProtoError> {
+pub fn encode_vote(vote: &SignedVote<TestContext>) -> Result<proto::SignedMessage, ProtoError> {
     Ok(proto::SignedMessage {
         message: Some(proto::signed_message::Message::Vote(
             vote.message.to_proto()?,
@@ -429,7 +489,7 @@ fn encode_vote(vote: &SignedVote<TestContext>) -> Result<proto::SignedMessage, P
     })
 }
 
-fn decode_vote_set(vote_set: proto::VoteSet) -> Result<VoteSet<TestContext>, ProtoError> {
+pub fn decode_vote_set(vote_set: proto::VoteSet) -> Result<VoteSet<TestContext>, ProtoError> {
     Ok(VoteSet {
         votes: vote_set
             .signed_votes
@@ -439,7 +499,7 @@ fn decode_vote_set(vote_set: proto::VoteSet) -> Result<VoteSet<TestContext>, Pro
     })
 }
 
-fn decode_vote(msg: proto::SignedMessage) -> Option<SignedVote<TestContext>> {
+pub fn decode_vote(msg: proto::SignedMessage) -> Option<SignedVote<TestContext>> {
     let signature = msg.signature?;
     let vote = match msg.message {
         Some(proto::signed_message::Message::Vote(v)) => Some(v),
@@ -451,13 +511,13 @@ fn decode_vote(msg: proto::SignedMessage) -> Option<SignedVote<TestContext>> {
     Some(SignedVote::new(vote, signature))
 }
 
-pub(crate) fn encode_signature(signature: &Signature) -> proto::Signature {
+pub fn encode_signature(signature: &Signature) -> proto::Signature {
     proto::Signature {
         bytes: Bytes::copy_from_slice(signature.to_bytes().as_ref()),
     }
 }
 
-pub(crate) fn decode_signature(signature: proto::Signature) -> Result<Signature, ProtoError> {
+pub fn decode_signature(signature: proto::Signature) -> Result<Signature, ProtoError> {
     let bytes = <[u8; 64]>::try_from(signature.bytes.as_ref())
         .map_err(|_| ProtoError::Other("Invalid signature length".to_string()))?;
     Ok(Signature::from_bytes(bytes))

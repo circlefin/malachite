@@ -17,7 +17,7 @@ use malachitebft_engine::host::{LocallyProposedValue, ProposedValue};
 use malachitebft_engine::network::{NetworkMsg, NetworkRef};
 use malachitebft_engine::util::streaming::{StreamContent, StreamMessage};
 use malachitebft_metrics::Metrics;
-use malachitebft_sync::DecidedValue;
+use malachitebft_sync::RawDecidedValue;
 
 use crate::host::proposal::compute_proposal_signature;
 use crate::host::state::HostState;
@@ -180,6 +180,15 @@ impl Host {
                 value_bytes,
                 reply_to,
             } => on_process_synced_value(value_bytes, height, round, validator_address, reply_to),
+            HostMsg::PeerJoined { peer_id } => {
+                debug!(%peer_id, "Peer joined the network");
+                Ok(())
+            }
+
+            HostMsg::PeerLeft { peer_id } => {
+                debug!(%peer_id, "Peer left the network");
+                Ok(())
+            }
         }
     }
 }
@@ -445,7 +454,7 @@ fn on_process_synced_value(
 async fn on_get_decided_block(
     height: Height,
     state: &mut HostState,
-    reply_to: RpcReplyPort<Option<DecidedValue<MockContext>>>,
+    reply_to: RpcReplyPort<Option<RawDecidedValue<MockContext>>>,
 ) -> Result<(), ActorProcessingErr> {
     debug!(%height, "Received request for block");
 
@@ -460,7 +469,7 @@ async fn on_get_decided_block(
         }
 
         Ok(Some(block)) => {
-            let block = DecidedValue {
+            let block = RawDecidedValue {
                 value_bytes: block.block.to_bytes().unwrap(),
                 certificate: block.certificate,
             };

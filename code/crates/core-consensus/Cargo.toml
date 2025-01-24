@@ -1,20 +1,27 @@
 [package]
 name = "informalsystems-malachitebft-core-consensus"
+description = "Core consensus algorithm for the Malachite BFT consensus engine"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
 license.workspace = true
 publish.workspace = true
 rust-version.workspace = true
+readme = "../../../README.md"
+
+[package.metadata.docs.rs]
+all-features = true
 
 [features]
+default = ["std", "metrics"]
 std = []
+metrics = ["std", "dep:malachitebft-metrics"]
 debug = ["std", "malachitebft-core-driver/debug"]
 
 [dependencies]
 malachitebft-core-types.workspace = true
 malachitebft-core-driver.workspace = true
-malachitebft-metrics.workspace = true
+malachitebft-metrics = { workspace = true, optional = true }
 malachitebft-peer.workspace = true
 
 async-recursion = { workspace = true }

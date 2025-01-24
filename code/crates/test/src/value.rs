@@ -1,3 +1,4 @@
+use bytes::{Bytes, BytesMut};
 use core::fmt;
 use malachitebft_proto::{Error as ProtoError, Protobuf};
 use serde::{Deserialize, Serialize};
@@ -58,24 +59,26 @@ impl Protobuf for ValueId {
 }
 
 /// The value to decide on
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct Value(u64);
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct Value {
+    pub value: u64,
+    pub extensions: Bytes,
+}
 
 impl Value {
-    pub const fn new(value: u64) -> Self {
-        Self(value)
+    pub fn new(value: u64) -> Self {
+        Self {
+            value,
+            extensions: Bytes::new(),
+        }
     }
 
-    pub const fn as_u64(&self) -> u64 {
-        self.0
-    }
-
-    pub const fn id(&self) -> ValueId {
-        ValueId(self.0)
+    pub fn id(&self) -> ValueId {
+        ValueId(self.value)
     }
 
     pub fn size_bytes(&self) -> usize {
-        8
+        std::mem::size_of_val(&self.value) + self.extensions.len()
     }
 }
 
@@ -96,21 +99,29 @@ impl Protobuf for Value {
             .value
             .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("value"))?;
 
-        let len = bytes.len();
-        let bytes = <[u8; 8]>::try_from(bytes.as_ref()).map_err(|_| {
+        let value = bytes[0..8].try_into().map_err(|_| {
             ProtoError::Other(format!(
-                "Invalid value length, got {len} bytes expected {}",
+                "Too few bytes, expected at least {}",
                 u64::BITS / 8
             ))
         })?;
 
-        Ok(Value::new(u64::from_be_bytes(bytes)))
+        let extensions = bytes.slice(8..);
+
+        Ok(Value {
+            value: u64::from_be_bytes(value),
+            extensions,
+        })
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
+        let mut bytes = BytesMut::new();
+        bytes.extend_from_slice(&self.value.to_be_bytes());
+        bytes.extend_from_slice(&self.extensions);
+
         Ok(proto::Value {
-            value: Some(self.0.to_be_bytes().to_vec().into()),
+            value: Some(bytes.freeze()),
         })
     }
 }

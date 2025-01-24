@@ -64,22 +64,22 @@ impl<Ctx: Context> ValueRequest<Ctx> {
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct ValueResponse<Ctx: Context> {
     pub height: Ctx::Height,
-    pub value: Option<DecidedValue<Ctx>>,
+    pub value: Option<RawDecidedValue<Ctx>>,
 }
 
 impl<Ctx: Context> ValueResponse<Ctx> {
-    pub fn new(height: Ctx::Height, value: Option<DecidedValue<Ctx>>) -> Self {
+    pub fn new(height: Ctx::Height, value: Option<RawDecidedValue<Ctx>>) -> Self {
         Self { height, value }
     }
 }
 
 #[derive_where(Clone, Debug, PartialEq, Eq)]
-pub struct DecidedValue<Ctx: Context> {
+pub struct RawDecidedValue<Ctx: Context> {
     pub value_bytes: Bytes,
     pub certificate: CommitCertificate<Ctx>,
 }
 
-impl<Ctx: Context> DecidedValue<Ctx> {
+impl<Ctx: Context> RawDecidedValue<Ctx> {
     pub fn new(value_bytes: Bytes, certificate: CommitCertificate<Ctx>) -> Self {
         Self {
             value_bytes,

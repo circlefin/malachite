@@ -2,10 +2,10 @@ use crate::handle::driver::apply_driver_input;
 use crate::handle::signature::verify_signature;
 use crate::handle::validator_set::get_validator_set;
 use crate::input::Input;
+use crate::prelude::*;
 use crate::types::ConsensusMsg;
 use crate::util::pretty::PrettyProposal;
-use crate::ProposedValue;
-use crate::{prelude::*, SignedConsensusMsg};
+use crate::{ProposedValue, SignedConsensusMsg};
 
 pub async fn on_proposal<Ctx>(
     co: &Co<Ctx>,
@@ -72,7 +72,7 @@ where
     if state.params.value_payload.include_proposal() {
         perform!(
             co,
-            Effect::PersistMessage(
+            Effect::WalAppendMessage(
                 SignedConsensusMsg::Proposal(signed_proposal.clone()),
                 Default::default()
             )

@@ -1,14 +1,14 @@
 # Malachite Consensus
 
-Malachite is an implementation of the [Tendermint consensus algorithm][tendermint-arxiv] in Rust.
-It comes together with an executable specification in [Quint][quint-spec].
+Malachite `core` libraries implement the [Tendermint consensus algorithm][tendermint-arxiv] in Rust.
+These libraries come together with an executable specification in [Quint][quint-spec].
 We use model-based testing to make sure that the implementation corresponds to
 the specification.
 
-The specification of the consensus algorithm and its implementation is organized as follows:
+The specification of the consensus algorithm covers several concerns and is organized as follows:
 
 - [**overview.md**](./overview.md): a summary of the operation and components
-  of the Tendermint consensus algorithm;
+  of the Tendermint consensus algorithm at the protocol level;
 - [**pseudo-code.md**](./pseudo-code.md): the Algorithm in page 6 of the
   Tendermint [paper][tendermint-pdf];
   since it is referenced several times in this specification, for simplicity and

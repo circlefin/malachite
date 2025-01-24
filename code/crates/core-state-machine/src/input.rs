@@ -2,7 +2,7 @@
 
 use derive_where::derive_where;
 
-use malachitebft_core_types::{Context, Round, ValueId};
+use malachitebft_core_types::{Context, Round};
 
 /// Input to the round state machine.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
@@ -56,10 +56,6 @@ where
     /// Receive +2/3 precommits for a value.
     /// L49
     ProposalAndPrecommitValue(Ctx::Proposal),
-
-    /// Receive +2/3 precommits for a value.
-    /// L51
-    PrecommitValue(ValueId<Ctx>),
 
     /// Receive +1/3 messages from a higher round. OneCorrectProcessInHigherRound.
     /// L55

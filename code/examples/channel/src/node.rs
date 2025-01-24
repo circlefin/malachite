@@ -4,11 +4,12 @@
 use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
-use libp2p_identity::Keypair;
 use rand::{CryptoRng, RngCore};
 
+use malachitebft_app_channel::app::metrics::SharedRegistry;
 use malachitebft_app_channel::app::types::config::Config;
 use malachitebft_app_channel::app::types::core::VotingPower;
+use malachitebft_app_channel::app::types::Keypair;
 use malachitebft_app_channel::app::Node;
 
 // Use the same types used for integration tests.
@@ -17,8 +18,11 @@ use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{
     Address, Genesis, Height, PrivateKey, PublicKey, TestContext, Validator, ValidatorSet,
 };
+use malachitebft_test_cli::metrics;
 
+use crate::metrics::DbMetrics;
 use crate::state::State;
+use crate::store::Store;
 
 /// Main application struct implementing the consensus node functionality
 #[derive(Clone)]
@@ -27,7 +31,7 @@ pub struct App {
     pub home_dir: PathBuf,
     pub genesis_file: PathBuf,
     pub private_key_file: PathBuf,
-    pub start_height: Option<u64>,
+    pub start_height: Option<Height>,
 }
 
 #[async_trait]
@@ -102,7 +106,6 @@ impl Node for App {
 
         let genesis = self.load_genesis(self.genesis_file.clone())?;
         let initial_validator_set = genesis.validator_set.clone();
-        let start_height = self.start_height.map(Height::new);
 
         let codec = ProtobufCodec;
 
@@ -112,13 +115,22 @@ impl Node for App {
             self.clone(),
             self.config.clone(),
             self.private_key_file.clone(),
-            start_height,
+            self.start_height,
             initial_validator_set,
         )
         .await?;
 
-        let mut state = State::new(ctx, address, start_height.unwrap_or_default());
+        let registry = SharedRegistry::global().with_moniker(&self.config.moniker);
+        let metrics = DbMetrics::register(&registry);
 
-        crate::app::run(genesis, &mut state, &mut channels).await
+        if self.config.metrics.enabled {
+            tokio::spawn(metrics::serve(self.config.metrics.listen_addr));
+        }
+
+        let store = Store::open(self.get_home_dir().join("store.db"), metrics)?;
+        let start_height = self.start_height.unwrap_or_default();
+        let mut state = State::new(genesis, ctx, address, start_height, store);
+
+        crate::app::run(&mut state, &mut channels).await
     }
 }

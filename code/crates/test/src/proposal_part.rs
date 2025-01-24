@@ -61,7 +61,7 @@ impl ProposalPart {
     }
 
     pub fn to_sign_bytes(&self) -> Bytes {
-        proto::Protobuf::to_bytes(self).unwrap() // FIXME: unwrap
+        proto::Protobuf::to_bytes(self).unwrap()
     }
 }
 

@@ -1,18 +1,28 @@
+use std::io;
+
 use axum::routing::get;
 use axum::Router;
-use tokio::net::TcpListener;
-use tracing::info;
+use tokio::net::{TcpListener, ToSocketAddrs};
+use tracing::{error, info};
 
 use malachitebft_app::metrics::export;
-use malachitebft_config::MetricsConfig;
 
 #[tracing::instrument(name = "metrics", skip_all)]
-pub async fn serve(config: MetricsConfig) {
-    let app = Router::new().route("/metrics", get(get_metrics));
-    let listener = TcpListener::bind(config.listen_addr).await.unwrap();
+pub async fn serve(listen_addr: impl ToSocketAddrs) {
+    if let Err(e) = inner(listen_addr).await {
+        error!("Metrics server failed: {e}");
+    }
+}
 
-    info!(address = %config.listen_addr, "Serving metrics");
-    axum::serve(listener, app).await.unwrap();
+async fn inner(listen_addr: impl ToSocketAddrs) -> io::Result<()> {
+    let app = Router::new().route("/metrics", get(get_metrics));
+    let listener = TcpListener::bind(listen_addr).await?;
+    let local_addr = listener.local_addr()?;
+
+    info!(address = %local_addr, "Serving metrics");
+    axum::serve(listener, app).await?;
+
+    Ok(())
 }
 
 async fn get_metrics() -> String {

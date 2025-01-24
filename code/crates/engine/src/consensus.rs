@@ -9,9 +9,7 @@ use tracing::{debug, error, info, warn};
 
 use malachitebft_codec as codec;
 use malachitebft_config::TimeoutConfig;
-use malachitebft_core_consensus::{
-    Effect, PeerId, Resumable, Resume, SignedConsensusMsg, ValueToPropose,
-};
+use malachitebft_core_consensus::{Effect, PeerId, Resumable, Resume, SignedConsensusMsg};
 use malachitebft_core_types::{
     Context, Round, SignedExtension, SigningProvider, SigningProviderExt, Timeout, TimeoutKind,
     ValidatorSet, ValueOrigin,
@@ -282,10 +280,9 @@ where
             }
 
             Msg::ProposeValue(height, round, value, extension) => {
-                let value_to_propose = ValueToPropose {
+                let value_to_propose = LocallyProposedValue {
                     height,
                     round,
-                    valid_round: Round::Nil,
                     value: value.clone(),
                     extension,
                 };
@@ -982,14 +979,14 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::PersistMessage(msg, r) => {
+            Effect::WalAppendMessage(msg, r) => {
                 self.wal_append(height, WalEntry::ConsensusMsg(msg), phase)
                     .await?;
 
                 Ok(r.resume_with(()))
             }
 
-            Effect::PersistTimeout(timeout, r) => {
+            Effect::WalAppendTimeout(timeout, r) => {
                 self.wal_append(height, WalEntry::Timeout(timeout), phase)
                     .await?;
 

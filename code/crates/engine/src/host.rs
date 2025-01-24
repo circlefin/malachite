@@ -5,42 +5,13 @@ use derive_where::derive_where;
 use ractor::{ActorRef, RpcReplyPort};
 
 use malachitebft_core_consensus::PeerId;
-use malachitebft_core_types::{CommitCertificate, Context, Round, SignedExtension, ValueId};
-use malachitebft_sync::DecidedValue;
+use malachitebft_core_types::{CommitCertificate, Context, Round, ValueId};
+use malachitebft_sync::RawDecidedValue;
 
 use crate::consensus::ConsensusRef;
 use crate::util::streaming::StreamMessage;
 
-/// A value to propose that has just been received.
-pub use malachitebft_core_consensus::ProposedValue;
-
-/// This is the value that the application constructed
-/// and has finished streaming on gossip.
-///
-/// This is passed back to the consensus layer.
-#[derive_where(Clone, Debug, PartialEq, Eq)]
-pub struct LocallyProposedValue<Ctx: Context> {
-    pub height: Ctx::Height,
-    pub round: Round,
-    pub value: Ctx::Value,
-    pub extension: Option<SignedExtension<Ctx>>,
-}
-
-impl<Ctx: Context> LocallyProposedValue<Ctx> {
-    pub fn new(
-        height: Ctx::Height,
-        round: Round,
-        value: Ctx::Value,
-        extension: Option<SignedExtension<Ctx>>,
-    ) -> Self {
-        Self {
-            height,
-            round,
-            value,
-            extension,
-        }
-    }
-}
+pub use malachitebft_core_consensus::{LocallyProposedValue, ProposedValue};
 
 /// A reference to the host actor.
 pub type HostRef<Ctx> = ActorRef<HostMsg<Ctx>>;
@@ -97,18 +68,36 @@ pub enum HostMsg<Ctx: Context> {
         consensus: ConsensusRef<Ctx>,
     },
 
-    // Retrieve decided block from the block store
+    // Retrieve decided value from the block store
     GetDecidedValue {
         height: Ctx::Height,
-        reply_to: RpcReplyPort<Option<DecidedValue<Ctx>>>,
+        reply_to: RpcReplyPort<Option<RawDecidedValue<Ctx>>>,
     },
 
-    // Synced block
+    // Process a value synced from another node via the ValueSync protocol.
+    // If the encoded value within is valid, reply with that value to be proposed.
     ProcessSyncedValue {
         height: Ctx::Height,
         round: Round,
         validator_address: Ctx::Address,
         value_bytes: Bytes,
         reply_to: RpcReplyPort<ProposedValue<Ctx>>,
+    },
+
+    /// A peer joined our local view of the network.
+    /// In a gossip network, there is no guarantee that we will ever see all peers,
+    /// as we are typically only connected to a subset of the network (i.e. in our mesh).
+    PeerJoined {
+        /// The ID of the peer that joined
+        peer_id: PeerId,
+    },
+
+    /// A peer left our local view of the network.
+    /// In a gossip network, there is no guarantee that this means that this peer
+    /// has left the whole network altogether, just that it is not part of the subset
+    /// of the network that we are connected to (i.e. our mesh).
+    PeerLeft {
+        /// The ID of the peer that left
+        peer_id: PeerId,
     },
 }

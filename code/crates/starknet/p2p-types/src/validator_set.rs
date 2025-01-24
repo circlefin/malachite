@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use malachitebft_core_types::VotingPower;
 use serde::{Deserialize, Serialize};
 
@@ -6,7 +8,7 @@ use crate::{Address, PublicKey, Validator};
 /// A validator set contains a list of validators sorted by address.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ValidatorSet {
-    pub validators: Vec<Validator>,
+    pub validators: Arc<Vec<Validator>>,
 }
 
 impl ValidatorSet {
@@ -16,39 +18,14 @@ impl ValidatorSet {
 
         assert!(!validators.is_empty());
 
-        Self { validators }
+        Self {
+            validators: Arc::new(validators),
+        }
     }
 
     /// The total voting power of the validator set
     pub fn total_voting_power(&self) -> VotingPower {
         self.validators.iter().map(|v| v.voting_power).sum()
-    }
-
-    /// Add a validator to the set
-    pub fn add(&mut self, validator: Validator) {
-        self.validators.push(validator);
-
-        ValidatorSet::sort_validators(&mut self.validators);
-    }
-
-    /// Update the voting power of the given validator
-    pub fn update(&mut self, val: Validator) {
-        if let Some(v) = self
-            .validators
-            .iter_mut()
-            .find(|v| v.address == val.address)
-        {
-            v.voting_power = val.voting_power;
-        }
-
-        Self::sort_validators(&mut self.validators);
-    }
-
-    /// Remove a validator from the set
-    pub fn remove(&mut self, address: &Address) {
-        self.validators.retain(|v| &v.address != address);
-
-        Self::sort_validators(&mut self.validators);
     }
 
     /// Get a validator by its address

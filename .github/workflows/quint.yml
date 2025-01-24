@@ -1,19 +1,33 @@
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - specs/**/*.qnt
   pull_request:
-    paths:
-      - specs/**/*.qnt
+  merge_group:
+  push:
+    branches: main
 
 name: Quint
 
 jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      specs: ${{ steps.filter.outputs.specs }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            specs:
+              - 'specs/**'
+
   quint-typecheck:
     name: Typecheck
+    needs: changes
+    if: ${{ needs.changes.outputs.specs == 'true' || github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +39,8 @@ jobs:
 
   quint-test:
     name: Test
+    needs: changes
+    if: ${{ needs.changes.outputs.specs == 'true' || github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     env:
       MAX_SAMPLES: 100

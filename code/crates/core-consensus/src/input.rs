@@ -4,7 +4,7 @@ use malachitebft_core_types::{
 };
 
 use crate::types::ProposedValue;
-use crate::ValueToPropose;
+use crate::LocallyProposedValue;
 
 pub type RequestId = String;
 
@@ -24,7 +24,7 @@ where
     Proposal(SignedProposal<Ctx>),
 
     /// Propose a value
-    Propose(ValueToPropose<Ctx>),
+    Propose(LocallyProposedValue<Ctx>),
 
     /// A timeout has elapsed
     TimeoutElapsed(Timeout),

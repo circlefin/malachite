@@ -1,6 +1,9 @@
-# Malachite's Specification
+# Malachite Specifications
 
-Malachite is an implementation of the [Tendermint consensus algorithm][tendermint-arxiv] in Rust.
+This directory holds specifications of various Malachite components or protocols.
+It also covers specifications related to external dependencies, i.e., application-level concerns.
+For example, Malachite comprises a library implementing the [Tendermint consensus algorithm][tendermint-arxiv] in Rust, which is specified below.
+The specifications also cover networking, synchronization, and broader Starknet protocols.
 
 - [Consensus algorithm and implementation](./consensus/README.md)
 - [Network design and requirements](./network/README.md)

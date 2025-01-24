@@ -23,6 +23,7 @@ export driver.*
 import consensus.* from "./consensus"
 export consensus.* 
 import votekeeper.* from "./votekeeper"
+import extraSpells.* from "./spells/extra"
 
 const validators: Set[Address]
 const validatorSet: Address -> Weight
@@ -65,10 +66,13 @@ action unchangedAll = all {
     _hist' = _hist
 }
 
+/// Any two processes agree in the consensus instances in which they both have already decided
 val AgreementInv = tuples(Correct, Correct).forall(p => 
-    (system.get(p._1).es.chain != List() and system.get(p._2).es.chain != List())
-        implies
-            system.get(p._1).es.chain[0] == system.get(p._2).es.chain[0])
+    val numDecidedInstances = min(  system.get(p._1).es.chain.length(),
+                                    system.get(p._2).es.chain.length())
+    to(0, numDecidedInstances-1).forall(i =>
+            system.get(p._1).es.chain[i] == system.get(p._2).es.chain[i])
+)
 
 // Actions
 action init = all {
@@ -224,13 +228,21 @@ action deliverSomeCertificate(v: Address) : bool = all {
 }
 
 
-// deliver a message or a certiciate. 
+// deliver a message or a certificate. 
 // Take it from the network buffer of from the faulty set and put it into the incoming sets
 action deliver(v: Address) : bool = any {
-    nondet prop = oneOf(propBuffer.get(v).union(AllFaultyProposals))
-    deliverProposal(v, prop),
-    nondet vote = oneOf(voteBuffer.get(v).union(AllFaultyVotes))
-    deliverVote(v, vote),
+    val props = propBuffer.get(v).union(AllFaultyProposals)
+    all{
+        props.size() > 0,
+        nondet prop = oneOf(props)
+        deliverProposal(v, prop),
+    },
+    val votes = voteBuffer.get(v).union(AllFaultyVotes)
+    all {
+        votes.size() > 0,
+        nondet vote = oneOf(votes)
+        deliverVote(v, vote),
+    },
     deliverSomeCertificate(v),  // we might do fault injection here. But faulty nodes cannot
                                 // totally make up certificates. They cannot forge messages to look 
                                 // like being sent by correct nodes

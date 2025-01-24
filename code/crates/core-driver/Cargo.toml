@@ -1,13 +1,16 @@
 [package]
 name = "informalsystems-malachitebft-core-driver"
-description = "Driver for the state machine of Malachite consensus engine"
-
+description = "Driver for the state machine of Malachite BFT consensus engine"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
 license.workspace = true
 publish.workspace = true
 rust-version.workspace = true
+readme = "../../../README.md"
+
+[package.metadata.docs.rs]
+all-features = true
 
 [features]
 std = ["malachitebft-core-state-machine/std"]
@@ -26,4 +29,3 @@ thiserror = { workspace = true, default-features = false }
 
 [dev-dependencies]
 malachitebft-test = { workspace = true }
-malachitebft-core-driver-test-utils = { workspace = true }
