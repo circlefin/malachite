@@ -5,6 +5,8 @@ use malachitebft_core_types::{
     Vote,
 };
 
+pub use malachitebft_core_types::ValuePayload;
+
 pub use malachitebft_peer::PeerId;
 pub use multiaddr::Multiaddr;
 
@@ -74,36 +76,4 @@ pub struct ProposedValue<Ctx: Context> {
     pub value: Ctx::Value,
     pub validity: Validity,
     pub extension: Option<SignedExtension<Ctx>>,
-}
-
-/// The possible messages used to deliver proposals
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ValuePayload {
-    PartsOnly,
-    ProposalOnly,
-    ProposalAndParts,
-}
-
-impl ValuePayload {
-    pub fn include_proposal(self) -> bool {
-        matches!(
-            self,
-            ValuePayload::ProposalOnly | ValuePayload::ProposalAndParts
-        )
-    }
-
-    pub fn include_parts(self) -> bool {
-        matches!(
-            self,
-            ValuePayload::PartsOnly | ValuePayload::ProposalAndParts
-        )
-    }
-
-    pub fn parts_only(self) -> bool {
-        matches!(self, ValuePayload::PartsOnly)
-    }
-
-    pub fn proposal_only(&self) -> bool {
-        matches!(self, ValuePayload::ProposalOnly)
-    }
 }

@@ -63,6 +63,6 @@ pub use signing::{SigningProvider, SigningProviderExt, SigningScheme};
 pub use threshold::{Threshold, ThresholdParam, ThresholdParams};
 pub use timeout::{Timeout, TimeoutKind};
 pub use validator_set::{Address, Validator, ValidatorSet, VotingPower};
-pub use value::{NilOrVal, Value, ValueOrigin};
+pub use value::{NilOrVal, Value, ValueOrigin, ValuePayload};
 pub use vote::{Extension, Vote, VoteType};
 pub use vote_set::VoteSet;

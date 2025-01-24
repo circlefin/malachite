@@ -54,17 +54,61 @@ impl<Value> NilOrVal<Value> {
     }
 }
 
-/// Defines the requirements for the type of value to decide on.
+/// The `Value` type denotes the value `v` carried by the `Proposal`
+/// consensus message that is gossiped to other nodes by the proposer.
+///
+/// How to instantiate `Value` with a concrete type depends on which mode consensus
+/// is parametrized to run in. See the documentation for the [`ValuePayload`]
+/// type for more information.
 pub trait Value
 where
     Self: Clone + Debug + PartialEq + Eq + PartialOrd + Ord + Send + Sync,
 {
-    /// The type of the ID for this value.
-    /// Typically, a representation of the value with a lower memory footprint.
-    type Id: Clone + Debug + Display + PartialEq + Eq + PartialOrd + Ord + Send + Sync;
+    /// A unique representation of the `Value` with a lower memory footprint, denoted `id(v)`.
+    /// It is carried by votes and herefore is typically set to be a hash of the value `v`.
+    type Id: Clone + Debug + Display + Eq + Ord + Send + Sync;
 
     /// The ID of the value.
     fn id(&self) -> Self::Id;
+}
+
+/// The possible messages used to deliver proposals
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ValuePayload {
+    /// The proposer publishes a `Proposal` message carrying the full value `v`, and does not stream any proposal parts at all.
+    /// Better suited for small blocks to avoid overhead of gossiping parts.
+    /// In this case `Value` is typically set to be the block and `Id` is its hash.
+    ProposalOnly,
+
+    /// The proposer does not publish a `Proposal` message at all, it only streams the proposed value as proposal parts.
+    /// In this case `Value` is typically set to the same type as `Id`.
+    PartsOnly,
+
+    /// The proposer publishes a `Proposal` message carrying only `id(v)`, and streams the full value as proposal parts.
+    /// In this case `Value` is typically set to the same type as `Id`.
+    ProposalAndParts,
+}
+
+impl ValuePayload {
+    /// Whether the proposer must publish the proposed value as a `Proposal` message.
+    pub fn include_proposal(self) -> bool {
+        matches!(self, Self::ProposalOnly | Self::ProposalAndParts)
+    }
+
+    /// Whether the proposer must publish the proposed value as parts.
+    pub fn include_parts(self) -> bool {
+        matches!(self, Self::PartsOnly | Self::ProposalAndParts)
+    }
+
+    /// Whether the proposal must only publish proposal parts, no `Proposal` message.
+    pub fn parts_only(self) -> bool {
+        matches!(self, Self::PartsOnly)
+    }
+
+    /// Whether the proposer must only publish a `Proposal` message, no proposal parts.
+    pub fn proposal_only(&self) -> bool {
+        matches!(self, Self::ProposalOnly)
+    }
 }
 
 /// Protocols that diseminate `Value`
@@ -72,6 +116,7 @@ where
 pub enum ValueOrigin {
     /// Synchronization protocol
     Sync,
+
     /// Consensus protocol
     Consensus,
 }

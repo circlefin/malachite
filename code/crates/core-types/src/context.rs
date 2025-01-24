@@ -28,7 +28,8 @@ where
     /// The interface provided by the validator set type.
     type ValidatorSet: ValidatorSet<Self>;
 
-    /// The type of values that can be proposed.
+    /// The `Value` type denotes the value `v` carried by the `Proposal`
+    /// consensus message that is gossiped to other nodes by the proposer.
     type Value: Value;
 
     /// The type of votes that can be cast.
