@@ -1,4 +1,4 @@
-name: Run Rust Binary on Droplet
+name: QA
 
 on:
   workflow_dispatch: 
