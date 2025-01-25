@@ -10,14 +10,12 @@ jobs:
       BINARY_NAME: informalsystems-malachitebft-starknet-app
 
     steps:
-      # Step 1: Set up DigitalOcean CLI
       - name: Set up DigitalOcean CLI
         run: |
           curl -sL https://github.com/digitalocean/doctl/releases/download/v1.96.0/doctl-1.96.0-linux-amd64.tar.gz | tar -xz
           sudo mv doctl /usr/local/bin/
           doctl auth init -t ${{ secrets.DO_TOKEN }}
 
-      # Step 2: Create Droplet
       - name: Create Droplet
         run: |
           cat <<EOF > user-data.txt
@@ -38,7 +36,6 @@ jobs:
             --wait \
             --format ID,Name,PublicIPv4 > droplet-info.txt
 
-      # Step 3: Extract Droplet Details
       - name: Extract Droplet Details
         run: |
           export DROPLET_ID=$(awk 'NR==2 {print $1}' droplet-info.txt)
@@ -46,57 +43,47 @@ jobs:
           echo "DROPLET_ID=$DROPLET_ID" >> $GITHUB_ENV
           echo "DROPLET_IP=$DROPLET_IP" >> $GITHUB_ENV
 
-      # Step 4: Attach Firewall
       - name: Attach Firewall
         run: |
           doctl compute firewall add-droplets 00f1e8df-7318-4c47-ac93-926fd8ae8920 \
             --droplet-ids ${{ env.DROPLET_ID }}
 
-      # Step 5: Wait for Initialization
       - name: Wait for Initialization
         run: |
           echo "Waiting for firewall and SSH to initialize..."
           sleep 5
 
-      # Step 6: Checkout Code
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # Step 7: Set up Rust
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
 
-      # Step 8: Build Rust Binary
       - name: Build Rust Binary
         working-directory: code
         run: cargo build -p ${{ env.BINARY_NAME }} --release
 
-      # Step 9: Write SSH Key
       - name: Write SSH Key
         run: |
           printf "%s" "${{ secrets.DO_SSH_KEY }}" | sed 's/\r//' > private_key
           chmod 600 private_key
 
-      # Step 10: Upload Binary to Droplet
       - name: Upload Binary to Droplet
         run: |
           scp -i private_key -o StrictHostKeyChecking=no ./code/target/release/${{ env.BINARY_NAME }} root@$DROPLET_IP:/root/
 
-      # Step 11: Execute Binary on Droplet
       - name: Execute Binary on Droplet
         run: |
           ssh -i private_key -o StrictHostKeyChecking=no root@$DROPLET_IP "/root/${{ env.BINARY_NAME }}"
 
-      # Step 12: Destroy Droplet
       - name: Destroy Droplet
         if: always()
         run: |
           doctl compute droplet delete ${{ env.DROPLET_ID }} --force
 
-      # Step 13: Cleanup SSH Key
       - name: Cleanup SSH Key
         if: always()
         run: rm -f private_key
