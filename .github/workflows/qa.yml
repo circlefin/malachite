@@ -21,6 +21,11 @@ jobs:
         with:
           toolchain: stable
           override: true
+      
+      - name: Install protoc
+        uses: volta-cli/setup-protoc@v1
+        with:
+          protoc-version: 3.21.12
 
       - name: Build Rust Binary
         working-directory: code
