@@ -46,47 +46,12 @@ jobs:
           echo "DROPLET_ID=$DROPLET_ID" >> $GITHUB_ENV
           echo "DROPLET_IP=$DROPLET_IP" >> $GITHUB_ENV
 
-      #- name: Attach Firewall
-      #  run: |
-      #    doctl compute firewall add-droplets 00f1e8df-7318-4c47-ac93-926fd8ae8920 \
-      #      --droplet-ids ${{ env.DROPLET_ID }}
-
       - name: Wait for Initialization
         run: |
           echo "Waiting for firewall and SSH to initialize..."
-          sleep 5
-
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-
-      - name: Build Rust Binary
-        working-directory: code
-        run: cargo build -p ${{ env.BINARY_NAME }} --release
-
-      - name: Write SSH Key
-        run: |
-          printf "%s" "${{ secrets.DO_SSH_KEY }}" | sed 's/\r//' > private_key
-          chmod 600 private_key
-
-      - name: Upload Binary to Droplet
-        run: |
-          scp -i private_key -o StrictHostKeyChecking=no ./code/target/release/${{ env.BINARY_NAME }} root@$DROPLET_IP:/root/
-
-      - name: Execute Binary on Droplet
-        run: |
-          ssh -i private_key -o StrictHostKeyChecking=no root@$DROPLET_IP "/root/${{ env.BINARY_NAME }}"
+          sleep 30
 
       - name: Destroy Droplet
         if: always()
         run: |
           doctl compute droplet delete ${{ env.DROPLET_ID }} --force
-
-      - name: Cleanup SSH Key
-        if: always()
-        run: rm -f private_key
