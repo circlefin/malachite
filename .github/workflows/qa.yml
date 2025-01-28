@@ -53,10 +53,12 @@ jobs:
           echo "Droplet ID: $DROPLET_ID"
           echo "Droplet IP: $DROPLET_IP"
       
-      - name: List All Droplets
+      - name: Capture Firewall Details
         run: |
-          echo "Fetching all droplets..."
-          doctl compute droplet list --format ID,Name,PublicIPv4,Status
+          FIREWALLS=$(doctl compute firewall list --format ID,Name --no-header)
+          echo "Firewall List:"
+          echo "$FIREWALLS"
+
       
 
       #- name: Attach Firewall
