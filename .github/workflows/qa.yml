@@ -38,6 +38,11 @@ jobs:
             --ssh-keys ${{ secrets.DO_SSH_FINGERPRINT }} \
             --wait
 
+      - name: Wait for Initialization
+        run: |
+          echo "Waiting for droplet initialization..."
+          sleep 20
+          
       - name: Extract Droplet Details
         run: |
           DROPLET_INFO=$(doctl compute droplet list --format ID,Name,PublicIPv4 --no-header | grep test-ssh-droplet)
@@ -47,11 +52,6 @@ jobs:
           echo "DROPLET_IP=$DROPLET_IP" >> $GITHUB_ENV
           echo "Droplet ID: $DROPLET_ID"
           echo "Droplet IP: $DROPLET_IP"
-
-      - name: Wait for Initialization
-        run: |
-          echo "Waiting for droplet initialization..."
-          sleep 20
 
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -76,7 +76,7 @@ jobs:
         run: |
           printf "%s" "${{ secrets.DO_SSH_KEY }}" | sed 's/\r//' > private_key
           chmod 600 private_key
-          
+
       - name: Upload Binary to Droplet
         run: |
           scp -i private_key -o StrictHostKeyChecking=no ./code/target/release/${{ env.BINARY_NAME }} root@$DROPLET_IP:/root/
