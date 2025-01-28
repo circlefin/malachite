@@ -13,50 +13,15 @@ jobs:
       BINARY_NAME: informalsystems-malachitebft-starknet-app
 
     steps:
-      - name: Set up DigitalOcean CLI
-        run: |
-          curl -sL https://github.com/digitalocean/doctl/releases/download/v1.96.0/doctl-1.96.0-linux-amd64.tar.gz | tar -xz
-          sudo mv doctl /usr/local/bin/
-          doctl auth init -t ${{ secrets.DO_TOKEN }}
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      - name: Create Droplet
-        run: |
-          cat <<EOF > user-data.txt
-          #cloud-config
-          runcmd:
-            - apt-get update
-            - apt-get install -y openssh-server
-            - systemctl enable ssh
-            - systemctl start ssh
-            - ufw allow ssh
-          EOF
-          doctl compute droplet create test-ssh-droplet \
-            --size s-1vcpu-1gb \
-            --region nyc1 \
-            --image ubuntu-22-04-x64 \
-            --user-data-file user-data.txt \
-            --ssh-keys ${{ secrets.DO_SSH_FINGERPRINT }} \
-            --wait \
-            --format ID,Name,PublicIPv4 > droplet-info.txt
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
 
-      - name: Extract Droplet Details
-        run: |
-          export DROPLET_ID=$(awk 'NR==2 {print $1}' droplet-info.txt)
-          export DROPLET_IP=$(awk 'NR==2 {print $3}' droplet-info.txt)
-          echo "DROPLET_ID=$DROPLET_ID" >> $GITHUB_ENV
-          echo "DROPLET_IP=$DROPLET_IP" >> $GITHUB_ENV
-
-      - name: Attach Firewall
-        run: |
-          doctl compute firewall add-droplets 00f1e8df-7318-4c47-ac93-926fd8ae8920 \
-            --droplet-ids ${{ env.DROPLET_ID }}
-
-      - name: Wait for Initialization
-        run: |
-          echo "Waiting for firewall and SSH to initialize..."
-          sleep 30
-
-      - name: Destroy Droplet
-        if: always()
-        run: |
-          doctl compute droplet delete ${{ env.DROPLET_ID }} --force
+      - name: Build Rust Binary
+        working-directory: code
+        run: cargo build -p ${{ env.BINARY_NAME }} --release
