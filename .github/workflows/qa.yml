@@ -46,6 +46,11 @@ jobs:
           echo "DROPLET_ID=$DROPLET_ID" >> $GITHUB_ENV
           echo "DROPLET_IP=$DROPLET_IP" >> $GITHUB_ENV
 
+      - name: Attach Firewall
+        run: |
+          doctl compute firewall add-droplets 00f1e8df-7318-4c47-ac93-926fd8ae8920 \
+            --droplet-ids ${{ env.DROPLET_ID }}
+
       - name: Wait for Initialization
         run: |
           echo "Waiting for firewall and SSH to initialize..."
