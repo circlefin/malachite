@@ -58,6 +58,11 @@ jobs:
           doctl compute firewall add-droplets 72d70e52-595b-4a3b-95ec-238055c1dae6 \
             --droplet-ids ${{ env.DROPLET_ID }}
 
+      - name: Wait for Initialization
+        run: |
+          echo "Waiting for firewall and SSH to initialize..."
+          sleep 30
+
       #- name: Checkout Code
       #  uses: actions/checkout@v4
 
