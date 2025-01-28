@@ -76,10 +76,7 @@ jobs:
         run: |
           printf "%s" "${{ secrets.DO_SSH_KEY }}" | sed 's/\r//' > private_key
           chmod 600 private_key
-
-      - name: Debug DROPLET_IP
-        run: echo "DROPLET_IP: $DROPLET_IP"
-
+          
       - name: Upload Binary to Droplet
         run: |
           scp -i private_key -o StrictHostKeyChecking=no ./code/target/release/${{ env.BINARY_NAME }} root@$DROPLET_IP:/root/
