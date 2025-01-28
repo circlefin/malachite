@@ -42,7 +42,7 @@ jobs:
         run: |
           echo "Waiting for droplet initialization..."
           sleep 20
-          
+
       - name: Extract Droplet Details
         run: |
           DROPLET_INFO=$(doctl compute droplet list --format ID,Name,PublicIPv4 --no-header | grep test-ssh-droplet)
@@ -52,38 +52,45 @@ jobs:
           echo "DROPLET_IP=$DROPLET_IP" >> $GITHUB_ENV
           echo "Droplet ID: $DROPLET_ID"
           echo "Droplet IP: $DROPLET_IP"
-
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
       
-      - name: Install protoc
+      - name: Attach Firewall
         run: |
-          sudo apt-get update
-          sudo apt-get install -y protobuf-compiler
-          protoc --version
+          doctl compute firewall add-droplets 00f1e8df-7318-4c47-ac93-926fd8ae8920 \
+            --droplet-ids ${{ env.DROPLET_ID }}
 
-      - name: Build Rust Binary
-        working-directory: code
-        run: cargo build -p ${{ env.BINARY_NAME }} --release
+      #- name: Checkout Code
+      #  uses: actions/checkout@v4
+
+      #- name: Set up Rust
+      #  uses: actions-rs/toolchain@v1
+      #  with:
+      #    toolchain: stable
+      #    override: true
+      
+      #- name: Install protoc
+      #  run: |
+      #    sudo apt-get update
+      #    sudo apt-get install -y protobuf-compiler
+      #    protoc --version
+
+      #- name: Build Rust Binary
+      #  working-directory: code
+      #  run: cargo build -p ${{ env.BINARY_NAME }} --release
 
       - name: Write SSH Key
         run: |
           printf "%s" "${{ secrets.DO_SSH_KEY }}" | sed 's/\r//' > private_key
           chmod 600 private_key
 
-      - name: Upload Binary to Droplet
-        run: |
-          scp -i private_key -o StrictHostKeyChecking=no ./code/target/release/${{ env.BINARY_NAME }} root@$DROPLET_IP:/root/
+      #- name: Upload Binary to Droplet
+      #  run: |
+      #    scp -i private_key -o StrictHostKeyChecking=no ./code/target/release/${{ env.BINARY_NAME }} root@$DROPLET_IP:/root/
 
       - name: Execute Binary on Droplet
         run: |
-          ssh -i private_key -o StrictHostKeyChecking=no root@$DROPLET_IP "/root/${{ env.BINARY_NAME }}"
+          ssh -i private_key -o StrictHostKeyChecking=no root@$DROPLET_IP "ls"
+      
+      #    ssh -i private_key -o StrictHostKeyChecking=no root@$DROPLET_IP "/root/${{ env.BINARY_NAME }}"
 
       - name: Destroy Droplet
         if: always()
