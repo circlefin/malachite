@@ -14,13 +14,13 @@ jobs:
       NODE_COUNT: 2  # Set the number of nodes
 
     steps:
-      #- name: Checkout Code
-      #  uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      #- name: Set up Terraform
-      #  uses: hashicorp/setup-terraform@v2
-      #  with:
-      #    terraform_version: 1.6.0  # Specify the Terraform version
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.6.0  # Specify the Terraform version
 
       #- name: Terraform Init
       #  working-directory: terraform
