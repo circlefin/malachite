@@ -1,10 +1,10 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use async_trait::async_trait;
 use rand::{CryptoRng, RngCore};
 
 use malachitebft_app::types::Keypair;
-use malachitebft_app::Node;
+use malachitebft_app::{Handles, Node};
 use malachitebft_config::Config;
 use malachitebft_core_types::VotingPower;
 
@@ -66,8 +66,8 @@ impl Node for TestNode {
         Ed25519Provider::new(private_key)
     }
 
-    fn load_genesis(&self, path: impl AsRef<Path>) -> std::io::Result<Self::Genesis> {
-        let genesis = std::fs::read_to_string(path)?;
+    fn load_genesis(&self) -> std::io::Result<Self::Genesis> {
+        let genesis = std::fs::read_to_string(&self.genesis_file)?;
         serde_json::from_str(&genesis).map_err(|e| e.into())
     }
 
@@ -81,7 +81,12 @@ impl Node for TestNode {
         Genesis { validator_set }
     }
 
+    async fn start(&self) -> eyre::Result<Handles<Self::Context>> {
+        todo!()
+    }
+
     async fn run(self) -> eyre::Result<()> {
-        unimplemented!()
+        let handles = self.start().await?;
+        handles.app.await.map_err(Into::into)
     }
 }

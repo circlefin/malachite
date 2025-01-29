@@ -45,7 +45,7 @@ pub async fn crash_restart_from_start(params: TestParams) {
         .success();
 
     test.build()
-        .run_with_custom_config(
+        .run_with_params(
             Duration::from_secs(60), // Timeout for the whole test
             TestParams {
                 enable_sync: true, // Enable Sync
@@ -115,7 +115,7 @@ pub async fn crash_restart_from_latest() {
         .success();
 
     test.build()
-        .run_with_custom_config(
+        .run_with_params(
             Duration::from_secs(60),
             TestParams {
                 enable_sync: true,
@@ -156,7 +156,7 @@ pub async fn aggressive_pruning() {
         .success();
 
     test.build()
-        .run_with_custom_config(
+        .run_with_params(
             Duration::from_secs(60), // Timeout for the whole test
             TestParams {
                 enable_sync: true,     // Enable Sync
@@ -192,7 +192,7 @@ pub async fn start_late() {
         .success();
 
     test.build()
-        .run_with_custom_config(
+        .run_with_params(
             Duration::from_secs(30),
             TestParams {
                 enable_sync: true,

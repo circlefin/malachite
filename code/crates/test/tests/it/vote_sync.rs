@@ -1,7 +1,7 @@
 use std::time::Duration;
 
+use crate::{init_logging, TestBuilder, TestParams};
 use malachitebft_config::ValuePayload;
-use malachitebft_test_framework::{init_logging, TestBuilder, TestParams};
 
 // NOTE: These tests are very similar to the Sync tests, with the difference that
 //       all nodes have the same voting power and therefore get stuck when one of them dies.
@@ -34,7 +34,7 @@ pub async fn crash_restart_from_start(params: TestParams) {
         .success();
 
     test.build()
-        .run_with_custom_config(
+        .run_with_params(
             Duration::from_secs(60), // Timeout for the whole test
             TestParams {
                 enable_sync: true, // Enable Sync
@@ -98,7 +98,7 @@ pub async fn crash_restart_from_latest() {
         .success();
 
     test.build()
-        .run_with_custom_config(
+        .run_with_params(
             Duration::from_secs(60),
             TestParams {
                 enable_sync: true,
@@ -126,7 +126,7 @@ pub async fn start_late() {
         .success();
 
     test.build()
-        .run_with_custom_config(
+        .run_with_params(
             Duration::from_secs(60),
             TestParams {
                 enable_sync: true,

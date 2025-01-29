@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use malachitebft_test_framework::{init_logging, TestBuilder};
+use crate::{init_logging, TestBuilder};
 
 #[tokio::test]
 pub async fn proposer_fails_to_start() {

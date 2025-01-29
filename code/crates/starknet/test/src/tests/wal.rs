@@ -93,7 +93,7 @@ async fn proposer_crashes_after_proposing(params: TestParams) {
         .success();
 
     test.build()
-        .run_with_custom_config(
+        .run_with_params(
             Duration::from_secs(60),
             TestParams {
                 enable_sync: false,
@@ -183,7 +183,7 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
     test.add_node().with_voting_power(10).start().success();
 
     test.build()
-        .run_with_custom_config(
+        .run_with_params(
             Duration::from_secs(60),
             TestParams {
                 enable_sync: false,

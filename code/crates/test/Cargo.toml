@@ -43,6 +43,7 @@ malachitebft-test-framework.workspace = true
 
 bytesize.workspace = true
 tokio.workspace = true
+tempfile.workspace = true
 tracing.workspace = true
 
 [build-dependencies]

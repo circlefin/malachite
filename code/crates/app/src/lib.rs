@@ -9,7 +9,7 @@
 // )]
 
 mod node;
-pub use node::Node;
+pub use node::{EngineHandle, Handles, Node};
 
 pub mod part_store;
 pub mod spawn;

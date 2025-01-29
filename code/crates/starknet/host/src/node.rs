@@ -1,14 +1,13 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use libp2p_identity::ecdsa;
 use malachitebft_starknet_p2p_types::EcdsaProvider;
 use ractor::async_trait;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use tracing::{info, Instrument};
 
 use malachitebft_app::types::Keypair;
-use malachitebft_app::Node;
+use malachitebft_app::{EngineHandle, Handles, Node};
 use malachitebft_config::Config;
 use malachitebft_core_types::VotingPower;
 use malachitebft_engine::util::events::TxEvent;
@@ -46,9 +45,17 @@ impl From<PrivateKey> for PrivateKeyFile {
 pub struct StarknetNode {
     pub config: Config,
     pub home_dir: PathBuf,
-    pub genesis_file: PathBuf,
-    pub private_key_file: PathBuf,
     pub start_height: Option<u64>,
+}
+
+impl StarknetNode {
+    pub fn genesis_file(&self) -> PathBuf {
+        self.home_dir.join("config").join("genesis.json")
+    }
+
+    pub fn private_key_file(&self) -> PathBuf {
+        self.home_dir.join("config").join("priv_validator_key.json")
+    }
 }
 
 #[async_trait]
@@ -89,7 +96,7 @@ impl Node for StarknetNode {
     }
 
     fn load_private_key_file(&self) -> std::io::Result<Self::PrivateKeyFile> {
-        let private_key = std::fs::read_to_string(&self.private_key_file)?;
+        let private_key = std::fs::read_to_string(self.private_key_file())?;
         serde_json::from_str(&private_key).map_err(|e| e.into())
     }
 
@@ -101,8 +108,8 @@ impl Node for StarknetNode {
         EcdsaProvider::new(private_key)
     }
 
-    fn load_genesis(&self, path: impl AsRef<Path>) -> std::io::Result<Self::Genesis> {
-        let genesis = std::fs::read_to_string(path)?;
+    fn load_genesis(&self) -> std::io::Result<Self::Genesis> {
+        let genesis = std::fs::read_to_string(self.genesis_file())?;
         serde_json::from_str(&genesis).map_err(|e| e.into())
     }
 
@@ -116,13 +123,14 @@ impl Node for StarknetNode {
         Genesis { validator_set }
     }
 
-    async fn run(self) -> eyre::Result<()> {
+    async fn start(&self) -> eyre::Result<Handles<Self::Context>> {
         let span = tracing::error_span!("node", moniker = %self.config.moniker);
         let _enter = span.enter();
 
         let priv_key_file = self.load_private_key_file()?;
         let private_key = self.load_private_key(priv_key_file);
-        let genesis = self.load_genesis(self.genesis_file.clone())?;
+        let genesis = self.load_genesis()?;
+        let tx_event = TxEvent::new();
 
         let start_height = self.start_height.map(|height| Height::new(height, 1));
 
@@ -132,26 +140,21 @@ impl Node for StarknetNode {
             genesis.validator_set,
             private_key,
             start_height,
-            TxEvent::new(),
+            tx_event.clone(),
             span.clone(),
         )
         .await;
 
-        tokio::spawn({
-            let actor = actor.clone();
-            {
-                async move {
-                    tokio::signal::ctrl_c().await.unwrap();
-                    info!("Shutting down...");
-                    actor.stop(None);
-                }
-            }
-            .instrument(span.clone())
-        });
+        Ok(Handles {
+            app: tokio::spawn(async {}),
+            engine: EngineHandle { actor, handle },
+            tx_event,
+        })
+    }
 
-        handle.await?;
-
-        Ok(())
+    async fn run(self) -> eyre::Result<()> {
+        let handles = self.start().await?;
+        handles.app.await.map_err(Into::into)
     }
 }
 
@@ -174,8 +177,6 @@ fn test_starknet_node() {
             moniker: "test-node".to_string(),
             ..Default::default()
         },
-        genesis_file: temp_path.join("genesis.json"),
-        private_key_file: temp_path.join("private_key.json"),
         start_height: Some(1),
     };
 
@@ -188,12 +189,12 @@ fn test_starknet_node() {
 
     file::save_priv_validator_key(
         &node,
-        &node.private_key_file,
+        &node.private_key_file(),
         &PrivateKeyFile::from(priv_keys[0]),
     )
     .unwrap();
 
-    file::save_genesis(&node, &node.genesis_file, &genesis).unwrap();
+    file::save_genesis(&node, &node.genesis_file(), &genesis).unwrap();
 
     // Run the node for a few seconds
     const TIMEOUT: u64 = 3;

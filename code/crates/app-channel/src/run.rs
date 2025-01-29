@@ -3,25 +3,19 @@
 
 use eyre::Result;
 
-use malachitebft_app::spawn::{
-    spawn_consensus_actor, spawn_node_actor, spawn_sync_actor, spawn_wal_actor,
-};
-use malachitebft_engine::node::NodeRef;
 use malachitebft_engine::util::events::TxEvent;
-use tokio::task::JoinHandle;
 
 use crate::app;
+use crate::app::spawn::{
+    spawn_consensus_actor, spawn_node_actor, spawn_sync_actor, spawn_wal_actor,
+};
 use crate::app::types::codec::{ConsensusCodec, SyncCodec, WalCodec};
 use crate::app::types::config::Config as NodeConfig;
 use crate::app::types::core::Context;
 use crate::app::types::metrics::{Metrics, SharedRegistry};
+use crate::app::EngineHandle;
 use crate::spawn::{spawn_host_actor, spawn_network_actor};
 use crate::Channels;
-
-pub struct EngineHandle {
-    pub actor: NodeRef,
-    pub handle: JoinHandle<()>,
-}
 
 #[tracing::instrument("node", skip_all, fields(moniker = %cfg.moniker))]
 pub async fn start_engine<Node, Ctx, Codec>(
