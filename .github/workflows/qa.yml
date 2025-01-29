@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       BINARY_NAME: informalsystems-malachitebft-starknet-app
+      NODE_COUNT: 4  # Set this to the number of nodes (droplets) you want
 
     steps:
       - name: Set up DigitalOcean CLI
@@ -19,39 +20,45 @@ jobs:
           sudo mv doctl /usr/local/bin/
           doctl auth init -t ${{ secrets.DO_TOKEN }}
 
-      - name: Create Droplet
+      - name: Create Nodes with Ubuntu 24.04
         run: |
-          doctl compute droplet create test-ssh-droplet \
-            --size s-1vcpu-1gb \
-            --region nyc1 \
-            --image ubuntu-24-04-x64 \
-            --ssh-keys ${{ secrets.DO_SSH_FINGERPRINT }} \
-            --wait
+          echo "Creating $NODE_COUNT nodes..."
+          for i in $(seq 1 $NODE_COUNT); do
+            doctl compute droplet create "test-ssh-node-$i" \
+              --size s-1vcpu-1gb \
+              --region nyc1 \
+              --image ubuntu-24-04-x64 \
+              --ssh-keys ${{ secrets.DO_SSH_FINGERPRINT }} \
+              --wait &
+          done
+          wait
+          echo "All nodes created."
 
       - name: Wait for Initialization
         run: |
-          echo "Waiting for droplet initialization..."
-          sleep 20
-
-      - name: Extract Droplet Details
-        run: |
-          DROPLET_INFO=$(doctl compute droplet list --format ID,Name,PublicIPv4 --no-header | grep test-ssh-droplet)
-          export DROPLET_ID=$(echo "$DROPLET_INFO" | awk '{print $1}')
-          export DROPLET_IP=$(echo "$DROPLET_INFO" | awk '{print $3}')
-          echo "DROPLET_ID=$DROPLET_ID" >> $GITHUB_ENV
-          echo "DROPLET_IP=$DROPLET_IP" >> $GITHUB_ENV
-          echo "Droplet ID: $DROPLET_ID"
-          echo "Droplet IP: $DROPLET_IP"
-
-      - name: Attach Firewall
-        run: |
-          doctl compute firewall add-droplets 72d70e52-595b-4a3b-95ec-238055c1dae6 \
-            --droplet-ids ${{ env.DROPLET_ID }}
-
-      - name: Wait for Initialization
-        run: |
-          echo "Waiting for firewall and SSH to initialize..."
+          echo "Waiting for nodes to initialize..."
           sleep 30
+
+      - name: Extract Node Details
+        run: |
+          echo "Fetching node details..."
+          doctl compute droplet list --format ID,Name,PublicIPv4 --no-header | grep test-ssh-node > nodes.txt
+
+          NODE_IDS=()
+          NODE_IPS=()
+
+          while IFS= read -r line; do
+            ID=$(echo "$line" | awk '{print $1}')
+            IP=$(echo "$line" | awk '{print $3}')
+            NODE_IDS+=($ID)
+            NODE_IPS+=($IP)
+          done < nodes.txt
+
+          echo "NODE_IDS=${NODE_IDS[@]}" >> $GITHUB_ENV
+          echo "NODE_IPS=${NODE_IPS[@]}" >> $GITHUB_ENV
+
+          echo "Node IDs: ${NODE_IDS[@]}"
+          echo "Node IPs: ${NODE_IPS[@]}"
 
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -61,7 +68,7 @@ jobs:
         with:
           toolchain: stable
           override: true
-      
+
       - name: Install protoc
         run: |
           sudo apt-get update
@@ -77,18 +84,33 @@ jobs:
           printf "%s" "${{ secrets.DO_SSH_KEY }}" | sed 's/\r//' > private_key
           chmod 600 private_key
 
-      - name: Upload Binary to Droplet
+      - name: Upload Binary to Nodes
         run: |
-          scp -i private_key -o StrictHostKeyChecking=no ./code/target/release/${{ env.BINARY_NAME }} root@$DROPLET_IP:/root/
+          echo "Uploading binary to all nodes..."
+          for ip in ${NODE_IPS[@]}; do
+            scp -i private_key -o StrictHostKeyChecking=no ./code/target/release/${{ env.BINARY_NAME }} root@$ip:/root/ &
+          done
+          wait
+          echo "Binary uploaded to all nodes."
 
-      - name: Execute Binary on Droplet
+      - name: Execute Binary on Nodes
         run: |
-          ssh -i private_key -o StrictHostKeyChecking=no root@$DROPLET_IP "/root/${{ env.BINARY_NAME }}"
+          echo "Executing binary on all nodes..."
+          for ip in ${NODE_IPS[@]}; do
+            ssh -i private_key -o StrictHostKeyChecking=no root@$ip "/root/${{ env.BINARY_NAME }}" &
+          done
+          wait
+          echo "Execution completed on all nodes."
 
-      - name: Destroy Droplet
+      - name: Destroy Nodes
         if: always()
         run: |
-          doctl compute droplet delete ${{ env.DROPLET_ID }} --force
+          echo "Destroying all nodes..."
+          for id in ${NODE_IDS[@]}; do
+            doctl compute droplet delete $id --force &
+          done
+          wait
+          echo "All nodes deleted."
 
       - name: Cleanup SSH Key
         if: always()
