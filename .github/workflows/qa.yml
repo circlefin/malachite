@@ -43,29 +43,9 @@ jobs:
         working-directory: terraform
         run: |
           echo "Fetching node IPs..."
-          
-          # Fetch Terraform output and remove extra formatting
-          RAW_OUTPUT=$(terraform output -json droplet_ips 2>/dev/null | tr -d '\n' | tr -d ' ')
-
-          echo "🔍 Cleaned Output: $RAW_OUTPUT"
-
-          # Validate JSON before parsing
-          if [[ "$RAW_OUTPUT" =~ ^\"(.*)\"$ ]]; then
-            RAW_OUTPUT=$(echo "$RAW_OUTPUT" | jq -r)
-          fi
-
-          # Extract IPs safely
-          NODE_IPS=$(echo "$RAW_OUTPUT" | jq -r '.[]' 2>/dev/null)
-
-          if [ -z "$NODE_IPS" ]; then
-            echo "❌ Error: No node IPs found after parsing!"
-            exit 1
-          fi
-
+          NODE_IPS=$(terraform output -json droplet_ips | tail -n 1 | jq -r '.[]')
           echo "NODE_IPS=$NODE_IPS" >> $GITHUB_ENV
-          echo "✅ Node IPs: $NODE_IPS"
-
-
+          echo "Node IPs: $NODE_IPS"
 
       - name: Terraform Destroy (Cleanup Nodes)
         if: always()
