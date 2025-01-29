@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use derive_where::derive_where;
+use malachitebft_app::consensus::VoteExtensionError;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
@@ -71,6 +72,18 @@ pub enum AppMsg<Ctx: Context> {
         round: Round,
         value_id: ValueId<Ctx>,
         reply: Reply<Option<Ctx::Extension>>,
+    },
+
+    /// Verify a vote extension
+    ///
+    /// If the vote extension is deemed invalid, the vote it was part of
+    /// will be discarded altogether.
+    VerifyVoteExtension {
+        height: Ctx::Height,
+        round: Round,
+        value_id: ValueId<Ctx>,
+        extension: Ctx::Extension,
+        reply: Reply<Result<(), VoteExtensionError>>,
     },
 
     /// Requests the application to re-stream a proposal that it has already seen.

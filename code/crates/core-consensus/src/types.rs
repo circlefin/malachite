@@ -68,3 +68,9 @@ pub struct ProposedValue<Ctx: Context> {
     pub value: Ctx::Value,
     pub validity: Validity,
 }
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum VoteExtensionError {
+    InvalidSignature,
+    InvalidVoteExtension,
+}

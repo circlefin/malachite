@@ -4,7 +4,7 @@ use malachitebft_core_types::*;
 
 use crate::input::RequestId;
 use crate::types::SignedConsensusMsg;
-use crate::ConsensusMsg;
+use crate::{ConsensusMsg, VoteExtensionError};
 
 /// Provides a way to construct the appropriate [`Resume`] value to
 /// resume execution after handling an [`Effect`].
@@ -193,6 +193,21 @@ where
         ThresholdParams,
         resume::CertificateValidity,
     ),
+
+    /// Verify a vote extension
+    ///
+    /// If the vote extension is deemed invalid, the vote it was part of
+    /// will be discarded altogether.
+    ///
+    /// Resume with: [`resume::VoteExtensionValidity`]
+    VerifyVoteExtension(
+        Ctx::Height,
+        Round,
+        ValueId<Ctx>,
+        SignedExtension<Ctx>,
+        PublicKey<Ctx>,
+        resume::VoteExtensionValidity,
+    ),
 }
 
 /// A value with which the consensus process can be resumed after yielding an [`Effect`].
@@ -223,14 +238,20 @@ where
     /// Resume execution with the signed proposal
     SignedProposal(SignedMessage<Ctx, Ctx::Proposal>),
 
-    /// An optional vote extension. See the [`Effect::ExtendVote`] effect for more information.
+    /// Resume with an optional vote extension.
+    /// See the [`Effect::ExtendVote`] effect for more information.
     VoteExtension(Option<SignedExtension<Ctx>>),
+
+    /// Resume execution with the result of the verification of the [`SignedExtension`]
+    VoteExtensionValidity(Result<(), VoteExtensionError>),
 
     /// Resume execution with the result of the verification of the [`CommitCertificate`]
     CertificateValidity(Result<(), CertificateError<Ctx>>),
 }
 
 pub mod resume {
+    use crate::VoteExtensionError;
+
     use super::*;
 
     #[derive(Debug, Default)]
@@ -307,6 +328,17 @@ pub mod resume {
 
         fn resume_with(self, value: Self::Value) -> Resume<Ctx> {
             Resume::CertificateValidity(value)
+        }
+    }
+
+    #[derive(Debug, Default)]
+    pub struct VoteExtensionValidity;
+
+    impl<Ctx: Context> Resumable<Ctx> for VoteExtensionValidity {
+        type Value = Result<(), VoteExtensionError>;
+
+        fn resume_with(self, value: Self::Value) -> Resume<Ctx> {
+            Resume::VoteExtensionValidity(value)
         }
     }
 }

@@ -114,6 +114,19 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 }
             }
 
+            AppMsg::VerifyVoteExtension {
+                height: _,
+                round: _,
+                value_id: _,
+                extension: _,
+                reply,
+            } => {
+                // TODO
+                if reply.send(Ok(())).is_err() {
+                    error!("Failed to send VerifyVoteExtension reply");
+                }
+            }
+
             // On the receiving end of these proposal parts (ie. when we are not the proposer),
             // we need to process these parts and re-assemble the full value.
             // To this end, we store each part that we receive and assemble the full value once we

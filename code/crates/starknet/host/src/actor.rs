@@ -10,7 +10,7 @@ use rand::SeedableRng;
 use tokio::time::Instant;
 use tracing::{debug, error, info, trace, warn};
 
-use malachitebft_core_consensus::PeerId;
+use malachitebft_core_consensus::{PeerId, VoteExtensionError};
 use malachitebft_core_types::{
     CommitCertificate, Round, Validity, ValueId, ValueOrigin, VoteExtensions,
 };
@@ -143,6 +143,16 @@ impl Host {
                 value_id,
                 reply_to,
             } => on_extend_vote(state, height, round, value_id, reply_to).await,
+
+            HostMsg::VerifyVoteExtension {
+                height,
+                round,
+                value_id,
+                extension,
+                reply_to,
+            } => {
+                on_verify_vote_extension(state, height, round, value_id, extension, reply_to).await
+            }
 
             HostMsg::RestreamValue {
                 height,
@@ -380,6 +390,19 @@ async fn on_extend_vote(
 ) -> Result<(), ActorProcessingErr> {
     let extension = state.host.generate_vote_extension(height, round);
     reply_to.send(extension)?;
+    Ok(())
+}
+
+async fn on_verify_vote_extension(
+    _state: &mut HostState,
+    _height: Height,
+    _round: Round,
+    _value_id: ValueId<MockContext>,
+    _extension: Bytes,
+    reply_to: RpcReplyPort<Result<(), VoteExtensionError>>,
+) -> Result<(), ActorProcessingErr> {
+    // TODO
+    reply_to.send(Ok(()))?;
     Ok(())
 }
 

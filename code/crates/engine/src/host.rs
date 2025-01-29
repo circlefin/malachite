@@ -4,7 +4,7 @@ use std::time::Duration;
 use derive_where::derive_where;
 use ractor::{ActorRef, RpcReplyPort};
 
-use malachitebft_core_consensus::PeerId;
+use malachitebft_core_consensus::{PeerId, VoteExtensionError};
 use malachitebft_core_types::{CommitCertificate, Context, Round, ValueId, VoteExtensions};
 use malachitebft_sync::RawDecidedValue;
 
@@ -48,6 +48,18 @@ pub enum HostMsg<Ctx: Context> {
         round: Round,
         value_id: ValueId<Ctx>,
         reply_to: RpcReplyPort<Option<Ctx::Extension>>,
+    },
+
+    /// Verify a vote extension
+    ///
+    /// If the vote extension is deemed invalid, the vote it was part of
+    /// will be discarded altogether.
+    VerifyVoteExtension {
+        height: Ctx::Height,
+        round: Round,
+        value_id: ValueId<Ctx>,
+        extension: Ctx::Extension,
+        reply_to: RpcReplyPort<Result<(), VoteExtensionError>>,
     },
 
     /// Request to restream an existing block/value from Driver

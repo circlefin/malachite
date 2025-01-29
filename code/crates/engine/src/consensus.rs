@@ -9,7 +9,9 @@ use tracing::{debug, error, info, warn};
 
 use malachitebft_codec as codec;
 use malachitebft_config::TimeoutConfig;
-use malachitebft_core_consensus::{Effect, PeerId, Resumable, Resume, SignedConsensusMsg};
+use malachitebft_core_consensus::{
+    Effect, PeerId, Resumable, Resume, SignedConsensusMsg, VoteExtensionError,
+};
 use malachitebft_core_types::{
     Context, Round, SigningProvider, SigningProviderExt, Timeout, TimeoutKind, ValidatorSet,
     ValueId, ValueOrigin,
@@ -718,6 +720,23 @@ where
         .map_err(|e| eyre!("Failed to get earliest block height: {e:?}").into())
     }
 
+    async fn verify_vote_extension(
+        &self,
+        height: Ctx::Height,
+        round: Round,
+        value_id: ValueId<Ctx>,
+        extension: Ctx::Extension,
+    ) -> Result<Result<(), VoteExtensionError>, ActorProcessingErr> {
+        ractor::call!(self.host, |reply_to| HostMsg::VerifyVoteExtension {
+            height,
+            round,
+            value_id,
+            extension,
+            reply_to
+        })
+        .map_err(|e| eyre!("Failed to verify vote extension: {e:?}").into())
+    }
+
     async fn get_history_min_height(&self) -> Result<Ctx::Height, ActorProcessingErr> {
         ractor::call!(self.host, |reply_to| HostMsg::GetHistoryMinHeight {
             reply_to
@@ -886,9 +905,27 @@ where
                 }
             }
 
+            Effect::VerifyVoteExtension(height, round, value_id, signed_extension, pk, r) => {
+                let valid = self.signing_provider.verify_signed_vote_extension(
+                    &signed_extension.message,
+                    &signed_extension.signature,
+                    &pk,
+                );
+
+                if !valid {
+                    return Ok(r.resume_with(Err(VoteExtensionError::InvalidSignature)));
+                }
+
+                let result = self
+                    .verify_vote_extension(height, round, value_id, signed_extension.message)
+                    .await?;
+
+                Ok(r.resume_with(result))
+            }
+
             Effect::Publish(msg, r) => {
                 // Sync the WAL to disk before we broadcast the message
-                // NOTE: The message has already been append to the WAL by the `PersistMessage` effect.
+                // NOTE: The message has already been append to the WAL by the `WalAppendMessage` effect.
                 self.wal_flush(phase).await?;
 
                 // Notify any subscribers that we are about to publish a message
