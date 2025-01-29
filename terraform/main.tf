@@ -27,5 +27,5 @@ resource "digitalocean_droplet" "nodes" {
 }
 
 output "droplet_ips" {
-  value = digitalocean_droplet.nodes[*].ipv4_address
+  value = jsonencode([for droplet in digitalocean_droplet.nodes : droplet.ipv4_address])
 }

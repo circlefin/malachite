@@ -83,8 +83,25 @@ jobs:
           done
           wait
           echo "Execution completed on all nodes."
-
+          
       - name: Terraform Destroy (Cleanup Nodes)
         if: always()
         working-directory: terraform
-        run: terraform destroy -auto-approve -var="do_token=${{ secrets.DO_TOKEN }}"
+        run: |
+          echo "Starting Terraform destroy..."
+          
+          # Set a timeout to prevent infinite loops
+          timeout 300 terraform destroy -auto-approve -var="do_token=${{ secrets.DO_TOKEN }}" || echo "Terraform destroy timed out!"
+
+          # If Terraform is still stuck, try deleting manually
+          echo "Checking if droplets still exist..."
+          DROPLET_IDS=$(terraform state list | grep "digitalocean_droplet" | awk '{print $NF}' || echo "")
+
+          if [ -n "$DROPLET_IDS" ]; then
+            echo "Terraform destroy failed, manually deleting droplets..."
+            for id in $DROPLET_IDS; do
+              doctl compute droplet delete $id --force &
+            done
+            wait
+            echo "Droplets manually deleted."
+          fi
