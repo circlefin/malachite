@@ -14,37 +14,37 @@ jobs:
       NODE_COUNT: 2  # Set the number of nodes
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      #- name: Checkout Code
+      #  uses: actions/checkout@v4
 
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: 1.6.0  # Specify the Terraform version
+      #- name: Set up Terraform
+      #  uses: hashicorp/setup-terraform@v2
+      #  with:
+      #    terraform_version: 1.6.0  # Specify the Terraform version
 
-      - name: Terraform Init
-        working-directory: terraform
-        run: terraform init
+      #- name: Terraform Init
+      #  working-directory: terraform
+      #  run: terraform init
 
-      - name: Terraform Apply (Provision Nodes)
-        working-directory: terraform
-        run: |
-          terraform apply -auto-approve \
-            -var="do_token=${{ secrets.DO_TOKEN }}" \
-            -var="do_ssh_fingerprint=${{ secrets.DO_SSH_FINGERPRINT }}" \
-            -var="node_count=${{ env.NODE_COUNT }}"
+      #- name: Terraform Apply (Provision Nodes)
+      #  working-directory: terraform
+      #  run: |
+      #    terraform apply -auto-approve \
+      #      -var="do_token=${{ secrets.DO_TOKEN }}" \
+      #      -var="do_ssh_fingerprint=${{ secrets.DO_SSH_FINGERPRINT }}" \
+      #      -var="node_count=${{ env.NODE_COUNT }}"
 
-      - name: Wait for Droplets Fully Initialize
-        run: |
-          echo "Waiting 10 seconds for DigitalOcean to assign public IPs..."
-          sleep 10
+      #- name: Wait for Droplets Fully Initialize
+      #  run: |
+      #    echo "Waiting 10 seconds for DigitalOcean to assign public IPs..."
+      #    sleep 10
 
       - name: Fetch Node IPs
         working-directory: terraform
         run: |
           echo "Fetching node IPs..."
-          NODE_IPS=$(terraform output -json droplet_ips)
-          echo "NODE_IPS=$NODE_IPS" >> $GITHUB_ENV
+          NODE_IPS=$(terraform output -json droplet_ips | grep "[*]")
+        #  echo "NODE_IPS=$NODE_IPS" >> $GITHUB_ENV
           echo "Node IPs: $NODE_IPS"
 
       #- name: Terraform Destroy (Cleanup Nodes)
