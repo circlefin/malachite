@@ -21,15 +21,6 @@ jobs:
 
       - name: Create Droplet
         run: |
-          cat <<EOF > user-data.txt
-          #cloud-config
-          runcmd:
-            - apt-get update
-            - apt-get install -y openssh-server
-            - systemctl enable ssh
-            - systemctl start ssh
-            - ufw allow ssh
-          EOF
           doctl compute droplet create test-ssh-droplet \
             --size s-1vcpu-1gb \
             --region nyc1 \
@@ -63,39 +54,37 @@ jobs:
           echo "Waiting for firewall and SSH to initialize..."
           sleep 30
 
-      #- name: Checkout Code
-      #  uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      #- name: Set up Rust
-      #  uses: actions-rs/toolchain@v1
-      #  with:
-      #    toolchain: stable
-      #    override: true
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
       
-      #- name: Install protoc
-      #  run: |
-      #    sudo apt-get update
-      #    sudo apt-get install -y protobuf-compiler
-      #    protoc --version
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+          protoc --version
 
-      #- name: Build Rust Binary
-      #  working-directory: code
-      #  run: cargo build -p ${{ env.BINARY_NAME }} --release
+      - name: Build Rust Binary
+        working-directory: code
+        run: cargo build -p ${{ env.BINARY_NAME }} --release
 
       - name: Write SSH Key
         run: |
           printf "%s" "${{ secrets.DO_SSH_KEY }}" | sed 's/\r//' > private_key
           chmod 600 private_key
 
-      #- name: Upload Binary to Droplet
-      #  run: |
-      #    scp -i private_key -o StrictHostKeyChecking=no ./code/target/release/${{ env.BINARY_NAME }} root@$DROPLET_IP:/root/
+      - name: Upload Binary to Droplet
+        run: |
+          scp -i private_key -o StrictHostKeyChecking=no ./code/target/release/${{ env.BINARY_NAME }} root@$DROPLET_IP:/root/
 
       - name: Execute Binary on Droplet
         run: |
-          ssh -i private_key -o StrictHostKeyChecking=no root@$DROPLET_IP "ls"
-      
-      #    ssh -i private_key -o StrictHostKeyChecking=no root@$DROPLET_IP "/root/${{ env.BINARY_NAME }}"
+          ssh -i private_key -o StrictHostKeyChecking=no root@$DROPLET_IP "/root/${{ env.BINARY_NAME }}"
 
       - name: Destroy Droplet
         if: always()
