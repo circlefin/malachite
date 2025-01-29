@@ -25,7 +25,6 @@ jobs:
             --size s-1vcpu-1gb \
             --region nyc1 \
             --image ubuntu-22-04-x64 \
-            --user-data-file user-data.txt \
             --ssh-keys ${{ secrets.DO_SSH_FINGERPRINT }} \
             --wait
 
