@@ -34,6 +34,11 @@ jobs:
             -var="do_ssh_fingerprint=${{ secrets.DO_SSH_FINGERPRINT }}" \
             -var="node_count=${{ env.NODE_COUNT }}"
 
+      - name: Wait for Droplets Fully Initialize
+        run: |
+          echo "Waiting 60 seconds for DigitalOcean to assign public IPs..."
+          sleep 60
+
       - name: Fetch Node IPs
         working-directory: terraform
         run: |
