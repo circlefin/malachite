@@ -90,7 +90,12 @@ where
     /// Resume with: [`resume::Continue`]
     GetValue(Ctx::Height, Round, Timeout, resume::Continue),
 
-    /// TODO
+    /// ExtendVote allows the application to extend the pre-commit vote with arbitrary data.
+    ///
+    /// When consensus is preparing to send a pre-commit vote, it first calls `ExtendVote`.
+    /// The application then returns a blob of data called a vote extension.
+    /// This data is opaque to the consensus algorithm but can contain application-specific information.
+    /// The proposer of the next block will receive all vote extensions along with the commit certificate.
     ExtendVote(Ctx::Height, Round, ValueId<Ctx>, resume::VoteExtension),
 
     /// Requests the application to re-stream a proposal that it has already seen.
@@ -218,7 +223,7 @@ where
     /// Resume execution with the signed proposal
     SignedProposal(SignedMessage<Ctx, Ctx::Proposal>),
 
-    /// TODO
+    /// An optional vote extension. See the [`Effect::ExtendVote`] effect for more information.
     VoteExtension(Option<SignedExtension<Ctx>>),
 
     /// Resume execution with the result of the verification of the [`CommitCertificate`]

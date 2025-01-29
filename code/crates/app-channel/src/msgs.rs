@@ -60,7 +60,12 @@ pub enum AppMsg<Ctx: Context> {
         reply: Reply<LocallyProposedValue<Ctx>>,
     },
 
-    // TODO
+    /// ExtendVote allows the application to extend the pre-commit vote with arbitrary data.
+    ///
+    /// When consensus is preparing to send a pre-commit vote, it first calls `ExtendVote`.
+    /// The application then returns a blob of data called a vote extension.
+    /// This data is opaque to the consensus algorithm but can contain application-specific information.
+    /// The proposer of the next block will receive all vote extensions along with the commit certificate.
     ExtendVote {
         height: Ctx::Height,
         round: Round,
