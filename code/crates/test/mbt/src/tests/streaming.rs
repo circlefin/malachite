@@ -1,13 +1,9 @@
 use glob::glob;
-use rand::rngs::StdRng;
-use rand::SeedableRng;
 
 use crate::streaming::State;
 use crate::utils::{generate_test_traces, quint_seed};
 
 pub mod runner;
-
-const RANDOM_SEED: u64 = 0x42;
 
 // generates ITF traces from the Quint spec and runs the traces as Rust tests
 #[test]
@@ -43,12 +39,6 @@ fn test_itf() {
 
         // For debugging
         print!("\n{:#?}\n", trace);
-
-        //TODO:
-        // let mut rng = StdRng::seed_from_u64(RANDOM_SEED);
-
-        // // Build mapping from model addresses to real addresses
-        // let address_map = utils::build_address_map(&trace, &mut rng);
 
         // let consensus_runner = ConsensusRunner::new(address_map);
         // trace.run_on(consensus_runner).unwrap();

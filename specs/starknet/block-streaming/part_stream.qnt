@@ -37,6 +37,8 @@ module part_stream {
     }
 
     var state: State
+    // Required for MBT
+    var incomingMessage: Option[Message]
 
     val orderedMessages = List(
         createMessage(0, INIT, "Init"),
@@ -47,7 +49,7 @@ module part_stream {
 
     val messages = orderedMessages.toSet()
 
-    action init = {
+    action init = all{
         state' = {
             buffer: List(),
             nextSequence: 0,
@@ -56,7 +58,8 @@ module part_stream {
             finReceived: false,
             emitted: List(),
             received: Set(),
-        }
+        },
+        incomingMessage' = None
     }
 
     action step = any {
@@ -71,10 +74,12 @@ module part_stream {
     action done = all {
         require(isDone),
         state' = state,
+        incomingMessage' = None
     }
 
     // There is no check if duplicate message arrived
-    action processMessage(message: Message): bool = {
+    action processMessage(message: Message): bool = all{
+        incomingMessage' = Some(message),
         match message.msgType {
             | INIT => handleInit(message)
             | FIN => handleFin(message)

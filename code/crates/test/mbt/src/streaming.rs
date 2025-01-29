@@ -40,7 +40,7 @@ pub struct StreamState {
     pub received: HashSet<Message>,
 }
 
-// StreamState is one state variable and State represents whole state machine state
+// StreamState is one state variable and State represents whole state machines state
 // In this case they are equivalent
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 pub struct State {
