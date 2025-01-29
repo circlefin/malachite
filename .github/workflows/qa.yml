@@ -44,8 +44,9 @@ jobs:
         run: |
           echo "Fetching node IPs..."
           NODE_IPS=$(terraform output -json droplet_ips | grep "[*]")
-        #  echo "NODE_IPS=$NODE_IPS" >> $GITHUB_ENV
           echo "Node IPs: $NODE_IPS"
+        #  echo "NODE_IPS=$NODE_IPS" >> $GITHUB_ENV
+          
 
       #- name: Terraform Destroy (Cleanup Nodes)
       #  if: always()
