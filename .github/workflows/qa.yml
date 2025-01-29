@@ -24,7 +24,7 @@ jobs:
           doctl compute droplet create test-ssh-droplet \
             --size s-1vcpu-1gb \
             --region nyc1 \
-            --image ubuntu-24-04-x64 \  
+            --image ubuntu-24-04-x64 \
             --ssh-keys ${{ secrets.DO_SSH_FINGERPRINT }} \
             --wait
 
