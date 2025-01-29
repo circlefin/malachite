@@ -45,28 +45,6 @@ jobs:
         run: |
           echo "Starting Terraform destroy..."
 
-          # Print Terraform state before destroying
-          echo "🔍 Checking Terraform state before destroy..."
-          terraform state list
-
-          # Check if Terraform is tracking droplets
-          DROPLET_COUNT=$(terraform state list | grep "digitalocean_droplet" | wc -l)
-
-          if [[ "$DROPLET_COUNT" -eq 0 ]]; then
-            echo "⚠️ No droplets found in Terraform state. Destroy may not work!"
-          fi
-
-          # Set a timeout for Terraform destroy to avoid infinite loops
-          timeout 60 terraform destroy -auto-approve -var="do_token=${{ secrets.DO_TOKEN }}" || echo "⚠️ Terraform destroy timed out!"
-
-          # If Terraform is still stuck, manually delete via DigitalOcean CLI
-          echo "🔍 Checking if droplets still exist..."
-          EXISTING_DROPLETS=$(doctl compute droplet list --format ID --no-header)
-
-          if [ -n "$EXISTING_DROPLETS" ]; then
-            echo "❌ Terraform destroy failed, manually deleting droplets..."
-            for id in $EXISTING_DROPLETS; do
-              doctl compute droplet delete $id --force
-            done
-            echo "✅ Droplets manually deleted."
-          fi
+          terraform destroy -auto-approve \
+            -var="do_token=${{ secrets.DO_TOKEN }}" \
+            -var="do_ssh_fingerprint=${{ secrets.DO_SSH_FINGERPRINT }}"
