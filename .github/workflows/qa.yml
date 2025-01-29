@@ -39,6 +39,15 @@ jobs:
           echo "Waiting 60 seconds for DigitalOcean to assign public IPs..."
           sleep 60
 
+      - name: Debug Terraform Output
+        working-directory: terraform
+        run: |
+          echo "🔍 Debugging Terraform Outputs..."
+          terraform output
+          echo "🔍 Terraform JSON output:"
+          terraform output -json droplet_ips
+
+
       - name: Fetch Node IPs
         working-directory: terraform
         run: |
@@ -83,7 +92,7 @@ jobs:
           done
           wait
           echo "Execution completed on all nodes."
-          
+
       - name: Terraform Destroy (Cleanup Nodes)
         if: always()
         working-directory: terraform
@@ -91,7 +100,7 @@ jobs:
           echo "Starting Terraform destroy..."
           
           # Set a timeout to prevent infinite loops
-          timeout 300 terraform destroy -auto-approve -var="do_token=${{ secrets.DO_TOKEN }}" || echo "Terraform destroy timed out!"
+          timeout 60 terraform destroy -auto-approve -var="do_token=${{ secrets.DO_TOKEN }}" || echo "Terraform destroy timed out!"
 
           # If Terraform is still stuck, try deleting manually
           echo "Checking if droplets still exist..."
