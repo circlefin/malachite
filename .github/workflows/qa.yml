@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       BINARY_NAME: informalsystems-malachitebft-starknet-app
-      NODE_COUNT: 3  # Set the number of nodes
+      NODE_COUNT: 2  # Set the number of nodes
 
     steps:
       - name: Checkout Code
@@ -43,7 +43,7 @@ jobs:
         working-directory: terraform
         run: |
           echo "Fetching node IPs..."
-          NODE_IPS=$(terraform output -json droplet_ips | tail -n 1)
+          NODE_IPS=$(terraform output -json droplet_ips)
           echo "NODE_IPS=$NODE_IPS" >> $GITHUB_ENV
           echo "Node IPs: $NODE_IPS"
 
