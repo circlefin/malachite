@@ -15,20 +15,20 @@ component_management:
     - component_id: core
       name: core
       paths:
-        - "code/crates/core-*"
+        - "code/crates/core-*/**"
     - component_id: engine
       name: engine
       paths:
-        - code/crates/engine
+        - "code/crates/engine/**"
     - component_id: app
       name: app
       paths:
-        - code/crates/app
-        - "code/crates/app-*"
+        - "code/crates/app/**"
+        - "code/crates/app-*/**"
     - component_id: starknet
       name: starknet
       paths:
-        - code/crates/starknet
+        - "code/crates/starknet/**"
 
 coverage:
   precision: 2
