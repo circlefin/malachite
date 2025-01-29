@@ -39,6 +39,14 @@ jobs:
           echo "Waiting 60 seconds for DigitalOcean to assign public IPs..."
           sleep 60
 
+      - name: Debug Terraform Output
+        working-directory: terraform
+        run: |
+          echo "🔍 Debugging Terraform Outputs..."
+          terraform output
+          echo "🔍 Terraform JSON output:"
+          terraform output -json droplet_ips
+
       - name: Terraform Destroy (Cleanup Nodes)
         if: always()
         working-directory: terraform
