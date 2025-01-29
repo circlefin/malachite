@@ -185,7 +185,7 @@ impl State {
                 "Trying to commit a value that is not decided"
             );
 
-            return Ok(()); // FIXME
+            return Ok(()); // FIXME: Return an actual error and handle in caller
         };
 
         self.store

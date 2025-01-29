@@ -1,9 +1,10 @@
 name: Rust
 
 on:
+  merge_group:
+  pull_request:
   push:
     branches: main
-  pull_request:
 
 env:
   CARGO_INCREMENTAL: 0

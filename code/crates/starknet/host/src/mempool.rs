@@ -217,9 +217,12 @@ impl Actor for Mempool {
             }
 
             Msg::Update { .. } => {
-                // FIXME: Remove only the given txes
-                // tx_hashes.iter().for_each(|hash| state.remove_tx(hash));
-
+                // Clear all transactions from the mempool, given that we consume
+                // the full mempool when proposing a block.
+                //
+                // This reduces the mempool protocol overhead and allow us to
+                // observe issues strictly related to consensus.
+                // It also bumps performance, as we reduce the mempool's background traffic.
                 state.transactions.clear();
             }
         }
@@ -242,7 +245,7 @@ fn generate_and_broadcast_txes(
     count: usize,
     size: usize,
     gossip_batch_size: usize,
-    _state: &mut State,
+    state: &mut State,
     mempool_network: &MempoolNetworkRef,
 ) -> Result<Vec<Transaction>, ActorProcessingErr> {
     debug!(%count, %size, "Generating transactions");
@@ -250,11 +253,18 @@ fn generate_and_broadcast_txes(
     let batch_size = std::cmp::min(gossip_batch_size, count);
     let gossip_enabled = gossip_batch_size > 0;
 
-    let mut transactions = Vec::with_capacity(count);
+    // Start with transactions already in the mempool
+    let mut transactions = std::mem::take(&mut state.transactions)
+        .into_values()
+        .take(count)
+        .collect::<Vec<_>>();
+
+    let initial_count = transactions.len();
+
     let mut tx_batch = Transactions::default();
     let mut rng = rand::thread_rng();
 
-    for _ in 0..count {
+    for _ in initial_count..count {
         // Generate transaction
         let mut tx_bytes = vec![0; size];
         rng.fill_bytes(&mut tx_bytes);
@@ -266,20 +276,10 @@ fn generate_and_broadcast_txes(
 
         transactions.push(tx);
 
-        // if state.transactions.len() < config.max_tx_count {
-        //     state.add_tx(&tx);
-        // }
-
         // Gossip tx-es to peers in batches
         if gossip_enabled && tx_batch.len() >= batch_size {
-            let tx_batch = std::mem::take(&mut tx_batch);
-
-            let Ok(tx_batch_any) = tx_batch.to_any() else {
-                // TODO: Handle error
-                continue;
-            };
-
-            let mempool_batch = MempoolTransactionBatch::new(tx_batch_any);
+            let tx_batch = std::mem::take(&mut tx_batch).to_any().unwrap();
+            let mempool_batch = MempoolTransactionBatch::new(tx_batch);
             mempool_network.cast(MempoolNetworkMsg::BroadcastMsg(mempool_batch))?;
         }
     }

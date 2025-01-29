@@ -1,11 +1,34 @@
 codecov:
   require_ci_to_pass: yes
 
+comment:
+  layout: "header, diff, flags, components"
+
 ignore:
   - "code/crates/test"
   - "code/crates/signing-ed25519"
-  - "code/crates/starknet"
   - "code/crates/proto"
+  - "code/examples"
+
+component_management:
+  individual_components:
+    - component_id: core
+      name: core
+      paths:
+        - "code/crates/core-*/**"
+    - component_id: engine
+      name: engine
+      paths:
+        - "code/crates/engine/**"
+    - component_id: app
+      name: app
+      paths:
+        - "code/crates/app/**"
+        - "code/crates/app-*/**"
+    - component_id: starknet
+      name: starknet
+      paths:
+        - "code/crates/starknet/**"
 
 coverage:
   precision: 2

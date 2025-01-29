@@ -31,7 +31,6 @@ members = [
 
   # Starknet
   "crates/starknet/*",
-  "crates/starknet/*",
 
   # Examples
   "examples/channel",

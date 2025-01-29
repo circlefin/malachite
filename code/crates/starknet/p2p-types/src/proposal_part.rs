@@ -45,11 +45,11 @@ impl ProposalPart {
     }
 
     pub fn to_sign_bytes(&self) -> Bytes {
-        proto::Protobuf::to_bytes(self).unwrap() // FIXME: unwrap
+        proto::Protobuf::to_bytes(self).unwrap()
     }
 
     pub fn size_bytes(&self) -> usize {
-        self.to_sign_bytes().len() // FIXME: Do something more efficient
+        self.to_sign_bytes().len() // TODO: Do this more efficiently
     }
 
     pub fn tx_count(&self) -> usize {

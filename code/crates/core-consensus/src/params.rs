@@ -1,9 +1,8 @@
 use derive_where::derive_where;
-use malachitebft_core_types::Context;
+
+use malachitebft_core_types::{Context, ValuePayload};
 
 pub use malachitebft_core_driver::ThresholdParams;
-
-use crate::ValuePayload;
 
 /// Consensus parameters.
 #[derive_where(Clone, Debug)]

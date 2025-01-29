@@ -1,8 +1,9 @@
 on:
   workflow_dispatch:
+  pull_request:
+  merge_group:
   push:
     branches: main
-  pull_request:
 
 name: Quint
 

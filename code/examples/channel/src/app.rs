@@ -220,7 +220,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
                 let raw_decided_value = decided_value.map(|decided_value| RawDecidedValue {
                     certificate: decided_value.certificate,
-                    value_bytes: ProtobufCodec.encode(&decided_value.value).unwrap(), // FIXME: unwrap
+                    value_bytes: ProtobufCodec.encode(&decided_value.value).unwrap(),
                 });
 
                 if reply.send(raw_decided_value).is_err() {
