@@ -40,9 +40,10 @@ pub struct StreamState {
     pub received: HashSet<Message>,
 }
 
-// StreamState is one state variable and State represents whole state machines state
-// In this case they are equivalent
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct State {
     pub state: StreamState,
+    #[serde(deserialize_with = "de::quint_option_message")]
+    pub incoming_message: Option<Message>,
 }
