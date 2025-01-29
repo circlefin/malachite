@@ -11,57 +11,36 @@ jobs:
     runs-on: ubuntu-latest
     env:
       BINARY_NAME: informalsystems-malachitebft-starknet-app
-      NODE_COUNT: 4  # Set this to the number of nodes (droplets) you want
+      NODE_COUNT: 3  # Set the number of nodes
 
     steps:
-      - name: Set up DigitalOcean CLI
-        run: |
-          curl -sL https://github.com/digitalocean/doctl/releases/download/v1.96.0/doctl-1.96.0-linux-amd64.tar.gz | tar -xz
-          sudo mv doctl /usr/local/bin/
-          doctl auth init -t ${{ secrets.DO_TOKEN }}
-
-      - name: Create Nodes with Ubuntu 24.04
-        run: |
-          echo "Creating $NODE_COUNT nodes..."
-          for i in $(seq 1 $NODE_COUNT); do
-            doctl compute droplet create "test-ssh-node-$i" \
-              --size s-1vcpu-1gb \
-              --region nyc1 \
-              --image ubuntu-24-04-x64 \
-              --ssh-keys ${{ secrets.DO_SSH_FINGERPRINT }} \
-              --wait &
-          done
-          wait
-          echo "All nodes created."
-
-      - name: Wait for Initialization
-        run: |
-          echo "Waiting for nodes to initialize..."
-          sleep 30
-
-      - name: Extract Node Details
-        run: |
-          echo "Fetching node details..."
-          doctl compute droplet list --format ID,Name,PublicIPv4 --no-header | grep test-ssh-node > nodes.txt
-
-          NODE_IDS=()
-          NODE_IPS=()
-
-          while IFS= read -r line; do
-            ID=$(echo "$line" | awk '{print $1}')
-            IP=$(echo "$line" | awk '{print $3}')
-            NODE_IDS+=($ID)
-            NODE_IPS+=($IP)
-          done < nodes.txt
-
-          echo "NODE_IDS=${NODE_IDS[@]}" >> $GITHUB_ENV
-          echo "NODE_IPS=${NODE_IPS[@]}" >> $GITHUB_ENV
-
-          echo "Node IDs: ${NODE_IDS[@]}"
-          echo "Node IPs: ${NODE_IPS[@]}"
-
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.6.0  # Specify the Terraform version
+
+      - name: Terraform Init
+        working-directory: terraform
+        run: terraform init
+
+      - name: Terraform Apply (Provision Nodes)
+        working-directory: terraform
+        run: |
+          terraform apply -auto-approve \
+            -var="do_token=${{ secrets.DO_TOKEN }}" \
+            -var="do_ssh_fingerprint=${{ secrets.DO_SSH_FINGERPRINT }}" \
+            -var="node_count=${{ env.NODE_COUNT }}"
+
+      - name: Fetch Node IPs
+        working-directory: terraform
+        run: |
+          echo "Fetching node IPs..."
+          NODE_IPS=$(terraform output -json droplet_ips | jq -r '.[]')
+          echo "NODE_IPS=$NODE_IPS" >> $GITHUB_ENV
+          echo "Node IPs: $NODE_IPS"
 
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
@@ -86,8 +65,7 @@ jobs:
 
       - name: Upload Binary to Nodes
         run: |
-          echo "Uploading binary to all nodes..."
-          for ip in ${NODE_IPS[@]}; do
+          for ip in $NODE_IPS; do
             scp -i private_key -o StrictHostKeyChecking=no ./code/target/release/${{ env.BINARY_NAME }} root@$ip:/root/ &
           done
           wait
@@ -95,23 +73,13 @@ jobs:
 
       - name: Execute Binary on Nodes
         run: |
-          echo "Executing binary on all nodes..."
-          for ip in ${NODE_IPS[@]}; do
+          for ip in $NODE_IPS; do
             ssh -i private_key -o StrictHostKeyChecking=no root@$ip "/root/${{ env.BINARY_NAME }}" &
           done
           wait
           echo "Execution completed on all nodes."
 
-      - name: Destroy Nodes
+      - name: Terraform Destroy (Cleanup Nodes)
         if: always()
-        run: |
-          echo "Destroying all nodes..."
-          for id in ${NODE_IDS[@]}; do
-            doctl compute droplet delete $id --force &
-          done
-          wait
-          echo "All nodes deleted."
-
-      - name: Cleanup SSH Key
-        if: always()
-        run: rm -f private_key
+        working-directory: terraform
+        run: terraform destroy -auto-approve -var="do_token=${{ secrets.DO_TOKEN }}"
