@@ -64,10 +64,11 @@ async fn run_build_proposal_task(
     let build_duration = (deadline - start).mul_f32(params.time_allowance_factor);
 
     let mut sequence = 0;
-    let mut block_size = 0;
     let mut block_tx_count = 0;
     let mut block_hasher = sha3::Keccak256::new();
-    let mut max_block_size_reached = false;
+    let vote_extensions_size =
+        (params.vote_extensions.size.as_u64() * vote_extensions.extensions.len() as u64) as usize;
+    let mut block_size = vote_extensions_size;
 
     // Init
     let init = {
@@ -110,10 +111,9 @@ async fn run_build_proposal_task(
         let mut txes = Vec::new();
         let mut tx_count = 0;
 
-        for tx in reaped_txes {
+        'txes: for tx in reaped_txes {
             if block_size + tx.size_bytes() > max_block_size {
-                max_block_size_reached = true;
-                continue 'reap;
+                continue 'txes;
             }
 
             block_size += tx.size_bytes();
@@ -143,7 +143,7 @@ async fn run_build_proposal_task(
             sequence += 1;
         }
 
-        if max_block_size_reached {
+        if block_size > max_block_size {
             trace!("Max block size reached, stopping tx generation");
             break 'reap;
         } else if start.elapsed() > build_duration {
@@ -153,7 +153,7 @@ async fn run_build_proposal_task(
     }
 
     // Vote extensions
-    if !max_block_size_reached && !vote_extensions.extensions.is_empty() {
+    if !vote_extensions.extensions.is_empty() {
         let transactions = vote_extensions
             .extensions
             .into_iter()
