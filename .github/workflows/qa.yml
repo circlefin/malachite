@@ -47,12 +47,12 @@ jobs:
           echo "NODE_IPS=$NODE_IPS" >> $GITHUB_ENV
           echo "Node IPs: $NODE_IPS"
 
-      - name: Terraform Destroy (Cleanup Nodes)
-        if: always()
-        working-directory: terraform
-        run: |
-          echo "Starting Terraform destroy..."
+      #- name: Terraform Destroy (Cleanup Nodes)
+      #  if: always()
+      #  working-directory: terraform
+      #  run: |
+      #    echo "Starting Terraform destroy..."
 
-          terraform destroy -auto-approve \
-            -var="do_token=${{ secrets.DO_TOKEN }}" \
-            -var="do_ssh_fingerprint=${{ secrets.DO_SSH_FINGERPRINT }}"
+      #    terraform destroy -auto-approve \
+      #      -var="do_token=${{ secrets.DO_TOKEN }}" \
+      #      -var="do_ssh_fingerprint=${{ secrets.DO_SSH_FINGERPRINT }}"
