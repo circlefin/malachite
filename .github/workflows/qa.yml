@@ -36,16 +36,26 @@ jobs:
 
       - name: Wait for Droplets Fully Initialize
         run: |
-          echo "Waiting 60 seconds for DigitalOcean to assign public IPs..."
-          sleep 60
+          echo "Waiting 10 seconds for DigitalOcean to assign public IPs..."
+          sleep 10
 
-      - name: Debug Terraform Output
+      - name: Fetch Node IPs
         working-directory: terraform
         run: |
-          echo "🔍 Debugging Terraform Outputs..."
-          terraform output
-          echo "🔍 Terraform JSON output:"
-          terraform output -json droplet_ips
+          echo "Fetching node IPs..."
+          
+          # Fetch Terraform output
+          NODE_IPS=$(terraform output -json droplet_ips | jq -r '.[]')
+
+          # Check if output is empty
+          if [ -z "$NODE_IPS" ]; then
+            echo "❌ Error: No node IPs found!"
+            exit 1
+          fi
+
+          echo "NODE_IPS=$NODE_IPS" >> $GITHUB_ENV
+          echo "✅ Node IPs: $NODE_IPS"
+
 
       - name: Terraform Destroy (Cleanup Nodes)
         if: always()
