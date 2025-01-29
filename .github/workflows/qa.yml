@@ -47,52 +47,6 @@ jobs:
           echo "🔍 Terraform JSON output:"
           terraform output -json droplet_ips
 
-
-      - name: Fetch Node IPs
-        working-directory: terraform
-        run: |
-          echo "Fetching node IPs..."
-          NODE_IPS=$(terraform output -json droplet_ips | jq -r '.[]')
-          echo "NODE_IPS=$NODE_IPS" >> $GITHUB_ENV
-          echo "Node IPs: $NODE_IPS"
-
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-
-      - name: Install protoc
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y protobuf-compiler
-          protoc --version
-
-      - name: Build Rust Binary
-        working-directory: code
-        run: cargo build -p ${{ env.BINARY_NAME }} --release
-
-      - name: Write SSH Key
-        run: |
-          printf "%s" "${{ secrets.DO_SSH_KEY }}" | sed 's/\r//' > private_key
-          chmod 600 private_key
-
-      - name: Upload Binary to Nodes
-        run: |
-          for ip in $NODE_IPS; do
-            scp -i private_key -o StrictHostKeyChecking=no ./code/target/release/${{ env.BINARY_NAME }} root@$ip:/root/ &
-          done
-          wait
-          echo "Binary uploaded to all nodes."
-
-      - name: Execute Binary on Nodes
-        run: |
-          for ip in $NODE_IPS; do
-            ssh -i private_key -o StrictHostKeyChecking=no root@$ip "/root/${{ env.BINARY_NAME }}" &
-          done
-          wait
-          echo "Execution completed on all nodes."
-
       - name: Terraform Destroy (Cleanup Nodes)
         if: always()
         working-directory: terraform
