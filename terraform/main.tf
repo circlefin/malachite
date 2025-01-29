@@ -1,3 +1,12 @@
+terraform {
+  required_providers {
+    digitalocean = {
+      source  = "digitalocean/digitalocean"  # ✅ Correct provider source
+      version = "~> 2.0"  # Use the latest compatible version
+    }
+  }
+}
+
 variable "do_token" {}
 variable "node_count" {
   default = 3  # Number of nodes to create
