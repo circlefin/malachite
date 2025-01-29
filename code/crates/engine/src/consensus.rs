@@ -65,6 +65,7 @@ where
     ctx: Ctx,
     params: ConsensusParams<Ctx>,
     timeout_config: TimeoutConfig,
+    signing_provider: Box<dyn SigningProvider<Ctx>>,
     network: NetworkRef<Ctx>,
     host: HostRef<Ctx>,
     wal: WalRef<Ctx>,
@@ -191,6 +192,7 @@ where
         ctx: Ctx,
         params: ConsensusParams<Ctx>,
         timeout_config: TimeoutConfig,
+        signing_provider: Box<dyn SigningProvider<Ctx>>,
         network: NetworkRef<Ctx>,
         host: HostRef<Ctx>,
         wal: WalRef<Ctx>,
@@ -203,6 +205,7 @@ where
             ctx,
             params,
             timeout_config,
+            signing_provider,
             network,
             host,
             wal,
@@ -811,7 +814,7 @@ where
             Effect::SignProposal(proposal, r) => {
                 let start = Instant::now();
 
-                let signed_proposal = self.ctx.signing_provider().sign_proposal(proposal);
+                let signed_proposal = self.signing_provider.sign_proposal(proposal);
 
                 self.metrics
                     .signature_signing_time
@@ -823,7 +826,7 @@ where
             Effect::SignVote(vote, r) => {
                 let start = Instant::now();
 
-                let signed_vote = self.ctx.signing_provider().sign_vote(vote);
+                let signed_vote = self.signing_provider.sign_vote(vote);
 
                 self.metrics
                     .signature_signing_time
@@ -839,13 +842,11 @@ where
 
                 let valid = match msg.message {
                     Msg::Vote(v) => {
-                        self.ctx
-                            .signing_provider()
+                        self.signing_provider
                             .verify_signed_vote(&v, &msg.signature, &pk)
                     }
                     Msg::Proposal(p) => {
-                        self.ctx
-                            .signing_provider()
+                        self.signing_provider
                             .verify_signed_proposal(&p, &msg.signature, &pk)
                     }
                 };
@@ -858,7 +859,7 @@ where
             }
 
             Effect::VerifyCertificate(certificate, validator_set, thresholds, r) => {
-                let valid = self.ctx.signing_provider().verify_certificate(
+                let valid = self.signing_provider.verify_certificate(
                     &certificate,
                     &validator_set,
                     thresholds,

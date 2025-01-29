@@ -1,25 +1,17 @@
-use std::sync::Arc;
-
 use malachitebft_core_types::{Context, NilOrVal, Round, ValidatorSet as _};
 
-use crate::signing::EcdsaProvider;
 use crate::{
-    Address, BlockHash, Ecdsa, Height, PrivateKey, Proposal, ProposalPart, Validator, ValidatorSet,
-    Vote,
+    Address, BlockHash, Ecdsa, Height, Proposal, ProposalPart, Validator, ValidatorSet, Vote,
 };
 
 mod impls;
 
-#[derive(Clone, Debug)]
-pub struct MockContext {
-    ecdsa_provider: Arc<EcdsaProvider>,
-}
+#[derive(Copy, Clone, Debug, Default)]
+pub struct MockContext;
 
 impl MockContext {
-    pub fn new(private_key: PrivateKey) -> Self {
-        Self {
-            ecdsa_provider: Arc::new(EcdsaProvider::new(private_key)),
-        }
+    pub fn new() -> Self {
+        Self
     }
 }
 
@@ -33,11 +25,6 @@ impl Context for MockContext {
     type Value = BlockHash;
     type Vote = Vote;
     type SigningScheme = Ecdsa;
-    type SigningProvider = EcdsaProvider;
-
-    fn signing_provider(&self) -> &Self::SigningProvider {
-        &self.ecdsa_provider
-    }
 
     fn select_proposer<'a>(
         &self,

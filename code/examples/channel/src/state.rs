@@ -17,8 +17,8 @@ use malachitebft_app_channel::app::types::core::{CommitCertificate, Round, Valid
 use malachitebft_app_channel::app::types::{LocallyProposedValue, PeerId};
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{
-    Address, Genesis, Height, ProposalData, ProposalFin, ProposalInit, ProposalPart, TestContext,
-    ValidatorSet, Value,
+    Address, Ed25519Provider, Genesis, Height, ProposalData, ProposalFin, ProposalInit,
+    ProposalPart, TestContext, ValidatorSet, Value,
 };
 
 use crate::store::{DecidedValue, Store};
@@ -27,8 +27,10 @@ use crate::streaming::{PartStreamsMap, ProposalParts};
 /// Represents the internal state of the application node
 /// Contains information about current height, round, proposals and blocks
 pub struct State {
-    genesis: Genesis,
+    #[allow(dead_code)]
     ctx: TestContext,
+    signing_provider: Ed25519Provider,
+    genesis: Genesis,
     address: Address,
     store: Store,
     stream_id: u64,
@@ -69,15 +71,17 @@ fn seed_from_address(address: &Address) -> u64 {
 impl State {
     /// Creates a new State instance with the given validator address and starting height
     pub fn new(
-        genesis: Genesis,
         ctx: TestContext,
+        signing_provider: Ed25519Provider,
+        genesis: Genesis,
         address: Address,
         height: Height,
         store: Store,
     ) -> Self {
         Self {
-            genesis,
             ctx,
+            signing_provider,
+            genesis,
             current_height: height,
             current_round: Round::new(0),
             current_proposer: None,
@@ -332,7 +336,7 @@ impl State {
         // Sign the hash of the proposal parts
         {
             let hash = hasher.finalize().to_vec();
-            let signature = self.ctx.signing_provider.sign(&hash);
+            let signature = self.signing_provider.sign(&hash);
             parts.push(ProposalPart::Fin(ProposalFin::new(signature)));
         }
 
@@ -381,11 +385,7 @@ impl State {
         let public_key = public_key.ok_or(SignatureVerificationError::ProposerNotFound)?;
 
         // Verify the signature
-        if !self
-            .ctx
-            .signing_provider
-            .verify(&hash, signature, &public_key)
-        {
+        if !self.signing_provider.verify(&hash, signature, &public_key) {
             return Err(SignatureVerificationError::InvalidSignature);
         }
 

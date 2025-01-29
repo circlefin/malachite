@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use malachitebft_core_types::{Context, NilOrVal, Round, ValidatorSet as _};
 
 use crate::address::*;
@@ -11,16 +9,12 @@ use crate::validator_set::*;
 use crate::value::*;
 use crate::vote::*;
 
-#[derive(Clone, Debug)]
-pub struct TestContext {
-    pub signing_provider: Arc<Ed25519Provider>,
-}
+#[derive(Copy, Clone, Debug, Default)]
+pub struct TestContext;
 
 impl TestContext {
-    pub fn new(private_key: PrivateKey) -> Self {
-        Self {
-            signing_provider: Arc::new(Ed25519Provider::new(private_key)),
-        }
+    pub fn new() -> Self {
+        Self
     }
 }
 
@@ -34,11 +28,6 @@ impl Context for TestContext {
     type Value = Value;
     type Vote = Vote;
     type SigningScheme = Ed25519;
-    type SigningProvider = Ed25519Provider;
-
-    fn signing_provider(&self) -> &Self::SigningProvider {
-        &self.signing_provider
-    }
 
     fn select_proposer<'a>(
         &self,

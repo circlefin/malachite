@@ -4,6 +4,7 @@ use std::time::Duration;
 use libp2p_identity::ecdsa;
 use malachitebft_engine::util::events::TxEvent;
 use malachitebft_engine::wal::{Wal, WalRef};
+use malachitebft_starknet_p2p_types::EcdsaProvider;
 use tokio::task::JoinHandle;
 
 use malachitebft_config::{
@@ -38,13 +39,14 @@ pub async fn spawn_node_actor(
     tx_event: TxEvent<MockContext>,
     span: tracing::Span,
 ) -> (NodeRef, JoinHandle<()>) {
-    let ctx = MockContext::new(private_key);
+    let ctx = MockContext::new();
 
     let start_height = start_height.unwrap_or(Height::new(1, 1));
 
     let registry = SharedRegistry::global().with_moniker(cfg.moniker.as_str());
     let metrics = Metrics::register(&registry);
     let address = Address::from_public_key(private_key.public_key());
+    let signing_provider = EcdsaProvider::new(private_key);
 
     // Spawn mempool and its gossip layer
     let mempool_network = spawn_mempool_network_actor(&cfg, &private_key, &registry, &span).await;
@@ -69,7 +71,7 @@ pub async fn spawn_node_actor(
     .await;
 
     let sync = spawn_sync_actor(
-        ctx.clone(),
+        ctx,
         network.clone(),
         host.clone(),
         &cfg.sync,
@@ -85,8 +87,9 @@ pub async fn spawn_node_actor(
         start_height,
         initial_validator_set,
         address,
-        ctx.clone(),
+        ctx,
         cfg,
+        signing_provider,
         network.clone(),
         host.clone(),
         wal.clone(),
@@ -163,6 +166,7 @@ async fn spawn_consensus_actor(
     address: Address,
     ctx: MockContext,
     cfg: NodeConfig,
+    signing_provider: EcdsaProvider,
     network: NetworkRef<MockContext>,
     host: HostRef<MockContext>,
     wal: WalRef<MockContext>,
@@ -189,6 +193,7 @@ async fn spawn_consensus_actor(
         ctx,
         consensus_params,
         cfg.consensus.timeouts,
+        Box::new(signing_provider),
         network,
         host,
         wal,

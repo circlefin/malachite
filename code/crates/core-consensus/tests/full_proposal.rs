@@ -1,8 +1,6 @@
-use malachitebft_core_types::{
-    Context, Round, SignedProposal, SigningProvider, Validity, ValueOrigin,
-};
+use malachitebft_core_types::{Round, SignedProposal, SigningProvider, Validity, ValueOrigin};
 use malachitebft_test::utils::validators::make_validators;
-use malachitebft_test::{Address, Proposal, Value};
+use malachitebft_test::{Address, Ed25519Provider, Proposal, Value};
 use malachitebft_test::{Height, TestContext};
 
 use informalsystems_malachitebft_core_consensus::{
@@ -10,7 +8,7 @@ use informalsystems_malachitebft_core_consensus::{
 };
 
 fn signed_proposal_pol(
-    ctx: &TestContext,
+    signing_provider: &Ed25519Provider,
     height: Height,
     round: Round,
     value: Value,
@@ -18,18 +16,18 @@ fn signed_proposal_pol(
     address: Address,
 ) -> SignedProposal<TestContext> {
     let proposal1 = Proposal::new(height, round, value, pol_round, address);
-    ctx.signing_provider().sign_proposal(proposal1)
+    signing_provider.sign_proposal(proposal1)
 }
 
 fn prop(
-    ctx: &TestContext,
+    signing_provider: &Ed25519Provider,
     address: Address,
     round: u32,
     value: u64,
     pol_round: i64,
 ) -> SignedProposal<TestContext> {
     signed_proposal_pol(
-        ctx,
+        signing_provider,
         Height::new(1),
         Round::new(round),
         Value::new(value),
@@ -39,13 +37,13 @@ fn prop(
 }
 
 fn prop_msg(
-    ctx: &TestContext,
+    signing_provider: &Ed25519Provider,
     address: Address,
     round: u32,
     value: u64,
     pol_round: i64,
 ) -> Input<TestContext> {
-    Input::Proposal(prop(ctx, address, round, value, pol_round))
+    Input::Proposal(prop(signing_provider, address, round, value, pol_round))
 }
 
 fn value(
@@ -111,10 +109,12 @@ struct Test {
 #[test]
 fn full_proposal_keeper_tests() {
     let [(v1, sk1), (v2, sk2)] = make_validators([1, 1]);
+
     let a1 = v1.address;
-    let c1 = TestContext::new(sk1);
     let a2 = v2.address;
-    let c2 = TestContext::new(sk2);
+
+    let c1 = Ed25519Provider::new(sk1);
+    let c2 = Ed25519Provider::new(sk2);
 
     let tests = vec![
         Test {
