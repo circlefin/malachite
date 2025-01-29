@@ -39,32 +39,34 @@ jobs:
           echo "Waiting 60 seconds for DigitalOcean to assign public IPs..."
           sleep 60
 
-      - name: Debug Terraform Output
-        working-directory: terraform
-        run: |
-          echo "🔍 Debugging Terraform Outputs..."
-          terraform output
-          echo "🔍 Terraform JSON output:"
-          terraform output -json droplet_ips
-
       - name: Terraform Destroy (Cleanup Nodes)
         if: always()
         working-directory: terraform
         run: |
           echo "Starting Terraform destroy..."
-          
-          # Set a timeout to prevent infinite loops
-          timeout 60 terraform destroy -auto-approve -var="do_token=${{ secrets.DO_TOKEN }}" || echo "Terraform destroy timed out!"
 
-          # If Terraform is still stuck, try deleting manually
-          echo "Checking if droplets still exist..."
-          DROPLET_IDS=$(terraform state list | grep "digitalocean_droplet" | awk '{print $NF}' || echo "")
+          # Print Terraform state before destroying
+          echo "🔍 Checking Terraform state before destroy..."
+          terraform state list
 
-          if [ -n "$DROPLET_IDS" ]; then
-            echo "Terraform destroy failed, manually deleting droplets..."
-            for id in $DROPLET_IDS; do
-              doctl compute droplet delete $id --force &
+          # Check if Terraform is tracking droplets
+          DROPLET_COUNT=$(terraform state list | grep "digitalocean_droplet" | wc -l)
+
+          if [[ "$DROPLET_COUNT" -eq 0 ]]; then
+            echo "⚠️ No droplets found in Terraform state. Destroy may not work!"
+          fi
+
+          # Set a timeout for Terraform destroy to avoid infinite loops
+          timeout 60 terraform destroy -auto-approve -var="do_token=${{ secrets.DO_TOKEN }}" || echo "⚠️ Terraform destroy timed out!"
+
+          # If Terraform is still stuck, manually delete via DigitalOcean CLI
+          echo "🔍 Checking if droplets still exist..."
+          EXISTING_DROPLETS=$(doctl compute droplet list --format ID --no-header)
+
+          if [ -n "$EXISTING_DROPLETS" ]; then
+            echo "❌ Terraform destroy failed, manually deleting droplets..."
+            for id in $EXISTING_DROPLETS; do
+              doctl compute droplet delete $id --force
             done
-            wait
-            echo "Droplets manually deleted."
+            echo "✅ Droplets manually deleted."
           fi
