@@ -1,4 +1,5 @@
 use derive_where::derive_where;
+use thiserror::Error;
 
 use malachitebft_core_types::{
     Context, Proposal, Round, Signature, SignedProposal, SignedVote, Validity, Vote,
@@ -69,8 +70,10 @@ pub struct ProposedValue<Ctx: Context> {
     pub validity: Validity,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Error)]
 pub enum VoteExtensionError {
+    #[error("Invalid vote extension signature")]
     InvalidSignature,
+    #[error("Invalid vote extension")]
     InvalidVoteExtension,
 }
