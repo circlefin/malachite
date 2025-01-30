@@ -178,11 +178,13 @@ rpc_max_size = "10 MiB"
 type = "gossipsub"
 
 #######################################################
-###          Mempool Load Configuration Options          ###
+###       Mempool Load Configuration Options        ###
 #######################################################
+
 [mempool_load]
 # Sets the type of generation for mempool transactions
-load_type = "uniform_load"
+# Valid options are "no_load", "uniform_load", "non_uniform_load"
+load_type = "no_load"
 
 #######################################################
 ###         Sync Configuration Options         ###

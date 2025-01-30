@@ -436,7 +436,7 @@ pub struct TimeoutConfig {
     #[serde(with = "humantime_serde")]
     pub timeout_propose_delta: Duration,
 
-    /// How long we wait after receiving +2/3 prevotes for “anything” (ie. not a single block or nil)
+    /// How long we wait after receiving +2/3 prevotes for "anything" (ie. not a single block or nil)
     #[serde(with = "humantime_serde")]
     pub timeout_prevote: Duration,
 
