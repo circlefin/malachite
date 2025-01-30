@@ -33,7 +33,6 @@ pub struct State {
     genesis: Genesis,
     address: Address,
     store: Store,
-    stream_id: u64,
     streams_map: PartStreamsMap,
     rng: StdRng,
 
@@ -87,7 +86,6 @@ impl State {
             current_proposer: None,
             address,
             store,
-            stream_id: 0,
             streams_map: PartStreamsMap::new(),
             rng: StdRng::seed_from_u64(seed_from_address(&address)),
             peers: HashSet::new(),
@@ -283,9 +281,7 @@ impl State {
         value: LocallyProposedValue<TestContext>,
     ) -> impl Iterator<Item = StreamMessage<ProposalPart>> {
         let parts = self.value_to_parts(value);
-
-        let stream_id = StreamId::new(Bytes::copy_from_slice(&self.stream_id.to_le_bytes()));
-        self.stream_id += 1;
+        let stream_id = self.stream_id();
 
         let mut msgs = Vec::with_capacity(parts.len() + 1);
         let mut sequence = 0;
@@ -299,6 +295,13 @@ impl State {
         msgs.push(StreamMessage::new(stream_id, sequence, StreamContent::Fin));
 
         msgs.into_iter()
+    }
+
+    fn stream_id(&self) -> StreamId {
+        let mut bytes = Vec::with_capacity(size_of::<u64>() + size_of::<u32>());
+        bytes.extend_from_slice(&self.current_height.as_u64().to_be_bytes());
+        bytes.extend_from_slice(&self.current_round.as_u32().unwrap().to_be_bytes());
+        StreamId::new(bytes.into())
     }
 
     fn value_to_parts(&self, value: LocallyProposedValue<TestContext>) -> Vec<ProposalPart> {
