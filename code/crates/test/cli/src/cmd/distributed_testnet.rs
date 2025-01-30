@@ -293,6 +293,7 @@ fn generate_distributed_config(
             max_tx_count: 10000,
             gossip_batch_size: 0,
         },
+        mempool_load: MempoolLoadConfig { load_type: MempoolLoadType::NoLoad },
         sync: SyncConfig {
             enabled: false,
             status_update_interval: Duration::from_secs(0),

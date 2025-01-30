@@ -24,7 +24,10 @@ pub struct Config {
 
     /// Mempool configuration options
     pub mempool: MempoolConfig,
-
+    
+    /// Mempool load configuration options
+    pub mempool_load: MempoolLoadConfig,
+    
     /// Sync configuration options
     pub sync: SyncConfig,
 
@@ -337,6 +340,22 @@ mod gossipsub {
             )
         }
     }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MempoolLoadType {
+    UniformLoad {count: usize, size: usize},
+    #[default]
+    NoLoad,
+    NonUniformLoad,
+}
+
+/// Mempool configuration options
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct MempoolLoadConfig {
+    /// Mempool loading type
+    pub load_type: MempoolLoadType,
 }
 
 /// Mempool configuration options
