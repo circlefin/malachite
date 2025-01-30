@@ -19,8 +19,10 @@ impl StreamId {
 
 impl fmt::Display for StreamId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let n = u64::from_le_bytes(self.0.as_ref().try_into().unwrap());
-        write!(f, "{n}")
+        for byte in &self.0 {
+            write!(f, "{byte:02x}")?;
+        }
+        Ok(())
     }
 }
 
