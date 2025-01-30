@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
+use bytes::Bytes;
 use rand::RngCore;
 use sha3::Digest;
 use tracing::{debug, error, trace};
@@ -11,7 +12,6 @@ use malachitebft_engine::host::ProposedValue;
 use malachitebft_engine::util::streaming::StreamId;
 
 use crate::block_store::BlockStore;
-use crate::host::proposal::compute_proposal_hash;
 use crate::host::{Host, StarknetHost};
 use crate::streaming::PartStreamsMap;
 use crate::types::*;
@@ -24,7 +24,7 @@ pub struct HostState {
     pub consensus: Option<ConsensusRef<MockContext>>,
     pub block_store: BlockStore,
     pub part_streams_map: PartStreamsMap,
-    pub next_stream_id: StreamId,
+    pub next_stream_id: u64,
 }
 
 impl HostState {
@@ -49,7 +49,7 @@ impl HostState {
         // Wrap around if we get to u64::MAX, which may happen if the initial
         // stream id was close to it already.
         self.next_stream_id = self.next_stream_id.wrapping_add(1);
-        stream_id
+        StreamId::new(Bytes::copy_from_slice(&stream_id.to_le_bytes()))
     }
 
     #[tracing::instrument(skip_all, fields(%height, %round))]
@@ -97,12 +97,14 @@ impl HostState {
             return None;
         };
 
+        let validity = self.verify_proposal_validity(init).await?;
+
         let valid_round = init.valid_round;
         if valid_round.is_defined() {
             debug!("Reassembling a Proposal we might have seen before: {init:?}");
         }
 
-        let Some(fin) = parts.iter().find_map(|part| part.as_fin()) else {
+        if parts.iter().find_map(|part| part.as_fin()).is_none() {
             error!("No Fin part found in the proposal parts");
             return None;
         };
@@ -129,35 +131,21 @@ impl HostState {
 
         trace!(%block_hash, "Computed block hash");
 
-        let proposal_hash = compute_proposal_hash(init, &block_hash);
-
-        let validity = self
-            .verify_proposal_validity(init, &proposal_hash, &fin.signature)
-            .await?;
-
         Some((valid_round, block_hash, init.proposer, validity, extension))
     }
 
-    async fn verify_proposal_validity(
-        &self,
-        init: &ProposalInit,
-        proposal_hash: &Hash,
-        signature: &Signature,
-    ) -> Option<Validity> {
+    async fn verify_proposal_validity(&self, init: &ProposalInit) -> Option<Validity> {
         let validators = self.host.validators(init.height).await?;
 
-        let public_key = validators
-            .iter()
-            .find(|v| v.address == init.proposer)
-            .map(|v| v.public_key);
-
-        let Some(public_key) = public_key else {
+        if !validators.iter().any(|v| v.address == init.proposer) {
             error!(proposer = %init.proposer, "No validator found for the proposer");
             return None;
         };
 
-        let valid = public_key.verify(&proposal_hash.as_felt(), signature);
-        Some(Validity::from_bool(valid))
+        Some(Validity::Valid)
+
+        // let valid = public_key.verify(&proposal_hash.as_felt(), signature);
+        // Some(Validity::from_bool(valid))
     }
 
     #[tracing::instrument(skip_all, fields(

@@ -19,7 +19,8 @@ use malachitebft_engine::util::streaming::{StreamContent, StreamMessage};
 use malachitebft_metrics::Metrics;
 use malachitebft_sync::RawDecidedValue;
 
-use crate::host::proposal::compute_proposal_signature;
+use crate::host::proposal::compute_proposal_hash;
+// use crate::host::proposal::compute_proposal_signature;
 use crate::host::state::HostState;
 use crate::host::{Host as _, StarknetHost};
 use crate::mempool::{MempoolMsg, MempoolRef};
@@ -311,7 +312,11 @@ async fn on_get_value(
         if state.host.params.value_payload.include_parts() {
             debug!(%stream_id, %sequence, "Broadcasting proposal part");
 
-            let msg = StreamMessage::new(stream_id, sequence, StreamContent::Data(part.clone()));
+            let msg = StreamMessage::new(
+                stream_id.clone(),
+                sequence,
+                StreamContent::Data(part.clone()),
+            );
             network.cast(NetworkMsg::PublishProposalPart(msg))?;
         }
 
@@ -319,7 +324,7 @@ async fn on_get_value(
     }
 
     if state.host.params.value_payload.include_parts() {
-        let msg = StreamMessage::new(stream_id, sequence, StreamContent::Fin(true));
+        let msg = StreamMessage::new(stream_id, sequence, StreamContent::Fin);
         network.cast(NetworkMsg::PublishProposalPart(msg))?;
     }
 
@@ -389,15 +394,17 @@ async fn on_restream_value(
 
     let init = ProposalInit {
         height,
-        proposal_round: round,
+        round,
         valid_round,
         proposer: address,
     };
 
-    let signature = compute_proposal_signature(&init, &value_id, &state.host.private_key);
+    let state_diff_commitment = compute_proposal_hash(&init, &value_id);
 
     let init_part = ProposalPart::Init(init);
-    let fin_part = ProposalPart::Fin(ProposalFin { signature });
+    let fin_part = ProposalPart::Fin(ProposalFin {
+        state_diff_commitment,
+    });
 
     debug!(%height, %round, "Created new Init part: {init_part:?}");
 
@@ -407,7 +414,7 @@ async fn on_restream_value(
         let new_part = match part.part_type() {
             PartType::Init => init_part.clone(),
             PartType::Fin => fin_part.clone(),
-            PartType::Transactions | PartType::BlockProof => part,
+            PartType::Transactions => part,
         };
 
         state.host.part_store.store(height, round, new_part.clone());
@@ -415,7 +422,8 @@ async fn on_restream_value(
         if state.host.params.value_payload.include_parts() {
             debug!(%stream_id, %sequence, "Broadcasting proposal part");
 
-            let msg = StreamMessage::new(stream_id, sequence, StreamContent::Data(new_part));
+            let msg =
+                StreamMessage::new(stream_id.clone(), sequence, StreamContent::Data(new_part));
 
             network.cast(NetworkMsg::PublishProposalPart(msg))?;
 

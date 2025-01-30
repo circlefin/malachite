@@ -2,11 +2,8 @@
 
 use std::sync::Arc;
 
-use bytes::Bytes;
 use bytesize::ByteSize;
 use eyre::eyre;
-use rand::rngs::StdRng;
-use rand::{RngCore, SeedableRng};
 use sha3::Digest;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
@@ -50,7 +47,7 @@ async fn run_build_proposal_task(
     height: Height,
     round: Round,
     proposer: Address,
-    private_key: PrivateKey,
+    _private_key: PrivateKey,
     params: StarknetParams,
     deadline: Instant,
     mempool: MempoolRef,
@@ -70,7 +67,7 @@ async fn run_build_proposal_task(
     let init = {
         let init = ProposalInit {
             height,
-            proposal_round: round,
+            round,
             proposer,
             valid_round: Round::Nil,
         };
@@ -133,7 +130,7 @@ async fn run_build_proposal_task(
 
         // Transactions
         {
-            let part = ProposalPart::Transactions(Transactions::new(txes));
+            let part = ProposalPart::Transactions(TransactionBatch::new(txes));
 
             block_hasher.update(part.to_sign_bytes());
             tx_part.send(part).await?;
@@ -149,27 +146,15 @@ async fn run_build_proposal_task(
         }
     }
 
-    // BlockProof
-    {
-        // TODO: Compute actual "proof"
-        let mut rng = StdRng::from_entropy();
-        let mut proof = vec![0; 32];
-        rng.fill_bytes(&mut proof);
-
-        let part = ProposalPart::BlockProof(BlockProof::new(vec![Bytes::from(proof)]));
-
-        block_hasher.update(part.to_sign_bytes());
-        tx_part.send(part).await?;
-        sequence += 1;
-    }
-
     let block_hash = BlockHash::new(block_hasher.finalize().into());
 
     // Fin
     {
-        let signature = compute_proposal_signature(&init, &block_hash, &private_key);
+        let state_diff_commitment = compute_proposal_hash(&init, &block_hash);
 
-        let part = ProposalPart::Fin(ProposalFin { signature });
+        let part = ProposalPart::Fin(ProposalFin {
+            state_diff_commitment,
+        });
         tx_part.send(part).await?;
         sequence += 1;
     }
@@ -223,7 +208,7 @@ pub fn compute_proposal_hash(init: &ProposalInit, block_hash: &BlockHash) -> Has
     // 2. Fork id
     hasher.update(init.height.fork_id.to_be_bytes());
     // 3. Proposal round
-    hasher.update(init.proposal_round.as_i64().to_be_bytes());
+    hasher.update(init.round.as_i64().to_be_bytes());
     // 4. Valid round
     hasher.update(init.valid_round.as_i64().to_be_bytes());
     // 5. Block hash
@@ -232,11 +217,11 @@ pub fn compute_proposal_hash(init: &ProposalInit, block_hash: &BlockHash) -> Has
     Hash::new(hasher.finalize().into())
 }
 
-pub fn compute_proposal_signature(
-    init: &ProposalInit,
-    block_hash: &BlockHash,
-    private_key: &PrivateKey,
-) -> Signature {
-    let hash = compute_proposal_hash(init, block_hash);
-    private_key.sign(&hash.as_felt())
-}
+// pub fn compute_proposal_signature(
+//     init: &ProposalInit,
+//     block_hash: &BlockHash,
+//     private_key: &PrivateKey,
+// ) -> Signature {
+//     let hash = compute_proposal_hash(init, block_hash);
+//     private_key.sign(&hash.as_felt())
+// }

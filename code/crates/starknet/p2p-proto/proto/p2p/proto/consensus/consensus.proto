@@ -15,6 +15,7 @@ message ConsensusTransaction {
         DeployAccountV3 deploy_account_v3 = 2;
         InvokeV3 invoke_v3 = 3;
         L1HandlerV0 l1_handler = 4;
+        bytes dummy = 6;
     }
     Hash transaction_hash = 5;
 }

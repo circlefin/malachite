@@ -3,26 +3,25 @@ use malachitebft_core_types::Round;
 use malachitebft_proto as proto;
 use malachitebft_starknet_p2p_proto as p2p_proto;
 
-use crate::{Address, BlockProof, Height, Signature, Transactions};
+use crate::{Address, Hash, Height, TransactionBatch};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProposalInit {
     pub height: Height,
-    pub proposal_round: Round,
+    pub round: Round,
     pub valid_round: Round,
     pub proposer: Address,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProposalFin {
-    pub signature: Signature,
+    pub state_diff_commitment: Hash,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ProposalPart {
     Init(ProposalInit),
-    Transactions(Transactions),
-    BlockProof(BlockProof),
+    Transactions(TransactionBatch),
     Fin(ProposalFin),
 }
 
@@ -30,7 +29,6 @@ pub enum ProposalPart {
 pub enum PartType {
     Init,
     Transactions,
-    BlockProof,
     Fin,
 }
 
@@ -39,7 +37,6 @@ impl ProposalPart {
         match self {
             Self::Init(_) => PartType::Init,
             Self::Transactions(_) => PartType::Transactions,
-            Self::BlockProof(_) => PartType::BlockProof,
             Self::Fin(_) => PartType::Fin,
         }
     }
@@ -67,16 +64,8 @@ impl ProposalPart {
         }
     }
 
-    pub fn as_transactions(&self) -> Option<&Transactions> {
+    pub fn as_transactions(&self) -> Option<&TransactionBatch> {
         if let Self::Transactions(v) = self {
-            Some(v)
-        } else {
-            None
-        }
-    }
-
-    pub fn as_block_proof(&self) -> Option<&BlockProof> {
-        if let Self::BlockProof(v) = self {
             Some(v)
         } else {
             None
@@ -105,8 +94,8 @@ impl proto::Protobuf for ProposalPart {
 
         Ok(match message {
             Messages::Init(init) => ProposalPart::Init(ProposalInit {
-                height: Height::new(init.block_number, init.fork_id),
-                proposal_round: Round::new(init.proposal_round),
+                height: Height::new(init.height, 0),
+                round: Round::new(init.round),
                 valid_round: init.valid_round.into(),
                 proposer: Address::from_proto(
                     init.proposer
@@ -115,19 +104,14 @@ impl proto::Protobuf for ProposalPart {
             }),
 
             Messages::Fin(fin) => ProposalPart::Fin(ProposalFin {
-                signature: Signature::from_proto(
-                    fin.signature
-                        .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("signature"))?,
-                )?,
+                state_diff_commitment: Hash::from_proto(fin.state_diff_commitment.ok_or_else(
+                    || proto::Error::missing_field::<Self::Proto>("state_diff_commitment"),
+                )?)?,
             }),
 
             Messages::Transactions(txes) => {
-                let transactions = Transactions::from_proto(txes)?;
+                let transactions = TransactionBatch::from_proto(txes)?;
                 ProposalPart::Transactions(transactions)
-            }
-            Messages::Proof(proof) => {
-                let block_proof = BlockProof::from_proto(proof)?;
-                ProposalPart::BlockProof(block_proof)
             }
         })
     }
@@ -138,26 +122,23 @@ impl proto::Protobuf for ProposalPart {
 
         let message = match self {
             ProposalPart::Init(init) => Messages::Init(p2p_proto::ProposalInit {
-                block_number: init.height.block_number,
-                fork_id: init.height.fork_id,
-                proposal_round: init
-                    .proposal_round
-                    .as_u32()
-                    .expect("round should not be nil"),
+                height: init.height.block_number,
+                round: init.round.as_u32().expect("round should not be nil"),
                 valid_round: init.valid_round.as_u32(),
                 proposer: Some(init.proposer.to_proto()?),
             }),
             ProposalPart::Fin(fin) => Messages::Fin(p2p_proto::ProposalFin {
-                signature: Some(fin.signature.to_proto()?),
+                state_diff_commitment: Some(fin.state_diff_commitment.to_proto()?),
             }),
-            ProposalPart::Transactions(txes) => Messages::Transactions(p2p_proto::Transactions {
-                transactions: txes
-                    .as_slice()
-                    .iter()
-                    .map(|tx| tx.to_proto())
-                    .collect::<Result<Vec<_>, _>>()?,
-            }),
-            ProposalPart::BlockProof(block_proof) => Messages::Proof(block_proof.to_proto()?),
+            ProposalPart::Transactions(txes) => {
+                Messages::Transactions(p2p_proto::TransactionBatch {
+                    transactions: txes
+                        .as_slice()
+                        .iter()
+                        .map(|tx| tx.to_proto())
+                        .collect::<Result<Vec<_>, _>>()?,
+                })
+            }
         };
 
         Ok(p2p_proto::ProposalPart {

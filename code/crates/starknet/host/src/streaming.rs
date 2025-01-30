@@ -113,8 +113,11 @@ impl PartStreamsMap {
         peer_id: PeerId,
         msg: StreamMessage<ProposalPart>,
     ) -> Option<ProposalParts> {
-        let stream_id = msg.stream_id;
-        let state = self.streams.entry((peer_id, stream_id)).or_default();
+        let stream_id = msg.stream_id.clone();
+        let state = self
+            .streams
+            .entry((peer_id, stream_id.clone()))
+            .or_default();
 
         if !state.seen_sequences.insert(msg.sequence) {
             // We have already seen a message with this sequence number.
@@ -148,7 +151,7 @@ impl PartStreamsMap {
 
         Some(ProposalParts {
             height: init_info.height,
-            round: init_info.proposal_round,
+            round: init_info.round,
             proposer: init_info.proposer,
             parts: to_emit,
         })
@@ -176,7 +179,7 @@ impl PartStreamsMap {
 
         Some(ProposalParts {
             height: init_info.height,
-            round: init_info.proposal_round,
+            round: init_info.round,
             proposer: init_info.proposer,
             parts: to_emit,
         })

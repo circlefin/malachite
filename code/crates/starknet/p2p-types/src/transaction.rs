@@ -59,10 +59,10 @@ impl fmt::Debug for Transaction {
 }
 
 impl proto::Protobuf for Transaction {
-    type Proto = p2p_proto::Transaction;
+    type Proto = p2p_proto::ConsensusTransaction;
 
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
-        use malachitebft_starknet_p2p_proto::transaction::Txn;
+        use malachitebft_starknet_p2p_proto::consensus_transaction::Txn;
 
         let txn = proto
             .txn
@@ -73,8 +73,8 @@ impl proto::Protobuf for Transaction {
             .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("transaction_hash"))?;
 
         match txn {
-            Txn::Dummy(dummy) => Ok(Self {
-                data: dummy.bytes,
+            Txn::Dummy(bytes) => Ok(Self {
+                data: bytes,
                 hash: Hash::from_proto(hash)?,
             }),
             _ => Err(proto::Error::invalid_data::<Self::Proto>(
@@ -84,25 +84,23 @@ impl proto::Protobuf for Transaction {
     }
 
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
-        use malachitebft_starknet_p2p_proto::transaction::{Dummy, Txn};
+        use malachitebft_starknet_p2p_proto::consensus_transaction::Txn;
 
         Ok(Self::Proto {
             transaction_hash: Some(self.hash.to_proto()?),
-            txn: Some(Txn::Dummy(Dummy {
-                bytes: self.to_bytes(),
-            })),
+            txn: Some(Txn::Dummy(self.to_bytes())),
         })
     }
 }
 
 /// Transaction batch (used by mempool and proposal part)
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Transactions(Vec<Transaction>);
+pub struct TransactionBatch(Vec<Transaction>);
 
-impl Transactions {
+impl TransactionBatch {
     /// Create a new transaction batch
     pub fn new(txes: Vec<Transaction>) -> Self {
-        Transactions(txes)
+        TransactionBatch(txes)
     }
 
     /// Add a transaction to the batch
@@ -111,7 +109,7 @@ impl Transactions {
     }
 
     /// Add a set of transaction to the batch
-    pub fn append(&mut self, txes: Transactions) {
+    pub fn append(&mut self, txes: TransactionBatch) {
         let mut txes1 = txes.clone();
         self.0.append(&mut txes1.0);
     }
@@ -150,8 +148,8 @@ impl Transactions {
     }
 }
 
-impl proto::Protobuf for Transactions {
-    type Proto = p2p_proto::Transactions;
+impl proto::Protobuf for TransactionBatch {
+    type Proto = p2p_proto::TransactionBatch;
 
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
         Ok(Self::new(
@@ -164,7 +162,7 @@ impl proto::Protobuf for Transactions {
     }
 
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
-        Ok(p2p_proto::Transactions {
+        Ok(p2p_proto::TransactionBatch {
             transactions: self
                 .as_slice()
                 .iter()

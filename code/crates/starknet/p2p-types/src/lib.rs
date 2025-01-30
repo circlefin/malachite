@@ -19,7 +19,7 @@ mod proposal;
 pub use proposal::Proposal;
 
 mod transaction;
-pub use transaction::{Transaction, Transactions};
+pub use transaction::{Transaction, TransactionBatch};
 
 mod validator;
 pub use validator::Validator;

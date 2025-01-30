@@ -11,7 +11,7 @@ use sha3::Digest;
 use tracing::{debug, error};
 
 use malachitebft_app_channel::app::consensus::ProposedValue;
-use malachitebft_app_channel::app::streaming::{StreamContent, StreamMessage};
+use malachitebft_app_channel::app::streaming::{StreamContent, StreamId, StreamMessage};
 use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::{CommitCertificate, Round, Validity};
 use malachitebft_app_channel::app::types::{LocallyProposedValue, PeerId};
@@ -284,23 +284,19 @@ impl State {
     ) -> impl Iterator<Item = StreamMessage<ProposalPart>> {
         let parts = self.value_to_parts(value);
 
-        let stream_id = self.stream_id;
+        let stream_id = StreamId::new(Bytes::copy_from_slice(&self.stream_id.to_le_bytes()));
         self.stream_id += 1;
 
         let mut msgs = Vec::with_capacity(parts.len() + 1);
         let mut sequence = 0;
 
         for part in parts {
-            let msg = StreamMessage::new(stream_id, sequence, StreamContent::Data(part));
+            let msg = StreamMessage::new(stream_id.clone(), sequence, StreamContent::Data(part));
             sequence += 1;
             msgs.push(msg);
         }
 
-        msgs.push(StreamMessage::new(
-            stream_id,
-            sequence,
-            StreamContent::Fin(true),
-        ));
+        msgs.push(StreamMessage::new(stream_id, sequence, StreamContent::Fin));
 
         msgs.into_iter()
     }
