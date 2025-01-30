@@ -143,16 +143,13 @@ impl Actor for MempoolLoad {
             Msg::GenerateTransactions { count, size } => {
                 debug!("entered message handler GenerateTransactions");
 
-                let mut tx_batch = Transactions::default();
                 let transactions = Self::generate_transactions(count, size);
                 debug!("broadcasting transactions {:?}", transactions.len());
 
-                for tx in transactions {
-                    tx_batch.push(tx);
-                }
-                let tx_batch1 = std::mem::take(&mut tx_batch).to_any().unwrap();
-                let mempool_batch = MempoolTransactionBatch::new(tx_batch1);
-                debug!("broadcasting batch {:?}", tx_batch.len());
+                let tx_batch = Transactions::new(transactions).to_any().unwrap();
+                debug!("broadcasting batch {:?}", tx_batch.clone().value.len());
+
+                let mempool_batch: MempoolTransactionBatch = MempoolTransactionBatch::new(tx_batch);
 
                 self.network
                     .cast(MempoolNetworkMsg::BroadcastMsg(mempool_batch))?;
