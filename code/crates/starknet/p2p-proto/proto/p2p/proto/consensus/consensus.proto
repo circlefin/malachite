@@ -1,0 +1,102 @@
+syntax = "proto3";
+
+import "p2p/proto/common.proto";
+import "p2p/proto/transaction.proto";
+
+option go_package = "github.com/starknet-io/starknet-p2pspecs/p2p/proto/consensus/consensus";
+
+// WIP - will change
+
+// Contains all variants of mempool and an L1Handler variant to cover all transactions that can be
+// in a new block.
+message ConsensusTransaction {
+    oneof txn {
+        DeclareV3WithClass declare_v3 = 1;
+        DeployAccountV3 deploy_account_v3 = 2;
+        InvokeV3 invoke_v3 = 3;
+        L1HandlerV0 l1_handler = 4;
+    }
+    Hash transaction_hash = 5;
+}
+
+// Votes will be sent on the "consensus_votes" topic.
+message Vote {
+    enum  VoteType {
+        Prevote   = 0;
+        Precommit = 1;
+    };
+
+    // We use a type field to distinguish between prevotes and precommits instead of different
+    // messages, to make sure the data, and therefore the signatures, are unambiguous between
+    // Prevote and Precommit.
+    VoteType           vote_type    = 1;
+    uint64             block_number = 3;
+    uint64             fork_id      = 4;
+    uint32             round        = 5;
+    // This is optional since a vote can be NIL.
+    optional Hash      block_hash   = 6;
+    // Identifies the voter.
+    Address            voter        = 7;
+}
+
+// Streaming of proposals is done on the "consensus_proposal" topic.
+message ConsensusStreamId {
+    uint64 height = 1;
+    uint32 round  = 2;
+}
+
+// The timestamp of a proposal can impact consensus, specifically the lower bound applied. If nodes
+// apply a lower bound validation based on their local time, then we risk a scenario where in round
+// `R` proposal P is locked. Then in a later round the timestamp in P has gone stale. Therefore the
+// lower bound should be "greater than the previous timestamp". Upper bounds don't suffer from this
+// problem.
+message ProposalPart {
+    oneof messages {
+        ProposalInit init         = 1;
+        ProposalFin  fin          = 2;
+        // Once block `H` is decided there remains a question; which set of validators receive a
+        // reward? More specifically, what is the canonical set of precommits for block `H`? Our
+        // current plan is for the proposer to set the first transaction in `H+1` to be writing the
+        // list of precommits for `H` to the staking contract in starknet.
+        TransactionBatch transactions = 3;
+    }
+}
+
+message ProposalInit {
+    uint64 height = 1;
+    uint32 round = 2;
+    optional uint32 valid_round = 3;
+    Address proposer = 4;
+}
+
+message TransactionBatch {
+    repeated ConsensusTransaction transactions = 1;
+}
+
+// Finalize the Tendermint Proposal. When a validator receives this message it will presume that no
+// more content for the proposal should be sent. The signature supplied with ProposalFin should be
+// for the full Tendermint proposal:
+// 1. height
+// 2. fork_id
+// 3. proposal_round
+// 4. valid_round
+// 5. block_hash - the validator calculates the block_hash on its own from the content stream and
+//    confirms the signature with that value.
+message ProposalFin {
+    // Identifies all of the content streamed in the proposal.
+    // Note that the set of block identifiers being hashed is subject to change,
+    // which will be reflected in a change of the name of this field.
+    Hash state_diff_commitment = 1;
+}
+
+// The content and stream_id are generic fields. The user of the stream can choose to pass whatever message
+// that they want. The messages are then encoded in bytes.
+// For Consensus, we use a content which is a ProposalPart, and a stream_id that is a ConsensusStreamId.
+message StreamMessage {
+    oneof message {
+        bytes content = 1;
+        Fin fin = 2;
+    }
+    bytes stream_id = 3;
+    uint64 message_id = 4;
+}
