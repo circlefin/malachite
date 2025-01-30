@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use libp2p_identity::ecdsa;
+use malachitebft_starknet_p2p_types::EcdsaProvider;
 use ractor::async_trait;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -55,6 +56,7 @@ impl Node for StarknetNode {
     type Context = MockContext;
     type Genesis = Genesis;
     type PrivateKeyFile = PrivateKeyFile;
+    type SigningProvider = EcdsaProvider;
 
     fn get_home_dir(&self) -> PathBuf {
         self.home_dir.to_owned()
@@ -96,6 +98,10 @@ impl Node for StarknetNode {
 
     fn make_private_key_file(&self, private_key: PrivateKey) -> Self::PrivateKeyFile {
         PrivateKeyFile::from(private_key)
+    }
+
+    fn get_signing_provider(&self, private_key: PrivateKey) -> Self::SigningProvider {
+        EcdsaProvider::new(private_key)
     }
 
     fn load_genesis(&self, path: impl AsRef<Path>) -> std::io::Result<Self::Genesis> {

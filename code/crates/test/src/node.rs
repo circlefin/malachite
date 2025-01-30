@@ -9,7 +9,7 @@ use malachitebft_config::Config;
 use malachitebft_core_types::VotingPower;
 
 use crate::context::TestContext;
-use crate::{Address, Genesis, PrivateKey, PublicKey, Validator, ValidatorSet};
+use crate::{Address, Ed25519Provider, Genesis, PrivateKey, PublicKey, Validator, ValidatorSet};
 
 pub struct TestNode {
     pub config: Config,
@@ -24,6 +24,7 @@ impl Node for TestNode {
     type Context = TestContext;
     type Genesis = Genesis;
     type PrivateKeyFile = PrivateKey;
+    type SigningProvider = Ed25519Provider;
 
     fn get_home_dir(&self) -> PathBuf {
         self.home_dir.to_owned()
@@ -62,6 +63,10 @@ impl Node for TestNode {
 
     fn make_private_key_file(&self, private_key: PrivateKey) -> Self::PrivateKeyFile {
         private_key
+    }
+
+    fn get_signing_provider(&self, private_key: PrivateKey) -> Self::SigningProvider {
+        Ed25519Provider::new(private_key)
     }
 
     fn load_genesis(&self, path: impl AsRef<Path>) -> std::io::Result<Self::Genesis> {
