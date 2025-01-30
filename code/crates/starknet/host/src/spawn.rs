@@ -7,7 +7,8 @@ use malachitebft_engine::wal::{Wal, WalRef};
 use tokio::task::JoinHandle;
 
 use malachitebft_config::{
-    self as config, Config as NodeConfig, MempoolConfig, MempoolLoadConfig, SyncConfig, TestConfig, TransportProtocol
+    self as config, Config as NodeConfig, MempoolConfig, MempoolLoadConfig, SyncConfig, TestConfig,
+    TransportProtocol,
 };
 use malachitebft_core_consensus::ValuePayload;
 use malachitebft_engine::consensus::{Consensus, ConsensusParams, ConsensusRef};
@@ -51,10 +52,8 @@ pub async fn spawn_node_actor(
     let mempool_network = spawn_mempool_network_actor(&cfg, &private_key, &registry, &span).await;
     let mempool =
         spawn_mempool_actor(mempool_network.clone(), &cfg.mempool, &cfg.test, &span).await;
-    let mempool_load = 
-        spawn_mempool_load_actor(
-            &cfg.mempool_load,
-            mempool_network.clone(), &span).await;
+    let mempool_load =
+        spawn_mempool_load_actor(&cfg.mempool_load, mempool_network.clone(), &span).await;
 
     // Spawn consensus gossip
     let network = spawn_network_actor(&cfg, &private_key, &registry, &span).await;
@@ -303,13 +302,17 @@ async fn spawn_mempool_load_actor(
     span: &tracing::Span,
 ) -> MempoolLoadRef {
     // let params = mempool_load::Params::default();
-    
+
     // debug!("spawned mempool load actor with params {:?}", params);
-    MempoolLoad::spawn( Params{
-        load_type:mempool_load_config.load_type
-        }, network, span.clone())
-        .await
-        .unwrap()
+    MempoolLoad::spawn(
+        Params {
+            load_type: mempool_load_config.load_type,
+        },
+        network,
+        span.clone(),
+    )
+    .await
+    .unwrap()
 }
 
 async fn spawn_mempool_network_actor(

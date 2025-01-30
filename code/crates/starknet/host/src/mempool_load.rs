@@ -5,8 +5,8 @@ use malachitebft_starknet_p2p_types::{Transaction, Transactions};
 use malachitebft_test_mempool::types::MempoolTransactionBatch;
 use ractor::{concurrency::JoinHandle, Actor, ActorProcessingErr, ActorRef};
 use rand::{Rng, RngCore};
-use tracing::debug;
 use std::time::Duration;
+use tracing::debug;
 
 use crate::{
     mempool::network::{MempoolNetworkMsg, MempoolNetworkRef},
@@ -23,8 +23,6 @@ pub enum Msg {
 pub struct State {
     ticker: JoinHandle<()>,
 }
-
-
 
 #[derive(Debug)]
 pub struct Params {
@@ -98,7 +96,7 @@ impl Actor for MempoolLoad {
         myself: MempoolLoadRef,
         _args: (),
     ) -> Result<State, ActorProcessingErr> {
-      debug!("starting ticker");
+        debug!("starting ticker");
 
         let ticker = match self.params.load_type {
             MempoolLoadType::UniformLoad { count, size } => {
@@ -111,7 +109,7 @@ impl Actor for MempoolLoad {
             }
             MempoolLoadType::NoLoad => tokio::spawn(async {}),
             MempoolLoadType::NonUniformLoad => {
-              debug!("entered nonuniform load branch");
+                debug!("entered nonuniform load branch");
 
                 let mut rng = rand::thread_rng();
                 let interval = Duration::from_secs(rng.gen_range(1..10));
@@ -143,7 +141,7 @@ impl Actor for MempoolLoad {
     ) -> Result<(), ActorProcessingErr> {
         match msg {
             Msg::GenerateTransactions { count, size } => {
-              debug!("entered message handler GenerateTransactions");
+                debug!("entered message handler GenerateTransactions");
 
                 let mut tx_batch = Transactions::default();
                 let transactions = Self::generate_transactions(count, size);

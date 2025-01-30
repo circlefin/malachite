@@ -1,7 +1,7 @@
 use ractor::message::Message;
 use ractor::ActorRef;
-use tracing::debug;
 use std::time::Duration;
+use tracing::debug;
 
 pub async fn ticker<Msg>(interval: Duration, target: ActorRef<Msg>, msg: impl Fn() -> Msg)
 where

@@ -17,4 +17,3 @@ pub mod proto {
 pub mod types {
     pub use malachitebft_starknet_p2p_types::*;
 }
-
