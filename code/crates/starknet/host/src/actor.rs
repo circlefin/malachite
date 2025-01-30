@@ -302,7 +302,7 @@ async fn on_get_value(
 
     let (mut rx_part, rx_hash) = state.host.build_new_proposal(height, round, deadline).await;
 
-    let stream_id = state.next_stream_id();
+    let stream_id = state.stream_id();
 
     let mut sequence = 0;
 
@@ -390,7 +390,7 @@ async fn on_restream_value(
 
     let mut rx_part = state.host.send_known_proposal(value_id).await;
 
-    let stream_id = state.next_stream_id();
+    let stream_id = state.stream_id();
 
     let init = ProposalInit {
         height,

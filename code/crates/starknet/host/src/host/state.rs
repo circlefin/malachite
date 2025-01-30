@@ -1,7 +1,6 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use bytes::Bytes;
 use rand::RngCore;
 use sha3::Digest;
 use tracing::{debug, error, trace};
@@ -44,12 +43,14 @@ impl HostState {
         }
     }
 
-    pub fn next_stream_id(&mut self) -> StreamId {
-        let stream_id = self.next_stream_id;
-        // Wrap around if we get to u64::MAX, which may happen if the initial
-        // stream id was close to it already.
-        self.next_stream_id = self.next_stream_id.wrapping_add(1);
-        StreamId::new(Bytes::copy_from_slice(&stream_id.to_le_bytes()))
+    pub fn stream_id(&mut self) -> StreamId {
+        let stream_id = malachitebft_starknet_p2p_proto::ConsensusStreamId {
+            height: self.height.as_u64(),
+            round: self.round.as_u32().expect("round is non-nil"),
+        };
+
+        let bytes = prost::Message::encode_to_vec(&stream_id);
+        StreamId::new(bytes.into())
     }
 
     #[tracing::instrument(skip_all, fields(%height, %round))]
