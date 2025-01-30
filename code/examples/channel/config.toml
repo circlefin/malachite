@@ -177,6 +177,12 @@ rpc_max_size = "10 MiB"
 # Broadcast is an experimental protocol with no additional configuration options.
 type = "gossipsub"
 
+#######################################################
+###          Mempool Load Configuration Options          ###
+#######################################################
+[mempool_load]
+# Sets the type of generation for mempool transactions
+load_type = "uniform_load"
 
 #######################################################
 ###         Sync Configuration Options         ###

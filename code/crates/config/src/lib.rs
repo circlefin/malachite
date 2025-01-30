@@ -343,7 +343,7 @@ mod gossipsub {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum MempoolLoadType {
     UniformLoad {
         count: usize,
