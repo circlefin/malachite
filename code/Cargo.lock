@@ -2519,6 +2519,8 @@ dependencies = [
  "informalsystems-malachitebft-core-state-machine",
  "informalsystems-malachitebft-core-types",
  "informalsystems-malachitebft-core-votekeeper",
+ "informalsystems-malachitebft-engine",
+ "informalsystems-malachitebft-starknet-host",
  "informalsystems-malachitebft-test",
  "itf",
  "num-bigint",

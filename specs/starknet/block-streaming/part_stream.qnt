@@ -28,12 +28,12 @@ module part_stream {
 
     type State = {
         buffer: BinaryHeap[Message],
-        finReceived: bool,
         initMessage: Option[Message],
+        received: Set[Message],
         nextSequence: Sequence,
         totalMessages: int,
+        finReceived: bool,
         emitted: List[Message],
-        received: Set[Message]
     }
 
     var state: State

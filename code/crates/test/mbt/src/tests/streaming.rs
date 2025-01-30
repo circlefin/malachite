@@ -4,8 +4,8 @@ use crate::streaming::State;
 use crate::utils::{generate_test_traces, quint_seed};
 
 pub mod runner;
+pub mod utils;
 
-// generates ITF traces from the Quint spec and runs the traces as Rust tests
 #[test]
 fn test_itf() {
     let temp_dir = tempfile::TempDir::with_prefix("informalsystems-malachitebft-part-streaming")
@@ -37,10 +37,7 @@ fn test_itf() {
         let json = std::fs::read_to_string(&json_fixture).unwrap();
         let trace = itf::trace_from_str::<State>(&json).unwrap();
 
-        // For debugging
-        print!("\n{:#?}\n", trace);
-
-        // let consensus_runner = ConsensusRunner::new(address_map);
-        // trace.run_on(consensus_runner).unwrap();
+        let streaming_runner = runner::StreamingRunner {};
+        trace.run_on(streaming_runner).unwrap();
     }
 }

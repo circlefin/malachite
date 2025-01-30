@@ -10,47 +10,50 @@ use malachitebft_core_types::Round;
 use malachitebft_engine::util::streaming::{Sequence, StreamId, StreamMessage};
 
 use crate::types::{Address, Height, ProposalInit, ProposalPart};
+use std::fmt::Debug;
 
 // Wraps StreamMessage to implement custom ordering for a BinaryHeap
 // The default BinaryHeap is a max-heap, so we reverse the ordering
 // by implementing Ord in reverse to make it min-heap, which suits the purpose of efficiently
 // providing available proposal part with smallest sequence number
-struct MinSeq<T>(StreamMessage<T>);
+#[derive_where(Debug)]
+pub struct MinSeq<T: Debug>(pub StreamMessage<T>);
 
-impl<T> PartialEq for MinSeq<T> {
+impl<T: Debug> PartialEq for MinSeq<T> {
     fn eq(&self, other: &Self) -> bool {
         self.0.sequence == other.0.sequence
     }
 }
 
-impl<T> Eq for MinSeq<T> {}
+impl<T: Debug> Eq for MinSeq<T> {}
 
-impl<T> Ord for MinSeq<T> {
+impl<T: Debug> Ord for MinSeq<T> {
     fn cmp(&self, other: &Self) -> Ordering {
         other.0.sequence.cmp(&self.0.sequence)
     }
 }
 
-impl<T> PartialOrd for MinSeq<T> {
+impl<T: Debug> PartialOrd for MinSeq<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-struct MinHeap<T>(BinaryHeap<MinSeq<T>>);
+#[derive_where(Debug)]
+pub struct MinHeap<T: Debug>(pub BinaryHeap<MinSeq<T>>);
 
-impl<T> Default for MinHeap<T> {
+impl<T: Debug> Default for MinHeap<T> {
     fn default() -> Self {
         Self(BinaryHeap::new())
     }
 }
 
-impl<T> MinHeap<T> {
+impl<T: Debug> MinHeap<T> {
     fn push(&mut self, msg: StreamMessage<T>) {
         self.0.push(MinSeq(msg));
     }
 
-    fn pop(&mut self) -> Option<StreamMessage<T>> {
+    pub fn pop(&mut self) -> Option<StreamMessage<T>> {
         self.0.pop().map(|msg| msg.0)
     }
 
@@ -58,18 +61,18 @@ impl<T> MinHeap<T> {
         self.0.peek().map(|msg| &msg.0)
     }
 }
-#[derive_where(Default)]
-struct StreamState<T> {
-    buffer: MinHeap<T>,
-    init_info: Option<ProposalInit>,
-    seen_sequences: HashSet<Sequence>,
-    next_sequence: Sequence,
-    total_messages: usize,
-    fin_received: bool,
-    emitted_messages: usize,
+#[derive_where(Default, Debug)]
+pub struct StreamState<T: Debug> {
+    pub buffer: MinHeap<T>,
+    pub init_info: Option<ProposalInit>,
+    pub seen_sequences: HashSet<Sequence>,
+    pub next_sequence: Sequence,
+    pub total_messages: usize,
+    pub fin_received: bool,
+    pub emitted_messages: usize,
 }
 
-impl<T> StreamState<T> {
+impl<T: Debug> StreamState<T> {
     fn has_emitted_all_messages(&self) -> bool {
         self.fin_received && self.emitted_messages == self.total_messages
     }
