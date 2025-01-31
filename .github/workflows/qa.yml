@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       BINARY_NAME: informalsystems-malachitebft-starknet-app
-      NODE_COUNT: 2  # Set the number of nodes
+      NODE_COUNT: 2
 
     steps:
       - name: Checkout Code
@@ -20,7 +20,7 @@ jobs:
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.6.0  # Specify the Terraform version
+          terraform_version: 1.6.0 
 
       - name: Terraform Init
         working-directory: terraform
@@ -36,24 +36,27 @@ jobs:
 
       - name: Wait for Droplets Fully Initialize
         run: |
-          echo "Waiting 10 seconds for DigitalOcean to assign public IPs..."
           sleep 10
 
       - name: Fetch Node IPs
         working-directory: terraform
         run: |
+          sleep 30  # Ensure Droplets have IPs assigned
           echo "Fetching node IPs..."
-          NODE_IPS=$(terraform output -json droplet_ips | grep -v "/home/runner/" | jq -r '.[]')
+          terraform output -json droplet_ips
+          NODE_IPS=$(terraform output -json droplet_ips | jq -r '.[]')
+          if [ -z "$NODE_IPS" ]; then
+            echo "No IPs found! Exiting..."
+            exit 1
+          fi
           echo "Node IPs: $NODE_IPS"
           echo "NODE_IPS=$NODE_IPS" >> $GITHUB_ENV
-          
+    
 
       - name: Terraform Destroy (Cleanup Nodes)
         if: always()
         working-directory: terraform
         run: |
-          echo "Starting Terraform destroy..."
-
           terraform destroy -auto-approve \
             -var="do_token=${{ secrets.DO_TOKEN }}" \
             -var="do_ssh_fingerprint=${{ secrets.DO_SSH_FINGERPRINT }}"
