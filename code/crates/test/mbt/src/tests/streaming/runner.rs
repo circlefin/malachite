@@ -1,14 +1,32 @@
 use super::utils;
-use crate::streaming::State as StateQuint;
+use crate::streaming::{MessageType, State as StateQuint};
 use itf::Runner as ItfRunner;
-use malachitebft_starknet_host::{proto::ProposalPart, streaming::StreamState as StreamStateImpl};
-pub struct StreamingRunner {}
+use malachitebft_core_types::Round;
+use malachitebft_engine::util::streaming::{StreamContent, StreamMessage};
+use malachitebft_peer::PeerId;
+use malachitebft_starknet_host::{
+    streaming::{PartStreamsMap, StreamState as StreamStateImpl},
+    types::{Address, Height, ProposalInit, ProposalPart, Transaction, Transactions},
+};
+
+pub struct StreamingRunner {
+    peer_id: PeerId,
+    stream_id: u64,
+}
+
+impl StreamingRunner {
+    pub fn new(peer_id: PeerId, stream_id: u64) -> Self {
+        Self { peer_id, stream_id }
+    }
+}
 
 impl ItfRunner for StreamingRunner {
     //TODO: Rename State names?
-    type ActualState = StreamStateImpl<ProposalPart>;
+    // type ActualState = StreamStateImpl<ProposalPart>;
+    type ActualState = PartStreamsMap;
     //TODO: Check if this is right to be Result
-    type Result = StreamStateImpl<ProposalPart>;
+    // There is no result in the model, so it is empty
+    type Result = ();
 
     type ExpectedState = StateQuint;
 
@@ -16,8 +34,11 @@ impl ItfRunner for StreamingRunner {
 
     fn init(&mut self, expected: &Self::ExpectedState) -> Result<Self::ActualState, Self::Error> {
         println!("🔵 init: expected state={:?}", expected.state);
-
-        Ok(StreamStateImpl::default())
+        let mut streams_map = PartStreamsMap::default();
+        streams_map
+            .streams
+            .insert((self.peer_id, self.stream_id), StreamStateImpl::default());
+        Ok(streams_map)
     }
 
     fn step(
@@ -25,15 +46,104 @@ impl ItfRunner for StreamingRunner {
         actual: &mut Self::ActualState,
         expected: &Self::ExpectedState,
     ) -> Result<Self::Result, Self::Error> {
-        todo!()
+        let stream_state = actual.streams.get(&(self.peer_id, self.stream_id)).unwrap();
+
+        println!("🔸 step: actual state={:?}", stream_state);
+        println!("🔸 step: model input={:?}", expected.incoming_message);
+        println!("🔸 step: model state={:?}", expected.state);
+
+        match &expected.incoming_message {
+            Some(msg) => match &msg.msg_type {
+                MessageType::Init => {
+                    let bytes: [u8; 32] = [
+                        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C,
+                        0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
+                        0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20,
+                    ];
+                    let proposer_addr = Address::new(bytes);
+
+                    let height = Height {
+                        block_number: 1,
+                        fork_id: 1,
+                    };
+
+                    let round = Round::new(2);
+                    let valid_round = Round::new(1);
+
+                    let proposal_init = ProposalInit {
+                        height: height,
+                        proposal_round: round,
+                        valid_round: valid_round,
+                        proposer: proposer_addr,
+                    };
+                    let message = StreamMessage::<ProposalPart>::new(
+                        self.stream_id,
+                        msg.sequence as u64,
+                        StreamContent::Data(ProposalPart::Init(proposal_init)),
+                    );
+                    actual.insert(self.peer_id, message);
+                }
+                MessageType::Data => {
+                    // Create some dummy transactions
+                    let tx1 = Transaction::new(vec![0x01, 0x02, 0x03]);
+                    let tx2 = Transaction::new(vec![0x04, 0x05, 0x06]);
+                    let tx3 = Transaction::new(vec![0x07, 0x08, 0x09]);
+
+                    let tx_vec = vec![tx1, tx2, tx3];
+
+                    // Create a new Transactions batch
+                    let transactions = Transactions::new(tx_vec);
+                    let message = StreamMessage::<ProposalPart>::new(
+                        self.stream_id,
+                        msg.sequence as u64,
+                        StreamContent::Data(ProposalPart::Transactions(transactions)),
+                    );
+                    actual.insert(self.peer_id, message);
+                }
+                MessageType::Fin => {
+                    // // Example value for the signature
+                    // // Example byte arrays for r and s
+                    // let r_bytes = [0x01; 32];
+                    // let s_bytes = [0x02; 32];
+
+                    // // Create Felt instances from byte arrays
+                    // let r = Felt::from_bytes_be_slice(&r_bytes);
+                    // let s = Felt::from_bytes_be_slice(&s_bytes);
+
+                    // // Create a StarknetSignature instance
+                    // let starknet_signature = StarknetSignature { r, s };
+
+                    // // Instantiate the Signature struct
+                    // let signature = Signature::from_starknet_sig(starknet_signature);
+
+                    // Instantiate the ProposalFin struct
+                    // let proposal_fin = ProposalFin { signature };
+
+                    //Q: StreamContent can be Data or Fin, but also ProposalPart has Fin variant
+                    // When will ProposalPart::Fin be used?
+                    let message = StreamMessage::<ProposalPart>::new(
+                        self.stream_id,
+                        msg.sequence as u64,
+                        StreamContent::Fin(true),
+                    );
+                    actual.insert(self.peer_id, message);
+                }
+            },
+            None => {
+                return Ok(());
+            }
+        }
+
+        Ok(())
     }
 
+    // If there is no result, then the result invariant is always true
     fn result_invariant(
         &self,
-        result: &Self::Result,
-        expected: &Self::ExpectedState,
+        _result: &Self::Result,
+        _expected: &Self::ExpectedState,
     ) -> Result<bool, Self::Error> {
-        todo!()
+        Ok(true)
     }
 
     fn state_invariant(
@@ -41,47 +151,67 @@ impl ItfRunner for StreamingRunner {
         actual: &Self::ActualState,
         expected: &Self::ExpectedState,
     ) -> Result<bool, Self::Error> {
-        println!("🟢 state invariant: actual state={:?}", actual);
-        println!("🟢 state invariant: expected state={:?}", expected.state);
+        let stream_state = actual.streams.get(&(self.peer_id, self.stream_id));
 
-        assert!(
-            utils::compare_buffers(&actual.buffer, &expected.state.buffer),
-            "unexpected buffer value"
-        );
+        match stream_state {
+            Some(stream_state) => {
+                println!("🟢 state invariant: actual state={:?}", stream_state);
+                println!("🟢 state invariant: expected state={:?}", expected.state);
 
-        // Quint spec doesn't go in much detail about proposal init message
-        assert_eq!(
-            actual.init_info.is_some(),
-            expected.state.init_message.is_some(),
-            "unexpected init info value"
-        );
+                assert!(
+                    utils::compare_buffers(&stream_state.buffer, &expected.state.buffer),
+                    "unexpected buffer value"
+                );
 
-        assert!(
-            utils::messages_equal_sequences(&actual.seen_sequences, &expected.state.received),
-            "unexpected seen sequences value"
-        );
+                assert_eq!(
+                    stream_state.init_info.is_some(),
+                    expected.state.init_message.is_some(),
+                    "unexpected init info value"
+                );
 
-        assert_eq!(
-            actual.next_sequence, expected.state.next_sequence as u64,
-            "unexpected next sequence value"
-        );
+                assert!(
+                    utils::messages_equal_sequences(
+                        &stream_state.seen_sequences,
+                        &expected.state.received
+                    ),
+                    "unexpected seen sequences value"
+                );
 
-        assert_eq!(
-            actual.total_messages as i32, expected.state.total_messages,
-            "unexpected total messages value"
-        );
+                assert_eq!(
+                    stream_state.next_sequence, expected.state.next_sequence as u64,
+                    "unexpected next sequence value"
+                );
 
-        assert_eq!(
-            actual.fin_received, expected.state.fin_received,
-            "unexpected fin received value"
-        );
+                assert_eq!(
+                    stream_state.total_messages as i32, expected.state.total_messages,
+                    "unexpected total messages value"
+                );
 
-        assert_eq!(
-            actual.emitted_messages,
-            expected.state.emitted.len(),
-            "unexpected emmited messages value"
-        );
+                assert_eq!(
+                    stream_state.fin_received, expected.state.fin_received,
+                    "unexpected fin received value"
+                );
 
-        Ok(true)
+                assert_eq!(
+                    stream_state.emitted_messages,
+                    expected.state.emitted.len(),
+                    "unexpected emitted messages value"
+                );
+
+                Ok(true)
+            }
+            None => {
+                // Total messages is updated only when fin message is received
+
+                // This means message is emitted completely, thus stream (StreamState) is
+                //  removed from map
+                // TODO: make more robust check if whole message is emitted
+                if expected.state.total_messages != 0 {
+                    return Ok(true);
+                } else {
+                    return Ok(false);
+                }
+            }
+        }
     }
 }

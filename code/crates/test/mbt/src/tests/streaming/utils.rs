@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crate::streaming::{Buffer, Message};
 use malachitebft_engine::util::streaming::Sequence;
-use malachitebft_starknet_host::{proto::ProposalPart, streaming::MinHeap};
+use malachitebft_starknet_host::{streaming::MinHeap, types::ProposalPart};
 
 pub fn messages_equal_sequences(
     sequences: &HashSet<Sequence>,

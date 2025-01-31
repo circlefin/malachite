@@ -9,8 +9,11 @@ use std::{
 pub type Sequence = i64;
 pub type Payload = String;
 
+// This and buffer struct are defined just for testing purposes so they implement and contain
+// only the necessary functions and fields (e.g. push, peek, pop functions are not implemented)
+
 #[derive(Clone, Debug, Deserialize)]
-pub struct BufferRecord(#[serde(with = "As::<Integer>")] pub Sequence, Message);
+pub struct BufferRecord(#[serde(with = "As::<Integer>")] pub Sequence, pub Message);
 
 impl PartialEq for BufferRecord {
     fn eq(&self, other: &Self) -> bool {
@@ -26,7 +29,7 @@ impl PartialOrd for BufferRecord {
     }
 }
 
-// Buffer should act as MinHeap so the oredering is reversed
+// Buffer should act as MinHeap so the ordering is reversed
 impl Ord for BufferRecord {
     fn cmp(&self, other: &Self) -> Ordering {
         other.0.cmp(&self.0)
@@ -43,20 +46,6 @@ impl PartialEq for Buffer {
 }
 
 impl Eq for Buffer {}
-
-impl Buffer {
-    fn push(&mut self, msg: BufferRecord) {
-        self.0.push(BufferRecord(msg.0, msg.1));
-    }
-
-    pub fn pop(&mut self) -> Option<BufferRecord> {
-        self.0.pop().map(|msg| msg)
-    }
-
-    fn peek(&self) -> Option<&BufferRecord> {
-        self.0.peek().map(|msg| msg)
-    }
-}
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Hash)]
 #[serde(tag = "tag")]

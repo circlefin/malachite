@@ -1,10 +1,13 @@
 use glob::glob;
+use malachitebft_peer::PeerId;
 
 use crate::streaming::State;
 use crate::utils::{generate_test_traces, quint_seed};
 
 pub mod runner;
 pub mod utils;
+
+const SHA2_256: u64 = 0x12;
 
 #[test]
 fn test_itf() {
@@ -37,7 +40,10 @@ fn test_itf() {
         let json = std::fs::read_to_string(&json_fixture).unwrap();
         let trace = itf::trace_from_str::<State>(&json).unwrap();
 
-        let streaming_runner = runner::StreamingRunner {};
+        let hash = multihash::Multihash::<64>::wrap(SHA2_256, b"PeerId").unwrap();
+        let peer_id = PeerId::from_multihash(hash).unwrap();
+
+        let streaming_runner = runner::StreamingRunner::new(peer_id, 0);
         trace.run_on(streaming_runner).unwrap();
     }
 }
