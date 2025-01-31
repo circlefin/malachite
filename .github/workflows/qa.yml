@@ -41,15 +41,11 @@ jobs:
       - name: Fetch Node IPs
         working-directory: terraform
         run: |
-          # Write Terraform output to a temp file to avoid GitHub Actions interference
-          terraform output -json droplet_ips | tee node_ips.json
+          # Explicitly extract JSON without GitHub Actions metadata
+          RAW_NODE_IPS=$(terraform output -json droplet_ips 2>/dev/null | jq -c .)
 
-          # Debug: Print raw file content
-          echo "Raw Node IPs from file:"
-          cat node_ips.json
-
-          # Read clean JSON from file
-          RAW_NODE_IPS=$(cat node_ips.json)
+          # Debug: Print cleaned JSON output
+          echo "Raw Node IPs: $RAW_NODE_IPS"
 
           # Ensure the output is valid JSON
           if ! echo "$RAW_NODE_IPS" | jq empty; then
@@ -62,6 +58,7 @@ jobs:
 
           echo "Parsed Node IPs: $NODE_IPS"
           echo "NODE_IPS=$NODE_IPS" >> $GITHUB_ENV
+
 
 
 
