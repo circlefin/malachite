@@ -14,7 +14,6 @@ use malachitebft_core_types::{CommitCertificate, Extension, Round, SignedExtensi
 use crate::host::Host;
 use crate::mempool::MempoolRef;
 use crate::mempool_load::MempoolLoadRef;
-// use crate::mempool_load::MempoolLoadRef;
 use crate::part_store::PartStore;
 use crate::types::*;
 

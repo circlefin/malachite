@@ -1,12 +1,15 @@
-use crate::proto::Protobuf;
+use std::time::Duration;
+
 use async_trait::async_trait;
+use rand::{Rng, RngCore};
+use tracing::debug;
+use ractor::{concurrency::JoinHandle, Actor, ActorProcessingErr, ActorRef};
+
 use malachitebft_config::MempoolLoadType;
 use malachitebft_starknet_p2p_types::{Transaction, Transactions};
 use malachitebft_test_mempool::types::MempoolTransactionBatch;
-use ractor::{concurrency::JoinHandle, Actor, ActorProcessingErr, ActorRef};
-use rand::{Rng, RngCore};
-use std::time::Duration;
-use tracing::debug;
+
+use crate::proto::Protobuf;
 
 use crate::{
     mempool::network::{MempoolNetworkMsg, MempoolNetworkRef},
@@ -15,6 +18,7 @@ use crate::{
 
 pub type MempoolLoadMsg = Msg;
 pub type MempoolLoadRef = ActorRef<Msg>;
+
 pub enum Msg {
     GenerateTransactions { count: usize, size: usize },
 }
@@ -38,10 +42,7 @@ pub struct MempoolLoad {
 impl Default for Params {
     fn default() -> Self {
         Self {
-            load_type: MempoolLoadType::UniformLoad {
-                size: 555,
-                count: 127,
-            },
+            load_type: MempoolLoadType::NoLoad
         }
     }
 }
