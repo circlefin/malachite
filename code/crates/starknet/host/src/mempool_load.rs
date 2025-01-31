@@ -1,7 +1,9 @@
+use std::thread::sleep;
 use std::time::Duration;
 
 use async_trait::async_trait;
 use ractor::{concurrency::JoinHandle, Actor, ActorProcessingErr, ActorRef};
+use rand::seq::IteratorRandom;
 use rand::{Rng, RngCore};
 use tracing::debug;
 
@@ -28,7 +30,7 @@ pub struct State {
     ticker: JoinHandle<()>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Params {
     pub load_type: MempoolLoadType,
 }
@@ -37,14 +39,6 @@ pub struct MempoolLoad {
     params: Params,
     network: MempoolNetworkRef,
     span: tracing::Span,
-}
-
-impl Default for Params {
-    fn default() -> Self {
-        Self {
-            load_type: MempoolLoadType::default(),
-        }
-    }
 }
 
 impl MempoolLoad {
@@ -100,29 +94,49 @@ impl Actor for MempoolLoad {
         debug!("starting ticker");
 
         let ticker = match self.params.load_type.clone() {
-            MempoolLoadType::UniformLoad(uniform_load_config) => {
-                // debug!("entered uniform load branch");
-                tokio::spawn(ticker(
-                    uniform_load_config.interval(),
-                    myself.clone(),
-                    move || Msg::GenerateTransactions {
-                        count: uniform_load_config.count(),
-                        size: uniform_load_config.size(),
-                    },
-                ))
-            }
+            MempoolLoadType::UniformLoad(uniform_load_config) => tokio::spawn(ticker(
+                uniform_load_config.interval(),
+                myself.clone(),
+                move || Msg::GenerateTransactions {
+                    count: uniform_load_config.count(),
+                    size: uniform_load_config.size(),
+                },
+            )),
             MempoolLoadType::NoLoad => tokio::spawn(async {}),
-            MempoolLoadType::NonUniformLoad(non_uniform_load) => {
-                // debug!("entered nonuniform load branch");
-
+            MempoolLoadType::NonUniformLoad(params) => tokio::spawn(async move {
+                // loop {
                 let mut rng = rand::thread_rng();
-                let interval = Duration::from_secs(rng.gen_range(1..10));
-                let count = rng.gen_range(500..=10000) as usize;
-                let size = rng.gen_range(128..=512) as usize;
-                tokio::spawn(ticker(interval, myself.clone(), move || {
-                    Msg::GenerateTransactions { count, size }
-                }))
-            }
+                // Determine if this iteration should generate a spike
+                let is_spike = rng.gen_bool(params.spike_probability());
+
+                // Vary transaction count and size
+                let count_variation = rng.gen_range(params.count_variation());
+                let size_variation = rng.gen_range(params.size_variation());
+
+                let count = if is_spike {
+                    (params.base_count() + count_variation as usize) * params.spike_multiplier()
+                } else {
+                    params.base_count() + count_variation as usize
+                };
+
+                let size = params.base_size() + size_variation as usize;
+
+                // Create and send the message
+                let msg = Msg::GenerateTransactions {
+                    count: count.max(1), // Ensure count is at least 1
+                    size: size.max(1),   // Ensure size is at least 1
+                };
+
+                if let Err(er) = myself.cast(msg) {
+                    tracing::error!(?er, ?myself, "Failed to send tick message");
+                    // break;
+                }
+                // Random sleep between 100ms and 1s
+                let sleep_duration =
+                    Duration::from_millis(params.sleep_interval().choose(&mut rng).unwrap());
+                sleep(sleep_duration);
+                // }
+            }),
         };
         Ok(State { ticker })
     }

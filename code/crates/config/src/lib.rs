@@ -356,7 +356,7 @@ impl Default for MempoolLoadType {
         Self::UniformLoad(UniformLoadConfig::default())
     }
 }
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(from = "nonuniformload::RawConfig", default)]
 pub struct NonUniformLoadConfig {
     /// Base transaction count
@@ -424,19 +424,6 @@ impl NonUniformLoadConfig {
     }
 }
 
-impl Default for NonUniformLoadConfig {
-    fn default() -> Self {
-        Self {
-            base_count: Default::default(),
-            base_size: Default::default(),
-            count_variation: Default::default(),
-            size_variation: Default::default(),
-            spike_probability: Default::default(),
-            spike_multiplier: Default::default(),
-            sleep_interval: Default::default(),
-        }
-    }
-}
 mod nonuniformload {
     #[derive(serde::Deserialize)]
     pub struct RawConfig {
@@ -495,9 +482,9 @@ pub struct UniformLoadConfig {
 impl UniformLoadConfig {
     fn new(interval: Duration, count: usize, size: usize) -> Self {
         Self {
-            interval: interval,
-            count: count,
-            size: size,
+            interval,
+            count,
+            size,
         }
     }
     pub fn interval(&self) -> Duration {
