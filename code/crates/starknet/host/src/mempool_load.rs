@@ -99,7 +99,7 @@ impl Actor for MempoolLoad {
     ) -> Result<State, ActorProcessingErr> {
         debug!("starting ticker");
 
-        let ticker = match self.params.load_type {
+        let ticker = match self.params.load_type.clone() {
             MempoolLoadType::UniformLoad(uniform_load_config) => {
                 // debug!("entered uniform load branch");
                 tokio::spawn(ticker(
@@ -112,7 +112,7 @@ impl Actor for MempoolLoad {
                 ))
             }
             MempoolLoadType::NoLoad => tokio::spawn(async {}),
-            MempoolLoadType::NonUniformLoad => {
+            MempoolLoadType::NonUniformLoad(non_uniform_load) => {
                 // debug!("entered nonuniform load branch");
 
                 let mut rng = rand::thread_rng();

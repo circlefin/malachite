@@ -342,13 +342,13 @@ mod gossipsub {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "load_type", rename_all = "snake_case")]
 pub enum MempoolLoadType {
     UniformLoad(UniformLoadConfig),
     // #[default]
     NoLoad,
-    NonUniformLoad,
+    NonUniformLoad(NonUniformLoadConfig),
 }
 
 impl Default for MempoolLoadType {
@@ -356,7 +356,134 @@ impl Default for MempoolLoadType {
         Self::UniformLoad(UniformLoadConfig::default())
     }
 }
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(from = "nonuniformload::RawConfig", default)]
+pub struct NonUniformLoadConfig {
+    /// Base transaction count
+    base_count: usize,
 
+    /// Base transaction size
+    base_size: usize,
+
+    /// How much the transaction count can vary
+    count_variation: std::ops::Range<i32>,
+
+    size_variation: std::ops::Range<i32>,
+
+    /// Chance of generating a spike.
+    /// e.g. 0.1 = 10% chance of spike
+    spike_probability: f64,
+
+    /// Multiplier for spike transactions
+    /// e.g. 10 = 10x more transactions during spike
+    spike_multiplier: usize,
+
+    /// Range of intervals between generating load, in milliseconds
+    sleep_interval: std::ops::Range<u64>,
+}
+impl NonUniformLoadConfig {
+    pub fn new(
+        base_count: usize,
+        base_size: usize,
+        count_variation: std::ops::Range<i32>,
+        size_variation: std::ops::Range<i32>,
+        spike_probability: f64,
+        spike_multiplier: usize,
+        sleep_interval: std::ops::Range<u64>,
+    ) -> Self {
+        Self {
+            base_count,
+            base_size,
+            count_variation,
+            size_variation,
+            spike_probability,
+            spike_multiplier,
+            sleep_interval,
+        }
+    }
+    pub fn base_count(&self) -> usize {
+        self.base_count
+    }
+    pub fn base_size(&self) -> usize {
+        self.base_size
+    }
+    pub fn count_variation(&self) -> std::ops::Range<i32> {
+        self.count_variation.clone()
+    }
+    pub fn size_variation(&self) -> std::ops::Range<i32> {
+        self.size_variation.clone()
+    }
+    pub fn spike_probability(&self) -> f64 {
+        self.spike_probability
+    }
+    pub fn spike_multiplier(&self) -> usize {
+        self.spike_multiplier
+    }
+    pub fn sleep_interval(&self) -> std::ops::Range<u64> {
+        self.sleep_interval.clone()
+    }
+}
+
+impl Default for NonUniformLoadConfig {
+    fn default() -> Self {
+        Self {
+            base_count: Default::default(),
+            base_size: Default::default(),
+            count_variation: Default::default(),
+            size_variation: Default::default(),
+            spike_probability: Default::default(),
+            spike_multiplier: Default::default(),
+            sleep_interval: Default::default(),
+        }
+    }
+}
+mod nonuniformload {
+    #[derive(serde::Deserialize)]
+    pub struct RawConfig {
+        /// Base transaction count
+        #[serde(default)]
+        base_count: usize,
+
+        /// Base transaction size
+        #[serde(default)]
+        base_size: usize,
+
+        /// How much the transaction count can vary
+        #[serde(default)]
+        count_variation: std::ops::Range<i32>,
+
+        #[serde(default)]
+        size_variation: std::ops::Range<i32>,
+
+        /// Chance of generating a spike.
+        /// e.g. 0.1 = 10% chance of spike
+        #[serde(default)]
+        spike_probability: f64,
+
+        /// Multiplier for spike transactions
+        /// e.g. 10 = 10x more transactions during spike
+        #[serde(default)]
+        spike_multiplier: usize,
+
+        /// Range of intervals between generating load, in milliseconds
+        #[serde(default)]
+        sleep_interval: std::ops::Range<u64>,
+    }
+
+    impl From<RawConfig> for super::NonUniformLoadConfig {
+        fn from(raw: RawConfig) -> Self {
+            super::NonUniformLoadConfig::new(
+                raw.base_count,
+                raw.base_size,
+                raw.count_variation,
+                raw.size_variation,
+                raw.spike_probability,
+                raw.spike_multiplier,
+                raw.sleep_interval,
+            )
+        }
+    }
+}
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(from = "uniformload::RawConfig", default)]
 pub struct UniformLoadConfig {

@@ -303,7 +303,7 @@ async fn spawn_mempool_load_actor(
 ) -> MempoolLoadRef {
     MempoolLoad::spawn(
         Params {
-            load_type: mempool_load_config.load_type,
+            load_type: mempool_load_config.load_type.clone(),
         },
         network,
         span.clone(),
