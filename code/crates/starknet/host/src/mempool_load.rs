@@ -1,9 +1,9 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
+use ractor::{concurrency::JoinHandle, Actor, ActorProcessingErr, ActorRef};
 use rand::{Rng, RngCore};
 use tracing::debug;
-use ractor::{concurrency::JoinHandle, Actor, ActorProcessingErr, ActorRef};
 
 use malachitebft_config::MempoolLoadType;
 use malachitebft_starknet_p2p_types::{Transaction, Transactions};
@@ -42,7 +42,7 @@ pub struct MempoolLoad {
 impl Default for Params {
     fn default() -> Self {
         Self {
-            load_type: MempoolLoadType::NoLoad
+            load_type: MempoolLoadType::NoLoad,
         }
     }
 }
