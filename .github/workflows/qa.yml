@@ -42,7 +42,7 @@ jobs:
         working-directory: terraform
         run: |
           echo "Fetching node IPs..."
-          NODE_IPS=$(terraform output -json droplet_ips | sed -n 2p | jq -r '.[]')
+          NODE_IPS=$(terraform output -json droplet_ips | sed -n 2p | jq -r 'join(" ")')
           echo "NODE_IPS=$NODE_IPS" >> $GITHUB_ENV
           echo "Node IPs: $NODE_IPS"
 
