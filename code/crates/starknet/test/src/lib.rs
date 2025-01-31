@@ -737,7 +737,7 @@ pub fn make_node_config<S>(test: &Test<S>, i: usize) -> NodeConfig {
             gossip_batch_size: 100,
         },
         mempool_load: MempoolLoadConfig {
-            load_type: MempoolLoadType::NonUniformLoad,
+            load_type: MempoolLoadType::default(),
         },
         sync: SyncConfig {
             enabled: true,

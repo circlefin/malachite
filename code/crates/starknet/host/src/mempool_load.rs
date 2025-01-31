@@ -42,7 +42,7 @@ pub struct MempoolLoad {
 impl Default for Params {
     fn default() -> Self {
         Self {
-            load_type: MempoolLoadType::NoLoad,
+            load_type: MempoolLoadType::default(),
         }
     }
 }
@@ -80,7 +80,7 @@ impl MempoolLoad {
 
             transactions.push(tx);
         }
-        debug!("transactions generated {:?}", transactions.clone().len());
+        // debug!("transactions generated {:?}", transactions.clone().len());
 
         transactions
     }
@@ -100,17 +100,20 @@ impl Actor for MempoolLoad {
         debug!("starting ticker");
 
         let ticker = match self.params.load_type {
-            MempoolLoadType::UniformLoad { count, size } => {
-                debug!("entered uniform load branch");
-
-                let interval = Duration::from_secs(1);
-                tokio::spawn(ticker(interval, myself.clone(), move || {
-                    Msg::GenerateTransactions { count, size }
-                }))
+            MempoolLoadType::UniformLoad(uniform_load_config) => {
+                // debug!("entered uniform load branch");
+                tokio::spawn(ticker(
+                    uniform_load_config.interval(),
+                    myself.clone(),
+                    move || Msg::GenerateTransactions {
+                        count: uniform_load_config.count(),
+                        size: uniform_load_config.size(),
+                    },
+                ))
             }
             MempoolLoadType::NoLoad => tokio::spawn(async {}),
             MempoolLoadType::NonUniformLoad => {
-                debug!("entered nonuniform load branch");
+                // debug!("entered nonuniform load branch");
 
                 let mut rng = rand::thread_rng();
                 let interval = Duration::from_secs(rng.gen_range(1..10));
@@ -142,13 +145,13 @@ impl Actor for MempoolLoad {
     ) -> Result<(), ActorProcessingErr> {
         match msg {
             Msg::GenerateTransactions { count, size } => {
-                debug!("entered message handler GenerateTransactions");
+                // debug!("entered message handler GenerateTransactions");
 
                 let transactions = Self::generate_transactions(count, size);
-                debug!("broadcasting transactions {:?}", transactions.len());
+                // debug!("broadcasting transactions {:?}", transactions.len());
 
                 let tx_batch = Transactions::new(transactions).to_any().unwrap();
-                debug!("broadcasting batch {:?}", tx_batch.clone().value.len());
+                // debug!("broadcasting batch {:?}", tx_batch.clone().value.len());
 
                 let mempool_batch: MempoolTransactionBatch = MempoolTransactionBatch::new(tx_batch);
 

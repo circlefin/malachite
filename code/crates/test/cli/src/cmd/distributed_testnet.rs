@@ -294,7 +294,7 @@ fn generate_distributed_config(
             gossip_batch_size: 0,
         },
         mempool_load: MempoolLoadConfig {
-            load_type: MempoolLoadType::NonUniformLoad,
+            load_type: MempoolLoadType::default(),
         },
         sync: SyncConfig {
             enabled: false,

@@ -342,18 +342,75 @@ mod gossipsub {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "load_type", rename_all = "snake_case")]
 pub enum MempoolLoadType {
-    UniformLoad {
-        count: usize,
-        size: usize,
-    },
-    #[default]
+    UniformLoad(UniformLoadConfig),
+    // #[default]
     NoLoad,
     NonUniformLoad,
 }
 
+impl Default for MempoolLoadType {
+    fn default() -> Self {
+        Self::UniformLoad(UniformLoadConfig::default())
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(from = "uniformload::RawConfig", default)]
+pub struct UniformLoadConfig {
+    #[serde(with = "humantime_serde")]
+    interval: Duration,
+    count: usize,
+    size: usize,
+}
+impl UniformLoadConfig {
+    fn new(interval: Duration, count: usize, size: usize) -> Self {
+        Self {
+            interval: interval,
+            count: count,
+            size: size,
+        }
+    }
+    pub fn interval(&self) -> Duration {
+        self.interval
+    }
+
+    pub fn count(&self) -> usize {
+        self.count
+    }
+
+    pub fn size(&self) -> usize {
+        self.size
+    }
+}
+impl Default for UniformLoadConfig {
+    fn default() -> Self {
+        Self::new(Duration::from_secs(10), 1000, 256)
+    }
+}
+
+mod uniformload {
+    use std::time::Duration;
+
+    #[derive(serde::Deserialize)]
+    pub struct RawConfig {
+        #[serde(default)]
+        #[serde(with = "humantime_serde")]
+        interval: Duration,
+        #[serde(default)]
+        count: usize,
+        #[serde(default)]
+        size: usize,
+    }
+
+    impl From<RawConfig> for super::UniformLoadConfig {
+        fn from(raw: RawConfig) -> Self {
+            super::UniformLoadConfig::new(raw.interval, raw.count, raw.size)
+        }
+    }
+}
 /// Mempool configuration options
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct MempoolLoadConfig {
@@ -436,7 +493,7 @@ pub struct TimeoutConfig {
     #[serde(with = "humantime_serde")]
     pub timeout_propose_delta: Duration,
 
-    /// How long we wait after receiving +2/3 prevotes for "anything" (ie. not a single block or nil)
+    /// How long we wait after receiving +2/3 prevotes for “anything” (ie. not a single block or nil)
     #[serde(with = "humantime_serde")]
     pub timeout_prevote: Duration,
 

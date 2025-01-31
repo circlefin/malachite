@@ -181,10 +181,19 @@ type = "gossipsub"
 ###       Mempool Load Configuration Options        ###
 #######################################################
 
-[mempool_load]
+[mempool_load.load_type]
 # Sets the type of generation for mempool transactions
 # Valid options are "no_load", "uniform_load", "non_uniform_load"
-load_type = "no_load"
+load_type = "uniform_load"
+
+# Only available when "uniform_load", mempool load interval
+interval = "5s"
+
+# Only available when "uniform_load", mempool load size
+size = 256
+
+# Only available when "uniform_load", mempool load count
+count = 1000
 
 #######################################################
 ###         Sync Configuration Options         ###

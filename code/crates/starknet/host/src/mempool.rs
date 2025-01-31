@@ -4,7 +4,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use bytesize::ByteSize;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
-use rand::RngCore;
 use tracing::{debug, info, trace};
 
 use malachitebft_test_mempool::types::MempoolTransactionBatch;
@@ -216,14 +215,15 @@ impl Actor for Mempool {
                 reply.send(txes)?;
             }
 
-            Msg::Update { .. } => {
+            Msg::Update { tx_hashes } => {
                 // Clear all transactions from the mempool, given that we consume
                 // the full mempool when proposing a block.
                 //
                 // This reduces the mempool protocol overhead and allow us to
                 // observe issues strictly related to consensus.
                 // It also bumps performance, as we reduce the mempool's background traffic.
-                state.transactions.clear();
+                // state.transactions.clear();
+                tx_hashes.iter().for_each(|hash| state.remove_tx(hash));
             }
         }
 
@@ -254,35 +254,39 @@ fn generate_and_broadcast_txes(
     let gossip_enabled = gossip_batch_size > 0;
 
     // Start with transactions already in the mempool
-    let mut transactions = std::mem::take(&mut state.transactions)
+    let transactions = std::mem::take(&mut state.transactions)
         .into_values()
         .take(count)
         .collect::<Vec<_>>();
 
-    let initial_count = transactions.len();
+    // let initial_count = transactions.len();
 
-    let mut tx_batch = Transactions::default();
-    let mut rng = rand::thread_rng();
+    let mut tx_batch = Transactions::new(transactions.clone());
+    // let mut rng = rand::thread_rng();
 
-    for _ in initial_count..count {
-        // Generate transaction
-        let mut tx_bytes = vec![0; size];
-        rng.fill_bytes(&mut tx_bytes);
-        let tx = Transaction::new(tx_bytes);
-
-        if gossip_enabled {
-            tx_batch.push(tx.clone());
-        }
-
-        transactions.push(tx);
-
-        // Gossip tx-es to peers in batches
-        if gossip_enabled && tx_batch.len() >= batch_size {
-            let tx_batch = std::mem::take(&mut tx_batch).to_any().unwrap();
-            let mempool_batch = MempoolTransactionBatch::new(tx_batch);
-            mempool_network.cast(MempoolNetworkMsg::BroadcastMsg(mempool_batch))?;
-        }
+    if gossip_enabled && tx_batch.len() >= batch_size {
+        let tx_batch = std::mem::take(&mut tx_batch).to_any().unwrap();
+        let mempool_batch = MempoolTransactionBatch::new(tx_batch);
+        mempool_network.cast(MempoolNetworkMsg::BroadcastMsg(mempool_batch))?;
     }
+    debug!("reaped transactions: {:?}", transactions.len());
+    // for _ in initial_count..count {
+    //     // Generate transaction
+    //     let mut tx_bytes = vec![0; size];
+    //     rng.fill_bytes(&mut tx_bytes);
+    //     let tx = Transaction::new(tx_bytes);
+
+    //     if gossip_enabled {
+    //         tx_batch.push(tx.clone());
+    //     }
+
+    //     transactions.push(tx);
+
+    //     // Gossip tx-es to peers in batches
+    //     if gossip_enabled && tx_batch.len() >= batch_size {
+
+    //     }
+    // }
 
     Ok(transactions)
 }

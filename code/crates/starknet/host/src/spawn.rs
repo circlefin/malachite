@@ -301,9 +301,6 @@ async fn spawn_mempool_load_actor(
     network: MempoolNetworkRef,
     span: &tracing::Span,
 ) -> MempoolLoadRef {
-    // let params = mempool_load::Params::default();
-
-    // debug!("spawned mempool load actor with params {:?}", params);
     MempoolLoad::spawn(
         Params {
             load_type: mempool_load_config.load_type,
