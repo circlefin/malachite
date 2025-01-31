@@ -36,22 +36,27 @@ jobs:
 
       - name: Wait for Droplets Fully Initialize
         run: |
-          sleep 10
+          sleep 30
 
       - name: Fetch Node IPs
         working-directory: terraform
         run: |
-          sleep 30  # Ensure Droplets have IPs assigned
-          echo "Fetching node IPs..."
-          terraform output -json droplet_ips
-          NODE_IPS=$(terraform output -json droplet_ips | jq -r '.[]')
+          # Store raw Terraform output
+          RAW_NODE_IPS=$(terraform output -json droplet_ips)
+          
+          # Ensure the JSON output is well-formed
+          echo "Raw Node IPs: $RAW_NODE_IPS"
+          
+          # Extract IPs correctly
+          NODE_IPS=$(echo "$RAW_NODE_IPS" | jq -c 'join(" ")')
+          
           if [ -z "$NODE_IPS" ]; then
             echo "No IPs found! Exiting..."
             exit 1
           fi
-          echo "Node IPs: $NODE_IPS"
+          
+          echo "Parsed Node IPs: $NODE_IPS"
           echo "NODE_IPS=$NODE_IPS" >> $GITHUB_ENV
-    
 
       - name: Terraform Destroy (Cleanup Nodes)
         if: always()
