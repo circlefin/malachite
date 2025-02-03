@@ -34,9 +34,8 @@ jobs:
             -var="do_ssh_fingerprint=${{ secrets.DO_SSH_FINGERPRINT }}" \
             -var="node_count=${{ env.NODE_COUNT }}"
 
-      - name: Wait for Droplets Fully Initialize
-        run: |
-          sleep 10
+      - name: Wait for Droplets to Fully Initialize
+        run: sleep 10
 
       - name: Fetch Node IPs
         working-directory: terraform
@@ -45,26 +44,60 @@ jobs:
           echo "NODE_IPS=$NODE_IPS" >> $GITHUB_ENV
           echo "Node IPs: $NODE_IPS"
 
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-
-      - name: Install protoc
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y protobuf-compiler
-          protoc --version
-
       - name: Build Rust Binary
         working-directory: code
         run: cargo build -p ${{ env.BINARY_NAME }} --release
+
+      - name: Run Testnet Setup (Generate Configs)
+        run: |
+          ./code/target/release/${{ env.BINARY_NAME }} testnet -n ${{ env.NODE_COUNT }}
+          ls -R .malachite/
+
+      - name: Modify Config Files with Public IPs
+        run: |
+          NODE_IP_ARRAY=($NODE_IPS)
+
+          for i in "${!NODE_IP_ARRAY[@]}"; do
+            CONFIG_FILE=".malachite/$i/config/config.toml"
+
+            echo "Checking for file: $CONFIG_FILE"
+            if [ ! -f "$CONFIG_FILE" ]; then
+                echo "Error: $CONFIG_FILE does not exist!"
+                continue
+            fi
+
+            # Set the correct listen_addr: each node gets its public IP but uses port 27000
+            sed -i '' "s|listen_addr = \"/ip4/127.0.0.1/tcp/2700$i\"|listen_addr = \"/ip4/${NODE_IP_ARRAY[$i]}/tcp/27000\"|" "$CONFIG_FILE"
+
+            # Replace each peer's address based on known index
+            for j in "${!NODE_IP_ARRAY[@]}"; do
+              if [ $j -ne $i ]; then
+                OLD_PEER_ADDR="/ip4/127.0.0.1/tcp/2700$j"
+                NEW_PEER_ADDR="/ip4/${NODE_IP_ARRAY[$j]}/tcp/27000"  # All peers use port 27000
+                sed -i '' "s|$OLD_PEER_ADDR|$NEW_PEER_ADDR|g" "$CONFIG_FILE"
+              fi
+            done
+
+            echo "Updated $CONFIG_FILE for Node $i"
+          done
 
       - name: Write SSH Key
         run: |
           printf "%s" "${{ secrets.DO_SSH_KEY }}" | sed 's/\r//' > private_key
           chmod 600 private_key
+
+      - name: Upload Modified Config Files to Nodes
+        run: |
+          NODE_IP_ARRAY=($NODE_IPS)
+
+          for i in "${!NODE_IP_ARRAY[@]}"; do
+            echo "Uploading .malachite/$i/config/config.toml to Node $i (${NODE_IP_ARRAY[$i]})"
+
+            scp -i private_key -o StrictHostKeyChecking=no \
+              .malachite/$i/config/config.toml \
+              root@${NODE_IP_ARRAY[$i]}:/root/.malachite/config/config.toml &
+          done
+          wait
 
       - name: Upload Binary to Nodes
         run: |
@@ -73,10 +106,10 @@ jobs:
           done
           wait
 
-      - name: Execute Binary on Nodes
+      - name: Start Nodes with Updated Config
         run: |
           for ip in $NODE_IPS; do
-            ssh -i private_key -o StrictHostKeyChecking=no root@$ip "/root/${{ env.BINARY_NAME }}" &
+            ssh -i private_key -o StrictHostKeyChecking=no root@$ip "cd /root && /root/${{ env.BINARY_NAME }}" &
           done
           wait
 
@@ -87,3 +120,7 @@ jobs:
           terraform destroy -auto-approve \
             -var="do_token=${{ secrets.DO_TOKEN }}" \
             -var="do_ssh_fingerprint=${{ secrets.DO_SSH_FINGERPRINT }}"
+      
+      - name: Cleanup SSH Key
+        if: always()
+        run: rm -f private_key

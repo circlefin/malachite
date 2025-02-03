@@ -1,15 +1,15 @@
 terraform {
   required_providers {
     digitalocean = {
-      source  = "digitalocean/digitalocean"  # ✅ Correct provider source
-      version = "~> 2.0"  # Use the latest compatible version
+      source  = "digitalocean/digitalocean"
+      version = "~> 2.0"
     }
   }
 }
 
 variable "do_token" {}
 variable "node_count" {
-  default = 3  # Number of nodes to create
+  default = 3
 }
 variable "do_ssh_fingerprint" {}
 
