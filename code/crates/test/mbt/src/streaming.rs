@@ -11,7 +11,6 @@ pub type Payload = String;
 
 // This and buffer struct are defined just for testing purposes so they implement and contain
 // only the necessary functions and fields (e.g. push, peek, pop functions are not implemented)
-
 #[derive(Clone, Debug, Deserialize)]
 pub struct BufferRecord(#[serde(with = "As::<Integer>")] pub Sequence, pub Message);
 

@@ -1,5 +1,5 @@
 use super::utils;
-use crate::streaming::{MessageType, State as StateQuint};
+use crate::streaming::{MessageType, State as SpecificationState};
 use itf::Runner as ItfRunner;
 use malachitebft_core_types::Round;
 use malachitebft_engine::util::streaming::{StreamContent, StreamMessage};
@@ -21,14 +21,12 @@ impl StreamingRunner {
 }
 
 impl ItfRunner for StreamingRunner {
-    //TODO: Rename State names?
-    // type ActualState = StreamStateImpl<ProposalPart>;
     type ActualState = PartStreamsMap;
-    //TODO: Check if this is right to be Result
+
     // There is no result in the model, so it is empty
     type Result = ();
 
-    type ExpectedState = StateQuint;
+    type ExpectedState = SpecificationState;
 
     type Error = ();
 
@@ -52,9 +50,10 @@ impl ItfRunner for StreamingRunner {
         println!("🔸 step: model input={:?}", expected.incoming_message);
         println!("🔸 step: model state={:?}", expected.state);
 
-        match &expected.incoming_message {
+        let message = match &expected.incoming_message {
             Some(msg) => match &msg.msg_type {
                 MessageType::Init => {
+                    // Dummy proposer address
                     let bytes: [u8; 32] = [
                         0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C,
                         0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
@@ -76,63 +75,47 @@ impl ItfRunner for StreamingRunner {
                         valid_round: valid_round,
                         proposer: proposer_addr,
                     };
-                    let message = StreamMessage::<ProposalPart>::new(
+
+                    StreamMessage::<ProposalPart>::new(
                         self.stream_id,
                         msg.sequence as u64,
                         StreamContent::Data(ProposalPart::Init(proposal_init)),
-                    );
-                    actual.insert(self.peer_id, message);
+                    )
+                    // actual.insert(self.peer_id, message);
                 }
                 MessageType::Data => {
-                    // Create some dummy transactions
+                    // Dummy transactions
                     let tx1 = Transaction::new(vec![0x01, 0x02, 0x03]);
                     let tx2 = Transaction::new(vec![0x04, 0x05, 0x06]);
                     let tx3 = Transaction::new(vec![0x07, 0x08, 0x09]);
 
                     let tx_vec = vec![tx1, tx2, tx3];
 
-                    // Create a new Transactions batch
                     let transactions = Transactions::new(tx_vec);
-                    let message = StreamMessage::<ProposalPart>::new(
+                    StreamMessage::<ProposalPart>::new(
                         self.stream_id,
                         msg.sequence as u64,
                         StreamContent::Data(ProposalPart::Transactions(transactions)),
-                    );
-                    actual.insert(self.peer_id, message);
+                    )
+                    // actual.insert(self.peer_id, message);
                 }
                 MessageType::Fin => {
-                    // // Example value for the signature
-                    // // Example byte arrays for r and s
-                    // let r_bytes = [0x01; 32];
-                    // let s_bytes = [0x02; 32];
-
-                    // // Create Felt instances from byte arrays
-                    // let r = Felt::from_bytes_be_slice(&r_bytes);
-                    // let s = Felt::from_bytes_be_slice(&s_bytes);
-
-                    // // Create a StarknetSignature instance
-                    // let starknet_signature = StarknetSignature { r, s };
-
-                    // // Instantiate the Signature struct
-                    // let signature = Signature::from_starknet_sig(starknet_signature);
-
-                    // Instantiate the ProposalFin struct
-                    // let proposal_fin = ProposalFin { signature };
-
                     //Q: StreamContent can be Data or Fin, but also ProposalPart has Fin variant
                     // When will ProposalPart::Fin be used?
-                    let message = StreamMessage::<ProposalPart>::new(
+                    StreamMessage::<ProposalPart>::new(
                         self.stream_id,
                         msg.sequence as u64,
                         StreamContent::Fin(true),
-                    );
-                    actual.insert(self.peer_id, message);
+                    )
+                    // actual.insert(self.peer_id, message);
                 }
             },
             None => {
                 return Ok(());
             }
-        }
+        };
+
+        actual.insert(self.peer_id, message);
 
         Ok(())
     }
@@ -201,12 +184,11 @@ impl ItfRunner for StreamingRunner {
                 Ok(true)
             }
             None => {
-                // Total messages is updated only when fin message is received
-
                 // This means message is emitted completely, thus stream (StreamState) is
-                //  removed from map
-                // TODO: make more robust check if whole message is emitted
-                if expected.state.total_messages != 0 {
+                //  removed from streams map
+                if expected.state.total_messages != 0
+                    && expected.state.total_messages == expected.state.emitted.len() as i32
+                {
                     return Ok(true);
                 } else {
                     return Ok(false);
