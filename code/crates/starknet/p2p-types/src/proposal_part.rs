@@ -1,9 +1,11 @@
 use bytes::Bytes;
 use malachitebft_core_types::Round;
 use malachitebft_proto as proto;
-use malachitebft_starknet_p2p_proto as p2p_proto;
+use malachitebft_starknet_p2p_proto::{self as p2p_proto};
 
-use crate::{Address, Hash, Height, TransactionBatch};
+use proto::Protobuf;
+
+use crate::{Address, Hash, Height, ProposalCommitment, TransactionBatch};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProposalInit {
@@ -22,6 +24,7 @@ pub struct ProposalFin {
 pub enum ProposalPart {
     Init(ProposalInit),
     Transactions(TransactionBatch),
+    ProposalCommitment(ProposalCommitment),
     Fin(ProposalFin),
 }
 
@@ -29,6 +32,7 @@ pub enum ProposalPart {
 pub enum PartType {
     Init,
     Transactions,
+    ProposalCommitment,
     Fin,
 }
 
@@ -37,6 +41,7 @@ impl ProposalPart {
         match self {
             Self::Init(_) => PartType::Init,
             Self::Transactions(_) => PartType::Transactions,
+            Self::ProposalCommitment(_) => PartType::ProposalCommitment,
             Self::Fin(_) => PartType::Fin,
         }
     }
@@ -113,6 +118,10 @@ impl proto::Protobuf for ProposalPart {
                 let transactions = TransactionBatch::from_proto(txes)?;
                 ProposalPart::Transactions(transactions)
             }
+
+            Messages::ProposalCommitment(commitment) => {
+                ProposalPart::ProposalCommitment(ProposalCommitment::from_proto(commitment)?)
+            }
         })
     }
 
@@ -138,6 +147,9 @@ impl proto::Protobuf for ProposalPart {
                         .map(|tx| tx.to_proto())
                         .collect::<Result<Vec<_>, _>>()?,
                 })
+            }
+            ProposalPart::ProposalCommitment(commitment) => {
+                Messages::ProposalCommitment(commitment.to_proto()?)
             }
         };
 

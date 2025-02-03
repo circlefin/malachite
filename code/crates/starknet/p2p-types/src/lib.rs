@@ -15,9 +15,6 @@ pub use height::Height;
 mod vote;
 pub use vote::Vote;
 
-mod proposal;
-pub use proposal::Proposal;
-
 mod transaction;
 pub use transaction::{Transaction, TransactionBatch};
 
@@ -26,6 +23,12 @@ pub use validator::Validator;
 
 mod validator_set;
 pub use validator_set::ValidatorSet;
+
+mod proposal;
+pub use proposal::Proposal;
+
+mod proposal_commitment;
+pub use proposal_commitment::ProposalCommitment;
 
 mod proposal_part;
 pub use proposal_part::{PartType, ProposalFin, ProposalInit, ProposalPart};
