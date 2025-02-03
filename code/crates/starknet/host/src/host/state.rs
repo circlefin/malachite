@@ -2,13 +2,13 @@ use std::path::Path;
 use std::sync::Arc;
 
 use rand::RngCore;
-use sha3::Digest;
 use tracing::{debug, error, trace};
 
-use malachitebft_core_types::{Round, SignedExtension, Validity};
+use malachitebft_core_types::{Context, Round, SignedExtension, Validity};
 use malachitebft_engine::consensus::ConsensusRef;
 use malachitebft_engine::host::ProposedValue;
 use malachitebft_engine::util::streaming::StreamId;
+use malachitebft_starknet_p2p_proto as p2p_proto;
 
 use crate::block_store::BlockStore;
 use crate::host::{Host, StarknetHost};
@@ -16,6 +16,7 @@ use crate::streaming::PartStreamsMap;
 use crate::types::*;
 
 pub struct HostState {
+    pub ctx: MockContext,
     pub height: Height,
     pub round: Round,
     pub proposer: Option<Address>,
@@ -27,11 +28,17 @@ pub struct HostState {
 }
 
 impl HostState {
-    pub fn new<R>(host: StarknetHost, db_path: impl AsRef<Path>, rng: &mut R) -> Self
+    pub fn new<R>(
+        ctx: MockContext,
+        host: StarknetHost,
+        db_path: impl AsRef<Path>,
+        rng: &mut R,
+    ) -> Self
     where
         R: RngCore,
     {
         Self {
+            ctx,
             height: Height::new(0, 0),
             round: Round::Nil,
             proposer: None,
@@ -44,7 +51,7 @@ impl HostState {
     }
 
     pub fn stream_id(&mut self) -> StreamId {
-        let stream_id = malachitebft_starknet_p2p_proto::ConsensusStreamId {
+        let stream_id = p2p_proto::ConsensusStreamId {
             height: self.height.as_u64(),
             round: self.round.as_u32().expect("round is non-nil"),
             nonce: self.nonce,
@@ -97,7 +104,24 @@ impl HostState {
         }
 
         let Some(init) = parts.iter().find_map(|part| part.as_init()) else {
-            error!("No Init part found in the proposal parts");
+            error!("Part not found: Init");
+            return None;
+        };
+
+        let Some(fin) = parts.iter().find_map(|part| part.as_fin()) else {
+            error!("Part not found: Fin");
+            return None;
+        };
+
+        let Some(_block_info) = parts.iter().find_map(|part| part.as_block_info()) else {
+            error!("Part not found: BlockInfo");
+            return None;
+        };
+
+        let Some(_proposal_commitment) =
+            parts.iter().find_map(|part| part.as_proposal_commitment())
+        else {
+            error!("Part not found: ProposalCommitment");
             return None;
         };
 
@@ -105,37 +129,20 @@ impl HostState {
 
         let valid_round = init.valid_round;
         if valid_round.is_defined() {
-            debug!("Reassembling a Proposal we might have seen before: {init:?}");
+            debug!("Reassembling a proposal we might have seen before: {init:?}");
         }
-
-        if parts.iter().find_map(|part| part.as_fin()).is_none() {
-            error!("No Fin part found in the proposal parts");
-            return None;
-        };
 
         trace!(parts.len = %parts.len(), "Building proposal content from parts");
 
         let extension = self.host.generate_vote_extension(height, round);
 
-        let block_hash = {
-            let mut block_hasher = sha3::Keccak256::new();
-            for part in parts {
-                if part.as_init().is_some() || part.as_fin().is_some() {
-                    // NOTE: We do not hash over Init, so restreaming returns the same hash
-                    // NOTE: We do not hash over Fin, because Fin includes a signature over the block hash
-                    // TODO: we should probably still include height
-                    continue;
-                }
-
-                block_hasher.update(part.to_sign_bytes());
-            }
-
-            BlockHash::new(block_hasher.finalize().into())
-        };
-
-        trace!(%block_hash, "Computed block hash");
-
-        Some((valid_round, block_hash, init.proposer, validity, extension))
+        Some((
+            valid_round,
+            fin.state_diff_commitment,
+            init.proposer,
+            validity,
+            extension,
+        ))
     }
 
     async fn verify_proposal_validity(&self, init: &ProposalInit) -> Option<Validity> {
@@ -146,10 +153,24 @@ impl HostState {
             return None;
         };
 
-        Some(Validity::Valid)
+        let validator_set = ValidatorSet::new(validators);
+        let proposer = self
+            .ctx
+            .select_proposer(&validator_set, init.height, init.round);
 
-        // let valid = public_key.verify(&proposal_hash.as_felt(), signature);
-        // Some(Validity::from_bool(valid))
+        if proposer.address != init.proposer {
+            error!(
+                height = %init.height,
+                round = %init.round,
+                proposer = %init.proposer,
+                expected = %proposer.address,
+                "Proposer is not the selected proposer for this height and round"
+            );
+
+            return None;
+        }
+
+        Some(Validity::Valid)
     }
 
     #[tracing::instrument(skip_all, fields(
@@ -165,12 +186,12 @@ impl HostState {
     ) -> Option<ProposedValue<MockContext>> {
         self.host.part_store.store(height, round, part.clone());
 
-        if let ProposalPart::Transactions(_txes) = &part {
+        if let ProposalPart::Transactions(txes) = &part {
             debug!("Simulating tx execution and proof verification");
 
             // Simulate Tx execution and proof verification (assumes success)
             // TODO: Add config knob for invalid blocks
-            let num_txes = part.tx_count() as u32;
+            let num_txes = txes.len() as u32;
             let exec_time = self.host.params.exec_time_per_tx * num_txes;
             tokio::time::sleep(exec_time).await;
 
@@ -187,7 +208,19 @@ impl HostState {
         // TODO: Do more validations, e.g. there is no higher tx proposal part,
         //       check that we have received the proof, etc.
         let Some(_fin) = parts.iter().find_map(|part| part.as_fin()) else {
-            debug!("Final proposal part has not been received yet");
+            debug!("Proposal part has not been received yet: Fin");
+            return None;
+        };
+
+        let Some(_block_info) = parts.iter().find_map(|part| part.as_block_info()) else {
+            debug!("Proposal part has not been received yet: BlockInfo");
+            return None;
+        };
+
+        let Some(_proposal_commitment) =
+            parts.iter().find_map(|part| part.as_proposal_commitment())
+        else {
+            debug!("Proposal part has not been received yet: ProposalCommitment");
             return None;
         };
 

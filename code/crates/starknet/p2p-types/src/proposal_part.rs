@@ -70,7 +70,7 @@ impl ProposalPart {
         }
     }
 
-    pub fn as_l1_block_info(&self) -> Option<&BlockInfo> {
+    pub fn as_block_info(&self) -> Option<&BlockInfo> {
         if let Self::BlockInfo(v) = self {
             Some(v)
         } else {

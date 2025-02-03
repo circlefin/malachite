@@ -50,10 +50,12 @@ impl Host {
         std::fs::create_dir_all(&db_dir).map_err(|e| SpawnErr::StartupFailed(e.into()))?;
         let db_path = db_dir.join("blocks.db");
 
+        let ctx = MockContext::new();
+
         let (actor_ref, _) = Actor::spawn(
             None,
             Self::new(mempool, network, metrics, span),
-            HostState::new(host, db_path, &mut StdRng::from_entropy()),
+            HostState::new(ctx, host, db_path, &mut StdRng::from_entropy()),
         )
         .await?;
 
@@ -384,7 +386,7 @@ async fn on_restream_value(
     round: Round,
     value_id: Hash,
     valid_round: Round,
-    address: Address,
+    proposer: Address,
 ) -> Result<(), ActorProcessingErr> {
     debug!(%height, %round, "Restreaming existing proposal...");
 
@@ -396,9 +398,11 @@ async fn on_restream_value(
         height,
         round,
         valid_round,
-        proposer: address,
+        proposer,
     };
 
+    // NOTE: This is wrong but since we are not expected to propose values
+    //       we can leave it as is for now.
     let state_diff_commitment = compute_proposal_hash(&init, &value_id);
 
     let init_part = ProposalPart::Init(init);

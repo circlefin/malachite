@@ -28,7 +28,7 @@ mod proposal;
 pub use proposal::Proposal;
 
 mod proposal_commitment;
-pub use proposal_commitment::ProposalCommitment;
+pub use proposal_commitment::{L1DataAvailabilityMode, ProposalCommitment};
 
 mod proposal_part;
 pub use proposal_part::{PartType, ProposalFin, ProposalInit, ProposalPart};

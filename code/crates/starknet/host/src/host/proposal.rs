@@ -1,6 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 
 use std::sync::Arc;
+use std::time::SystemTime;
 
 use bytesize::ByteSize;
 use eyre::eyre;
@@ -14,6 +15,8 @@ use malachitebft_core_types::Round;
 use crate::host::starknet::StarknetParams;
 use crate::mempool::{MempoolMsg, MempoolRef};
 use crate::types::*;
+
+const PROTOCOL_VERSION: &str = "0.13.0";
 
 pub async fn build_proposal_task(
     height: Height,
@@ -78,9 +81,29 @@ async fn run_build_proposal_task(
         init
     };
 
-    loop {
-        trace!(%height, %round, %sequence, "Building local value");
+    trace!(%height, %round, "Building local value");
 
+    let now = SystemTime::UNIX_EPOCH.elapsed().unwrap().as_secs();
+
+    // Block Info
+    {
+        let part = ProposalPart::BlockInfo(BlockInfo {
+            height,
+            builder: proposer,
+            timestamp: now,
+            l1_gas_price_wei: 0,
+            l1_data_gas_price_wei: 0,
+            l2_gas_price_fri: 0,
+            eth_to_strk_rate: 0,
+            l1_da_mode: L1DataAvailabilityMode::Blob,
+        });
+
+        block_hasher.update(part.to_sign_bytes());
+        tx_part.send(part).await?;
+        sequence += 1;
+    }
+
+    loop {
         let reaped_txes = mempool
             .call(
                 |reply| MempoolMsg::Reap {
@@ -148,10 +171,37 @@ async fn run_build_proposal_task(
 
     let block_hash = BlockHash::new(block_hasher.finalize().into());
 
+    // NOTE: This is wrong but since we are not expected to propose values
+    //       we can leave it as is for now.
+    let state_diff_commitment = compute_proposal_hash(&init, &block_hash);
+
+    // Proposal Commitment
+    {
+        let part = ProposalPart::ProposalCommitment(Box::new(ProposalCommitment {
+            height,
+            parent_commitment: Hash::new([0; 32]),
+            builder: proposer,
+            timestamp: now,
+            protocol_version: PROTOCOL_VERSION.to_string(),
+            old_state_root: Hash::new([0; 32]),
+            state_diff_commitment,
+            transaction_commitment: Hash::new([0; 32]),
+            event_commitment: Hash::new([0; 32]),
+            receipt_commitment: Hash::new([0; 32]),
+            concatenated_counts: Felt::ONE,
+            l1_gas_price_fri: 0,
+            l1_data_gas_price_fri: 0,
+            l2_gas_price_fri: 0,
+            l2_gas_used: 0,
+            l1_da_mode: L1DataAvailabilityMode::Blob,
+        }));
+
+        tx_part.send(part).await?;
+        sequence += 1;
+    }
+
     // Fin
     {
-        let state_diff_commitment = compute_proposal_hash(&init, &block_hash);
-
         let part = ProposalPart::Fin(ProposalFin {
             state_diff_commitment,
         });
