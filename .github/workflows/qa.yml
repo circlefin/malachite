@@ -44,6 +44,18 @@ jobs:
           echo "NODE_IPS=$NODE_IPS" >> $GITHUB_ENV
           echo "Node IPs: $NODE_IPS"
 
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+          protoc --version
+
       - name: Build Rust Binary
         working-directory: code
         run: cargo build -p ${{ env.BINARY_NAME }} --release
@@ -109,7 +121,7 @@ jobs:
       - name: Start Nodes with Updated Config
         run: |
           for ip in $NODE_IPS; do
-            ssh -i private_key -o StrictHostKeyChecking=no root@$ip "cd /root && /root/${{ env.BINARY_NAME }}" &
+            ssh -i private_key -o StrictHostKeyChecking=no root@$ip "cd /root && /root/${{ env.BINARY_NAME }} start" &
           done
           wait
 
