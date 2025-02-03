@@ -1,8 +1,9 @@
 name: MBT
 on:
+  merge_group:
+  pull_request:
   push:
     branches: main
-  pull_request:
 
 jobs:
   changes:
@@ -25,7 +26,7 @@ jobs:
               - 'specs/**'
 
   mbt-tests:
-    name: Run MBT Tests
+    name: MBT Tests
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' || needs.changes.outputs.specs == 'true' || github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest

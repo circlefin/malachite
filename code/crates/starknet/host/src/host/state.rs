@@ -5,7 +5,7 @@ use rand::RngCore;
 use sha3::Digest;
 use tracing::{debug, error, trace};
 
-use malachitebft_core_types::{Round, SignedExtension, Validity};
+use malachitebft_core_types::{Round, Validity};
 use malachitebft_engine::consensus::ConsensusRef;
 use malachitebft_engine::host::ProposedValue;
 use malachitebft_engine::util::streaming::StreamId;
@@ -59,7 +59,7 @@ impl HostState {
         height: Height,
         round: Round,
     ) -> Option<ProposedValue<MockContext>> {
-        let (valid_round, value, proposer, validity, extension) = self
+        let (valid_round, value, proposer, validity) = self
             .build_proposal_content_from_parts(parts, height, round)
             .await?;
 
@@ -70,7 +70,6 @@ impl HostState {
             valid_round,
             value,
             validity,
-            extension,
         })
     }
 
@@ -81,13 +80,7 @@ impl HostState {
         parts: &[Arc<ProposalPart>],
         height: Height,
         round: Round,
-    ) -> Option<(
-        Round,
-        BlockHash,
-        Address,
-        Validity,
-        Option<SignedExtension<MockContext>>,
-    )> {
+    ) -> Option<(Round, BlockHash, Address, Validity)> {
         if parts.is_empty() {
             return None;
         }
@@ -108,8 +101,6 @@ impl HostState {
         };
 
         trace!(parts.len = %parts.len(), "Building proposal content from parts");
-
-        let extension = self.host.generate_vote_extension(height, round);
 
         let block_hash = {
             let mut block_hasher = sha3::Keccak256::new();
@@ -135,7 +126,7 @@ impl HostState {
             .verify_proposal_validity(init, &proposal_hash, &fin.signature)
             .await?;
 
-        Some((valid_round, block_hash, init.proposer, validity, extension))
+        Some((valid_round, block_hash, init.proposer, validity))
     }
 
     async fn verify_proposal_validity(

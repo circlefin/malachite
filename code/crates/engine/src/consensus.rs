@@ -9,10 +9,12 @@ use tracing::{debug, error, info, warn};
 
 use malachitebft_codec as codec;
 use malachitebft_config::TimeoutConfig;
-use malachitebft_core_consensus::{Effect, PeerId, Resumable, Resume, SignedConsensusMsg};
+use malachitebft_core_consensus::{
+    Effect, PeerId, Resumable, Resume, SignedConsensusMsg, VoteExtensionError,
+};
 use malachitebft_core_types::{
-    Context, Round, SignedExtension, SigningProvider, SigningProviderExt, Timeout, TimeoutKind,
-    ValidatorSet, ValueOrigin,
+    Context, Round, SigningProvider, SigningProviderExt, Timeout, TimeoutKind, ValidatorSet,
+    ValueId, ValueOrigin,
 };
 use malachitebft_metrics::Metrics;
 use malachitebft_sync::{
@@ -65,6 +67,7 @@ where
     ctx: Ctx,
     params: ConsensusParams<Ctx>,
     timeout_config: TimeoutConfig,
+    signing_provider: Box<dyn SigningProvider<Ctx>>,
     network: NetworkRef<Ctx>,
     host: HostRef<Ctx>,
     wal: WalRef<Ctx>,
@@ -87,7 +90,7 @@ pub enum Msg<Ctx: Context> {
     TimeoutElapsed(TimeoutElapsed<Timeout>),
 
     /// The proposal builder has built a value and can be used in a new proposal consensus message
-    ProposeValue(Ctx::Height, Round, Ctx::Value, Option<SignedExtension<Ctx>>),
+    ProposeValue(Ctx::Height, Round, Ctx::Value),
 
     /// Received and assembled the full value proposed by a validator
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
@@ -191,6 +194,7 @@ where
         ctx: Ctx,
         params: ConsensusParams<Ctx>,
         timeout_config: TimeoutConfig,
+        signing_provider: Box<dyn SigningProvider<Ctx>>,
         network: NetworkRef<Ctx>,
         host: HostRef<Ctx>,
         wal: WalRef<Ctx>,
@@ -203,6 +207,7 @@ where
             ctx,
             params,
             timeout_config,
+            signing_provider,
             network,
             host,
             wal,
@@ -279,12 +284,11 @@ where
                 Ok(())
             }
 
-            Msg::ProposeValue(height, round, value, extension) => {
+            Msg::ProposeValue(height, round, value) => {
                 let value_to_propose = LocallyProposedValue {
                     height,
                     round,
                     value: value.clone(),
-                    extension,
                 };
 
                 let result = self
@@ -680,12 +684,7 @@ where
             },
             myself,
             |proposed: LocallyProposedValue<Ctx>| {
-                Msg::<Ctx>::ProposeValue(
-                    proposed.height,
-                    proposed.round,
-                    proposed.value,
-                    proposed.extension,
-                )
+                Msg::<Ctx>::ProposeValue(proposed.height, proposed.round, proposed.value)
             },
             None,
         )?;
@@ -704,6 +703,38 @@ where
         .map_err(|e| eyre!("Failed to get validator set at height {height}: {e:?}"))?;
 
         Ok(validator_set)
+    }
+
+    async fn extend_vote(
+        &self,
+        height: Ctx::Height,
+        round: Round,
+        value_id: ValueId<Ctx>,
+    ) -> Result<Option<Ctx::Extension>, ActorProcessingErr> {
+        ractor::call!(self.host, |reply_to| HostMsg::ExtendVote {
+            height,
+            round,
+            value_id,
+            reply_to
+        })
+        .map_err(|e| eyre!("Failed to get earliest block height: {e:?}").into())
+    }
+
+    async fn verify_vote_extension(
+        &self,
+        height: Ctx::Height,
+        round: Round,
+        value_id: ValueId<Ctx>,
+        extension: Ctx::Extension,
+    ) -> Result<Result<(), VoteExtensionError>, ActorProcessingErr> {
+        ractor::call!(self.host, |reply_to| HostMsg::VerifyVoteExtension {
+            height,
+            round,
+            value_id,
+            extension,
+            reply_to
+        })
+        .map_err(|e| eyre!("Failed to verify vote extension: {e:?}").into())
     }
 
     async fn get_history_min_height(&self) -> Result<Ctx::Height, ActorProcessingErr> {
@@ -811,7 +842,7 @@ where
             Effect::SignProposal(proposal, r) => {
                 let start = Instant::now();
 
-                let signed_proposal = self.ctx.signing_provider().sign_proposal(proposal);
+                let signed_proposal = self.signing_provider.sign_proposal(proposal);
 
                 self.metrics
                     .signature_signing_time
@@ -823,7 +854,7 @@ where
             Effect::SignVote(vote, r) => {
                 let start = Instant::now();
 
-                let signed_vote = self.ctx.signing_provider().sign_vote(vote);
+                let signed_vote = self.signing_provider.sign_vote(vote);
 
                 self.metrics
                     .signature_signing_time
@@ -839,13 +870,11 @@ where
 
                 let valid = match msg.message {
                     Msg::Vote(v) => {
-                        self.ctx
-                            .signing_provider()
+                        self.signing_provider
                             .verify_signed_vote(&v, &msg.signature, &pk)
                     }
                     Msg::Proposal(p) => {
-                        self.ctx
-                            .signing_provider()
+                        self.signing_provider
                             .verify_signed_proposal(&p, &msg.signature, &pk)
                     }
                 };
@@ -858,7 +887,7 @@ where
             }
 
             Effect::VerifyCertificate(certificate, validator_set, thresholds, r) => {
-                let valid = self.ctx.signing_provider().verify_certificate(
+                let valid = self.signing_provider.verify_certificate(
                     &certificate,
                     &validator_set,
                     thresholds,
@@ -867,9 +896,36 @@ where
                 Ok(r.resume_with(valid))
             }
 
+            Effect::ExtendVote(height, round, value_id, r) => {
+                if let Some(extension) = self.extend_vote(height, round, value_id).await? {
+                    let signed_extension = self.signing_provider.sign_vote_extension(extension);
+                    Ok(r.resume_with(Some(signed_extension)))
+                } else {
+                    Ok(r.resume_with(None))
+                }
+            }
+
+            Effect::VerifyVoteExtension(height, round, value_id, signed_extension, pk, r) => {
+                let valid = self.signing_provider.verify_signed_vote_extension(
+                    &signed_extension.message,
+                    &signed_extension.signature,
+                    &pk,
+                );
+
+                if !valid {
+                    return Ok(r.resume_with(Err(VoteExtensionError::InvalidSignature)));
+                }
+
+                let result = self
+                    .verify_vote_extension(height, round, value_id, signed_extension.message)
+                    .await?;
+
+                Ok(r.resume_with(result))
+            }
+
             Effect::Publish(msg, r) => {
                 // Sync the WAL to disk before we broadcast the message
-                // NOTE: The message has already been append to the WAL by the `PersistMessage` effect.
+                // NOTE: The message has already been append to the WAL by the `WalAppendMessage` effect.
                 self.wal_flush(phase).await?;
 
                 // Notify any subscribers that we are about to publish a message
@@ -915,7 +971,7 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::Decide(certificate, r) => {
+            Effect::Decide(certificate, extensions, r) => {
                 self.wal_flush(phase).await?;
 
                 self.tx_event.send(|| Event::Decided(certificate.clone()));
@@ -925,6 +981,7 @@ where
                 self.host
                     .cast(HostMsg::Decided {
                         certificate,
+                        extensions,
                         consensus: myself.clone(),
                     })
                     .map_err(|e| eyre!("Error when sending decided value to host: {e:?}"))?;
@@ -938,20 +995,25 @@ where
             }
 
             Effect::GetVoteSet(height, round, r) => {
-                debug!(%height, %round, "Request sync to obtain the vote set from peers");
-
                 if let Some(sync) = &self.sync {
+                    debug!(%height, %round, "Request sync to obtain the vote set from peers");
+
                     sync.cast(SyncMsg::RequestVoteSet(height, round))
                         .map_err(|e| eyre!("Error when sending vote set request to sync: {e:?}"))?;
-                }
 
-                self.tx_event
-                    .send(|| Event::RequestedVoteSet(height, round));
+                    self.tx_event
+                        .send(|| Event::RequestedVoteSet(height, round));
+                }
 
                 Ok(r.resume_with(()))
             }
 
             Effect::SendVoteSetResponse(request_id_str, height, round, vote_set, r) => {
+                let Some(sync) = self.sync.as_ref() else {
+                    warn!("Responding to a vote set request but sync actor is not available");
+                    return Ok(r.resume_with(()));
+                };
+
                 let vote_count = vote_set.len();
                 let response =
                     Response::VoteSetResponse(VoteSetResponse::new(height, round, vote_set));
@@ -966,12 +1028,10 @@ where
                 self.network
                     .cast(NetworkMsg::OutgoingResponse(request_id.clone(), response))?;
 
-                if let Some(sync) = &self.sync {
-                    sync.cast(SyncMsg::SentVoteSetResponse(request_id, height, round))
-                        .map_err(|e| {
-                            eyre!("Error when notifying Sync about vote set response: {e:?}")
-                        })?;
-                }
+                sync.cast(SyncMsg::SentVoteSetResponse(request_id, height, round))
+                    .map_err(|e| {
+                        eyre!("Error when notifying Sync about vote set response: {e:?}")
+                    })?;
 
                 self.tx_event
                     .send(|| Event::SentVoteSetResponse(height, round, vote_count));

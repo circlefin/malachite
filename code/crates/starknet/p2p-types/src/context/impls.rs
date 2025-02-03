@@ -72,6 +72,10 @@ impl common::Vote<MockContext> for Vote {
         self.extension.as_ref()
     }
 
+    fn take_extension(&mut self) -> Option<SignedExtension<MockContext>> {
+        self.extension.take()
+    }
+
     fn extend(self, extension: SignedExtension<MockContext>) -> Self {
         Self {
             extension: Some(extension),

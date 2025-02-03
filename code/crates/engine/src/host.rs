@@ -4,8 +4,8 @@ use std::time::Duration;
 use derive_where::derive_where;
 use ractor::{ActorRef, RpcReplyPort};
 
-use malachitebft_core_consensus::PeerId;
-use malachitebft_core_types::{CommitCertificate, Context, Round, ValueId};
+use malachitebft_core_consensus::{PeerId, VoteExtensionError};
+use malachitebft_core_types::{CommitCertificate, Context, Round, ValueId, VoteExtensions};
 use malachitebft_sync::RawDecidedValue;
 
 use crate::consensus::ConsensusRef;
@@ -37,6 +37,31 @@ pub enum HostMsg<Ctx: Context> {
         reply_to: RpcReplyPort<LocallyProposedValue<Ctx>>,
     },
 
+    /// ExtendVote allows the application to extend the pre-commit vote with arbitrary data.
+    ///
+    /// When consensus is preparing to send a pre-commit vote, it first calls `ExtendVote`.
+    /// The application then returns a blob of data called a vote extension.
+    /// This data is opaque to the consensus algorithm but can contain application-specific information.
+    /// The proposer of the next block will receive all vote extensions along with the commit certificate.
+    ExtendVote {
+        height: Ctx::Height,
+        round: Round,
+        value_id: ValueId<Ctx>,
+        reply_to: RpcReplyPort<Option<Ctx::Extension>>,
+    },
+
+    /// Verify a vote extension
+    ///
+    /// If the vote extension is deemed invalid, the vote it was part of
+    /// will be discarded altogether.
+    VerifyVoteExtension {
+        height: Ctx::Height,
+        round: Round,
+        value_id: ValueId<Ctx>,
+        extension: Ctx::Extension,
+        reply_to: RpcReplyPort<Result<(), VoteExtensionError>>,
+    },
+
     /// Request to restream an existing block/value from Driver
     RestreamValue {
         height: Ctx::Height,
@@ -62,9 +87,17 @@ pub enum HostMsg<Ctx: Context> {
         reply_to: RpcReplyPort<Ctx::ValidatorSet>,
     },
 
-    // Consensus has decided on a value
+    /// Consensus has decided on a value.
     Decided {
+        /// The commit certificate containing the ID of the value that was decided on,
+        /// the the height and round at which it was decided, and the aggregated signatures
+        /// of the validators that committed to it.
         certificate: CommitCertificate<Ctx>,
+
+        /// Vote extensions that were received for this height.
+        extensions: VoteExtensions<Ctx>,
+
+        /// Reference to the `Consensus` actor for starting a new height.
         consensus: ConsensusRef<Ctx>,
     },
 

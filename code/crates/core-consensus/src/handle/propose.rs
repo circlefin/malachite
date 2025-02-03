@@ -16,7 +16,6 @@ where
         height,
         round,
         value,
-        extension,
     } = value;
 
     if state.driver.height() != height {
@@ -47,7 +46,6 @@ where
         proposer: state.address().clone(),
         value: value.clone(),
         validity: Validity::Valid,
-        extension,
     });
 
     apply_driver_input(co, state, metrics, DriverInput::ProposeValue(round, value)).await

@@ -3,7 +3,7 @@ use prost::Message;
 
 use malachitebft_codec::Codec;
 use malachitebft_core_types::{
-    AggregatedSignature, CommitCertificate, CommitSignature, Extension, Round, SignedExtension,
+    AggregatedSignature, CommitCertificate, CommitSignature, Round, SignedExtension,
     SignedProposal, SignedVote, Validity,
 };
 use malachitebft_engine::util::streaming::{StreamContent, StreamMessage};
@@ -70,20 +70,19 @@ impl Codec<ProposalPart> for ProtobufCodec {
 }
 
 pub fn decode_extension(ext: proto::Extension) -> Result<SignedExtension<MockContext>, ProtoError> {
-    let extension = Extension::from(ext.data);
     let signature = ext
         .signature
         .ok_or_else(|| ProtoError::missing_field::<proto::Extension>("signature"))
         .and_then(p2p::Signature::from_proto)?;
 
-    Ok(SignedExtension::new(extension, signature))
+    Ok(SignedExtension::new(ext.data, signature))
 }
 
 pub fn encode_extension(
     ext: &SignedExtension<MockContext>,
 ) -> Result<proto::Extension, ProtoError> {
     Ok(proto::Extension {
-        data: ext.message.data.clone(),
+        data: ext.message.clone(),
         signature: Some(ext.signature.to_proto()?),
     })
 }
@@ -114,7 +113,6 @@ pub fn decode_proposed_value(
         valid_round: Round::from(proto.valid_round),
         proposer: Address::from_proto(proposer)?,
         validity: Validity::from_bool(proto.validity),
-        extension: proto.extension.map(decode_extension).transpose()?,
     })
 }
 
@@ -132,7 +130,6 @@ pub fn encode_proposed_value(
             Validity::Valid => true,
             Validity::Invalid => false,
         },
-        extension: msg.extension.as_ref().map(encode_extension).transpose()?,
     };
 
     Ok(proto)
@@ -460,13 +457,7 @@ pub fn decode_aggregated_signature(
                 })
                 .and_then(Address::from_proto)?;
 
-            let extension = s.extension.map(decode_extension).transpose()?;
-
-            Ok(CommitSignature {
-                address,
-                signature,
-                extension,
-            })
+            Ok(CommitSignature { address, signature })
         })
         .collect::<Result<Vec<_>, ProtoError>>()?;
 
@@ -486,7 +477,6 @@ pub fn encode_aggregate_signature(
             Ok(proto::sync::CommitSignature {
                 validator_address: Some(validator_address),
                 signature: Some(signature),
-                extension: s.extension.as_ref().map(encode_extension).transpose()?,
             })
         })
         .collect::<Result<_, ProtoError>>()?;

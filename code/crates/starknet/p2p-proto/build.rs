@@ -1,6 +1,7 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let protos = &[
         "./proto/sync.proto",
+        "./proto/certificate.proto",
         "./proto/p2p/proto/common.proto",
         "./proto/p2p/proto/header.proto",
         "./proto/p2p/proto/transaction.proto",

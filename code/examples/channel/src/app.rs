@@ -8,15 +8,11 @@ use malachitebft_app_channel::app::types::sync::RawDecidedValue;
 use malachitebft_app_channel::app::types::ProposedValue;
 use malachitebft_app_channel::{AppMsg, Channels, ConsensusMsg, NetworkMsg};
 use malachitebft_test::codec::proto::ProtobufCodec;
-use malachitebft_test::{Genesis, TestContext};
+use malachitebft_test::TestContext;
 
 use crate::state::{decode_value, State};
 
-pub async fn run(
-    genesis: Genesis,
-    state: &mut State,
-    channels: &mut Channels<TestContext>,
-) -> eyre::Result<()> {
+pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyre::Result<()> {
     while let Some(msg) = channels.consensus.recv().await {
         match msg {
             // The first message to handle is the `ConsensusReady` message, signaling to the app
@@ -29,7 +25,7 @@ pub async fn run(
                 if reply
                     .send(ConsensusMsg::StartHeight(
                         state.current_height,
-                        genesis.validator_set.clone(),
+                        state.get_validator_set().clone(),
                     ))
                     .is_err()
                 {
@@ -106,6 +102,31 @@ pub async fn run(
                 // avoid blowing up the bandwidth requirements by gossiping a single huge message.
             }
 
+            AppMsg::ExtendVote {
+                height: _,
+                round: _,
+                value_id: _,
+                reply,
+            } => {
+                // TODO
+                if reply.send(None).is_err() {
+                    error!("Failed to send ExtendVote reply");
+                }
+            }
+
+            AppMsg::VerifyVoteExtension {
+                height: _,
+                round: _,
+                value_id: _,
+                extension: _,
+                reply,
+            } => {
+                // TODO
+                if reply.send(Ok(())).is_err() {
+                    error!("Failed to send VerifyVoteExtension reply");
+                }
+            }
+
             // On the receiving end of these proposal parts (ie. when we are not the proposer),
             // we need to process these parts and re-assemble the full value.
             // To this end, we store each part that we receive and assemble the full value once we
@@ -133,7 +154,7 @@ pub async fn run(
             // In our case, our validator set stays constant between heights so we can
             // send back the validator set found in our genesis state.
             AppMsg::GetValidatorSet { height: _, reply } => {
-                if reply.send(genesis.validator_set.clone()).is_err() {
+                if reply.send(state.get_validator_set().clone()).is_err() {
                     error!("Failed to send GetValidatorSet reply");
                 }
             }
@@ -143,21 +164,26 @@ pub async fn run(
             // providing it with a commit certificate which contains the ID of the value
             // that was decided on as well as the set of commits for that value,
             // ie. the precommits together with their (aggregated) signatures.
-            AppMsg::Decided { certificate, reply } => {
+            AppMsg::Decided {
+                certificate,
+                extensions,
+                reply,
+            } => {
                 info!(
-                    height = %certificate.height, round = %certificate.round,
+                    height = %certificate.height,
+                    round = %certificate.round,
                     value = %certificate.value_id,
                     "Consensus has decided on value"
                 );
 
                 // When that happens, we store the decided value in our store
-                state.commit(certificate).await?;
+                state.commit(certificate, extensions).await?;
 
                 // And then we instruct consensus to start the next height
                 if reply
                     .send(ConsensusMsg::StartHeight(
                         state.current_height,
-                        genesis.validator_set.clone(),
+                        state.get_validator_set().clone(),
                     ))
                     .is_err()
                 {
@@ -190,7 +216,6 @@ pub async fn run(
                         proposer,
                         value,
                         validity: Validity::Valid,
-                        extension: None,
                     })
                     .is_err()
                 {
@@ -208,7 +233,7 @@ pub async fn run(
 
                 let raw_decided_value = decided_value.map(|decided_value| RawDecidedValue {
                     certificate: decided_value.certificate,
-                    value_bytes: ProtobufCodec.encode(&decided_value.value).unwrap(), // FIXME: unwrap
+                    value_bytes: ProtobufCodec.encode(&decided_value.value).unwrap(),
                 });
 
                 if reply.send(raw_decided_value).is_err() {

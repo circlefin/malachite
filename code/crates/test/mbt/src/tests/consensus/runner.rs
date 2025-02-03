@@ -71,7 +71,7 @@ impl ItfRunner for ConsensusRunner {
         println!("🔸 step: model state={:?}", expected.state);
 
         let address = self.address_map.get(&expected.state.process).unwrap();
-        let some_other_node = self.address_map.get(OTHER_PROCESS).unwrap(); // FIXME
+        let some_other_node = self.address_map.get(OTHER_PROCESS).unwrap();
 
         let (data, input) = match &expected.input {
             ModelInput::NoInput => unreachable!(),
@@ -241,8 +241,8 @@ impl ItfRunner for ConsensusRunner {
                     assert_eq!(proposal.round.as_i64(), expected_proposal.round);
                     assert_eq!(proposal.pol_round.as_i64(), expected_proposal.valid_round);
                     assert_eq!(
-                        Some(proposal.value),
-                        value_from_string(&expected_proposal.proposal),
+                        Some(&proposal.value),
+                        value_from_string(&expected_proposal.proposal).as_ref(),
                         "unexpected proposal value"
                     );
                 }
@@ -292,8 +292,8 @@ impl ItfRunner for ConsensusRunner {
                     assert_eq!(round.as_i64(), *expected_round, "unexpected decided round");
 
                     assert_eq!(
-                        Some(proposal.value),
-                        value_from_string(expected_decided_value),
+                        Some(&proposal.value),
+                        value_from_string(expected_decided_value).as_ref(),
                         "unexpected decided value"
                     );
                 }

@@ -4,6 +4,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use eyre::Result;
+use malachitebft_core_types::SigningProvider;
 use tracing::Span;
 
 use malachitebft_engine::consensus::{Consensus, ConsensusCodec, ConsensusParams, ConsensusRef};
@@ -45,6 +46,7 @@ pub async fn spawn_consensus_actor<Ctx>(
     address: Ctx::Address,
     ctx: Ctx,
     cfg: NodeConfig,
+    signing_provider: Box<dyn SigningProvider<Ctx>>,
     network: NetworkRef<Ctx>,
     host: HostRef<Ctx>,
     wal: WalRef<Ctx>,
@@ -56,6 +58,7 @@ where
     Ctx: Context,
 {
     use crate::types::config;
+
     let value_payload = match cfg.consensus.value_payload {
         config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
         config::ValuePayload::ProposalOnly => ValuePayload::ProposalOnly,
@@ -74,6 +77,7 @@ where
         ctx,
         consensus_params,
         cfg.consensus.timeouts,
+        signing_provider,
         network,
         host,
         wal,
