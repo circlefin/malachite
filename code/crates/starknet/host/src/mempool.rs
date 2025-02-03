@@ -204,6 +204,7 @@ impl Actor for Mempool {
             Msg::Reap {
                 reply, num_txes, ..
             } => {
+                debug!("reached reap endpoint");
                 let txes = generate_and_broadcast_txes(
                     num_txes,
                     self.test_tx_size.as_u64() as usize,
@@ -211,7 +212,7 @@ impl Actor for Mempool {
                     state,
                     &self.network,
                 )?;
-
+                debug!("reaped transactions: {:?}", txes);
                 reply.send(txes)?;
             }
 
@@ -223,6 +224,7 @@ impl Actor for Mempool {
                 // observe issues strictly related to consensus.
                 // It also bumps performance, as we reduce the mempool's background traffic.
                 // state.transactions.clear();
+                debug!("tx hashes to remove: {:?}", tx_hashes);
                 tx_hashes.iter().for_each(|hash| state.remove_tx(hash));
             }
         }
@@ -260,6 +262,7 @@ fn generate_and_broadcast_txes(
         .collect::<Vec<_>>();
 
     // let initial_count = transactions.len();
+    debug!("reaped transactions: {:?}", transactions.len());
 
     let mut tx_batch = Transactions::new(transactions.clone());
     // let mut rng = rand::thread_rng();
@@ -269,7 +272,7 @@ fn generate_and_broadcast_txes(
         let mempool_batch = MempoolTransactionBatch::new(tx_batch);
         mempool_network.cast(MempoolNetworkMsg::BroadcastMsg(mempool_batch))?;
     }
-    debug!("reaped transactions: {:?}", transactions.len());
+    debug!("reaped transactions after batch sent: {:?}", transactions.len());
     // for _ in initial_count..count {
     //     // Generate transaction
     //     let mut tx_bytes = vec![0; size];

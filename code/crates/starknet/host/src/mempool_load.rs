@@ -74,7 +74,7 @@ impl MempoolLoad {
 
             transactions.push(tx);
         }
-        // debug!("transactions generated {:?}", transactions.clone().len());
+        debug!("MEMPOOL LOAD TX GENERATED {:?}", transactions.clone().len());
 
         transactions
     }
@@ -159,13 +159,13 @@ impl Actor for MempoolLoad {
     ) -> Result<(), ActorProcessingErr> {
         match msg {
             Msg::GenerateTransactions { count, size } => {
-                // debug!("entered message handler GenerateTransactions");
+                debug!("entered message handler GenerateTransactions");
 
                 let transactions = Self::generate_transactions(count, size);
-                // debug!("broadcasting transactions {:?}", transactions.len());
+                debug!("broadcasting transactions {:?}", transactions.len());
 
                 let tx_batch = Transactions::new(transactions).to_any().unwrap();
-                // debug!("broadcasting batch {:?}", tx_batch.clone().value.len());
+                debug!("broadcasting batch {:?}", tx_batch.clone().value.len());
 
                 let mempool_batch: MempoolTransactionBatch = MempoolTransactionBatch::new(tx_batch);
 

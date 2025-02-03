@@ -9,6 +9,7 @@ use ractor::ActorRef;
 use ractor::OutputPort;
 use ractor::{Actor, RpcReplyPort};
 use tokio::task::JoinHandle;
+use tracing::debug;
 use tracing::error;
 
 use malachitebft_metrics::SharedRegistry;
@@ -134,6 +135,8 @@ impl Actor for MempoolNetwork {
             Msg::Subscribe(subscriber) => subscriber.subscribe_to_port(output_port),
 
             Msg::BroadcastMsg(batch) => {
+                debug!("entered broadcast batch");
+
                 match NetworkMsg::TransactionBatch(batch).to_network_bytes() {
                     Ok(bytes) => {
                         ctrl_handle.broadcast(Mempool, bytes).await?;

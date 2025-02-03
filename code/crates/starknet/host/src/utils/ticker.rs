@@ -8,6 +8,7 @@ where
     Msg: Message,
 {
     loop {
+        debug!("slept for interval {:?}", interval);
         tokio::time::sleep(interval).await;
         debug!("sending message generatetransactions");
 

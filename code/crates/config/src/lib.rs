@@ -346,17 +346,16 @@ mod gossipsub {
 #[serde(tag = "load_type", rename_all = "snake_case")]
 pub enum MempoolLoadType {
     UniformLoad(UniformLoadConfig),
-    // #[default]
     NoLoad,
     NonUniformLoad(NonUniformLoadConfig),
 }
 
 impl Default for MempoolLoadType {
     fn default() -> Self {
-        Self::UniformLoad(UniformLoadConfig::default())
+        Self::NonUniformLoad(NonUniformLoadConfig::default())
     }
 }
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(from = "nonuniformload::RawConfig", default)]
 pub struct NonUniformLoadConfig {
     /// Base transaction count
@@ -381,6 +380,19 @@ pub struct NonUniformLoadConfig {
     /// Range of intervals between generating load, in milliseconds
     sleep_interval: std::ops::Range<u64>,
 }
+impl Default for NonUniformLoadConfig {
+    fn default() -> Self {
+        Self::new(
+            1000,
+            256,
+            -500..500,
+            -64..128,
+            0.10,
+            5,
+            1000..5000)
+    }
+}
+
 impl NonUniformLoadConfig {
     pub fn new(
         base_count: usize,
@@ -501,7 +513,7 @@ impl UniformLoadConfig {
 }
 impl Default for UniformLoadConfig {
     fn default() -> Self {
-        Self::new(Duration::from_secs(10), 1000, 256)
+        Self::new(Duration::from_secs(10), 10000, 256)
     }
 }
 
