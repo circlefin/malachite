@@ -3,9 +3,7 @@ use malachitebft_core_types::Round;
 use malachitebft_proto as proto;
 use malachitebft_starknet_p2p_proto::{self as p2p_proto};
 
-use proto::Protobuf;
-
-use crate::{Address, Hash, Height, ProposalCommitment, TransactionBatch};
+use crate::{Address, BlockInfo, Hash, Height, ProposalCommitment, TransactionBatch};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProposalInit {
@@ -23,14 +21,16 @@ pub struct ProposalFin {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ProposalPart {
     Init(ProposalInit),
+    BlockInfo(BlockInfo),
     Transactions(TransactionBatch),
-    ProposalCommitment(ProposalCommitment),
+    ProposalCommitment(Box<ProposalCommitment>),
     Fin(ProposalFin),
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum PartType {
     Init,
+    BlockInfo,
     Transactions,
     ProposalCommitment,
     Fin,
@@ -40,6 +40,7 @@ impl ProposalPart {
     pub fn part_type(&self) -> PartType {
         match self {
             Self::Init(_) => PartType::Init,
+            Self::BlockInfo(_) => PartType::BlockInfo,
             Self::Transactions(_) => PartType::Transactions,
             Self::ProposalCommitment(_) => PartType::ProposalCommitment,
             Self::Fin(_) => PartType::Fin,
@@ -69,8 +70,24 @@ impl ProposalPart {
         }
     }
 
+    pub fn as_l1_block_info(&self) -> Option<&BlockInfo> {
+        if let Self::BlockInfo(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
     pub fn as_transactions(&self) -> Option<&TransactionBatch> {
         if let Self::Transactions(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_proposal_commitment(&self) -> Option<&ProposalCommitment> {
+        if let Self::ProposalCommitment(v) = self {
             Some(v)
         } else {
             None
@@ -108,20 +125,24 @@ impl proto::Protobuf for ProposalPart {
                 )?,
             }),
 
-            Messages::Fin(fin) => ProposalPart::Fin(ProposalFin {
-                state_diff_commitment: Hash::from_proto(fin.state_diff_commitment.ok_or_else(
-                    || proto::Error::missing_field::<Self::Proto>("state_diff_commitment"),
-                )?)?,
-            }),
+            Messages::BlockInfo(block_info) => {
+                ProposalPart::BlockInfo(BlockInfo::from_proto(block_info)?)
+            }
 
             Messages::Transactions(txes) => {
                 let transactions = TransactionBatch::from_proto(txes)?;
                 ProposalPart::Transactions(transactions)
             }
 
-            Messages::ProposalCommitment(commitment) => {
-                ProposalPart::ProposalCommitment(ProposalCommitment::from_proto(commitment)?)
-            }
+            Messages::ProposalCommitment(commitment) => ProposalPart::ProposalCommitment(Box::new(
+                ProposalCommitment::from_proto(commitment)?,
+            )),
+
+            Messages::Fin(fin) => ProposalPart::Fin(ProposalFin {
+                state_diff_commitment: Hash::from_proto(fin.state_diff_commitment.ok_or_else(
+                    || proto::Error::missing_field::<Self::Proto>("state_diff_commitment"),
+                )?)?,
+            }),
         })
     }
 
@@ -136,9 +157,7 @@ impl proto::Protobuf for ProposalPart {
                 valid_round: init.valid_round.as_u32(),
                 proposer: Some(init.proposer.to_proto()?),
             }),
-            ProposalPart::Fin(fin) => Messages::Fin(p2p_proto::ProposalFin {
-                state_diff_commitment: Some(fin.state_diff_commitment.to_proto()?),
-            }),
+            ProposalPart::BlockInfo(block_info) => Messages::BlockInfo(block_info.to_proto()?),
             ProposalPart::Transactions(txes) => {
                 Messages::Transactions(p2p_proto::TransactionBatch {
                     transactions: txes
@@ -151,6 +170,9 @@ impl proto::Protobuf for ProposalPart {
             ProposalPart::ProposalCommitment(commitment) => {
                 Messages::ProposalCommitment(commitment.to_proto()?)
             }
+            ProposalPart::Fin(fin) => Messages::Fin(p2p_proto::ProposalFin {
+                state_diff_commitment: Some(fin.state_diff_commitment.to_proto()?),
+            }),
         };
 
         Ok(p2p_proto::ProposalPart {

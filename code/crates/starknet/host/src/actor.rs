@@ -413,8 +413,10 @@ async fn on_restream_value(
     while let Some(part) = rx_part.recv().await {
         let new_part = match part.part_type() {
             PartType::Init => init_part.clone(),
-            PartType::Fin => fin_part.clone(),
+            PartType::BlockInfo => part,
             PartType::Transactions => part,
+            PartType::ProposalCommitment => part,
+            PartType::Fin => fin_part.clone(),
         };
 
         state.host.part_store.store(height, round, new_part.clone());

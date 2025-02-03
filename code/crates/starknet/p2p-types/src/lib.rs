@@ -36,6 +36,9 @@ pub use proposal_part::{PartType, ProposalFin, ProposalInit, ProposalPart};
 mod block;
 pub use block::Block;
 
+mod block_info;
+pub use block_info::BlockInfo;
+
 mod block_proof;
 pub use block_proof::BlockProof;
 

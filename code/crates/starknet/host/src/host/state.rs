@@ -23,7 +23,7 @@ pub struct HostState {
     pub consensus: Option<ConsensusRef<MockContext>>,
     pub block_store: BlockStore,
     pub part_streams_map: PartStreamsMap,
-    pub next_stream_id: u64,
+    pub nonce: u64,
 }
 
 impl HostState {
@@ -39,7 +39,7 @@ impl HostState {
             consensus: None,
             block_store: BlockStore::new(db_path).unwrap(),
             part_streams_map: PartStreamsMap::default(),
-            next_stream_id: rng.next_u64(),
+            nonce: rng.next_u64(),
         }
     }
 
@@ -47,7 +47,10 @@ impl HostState {
         let stream_id = malachitebft_starknet_p2p_proto::ConsensusStreamId {
             height: self.height.as_u64(),
             round: self.round.as_u32().expect("round is non-nil"),
+            nonce: self.nonce,
         };
+
+        self.nonce += 1;
 
         let bytes = prost::Message::encode_to_vec(&stream_id);
         StreamId::new(bytes.into())
