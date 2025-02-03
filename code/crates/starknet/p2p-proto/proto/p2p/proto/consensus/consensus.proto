@@ -20,7 +20,6 @@ message ConsensusTransaction {
     Hash transaction_hash = 5;
 }
 
-// Votes will be sent on the "consensus_votes" topic.
 message Vote {
     enum  VoteType {
         Prevote   = 0;
@@ -44,6 +43,7 @@ message Vote {
 message ConsensusStreamId {
     uint64 height = 1;
     uint32 round  = 2;
+    uint64 nonce = 3;
 }
 
 // The timestamp of a proposal can impact consensus, specifically the lower bound applied. If nodes
@@ -53,13 +53,15 @@ message ConsensusStreamId {
 // problem.
 message ProposalPart {
     oneof messages {
-        ProposalInit init         = 1;
-        ProposalFin  fin          = 2;
+        ProposalInit init                      = 1;
+        ProposalFin  fin                       = 2;
+        BlockInfo block_info                   = 3;
         // Once block `H` is decided there remains a question; which set of validators receive a
         // reward? More specifically, what is the canonical set of precommits for block `H`? Our
         // current plan is for the proposer to set the first transaction in `H+1` to be writing the
         // list of precommits for `H` to the staking contract in starknet.
-        TransactionBatch transactions = 3;
+        TransactionBatch transactions          = 4;
+        ProposalCommitment proposal_commitment = 5;
     }
 }
 
@@ -70,29 +72,17 @@ message ProposalInit {
     Address proposer = 4;
 }
 
+// Identifies the content proposed (and executed). Consensus is reached on the value contained here.
+message ProposalFin {
+    Hash state_diff_commitment = 1;
+}
+
 message TransactionBatch {
     repeated ConsensusTransaction transactions = 1;
 }
 
-// Finalize the Tendermint Proposal. When a validator receives this message it will presume that no
-// more content for the proposal should be sent. The signature supplied with ProposalFin should be
-// for the full Tendermint proposal:
-// 1. height
-// 2. fork_id
-// 3. proposal_round
-// 4. valid_round
-// 5. block_hash - the validator calculates the block_hash on its own from the content stream and
-//    confirms the signature with that value.
-message ProposalFin {
-    // Identifies all of the content streamed in the proposal.
-    // Note that the set of block identifiers being hashed is subject to change,
-    // which will be reflected in a change of the name of this field.
-    Hash state_diff_commitment = 1;
-}
-
-// The content and stream_id are generic fields. The user of the stream can choose to pass whatever message
-// that they want. The messages are then encoded in bytes.
-// For Consensus, we use a content which is a ProposalPart, and a stream_id that is a ConsensusStreamId.
+// The content and stream_id are generic fields. The user of the stream can choose to pass whatever
+// message that they want. The messages are then encoded in bytes.
 message StreamMessage {
     oneof message {
         bytes content = 1;
@@ -100,4 +90,40 @@ message StreamMessage {
     }
     bytes stream_id = 3;
     uint64 message_id = 4;
+}
+
+message ProposalCommitment {
+    uint64                 block_number           = 1;
+    uint64                 fork_id                = 2;
+    Hash                   parent_commitment      = 3;
+    Address                builder                = 4;
+    uint64                 timestamp              = 5;
+    string                 protocol_version       = 6; // Starknet version
+    // State root of block `H-K`, where `K` is defined by the protocol's version.
+    Hash                   old_state_root         = 7;
+    // The state diff commitment returned  by the Starknet Feeder Gateway
+    Hash                   state_diff_commitment  = 8;
+    Hash                   transaction_commitment = 9;
+    Hash                   event_commitment       = 10;
+    Hash                   receipt_commitment     = 11;
+    // TODO: Just put the sizes explicitly? This is relatively free compared actually hashing the
+    // lists we commit to. If not, should we also pack other fields?
+    Felt252                concatenated_counts    = 12;
+    Uint128                l1_gas_price_fri       = 13;
+    Uint128                l1_data_gas_price_fri  = 14;
+    Uint128                l2_gas_price_fri       = 15;
+    Uint128                l2_gas_used            = 16;
+    L1DataAvailabilityMode l1_da_mode             = 17;
+}
+
+message BlockInfo {
+    uint64                 block_number          = 1;
+    uint64                 fork_id               = 2;
+    Address                builder               = 3;
+    uint64                 timestamp             = 4;
+    Uint128                l2_gas_price_fri      = 5;
+    Uint128                l1_gas_price_wei      = 6;
+    Uint128                l1_data_gas_price_wei = 7;
+    Uint128                eth_to_strk_rate      = 8;
+    L1DataAvailabilityMode l1_da_mode            = 9;
 }
