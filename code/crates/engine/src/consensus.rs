@@ -995,20 +995,25 @@ where
             }
 
             Effect::GetVoteSet(height, round, r) => {
-                debug!(%height, %round, "Request sync to obtain the vote set from peers");
-
                 if let Some(sync) = &self.sync {
+                    debug!(%height, %round, "Request sync to obtain the vote set from peers");
+
                     sync.cast(SyncMsg::RequestVoteSet(height, round))
                         .map_err(|e| eyre!("Error when sending vote set request to sync: {e:?}"))?;
-                }
 
-                self.tx_event
-                    .send(|| Event::RequestedVoteSet(height, round));
+                    self.tx_event
+                        .send(|| Event::RequestedVoteSet(height, round));
+                }
 
                 Ok(r.resume_with(()))
             }
 
             Effect::SendVoteSetResponse(request_id_str, height, round, vote_set, r) => {
+                let Some(sync) = self.sync.as_ref() else {
+                    warn!("Responding to a vote set request but sync actor is not available");
+                    return Ok(r.resume_with(()));
+                };
+
                 let vote_count = vote_set.len();
                 let response =
                     Response::VoteSetResponse(VoteSetResponse::new(height, round, vote_set));
@@ -1023,12 +1028,10 @@ where
                 self.network
                     .cast(NetworkMsg::OutgoingResponse(request_id.clone(), response))?;
 
-                if let Some(sync) = &self.sync {
-                    sync.cast(SyncMsg::SentVoteSetResponse(request_id, height, round))
-                        .map_err(|e| {
-                            eyre!("Error when notifying Sync about vote set response: {e:?}")
-                        })?;
-                }
+                sync.cast(SyncMsg::SentVoteSetResponse(request_id, height, round))
+                    .map_err(|e| {
+                        eyre!("Error when notifying Sync about vote set response: {e:?}")
+                    })?;
 
                 self.tx_event
                     .send(|| Event::SentVoteSetResponse(height, round, vote_count));
