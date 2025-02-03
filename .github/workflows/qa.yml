@@ -71,6 +71,8 @@ jobs:
 
           for i in "${!NODE_IP_ARRAY[@]}"; do
             CONFIG_FILE="$HOME/.malachite/$i/config/config.toml"
+            pwd
+            ls -R $CONFIG_FILE
 
             echo "Checking for file: $CONFIG_FILE"
             if [ ! -f "$CONFIG_FILE" ]; then
