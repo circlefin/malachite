@@ -107,6 +107,8 @@ jobs:
           for i in "${!NODE_IP_ARRAY[@]}"; do
             echo "Uploading $HOME/.malachite/$i/config/config.toml to Node $i (${NODE_IP_ARRAY[$i]})"
 
+            ssh -i private_key -o StrictHostKeyChecking=no root@${NODE_IP_ARRAY[$i]} "mkdir -p /root/.malachite/config/"
+
             scp -i private_key -o StrictHostKeyChecking=no \
               $HOME/.malachite/$i/config/config.toml \
               root@${NODE_IP_ARRAY[$i]}:/root/.malachite/config/config.toml &
