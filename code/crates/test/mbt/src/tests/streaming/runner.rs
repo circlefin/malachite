@@ -81,7 +81,6 @@ impl ItfRunner for StreamingRunner {
                         msg.sequence as u64,
                         StreamContent::Data(ProposalPart::Init(proposal_init)),
                     )
-                    // actual.insert(self.peer_id, message);
                 }
                 MessageType::Data => {
                     // Dummy transactions
@@ -97,7 +96,6 @@ impl ItfRunner for StreamingRunner {
                         msg.sequence as u64,
                         StreamContent::Data(ProposalPart::Transactions(transactions)),
                     )
-                    // actual.insert(self.peer_id, message);
                 }
                 MessageType::Fin => {
                     //Q: StreamContent can be Data or Fin, but also ProposalPart has Fin variant
@@ -107,7 +105,6 @@ impl ItfRunner for StreamingRunner {
                         msg.sequence as u64,
                         StreamContent::Fin(true),
                     )
-                    // actual.insert(self.peer_id, message);
                 }
             },
             None => {
