@@ -63,14 +63,14 @@ jobs:
       - name: Run Testnet Setup (Generate Configs)
         run: |
           ./code/target/release/${{ env.BINARY_NAME }} testnet -n ${{ env.NODE_COUNT }}
-          ls -R .malachite/
+          ls -R $HOME/.malachite/
 
       - name: Modify Config Files with Public IPs
         run: |
           NODE_IP_ARRAY=($NODE_IPS)
 
           for i in "${!NODE_IP_ARRAY[@]}"; do
-            CONFIG_FILE=".malachite/$i/config/config.toml"
+            CONFIG_FILE="$HOME/.malachite/$i/config/config.toml"
 
             echo "Checking for file: $CONFIG_FILE"
             if [ ! -f "$CONFIG_FILE" ]; then
@@ -103,10 +103,10 @@ jobs:
           NODE_IP_ARRAY=($NODE_IPS)
 
           for i in "${!NODE_IP_ARRAY[@]}"; do
-            echo "Uploading .malachite/$i/config/config.toml to Node $i (${NODE_IP_ARRAY[$i]})"
+            echo "Uploading $HOME/.malachite/$i/config/config.toml to Node $i (${NODE_IP_ARRAY[$i]})"
 
             scp -i private_key -o StrictHostKeyChecking=no \
-              .malachite/$i/config/config.toml \
+              $HOME/.malachite/$i/config/config.toml \
               root@${NODE_IP_ARRAY[$i]}:/root/.malachite/config/config.toml &
           done
           wait
