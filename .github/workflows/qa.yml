@@ -81,14 +81,14 @@ jobs:
             fi
 
             # Set the correct listen_addr: each node gets its public IP but uses port 27000
-            sed -i '' "s|listen_addr = \"/ip4/127.0.0.1/tcp/2700$i\"|listen_addr = \"/ip4/${NODE_IP_ARRAY[$i]}/tcp/27000\"|" "$CONFIG_FILE"
+            sed -i "s|listen_addr = \"/ip4/127.0.0.1/tcp/2700$i\"|listen_addr = \"/ip4/${NODE_IP_ARRAY[$i]}/tcp/27000\"|" "$CONFIG_FILE"
 
             # Replace each peer's address based on known index
             for j in "${!NODE_IP_ARRAY[@]}"; do
               if [ $j -ne $i ]; then
                 OLD_PEER_ADDR="/ip4/127.0.0.1/tcp/2700$j"
                 NEW_PEER_ADDR="/ip4/${NODE_IP_ARRAY[$j]}/tcp/27000"  # All peers use port 27000
-                sed -i '' "s|$OLD_PEER_ADDR|$NEW_PEER_ADDR|g" "$CONFIG_FILE"
+                sed -i "s|$OLD_PEER_ADDR|$NEW_PEER_ADDR|g" "$CONFIG_FILE"
               fi
             done
 
