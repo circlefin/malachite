@@ -4,7 +4,7 @@ use crate::{prelude::*, SignedConsensusMsg};
 pub async fn on_rebroadcast_timeout<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    _metrics: &Metrics,
+    metrics: &Metrics,
     timeout: Timeout,
 ) -> Result<(), Error<Ctx>>
 where
@@ -35,7 +35,7 @@ where
     }
 
     // #[cfg(feature = "metrics")]
-    // metrics.rebroadcast_timeouts.inc(); // TODO
+    metrics.rebroadcast_timeouts.inc(); // TODO
 
     Ok(())
 }
