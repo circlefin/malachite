@@ -5,7 +5,7 @@ use ractor::{concurrency::JoinHandle, Actor, ActorProcessingErr, ActorRef};
 use rand::rngs::SmallRng;
 use rand::seq::IteratorRandom;
 use rand::{Rng, RngCore, SeedableRng};
-use tracing::debug;
+use tracing::info;
 
 use malachitebft_config::MempoolLoadType;
 use malachitebft_starknet_p2p_types::{Transaction, Transactions};
@@ -55,8 +55,6 @@ impl MempoolLoad {
         network: MempoolNetworkRef,
         span: tracing::Span,
     ) -> Result<MempoolLoadRef, ractor::SpawnErr> {
-        debug!("spawning actor mempool_load");
-
         let actor = Self::new(params, network, span);
         let (actor_ref, _) = Actor::spawn(None, actor, ()).await?;
         Ok(actor_ref)
@@ -70,12 +68,8 @@ impl MempoolLoad {
             let mut tx_bytes = vec![0; size];
             rng.fill_bytes(&mut tx_bytes);
             let tx = Transaction::new(tx_bytes);
-            // debug!("transaction {:?}", tx.clone());
-
             transactions.push(tx);
         }
-        debug!("MEMPOOL LOAD TX GENERATED {:?}", transactions.clone().len());
-
         transactions
     }
 }
@@ -91,8 +85,6 @@ impl Actor for MempoolLoad {
         myself: MempoolLoadRef,
         _args: (),
     ) -> Result<State, ActorProcessingErr> {
-        debug!("starting ticker");
-
         let ticker = match self.params.load_type.clone() {
             MempoolLoadType::UniformLoad(uniform_load_config) => tokio::spawn(ticker(
                 uniform_load_config.interval(),
@@ -130,10 +122,10 @@ impl Actor for MempoolLoad {
                         tracing::error!(?er, ?myself, "Failed to send tick message");
                         break;
                     }
-                    // Random sleep between 100ms and 1s
+                    // Random sleep
                     let sleep_duration =
                         Duration::from_millis(params.sleep_interval().choose(&mut rng).unwrap());
-                    debug!("sleeping thread for duration {:?}", sleep_duration);
+
                     tokio::time::sleep(sleep_duration).await;
                 }
             }),
@@ -146,6 +138,7 @@ impl Actor for MempoolLoad {
         _myself: ActorRef<Self::Msg>,
         state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
+        info!("Stopping...");
         state.ticker.abort();
         Ok(())
     }
@@ -159,18 +152,13 @@ impl Actor for MempoolLoad {
     ) -> Result<(), ActorProcessingErr> {
         match msg {
             Msg::GenerateTransactions { count, size } => {
-                debug!("entered message handler GenerateTransactions");
-
                 let transactions = Self::generate_transactions(count, size);
-                debug!("broadcasting transactions {:?}", transactions.len());
-
                 let tx_batch = Transactions::new(transactions).to_any().unwrap();
-                debug!("broadcasting batch {:?}", tx_batch.clone().value.len());
 
                 let mempool_batch: MempoolTransactionBatch = MempoolTransactionBatch::new(tx_batch);
-
                 self.network
                     .cast(MempoolNetworkMsg::BroadcastMsg(mempool_batch))?;
+
                 Ok(())
             }
         }

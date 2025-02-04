@@ -7,7 +7,7 @@ use malachitebft_engine::wal::{Wal, WalRef};
 use tokio::task::JoinHandle;
 
 use malachitebft_config::{
-    self as config, Config as NodeConfig, MempoolConfig, MempoolLoadConfig, SyncConfig, TestConfig,
+    self as config, Config as NodeConfig, MempoolConfig, MempoolLoadConfig, SyncConfig,
     TransportProtocol,
 };
 use malachitebft_core_consensus::ValuePayload;
@@ -50,8 +50,7 @@ pub async fn spawn_node_actor(
 
     // Spawn mempool and its gossip layer
     let mempool_network = spawn_mempool_network_actor(&cfg, &private_key, &registry, &span).await;
-    let mempool =
-        spawn_mempool_actor(mempool_network.clone(), &cfg.mempool, &cfg.test, &span).await;
+    let mempool = spawn_mempool_actor(mempool_network.clone(), &cfg.mempool, &span).await;
     let mempool_load =
         spawn_mempool_load_actor(&cfg.mempool_load, mempool_network.clone(), &span).await;
 
@@ -282,14 +281,12 @@ fn make_keypair(private_key: &PrivateKey) -> Keypair {
 async fn spawn_mempool_actor(
     mempool_network: MempoolNetworkRef,
     mempool_config: &MempoolConfig,
-    test_config: &TestConfig,
     span: &tracing::Span,
 ) -> MempoolRef {
     Mempool::spawn(
         mempool_network,
         mempool_config.gossip_batch_size,
         mempool_config.max_tx_count,
-        test_config.tx_size,
         span.clone(),
     )
     .await

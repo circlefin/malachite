@@ -10,7 +10,7 @@ use rand::{RngCore, SeedableRng};
 use sha3::Digest;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
-use tracing::{debug, error, trace};
+use tracing::{error, trace};
 
 use malachitebft_core_types::Round;
 
@@ -82,7 +82,6 @@ async fn run_build_proposal_task(
     };
 
     loop {
-        debug!("reaping transactions");
         trace!(%height, %round, %sequence, "Building local value");
 
         let reaped_txes = mempool
