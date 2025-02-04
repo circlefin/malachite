@@ -53,15 +53,11 @@ message ConsensusStreamId {
 // problem.
 message ProposalPart {
     oneof messages {
-        ProposalInit init                      = 1;
-        ProposalFin  fin                       = 2;
-        BlockInfo block_info                   = 3;
-        // Once block `H` is decided there remains a question; which set of validators receive a
-        // reward? More specifically, what is the canonical set of precommits for block `H`? Our
-        // current plan is for the proposer to set the first transaction in `H+1` to be writing the
-        // list of precommits for `H` to the staking contract in starknet.
-        TransactionBatch transactions          = 4;
-        ProposalCommitment proposal_commitment = 5;
+        ProposalInit       init         = 1;
+        ProposalFin        fin          = 2;
+        BlockInfo          block_info   = 3;
+        TransactionBatch   transactions = 4;
+        ProposalCommitment commitment   = 5;
     }
 }
 
@@ -74,7 +70,7 @@ message ProposalInit {
 
 // Identifies the content proposed (and executed). Consensus is reached on the value contained here.
 message ProposalFin {
-    Hash state_diff_commitment = 1;
+    Hash proposal_commitment = 1;
 }
 
 message TransactionBatch {
