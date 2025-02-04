@@ -256,7 +256,10 @@ where
 
                 perform!(
                     co,
-                    Effect::Publish(SignedConsensusMsg::Vote(signed_vote.clone()), Default::default())
+                    Effect::Publish(
+                        SignedConsensusMsg::Vote(signed_vote.clone()),
+                        Default::default()
+                    )
                 );
 
                 let timeout = match signed_vote.vote_type() {
