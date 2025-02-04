@@ -10,7 +10,7 @@ pub mod utils;
 const SHA2_256: u64 = 0x12;
 
 #[test]
-fn test_itf() {
+fn test_mbt_part_streaming() {
     let temp_dir = tempfile::TempDir::with_prefix("informalsystems-malachitebft-part-streaming")
         .expect("Failed to create temp dir");
     let temp_path = temp_dir.path().to_owned();

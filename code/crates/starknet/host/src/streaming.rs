@@ -49,7 +49,7 @@ impl<T> Default for MinHeap<T> {
 }
 
 impl<T> MinHeap<T> {
-    fn push(&mut self, msg: StreamMessage<T>) {
+    pub fn push(&mut self, msg: StreamMessage<T>) {
         self.0.push(MinSeq(msg));
     }
 

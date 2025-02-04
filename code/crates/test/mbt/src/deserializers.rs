@@ -16,9 +16,8 @@ where
     }
 }
 
-// I don't know if this is the right way
 // Quint specification has its own Option type that is treated as enum in rust
-// so I had to extract message from it and convert it to rust's Option type
+// so message has to be extracted from it and be converted to rust's Option type
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(tag = "tag", content = "value")]
 enum MessageOption {

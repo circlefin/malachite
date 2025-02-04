@@ -1,12 +1,11 @@
 use super::utils;
 use crate::streaming::{MessageType, State as SpecificationState};
 use itf::Runner as ItfRunner;
-use malachitebft_core_types::Round;
 use malachitebft_engine::util::streaming::{StreamContent, StreamMessage};
 use malachitebft_peer::PeerId;
 use malachitebft_starknet_host::{
     streaming::{PartStreamsMap, StreamState as StreamStateImpl},
-    types::{Address, Height, ProposalInit, ProposalPart, Transaction, Transactions},
+    types::ProposalPart,
 };
 
 pub struct StreamingRunner {
@@ -33,9 +32,25 @@ impl ItfRunner for StreamingRunner {
     fn init(&mut self, expected: &Self::ExpectedState) -> Result<Self::ActualState, Self::Error> {
         println!("🔵 init: expected state={:?}", expected.state);
         let mut streams_map = PartStreamsMap::default();
+
+        let initial_state: StreamStateImpl<ProposalPart> = StreamStateImpl {
+            buffer: utils::spec_to_impl_buffer(&expected.state.buffer, self.stream_id),
+            init_info: utils::init_message_to_proposal_init(&expected.incoming_message),
+            seen_sequences: expected
+                .state
+                .received
+                .iter()
+                .map(|msg| msg.sequence as u64)
+                .collect(),
+            next_sequence: expected.state.next_sequence as u64,
+            total_messages: expected.state.total_messages as usize,
+            fin_received: expected.state.fin_received,
+            emitted_messages: expected.state.emitted.len(),
+        };
+
         streams_map
             .streams
-            .insert((self.peer_id, self.stream_id), StreamStateImpl::default());
+            .insert((self.peer_id, self.stream_id), initial_state);
         Ok(streams_map)
     }
 
@@ -53,29 +68,7 @@ impl ItfRunner for StreamingRunner {
         let message = match &expected.incoming_message {
             Some(msg) => match &msg.msg_type {
                 MessageType::Init => {
-                    // Dummy proposer address
-                    let bytes: [u8; 32] = [
-                        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C,
-                        0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
-                        0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20,
-                    ];
-                    let proposer_addr = Address::new(bytes);
-
-                    let height = Height {
-                        block_number: 1,
-                        fork_id: 1,
-                    };
-
-                    let round = Round::new(2);
-                    let valid_round = Round::new(1);
-
-                    let proposal_init = ProposalInit {
-                        height: height,
-                        proposal_round: round,
-                        valid_round: valid_round,
-                        proposer: proposer_addr,
-                    };
-
+                    let proposal_init = utils::generate_dummy_proposal_init();
                     StreamMessage::<ProposalPart>::new(
                         self.stream_id,
                         msg.sequence as u64,
@@ -83,14 +76,7 @@ impl ItfRunner for StreamingRunner {
                     )
                 }
                 MessageType::Data => {
-                    // Dummy transactions
-                    let tx1 = Transaction::new(vec![0x01, 0x02, 0x03]);
-                    let tx2 = Transaction::new(vec![0x04, 0x05, 0x06]);
-                    let tx3 = Transaction::new(vec![0x07, 0x08, 0x09]);
-
-                    let tx_vec = vec![tx1, tx2, tx3];
-
-                    let transactions = Transactions::new(tx_vec);
+                    let transactions = utils::generate_dummy_transactions();
                     StreamMessage::<ProposalPart>::new(
                         self.stream_id,
                         msg.sequence as u64,
