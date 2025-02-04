@@ -1,5 +1,6 @@
 use crate::handle::decide::decide;
 use crate::handle::driver::apply_driver_input;
+use crate::handle::rebroadcast_timeout::on_rebroadcast_timeout;
 use crate::handle::step_timeout::on_step_limit_timeout;
 use crate::prelude::*;
 
@@ -40,6 +41,9 @@ where
     apply_driver_input(co, state, metrics, DriverInput::TimeoutElapsed(timeout)).await?;
 
     match timeout.kind {
+        TimeoutKind::PrevoteRebroadcast | TimeoutKind::PrecommitRebroadcast => {
+            on_rebroadcast_timeout(co, state, metrics, timeout).await?;
+        }
         TimeoutKind::PrevoteTimeLimit | TimeoutKind::PrecommitTimeLimit => {
             on_step_limit_timeout(co, state, metrics, timeout.round).await?;
         }

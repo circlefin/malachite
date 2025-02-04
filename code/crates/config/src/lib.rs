@@ -451,6 +451,8 @@ impl TimeoutConfig {
             TimeoutKind::Commit => self.timeout_commit,
             TimeoutKind::PrevoteTimeLimit => self.timeout_step,
             TimeoutKind::PrecommitTimeLimit => self.timeout_step,
+            TimeoutKind::PrevoteRebroadcast => self.timeout_prevote,
+            TimeoutKind::PrecommitRebroadcast => self.timeout_precommit,
         }
     }
 
@@ -462,6 +464,8 @@ impl TimeoutConfig {
             TimeoutKind::Commit => None,
             TimeoutKind::PrevoteTimeLimit => None,
             TimeoutKind::PrecommitTimeLimit => None,
+            TimeoutKind::PrevoteRebroadcast => None,
+            TimeoutKind::PrecommitRebroadcast => None,
         }
     }
 }
