@@ -205,7 +205,8 @@ impl Actor for Mempool {
                 reply, num_txes, ..
             } => {
                 debug!("reached reap endpoint");
-                let txes = generate_and_broadcast_txes(
+                debug!("current state of mempool: {:?}", state.transactions);
+                let txes = reap_and_broadcast_txes(
                     num_txes,
                     self.test_tx_size.as_u64() as usize,
                     self.gossip_batch_size,
@@ -243,7 +244,7 @@ impl Actor for Mempool {
     }
 }
 
-fn generate_and_broadcast_txes(
+fn reap_and_broadcast_txes(
     count: usize,
     size: usize,
     gossip_batch_size: usize,
@@ -272,7 +273,10 @@ fn generate_and_broadcast_txes(
         let mempool_batch = MempoolTransactionBatch::new(tx_batch);
         mempool_network.cast(MempoolNetworkMsg::BroadcastMsg(mempool_batch))?;
     }
-    debug!("reaped transactions after batch sent: {:?}", transactions.len());
+    debug!(
+        "reaped transactions after batch sent: {:?}",
+        transactions.len()
+    );
     // for _ in initial_count..count {
     //     // Generate transaction
     //     let mut tx_bytes = vec![0; size];

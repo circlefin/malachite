@@ -359,10 +359,10 @@ impl Default for MempoolLoadType {
 #[serde(from = "nonuniformload::RawConfig", default)]
 pub struct NonUniformLoadConfig {
     /// Base transaction count
-    base_count: usize,
+    base_count: i32,
 
     /// Base transaction size
-    base_size: usize,
+    base_size: i32,
 
     /// How much the transaction count can vary
     count_variation: std::ops::Range<i32>,
@@ -382,21 +382,14 @@ pub struct NonUniformLoadConfig {
 }
 impl Default for NonUniformLoadConfig {
     fn default() -> Self {
-        Self::new(
-            1000,
-            256,
-            -500..500,
-            -64..128,
-            0.10,
-            5,
-            1000..5000)
+        Self::new(1000, 256, -500..500, -64..128, 0.10, 2, 100..1000)
     }
 }
 
 impl NonUniformLoadConfig {
     pub fn new(
-        base_count: usize,
-        base_size: usize,
+        base_count: i32,
+        base_size: i32,
         count_variation: std::ops::Range<i32>,
         size_variation: std::ops::Range<i32>,
         spike_probability: f64,
@@ -413,10 +406,10 @@ impl NonUniformLoadConfig {
             sleep_interval,
         }
     }
-    pub fn base_count(&self) -> usize {
+    pub fn base_count(&self) -> i32 {
         self.base_count
     }
-    pub fn base_size(&self) -> usize {
+    pub fn base_size(&self) -> i32 {
         self.base_size
     }
     pub fn count_variation(&self) -> std::ops::Range<i32> {
@@ -441,11 +434,11 @@ mod nonuniformload {
     pub struct RawConfig {
         /// Base transaction count
         #[serde(default)]
-        base_count: usize,
+        base_count: i32,
 
         /// Base transaction size
         #[serde(default)]
-        base_size: usize,
+        base_size: i32,
 
         /// How much the transaction count can vary
         #[serde(default)]

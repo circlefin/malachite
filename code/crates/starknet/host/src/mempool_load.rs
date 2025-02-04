@@ -1,10 +1,10 @@
-use std::thread::sleep;
 use std::time::Duration;
 
 use async_trait::async_trait;
 use ractor::{concurrency::JoinHandle, Actor, ActorProcessingErr, ActorRef};
+use rand::rngs::SmallRng;
 use rand::seq::IteratorRandom;
-use rand::{Rng, RngCore};
+use rand::{Rng, RngCore, SeedableRng};
 use tracing::debug;
 
 use malachitebft_config::MempoolLoadType;
@@ -64,7 +64,7 @@ impl MempoolLoad {
 
     pub fn generate_transactions(count: usize, size: usize) -> Vec<Transaction> {
         let mut transactions: Vec<Transaction> = Vec::with_capacity(count);
-        let mut rng = rand::thread_rng();
+        let mut rng = SmallRng::from_entropy();
 
         for _ in 0..count {
             let mut tx_bytes = vec![0; size];
@@ -104,38 +104,38 @@ impl Actor for MempoolLoad {
             )),
             MempoolLoadType::NoLoad => tokio::spawn(async {}),
             MempoolLoadType::NonUniformLoad(params) => tokio::spawn(async move {
-                // loop {
-                let mut rng = rand::thread_rng();
-                // Determine if this iteration should generate a spike
-                let is_spike = rng.gen_bool(params.spike_probability());
+                loop {
+                    let mut rng = SmallRng::from_entropy();
+                    // Determine if this iteration should generate a spike
+                    let is_spike = rng.gen_bool(params.spike_probability());
 
-                // Vary transaction count and size
-                let count_variation = rng.gen_range(params.count_variation());
-                let size_variation = rng.gen_range(params.size_variation());
+                    // Vary transaction count and size
+                    let count_variation = rng.gen_range(params.count_variation());
+                    let size_variation = rng.gen_range(params.size_variation());
 
-                let count = if is_spike {
-                    (params.base_count() + count_variation as usize) * params.spike_multiplier()
-                } else {
-                    params.base_count() + count_variation as usize
-                };
+                    let count = if is_spike {
+                        (params.base_count() - count_variation) as usize * params.spike_multiplier()
+                    } else {
+                        (params.base_count() + count_variation) as usize
+                    };
+                    let size = (params.base_size() + size_variation) as usize;
 
-                let size = params.base_size() + size_variation as usize;
+                    // Create and send the message
+                    let msg = Msg::GenerateTransactions {
+                        count: count.max(1), // Ensure count is at least 1
+                        size: size.max(1),   // Ensure size is at least 1
+                    };
 
-                // Create and send the message
-                let msg = Msg::GenerateTransactions {
-                    count: count.max(1), // Ensure count is at least 1
-                    size: size.max(1),   // Ensure size is at least 1
-                };
-
-                if let Err(er) = myself.cast(msg) {
-                    tracing::error!(?er, ?myself, "Failed to send tick message");
-                    // break;
+                    if let Err(er) = myself.cast(msg) {
+                        tracing::error!(?er, ?myself, "Failed to send tick message");
+                        break;
+                    }
+                    // Random sleep between 100ms and 1s
+                    let sleep_duration =
+                        Duration::from_millis(params.sleep_interval().choose(&mut rng).unwrap());
+                    debug!("sleeping thread for duration {:?}", sleep_duration);
+                    tokio::time::sleep(sleep_duration).await;
                 }
-                // Random sleep between 100ms and 1s
-                let sleep_duration =
-                    Duration::from_millis(params.sleep_interval().choose(&mut rng).unwrap());
-                sleep(sleep_duration);
-                // }
             }),
         };
         Ok(State { ticker })
