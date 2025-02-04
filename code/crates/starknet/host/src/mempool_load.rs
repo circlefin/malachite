@@ -7,16 +7,13 @@ use rand::seq::IteratorRandom;
 use rand::{Rng, RngCore, SeedableRng};
 use tracing::info;
 
-use malachitebft_config::MempoolLoadType;
+use malachitebft_config::{MempoolLoadType, NonUniformLoadConfig, UniformLoadConfig};
 use malachitebft_starknet_p2p_types::{Transaction, Transactions};
 use malachitebft_test_mempool::types::MempoolTransactionBatch;
 
 use crate::proto::Protobuf;
 
-use crate::{
-    mempool::network::{MempoolNetworkMsg, MempoolNetworkRef},
-    utils::ticker::ticker,
-};
+use crate::mempool::network::{MempoolNetworkMsg, MempoolNetworkRef};
 
 pub type MempoolLoadMsg = Msg;
 pub type MempoolLoadRef = ActorRef<Msg>;
@@ -72,6 +69,63 @@ impl MempoolLoad {
         }
         transactions
     }
+
+    fn generate_non_uniform_load_params(params: &NonUniformLoadConfig) -> (usize, usize, Duration) {
+        let mut rng = SmallRng::from_entropy();
+
+        // Determine if this iteration should generate a spike
+        let is_spike = rng.gen_bool(params.spike_probability);
+
+        // Vary transaction count and size
+        let count_variation = rng.gen_range(params.count_variation.clone());
+        let size_variation = rng.gen_range(params.size_variation.clone());
+
+        let count = if is_spike {
+            (params.base_count + count_variation) as usize * params.spike_multiplier
+        } else {
+            (params.base_count + count_variation) as usize
+        };
+        let size = (params.base_size + size_variation) as usize;
+
+        // Get sleep duration
+        let sleep_duration =
+            Duration::from_millis(params.sleep_interval.clone().choose(&mut rng).unwrap());
+
+        (count.max(1), size.max(1), sleep_duration)
+    }
+
+    async fn run_uniform_load(params: UniformLoadConfig, myself: MempoolLoadRef) {
+        loop {
+            // Create and send the message
+            let msg = Msg::GenerateTransactions {
+                count: params.count,
+                size: params.size,
+            };
+
+            if let Err(er) = myself.cast(msg) {
+                tracing::error!(?er, ?myself, "Channel closed, stopping load generator");
+                break;
+            }
+
+            tokio::time::sleep(params.interval).await;
+        }
+    }
+
+    async fn run_non_uniform_load(params: NonUniformLoadConfig, myself: MempoolLoadRef) {
+        loop {
+            let (count, size, sleep_duration) = Self::generate_non_uniform_load_params(&params);
+
+            // Create and send the message
+            let msg = Msg::GenerateTransactions { count, size };
+
+            if let Err(er) = myself.cast(msg) {
+                tracing::error!(?er, ?myself, "Channel closed, stopping load generator");
+                break;
+            }
+
+            tokio::time::sleep(sleep_duration).await;
+        }
+    }
 }
 
 #[async_trait]
@@ -86,50 +140,13 @@ impl Actor for MempoolLoad {
         _args: (),
     ) -> Result<State, ActorProcessingErr> {
         let ticker = match self.params.load_type.clone() {
-            MempoolLoadType::UniformLoad(uniform_load_config) => tokio::spawn(ticker(
-                uniform_load_config.interval,
-                myself.clone(),
-                move || Msg::GenerateTransactions {
-                    count: uniform_load_config.count,
-                    size: uniform_load_config.size,
-                },
-            )),
+            MempoolLoadType::UniformLoad(uniform_load_config) => {
+                tokio::spawn(Self::run_uniform_load(uniform_load_config, myself.clone()))
+            }
             MempoolLoadType::NoLoad => tokio::spawn(async {}),
-            MempoolLoadType::NonUniformLoad(params) => tokio::spawn(async move {
-                loop {
-                    let mut rng = SmallRng::from_entropy();
-                    // Determine if this iteration should generate a spike
-                    let is_spike = rng.gen_bool(params.spike_probability);
-
-                    // Vary transaction count and size
-                    let count_variation = rng.gen_range(params.count_variation.clone());
-                    let size_variation = rng.gen_range(params.size_variation.clone());
-
-                    let count = if is_spike {
-                        (params.base_count - count_variation) as usize * params.spike_multiplier
-                    } else {
-                        (params.base_count + count_variation) as usize
-                    };
-                    let size = (params.base_size + size_variation) as usize;
-
-                    // Create and send the message
-                    let msg = Msg::GenerateTransactions {
-                        count: count.max(1), // Ensure count is at least 1
-                        size: size.max(1),   // Ensure size is at least 1
-                    };
-
-                    if let Err(er) = myself.cast(msg) {
-                        tracing::error!(?er, ?myself, "Failed to send tick message");
-                        break;
-                    }
-                    // Random sleep
-                    let sleep_duration = Duration::from_millis(
-                        params.sleep_interval.clone().choose(&mut rng).unwrap(),
-                    );
-
-                    tokio::time::sleep(sleep_duration).await;
-                }
-            }),
+            MempoolLoadType::NonUniformLoad(non_uniform_load_config) => tokio::spawn(
+                Self::run_non_uniform_load(non_uniform_load_config, myself.clone()),
+            ),
         };
         Ok(State { ticker })
     }
