@@ -16,39 +16,39 @@ use std::fmt::Debug;
 // The default BinaryHeap is a max-heap, so we reverse the ordering
 // by implementing Ord in reverse to make it min-heap, which suits the purpose of efficiently
 // providing available proposal part with smallest sequence number
-#[derive_where(Debug)]
-pub struct MinSeq<T: Debug>(pub StreamMessage<T>);
+#[derive(Debug)]
+pub struct MinSeq<T>(pub StreamMessage<T>);
 
-impl<T: Debug> PartialEq for MinSeq<T> {
+impl<T> PartialEq for MinSeq<T> {
     fn eq(&self, other: &Self) -> bool {
         self.0.sequence == other.0.sequence
     }
 }
 
-impl<T: Debug> Eq for MinSeq<T> {}
+impl<T> Eq for MinSeq<T> {}
 
-impl<T: Debug> Ord for MinSeq<T> {
+impl<T> Ord for MinSeq<T> {
     fn cmp(&self, other: &Self) -> Ordering {
         other.0.sequence.cmp(&self.0.sequence)
     }
 }
 
-impl<T: Debug> PartialOrd for MinSeq<T> {
+impl<T> PartialOrd for MinSeq<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-#[derive_where(Debug)]
-pub struct MinHeap<T: Debug>(pub BinaryHeap<MinSeq<T>>);
+#[derive(Debug)]
+pub struct MinHeap<T>(pub BinaryHeap<MinSeq<T>>);
 
-impl<T: Debug> Default for MinHeap<T> {
+impl<T> Default for MinHeap<T> {
     fn default() -> Self {
         Self(BinaryHeap::new())
     }
 }
 
-impl<T: Debug> MinHeap<T> {
+impl<T> MinHeap<T> {
     fn push(&mut self, msg: StreamMessage<T>) {
         self.0.push(MinSeq(msg));
     }
@@ -61,8 +61,9 @@ impl<T: Debug> MinHeap<T> {
         self.0.peek().map(|msg| &msg.0)
     }
 }
-#[derive_where(Default, Debug)]
-pub struct StreamState<T: Debug> {
+#[derive(Debug)]
+#[derive_where(Default)]
+pub struct StreamState<T> {
     pub buffer: MinHeap<T>,
     pub init_info: Option<ProposalInit>,
     pub seen_sequences: HashSet<Sequence>,
@@ -72,7 +73,7 @@ pub struct StreamState<T: Debug> {
     pub emitted_messages: usize,
 }
 
-impl<T: Debug> StreamState<T> {
+impl<T> StreamState<T> {
     fn has_emitted_all_messages(&self) -> bool {
         self.fin_received && self.emitted_messages == self.total_messages
     }
