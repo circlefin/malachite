@@ -425,7 +425,7 @@ impl UniformLoadConfig {
 }
 impl Default for UniformLoadConfig {
     fn default() -> Self {
-        Self::new(Duration::from_secs(10), 10000, 256)
+        Self::new(Duration::from_secs(3), 10000, 256)
     }
 }
 
