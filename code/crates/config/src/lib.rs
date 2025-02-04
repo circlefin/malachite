@@ -352,33 +352,32 @@ pub enum MempoolLoadType {
 
 impl Default for MempoolLoadType {
     fn default() -> Self {
-        Self::NonUniformLoad(NonUniformLoadConfig::default())
+        Self::UniformLoad(UniformLoadConfig::default())
     }
 }
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(from = "nonuniformload::RawConfig", default)]
+#[derive(Clone, Debug, PartialEq, Serialize, serde::Deserialize)]
 pub struct NonUniformLoadConfig {
     /// Base transaction count
-    base_count: i32,
+    pub base_count: i32,
 
     /// Base transaction size
-    base_size: i32,
+    pub base_size: i32,
 
     /// How much the transaction count can vary
-    count_variation: std::ops::Range<i32>,
+    pub count_variation: std::ops::Range<i32>,
 
-    size_variation: std::ops::Range<i32>,
+    pub size_variation: std::ops::Range<i32>,
 
     /// Chance of generating a spike.
     /// e.g. 0.1 = 10% chance of spike
-    spike_probability: f64,
+    pub spike_probability: f64,
 
     /// Multiplier for spike transactions
     /// e.g. 10 = 10x more transactions during spike
-    spike_multiplier: usize,
+    pub spike_multiplier: usize,
 
     /// Range of intervals between generating load, in milliseconds
-    sleep_interval: std::ops::Range<u64>,
+    pub sleep_interval: std::ops::Range<u64>,
 }
 impl Default for NonUniformLoadConfig {
     fn default() -> Self {
@@ -406,83 +405,14 @@ impl NonUniformLoadConfig {
             sleep_interval,
         }
     }
-    pub fn base_count(&self) -> i32 {
-        self.base_count
-    }
-    pub fn base_size(&self) -> i32 {
-        self.base_size
-    }
-    pub fn count_variation(&self) -> std::ops::Range<i32> {
-        self.count_variation.clone()
-    }
-    pub fn size_variation(&self) -> std::ops::Range<i32> {
-        self.size_variation.clone()
-    }
-    pub fn spike_probability(&self) -> f64 {
-        self.spike_probability
-    }
-    pub fn spike_multiplier(&self) -> usize {
-        self.spike_multiplier
-    }
-    pub fn sleep_interval(&self) -> std::ops::Range<u64> {
-        self.sleep_interval.clone()
-    }
 }
 
-mod nonuniformload {
-    #[derive(serde::Deserialize)]
-    pub struct RawConfig {
-        /// Base transaction count
-        #[serde(default)]
-        base_count: i32,
-
-        /// Base transaction size
-        #[serde(default)]
-        base_size: i32,
-
-        /// How much the transaction count can vary
-        #[serde(default)]
-        count_variation: std::ops::Range<i32>,
-
-        #[serde(default)]
-        size_variation: std::ops::Range<i32>,
-
-        /// Chance of generating a spike.
-        /// e.g. 0.1 = 10% chance of spike
-        #[serde(default)]
-        spike_probability: f64,
-
-        /// Multiplier for spike transactions
-        /// e.g. 10 = 10x more transactions during spike
-        #[serde(default)]
-        spike_multiplier: usize,
-
-        /// Range of intervals between generating load, in milliseconds
-        #[serde(default)]
-        sleep_interval: std::ops::Range<u64>,
-    }
-
-    impl From<RawConfig> for super::NonUniformLoadConfig {
-        fn from(raw: RawConfig) -> Self {
-            super::NonUniformLoadConfig::new(
-                raw.base_count,
-                raw.base_size,
-                raw.count_variation,
-                raw.size_variation,
-                raw.spike_probability,
-                raw.spike_multiplier,
-                raw.sleep_interval,
-            )
-        }
-    }
-}
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(from = "uniformload::RawConfig", default)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, serde::Deserialize)]
 pub struct UniformLoadConfig {
     #[serde(with = "humantime_serde")]
-    interval: Duration,
-    count: usize,
-    size: usize,
+    pub interval: Duration,
+    pub count: usize,
+    pub size: usize,
 }
 impl UniformLoadConfig {
     fn new(interval: Duration, count: usize, size: usize) -> Self {
@@ -492,17 +422,6 @@ impl UniformLoadConfig {
             size,
         }
     }
-    pub fn interval(&self) -> Duration {
-        self.interval
-    }
-
-    pub fn count(&self) -> usize {
-        self.count
-    }
-
-    pub fn size(&self) -> usize {
-        self.size
-    }
 }
 impl Default for UniformLoadConfig {
     fn default() -> Self {
@@ -510,26 +429,6 @@ impl Default for UniformLoadConfig {
     }
 }
 
-mod uniformload {
-    use std::time::Duration;
-
-    #[derive(serde::Deserialize)]
-    pub struct RawConfig {
-        #[serde(default)]
-        #[serde(with = "humantime_serde")]
-        interval: Duration,
-        #[serde(default)]
-        count: usize,
-        #[serde(default)]
-        size: usize,
-    }
-
-    impl From<RawConfig> for super::UniformLoadConfig {
-        fn from(raw: RawConfig) -> Self {
-            super::UniformLoadConfig::new(raw.interval, raw.count, raw.size)
-        }
-    }
-}
 /// Mempool configuration options
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct MempoolLoadConfig {

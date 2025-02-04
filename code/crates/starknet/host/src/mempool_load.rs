@@ -87,11 +87,11 @@ impl Actor for MempoolLoad {
     ) -> Result<State, ActorProcessingErr> {
         let ticker = match self.params.load_type.clone() {
             MempoolLoadType::UniformLoad(uniform_load_config) => tokio::spawn(ticker(
-                uniform_load_config.interval(),
+                uniform_load_config.interval,
                 myself.clone(),
                 move || Msg::GenerateTransactions {
-                    count: uniform_load_config.count(),
-                    size: uniform_load_config.size(),
+                    count: uniform_load_config.count,
+                    size: uniform_load_config.size,
                 },
             )),
             MempoolLoadType::NoLoad => tokio::spawn(async {}),
@@ -99,18 +99,18 @@ impl Actor for MempoolLoad {
                 loop {
                     let mut rng = SmallRng::from_entropy();
                     // Determine if this iteration should generate a spike
-                    let is_spike = rng.gen_bool(params.spike_probability());
+                    let is_spike = rng.gen_bool(params.spike_probability);
 
                     // Vary transaction count and size
-                    let count_variation = rng.gen_range(params.count_variation());
-                    let size_variation = rng.gen_range(params.size_variation());
+                    let count_variation = rng.gen_range(params.count_variation.clone());
+                    let size_variation = rng.gen_range(params.size_variation.clone());
 
                     let count = if is_spike {
-                        (params.base_count() - count_variation) as usize * params.spike_multiplier()
+                        (params.base_count - count_variation) as usize * params.spike_multiplier
                     } else {
-                        (params.base_count() + count_variation) as usize
+                        (params.base_count + count_variation) as usize
                     };
-                    let size = (params.base_size() + size_variation) as usize;
+                    let size = (params.base_size + size_variation) as usize;
 
                     // Create and send the message
                     let msg = Msg::GenerateTransactions {
@@ -123,8 +123,9 @@ impl Actor for MempoolLoad {
                         break;
                     }
                     // Random sleep
-                    let sleep_duration =
-                        Duration::from_millis(params.sleep_interval().choose(&mut rng).unwrap());
+                    let sleep_duration = Duration::from_millis(
+                        params.sleep_interval.clone().choose(&mut rng).unwrap(),
+                    );
 
                     tokio::time::sleep(sleep_duration).await;
                 }
