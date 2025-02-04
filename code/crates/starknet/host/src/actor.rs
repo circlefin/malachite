@@ -19,8 +19,6 @@ use malachitebft_engine::util::streaming::{StreamContent, StreamMessage};
 use malachitebft_metrics::Metrics;
 use malachitebft_sync::RawDecidedValue;
 
-use crate::host::proposal::compute_proposal_hash;
-// use crate::host::proposal::compute_proposal_signature;
 use crate::host::state::HostState;
 use crate::host::{Host as _, StarknetHost};
 use crate::mempool::{MempoolMsg, MempoolRef};
@@ -384,13 +382,16 @@ async fn on_restream_value(
     network: &NetworkRef<MockContext>,
     height: Height,
     round: Round,
-    value_id: Hash,
+    proposal_commitment_hash: Hash,
     valid_round: Round,
     proposer: Address,
 ) -> Result<(), ActorProcessingErr> {
     debug!(%height, %round, "Restreaming existing proposal...");
 
-    let mut rx_part = state.host.send_known_proposal(value_id).await;
+    let mut rx_part = state
+        .host
+        .send_known_proposal(proposal_commitment_hash)
+        .await;
 
     let stream_id = state.stream_id();
 
@@ -401,13 +402,9 @@ async fn on_restream_value(
         proposer,
     };
 
-    // NOTE: This is wrong but since we are not expected to propose values
-    //       we can leave it as is for now.
-    let state_diff_commitment = compute_proposal_hash(&init, &value_id);
-
     let init_part = ProposalPart::Init(init);
     let fin_part = ProposalPart::Fin(ProposalFin {
-        state_diff_commitment,
+        proposal_commitment_hash,
     });
 
     debug!(%height, %round, "Created new Init part: {init_part:?}");
@@ -506,7 +503,8 @@ async fn on_received_proposal_part(
     from: PeerId,
     reply_to: RpcReplyPort<ProposedValue<MockContext>>,
 ) -> Result<(), ActorProcessingErr> {
-    // TODO - use state.host.receive_proposal() and move some of the logic below there
+    // TODO: Use state.host.receive_proposal() and move some of the logic below there
+
     let sequence = part.sequence;
 
     let Some(parts) = state.part_streams_map.insert(from, part) else {

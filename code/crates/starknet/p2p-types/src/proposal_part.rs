@@ -15,7 +15,7 @@ pub struct ProposalInit {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProposalFin {
-    pub state_diff_commitment: Hash,
+    pub proposal_commitment_hash: Hash,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -23,7 +23,7 @@ pub enum ProposalPart {
     Init(ProposalInit),
     BlockInfo(BlockInfo),
     Transactions(TransactionBatch),
-    ProposalCommitment(Box<ProposalCommitment>),
+    Commitment(Box<ProposalCommitment>),
     Fin(ProposalFin),
 }
 
@@ -42,7 +42,7 @@ impl ProposalPart {
             Self::Init(_) => PartType::Init,
             Self::BlockInfo(_) => PartType::BlockInfo,
             Self::Transactions(_) => PartType::Transactions,
-            Self::ProposalCommitment(_) => PartType::ProposalCommitment,
+            Self::Commitment(_) => PartType::ProposalCommitment,
             Self::Fin(_) => PartType::Fin,
         }
     }
@@ -86,8 +86,8 @@ impl ProposalPart {
         }
     }
 
-    pub fn as_proposal_commitment(&self) -> Option<&ProposalCommitment> {
-        if let Self::ProposalCommitment(v) = self {
+    pub fn as_commitment(&self) -> Option<&ProposalCommitment> {
+        if let Self::Commitment(v) = self {
             Some(v)
         } else {
             None
@@ -134,13 +134,13 @@ impl proto::Protobuf for ProposalPart {
                 ProposalPart::Transactions(transactions)
             }
 
-            Messages::ProposalCommitment(commitment) => ProposalPart::ProposalCommitment(Box::new(
-                ProposalCommitment::from_proto(commitment)?,
-            )),
+            Messages::Commitment(commitment) => {
+                ProposalPart::Commitment(Box::new(ProposalCommitment::from_proto(commitment)?))
+            }
 
             Messages::Fin(fin) => ProposalPart::Fin(ProposalFin {
-                state_diff_commitment: Hash::from_proto(fin.state_diff_commitment.ok_or_else(
-                    || proto::Error::missing_field::<Self::Proto>("state_diff_commitment"),
+                proposal_commitment_hash: Hash::from_proto(fin.proposal_commitment.ok_or_else(
+                    || proto::Error::missing_field::<Self::Proto>("proposal_commitment"),
                 )?)?,
             }),
         })
@@ -167,11 +167,9 @@ impl proto::Protobuf for ProposalPart {
                         .collect::<Result<Vec<_>, _>>()?,
                 })
             }
-            ProposalPart::ProposalCommitment(commitment) => {
-                Messages::ProposalCommitment(commitment.to_proto()?)
-            }
+            ProposalPart::Commitment(commitment) => Messages::Commitment(commitment.to_proto()?),
             ProposalPart::Fin(fin) => Messages::Fin(p2p_proto::ProposalFin {
-                state_diff_commitment: Some(fin.state_diff_commitment.to_proto()?),
+                proposal_commitment: Some(fin.proposal_commitment_hash.to_proto()?),
             }),
         };
 

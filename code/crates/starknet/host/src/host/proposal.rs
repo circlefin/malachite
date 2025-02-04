@@ -5,7 +5,6 @@ use std::time::SystemTime;
 
 use bytesize::ByteSize;
 use eyre::eyre;
-use sha3::Digest;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::{error, trace};
@@ -55,7 +54,7 @@ async fn run_build_proposal_task(
     deadline: Instant,
     mempool: MempoolRef,
     tx_part: mpsc::Sender<ProposalPart>,
-    tx_block_hash: oneshot::Sender<BlockHash>,
+    tx_value_id: oneshot::Sender<Hash>,
 ) -> Result<(), Box<dyn core::error::Error>> {
     let start = Instant::now();
     let build_duration = (deadline - start).mul_f32(params.time_allowance_factor);
@@ -63,25 +62,22 @@ async fn run_build_proposal_task(
     let mut sequence = 0;
     let mut block_size = 0;
     let mut block_tx_count = 0;
-    let mut block_hasher = sha3::Keccak256::new();
     let mut max_block_size_reached = false;
 
+    trace!(%height, %round, "Building local value");
+
     // Init
-    let init = {
-        let init = ProposalInit {
+    {
+        let part = ProposalPart::Init(ProposalInit {
             height,
             round,
             proposer,
             valid_round: Round::Nil,
-        };
+        });
 
-        tx_part.send(ProposalPart::Init(init.clone())).await?;
+        tx_part.send(part).await?;
         sequence += 1;
-
-        init
-    };
-
-    trace!(%height, %round, "Building local value");
+    }
 
     let now = SystemTime::UNIX_EPOCH.elapsed().unwrap().as_secs();
 
@@ -98,7 +94,6 @@ async fn run_build_proposal_task(
             l1_da_mode: L1DataAvailabilityMode::Blob,
         });
 
-        block_hasher.update(part.to_sign_bytes());
         tx_part.send(part).await?;
         sequence += 1;
     }
@@ -154,8 +149,6 @@ async fn run_build_proposal_task(
         // Transactions
         {
             let part = ProposalPart::Transactions(TransactionBatch::new(txes));
-
-            block_hasher.update(part.to_sign_bytes());
             tx_part.send(part).await?;
             sequence += 1;
         }
@@ -169,22 +162,16 @@ async fn run_build_proposal_task(
         }
     }
 
-    let block_hash = BlockHash::new(block_hasher.finalize().into());
-
-    // NOTE: This is wrong but since we are not expected to propose values
-    //       we can leave it as is for now.
-    let state_diff_commitment = compute_proposal_hash(&init, &block_hash);
-
     // Proposal Commitment
     {
-        let part = ProposalPart::ProposalCommitment(Box::new(ProposalCommitment {
+        let part = ProposalPart::Commitment(Box::new(ProposalCommitment {
             height,
             parent_commitment: Hash::new([0; 32]),
             builder: proposer,
             timestamp: now,
             protocol_version: PROTOCOL_VERSION.to_string(),
             old_state_root: Hash::new([0; 32]),
-            state_diff_commitment,
+            state_diff_commitment: Hash::new([0; 32]),
             transaction_commitment: Hash::new([0; 32]),
             event_commitment: Hash::new([0; 32]),
             receipt_commitment: Hash::new([0; 32]),
@@ -200,10 +187,13 @@ async fn run_build_proposal_task(
         sequence += 1;
     }
 
+    // TODO: Compute the actual propoosal commitment hash
+    let proposal_commitment_hash = Hash::new([42; 32]);
+
     // Fin
     {
         let part = ProposalPart::Fin(ProposalFin {
-            state_diff_commitment,
+            proposal_commitment_hash,
         });
         tx_part.send(part).await?;
         sequence += 1;
@@ -215,13 +205,13 @@ async fn run_build_proposal_task(
     let block_size = ByteSize::b(block_size as u64);
 
     trace!(
-        tx_count = %block_tx_count, size = %block_size, hash = %block_hash, parts = %sequence,
+        tx_count = %block_tx_count, size = %block_size, %proposal_commitment_hash, parts = %sequence,
         "Built block in {:?}", start.elapsed()
     );
 
-    tx_block_hash
-        .send(block_hash)
-        .map_err(|_| "Failed to send block hash")?;
+    tx_value_id
+        .send(proposal_commitment_hash)
+        .map_err(|_| "Failed to send proposal commitment hash")?;
 
     Ok(())
 }
@@ -247,31 +237,3 @@ async fn run_repropose_task(
     }
     Ok(())
 }
-
-pub fn compute_proposal_hash(init: &ProposalInit, block_hash: &BlockHash) -> Hash {
-    use sha3::Digest;
-
-    let mut hasher = sha3::Keccak256::new();
-
-    // 1. Block number
-    hasher.update(init.height.block_number.to_be_bytes());
-    // 2. Fork id
-    hasher.update(init.height.fork_id.to_be_bytes());
-    // 3. Proposal round
-    hasher.update(init.round.as_i64().to_be_bytes());
-    // 4. Valid round
-    hasher.update(init.valid_round.as_i64().to_be_bytes());
-    // 5. Block hash
-    hasher.update(block_hash.as_bytes());
-
-    Hash::new(hasher.finalize().into())
-}
-
-// pub fn compute_proposal_signature(
-//     init: &ProposalInit,
-//     block_hash: &BlockHash,
-//     private_key: &PrivateKey,
-// ) -> Signature {
-//     let hash = compute_proposal_hash(init, block_hash);
-//     private_key.sign(&hash.as_felt())
-// }

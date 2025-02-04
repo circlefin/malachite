@@ -118,14 +118,12 @@ impl HostState {
             return None;
         };
 
-        let Some(_proposal_commitment) =
-            parts.iter().find_map(|part| part.as_proposal_commitment())
-        else {
+        let Some(commitment) = parts.iter().find_map(|part| part.as_commitment()) else {
             error!("Part not found: ProposalCommitment");
             return None;
         };
 
-        let validity = self.verify_proposal_validity(init).await?;
+        let validity = self.verify_proposal_validity(init, fin, commitment).await?;
 
         let valid_round = init.valid_round;
         if valid_round.is_defined() {
@@ -138,14 +136,19 @@ impl HostState {
 
         Some((
             valid_round,
-            fin.state_diff_commitment,
+            fin.proposal_commitment_hash,
             init.proposer,
             validity,
             extension,
         ))
     }
 
-    async fn verify_proposal_validity(&self, init: &ProposalInit) -> Option<Validity> {
+    async fn verify_proposal_validity(
+        &self,
+        init: &ProposalInit,
+        _fin: &ProposalFin,
+        _commitment: &ProposalCommitment,
+    ) -> Option<Validity> {
         let validators = self.host.validators(init.height).await?;
 
         if !validators.iter().any(|v| v.address == init.proposer) {
@@ -169,6 +172,8 @@ impl HostState {
 
             return None;
         }
+
+        // TODO: Check that the hash of `commitment` matches `fin.proposal_commitment_hash`
 
         Some(Validity::Valid)
     }
@@ -217,9 +222,7 @@ impl HostState {
             return None;
         };
 
-        let Some(_proposal_commitment) =
-            parts.iter().find_map(|part| part.as_proposal_commitment())
-        else {
+        let Some(_proposal_commitment) = parts.iter().find_map(|part| part.as_commitment()) else {
             debug!("Proposal part has not been received yet: ProposalCommitment");
             return None;
         };
