@@ -110,8 +110,8 @@ jobs:
             ssh -i private_key -o StrictHostKeyChecking=no root@${NODE_IP_ARRAY[$i]} "mkdir -p /root/.malachite/config/"
 
             scp -i private_key -o StrictHostKeyChecking=no \
-              $HOME/.malachite/$i/config/config.toml \
-              root@${NODE_IP_ARRAY[$i]}:/root/.malachite/config/config.toml &
+              $HOME/.malachite/$i/config/* \
+              root@${NODE_IP_ARRAY[$i]}:/root/.malachite/config/ &
           done
           wait
 
@@ -128,6 +128,7 @@ jobs:
             ssh -i private_key -o StrictHostKeyChecking=no root@$ip "cd /root && /root/${{ env.BINARY_NAME }} start" &
           done
           wait
+          sleep 10
 
       - name: Terraform Destroy (Cleanup Nodes)
         if: always()
