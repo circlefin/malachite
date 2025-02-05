@@ -40,7 +40,6 @@ jobs:
       - name: Terraform Apply (Provision Nodes)
         working-directory: qa/terraform
         run: |
-          terraform apply -auto-approve
           terraform apply -auto-approve -var nyc1=1
       
       - name: Terraform Destroy (Cleanup Nodes)
