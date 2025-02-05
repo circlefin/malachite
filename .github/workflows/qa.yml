@@ -36,13 +36,13 @@ jobs:
         working-directory: qa/terraform
         run: |
           terraform apply -auto-approve \
-            -var="do_token=${{ secrets.DO_TOKEN }}" \
-            -var="ssh_keys=${{ secrets.DO_SSH_FINGERPRINT }}"
+            -var="do_token=${{ secrets.DO_TOKEN }}"
+          #  -var="ssh_keys=${{ secrets.DO_SSH_FINGERPRINT }}"
       
       - name: Terraform Destroy (Cleanup Nodes)
         if: always()
         working-directory: qa/terraform
         run: |
           terraform destroy -auto-approve \
-            -var="do_token=${{ secrets.DO_TOKEN }}" \
-            -var="ssh_keys=${{ secrets.DO_SSH_FINGERPRINT }}"
+            -var="do_token=${{ secrets.DO_TOKEN }}"
+          #  -var="ssh_keys=${{ secrets.DO_SSH_FINGERPRINT }}"
