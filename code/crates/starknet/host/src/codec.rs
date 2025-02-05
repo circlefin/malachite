@@ -79,6 +79,24 @@ impl Codec<ProposalPart> for ProtobufCodec {
 //         encode_extension(msg).map(|proto| proto.encode_to_bytes())
 //     }
 // }
+//
+// pub fn decode_extension(ext: proto::Extension) -> Result<SignedExtension<MockContext>, ProtoError> {
+//     let signature = ext
+//         .signature
+//         .ok_or_else(|| ProtoError::missing_field::<proto::Extension>("signature"))
+//         .and_then(p2p::Signature::from_proto)?;
+//
+//     Ok(SignedExtension::new(ext.data, signature))
+// }
+//
+// pub fn encode_extension(
+//     ext: &SignedExtension<MockContext>,
+// ) -> Result<proto::Extension, ProtoError> {
+//     Ok(proto::Extension {
+//         data: ext.message.clone(),
+//         signature: Some(ext.signature.to_proto()?),
+//     })
+// }
 
 pub fn decode_proposed_value(
     proto: proto::sync::ProposedValue,
@@ -94,7 +112,6 @@ pub fn decode_proposed_value(
         valid_round: Round::from(proto.valid_round),
         proposer: Address::from_proto(proposer)?,
         validity: Validity::from_bool(proto.validity),
-        extension: None,
     })
 }
 
@@ -109,7 +126,6 @@ pub fn encode_proposed_value(
         value: msg.value.to_bytes()?,
         proposer: Some(msg.proposer.to_proto()?),
         validity: msg.validity.to_bool(),
-        extension: None,
     };
 
     Ok(proto)
@@ -422,11 +438,7 @@ pub fn decode_aggregated_signature(
                 })
                 .and_then(Address::from_proto)?;
 
-            Ok(CommitSignature {
-                address,
-                signature,
-                extension: None,
-            })
+            Ok(CommitSignature { address, signature })
         })
         .collect::<Result<Vec<_>, ProtoError>>()?;
 
@@ -446,7 +458,6 @@ pub fn encode_aggregate_signature(
             Ok(proto::sync::CommitSignature {
                 validator_address: Some(validator_address),
                 signature: Some(signature),
-                extension: None,
             })
         })
         .collect::<Result<_, ProtoError>>()?;

@@ -102,6 +102,31 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 // avoid blowing up the bandwidth requirements by gossiping a single huge message.
             }
 
+            AppMsg::ExtendVote {
+                height: _,
+                round: _,
+                value_id: _,
+                reply,
+            } => {
+                // TODO
+                if reply.send(None).is_err() {
+                    error!("Failed to send ExtendVote reply");
+                }
+            }
+
+            AppMsg::VerifyVoteExtension {
+                height: _,
+                round: _,
+                value_id: _,
+                extension: _,
+                reply,
+            } => {
+                // TODO
+                if reply.send(Ok(())).is_err() {
+                    error!("Failed to send VerifyVoteExtension reply");
+                }
+            }
+
             // On the receiving end of these proposal parts (ie. when we are not the proposer),
             // we need to process these parts and re-assemble the full value.
             // To this end, we store each part that we receive and assemble the full value once we
@@ -139,15 +164,20 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             // providing it with a commit certificate which contains the ID of the value
             // that was decided on as well as the set of commits for that value,
             // ie. the precommits together with their (aggregated) signatures.
-            AppMsg::Decided { certificate, reply } => {
+            AppMsg::Decided {
+                certificate,
+                extensions,
+                reply,
+            } => {
                 info!(
-                    height = %certificate.height, round = %certificate.round,
+                    height = %certificate.height,
+                    round = %certificate.round,
                     value = %certificate.value_id,
                     "Consensus has decided on value"
                 );
 
                 // When that happens, we store the decided value in our store
-                state.commit(certificate).await?;
+                state.commit(certificate, extensions).await?;
 
                 // And then we instruct consensus to start the next height
                 if reply
@@ -186,7 +216,6 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         proposer,
                         value,
                         validity: Validity::Valid,
-                        extension: None,
                     })
                     .is_err()
                 {

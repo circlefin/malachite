@@ -4,7 +4,7 @@ use malachitebft_core_types::*;
 
 use crate::input::RequestId;
 use crate::types::SignedConsensusMsg;
-use crate::ConsensusMsg;
+use crate::{ConsensusMsg, VoteExtensionError};
 
 /// Provides a way to construct the appropriate [`Resume`] value to
 /// resume execution after handling an [`Effect`].
@@ -90,6 +90,14 @@ where
     /// Resume with: [`resume::Continue`]
     GetValue(Ctx::Height, Round, Timeout, resume::Continue),
 
+    /// ExtendVote allows the application to extend the pre-commit vote with arbitrary data.
+    ///
+    /// When consensus is preparing to send a pre-commit vote, it first calls `ExtendVote`.
+    /// The application then returns a blob of data called a vote extension.
+    /// This data is opaque to the consensus algorithm but can contain application-specific information.
+    /// The proposer of the next block will receive all vote extensions along with the commit certificate.
+    ExtendVote(Ctx::Height, Round, ValueId<Ctx>, resume::VoteExtension),
+
     /// Requests the application to re-stream a proposal that it has already seen.
     ///
     /// The application MUST re-publish again to its pwers all
@@ -122,8 +130,14 @@ where
     /// the value that was decided on, the height and round at which it was decided,
     /// and the aggregated signatures of the validators that committed to it.
     ///
+    /// It also includes the vote extensions that were received for this height.
+    ///
     /// Resume with: [`resume::Continue`]
-    Decide(CommitCertificate<Ctx>, resume::Continue),
+    Decide(
+        CommitCertificate<Ctx>,
+        VoteExtensions<Ctx>,
+        resume::Continue,
+    ),
 
     /// Consensus has been stuck in Prevote or Precommit step, ask for vote sets from peers
     ///
@@ -179,6 +193,21 @@ where
         ThresholdParams,
         resume::CertificateValidity,
     ),
+
+    /// Verify a vote extension
+    ///
+    /// If the vote extension is deemed invalid, the vote it was part of
+    /// will be discarded altogether.
+    ///
+    /// Resume with: [`resume::VoteExtensionValidity`]
+    VerifyVoteExtension(
+        Ctx::Height,
+        Round,
+        ValueId<Ctx>,
+        SignedExtension<Ctx>,
+        PublicKey<Ctx>,
+        resume::VoteExtensionValidity,
+    ),
 }
 
 /// A value with which the consensus process can be resumed after yielding an [`Effect`].
@@ -209,11 +238,20 @@ where
     /// Resume execution with the signed proposal
     SignedProposal(SignedMessage<Ctx, Ctx::Proposal>),
 
+    /// Resume with an optional vote extension.
+    /// See the [`Effect::ExtendVote`] effect for more information.
+    VoteExtension(Option<SignedExtension<Ctx>>),
+
+    /// Resume execution with the result of the verification of the [`SignedExtension`]
+    VoteExtensionValidity(Result<(), VoteExtensionError>),
+
     /// Resume execution with the result of the verification of the [`CommitCertificate`]
     CertificateValidity(Result<(), CertificateError<Ctx>>),
 }
 
 pub mod resume {
+    use crate::VoteExtensionError;
+
     use super::*;
 
     #[derive(Debug, Default)]
@@ -272,6 +310,17 @@ pub mod resume {
     }
 
     #[derive(Debug, Default)]
+    pub struct VoteExtension;
+
+    impl<Ctx: Context> Resumable<Ctx> for VoteExtension {
+        type Value = Option<SignedExtension<Ctx>>;
+
+        fn resume_with(self, value: Self::Value) -> Resume<Ctx> {
+            Resume::VoteExtension(value)
+        }
+    }
+
+    #[derive(Debug, Default)]
     pub struct CertificateValidity;
 
     impl<Ctx: Context> Resumable<Ctx> for CertificateValidity {
@@ -279,6 +328,17 @@ pub mod resume {
 
         fn resume_with(self, value: Self::Value) -> Resume<Ctx> {
             Resume::CertificateValidity(value)
+        }
+    }
+
+    #[derive(Debug, Default)]
+    pub struct VoteExtensionValidity;
+
+    impl<Ctx: Context> Resumable<Ctx> for VoteExtensionValidity {
+        type Value = Result<(), VoteExtensionError>;
+
+        fn resume_with(self, value: Self::Value) -> Resume<Ctx> {
+            Resume::VoteExtensionValidity(value)
         }
     }
 }

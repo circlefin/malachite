@@ -9,7 +9,7 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::{error, trace};
 
-use malachitebft_core_types::Round;
+use malachitebft_core_types::{Round, VoteExtensions};
 
 use crate::host::starknet::StarknetParams;
 use crate::mempool::{MempoolMsg, MempoolRef};
@@ -22,6 +22,7 @@ pub async fn build_proposal_task(
     round: Round,
     proposer: Address,
     private_key: PrivateKey,
+    vote_extensions: VoteExtensions<MockContext>,
     params: StarknetParams,
     deadline: Instant,
     mempool: MempoolRef,
@@ -33,6 +34,7 @@ pub async fn build_proposal_task(
         round,
         proposer,
         private_key,
+        vote_extensions,
         params,
         deadline,
         mempool,
@@ -50,6 +52,7 @@ async fn run_build_proposal_task(
     round: Round,
     proposer: Address,
     _private_key: PrivateKey,
+    vote_extensions: VoteExtensions<MockContext>,
     params: StarknetParams,
     deadline: Instant,
     mempool: MempoolRef,
@@ -60,9 +63,10 @@ async fn run_build_proposal_task(
     let build_duration = (deadline - start).mul_f32(params.time_allowance_factor);
 
     let mut sequence = 0;
-    let mut block_size = 0;
     let mut block_tx_count = 0;
-    let mut max_block_size_reached = false;
+    let vote_extensions_size =
+        (params.vote_extensions.size.as_u64() * vote_extensions.extensions.len() as u64) as usize;
+    let mut block_size = vote_extensions_size;
 
     trace!(%height, %round, "Building local value");
 
@@ -98,7 +102,9 @@ async fn run_build_proposal_task(
         sequence += 1;
     }
 
-    loop {
+    let max_block_size = params.max_block_size.as_u64() as usize;
+
+    'reap: loop {
         let reaped_txes = mempool
             .call(
                 |reply| MempoolMsg::Reap {
@@ -114,18 +120,15 @@ async fn run_build_proposal_task(
         trace!("Reaped {} transactions from the mempool", reaped_txes.len());
 
         if reaped_txes.is_empty() {
-            break;
+            break 'reap;
         }
-
-        let max_block_size = params.max_block_size.as_u64() as usize;
 
         let mut txes = Vec::new();
         let mut tx_count = 0;
 
-        for tx in reaped_txes {
+        'txes: for tx in reaped_txes {
             if block_size + tx.size_bytes() > max_block_size {
-                max_block_size_reached = true;
-                continue;
+                continue 'txes;
             }
 
             block_size += tx.size_bytes();
@@ -153,12 +156,12 @@ async fn run_build_proposal_task(
             sequence += 1;
         }
 
-        if max_block_size_reached {
+        if block_size > max_block_size {
             trace!("Max block size reached, stopping tx generation");
-            break;
+            break 'reap;
         } else if start.elapsed() > build_duration {
             trace!("Time allowance exceeded, stopping tx generation");
-            break;
+            break 'reap;
         }
     }
 

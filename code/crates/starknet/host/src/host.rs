@@ -38,7 +38,7 @@ pub trait Host {
     ///                Closing the channel indicates that the proposal is complete.
     /// - block_hash - ID of the content in the block.
     async fn build_new_proposal(
-        &self,
+        &mut self,
         height: Self::Height,
         round: Round,
         deadline: Instant,

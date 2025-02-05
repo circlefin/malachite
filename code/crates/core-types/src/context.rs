@@ -1,5 +1,5 @@
 use crate::{
-    Address, Height, NilOrVal, Proposal, ProposalPart, Round, SigningScheme, Validator,
+    Address, Extension, Height, NilOrVal, Proposal, ProposalPart, Round, SigningScheme, Validator,
     ValidatorSet, Value, ValueId, Vote,
 };
 
@@ -33,6 +33,9 @@ where
 
     /// The type of votes that can be cast.
     type Vote: Vote<Self>;
+
+    /// The type of vote extensions.
+    type Extension: Extension;
 
     /// The signing scheme used to sign consensus messages.
     type SigningScheme: SigningScheme;

@@ -1,9 +1,9 @@
 //! Internal state of the application. This is a simplified abstract to keep it simple.
 //! A regular application would have mempool implemented, a proper database and input methods like RPC.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use eyre::eyre;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -13,7 +13,9 @@ use tracing::{debug, error};
 use malachitebft_app_channel::app::consensus::ProposedValue;
 use malachitebft_app_channel::app::streaming::{StreamContent, StreamId, StreamMessage};
 use malachitebft_app_channel::app::types::codec::Codec;
-use malachitebft_app_channel::app::types::core::{CommitCertificate, Round, Validity};
+use malachitebft_app_channel::app::types::core::{
+    CommitCertificate, Round, Validity, VoteExtensions,
+};
 use malachitebft_app_channel::app::types::{LocallyProposedValue, PeerId};
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{
@@ -33,6 +35,7 @@ pub struct State {
     genesis: Genesis,
     address: Address,
     store: Store,
+    vote_extensions: HashMap<Height, VoteExtensions<TestContext>>,
     streams_map: PartStreamsMap,
     rng: StdRng,
 
@@ -86,6 +89,7 @@ impl State {
             current_proposer: None,
             address,
             store,
+            vote_extensions: HashMap::new(),
             streams_map: PartStreamsMap::new(),
             rng: StdRng::seed_from_u64(seed_from_address(&address)),
             peers: HashSet::new(),
@@ -167,7 +171,12 @@ impl State {
     pub async fn commit(
         &mut self,
         certificate: CommitCertificate<TestContext>,
+        extensions: VoteExtensions<TestContext>,
     ) -> eyre::Result<()> {
+        // Store extensions for use at next height if we are the proposer
+        self.vote_extensions
+            .insert(certificate.height.increment(), extensions);
+
         let Ok(Some(proposal)) = self
             .store
             .get_undecided_proposal(certificate.height, certificate.round)
@@ -210,7 +219,6 @@ impl State {
             proposal.height,
             proposal.round,
             proposal.value,
-            proposal.extension.clone(),
         )))
     }
 
@@ -225,7 +233,7 @@ impl State {
         assert_eq!(round, self.current_round);
 
         // We create a new value.
-        let value = self.make_value();
+        let value = self.make_value(height, round);
 
         let proposal = ProposedValue {
             height,
@@ -234,7 +242,6 @@ impl State {
             proposer: self.address, // We are the proposer
             value,
             validity: Validity::Valid, // Our proposals are de facto valid
-            extension: None,           // Vote extension can be added here
         };
 
         // Insert the new proposal into the undecided proposals.
@@ -249,9 +256,24 @@ impl State {
     /// A real application would have a more complex logic here,
     /// typically reaping transactions from a mempool and executing them against its state,
     /// before computing the merkle root of the new app state.
-    fn make_value(&mut self) -> Value {
+    fn make_value(&mut self, height: Height, _round: Round) -> Value {
         let value = self.rng.gen_range(100..=100000);
-        Value::new(value)
+
+        // TODO: Where should we verify signatures?
+        let extensions = self
+            .vote_extensions
+            .remove(&height)
+            .unwrap_or_default()
+            .extensions
+            .into_iter()
+            .map(|(_, e)| e.message)
+            .fold(BytesMut::new(), |mut acc, e| {
+                acc.extend_from_slice(&e);
+                acc
+            })
+            .freeze();
+
+        Value { value, extensions }
     }
 
     /// Creates a new proposal value for the given height
@@ -270,7 +292,6 @@ impl State {
             proposal.height,
             proposal.round,
             proposal.value,
-            proposal.extension,
         ))
     }
 
@@ -409,7 +430,6 @@ fn assemble_value_from_parts(parts: ProposalParts) -> ProposedValue<TestContext>
         proposer: parts.proposer,
         value: Value::new(value),
         validity: Validity::Valid,
-        extension: None,
     }
 }
 

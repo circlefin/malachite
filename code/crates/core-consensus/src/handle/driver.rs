@@ -249,7 +249,7 @@ where
 
             // Only sign and publish if we're in the validator set
             if state.is_validator() {
-                let extended_vote = extend_vote(vote, state);
+                let extended_vote = extend_vote(co, vote).await?;
                 let signed_vote = sign_vote(co, extended_vote).await?;
 
                 on_vote(co, state, metrics, signed_vote.clone()).await?;
@@ -303,26 +303,25 @@ where
     }
 }
 
-fn extend_vote<Ctx: Context>(vote: Ctx::Vote, state: &mut State<Ctx>) -> Ctx::Vote {
+async fn extend_vote<Ctx: Context>(co: &Co<Ctx>, vote: Ctx::Vote) -> Result<Ctx::Vote, Error<Ctx>> {
     let VoteType::Precommit = vote.vote_type() else {
-        return vote;
+        return Ok(vote);
     };
 
-    let NilOrVal::Val(val_id) = vote.value() else {
-        return vote;
+    let NilOrVal::Val(value_id) = vote.value().as_ref().cloned() else {
+        return Ok(vote);
     };
 
-    let Some(full_proposal) = state.full_proposal_keeper.full_proposal_at_round_and_value(
-        &vote.height(),
-        vote.round(),
-        val_id,
-    ) else {
-        return vote;
-    };
+    let extension = perform!(
+        co,
 
-    if let Some(extension) = &full_proposal.extension {
-        vote.extend(extension.clone())
+
+        Effect::ExtendVote(vote.height(), vote.round(), value_id, Default::default()),
+        Resume::VoteExtension(extension) => extension);
+
+    if let Some(extension) = extension {
+        Ok(vote.extend(extension))
     } else {
-        vote
+        Ok(vote)
     }
 }

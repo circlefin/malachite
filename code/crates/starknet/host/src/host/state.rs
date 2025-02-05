@@ -4,7 +4,7 @@ use std::sync::Arc;
 use rand::RngCore;
 use tracing::{debug, error, trace};
 
-use malachitebft_core_types::{Context, Round, SignedExtension, Validity};
+use malachitebft_core_types::{Context, Round, Validity};
 use malachitebft_engine::consensus::ConsensusRef;
 use malachitebft_engine::host::ProposedValue;
 use malachitebft_engine::util::streaming::StreamId;
@@ -70,7 +70,7 @@ impl HostState {
         height: Height,
         round: Round,
     ) -> Option<ProposedValue<MockContext>> {
-        let (valid_round, value, proposer, validity, extension) = self
+        let (valid_round, value, proposer, validity) = self
             .build_proposal_content_from_parts(parts, height, round)
             .await?;
 
@@ -81,7 +81,6 @@ impl HostState {
             valid_round,
             value,
             validity,
-            extension,
         })
     }
 
@@ -92,13 +91,7 @@ impl HostState {
         parts: &[Arc<ProposalPart>],
         height: Height,
         round: Round,
-    ) -> Option<(
-        Round,
-        BlockHash,
-        Address,
-        Validity,
-        Option<SignedExtension<MockContext>>,
-    )> {
+    ) -> Option<(Round, BlockHash, Address, Validity)> {
         if parts.is_empty() {
             return None;
         }
@@ -132,14 +125,11 @@ impl HostState {
 
         trace!(parts.len = %parts.len(), "Building proposal content from parts");
 
-        let extension = self.host.generate_vote_extension(height, round);
-
         Some((
             valid_round,
             fin.proposal_commitment_hash,
             init.proposer,
             validity,
-            extension,
         ))
     }
 

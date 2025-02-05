@@ -88,6 +88,17 @@ where
         public_key: &PublicKey<Ctx>,
     ) -> bool;
 
+    /// Sign the given vote extension with our private key.
+    fn sign_vote_extension(&self, extension: Ctx::Extension) -> SignedMessage<Ctx, Ctx::Extension>;
+
+    /// Verify the given vote extension's signature using the given public key.
+    fn verify_signed_vote_extension(
+        &self,
+        extension: &Ctx::Extension,
+        signature: &Signature<Ctx>,
+        public_key: &PublicKey<Ctx>,
+    ) -> bool;
+
     /// Verify a commit signature in a certificate against the public key of its validator.
     ///
     /// ## Return
@@ -104,10 +115,7 @@ impl<Ctx> SigningProvider<Ctx> for Box<dyn SigningProvider<Ctx> + '_>
 where
     Ctx: Context,
 {
-    fn sign_vote(
-        &self,
-        vote: <Ctx as Context>::Vote,
-    ) -> SignedMessage<Ctx, <Ctx as Context>::Vote> {
+    fn sign_vote(&self, vote: Ctx::Vote) -> SignedMessage<Ctx, Ctx::Vote> {
         self.as_ref().sign_vote(vote)
     }
 
@@ -121,16 +129,13 @@ where
             .verify_signed_vote(vote, signature, public_key)
     }
 
-    fn sign_proposal(
-        &self,
-        proposal: <Ctx as Context>::Proposal,
-    ) -> SignedMessage<Ctx, <Ctx as Context>::Proposal> {
+    fn sign_proposal(&self, proposal: Ctx::Proposal) -> SignedMessage<Ctx, Ctx::Proposal> {
         self.as_ref().sign_proposal(proposal)
     }
 
     fn verify_signed_proposal(
         &self,
-        proposal: &<Ctx as Context>::Proposal,
+        proposal: &Ctx::Proposal,
         signature: &Signature<Ctx>,
         public_key: &PublicKey<Ctx>,
     ) -> bool {
@@ -140,14 +145,14 @@ where
 
     fn sign_proposal_part(
         &self,
-        proposal_part: <Ctx as Context>::ProposalPart,
-    ) -> SignedMessage<Ctx, <Ctx as Context>::ProposalPart> {
+        proposal_part: Ctx::ProposalPart,
+    ) -> SignedMessage<Ctx, Ctx::ProposalPart> {
         self.as_ref().sign_proposal_part(proposal_part)
     }
 
     fn verify_signed_proposal_part(
         &self,
-        proposal_part: &<Ctx as Context>::ProposalPart,
+        proposal_part: &Ctx::ProposalPart,
         signature: &Signature<Ctx>,
         public_key: &PublicKey<Ctx>,
     ) -> bool {
@@ -159,10 +164,24 @@ where
         &self,
         certificate: &CommitCertificate<Ctx>,
         commit_sig: &CommitSignature<Ctx>,
-        validator: &<Ctx as Context>::Validator,
+        validator: &Ctx::Validator,
     ) -> Result<VotingPower, CertificateError<Ctx>> {
         self.as_ref()
             .verify_commit_signature(certificate, commit_sig, validator)
+    }
+
+    fn sign_vote_extension(&self, extension: Ctx::Extension) -> SignedMessage<Ctx, Ctx::Extension> {
+        self.as_ref().sign_vote_extension(extension)
+    }
+
+    fn verify_signed_vote_extension(
+        &self,
+        extension: &Ctx::Extension,
+        signature: &Signature<Ctx>,
+        public_key: &PublicKey<Ctx>,
+    ) -> bool {
+        self.as_ref()
+            .verify_signed_vote_extension(extension, signature, public_key)
     }
 }
 

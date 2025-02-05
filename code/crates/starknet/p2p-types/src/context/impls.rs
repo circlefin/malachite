@@ -75,6 +75,10 @@ impl common::Vote<MockContext> for Vote {
     fn extend(self, _extension: SignedExtension<MockContext>) -> Self {
         self
     }
+
+    fn take_extension(&mut self) -> Option<SignedExtension<MockContext>> {
+        None
+    }
 }
 
 impl common::ValidatorSet<MockContext> for ValidatorSet {

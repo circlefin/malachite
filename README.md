@@ -9,6 +9,8 @@
 
 ---
 
+<div align="center">
+
 [![Build Status][build-image]][build-link]
 [![Quint tests][quint-image]][quint-link]
 [![MBT tests][mbt-test-image]][mbt-test-link]
@@ -20,6 +22,10 @@
 [![Quint 0.22][quint-version]][quint-repo]
 
 [![Telegram Chat][tg-badge]][tg-url]
+
+[![Documentation][docs-main-image]][docs-main-link]
+
+</div>
 
 ## About
 
@@ -72,7 +78,7 @@ The repository is split in three areas, each covering one of the important areas
 
 > [!NOTE]
 > The actual name of each crate is prefixed with `informalsystems-malachitebft-`.
-> For instance, the crate denoted by `core-consensus` below can be found on crates.io as `informalsystems-malachite-core-consensus`.
+> For instance, the crate denoted by `core-consensus` below can be found on crates.io as `informalsystems-malachitebft-core-consensus`.
 
 #### Core consensus algorithm
 
@@ -145,7 +151,8 @@ Licensed under the Apache License, Version 2.0 (the "License"); you may not use 
 
 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 
-
+[docs-main-image]: https://img.shields.io/badge/docs-main-blue?logo=googledocs&logoColor=white
+[docs-main-link]: https://informalsystems.github.io/malachite/
 [build-image]: https://github.com/informalsystems/malachite/actions/workflows/rust.yml/badge.svg
 [build-link]: https://github.com/informalsystems/malachite/actions/workflows/rust.yml
 [quint-image]: https://github.com/informalsystems/malachite/actions/workflows/quint.yml/badge.svg

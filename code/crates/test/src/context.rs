@@ -1,3 +1,5 @@
+use bytes::Bytes;
+
 use malachitebft_core_types::{Context, NilOrVal, Round, ValidatorSet as _};
 
 use crate::address::*;
@@ -27,6 +29,7 @@ impl Context for TestContext {
     type Validator = Validator;
     type Value = Value;
     type Vote = Vote;
+    type Extension = Bytes;
     type SigningScheme = Ed25519;
 
     fn select_proposer<'a>(
