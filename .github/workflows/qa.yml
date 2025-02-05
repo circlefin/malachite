@@ -21,12 +21,5 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y pssh
           # sudo ln -s /usr/bin/pssh /usr/local/bin/parallel-ssh
-          # pssh --version
-          echo "Checking available binaries..."
-          find / -name pssh 2>/dev/null || true
-          echo "Checking PATH variable..."
-          echo $PATH
-          echo "Checking if pssh is available with full path..."
-          /usr/bin/pssh --help || echo "pssh not found in /usr/bin"
-          /usr/local/bin/pssh --help || echo "pssh not found in /usr/local/bin"
-
+          pssh --version
+          
