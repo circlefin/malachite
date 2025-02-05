@@ -79,6 +79,11 @@ where
     /// Resume with: [`resume::Continue`]
     Publish(SignedConsensusMsg<Ctx>, resume::Continue),
 
+    /// Rebroadcast a message to peers
+    ///
+    /// Resume with: [`resume::Continue`]
+    Rebroadcast(SignedConsensusMsg<Ctx>, resume::Continue),
+
     /// Requests the application to build a value for consensus to run on.
     ///
     /// Because this operation may be asynchronous, this effect does not expect a resumption

@@ -29,7 +29,7 @@ where
 
         perform!(
             co,
-            Effect::Publish(SignedConsensusMsg::Vote(vote.clone()), Default::default())
+            Effect::Rebroadcast(SignedConsensusMsg::Vote(vote.clone()), Default::default())
         );
         perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
     }

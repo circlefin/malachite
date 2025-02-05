@@ -19,6 +19,7 @@ pub async fn crash_restart_from_latest() {
         .crash()
         // We do not reset the database so that the node can restart from the latest height
         .restart_after(Duration::from_secs(5))
+        .expect_vote_rebroadcast(2)
         .wait_until(HEIGHT)
         .success();
 
@@ -27,7 +28,6 @@ pub async fn crash_restart_from_latest() {
             Duration::from_secs(60),
             TestParams {
                 enable_sync: false,
-                timeout_step: Duration::from_secs(5),
                 ..Default::default()
             },
         )
@@ -45,6 +45,7 @@ pub async fn start_late() {
     test.add_node().start().wait_until(HEIGHT * 2).success();
     test.add_node()
         .start_after(1, Duration::from_secs(10))
+        .expect_vote_rebroadcast(1)
         .wait_until(HEIGHT)
         .success();
 
