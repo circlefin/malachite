@@ -20,6 +20,6 @@ jobs:
       - name: Install parallel-ssh and create symlink
         run: |
           sudo apt-get update && sudo apt-get install -y pssh
-          ln /usr/bin/parallel-ssh /usr/bin/pssh
+          sudo ln /usr/bin/parallel-ssh /usr/bin/pssh
           pssh --version
           
