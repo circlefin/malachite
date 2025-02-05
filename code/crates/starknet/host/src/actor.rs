@@ -387,14 +387,14 @@ async fn on_get_value(
 }
 
 async fn on_extend_vote(
-    state: &mut HostState,
-    height: Height,
-    round: Round,
+    _state: &mut HostState,
+    _height: Height,
+    _round: Round,
     _value_id: ValueId<MockContext>,
     reply_to: RpcReplyPort<Option<Bytes>>,
 ) -> Result<(), ActorProcessingErr> {
-    let extension = state.host.generate_vote_extension(height, round);
-    reply_to.send(extension)?;
+    // let extension = state.host.generate_vote_extension(height, round);
+    reply_to.send(None)?;
     Ok(())
 }
 

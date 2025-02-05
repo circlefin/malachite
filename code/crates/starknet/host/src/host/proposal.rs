@@ -9,7 +9,7 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::{error, trace};
 
-use malachitebft_core_types::{Round, VoteExtensions};
+use malachitebft_core_types::Round;
 
 use crate::host::starknet::StarknetParams;
 use crate::mempool::{MempoolMsg, MempoolRef};
@@ -22,7 +22,7 @@ pub async fn build_proposal_task(
     round: Round,
     proposer: Address,
     private_key: PrivateKey,
-    vote_extensions: VoteExtensions<MockContext>,
+    // vote_extensions: VoteExtensions<MockContext>,
     params: StarknetParams,
     deadline: Instant,
     mempool: MempoolRef,
@@ -34,7 +34,7 @@ pub async fn build_proposal_task(
         round,
         proposer,
         private_key,
-        vote_extensions,
+        // vote_extensions,
         params,
         deadline,
         mempool,
@@ -52,7 +52,7 @@ async fn run_build_proposal_task(
     round: Round,
     proposer: Address,
     _private_key: PrivateKey,
-    vote_extensions: VoteExtensions<MockContext>,
+    // vote_extensions: VoteExtensions<MockContext>,
     params: StarknetParams,
     deadline: Instant,
     mempool: MempoolRef,
@@ -64,9 +64,7 @@ async fn run_build_proposal_task(
 
     let mut sequence = 0;
     let mut block_tx_count = 0;
-    let vote_extensions_size =
-        (params.vote_extensions.size.as_u64() * vote_extensions.extensions.len() as u64) as usize;
-    let mut block_size = vote_extensions_size;
+    let mut block_size = 0;
 
     trace!(%height, %round, "Building local value");
 
