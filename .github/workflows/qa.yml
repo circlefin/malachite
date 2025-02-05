@@ -17,16 +17,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-     
-      - name: Install parallel-ssh manually
+      - name: Install parallel-ssh and create symlink
         run: |
-          sudo apt-get update
-          sudo apt-get install -y wget
-          wget http://archive.ubuntu.com/ubuntu/pool/universe/p/pssh/pssh_2.3.1-1_all.deb
-          sudo dpkg -i pssh_2.3.1-1_all.deb
-          rm pssh_2.3.1-1_all.deb
-          echo "Checking if pssh is installed..."
-          which pssh || echo "pssh not found!"
-          pssh --help | head -n 5 || echo "pssh help not working!"
-
+          sudo apt-get update && sudo apt-get install -y pssh
+          parallel-ssh --version
           
