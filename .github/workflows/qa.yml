@@ -22,4 +22,30 @@ jobs:
           sudo apt-get update && sudo apt-get install -y pssh
           sudo ln /usr/bin/parallel-ssh /usr/bin/pssh
           pssh --version
-          
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.6.0 
+
+      - name: Terraform Init
+        working-directory: qa/terraform
+        run: terraform init
+
+      - name: Terraform Apply (Provision Nodes)
+        working-directory: qa/terraform
+        run: |
+          terraform apply -auto-approve 
+          #\
+          #  -var="do_token=${{ secrets.DO_TOKEN }}" \
+          #  -var="do_ssh_fingerprint=${{ secrets.DO_SSH_FINGERPRINT }}" \
+          #  -var="node_count=${{ env.NODE_COUNT }}"
+      
+      - name: Terraform Destroy (Cleanup Nodes)
+        if: always()
+        working-directory: terraform
+        run: |
+          terraform destroy -auto-approve 
+          #\
+          #  -var="do_token=${{ secrets.DO_TOKEN }}" \
+          #  -var="do_ssh_fingerprint=${{ secrets.DO_SSH_FINGERPRINT }}"
