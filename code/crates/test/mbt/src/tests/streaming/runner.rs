@@ -117,60 +117,76 @@ impl ItfRunner for StreamingRunner {
         actual: &Self::ActualState,
         expected: &Self::ExpectedState,
     ) -> Result<bool, Self::Error> {
-        let stream_state = actual.streams.get(&(self.peer_id, self.stream_id));
+        let actual_stream_state = actual.streams.get(&(self.peer_id, self.stream_id));
 
-        match stream_state {
-            Some(stream_state) => {
-                println!("🟢 state invariant: actual state={:?}", stream_state);
+        match actual_stream_state {
+            Some(actual_stream_state) => {
+                println!("🟢 state invariant: actual state={:?}", actual_stream_state);
                 println!("🟢 state invariant: expected state={:?}", expected.state);
 
+                // Compare the actual and expected states
                 assert!(
-                    utils::compare_buffers(&stream_state.buffer, &expected.state.buffer),
+                    utils::compare_buffers(&actual_stream_state.buffer, &expected.state.buffer),
                     "unexpected buffer value"
                 );
 
                 assert_eq!(
-                    stream_state.init_info.is_some(),
+                    actual_stream_state.init_info.is_some(),
                     expected.state.init_message.is_some(),
                     "unexpected init info value"
                 );
 
                 assert!(
                     utils::messages_equal_sequences(
-                        &stream_state.seen_sequences,
+                        &actual_stream_state.seen_sequences,
                         &expected.state.received
                     ),
                     "unexpected seen sequences value"
                 );
 
                 assert_eq!(
-                    stream_state.next_sequence, expected.state.next_sequence as u64,
+                    actual_stream_state.next_sequence, expected.state.next_sequence as u64,
                     "unexpected next sequence value"
                 );
 
                 assert_eq!(
-                    stream_state.total_messages as i32, expected.state.total_messages,
+                    actual_stream_state.total_messages as i32, expected.state.total_messages,
                     "unexpected total messages value"
                 );
 
                 assert_eq!(
-                    stream_state.fin_received, expected.state.fin_received,
+                    actual_stream_state.fin_received, expected.state.fin_received,
                     "unexpected fin received value"
                 );
 
                 assert_eq!(
-                    stream_state.emitted_messages,
+                    actual_stream_state.emitted_messages,
                     expected.state.emitted.len(),
                     "unexpected emitted messages value"
                 );
+
+                // Check if invariant is satisfied
+                if actual_stream_state.fin_received {
+                    assert!(
+                        actual_stream_state.total_messages > 0,
+                        "total messages equal to 0 after fin received"
+                    );
+
+                    assert!(
+                        actual_stream_state.next_sequence
+                            <= actual_stream_state.total_messages as u64,
+                        "next sequence greater than total messages after fin received"
+                    );
+                }
 
                 Ok(true)
             }
             None => {
                 // This means message is emitted completely, thus stream (StreamState) is
                 //  removed from streams map
-                if expected.state.total_messages != 0
-                    && expected.state.total_messages == expected.state.emitted.len() as i32
+                if expected.state.init_message.is_some()
+                    && expected.state.fin_received
+                    && expected.state.emitted.len() as i32 == expected.state.total_messages
                 {
                     return Ok(true);
                 } else {

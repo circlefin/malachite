@@ -110,7 +110,6 @@ pub struct ProposalParts {
 
 #[derive(Default)]
 pub struct PartStreamsMap {
-    // Am I allowed to expose this?
     pub streams: BTreeMap<(PeerId, StreamId), StreamState<ProposalPart>>,
 }
 
