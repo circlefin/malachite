@@ -34,8 +34,8 @@ where
         perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
     }
 
-    // #[cfg(feature = "metrics")]
-    metrics.rebroadcast_timeouts.inc(); // TODO
+    #[cfg(feature = "metrics")]
+    metrics.rebroadcast_timeouts.inc();
 
     Ok(())
 }
