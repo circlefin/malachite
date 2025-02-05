@@ -17,8 +17,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install parallel-ssh and create symlink
+      - name: Install parallel-ssh, create symlink, and check installation
         run: |
           sudo apt-get update && sudo apt-get install -y pssh
-          sudo ln -s /usr/bin/pssh /usr/local/bin/parallel-ssh
-          pssh --version
+          echo "Checking if pssh is installed..."
+          if ! command -v pssh &> /dev/null; then
+            echo "Error: pssh not found after installation!"
+            exit 1
+          fi
+          echo "pssh is installed at: $(which pssh)"
+          ls -l $(which pssh)
+          pssh --help | head -n 5
+
