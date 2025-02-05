@@ -59,46 +59,53 @@ impl ItfRunner for StreamingRunner {
         actual: &mut Self::ActualState,
         expected: &Self::ExpectedState,
     ) -> Result<Self::Result, Self::Error> {
-        let stream_state = actual.streams.get(&(self.peer_id, self.stream_id)).unwrap();
-
-        println!("🔸 step: actual state={:?}", stream_state);
+        let stream_state = actual.streams.get(&(self.peer_id, self.stream_id));
+        // If exact stream state can't be found, then the proposal is completely emitted and
+        // stream is already removed
         println!("🔸 step: model input={:?}", expected.incoming_message);
-        println!("🔸 step: model state={:?}", expected.state);
+        match stream_state {
+            Some(stream_state) => {
+                println!("🔸 step: actual state={:?}", stream_state);
+                println!("🔸 step: model state={:?}", expected.state);
 
-        let message = match &expected.incoming_message {
-            Some(msg) => match &msg.msg_type {
-                MessageType::Init => {
-                    let proposal_init = utils::generate_dummy_proposal_init();
-                    StreamMessage::<ProposalPart>::new(
-                        self.stream_id,
-                        msg.sequence as u64,
-                        StreamContent::Data(ProposalPart::Init(proposal_init)),
-                    )
-                }
-                MessageType::Data => {
-                    let transactions = utils::generate_dummy_transactions();
-                    StreamMessage::<ProposalPart>::new(
-                        self.stream_id,
-                        msg.sequence as u64,
-                        StreamContent::Data(ProposalPart::Transactions(transactions)),
-                    )
-                }
-                MessageType::Fin => {
-                    //Q: StreamContent can be Data or Fin, but also ProposalPart has Fin variant
-                    // When will ProposalPart::Fin be used?
-                    StreamMessage::<ProposalPart>::new(
-                        self.stream_id,
-                        msg.sequence as u64,
-                        StreamContent::Fin(true),
-                    )
-                }
-            },
-            None => {
-                return Ok(());
+                let message = match &expected.incoming_message {
+                    Some(msg) => match &msg.msg_type {
+                        MessageType::Init => {
+                            let proposal_init = utils::generate_dummy_proposal_init();
+                            StreamMessage::<ProposalPart>::new(
+                                self.stream_id,
+                                msg.sequence as u64,
+                                StreamContent::Data(ProposalPart::Init(proposal_init)),
+                            )
+                        }
+                        MessageType::Data => {
+                            let transactions = utils::generate_dummy_transactions();
+                            StreamMessage::<ProposalPart>::new(
+                                self.stream_id,
+                                msg.sequence as u64,
+                                StreamContent::Data(ProposalPart::Transactions(transactions)),
+                            )
+                        }
+                        MessageType::Fin => {
+                            //Q: StreamContent can be Data or Fin, but also ProposalPart has Fin variant
+                            // When will ProposalPart::Fin be used?
+                            StreamMessage::<ProposalPart>::new(
+                                self.stream_id,
+                                msg.sequence as u64,
+                                StreamContent::Fin(true),
+                            )
+                        }
+                    },
+                    None => {
+                        return Ok(());
+                    }
+                };
+
+                actual.insert(self.peer_id, message);
             }
-        };
 
-        actual.insert(self.peer_id, message);
+            None => println!("🔸 stream state not found (proposal emitted completely)"),
+        }
 
         Ok(())
     }
