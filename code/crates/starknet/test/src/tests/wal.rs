@@ -21,6 +21,7 @@ async fn proposer_crashes_after_proposing_parts_only() {
 }
 
 #[tokio::test]
+#[ignore] // Starknet app only supports parts only mode
 async fn proposer_crashes_after_proposing_proposal_and_parts() {
     proposer_crashes_after_proposing(TestParams {
         value_payload: ValuePayload::ProposalAndParts,
@@ -30,6 +31,7 @@ async fn proposer_crashes_after_proposing_proposal_and_parts() {
 }
 
 #[tokio::test]
+#[ignore] // Starknet app only supports parts only mode
 async fn proposer_crashes_after_proposing_proposal_only() {
     proposer_crashes_after_proposing(TestParams {
         value_payload: ValuePayload::ProposalOnly,
@@ -113,6 +115,7 @@ async fn non_proposer_crashes_after_voting_parts_only() {
 }
 
 #[tokio::test]
+#[ignore] // Starknet app only supports parts only mode
 async fn non_proposer_crashes_after_voting_proposal_and_parts() {
     non_proposer_crashes_after_voting(TestParams {
         value_payload: ValuePayload::ProposalAndParts,
@@ -122,6 +125,7 @@ async fn non_proposer_crashes_after_voting_proposal_and_parts() {
 }
 
 #[tokio::test]
+#[ignore] // Starknet app only supports parts only mode
 async fn non_proposer_crashes_after_voting_proposal_only() {
     non_proposer_crashes_after_voting(TestParams {
         value_payload: ValuePayload::ProposalOnly,
