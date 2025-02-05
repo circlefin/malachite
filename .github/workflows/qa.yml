@@ -17,11 +17,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install parallel-ssh using pip
+     
+      - name: Install parallel-ssh manually
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-pip
-          pip3 install parallel-ssh
+          sudo apt-get install -y wget
+          wget http://archive.ubuntu.com/ubuntu/pool/universe/p/pssh/pssh_2.3.1-1_all.deb
+          sudo dpkg -i pssh_2.3.1-1_all.deb
+          rm pssh_2.3.1-1_all.deb
           echo "Checking if pssh is installed..."
-          python3 -m pssh --help | head -n 5
+          which pssh || echo "pssh not found!"
+          pssh --help | head -n 5 || echo "pssh help not working!"
+
           
