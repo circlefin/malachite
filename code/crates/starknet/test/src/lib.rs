@@ -140,6 +140,7 @@ impl TestRunner {
     fn generate_default_config(&self, node: NodeId) -> Config {
         let transport = transport_from_env(TransportProtocol::Tcp);
         let protocol = PubSubProtocol::default();
+        let i = node - 1;
 
         Config {
             moniker: format!("node-{}", node),
@@ -152,9 +153,9 @@ impl TestRunner {
                     transport,
                     protocol,
                     discovery: DiscoveryConfig::default(),
-                    listen_addr: transport.multiaddr("127.0.0.1", self.consensus_base_port + node),
+                    listen_addr: transport.multiaddr("127.0.0.1", self.consensus_base_port + i),
                     persistent_peers: (0..self.nodes_count)
-                        .filter(|j| node != *j)
+                        .filter(|j| i != *j)
                         .map(|j| transport.multiaddr("127.0.0.1", self.consensus_base_port + j))
                         .collect(),
                     ..Default::default()
@@ -164,9 +165,9 @@ impl TestRunner {
                 p2p: P2pConfig {
                     transport,
                     protocol,
-                    listen_addr: transport.multiaddr("127.0.0.1", self.mempool_base_port + node),
+                    listen_addr: transport.multiaddr("127.0.0.1", self.mempool_base_port + i),
                     persistent_peers: (0..self.nodes_count)
-                        .filter(|j| node != *j)
+                        .filter(|j| i != *j)
                         .map(|j| transport.multiaddr("127.0.0.1", self.mempool_base_port + j))
                         .collect(),
                     ..Default::default()
@@ -181,7 +182,7 @@ impl TestRunner {
             },
             metrics: MetricsConfig {
                 enabled: false,
-                listen_addr: format!("127.0.0.1:{}", self.metrics_base_port + node)
+                listen_addr: format!("127.0.0.1:{}", self.metrics_base_port + i)
                     .parse()
                     .unwrap(),
             },
