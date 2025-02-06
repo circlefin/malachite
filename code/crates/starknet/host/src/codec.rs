@@ -362,11 +362,10 @@ pub fn encode_consensus_message(
         SignedConsensusMsg::Vote(v) => v.to_proto()?,
         SignedConsensusMsg::Proposal(_) => {
             panic!("explicit proposal not supported by starknet test application")
-        }
-        // SignedConsensusMsg::Proposal(p) => proto::ConsensusMessage {
-        //     messages: Some(Messages::Proposal(p.to_proto()?)),
-        //     signature: Some(p.signature.to_proto()?),
-        // },
+        } // SignedConsensusMsg::Proposal(p) => proto::ConsensusMessage {
+          //     messages: Some(Messages::Proposal(p.to_proto()?)),
+          //     signature: Some(p.signature.to_proto()?),
+          // },
     };
 
     Ok(message)
