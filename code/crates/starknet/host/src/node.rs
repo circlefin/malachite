@@ -42,6 +42,7 @@ impl From<PrivateKey> for PrivateKeyFile {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct StarknetNode {
     pub config: Config,
     pub home_dir: PathBuf,

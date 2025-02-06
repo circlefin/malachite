@@ -12,7 +12,6 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 
 use malachitebft_config::*;
-use malachitebft_core_types::VotingPower;
 use malachitebft_test_framework::HasTestRunner;
 use malachitebft_test_framework::{NodeRunner, TestNode};
 
