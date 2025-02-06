@@ -1,21 +1,21 @@
 use std::path::PathBuf;
 
 use libp2p_identity::ecdsa;
-use malachitebft_starknet_p2p_types::EcdsaProvider;
 use ractor::async_trait;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
+use tokio::task::JoinHandle;
 
+use malachitebft_app::events::{RxEvent, TxEvent};
 use malachitebft_app::types::Keypair;
-use malachitebft_app::{EngineHandle, Handles, Node};
+use malachitebft_app::{Node, NodeHandle};
 use malachitebft_config::Config;
 use malachitebft_core_types::VotingPower;
-use malachitebft_engine::util::events::TxEvent;
+use malachitebft_engine::node::NodeRef;
+use malachitebft_starknet_p2p_types::EcdsaProvider;
 
 use crate::spawn::spawn_node_actor;
-use crate::types::Height;
-use crate::types::MockContext;
-use crate::types::{Address, PrivateKey, PublicKey, Validator, ValidatorSet};
+use crate::types::{Address, Height, MockContext, PrivateKey, PublicKey, Validator, ValidatorSet};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Genesis {
@@ -42,6 +42,25 @@ impl From<PrivateKey> for PrivateKeyFile {
     }
 }
 
+pub struct Handle {
+    pub actor: NodeRef,
+    pub handle: JoinHandle<()>,
+    pub tx_event: TxEvent<MockContext>,
+}
+
+#[async_trait]
+impl NodeHandle<MockContext> for Handle {
+    fn subscribe(&self) -> RxEvent<MockContext> {
+        self.tx_event.subscribe()
+    }
+
+    async fn kill(&self, _reason: Option<String>) -> eyre::Result<()> {
+        self.actor.kill();
+        self.handle.abort();
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct StarknetNode {
     pub config: Config,
@@ -65,6 +84,7 @@ impl Node for StarknetNode {
     type Genesis = Genesis;
     type PrivateKeyFile = PrivateKeyFile;
     type SigningProvider = EcdsaProvider;
+    type NodeHandle = Handle;
 
     fn get_home_dir(&self) -> PathBuf {
         self.home_dir.to_owned()
@@ -124,7 +144,7 @@ impl Node for StarknetNode {
         Genesis { validator_set }
     }
 
-    async fn start(&self) -> eyre::Result<Handles<Self::Context>> {
+    async fn start(&self) -> eyre::Result<Handle> {
         let span = tracing::error_span!("node", moniker = %self.config.moniker);
         let _enter = span.enter();
 
@@ -146,16 +166,16 @@ impl Node for StarknetNode {
         )
         .await;
 
-        Ok(Handles {
-            app: tokio::spawn(async {}),
-            engine: EngineHandle { actor, handle },
+        Ok(Handle {
+            actor,
+            handle,
             tx_event,
         })
     }
 
     async fn run(self) -> eyre::Result<()> {
-        let handles = self.start().await?;
-        handles.engine.actor.wait(None).await.map_err(Into::into)
+        let handle = self.start().await?;
+        handle.actor.wait(None).await.map_err(Into::into)
     }
 }
 

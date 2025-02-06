@@ -4,13 +4,15 @@
 use std::path::PathBuf;
 
 use async_trait::async_trait;
+use malachitebft_app_channel::app::events::{RxEvent, TxEvent};
 use rand::{CryptoRng, RngCore};
+use tokio::task::JoinHandle;
 use tracing::Instrument;
 
 use malachitebft_app_channel::app::types::config::Config; // TODO: Move into test app
 use malachitebft_app_channel::app::types::core::VotingPower;
 use malachitebft_app_channel::app::types::Keypair;
-use malachitebft_app_channel::app::{Handles, Node};
+use malachitebft_app_channel::app::{EngineHandle, Node, NodeHandle};
 
 // Use the same types used for integration tests.
 // A real application would use its own types and context instead.
@@ -22,6 +24,26 @@ use malachitebft_test::{
 
 use crate::state::State;
 use crate::store::Store;
+
+pub struct Handle {
+    pub app: JoinHandle<()>,
+    pub engine: EngineHandle,
+    pub tx_event: TxEvent<TestContext>,
+}
+
+#[async_trait]
+impl NodeHandle<TestContext> for Handle {
+    fn subscribe(&self) -> RxEvent<TestContext> {
+        self.tx_event.subscribe()
+    }
+
+    async fn kill(&self, _reason: Option<String>) -> eyre::Result<()> {
+        self.engine.actor.kill();
+        self.app.abort();
+        self.engine.handle.abort();
+        Ok(())
+    }
+}
 
 /// Main application struct implementing the consensus node functionality
 #[derive(Clone)]
@@ -39,6 +61,7 @@ impl Node for App {
     type Genesis = Genesis;
     type PrivateKeyFile = PrivateKey;
     type SigningProvider = Ed25519Provider;
+    type NodeHandle = Handle;
 
     fn get_home_dir(&self) -> PathBuf {
         self.home_dir.to_owned()
@@ -100,7 +123,7 @@ impl Node for App {
         Genesis { validator_set }
     }
 
-    async fn start(&self) -> eyre::Result<Handles<Self::Context>> {
+    async fn start(&self) -> eyre::Result<Handle> {
         let span = tracing::error_span!("node", moniker = %self.config.moniker);
         let _guard = span.enter();
 
@@ -145,7 +168,7 @@ impl Node for App {
             .instrument(span),
         );
 
-        Ok(Handles {
+        Ok(Handle {
             app: app_handle,
             engine: engine_handle,
             tx_event,

@@ -8,9 +8,9 @@ use tokio::time::sleep;
 use tracing::{debug, error, error_span, info, Instrument};
 
 use malachitebft_core_types::{Context, Height};
-use malachitebft_engine::util::events::{Event, RxEvent};
 
-pub use malachitebft_app::{EngineHandle, Handles, Node};
+pub use malachitebft_app::{EngineHandle, Node, NodeHandle};
+pub use malachitebft_engine::util::events::{Event, RxEvent, TxEvent};
 
 mod logging;
 pub use logging::init_logging;
@@ -186,9 +186,11 @@ where
     Self: Clone + Send + Sync + 'static,
     Ctx: Context,
 {
+    type NodeHandle: NodeHandle<Ctx>;
+
     fn new<S>(id: usize, nodes: &[TestNode<Ctx, S>], params: TestParams) -> Self;
 
-    async fn spawn(&self, id: NodeId) -> eyre::Result<Handles<Ctx>>;
+    async fn spawn(&self, id: NodeId) -> eyre::Result<Self::NodeHandle>;
     async fn reset_db(&self, id: NodeId) -> eyre::Result<()>;
 }
 
@@ -203,16 +205,16 @@ where
 
     info!(%node.voting_power, "Spawning node");
 
-    let mut handles = runner.spawn(node.id).await.unwrap();
+    let mut handle = runner.spawn(node.id).await.unwrap();
 
-    let mut rx_event = handles.tx_event.subscribe();
-    let rx_event_bg = handles.tx_event.subscribe();
+    let mut rx_event = handle.subscribe();
+    let rx_event_monitor = handle.subscribe();
 
     let decisions = Arc::new(AtomicUsize::new(0));
     let current_height = Arc::new(AtomicUsize::new(0));
     let is_full_node = node.is_full_node();
 
-    let spawn_bg = |mut rx: RxEvent<Ctx>| {
+    let spawn_event_monitor = |mut rx: RxEvent<Ctx>| {
         tokio::spawn({
             let decisions = Arc::clone(&decisions);
             let current_height = Arc::clone(&current_height);
@@ -241,7 +243,7 @@ where
         })
     };
 
-    let mut bg = spawn_bg(rx_event_bg);
+    let mut event_monitor = spawn_event_monitor(rx_event_monitor);
 
     for step in node.steps {
         match step {
@@ -267,16 +269,12 @@ where
                 info!("Node will crash at height {height}");
                 sleep(after).await;
 
-                handles
-                    .engine
-                    .actor
-                    .kill_and_wait(None)
+                event_monitor.abort();
+
+                handle
+                    .kill(Some("Test framework has crashed the node".to_string()))
                     .await
                     .expect("Node must stop");
-
-                bg.abort();
-                handles.app.abort();
-                handles.engine.handle.abort();
             }
 
             Step::ResetDb => {
@@ -290,14 +288,14 @@ where
                 sleep(after).await;
 
                 info!("Spawning node");
-                let new_handles = runner.spawn(node.id).await.unwrap();
+                let new_handle = runner.spawn(node.id).await.unwrap();
                 info!("Spawned");
 
-                let new_rx_event = new_handles.tx_event.subscribe();
-                let new_rx_event_bg = new_handles.tx_event.subscribe();
+                let new_rx_event = new_handle.subscribe();
+                let new_rx_event_bg = new_handle.subscribe();
 
-                bg = spawn_bg(new_rx_event_bg);
-                handles = new_handles;
+                event_monitor = spawn_event_monitor(new_rx_event_bg);
+                handle = new_handle;
                 rx_event = new_rx_event;
             }
 
@@ -311,10 +309,8 @@ where
                             break 'inner;
                         }
                         Err(e) => {
-                            bg.abort();
-                            handles.engine.actor.stop(Some("Test failed".to_string()));
-                            handles.app.abort();
-                            handles.engine.handle.abort();
+                            event_monitor.abort();
+                            handle.kill(Some("Test failed".to_string())).await.unwrap();
 
                             return TestResult::Failure(e.to_string());
                         }
@@ -325,10 +321,8 @@ where
             Step::Expect(expected) => {
                 let actual = decisions.load(Ordering::SeqCst);
 
-                bg.abort();
-                handles.engine.actor.stop(Some("Test failed".to_string()));
-                handles.app.abort();
-                handles.engine.handle.abort();
+                event_monitor.abort();
+                handle.kill(Some("Test failed".to_string())).await.unwrap();
 
                 if expected.check(actual) {
                     return TestResult::Success(format!(
@@ -346,10 +340,8 @@ where
             }
 
             Step::Fail(reason) => {
-                bg.abort();
-                handles.engine.actor.stop(Some("Test failed".to_string()));
-                handles.app.abort();
-                handles.engine.handle.abort();
+                event_monitor.abort();
+                handle.kill(Some("Test failed".to_string())).await.unwrap();
 
                 return TestResult::Failure(reason);
             }

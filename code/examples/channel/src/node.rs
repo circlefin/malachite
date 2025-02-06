@@ -4,13 +4,14 @@
 use std::path::PathBuf;
 
 use async_trait::async_trait;
+use malachitebft_app_channel::app::events::{RxEvent, TxEvent};
 use rand::{CryptoRng, RngCore};
 
 use malachitebft_app_channel::app::metrics::SharedRegistry;
 use malachitebft_app_channel::app::types::config::Config;
 use malachitebft_app_channel::app::types::core::VotingPower;
 use malachitebft_app_channel::app::types::Keypair;
-use malachitebft_app_channel::app::{Handles, Node};
+use malachitebft_app_channel::app::{EngineHandle, Node, NodeHandle};
 
 // Use the same types used for integration tests.
 // A real application would use its own types and context instead.
@@ -20,6 +21,7 @@ use malachitebft_test::{
     ValidatorSet,
 };
 use malachitebft_test_cli::metrics;
+use tokio::task::JoinHandle;
 
 use crate::metrics::DbMetrics;
 use crate::state::State;
@@ -35,12 +37,33 @@ pub struct App {
     pub start_height: Option<Height>,
 }
 
+pub struct Handle {
+    pub app: JoinHandle<()>,
+    pub engine: EngineHandle,
+    pub tx_event: TxEvent<TestContext>,
+}
+
+#[async_trait]
+impl NodeHandle<TestContext> for Handle {
+    fn subscribe(&self) -> RxEvent<TestContext> {
+        self.tx_event.subscribe()
+    }
+
+    async fn kill(&self, _reason: Option<String>) -> eyre::Result<()> {
+        self.engine.actor.kill();
+        self.app.abort();
+        self.engine.handle.abort();
+        Ok(())
+    }
+}
+
 #[async_trait]
 impl Node for App {
     type Context = TestContext;
     type Genesis = Genesis;
     type PrivateKeyFile = PrivateKey;
     type SigningProvider = Ed25519Provider;
+    type NodeHandle = Handle;
 
     fn get_home_dir(&self) -> PathBuf {
         self.home_dir.to_owned()
@@ -97,7 +120,7 @@ impl Node for App {
         Genesis { validator_set }
     }
 
-    async fn start(&self) -> eyre::Result<Handles<Self::Context>> {
+    async fn start(&self) -> eyre::Result<Handle> {
         let span = tracing::error_span!("node", moniker = %self.config.moniker);
         let _enter = span.enter();
 
@@ -142,7 +165,7 @@ impl Node for App {
             }
         });
 
-        Ok(Handles {
+        Ok(Handle {
             app: app_handle,
             engine: engine_handle,
             tx_event,

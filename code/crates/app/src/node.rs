@@ -9,7 +9,7 @@ use tokio::task::JoinHandle;
 
 use malachitebft_core_types::SigningProvider;
 use malachitebft_engine::node::NodeRef;
-use malachitebft_engine::util::events::TxEvent;
+use malachitebft_engine::util::events::RxEvent;
 
 use crate::types::core::{Context, PrivateKey, PublicKey, VotingPower};
 use crate::types::Keypair;
@@ -19,10 +19,15 @@ pub struct EngineHandle {
     pub handle: JoinHandle<()>,
 }
 
-pub struct Handles<Ctx: Context> {
-    pub app: JoinHandle<()>,
-    pub engine: EngineHandle,
-    pub tx_event: TxEvent<Ctx>,
+#[async_trait]
+pub trait NodeHandle<Ctx>
+where
+    Self: Send + Sync + 'static,
+    Ctx: Context,
+{
+    fn subscribe(&self) -> RxEvent<Ctx>;
+
+    async fn kill(&self, reason: Option<String>) -> eyre::Result<()>;
 }
 
 #[async_trait]
@@ -31,6 +36,7 @@ pub trait Node {
     type Genesis: Serialize + DeserializeOwned;
     type PrivateKeyFile: Serialize + DeserializeOwned;
     type SigningProvider: SigningProvider<Self::Context>;
+    type NodeHandle: NodeHandle<Self::Context>;
 
     fn get_home_dir(&self) -> PathBuf;
 
@@ -61,7 +67,7 @@ pub trait Node {
         validators: Vec<(PublicKey<Self::Context>, VotingPower)>,
     ) -> Self::Genesis;
 
-    async fn start(&self) -> eyre::Result<Handles<Self::Context>>;
+    async fn start(&self) -> eyre::Result<Self::NodeHandle>;
 
     async fn run(self) -> eyre::Result<()>;
 }

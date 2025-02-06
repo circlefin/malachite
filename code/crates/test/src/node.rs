@@ -2,14 +2,37 @@ use std::path::PathBuf;
 
 use async_trait::async_trait;
 use rand::{CryptoRng, RngCore};
+use tokio::task::JoinHandle;
 
+use malachitebft_app::events::TxEvent;
 use malachitebft_app::types::Keypair;
-use malachitebft_app::{Handles, Node};
+use malachitebft_app::{EngineHandle, Node, NodeHandle};
 use malachitebft_config::Config;
 use malachitebft_core_types::VotingPower;
+use malachitebft_engine::util::events::RxEvent;
 
 use crate::context::TestContext;
 use crate::{Address, Ed25519Provider, Genesis, PrivateKey, PublicKey, Validator, ValidatorSet};
+
+pub struct Handle {
+    pub app: JoinHandle<()>,
+    pub engine: EngineHandle,
+    pub tx_event: TxEvent<TestContext>,
+}
+
+#[async_trait]
+impl NodeHandle<TestContext> for Handle {
+    fn subscribe(&self) -> RxEvent<TestContext> {
+        self.tx_event.subscribe()
+    }
+
+    async fn kill(&self, _reason: Option<String>) -> eyre::Result<()> {
+        self.engine.actor.kill();
+        self.app.abort();
+        self.engine.handle.abort();
+        Ok(())
+    }
+}
 
 pub struct TestNode {
     pub config: Config,
@@ -25,6 +48,7 @@ impl Node for TestNode {
     type Genesis = Genesis;
     type PrivateKeyFile = PrivateKey;
     type SigningProvider = Ed25519Provider;
+    type NodeHandle = Handle;
 
     fn get_home_dir(&self) -> PathBuf {
         self.home_dir.to_owned()
@@ -81,8 +105,8 @@ impl Node for TestNode {
         Genesis { validator_set }
     }
 
-    async fn start(&self) -> eyre::Result<Handles<Self::Context>> {
-        todo!()
+    async fn start(&self) -> eyre::Result<Handle> {
+        unimplemented!()
     }
 
     async fn run(self) -> eyre::Result<()> {

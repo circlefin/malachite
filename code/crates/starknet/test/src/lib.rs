@@ -6,18 +6,18 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use bytesize::ByteSize;
-use malachitebft_starknet_host::node::StarknetNode;
-use malachitebft_starknet_host::types::{Height, MockContext, PrivateKey, Validator, ValidatorSet};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use malachitebft_config::*;
+use malachitebft_config::Config;
+use malachitebft_starknet_host::node::{Handle, StarknetNode};
+use malachitebft_starknet_host::types::{Height, MockContext, PrivateKey, Validator, ValidatorSet};
 use malachitebft_test_framework::HasTestRunner;
 use malachitebft_test_framework::{NodeRunner, TestNode};
 
 pub use malachitebft_test_framework::TestBuilder as GenTestBuilder;
 pub use malachitebft_test_framework::{
-    init_logging, EngineHandle, HandlerResult, Handles, Node, NodeId, TestParams,
+    init_logging, EngineHandle, HandlerResult, Node, NodeId, TestParams,
 };
 
 use tempfile::TempDir;
@@ -53,6 +53,8 @@ fn temp_dir(id: NodeId) -> PathBuf {
 
 #[async_trait]
 impl NodeRunner<MockContext> for TestRunner {
+    type NodeHandle = Handle;
+
     fn new<S>(id: usize, nodes: &[TestNode<MockContext, S>], params: TestParams) -> Self {
         let nodes_count = nodes.len();
         let base_port = 20_000 + id * 1000;
@@ -84,7 +86,7 @@ impl NodeRunner<MockContext> for TestRunner {
         }
     }
 
-    async fn spawn(&self, id: NodeId) -> eyre::Result<Handles<MockContext>> {
+    async fn spawn(&self, id: NodeId) -> eyre::Result<Handle> {
         let home_dir = &self.home_dir[&id].clone();
 
         let app = StarknetNode {
@@ -111,7 +113,9 @@ impl NodeRunner<MockContext> for TestRunner {
             serde_json::to_string(&priv_key_file)?,
         )?;
 
-        app.start().await
+        let handle = app.start().await?;
+
+        Ok(handle)
     }
 
     async fn reset_db(&self, id: NodeId) -> eyre::Result<()> {
@@ -130,6 +134,8 @@ impl TestRunner {
     }
 
     fn generate_default_config(&self, node: NodeId) -> Config {
+        use malachitebft_config::*;
+
         let transport = transport_from_env(TransportProtocol::Tcp);
         let protocol = PubSubProtocol::default();
         let i = node - 1;
@@ -183,6 +189,8 @@ impl TestRunner {
         }
     }
 }
+
+use malachitebft_config::TransportProtocol;
 
 fn transport_from_env(default: TransportProtocol) -> TransportProtocol {
     if let Ok(protocol) = std::env::var("MALACHITE_TRANSPORT") {

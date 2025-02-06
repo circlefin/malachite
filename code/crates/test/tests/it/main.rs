@@ -14,13 +14,14 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use bytesize::ByteSize;
-use malachitebft_test_app::node::App;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
+use tempfile::TempDir;
 
-use malachitebft_app::{Handles, Node};
-use malachitebft_config::*;
+use malachitebft_app::Node;
+use malachitebft_config::Config;
 use malachitebft_signing_ed25519::PrivateKey;
+use malachitebft_test_app::node::{App, Handle};
 use malachitebft_test_framework::HasTestRunner;
 use malachitebft_test_framework::{NodeRunner, TestNode};
 
@@ -28,7 +29,6 @@ pub use malachitebft_test_framework::TestBuilder as GenTestBuilder;
 pub use malachitebft_test_framework::{init_logging, HandlerResult, NodeId, TestParams};
 
 use informalsystems_malachitebft_test::{Height, TestContext, Validator, ValidatorSet};
-use tempfile::TempDir;
 
 pub type TestBuilder<S> = GenTestBuilder<TestContext, S>;
 
@@ -58,6 +58,8 @@ fn temp_dir(id: NodeId) -> PathBuf {
 
 #[async_trait]
 impl NodeRunner<TestContext> for TestRunner {
+    type NodeHandle = Handle;
+
     fn new<S>(id: usize, nodes: &[TestNode<TestContext, S>], params: TestParams) -> Self {
         let nodes_count = nodes.len();
         let base_port = 20_000 + id * 1000;
@@ -89,7 +91,7 @@ impl NodeRunner<TestContext> for TestRunner {
         }
     }
 
-    async fn spawn(&self, id: NodeId) -> eyre::Result<Handles<TestContext>> {
+    async fn spawn(&self, id: NodeId) -> eyre::Result<Handle> {
         let app = App {
             config: self.generate_config(id),
             home_dir: self.home_dir[&id].clone(),
@@ -117,6 +119,8 @@ impl TestRunner {
     }
 
     fn generate_default_config(&self, node: NodeId) -> Config {
+        use malachitebft_config::*;
+
         let transport = transport_from_env(TransportProtocol::Tcp);
         let protocol = PubSubProtocol::default();
 
@@ -169,6 +173,8 @@ impl TestRunner {
         }
     }
 }
+
+use malachitebft_config::TransportProtocol;
 
 fn transport_from_env(default: TransportProtocol) -> TransportProtocol {
     if let Ok(protocol) = std::env::var("MALACHITE_TRANSPORT") {
