@@ -154,7 +154,7 @@ impl Node for StarknetNode {
 
     async fn run(self) -> eyre::Result<()> {
         let handles = self.start().await?;
-        handles.app.await.map_err(Into::into)
+        handles.engine.actor.wait(None).await.map_err(Into::into)
     }
 }
 
@@ -169,6 +169,8 @@ fn test_starknet_node() {
     if std::env::var("KEEP_TEMP").is_ok() {
         std::mem::forget(temp_dir);
     }
+
+    std::fs::create_dir_all(temp_path.join("config")).unwrap();
 
     // Create default configuration
     let node = StarknetNode {
