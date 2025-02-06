@@ -41,34 +41,14 @@ jobs:
       
       - name: Setup commands
         working-directory: qa/terraform
-        run: source commands.sh
-
-      - name: Deploy control node
-        working-directory: qa/terraform
         run: |
-          deploy_cc
-          wait
-
-      - name: Setup config files
-        working-directory: qa/terraform
-        run: setup_config
-
-      - name: Setup commands
-        working-directory: qa/terraform
-        run: d_pull all
-
-      - name: Setup commands
-        working-directory: qa/terraform
-        run: d_run all
-      
-      - name: Setup commands
-        working-directory: qa/terraform
-        run: wait 60
-      
-      - name: Setup commands
-        if: always()
-        working-directory: qa/terraform
-        run: d_rm all
+          source commands.sh 
+          deploy_cc 
+          setup_config 
+          d_pull all 
+          d_run all
+          wait 60
+          d_rm all
 
       - name: Terraform Destroy (Cleanup Nodes)
         if: always()
