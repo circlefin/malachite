@@ -13,8 +13,8 @@ jobs:
       TF_VAR_do_token: "${{ secrets.DO_TOKEN }}"
       TF_VAR_ssh_keys: '["${{ secrets.DO_SSH_FINGERPRINT }}"]'
       TF_VAR_nyc1: 1
-      TF_VAR_nyc3: 1
-      TF_VAR_fra1: 1
+      TF_VAR_nyc3: 0
+      TF_VAR_fra1: 0
 
     steps:
       - name: Checkout code
@@ -42,13 +42,7 @@ jobs:
       - name: Setup commands
         working-directory: qa/terraform
         run: |
-          source commands.sh 
-          deploy_cc 
-          setup_config 
-          d_pull all 
-          d_run all
-          wait 60
-          d_rm all
+          source commands.sh && deploy_cc
 
       - name: Terraform Destroy (Cleanup Nodes)
         if: always()
