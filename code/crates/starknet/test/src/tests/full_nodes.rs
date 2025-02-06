@@ -80,7 +80,15 @@ pub async fn full_node_crash_and_sync() {
         .wait_until(HEIGHT)
         .success();
 
-    test.build().run(Duration::from_secs(60)).await
+    test.build()
+        .run_with_params(
+            Duration::from_secs(60),
+            TestParams {
+                enable_sync: true,
+                ..Default::default()
+            },
+        )
+        .await
 }
 
 #[tokio::test]
@@ -171,5 +179,13 @@ pub async fn mixed_validator_and_full_node_failures() {
         .wait_until(HEIGHT)
         .success();
 
-    test.build().run(Duration::from_secs(60)).await
+    test.build()
+        .run_with_params(
+            Duration::from_secs(60),
+            TestParams {
+                enable_sync: true,
+                ..Default::default()
+            },
+        )
+        .await
 }
