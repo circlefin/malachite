@@ -64,10 +64,10 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
     let value = Value::new(9999);
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
-    let (my_sk, my_addr) = (sk3.clone(), v3.address);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let proposal = Proposal::new(
@@ -146,10 +146,10 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
     let value = Value::new(9999);
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
-    let (my_sk, my_addr) = (sk3.clone(), v3.address);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
@@ -263,10 +263,10 @@ fn driver_steps_decide_previous_with_locked_and_valid() {
     let value = Value::new(9999);
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
-    let (my_sk, my_addr) = (sk3.clone(), v3.address);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
@@ -401,10 +401,10 @@ fn driver_steps_polka_previous_with_locked() {
     let value = Value::new(9999);
 
     let [(v1, _sk1), (v2, sk2), (v3, _sk3)] = make_validators([2, 2, 3]);
-    let (my_sk, my_addr) = (sk2, v2.address);
+    let (_my_sk, my_addr) = (sk2, v2.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
@@ -549,10 +549,10 @@ fn driver_steps_polka_previous_invalid_proposal() {
     let value = Value::new(9999);
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
-    let (my_sk, my_addr) = (sk3, v3.address);
+    let (_my_sk, my_addr) = (sk3, v3.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
@@ -645,10 +645,10 @@ fn driver_steps_polka_previous_new_proposal() {
     let other_value = Value::new(8888);
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
-    let (my_sk, my_addr) = (sk3, v3.address);
+    let (_my_sk, my_addr) = (sk3, v3.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
@@ -791,10 +791,10 @@ fn driver_steps_polka_previous_with_no_locked() {
     let value = Value::new(9999);
 
     let [(v1, _sk1), (v2, sk2), (v3, _sk3)] = make_validators([2, 2, 3]);
-    let (my_sk, my_addr) = (sk2, v2.address);
+    let (_my_sk, my_addr) = (sk2, v2.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
@@ -916,10 +916,10 @@ fn driver_steps_polka_previous_with_no_locked() {
 #[test]
 fn driver_steps_polka_nil_and_timeout_propose() {
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
-    let (my_sk, my_addr) = (sk3.clone(), v3.address);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
@@ -979,10 +979,10 @@ fn driver_steps_polka_value_then_proposal() {
     let value = Value::new(9999);
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
-    let (my_sk, my_addr) = (sk3.clone(), v3.address);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
@@ -1057,10 +1057,10 @@ fn driver_steps_polka_any_then_proposal_other() {
     let value = Value::new(9999);
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
-    let (my_sk, my_addr) = (sk3.clone(), v3.address);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
@@ -1108,10 +1108,10 @@ fn driver_equivocate_vote() {
     let value2 = Value::new(42);
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
-    let (my_sk, my_addr) = (sk3.clone(), v3.address);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let proposal = Proposal::new(
@@ -1177,10 +1177,10 @@ fn driver_equivocate_proposal() {
     let value2 = Value::new(42);
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
-    let (my_sk, my_addr) = (sk3.clone(), v3.address);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let proposal = Proposal::new(
@@ -1256,10 +1256,10 @@ fn driver_conflicting_proposal_unreachable() {
     let value2 = Value::new(42);
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
-    let (my_sk, my_addr) = (sk3.clone(), v3.address);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
@@ -1308,10 +1308,10 @@ fn driver_step_change_mux_with_proposal() {
     let value: Value = Value::new(9999);
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
-    let (my_sk, my_addr) = (sk3.clone(), v3.address);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
@@ -1403,10 +1403,10 @@ fn driver_step_change_mux_with_proposal_and_polka() {
     let value: Value = Value::new(9999);
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
-    let (my_sk, my_addr) = (sk3.clone(), v3.address);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let proposal = Proposal::new(
@@ -1480,10 +1480,10 @@ fn driver_step_change_mux_with_proposal_and_commit_quorum() {
     let value: Value = Value::new(9999);
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
-    let (my_sk, my_addr) = (sk3.clone(), v3.address);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let proposal = Proposal::new(
@@ -1552,10 +1552,10 @@ fn proposal_mux_with_polka() {
     let value: Value = Value::new(9999);
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
-    let (my_sk, my_addr) = (sk3.clone(), v3.address);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let proposal = Proposal::new(
@@ -1626,10 +1626,10 @@ fn proposal_mux_with_commit_quorum() {
     let value: Value = Value::new(9999);
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
-    let (my_sk, my_addr) = (sk3.clone(), v3.address);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let proposal = Proposal::new(

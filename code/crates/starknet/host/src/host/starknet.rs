@@ -1,7 +1,8 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::time::Duration;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use bytesize::ByteSize;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
@@ -9,7 +10,7 @@ use tracing::{debug, Instrument};
 
 use malachitebft_config::VoteExtensionsConfig;
 use malachitebft_core_consensus::ValuePayload;
-use malachitebft_core_types::{CommitCertificate, Extension, Round, SignedExtension, SignedVote};
+use malachitebft_core_types::{CommitCertificate, Round, SignedVote, VoteExtensions};
 
 use crate::host::Host;
 use crate::mempool::MempoolRef;
@@ -37,6 +38,7 @@ pub struct StarknetHost {
     pub private_key: PrivateKey,
     pub validator_set: ValidatorSet,
     pub part_store: PartStore<MockContext>,
+    pub vote_extensions: HashMap<Height, VoteExtensions<MockContext>>,
 }
 
 impl StarknetHost {
@@ -54,16 +56,12 @@ impl StarknetHost {
             private_key,
             validator_set,
             part_store: Default::default(),
+            vote_extensions: Default::default(),
         }
     }
 
-    pub fn generate_vote_extension(
-        &self,
-        _height: Height,
-        _round: Round,
-    ) -> Option<SignedExtension<MockContext>> {
+    pub fn generate_vote_extension(&self, _height: Height, _round: Round) -> Option<Bytes> {
         use rand::RngCore;
-        use sha3::Digest;
 
         if !self.params.vote_extensions.enabled {
             return None;
@@ -75,11 +73,7 @@ impl StarknetHost {
         let mut bytes = vec![0u8; size];
         rand::thread_rng().fill_bytes(&mut bytes);
 
-        let hash = Hash::new(sha3::Keccak256::digest(&bytes).into());
-        let extension = Extension::from(bytes);
-        let signature = self.private_key.sign(&hash.as_felt());
-
-        Some(SignedExtension::new(extension, signature))
+        Some(Bytes::from(bytes))
     }
 }
 
@@ -96,7 +90,7 @@ impl Host for StarknetHost {
 
     #[tracing::instrument(skip_all, fields(%height, %round))]
     async fn build_new_proposal(
-        &self,
+        &mut self,
         height: Self::Height,
         round: Round,
         deadline: Instant,
@@ -107,12 +101,15 @@ impl Host for StarknetHost {
         let (tx_part, rx_content) = mpsc::channel(self.params.txs_per_part);
         let (tx_block_hash, rx_block_hash) = oneshot::channel();
 
+        let vote_extensions = self.vote_extensions.remove(&height).unwrap_or_default();
+
         tokio::spawn(
             build_proposal_task(
                 height,
                 round,
                 self.address,
                 self.private_key,
+                vote_extensions,
                 self.params,
                 deadline,
                 self.mempool.clone(),

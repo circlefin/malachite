@@ -49,22 +49,46 @@ where
     }
 
     // Look for an existing certificate
-    let certificate = state
+    let (certificate, extensions) = state
         .driver
         .get_certificate(proposal_round, value.id())
         .cloned()
+        .map(|certificate| (certificate, VoteExtensions::default()))
         .unwrap_or_else(|| {
             // Restore the commits. Note that they will be removed from `state`
-            let commits = state.restore_precommits(height, proposal_round, value);
-            // TODO: should we verify we have 2/3rd commits?
-            CommitCertificate::new(height, proposal_round, value.id(), commits)
+            let mut commits = state.restore_precommits(height, proposal_round, value);
+
+            let extensions = extract_vote_extensions(&mut commits);
+
+            // TODO: Should we verify we have 2/3rd commits?
+            let certificate = CommitCertificate::new(height, proposal_round, value.id(), commits);
+
+            (certificate, extensions)
         });
 
-    perform!(co, Effect::Decide(certificate, Default::default()));
+    perform!(
+        co,
+        Effect::Decide(certificate, extensions, Default::default())
+    );
 
     // Reinitialize to remove any previous round or equivocating precommits.
     // TODO: Revise when evidence module is added.
     state.signed_precommits.clear();
 
     Ok(())
+}
+
+// Extract vote extensions from a list of votes,
+// removing them from each vote in the process.
+pub fn extract_vote_extensions<Ctx: Context>(votes: &mut [SignedVote<Ctx>]) -> VoteExtensions<Ctx> {
+    let extensions = votes
+        .iter_mut()
+        .filter_map(|vote| {
+            vote.message
+                .take_extension()
+                .map(|e| (vote.validator_address().clone(), e))
+        })
+        .collect();
+
+    VoteExtensions::new(extensions)
 }

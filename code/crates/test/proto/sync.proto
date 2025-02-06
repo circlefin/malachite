@@ -32,7 +32,6 @@ message CommitSignature {
     // TODO: Add flag (no vote, nil, value?)
     Address validator_address = 1;
     Signature signature = 2;
-    optional Extension extension = 3;
 }
 
 message AggregatedSignature {
@@ -53,7 +52,6 @@ message ProposedValue {
     Address proposer = 4;
     Value value = 5;
     bool validity = 6;
-    optional Extension extension = 7;
 }
 
 message VoteSetRequest {

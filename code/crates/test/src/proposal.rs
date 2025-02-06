@@ -34,6 +34,10 @@ impl Proposal {
     pub fn to_bytes(&self) -> Bytes {
         Protobuf::to_bytes(self).unwrap()
     }
+
+    pub fn to_sign_bytes(&self) -> Bytes {
+        Protobuf::to_bytes(self).unwrap()
+    }
 }
 
 impl malachitebft_core_types::Proposal<TestContext> for Proposal {

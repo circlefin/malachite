@@ -107,12 +107,14 @@ where
 {
     let consensus_height = state.driver.height();
     let vote_height = signed_vote.height();
+    let vote_round = signed_vote.round();
     let validator_address = signed_vote.validator_address();
 
     let Some(validator_set) = get_validator_set(co, state, signed_vote.height()).await? else {
         debug!(
             consensus.height = %consensus_height,
             vote.height = %vote_height,
+            vote.round = %vote_round,
             validator = %validator_address,
             "Received vote for height without known validator set, dropping"
         );
@@ -124,6 +126,7 @@ where
         warn!(
             consensus.height = %consensus_height,
             vote.height = %vote_height,
+            vote.round = %vote_round,
             validator = %validator_address,
             "Received vote from unknown validator"
         );
@@ -136,8 +139,59 @@ where
         warn!(
             consensus.height = %consensus_height,
             vote.height = %vote_height,
+            vote.round = %vote_round,
             validator = %validator_address,
             "Received vote with invalid signature: {}", PrettyVote::<Ctx>(&signed_vote.message)
+        );
+
+        return Ok(false);
+    }
+
+    verify_vote_extension(co, state, signed_vote, validator).await
+}
+
+async fn verify_vote_extension<Ctx>(
+    co: &Co<Ctx>,
+    state: &State<Ctx>,
+    vote: &SignedVote<Ctx>,
+    validator: &Ctx::Validator,
+) -> Result<bool, Error<Ctx>>
+where
+    Ctx: Context,
+{
+    let VoteType::Precommit = vote.vote_type() else {
+        return Ok(true);
+    };
+
+    let NilOrVal::Val(value_id) = vote.value().as_ref() else {
+        return Ok(true);
+    };
+
+    let Some(extension) = vote.extension() else {
+        return Ok(true);
+    };
+
+    let result = perform!(
+        co,
+        Effect::VerifyVoteExtension(
+            vote.height(),
+            vote.round(),
+            value_id.clone(),
+            extension.clone(),
+            validator.public_key().clone(),
+            Default::default()
+        ),
+        Resume::VoteExtensionValidity(result) => result
+    );
+
+    if let Err(e) = result {
+        warn!(
+            consensus.height = %state.driver.height(),
+            vote.height = %vote.height(),
+            vote.round = %vote.round(),
+            validator = %validator.address(),
+            "Received vote with invalid extension: {}, reason: {e}",
+            PrettyVote::<Ctx>(&vote.message)
         );
 
         return Ok(false);

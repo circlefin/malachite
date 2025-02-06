@@ -54,6 +54,15 @@ impl Vote {
     pub fn to_bytes(&self) -> Bytes {
         Protobuf::to_bytes(self).unwrap()
     }
+
+    pub fn to_sign_bytes(&self) -> Bytes {
+        let vote = Self {
+            extension: None,
+            ..self.clone()
+        };
+
+        Protobuf::to_bytes(&vote).unwrap()
+    }
 }
 
 impl malachitebft_core_types::Vote<TestContext> for Vote {
@@ -83,6 +92,10 @@ impl malachitebft_core_types::Vote<TestContext> for Vote {
 
     fn extension(&self) -> Option<&SignedExtension<TestContext>> {
         self.extension.as_ref()
+    }
+
+    fn take_extension(&mut self) -> Option<SignedExtension<TestContext>> {
+        self.extension.take()
     }
 
     fn extend(self, extension: SignedExtension<TestContext>) -> Self {

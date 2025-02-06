@@ -86,10 +86,10 @@ fn driver_steps_proposer() {
     let value = Value::new(9999);
 
     let [(v1, sk1), (v2, _sk2), (v3, _sk3)] = make_validators([1, 2, 3]);
-    let (my_sk, my_addr) = (sk1, v1.address);
+    let (_my_sk, my_addr) = (sk1, v1.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
     let sel = Arc::new(FixedProposer::new(my_addr));
     let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
 
@@ -290,10 +290,10 @@ fn driver_steps_proposer() {
 #[test]
 fn driver_steps_proposer_timeout_get_value() {
     let [(v1, sk1), (v2, _sk2), (v3, _sk3)] = make_validators([1, 2, 3]);
-    let (my_sk, my_addr) = (sk1, v1.address);
+    let (_my_sk, my_addr) = (sk1, v1.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
     let sel = Arc::new(FixedProposer::new(my_addr));
     let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
 
@@ -348,10 +348,10 @@ fn driver_steps_not_proposer_valid() {
     let [(v1, _sk1), (v2, sk2), (v3, _sk3)] = make_validators([1, 2, 3]);
 
     // Proposer is v1, so we are not the proposer
-    let (my_sk, my_addr) = (sk2, v2.address);
+    let (_my_sk, my_addr) = (sk2, v2.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
     let sel = Arc::new(FixedProposer::new(v1.address));
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
@@ -541,10 +541,10 @@ fn driver_steps_not_proposer_invalid() {
     let [(v1, _sk1), (v2, sk2), (v3, _sk3)] = make_validators([1, 2, 3]);
 
     // Proposer is v1, so we are not the proposer
-    let (my_sk, my_addr) = (sk2, v2.address);
+    let (_my_sk, my_addr) = (sk2, v2.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
     let sel = Arc::new(FixedProposer::new(v1.address));
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
@@ -668,10 +668,10 @@ fn driver_steps_not_proposer_other_height() {
     let [(v1, _sk1), (v2, sk2)] = make_validators([1, 2]);
 
     // Proposer is v1, so we are not the proposer
-    let (my_sk, my_addr) = (sk2, v2.address);
+    let (_my_sk, my_addr) = (sk2, v2.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
     let sel = Arc::new(FixedProposer::new(v1.address));
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone()]);
 
@@ -732,10 +732,10 @@ fn driver_steps_not_proposer_other_round() {
     let [(v1, _sk1), (v2, sk2)] = make_validators([1, 2]);
 
     // Proposer is v1, so we are not the proposer
-    let (my_sk, my_addr) = (sk2, v2.address);
+    let (_my_sk, my_addr) = (sk2, v2.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
     let sel = Arc::new(FixedProposer::new(v1.address));
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone()]);
 
@@ -787,10 +787,10 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([1, 3, 1]);
 
     // Proposer is v1, so we, v3, are not the proposer
-    let (my_sk, my_addr) = (sk3, v3.address);
+    let (_my_sk, my_addr) = (sk3, v3.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
     let sel = Arc::new(FixedProposer::new(v1.address));
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
@@ -965,10 +965,10 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
 #[test]
 fn driver_steps_no_value_to_propose() {
     let [(v1, sk1), (v2, _sk2), (v3, _sk3)] = make_validators([1, 2, 3]);
-    let (my_sk, my_addr) = (sk1, v1.address);
+    let (_my_sk, my_addr) = (sk1, v1.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
 
     // We are the proposer
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
@@ -996,10 +996,10 @@ fn driver_steps_no_value_to_propose() {
 fn driver_steps_proposer_not_found() {
     let [(v1, _sk1), (v2, sk2), (v3, _sk3)] = make_validators([1, 2, 3]);
 
-    let (my_sk, my_addr) = (sk2, v2.address);
+    let (_my_sk, my_addr) = (sk2, v2.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
 
     // Proposer is v1, which is not in the validator set
     let vs = ValidatorSet::new(vec![v2.clone(), v3.clone()]);
@@ -1016,10 +1016,10 @@ fn driver_steps_validator_not_found() {
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([1, 2, 3]);
 
-    let (my_sk, my_addr) = (sk3.clone(), v3.address);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
 
     // Proposer is v1
     // We omit v2 from the validator set
@@ -1052,9 +1052,9 @@ fn driver_steps_skip_round_skip_threshold() {
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([1, 1, 1]);
 
     // Proposer is v1, so we, v3, are not the proposer
-    let (my_sk, my_addr) = (sk3, v3.address);
+    let (_my_sk, my_addr) = (sk3, v3.address);
 
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
     let height = Height::new(1);
 
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
@@ -1154,10 +1154,10 @@ fn driver_steps_skip_round_quorum_threshold() {
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([1, 2, 1]);
 
     // Proposer is v1, so we, v3, are not the proposer
-    let (my_sk, my_addr) = (sk3, v3.address);
+    let (_my_sk, my_addr) = (sk3, v3.address);
 
     let height = Height::new(1);
-    let ctx = TestContext::new(my_sk.clone());
+    let ctx = TestContext::new();
 
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
     let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());

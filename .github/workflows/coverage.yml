@@ -33,11 +33,13 @@ jobs:
               - 'code/**'
             specs:
               - 'specs/**'
+            codecov:
+              - 'codecov.yml'
 
   integration:
     name: Integration
     needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
+    if: ${{ needs.changes.outputs.code == 'true' || needs.changes.outputs.codecov == 'true' || github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -93,7 +95,7 @@ jobs:
   mbt:
     name: MBT
     needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' || needs.changes.outputs.specs == 'true' || github.ref == 'refs/heads/main' }}
+    if: ${{ needs.changes.outputs.code == 'true' || needs.changes.outputs.specs == 'true' || needs.changes.outputs.codecov == 'true' || github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     defaults:
       run:

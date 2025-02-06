@@ -17,7 +17,7 @@ use malachitebft_engine::wal::{Wal, WalCodec, WalRef};
 use malachitebft_network::{Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, Keypair};
 
 use crate::types::config::{Config as NodeConfig, PubSubProtocol, SyncConfig, TransportProtocol};
-use crate::types::core::Context;
+use crate::types::core::{Context, SigningProvider};
 use crate::types::metrics::{Metrics, SharedRegistry};
 use crate::types::sync;
 use crate::types::ValuePayload;
@@ -73,6 +73,7 @@ pub async fn spawn_consensus_actor<Ctx>(
     address: Ctx::Address,
     ctx: Ctx,
     cfg: NodeConfig,
+    signing_provider: Box<dyn SigningProvider<Ctx>>,
     network: NetworkRef<Ctx>,
     host: HostRef<Ctx>,
     wal: WalRef<Ctx>,
@@ -84,6 +85,7 @@ where
     Ctx: Context,
 {
     use crate::types::config;
+
     let value_payload = match cfg.consensus.value_payload {
         config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
         config::ValuePayload::ProposalOnly => ValuePayload::ProposalOnly,
@@ -102,6 +104,7 @@ where
         ctx,
         consensus_params,
         cfg.consensus.timeouts,
+        signing_provider,
         network,
         host,
         wal,

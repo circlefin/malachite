@@ -1,9 +1,9 @@
 //! Internal state of the application. This is a simplified abstract to keep it simple.
 //! A regular application would have mempool implemented, a proper database and input methods like RPC.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use eyre::eyre;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -13,12 +13,14 @@ use tracing::{debug, error};
 use malachitebft_app_channel::app::consensus::ProposedValue;
 use malachitebft_app_channel::app::streaming::{StreamContent, StreamMessage};
 use malachitebft_app_channel::app::types::codec::Codec;
-use malachitebft_app_channel::app::types::core::{CommitCertificate, Round, Validity};
+use malachitebft_app_channel::app::types::core::{
+    CommitCertificate, Round, Validity, VoteExtensions,
+};
 use malachitebft_app_channel::app::types::{LocallyProposedValue, PeerId};
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{
-    Address, Genesis, Height, ProposalData, ProposalFin, ProposalInit, ProposalPart, TestContext,
-    ValidatorSet, Value, ValueId,
+    Address, Ed25519Provider, Genesis, Height, ProposalData, ProposalFin, ProposalInit,
+    ProposalPart, TestContext, ValidatorSet, Value, ValueId,
 };
 
 use crate::store::{DecidedValue, Store};
@@ -27,9 +29,12 @@ use crate::streaming::{PartStreamsMap, ProposalParts};
 /// Represents the internal state of the application node
 /// Contains information about current height, round, proposals and blocks
 pub struct State {
-    genesis: Genesis,
+    #[allow(dead_code)]
     ctx: TestContext,
+    signing_provider: Ed25519Provider,
+    genesis: Genesis,
     address: Address,
+    vote_extensions: HashMap<Height, VoteExtensions<TestContext>>,
     stream_id: u64,
     streams_map: PartStreamsMap,
     rng: StdRng,
@@ -69,20 +74,23 @@ fn seed_from_address(address: &Address) -> u64 {
 impl State {
     /// Creates a new State instance with the given validator address and starting height
     pub fn new(
-        genesis: Genesis,
         ctx: TestContext,
+        signing_provider: Ed25519Provider,
+        genesis: Genesis,
         address: Address,
         height: Height,
         store: Store,
     ) -> Self {
         Self {
-            genesis,
             ctx,
+            signing_provider,
+            genesis,
             current_height: height,
             current_round: Round::new(0),
             current_proposer: None,
             address,
             store,
+            vote_extensions: HashMap::new(),
             stream_id: 0,
             streams_map: PartStreamsMap::new(),
             rng: StdRng::seed_from_u64(seed_from_address(&address)),
@@ -165,7 +173,12 @@ impl State {
     pub async fn commit(
         &mut self,
         certificate: CommitCertificate<TestContext>,
+        extensions: VoteExtensions<TestContext>,
     ) -> eyre::Result<()> {
+        // Store extensions for use at next height if we are the proposer
+        self.vote_extensions
+            .insert(certificate.height.increment(), extensions);
+
         let Ok(Some(proposal)) = self
             .store
             .get_undecided_proposal(certificate.height, certificate.round)
@@ -208,7 +221,6 @@ impl State {
             proposal.height,
             proposal.round,
             proposal.value,
-            proposal.extension.clone(),
         )))
     }
 
@@ -223,7 +235,7 @@ impl State {
         assert_eq!(round, self.current_round);
 
         // We create a new value.
-        let value = self.make_value();
+        let value = self.make_value(height, round);
 
         let proposal = ProposedValue {
             height,
@@ -232,7 +244,6 @@ impl State {
             proposer: self.address, // We are the proposer
             value,
             validity: Validity::Valid, // Our proposals are de facto valid
-            extension: None,           // Vote extension can be added here
         };
 
         // Insert the new proposal into the undecided proposals.
@@ -247,9 +258,24 @@ impl State {
     /// A real application would have a more complex logic here,
     /// typically reaping transactions from a mempool and executing them against its state,
     /// before computing the merkle root of the new app state.
-    fn make_value(&mut self) -> Value {
+    fn make_value(&mut self, height: Height, _round: Round) -> Value {
         let value = self.rng.gen_range(100..=100000);
-        Value::new(value)
+
+        // TODO: Where should we verify signatures?
+        let extensions = self
+            .vote_extensions
+            .remove(&height)
+            .unwrap_or_default()
+            .extensions
+            .into_iter()
+            .map(|(_, e)| e.message)
+            .fold(BytesMut::new(), |mut acc, e| {
+                acc.extend_from_slice(&e);
+                acc
+            })
+            .freeze();
+
+        Value { value, extensions }
     }
 
     /// Creates a new proposal value for the given height
@@ -268,7 +294,6 @@ impl State {
             proposal.height,
             proposal.round,
             proposal.value,
-            proposal.extension,
         ))
     }
 
@@ -332,7 +357,7 @@ impl State {
         // Sign the hash of the proposal parts
         {
             let hash = hasher.finalize().to_vec();
-            let signature = self.ctx.signing_provider.sign(&hash);
+            let signature = self.signing_provider.sign(&hash);
             parts.push(ProposalPart::Fin(ProposalFin::new(signature)));
         }
 
@@ -351,7 +376,6 @@ impl State {
             height,
             round,
             Value::new(value_id.as_u64()),
-            None,
         ))
     }
 
@@ -397,11 +421,7 @@ impl State {
         let public_key = public_key.ok_or(SignatureVerificationError::ProposerNotFound)?;
 
         // Verify the signature
-        if !self
-            .ctx
-            .signing_provider
-            .verify(&hash, signature, &public_key)
-        {
+        if !self.signing_provider.verify(&hash, signature, &public_key) {
             return Err(SignatureVerificationError::InvalidSignature);
         }
 
@@ -426,7 +446,6 @@ fn assemble_value_from_parts(parts: ProposalParts) -> ProposedValue<TestContext>
         proposer: parts.proposer,
         value: Value::new(value),
         validity: Validity::Valid,
-        extension: None,
     }
 }
 

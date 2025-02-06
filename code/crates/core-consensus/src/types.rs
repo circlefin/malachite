@@ -1,9 +1,11 @@
 use derive_where::derive_where;
+use thiserror::Error;
 
 use malachitebft_core_types::{
-    Context, Proposal, Round, Signature, SignedExtension, SignedProposal, SignedVote, Validity,
-    Vote,
+    Context, Proposal, Round, Signature, SignedProposal, SignedVote, Validity, Vote,
 };
+
+pub use malachitebft_core_types::ValuePayload;
 
 pub use malachitebft_peer::PeerId;
 pub use multiaddr::Multiaddr;
@@ -45,21 +47,14 @@ pub struct LocallyProposedValue<Ctx: Context> {
     pub height: Ctx::Height,
     pub round: Round,
     pub value: Ctx::Value,
-    pub extension: Option<SignedExtension<Ctx>>,
 }
 
 impl<Ctx: Context> LocallyProposedValue<Ctx> {
-    pub fn new(
-        height: Ctx::Height,
-        round: Round,
-        value: Ctx::Value,
-        extension: Option<SignedExtension<Ctx>>,
-    ) -> Self {
+    pub fn new(height: Ctx::Height, round: Round, value: Ctx::Value) -> Self {
         Self {
             height,
             round,
             value,
-            extension,
         }
     }
 }
@@ -73,37 +68,12 @@ pub struct ProposedValue<Ctx: Context> {
     pub proposer: Ctx::Address,
     pub value: Ctx::Value,
     pub validity: Validity,
-    pub extension: Option<SignedExtension<Ctx>>,
 }
 
-/// The possible messages used to deliver proposals
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ValuePayload {
-    PartsOnly,
-    ProposalOnly,
-    ProposalAndParts,
-}
-
-impl ValuePayload {
-    pub fn include_proposal(self) -> bool {
-        matches!(
-            self,
-            ValuePayload::ProposalOnly | ValuePayload::ProposalAndParts
-        )
-    }
-
-    pub fn include_parts(self) -> bool {
-        matches!(
-            self,
-            ValuePayload::PartsOnly | ValuePayload::ProposalAndParts
-        )
-    }
-
-    pub fn parts_only(self) -> bool {
-        matches!(self, ValuePayload::PartsOnly)
-    }
-
-    pub fn proposal_only(&self) -> bool {
-        matches!(self, ValuePayload::ProposalOnly)
-    }
+#[derive(Clone, Debug, PartialEq, Eq, Error)]
+pub enum VoteExtensionError {
+    #[error("Invalid vote extension signature")]
+    InvalidSignature,
+    #[error("Invalid vote extension")]
+    InvalidVoteExtension,
 }

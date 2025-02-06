@@ -3,8 +3,7 @@ use derive_where::derive_where;
 use thiserror::Error;
 
 use crate::{
-    Context, NilOrVal, Round, Signature, SignedExtension, SignedVote, ValueId, Vote, VoteType,
-    VotingPower,
+    Context, NilOrVal, Round, Signature, SignedVote, ValueId, Vote, VoteType, VotingPower,
 };
 
 /// Represents a signature for a certificate, including the address and the signature itself.
@@ -14,22 +13,12 @@ pub struct CommitSignature<Ctx: Context> {
     pub address: Ctx::Address,
     /// The signature itself.
     pub signature: Signature<Ctx>,
-    /// Vote extension
-    pub extension: Option<SignedExtension<Ctx>>,
 }
 
 impl<Ctx: Context> CommitSignature<Ctx> {
     /// Create a new `CommitSignature` from an address and a signature, with an optional extension.
-    pub fn new(
-        address: Ctx::Address,
-        signature: Signature<Ctx>,
-        extension: Option<SignedExtension<Ctx>>,
-    ) -> Self {
-        Self {
-            address,
-            signature,
-            extension,
-        }
+    pub fn new(address: Ctx::Address, signature: Signature<Ctx>) -> Self {
+        Self { address, signature }
     }
 }
 
@@ -69,7 +58,7 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
         commits: Vec<SignedVote<Ctx>>,
     ) -> Self {
         // Collect all commit signatures from the signed votes
-        let signatures = commits
+        let commit_signatures = commits
             .into_iter()
             .filter(|vote| {
                 matches!(vote.value(), NilOrVal::Val(id) if id == &value_id)
@@ -77,15 +66,16 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
                     && vote.round() == round
                     && vote.height() == height
             })
-            .map(|signed_vote| CommitSignature {
-                address: signed_vote.validator_address().clone(),
-                signature: signed_vote.signature,
-                extension: signed_vote.message.extension().cloned(),
+            .map(|signed_vote| {
+                CommitSignature::new(
+                    signed_vote.validator_address().clone(),
+                    signed_vote.signature,
+                )
             })
             .collect();
 
         // Create the aggregated signature
-        let aggregated_signature = AggregatedSignature::new(signatures);
+        let aggregated_signature = AggregatedSignature::new(commit_signatures);
 
         Self {
             height,

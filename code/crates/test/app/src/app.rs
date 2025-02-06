@@ -155,7 +155,11 @@ pub async fn run(
             // providing it with a commit certificate which contains the ID of the value
             // that was decided on as well as the set of commits for that value,
             // ie. the precommits together with their (aggregated) signatures.
-            AppMsg::Decided { certificate, reply } => {
+            AppMsg::Decided {
+                certificate,
+                extensions: _,
+                reply,
+            } => {
                 info!(
                     height = %certificate.height, round = %certificate.round,
                     value = %certificate.value_id,
@@ -200,7 +204,6 @@ pub async fn run(
                     proposer,
                     value,
                     validity: Validity::Valid,
-                    extension: None,
                 };
 
                 state.store_synced_value(proposal.clone()).await?;
@@ -284,6 +287,18 @@ pub async fn run(
 
                 // Remove the peer from tracking
                 state.peers.remove(&peer_id);
+            }
+
+            AppMsg::ExtendVote { reply, .. } => {
+                if reply.send(None).is_err() {
+                    error!("Failed to send ExtendVote reply");
+                }
+            }
+
+            AppMsg::VerifyVoteExtension { reply, .. } => {
+                if reply.send(Ok(())).is_err() {
+                    error!("Failed to send VerifyVoteExtension reply");
+                }
             }
         }
     }

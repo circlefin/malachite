@@ -1,3 +1,4 @@
+use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::fmt::{Debug, Display};
 
@@ -49,6 +50,7 @@ where
 pub trait SigningProvider<Ctx>
 where
     Ctx: Context,
+    Self: Send + Sync + 'static,
 {
     /// Sign the given vote with our private key.
     fn sign_vote(&self, vote: Ctx::Vote) -> SignedMessage<Ctx, Ctx::Vote>;
@@ -86,6 +88,17 @@ where
         public_key: &PublicKey<Ctx>,
     ) -> bool;
 
+    /// Sign the given vote extension with our private key.
+    fn sign_vote_extension(&self, extension: Ctx::Extension) -> SignedMessage<Ctx, Ctx::Extension>;
+
+    /// Verify the given vote extension's signature using the given public key.
+    fn verify_signed_vote_extension(
+        &self,
+        extension: &Ctx::Extension,
+        signature: &Signature<Ctx>,
+        public_key: &PublicKey<Ctx>,
+    ) -> bool;
+
     /// Verify a commit signature in a certificate against the public key of its validator.
     ///
     /// ## Return
@@ -96,6 +109,80 @@ where
         commit_sig: &CommitSignature<Ctx>,
         validator: &Ctx::Validator,
     ) -> Result<VotingPower, CertificateError<Ctx>>;
+}
+
+impl<Ctx> SigningProvider<Ctx> for Box<dyn SigningProvider<Ctx> + '_>
+where
+    Ctx: Context,
+{
+    fn sign_vote(&self, vote: Ctx::Vote) -> SignedMessage<Ctx, Ctx::Vote> {
+        self.as_ref().sign_vote(vote)
+    }
+
+    fn verify_signed_vote(
+        &self,
+        vote: &<Ctx as Context>::Vote,
+        signature: &Signature<Ctx>,
+        public_key: &PublicKey<Ctx>,
+    ) -> bool {
+        self.as_ref()
+            .verify_signed_vote(vote, signature, public_key)
+    }
+
+    fn sign_proposal(&self, proposal: Ctx::Proposal) -> SignedMessage<Ctx, Ctx::Proposal> {
+        self.as_ref().sign_proposal(proposal)
+    }
+
+    fn verify_signed_proposal(
+        &self,
+        proposal: &Ctx::Proposal,
+        signature: &Signature<Ctx>,
+        public_key: &PublicKey<Ctx>,
+    ) -> bool {
+        self.as_ref()
+            .verify_signed_proposal(proposal, signature, public_key)
+    }
+
+    fn sign_proposal_part(
+        &self,
+        proposal_part: Ctx::ProposalPart,
+    ) -> SignedMessage<Ctx, Ctx::ProposalPart> {
+        self.as_ref().sign_proposal_part(proposal_part)
+    }
+
+    fn verify_signed_proposal_part(
+        &self,
+        proposal_part: &Ctx::ProposalPart,
+        signature: &Signature<Ctx>,
+        public_key: &PublicKey<Ctx>,
+    ) -> bool {
+        self.as_ref()
+            .verify_signed_proposal_part(proposal_part, signature, public_key)
+    }
+
+    fn verify_commit_signature(
+        &self,
+        certificate: &CommitCertificate<Ctx>,
+        commit_sig: &CommitSignature<Ctx>,
+        validator: &Ctx::Validator,
+    ) -> Result<VotingPower, CertificateError<Ctx>> {
+        self.as_ref()
+            .verify_commit_signature(certificate, commit_sig, validator)
+    }
+
+    fn sign_vote_extension(&self, extension: Ctx::Extension) -> SignedMessage<Ctx, Ctx::Extension> {
+        self.as_ref().sign_vote_extension(extension)
+    }
+
+    fn verify_signed_vote_extension(
+        &self,
+        extension: &Ctx::Extension,
+        signature: &Signature<Ctx>,
+        public_key: &PublicKey<Ctx>,
+    ) -> bool {
+        self.as_ref()
+            .verify_signed_vote_extension(extension, signature, public_key)
+    }
 }
 
 /// Extension trait providing additional certificate verification functionality for signing providers.

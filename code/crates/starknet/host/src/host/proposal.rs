@@ -12,7 +12,7 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::{error, trace};
 
-use malachitebft_core_types::Round;
+use malachitebft_core_types::{Round, VoteExtensions};
 
 use crate::host::starknet::StarknetParams;
 use crate::mempool::{MempoolMsg, MempoolRef};
@@ -23,6 +23,7 @@ pub async fn build_proposal_task(
     round: Round,
     proposer: Address,
     private_key: PrivateKey,
+    vote_extensions: VoteExtensions<MockContext>,
     params: StarknetParams,
     deadline: Instant,
     mempool: MempoolRef,
@@ -34,6 +35,7 @@ pub async fn build_proposal_task(
         round,
         proposer,
         private_key,
+        vote_extensions,
         params,
         deadline,
         mempool,
@@ -51,6 +53,7 @@ async fn run_build_proposal_task(
     round: Round,
     proposer: Address,
     private_key: PrivateKey,
+    vote_extensions: VoteExtensions<MockContext>,
     params: StarknetParams,
     deadline: Instant,
     mempool: MempoolRef,
@@ -61,10 +64,11 @@ async fn run_build_proposal_task(
     let build_duration = (deadline - start).mul_f32(params.time_allowance_factor);
 
     let mut sequence = 0;
-    let mut block_size = 0;
     let mut block_tx_count = 0;
     let mut block_hasher = sha3::Keccak256::new();
-    let mut max_block_size_reached = false;
+    let vote_extensions_size =
+        (params.vote_extensions.size.as_u64() * vote_extensions.extensions.len() as u64) as usize;
+    let mut block_size = vote_extensions_size;
 
     // Init
     let init = {
@@ -81,7 +85,9 @@ async fn run_build_proposal_task(
         init
     };
 
-    loop {
+    let max_block_size = params.max_block_size.as_u64() as usize;
+
+    'reap: loop {
         trace!(%height, %round, %sequence, "Building local value");
 
         let reaped_txes = mempool
@@ -99,18 +105,15 @@ async fn run_build_proposal_task(
         trace!("Reaped {} transactions from the mempool", reaped_txes.len());
 
         if reaped_txes.is_empty() {
-            break;
+            break 'reap;
         }
-
-        let max_block_size = params.max_block_size.as_u64() as usize;
 
         let mut txes = Vec::new();
         let mut tx_count = 0;
 
-        for tx in reaped_txes {
+        'txes: for tx in reaped_txes {
             if block_size + tx.size_bytes() > max_block_size {
-                max_block_size_reached = true;
-                continue;
+                continue 'txes;
             }
 
             block_size += tx.size_bytes();
@@ -140,13 +143,37 @@ async fn run_build_proposal_task(
             sequence += 1;
         }
 
-        if max_block_size_reached {
+        if block_size > max_block_size {
             trace!("Max block size reached, stopping tx generation");
-            break;
+            break 'reap;
         } else if start.elapsed() > build_duration {
             trace!("Time allowance exceeded, stopping tx generation");
-            break;
+            break 'reap;
         }
+    }
+
+    // Vote extensions
+    if !vote_extensions.extensions.is_empty() {
+        let transactions = vote_extensions
+            .extensions
+            .into_iter()
+            .map(|(_, e)| e.message)
+            .take_while(|e| {
+                let keep_going = block_size + e.len() <= max_block_size;
+                if keep_going {
+                    block_size += e.len();
+                    block_tx_count += 1;
+                }
+                keep_going
+            })
+            .map(Transaction::new)
+            .collect();
+
+        let part = ProposalPart::Transactions(Transactions::new(transactions));
+
+        block_hasher.update(part.to_sign_bytes());
+        tx_part.send(part).await?;
+        sequence += 1;
     }
 
     // BlockProof

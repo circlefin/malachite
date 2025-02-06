@@ -10,8 +10,10 @@ use rand::SeedableRng;
 use tokio::time::Instant;
 use tracing::{debug, error, info, trace, warn};
 
-use malachitebft_core_consensus::PeerId;
-use malachitebft_core_types::{CommitCertificate, Round, Validity, ValueOrigin};
+use malachitebft_core_consensus::{PeerId, VoteExtensionError};
+use malachitebft_core_types::{
+    CommitCertificate, Round, Validity, ValueId, ValueOrigin, VoteExtensions,
+};
 use malachitebft_engine::consensus::{ConsensusMsg, ConsensusRef};
 use malachitebft_engine::host::{LocallyProposedValue, ProposedValue};
 use malachitebft_engine::network::{NetworkMsg, NetworkRef};
@@ -135,7 +137,24 @@ impl Host {
                 reply_to,
             } => on_get_value(state, &self.network, height, round, timeout, reply_to).await,
 
-            HostMsg::RestreamProposal {
+            HostMsg::ExtendVote {
+                height,
+                round,
+                value_id,
+                reply_to,
+            } => on_extend_vote(state, height, round, value_id, reply_to).await,
+
+            HostMsg::VerifyVoteExtension {
+                height,
+                round,
+                value_id,
+                extension,
+                reply_to,
+            } => {
+                on_verify_vote_extension(state, height, round, value_id, extension, reply_to).await
+            }
+
+            HostMsg::RestreamValue {
                 height,
                 round,
                 valid_round,
@@ -166,8 +185,19 @@ impl Host {
 
             HostMsg::Decided {
                 certificate,
+                extensions,
                 consensus,
-            } => on_decided(state, &consensus, &self.mempool, certificate, &self.metrics).await,
+            } => {
+                on_decided(
+                    state,
+                    &consensus,
+                    &self.mempool,
+                    certificate,
+                    extensions,
+                    &self.metrics,
+                )
+                .await
+            }
 
             HostMsg::GetDecidedValue { height, reply_to } => {
                 on_get_decided_block(height, state, reply_to).await
@@ -290,7 +320,6 @@ async fn on_get_value(
             value.height,
             value.round,
             value.value,
-            value.extension,
         ))?;
 
         return Ok(());
@@ -348,9 +377,33 @@ async fn on_get_value(
         value.height,
         value.round,
         value.value,
-        value.extension,
     ))?;
 
+    Ok(())
+}
+
+async fn on_extend_vote(
+    state: &mut HostState,
+    height: Height,
+    round: Round,
+    _value_id: ValueId<MockContext>,
+    reply_to: RpcReplyPort<Option<Bytes>>,
+) -> Result<(), ActorProcessingErr> {
+    let extension = state.host.generate_vote_extension(height, round);
+    reply_to.send(extension)?;
+    Ok(())
+}
+
+async fn on_verify_vote_extension(
+    _state: &mut HostState,
+    _height: Height,
+    _round: Round,
+    _value_id: ValueId<MockContext>,
+    _extension: Bytes,
+    reply_to: RpcReplyPort<Result<(), VoteExtensionError>>,
+) -> Result<(), ActorProcessingErr> {
+    // TODO
+    reply_to.send(Ok(()))?;
     Ok(())
 }
 
@@ -443,7 +496,6 @@ fn on_process_synced_value(
             proposer,
             value: block.block_hash,
             validity: Validity::Valid,
-            extension: None,
         };
 
         reply_to.send(proposed_value)?;
@@ -551,6 +603,7 @@ async fn on_decided(
     consensus: &ConsensusRef<MockContext>,
     mempool: &MempoolRef,
     certificate: CommitCertificate<MockContext>,
+    extensions: VoteExtensions<MockContext>,
     metrics: &Metrics,
 ) -> Result<(), ActorProcessingErr> {
     let (height, round) = (certificate.height, certificate.round);
@@ -575,21 +628,13 @@ async fn on_decided(
     }
 
     // Update metrics
-    let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
-    let extension_size: usize = certificate
-        .aggregated_signature
-        .signatures
-        .iter()
-        .map(|c| c.extension.as_ref().map(|e| e.size_bytes()).unwrap_or(0))
-        .sum();
-
-    let block_and_commits_size = block_size + extension_size;
     let tx_count: usize = all_parts.iter().map(|p| p.tx_count()).sum();
+    let parts_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
+    let extensions_size = extensions.size_bytes();
+    let block_size = parts_size + extensions_size;
 
     metrics.block_tx_count.observe(tx_count as f64);
-    metrics
-        .block_size_bytes
-        .observe(block_and_commits_size as f64);
+    metrics.block_size_bytes.observe(block_size as f64);
     metrics.finalized_txes.inc_by(tx_count as u64);
 
     // Gather hashes of all the tx-es included in the block,
@@ -611,6 +656,7 @@ async fn on_decided(
     mempool.cast(MempoolMsg::Update { tx_hashes })?;
 
     // Notify Starknet Host of the decision
+    // TODO: Pass extensions along as well?
     state.host.decision(certificate).await;
 
     // Start the next height

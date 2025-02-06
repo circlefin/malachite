@@ -1,6 +1,6 @@
 use core::fmt;
 
-use malachitebft_core_types::{Context, NilOrVal, Proposal, Value};
+use malachitebft_core_types::{Context, Extension, NilOrVal, Proposal, Value};
 
 pub struct PrettyVal<'a, T>(pub NilOrVal<&'a T>);
 

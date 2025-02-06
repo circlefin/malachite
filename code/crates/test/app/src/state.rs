@@ -18,8 +18,8 @@ use malachitebft_app_channel::app::types::core::{CommitCertificate, Round, Valid
 use malachitebft_app_channel::app::types::{LocallyProposedValue, PeerId};
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{
-    Address, Height, ProposalData, ProposalFin, ProposalInit, ProposalPart, TestContext, Value,
-    ValueId,
+    Address, Ed25519Provider, Height, ProposalData, ProposalFin, ProposalInit, ProposalPart,
+    TestContext, Value, ValueId,
 };
 
 use crate::store::{DecidedValue, Store};
@@ -40,6 +40,7 @@ pub struct State {
     pub peers: HashSet<PeerId>,
     pub store: Store,
 
+    signing_provider: Ed25519Provider,
     stream_id: u64,
     streams_map: PartStreamsMap,
     rng: StdRng,
@@ -65,12 +66,14 @@ impl State {
         address: Address,
         height: Height,
         store: Store,
+        signing_provider: Ed25519Provider,
     ) -> Self {
         Self {
             ctx,
             config,
             address,
             store,
+            signing_provider,
             current_height: height,
             current_round: Round::new(0),
             current_proposer: None,
@@ -186,7 +189,6 @@ impl State {
             proposal.height,
             proposal.round,
             proposal.value,
-            proposal.extension.clone(),
         )))
     }
 
@@ -210,7 +212,6 @@ impl State {
             proposer: self.address, // We are the proposer
             value,
             validity: Validity::Valid, // Our proposals are de facto valid
-            extension: None,           // Vote extension can be added here
         };
 
         // Insert the new proposal into the undecided proposals.
@@ -242,7 +243,6 @@ impl State {
             height,
             round,
             Value::new(value_id.as_u64()),
-            None,
         ))
     }
 
@@ -262,7 +262,6 @@ impl State {
             proposal.height,
             proposal.round,
             proposal.value,
-            proposal.extension,
         ))
     }
 
@@ -310,10 +309,6 @@ impl State {
 
             hasher.update(value.height.as_u64().to_be_bytes().as_slice());
             hasher.update(value.round.as_i64().to_be_bytes().as_slice());
-
-            if let Some(ext) = &value.extension {
-                hasher.update(ext.data.as_ref());
-            }
         }
 
         // Data
@@ -330,7 +325,7 @@ impl State {
         // Sign the hash of the proposal parts
         {
             let hash = hasher.finalize().to_vec();
-            let signature = self.ctx.signing_provider.sign(&hash);
+            let signature = self.signing_provider.sign(&hash);
             parts.push(ProposalPart::Fin(ProposalFin::new(signature)));
         }
 
@@ -355,7 +350,6 @@ fn assemble_value_from_parts(parts: ProposalParts) -> ProposedValue<TestContext>
         proposer: parts.proposer,
         value: Value::new(value),
         validity: Validity::Valid, // TODO: Check signature in Fin part
-        extension: None,
     }
 }
 

@@ -19,7 +19,8 @@ use malachitebft_app_channel::EngineHandle;
 // A real application would use its own types and context instead.
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{
-    Address, Genesis, Height, PrivateKey, PublicKey, TestContext, Validator, ValidatorSet,
+    Address, Ed25519Provider, Genesis, Height, PrivateKey, PublicKey, TestContext, Validator,
+    ValidatorSet,
 };
 
 use crate::state::State;
@@ -48,19 +49,24 @@ impl App {
 
         let public_key = self.get_public_key(&self.private_key);
         let address = self.get_address(&public_key);
-        let genesis = self.make_genesis(
-            self.validator_set
-                .validators
-                .iter()
-                .map(|v| (v.public_key, v.voting_power))
-                .collect(),
-        );
+        let private_key_file = self.load_private_key_file()?;
+        let private_key = self.load_private_key(private_key_file);
+        let signing_provider = self.get_signing_provider(private_key);
 
-        let ctx = TestContext::new(self.private_key.clone());
+        let validators = self
+            .validator_set
+            .validators
+            .iter()
+            .map(|v| (v.public_key, v.voting_power))
+            .collect();
+
+        let genesis = self.make_genesis(validators);
+
+        let ctx = TestContext::new();
         let codec = ProtobufCodec;
 
         let (mut channels, engine_handle) = malachitebft_app_channel::start_engine(
-            ctx.clone(),
+            ctx,
             codec,
             self.clone(),
             self.config.clone(),
@@ -74,7 +80,8 @@ impl App {
         let config = self.config.clone();
         let store = Store::open(self.get_home_dir().join("store.db"))?;
         let start_height = self.start_height.unwrap_or_default();
-        let mut state = State::new(ctx, config, address, start_height, store);
+
+        let mut state = State::new(ctx, config, address, start_height, store, signing_provider);
 
         let tx_event = channels.events.clone();
 
@@ -100,9 +107,14 @@ impl Node for App {
     type Context = TestContext;
     type Genesis = Genesis;
     type PrivateKeyFile = PrivateKey;
+    type SigningProvider = Ed25519Provider;
 
     fn get_home_dir(&self) -> PathBuf {
         self.home_dir.to_owned()
+    }
+
+    fn get_signing_provider(&self, private_key: PrivateKey) -> Self::SigningProvider {
+        Ed25519Provider::new(private_key)
     }
 
     fn generate_private_key<R>(&self, rng: R) -> PrivateKey
