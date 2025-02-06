@@ -8,11 +8,9 @@ use tokio::time::sleep;
 use tracing::{debug, error, error_span, info, Instrument};
 
 use malachitebft_core_types::{Context, Height};
-use malachitebft_engine::util::events::{Event, RxEvent, TxEvent};
+use malachitebft_engine::util::events::{Event, RxEvent};
 
 pub use malachitebft_app::{EngineHandle, Handles, Node};
-
-// mod metrics;
 
 mod logging;
 pub use logging::init_logging;
@@ -291,14 +289,12 @@ where
 
                 sleep(after).await;
 
-                let tx_event = TxEvent::new();
-                let new_rx_event = tx_event.subscribe();
-                let new_rx_event_bg = tx_event.subscribe();
-
                 info!("Spawning node");
                 let new_handles = runner.spawn(node.id).await.unwrap();
-
                 info!("Spawned");
+
+                let new_rx_event = new_handles.tx_event.subscribe();
+                let new_rx_event_bg = new_handles.tx_event.subscribe();
 
                 bg = spawn_bg(new_rx_event_bg);
                 handles = new_handles;
