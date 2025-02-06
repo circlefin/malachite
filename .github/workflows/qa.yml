@@ -14,7 +14,7 @@ jobs:
       NODE_COUNT: 3
       TF_VAR_do_token: "${{ secrets.DO_TOKEN }}"
       TF_VAR_ssh_keys: '["${{ secrets.DO_SSH_FINGERPRINT }}"]'
-      #TF_VAR_nyc1: 1
+      TF_VAR_nyc1: 1
       #TF_VAR_nyc3: 1
       #TF_VAR_fra1: 1
 
@@ -37,29 +37,11 @@ jobs:
         working-directory: qa/terraform
         run: terraform init
 
-      - name: Debug SSH Key Secret (Masked)
-        run: |
-          if [ -z "${{ secrets.DO_SSH_FINGERPRINT }}" ]; then
-            echo "🚨 Error: DO_SSH_FINGERPRINT secret is EMPTY!"
-            exit 1
-          else
-            echo "✅ DO_SSH_FINGERPRINT secret is SET."
-          fi
-
-      - name: Terraform Apply 1 (Provision Nodes)
+      - name: Terraform Apply (Provision Nodes)
         working-directory: qa/terraform
-        run: |
-          TF_LOG=DEBUG terraform apply -auto-approve
-          wait
-
-      - name: Terraform Apply 2 (Provision Nodes)
-        working-directory: qa/terraform
-        run: |
-          terraform apply -auto-approve -var nyc1=1
-          wait
+        run: terraform apply
       
       - name: Terraform Destroy (Cleanup Nodes)
         if: always()
         working-directory: qa/terraform
-        run: |
-          terraform destroy -auto-approve
+        run: terraform destroy -auto-approve
