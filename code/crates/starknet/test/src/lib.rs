@@ -58,15 +58,8 @@ impl NodeRunner<MockContext> for TestRunner {
         let nodes_count = nodes.len();
         let base_port = 20_000 + id * 1000;
 
-        let vals_and_keys = make_validators(voting_powers(nodes));
-        let (validators, private_keys): (Vec<_>, Vec<_>) = vals_and_keys.into_iter().unzip();
+        let (validators, private_keys) = make_validators(nodes);
         let validator_set = ValidatorSet::new(validators);
-
-        let private_keys = nodes
-            .iter()
-            .map(|node| node.id)
-            .zip(private_keys)
-            .collect::<HashMap<_, _>>();
 
         let start_height = nodes
             .iter()
@@ -200,20 +193,24 @@ fn transport_from_env(default: TransportProtocol) -> TransportProtocol {
     }
 }
 
-fn voting_powers<S>(nodes: &[TestNode<MockContext, S>]) -> Vec<VotingPower> {
-    nodes.iter().map(|node| node.voting_power).collect()
-}
-
-fn make_validators(voting_powers: Vec<VotingPower>) -> Vec<(Validator, PrivateKey)> {
+fn make_validators<S>(
+    nodes: &[TestNode<MockContext, S>],
+) -> (Vec<Validator>, HashMap<NodeId, PrivateKey>) {
     let mut rng = StdRng::seed_from_u64(0x42);
 
-    let mut validators = Vec::with_capacity(voting_powers.len());
+    let mut validators = Vec::new();
+    let mut private_keys = HashMap::new();
 
-    for vp in voting_powers {
+    for node in nodes {
         let sk = PrivateKey::generate(&mut rng);
-        let val = Validator::new(sk.public_key(), vp);
-        validators.push((val, sk));
+        let val = Validator::new(sk.public_key(), node.voting_power);
+
+        private_keys.insert(node.id, sk);
+
+        if node.voting_power > 0 {
+            validators.push(val);
+        }
     }
 
-    validators
+    (validators, private_keys)
 }
