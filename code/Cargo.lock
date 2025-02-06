@@ -2439,6 +2439,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "informalsystems-malachitebft-starknet-test-mbt"
+version = "0.0.1"
+dependencies = [
+ "glob",
+ "informalsystems-malachitebft-core-types",
+ "informalsystems-malachitebft-engine",
+ "informalsystems-malachitebft-peer",
+ "informalsystems-malachitebft-starknet-host",
+ "informalsystems-malachitebft-test-mbt",
+ "itf",
+ "multihash",
+ "serde",
+ "tempfile",
+]
+
+[[package]]
 name = "informalsystems-malachitebft-sync"
 version = "0.0.1"
 dependencies = [
