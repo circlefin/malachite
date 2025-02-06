@@ -12,9 +12,9 @@ jobs:
     env:
       TF_VAR_do_token: "${{ secrets.DO_TOKEN }}"
       TF_VAR_ssh_keys: '["${{ secrets.DO_SSH_FINGERPRINT }}"]'
-      TF_VAR_nyc1: 3
-      #TF_VAR_nyc3: 1
-      #TF_VAR_fra1: 1
+      TF_VAR_nyc1: 1
+      TF_VAR_nyc3: 1
+      TF_VAR_fra1: 1
 
     steps:
       - name: Checkout code
