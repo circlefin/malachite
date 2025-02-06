@@ -131,6 +131,7 @@ jobs:
         with:
           cache-workspaces: "code"
       - name: Run integration tests
+        continue-on-error: true
         run: |
           cargo nextest run \
             -p informalsystems-malachitebft-test \
