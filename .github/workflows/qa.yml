@@ -42,7 +42,13 @@ jobs:
       - name: Setup commands
         working-directory: qa/terraform
         run: source commands.sh
-      
+
+      - name: Deploy control node
+        working-directory: qa/terraform
+        run: |
+          deploy_cc
+          wait
+
       - name: Setup config files
         working-directory: qa/terraform
         run: setup_config
