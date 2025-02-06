@@ -37,10 +37,19 @@ jobs:
         working-directory: qa/terraform
         run: terraform init
 
+      - name: Debug SSH Key Secret (Masked)
+        run: |
+          if [ -z "${{ secrets.SSH_KEYS }}" ]; then
+            echo "🚨 Error: SSH_KEYS secret is EMPTY!"
+            exit 1
+          else
+            echo "✅ SSH_KEYS secret is SET."
+          fi
+
       - name: Terraform Apply 1 (Provision Nodes)
         working-directory: qa/terraform
         run: |
-          terraform apply -auto-approve
+          TF_LOG=DEBUG terraform apply -auto-approve
           wait
 
       - name: Terraform Apply 2 (Provision Nodes)
