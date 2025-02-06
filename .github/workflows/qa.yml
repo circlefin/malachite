@@ -39,11 +39,11 @@ jobs:
 
       - name: Debug SSH Key Secret (Masked)
         run: |
-          if [ -z "${{ secrets.SSH_KEYS }}" ]; then
-            echo "🚨 Error: SSH_KEYS secret is EMPTY!"
+          if [ -z "${{ secrets.DO_KEY_FINGERPRINT }}" ]; then
+            echo "🚨 Error: DO_KEY_FINGERPRINT secret is EMPTY!"
             exit 1
           else
-            echo "✅ SSH_KEYS secret is SET."
+            echo "✅ DO_KEY_FINGERPRINT secret is SET."
           fi
 
       - name: Terraform Apply 1 (Provision Nodes)
