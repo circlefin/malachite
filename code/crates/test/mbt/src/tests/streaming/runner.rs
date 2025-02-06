@@ -1,5 +1,7 @@
+use std::collections::HashSet;
+
 use super::utils;
-use crate::streaming::{MessageType, State as SpecificationState};
+use crate::streaming::{Message, MessageType, State as SpecificationState};
 use itf::Runner as ItfRunner;
 use malachitebft_engine::util::streaming::{StreamContent, StreamMessage};
 use malachitebft_peer::PeerId;
@@ -11,11 +13,41 @@ use malachitebft_starknet_host::{
 pub struct StreamingRunner {
     peer_id: PeerId,
     stream_id: u64,
+    incoming_messages_pool: HashSet<Message>,
+    complete_proposal_message_sequence: Vec<Message>,
 }
 
 impl StreamingRunner {
     pub fn new(peer_id: PeerId, stream_id: u64) -> Self {
-        Self { peer_id, stream_id }
+        let complete_proposal_message_sequence = vec![
+            Message {
+                sequence: 0,
+                msg_type: MessageType::Init,
+                payload: "Init".to_string(),
+            },
+            Message {
+                sequence: 1,
+                msg_type: MessageType::Data,
+                payload: "Data 1".to_string(),
+            },
+            Message {
+                sequence: 2,
+                msg_type: MessageType::Data,
+                payload: "Data 2".to_string(),
+            },
+            Message {
+                sequence: 3,
+                msg_type: MessageType::Fin,
+                payload: "Fin".to_string(),
+            },
+        ];
+        let incoming_messages_pool = complete_proposal_message_sequence.iter().cloned().collect();
+        Self {
+            peer_id,
+            stream_id,
+            incoming_messages_pool,
+            complete_proposal_message_sequence,
+        }
     }
 }
 
@@ -186,6 +218,23 @@ impl ItfRunner for StreamingRunner {
                     );
                 }
 
+                assert!(
+                    actual_stream_state.seen_sequences.is_subset(
+                        &self
+                            .incoming_messages_pool
+                            .iter()
+                            .map(|msg| msg.sequence as u64)
+                            .collect()
+                    ),
+                    "seen sequences are not subset of incoming messages pool"
+                );
+
+                assert!(
+                    actual_stream_state.emitted_messages
+                        <= self.complete_proposal_message_sequence.len(),
+                    "emitted messages length exceeds the complete proposal message sequence length"
+                );
+
                 Ok(true)
             }
             None => {
@@ -193,6 +242,8 @@ impl ItfRunner for StreamingRunner {
                 //  removed from streams map
                 if expected.state.init_message.is_some()
                     && expected.state.fin_received
+                    && expected.state.received == self.incoming_messages_pool
+                    && expected.state.emitted == self.complete_proposal_message_sequence
                     && expected.state.emitted.len() as i32 == expected.state.total_messages
                 {
                     return Ok(true);
