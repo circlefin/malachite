@@ -2,6 +2,7 @@ variable "do_token" {}
 
 variable "ssh_keys" {
   type = list(string)
+  default = []
 }
 
 # The project name in Digital Ocean.
