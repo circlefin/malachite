@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use malachitebft_test_framework::TestParams;
+
 use crate::{init_logging, TestBuilder};
 
 #[tokio::test]
@@ -113,7 +115,15 @@ pub async fn late_starting_full_node() {
         .wait_until(HEIGHT)
         .success();
 
-    test.build().run(Duration::from_secs(60)).await
+    test.build()
+        .run_with_params(
+            Duration::from_secs(60),
+            TestParams {
+                enable_sync: true,
+                ..Default::default()
+            },
+        )
+        .await
 }
 
 #[tokio::test]
