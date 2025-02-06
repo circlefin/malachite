@@ -38,7 +38,7 @@ impl NodeHandle<TestContext> for Handle {
     }
 
     async fn kill(&self, _reason: Option<String>) -> eyre::Result<()> {
-        self.engine.actor.kill();
+        self.engine.actor.kill_and_wait(None).await?;
         self.app.abort();
         self.engine.handle.abort();
         Ok(())

@@ -55,7 +55,7 @@ impl NodeHandle<MockContext> for Handle {
     }
 
     async fn kill(&self, _reason: Option<String>) -> eyre::Result<()> {
-        self.actor.kill();
+        self.actor.kill_and_wait(None).await?;
         self.handle.abort();
         Ok(())
     }
