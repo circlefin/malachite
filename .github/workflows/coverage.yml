@@ -73,6 +73,7 @@ jobs:
           cargo llvm-cov nextest \
             --workspace \
             --exclude informalsystems-malachitebft-test-mbt \
+            --exclude informalsystems-malachitebft-test \
             --ignore-filename-regex crates/cli \
             --all-features \
             --no-capture \
