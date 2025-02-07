@@ -22,6 +22,7 @@ async fn proposer_crashes_after_proposing_parts_only() {
 }
 
 #[tokio::test]
+#[ignore] // Test app onky supports parts-only mode
 async fn proposer_crashes_after_proposing_proposal_and_parts() {
     proposer_crashes_after_proposing(TestParams {
         value_payload: ValuePayload::ProposalAndParts,
