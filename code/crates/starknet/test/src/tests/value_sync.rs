@@ -5,8 +5,6 @@ use malachitebft_config::ValuePayload;
 use crate::{init_logging, TestBuilder, TestParams};
 
 pub async fn crash_restart_from_start(params: TestParams) {
-    init_logging(module_path!());
-
     const HEIGHT: u64 = 10;
 
     let mut test = TestBuilder::<()>::new();
@@ -87,8 +85,6 @@ pub async fn crash_restart_from_start_proposal_and_parts() {
 
 #[tokio::test]
 pub async fn crash_restart_from_latest() {
-    init_logging(module_path!());
-
     const HEIGHT: u64 = 10;
 
     let mut test = TestBuilder::<()>::new();
@@ -127,8 +123,6 @@ pub async fn crash_restart_from_latest() {
 
 #[tokio::test]
 pub async fn aggressive_pruning() {
-    init_logging(module_path!());
-
     const HEIGHT: u64 = 15;
 
     let mut test = TestBuilder::<()>::new();

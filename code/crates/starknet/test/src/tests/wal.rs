@@ -39,8 +39,6 @@ async fn proposer_crashes_after_proposing_proposal_only() {
 }
 
 async fn proposer_crashes_after_proposing(params: TestParams) {
-    init_logging(module_path!());
-
     #[derive(Clone, Debug, Default)]
     struct State {
         first_proposed_value: Option<LocallyProposedValue<MockContext>>,
@@ -131,8 +129,6 @@ async fn non_proposer_crashes_after_voting_proposal_only() {
 }
 
 async fn non_proposer_crashes_after_voting(params: TestParams) {
-    init_logging(module_path!());
-
     #[derive(Clone, Debug, Default)]
     struct State {
         first_vote: Option<SignedVote<MockContext>>,

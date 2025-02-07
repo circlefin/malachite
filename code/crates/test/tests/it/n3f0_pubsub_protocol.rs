@@ -5,8 +5,6 @@ use bytesize::ByteSize;
 use malachitebft_config::{GossipSubConfig, PubSubProtocol};
 
 async fn run_test(params: TestParams) {
-    init_logging(module_path!());
-
     const HEIGHT: u64 = 5;
 
     let mut test = TestBuilder::<()>::new();

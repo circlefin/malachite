@@ -1,17 +1,17 @@
-pub fn init_logging(test_module: &str) {
+pub fn init_logging() {
     use tracing_subscriber::util::SubscriberInitExt;
     use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
+    let crate_name = env!("CARGO_CRATE_NAME");
     let debug_vars = &[("ACTIONS_RUNNER_DEBUG", "true"), ("MALACHITE_DEBUG", "1")];
     let enable_debug = debug_vars
         .iter()
         .any(|(k, v)| std::env::var(k).as_deref() == Ok(v));
 
-    let directive = if enable_debug {
-        format!("{test_module}=debug,informalsystems_malachitebft=trace,informalsystems_malachitebft_discovery=error,libp2p=warn,ractor=warn")
-    } else {
-        format!("{test_module}=debug,informalsystems_malachitebft=info,informalsystems_malachitebft_discovery=error,libp2p=warn,ractor=warn")
-    };
+    let trace_level = if enable_debug { "trace" } else { "info" };
+    let directive = format!(
+        "{crate_name}=debug,informalsystems_malachitebft={trace_level},informalsystems_malachitebft_discovery=error,libp2p=warn,ractor=warn"
+    );
 
     let filter = EnvFilter::builder().parse(directive).unwrap();
 

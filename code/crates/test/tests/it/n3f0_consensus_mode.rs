@@ -4,8 +4,6 @@ use crate::{init_logging, TestBuilder, TestParams};
 use malachitebft_config::ValuePayload;
 
 async fn run_test(params: TestParams) {
-    init_logging(module_path!());
-
     const HEIGHT: u64 = 5;
 
     let mut test = TestBuilder::<()>::new();

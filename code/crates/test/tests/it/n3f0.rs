@@ -4,8 +4,6 @@ use crate::{init_logging, TestBuilder};
 
 #[tokio::test]
 pub async fn all_correct_nodes() {
-    init_logging(module_path!());
-
     const HEIGHT: u64 = 5;
 
     let mut test = TestBuilder::<()>::new();

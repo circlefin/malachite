@@ -148,6 +148,8 @@ where
     R: NodeRunner<Ctx>,
     S: Send + Sync + 'static,
 {
+    init_logging();
+
     let span = error_span!("test", id = %test.id);
 
     let mut set = JoinSet::new();
