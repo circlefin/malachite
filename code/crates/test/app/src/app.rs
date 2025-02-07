@@ -1,4 +1,7 @@
+use std::time::Duration;
+
 use eyre::eyre;
+use tokio::time::sleep;
 use tracing::{error, info};
 
 use malachitebft_app_channel::app::streaming::StreamContent;
@@ -169,6 +172,8 @@ pub async fn run(
                 // When that happens, we store the decided value in our store
                 state.commit(certificate).await?;
 
+                sleep(Duration::from_millis(100)).await;
+
                 // And then we instruct consensus to start the next height
                 if reply
                     .send(ConsensusMsg::StartHeight(
@@ -197,6 +202,7 @@ pub async fn run(
                 info!(%height, %round, "Processing synced value");
 
                 let value = decode_value(value_bytes);
+
                 let proposal = ProposedValue {
                     height,
                     round,
