@@ -1,8 +1,6 @@
 use std::time::Duration;
 
-use malachitebft_test_framework::TestParams;
-
-use crate::{init_logging, TestBuilder};
+use crate::{init_logging, TestBuilder, TestParams};
 
 #[tokio::test]
 pub async fn basic_full_node() {

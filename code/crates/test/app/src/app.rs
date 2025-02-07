@@ -172,7 +172,7 @@ pub async fn run(
                 // When that happens, we store the decided value in our store
                 state.commit(certificate).await?;
 
-                sleep(Duration::from_millis(500)).await;
+                sleep(Duration::from_millis(100)).await;
 
                 // And then we instruct consensus to start the next height
                 if reply
@@ -202,6 +202,7 @@ pub async fn run(
                 info!(%height, %round, "Processing synced value");
 
                 let value = decode_value(value_bytes);
+
                 let proposal = ProposedValue {
                     height,
                     round,
