@@ -94,6 +94,9 @@ pub async fn crash_restart_from_latest() {
         .restart_after(Duration::from_secs(5))
         // Expect a vote set request for height 2
         .expect_vote_set_request(2)
+        .crash()
+        // We do not reset the database so that the node can restart from the latest height
+        .restart_after(Duration::from_secs(5))
         .wait_until(HEIGHT)
         .success();
 
@@ -122,6 +125,41 @@ pub async fn start_late() {
         .start_after(1, Duration::from_secs(10))
         // Expect a vote set request for height 1
         .expect_vote_set_request(1)
+        .wait_until(HEIGHT)
+        .success();
+
+    test.build()
+        .run_with_custom_config(
+            Duration::from_secs(60),
+            TestParams {
+                enable_sync: true,
+                timeout_step: Duration::from_secs(5),
+                ..Default::default()
+            },
+        )
+        .await
+}
+
+#[tokio::test]
+pub async fn crash_restart_after_vote_set_request() {
+    init_logging(module_path!());
+
+    const HEIGHT: u64 = 4;
+
+    let mut test = TestBuilder::<()>::new();
+
+    test.add_node().start().wait_until(HEIGHT).success();
+    test.add_node()
+        .start()
+        .wait_until(2)
+        .crash()
+        // Restart from the latest height
+        .restart_after(Duration::from_secs(5))
+        // Wait for a vote set request for height 2
+        .expect_vote_set_request(2)
+        .crash()
+        // Restart again with W
+        .restart_after(Duration::from_secs(5))
         .wait_until(HEIGHT)
         .success();
 

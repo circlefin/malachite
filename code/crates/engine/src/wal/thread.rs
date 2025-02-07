@@ -61,6 +61,7 @@ where
             let sequence = height.as_u64();
 
             if sequence == log.sequence() {
+                info!("Wal has {} entries", log.len());
                 // WAL is already at that sequence
                 // Let's check if there are any entries to replay
                 let entries = fetch_entries(log, codec);
@@ -95,8 +96,9 @@ where
             if let Err(e) = &result {
                 error!("ATTENTION: Failed to append entry to WAL: {e}");
             } else {
+                let length = log.len();
                 debug!(
-                    type = %tpe, entry.size = %buf.len(), log.entries = %log.len(),
+                    type = %tpe, entry.size = %buf.len(), length,
                     "Wrote log entry"
                 );
             }
@@ -144,18 +146,19 @@ where
 
     let entries = log
         .iter()?
-        .filter_map(|result| match result {
-            Ok(entry) => Some(entry),
+        .enumerate() // Add enumeration to get the index
+        .filter_map(|(idx, result)| match result {
+            Ok(entry) => Some((idx, entry)),
             Err(e) => {
-                error!("Failed to retrieve a WAL entry: {e}");
+                error!("Failed to retrieve WAL entry {idx}: {e}");
                 None
             }
         })
         .filter_map(
-            |bytes| match WalEntry::decode(codec, io::Cursor::new(bytes)) {
+            |(idx, bytes)| match WalEntry::decode(codec, io::Cursor::new(bytes.clone())) {
                 Ok(entry) => Some(entry),
                 Err(e) => {
-                    error!("Failed to decode WAL entry: {e}");
+                    error!("Failed to decode WAL entry {idx}: {e} {:?}", bytes);
                     None
                 }
             },
