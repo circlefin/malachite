@@ -121,10 +121,10 @@ ok_cc() {
 deploy_cc() {
   test -d "$MALACHITE_DIR/code" || (echo "Source code repository not found. Clone or copy manually." && return 1)
   if _is_cc; then
-    docker build --push -t cc.testnet/node --build-context "code=$MALACHITE_DIR/code" "$MALACHITE_DIR/qa/docker"
+    docker build --output=type=registry -t cc.testnet/node --build-context "code=$MALACHITE_DIR/code" "$MALACHITE_DIR/qa/docker"
   else
     _keyscan_cc 2> /dev/null # Needed for docker -H
-    docker -H ssh://root@$CANDC build --push -t cc.testnet/node --build-context "code=$MALACHITE_DIR/code" "$MALACHITE_DIR/qa/docker"
+    docker -H ssh://root@$CANDC build --output=type=registry -t cc.testnet/node --build-context "code=$MALACHITE_DIR/code" "$MALACHITE_DIR/qa/docker"
   fi
 }
 
