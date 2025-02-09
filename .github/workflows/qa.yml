@@ -39,10 +39,11 @@ jobs:
         working-directory: qa/terraform
         run: terraform apply -auto-approve
       
-      #- name: Setup commands
-      #  working-directory: qa/terraform
-      #  run: |
-      #    source commands.sh && deploy_cc
+      - name: Setup commands
+        working-directory: qa/terraform
+        run: |
+          source commands.sh 
+          deploy_cc
 
       - name: Terraform Destroy (Cleanup Nodes)
         if: always()
