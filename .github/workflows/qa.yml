@@ -20,6 +20,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DO_SSH_KEY }}
+
       - name: Install parallel-ssh and create symlink
         run: |
           sudo apt-get update && sudo apt-get install -y pssh
