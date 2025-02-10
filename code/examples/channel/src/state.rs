@@ -11,7 +11,7 @@ use sha3::Digest;
 use tracing::{debug, error};
 
 use malachitebft_app_channel::app::consensus::ProposedValue;
-use malachitebft_app_channel::app::streaming::{StreamContent, StreamMessage};
+use malachitebft_app_channel::app::streaming::{StreamContent, StreamId, StreamMessage};
 use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::{
     CommitCertificate, Round, Validity, VoteExtensions,
@@ -36,7 +36,6 @@ pub struct State {
     address: Address,
     store: Store,
     vote_extensions: HashMap<Height, VoteExtensions<TestContext>>,
-    stream_id: u64,
     streams_map: PartStreamsMap,
     rng: StdRng,
 
@@ -91,7 +90,6 @@ impl State {
             address,
             store,
             vote_extensions: HashMap::new(),
-            stream_id: 0,
             streams_map: PartStreamsMap::new(),
             rng: StdRng::seed_from_u64(seed_from_address(&address)),
             peers: HashSet::new(),
@@ -304,26 +302,27 @@ impl State {
         value: LocallyProposedValue<TestContext>,
     ) -> impl Iterator<Item = StreamMessage<ProposalPart>> {
         let parts = self.value_to_parts(value);
-
-        let stream_id = self.stream_id;
-        self.stream_id += 1;
+        let stream_id = self.stream_id();
 
         let mut msgs = Vec::with_capacity(parts.len() + 1);
         let mut sequence = 0;
 
         for part in parts {
-            let msg = StreamMessage::new(stream_id, sequence, StreamContent::Data(part));
+            let msg = StreamMessage::new(stream_id.clone(), sequence, StreamContent::Data(part));
             sequence += 1;
             msgs.push(msg);
         }
 
-        msgs.push(StreamMessage::new(
-            stream_id,
-            sequence,
-            StreamContent::Fin(true),
-        ));
+        msgs.push(StreamMessage::new(stream_id, sequence, StreamContent::Fin));
 
         msgs.into_iter()
+    }
+
+    fn stream_id(&self) -> StreamId {
+        let mut bytes = Vec::with_capacity(size_of::<u64>() + size_of::<u32>());
+        bytes.extend_from_slice(&self.current_height.as_u64().to_be_bytes());
+        bytes.extend_from_slice(&self.current_round.as_u32().unwrap().to_be_bytes());
+        StreamId::new(bytes.into())
     }
 
     fn value_to_parts(&self, value: LocallyProposedValue<TestContext>) -> Vec<ProposalPart> {

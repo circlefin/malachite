@@ -117,8 +117,11 @@ impl PartStreamsMap {
         peer_id: PeerId,
         msg: StreamMessage<ProposalPart>,
     ) -> Option<ProposalParts> {
-        let stream_id = msg.stream_id;
-        let state = self.streams.entry((peer_id, stream_id)).or_default();
+        let stream_id = msg.stream_id.clone();
+        let state = self
+            .streams
+            .entry((peer_id, stream_id.clone()))
+            .or_default();
 
         if !state.seen_sequences.insert(msg.sequence) {
             // We have already seen a message with this sequence number.

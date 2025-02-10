@@ -3,8 +3,7 @@ syntax = "proto3";
 package sync;
 
 import "p2p/proto/common.proto";
-import "p2p/proto/consensus.proto";
-import "p2p/proto/transaction.proto";
+import "p2p/proto/consensus/consensus.proto";
 
 message Status {
   PeerID peer_id = 1;
@@ -33,8 +32,12 @@ message SyncedValue {
 message Block {
   uint64 fork_id = 1;
   uint64 block_number = 2;
-  Transactions transactions = 3;
+  TransactionBatch transactions = 3;
   Hash block_hash = 4;
+}
+
+message Extension {
+  bytes data = 1;
 }
 
 message CommitSignature {
@@ -79,7 +82,7 @@ message VoteSetResponse {
 }
 
 message VoteSet {
-  repeated ConsensusMessage signed_votes = 1;
+  repeated Vote signed_votes = 1;
 }
 
 message SyncRequest {

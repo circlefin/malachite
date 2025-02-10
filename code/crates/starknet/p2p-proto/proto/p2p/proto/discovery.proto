@@ -3,6 +3,8 @@ syntax = "proto3";
 import "p2p/proto/common.proto";
 import "google/protobuf/descriptor.proto";
 
+option go_package = "github.com/starknet-io/starknet-p2pspecs/p2p/proto/discovery";
+
 extend google.protobuf.MessageOptions {
     optional bytes powDifficulty = 1001;
 }
