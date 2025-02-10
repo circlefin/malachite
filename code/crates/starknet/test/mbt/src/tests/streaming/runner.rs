@@ -118,15 +118,11 @@ impl ItfRunner for StreamingRunner {
                                 StreamContent::Data(ProposalPart::Transactions(transactions)),
                             )
                         }
-                        MessageType::Fin => {
-                            //Q: StreamContent can be Data or Fin, but also ProposalPart has Fin variant
-                            // When will ProposalPart::Fin be used?
-                            StreamMessage::<ProposalPart>::new(
-                                self.stream_id,
-                                msg.sequence as u64,
-                                StreamContent::Fin(true),
-                            )
-                        }
+                        MessageType::Fin => StreamMessage::<ProposalPart>::new(
+                            self.stream_id,
+                            msg.sequence as u64,
+                            StreamContent::Fin(true),
+                        ),
                     },
                     None => {
                         return Ok(());
