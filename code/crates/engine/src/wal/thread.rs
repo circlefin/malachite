@@ -166,7 +166,11 @@ where
         .collect::<Vec<_>>();
 
     if log.len() != entries.len() {
-        Err(eyre::eyre!("Failed to fetch and decode all WAL entries"))
+        Err(eyre::eyre!(
+            "Failed to fetch and decode all WAL entries: expected {}, got {}",
+            log.len(),
+            entries.len()
+        ))
     } else {
         Ok(entries)
     }

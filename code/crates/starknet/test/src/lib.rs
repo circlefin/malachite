@@ -538,12 +538,12 @@ async fn run_node<S>(
                                 break 'inner;
                             }
                         }
-                        Event::WalReplayError => {
-                            actor_ref.stop(Some("WAL replay error".to_string()));
+                        Event::WalReplayError(e) => {
+                            actor_ref.stop(Some(format!("WAL replay error: {}", e)));
                             handle.abort();
                             bg.abort();
 
-                            return TestResult::Failure("WAL replay error".to_string());
+                            return TestResult::Failure(format!("WAL replay error: {}", e));
                         }
                         _ => (),
                     }

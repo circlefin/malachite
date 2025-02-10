@@ -1,6 +1,8 @@
 use core::fmt;
+use std::sync::Arc;
 
 use derive_where::derive_where;
+use ractor::ActorProcessingErr;
 use tokio::sync::broadcast;
 
 use malachitebft_core_consensus::{LocallyProposedValue, ProposedValue, SignedConsensusMsg};
@@ -49,7 +51,7 @@ pub enum Event<Ctx: Context> {
     WalReplayConsensus(SignedConsensusMsg<Ctx>),
     WalReplayTimeout(Timeout),
     WalReplayDone(Ctx::Height),
-    WalReplayError,
+    WalReplayError(Arc<ActorProcessingErr>),
 }
 
 impl<Ctx: Context> fmt::Display for Event<Ctx> {
@@ -83,7 +85,7 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
             Event::WalReplayConsensus(msg) => write!(f, "WalReplayConsensus(msg: {msg:?})"),
             Event::WalReplayTimeout(timeout) => write!(f, "WalReplayTimeout(timeout: {timeout:?})"),
             Event::WalReplayDone(height) => write!(f, "WalReplayDone(height: {height})"),
-            Event::WalReplayError => write!(f, "WalReplayError"), // TODO: add error message
+            Event::WalReplayError(error) => write!(f, "WalReplayError({error})"),
         }
     }
 }
