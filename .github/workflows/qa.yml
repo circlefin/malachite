@@ -48,8 +48,9 @@ jobs:
         run: |
           echo "Testing SSH connection to CANDC node..."
           source commands.sh
-          ssh-keygen -R "$CANDC" > /dev/null
           mkdir -p $HOME/.ssh
+          touch "$HOME/.ssh/known_hosts"
+          ssh-keygen -R "$CANDC" > /dev/null
           ssh-keyscan -t ed25519 "$CANDC" >> "$HOME/.ssh/known_hosts"
           ssh -v -o StrictHostKeyChecking=no root@"$CANDC" "echo Connected successfully"
           ssh-cc "echo hello"
