@@ -35,6 +35,8 @@ pub async fn run(
 
                 let start_height = latest_height.increment();
 
+                sleep(Duration::from_millis(200)).await;
+
                 // We can simply respond by telling the engine to start consensus
                 // at the next height, and provide it with the genesis validator set
                 if reply
