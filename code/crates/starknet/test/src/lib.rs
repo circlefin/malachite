@@ -508,7 +508,7 @@ async fn run_node<S>(
                             decisions.fetch_add(1, Ordering::SeqCst);
                         }
                         Event::Published(msg) if is_full_node => {
-                            panic!("Full nodes unexpectedly publish a consensus message: {msg:?}");
+                            panic!("Full node unexpectedly published a consensus message: {msg:?}");
                         }
                         _ => (),
                     }
