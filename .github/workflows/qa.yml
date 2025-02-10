@@ -46,7 +46,7 @@ jobs:
       - name: Setup commands
         working-directory: qa/terraform
         run: |
-          wait 10
+          sleep 10
           set -x
           source commands.sh
           ok_cc
