@@ -47,7 +47,8 @@ jobs:
         working-directory: qa/terraform
         run: |
           echo "Fetching control node public IP..."
-          echo "CANDC_IP=$(terraform output -raw ssh-cc | sed -n 2p | cut -d '@' -f2)" >> $GITHUB_ENV
+          echo "CANDC_IP=$(terraform output -json ssh-cc | sed -n 2p | cut -d '@' -f2)" >> $GITHUB_ENV
+          echo "$CANDC_IP"
 
 
       - name: Debug SSH connection
