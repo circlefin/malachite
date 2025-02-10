@@ -1,7 +1,8 @@
 use std::time::Duration;
 
-use crate::{init_logging, TestBuilder, TestParams};
 use malachitebft_config::ValuePayload;
+
+use crate::{TestBuilder, TestParams};
 
 // NOTE: These tests are very similar to the Sync tests, with the difference that
 //       all nodes have the same voting power and therefore get stuck when one of them dies.

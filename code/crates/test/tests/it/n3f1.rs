@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::{init_logging, TestBuilder};
+use crate::TestBuilder;
 
 #[tokio::test]
 pub async fn proposer_fails_to_start() {

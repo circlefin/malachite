@@ -9,7 +9,7 @@ use malachitebft_core_types::SignedVote;
 use malachitebft_engine::util::events::Event;
 use malachitebft_starknet_host::types::MockContext;
 
-use crate::{init_logging, HandlerResult, TestBuilder, TestParams};
+use crate::{HandlerResult, TestBuilder, TestParams};
 
 #[tokio::test]
 async fn proposer_crashes_after_proposing_parts_only() {

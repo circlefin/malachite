@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::{init_logging, TestBuilder, TestParams};
+use crate::{TestBuilder, TestParams};
 
 #[tokio::test]
 pub async fn basic_full_node() {

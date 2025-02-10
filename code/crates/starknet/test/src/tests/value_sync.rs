@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use malachitebft_config::ValuePayload;
 
-use crate::{init_logging, TestBuilder, TestParams};
+use crate::{TestBuilder, TestParams};
 
 pub async fn crash_restart_from_start(params: TestParams) {
     const HEIGHT: u64 = 10;

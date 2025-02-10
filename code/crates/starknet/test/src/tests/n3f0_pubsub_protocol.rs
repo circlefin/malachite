@@ -3,7 +3,7 @@ use std::time::Duration;
 use bytesize::ByteSize;
 use malachitebft_config::{GossipSubConfig, PubSubProtocol};
 
-use crate::{init_logging, TestBuilder, TestParams};
+use crate::{TestBuilder, TestParams};
 
 async fn run_test(params: TestParams) {
     const HEIGHT: u64 = 5;
