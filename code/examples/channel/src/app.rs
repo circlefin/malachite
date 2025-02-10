@@ -1,4 +1,7 @@
+use std::time::Duration;
+
 use eyre::eyre;
+use tokio::time::sleep;
 use tracing::{error, info};
 
 use malachitebft_app_channel::app::streaming::StreamContent;
@@ -8,7 +11,7 @@ use malachitebft_app_channel::app::types::sync::RawDecidedValue;
 use malachitebft_app_channel::app::types::ProposedValue;
 use malachitebft_app_channel::{AppMsg, Channels, ConsensusMsg, NetworkMsg};
 use malachitebft_test::codec::proto::ProtobufCodec;
-use malachitebft_test::TestContext;
+use malachitebft_test::{Height, TestContext};
 
 use crate::state::{decode_value, State};
 
@@ -18,15 +21,16 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             // The first message to handle is the `ConsensusReady` message, signaling to the app
             // that Malachite is ready to start consensus
             AppMsg::ConsensusReady { reply } => {
-                info!("Consensus is ready");
-
-                let latest_height = state
+                let start_height = state
                     .store
                     .max_decided_value_height()
                     .await
-                    .unwrap_or_default();
+                    .map(|height| height.increment())
+                    .unwrap_or_else(|| Height::new(1));
 
-                let start_height = latest_height.increment();
+                info!(%start_height, "Consensus is ready");
+
+                sleep(Duration::from_millis(200)).await;
 
                 // We can simply respond by telling the engine to start consensus
                 // at the current height, which is initially 1
