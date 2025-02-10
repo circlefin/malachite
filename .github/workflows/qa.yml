@@ -44,30 +44,15 @@ jobs:
         run: terraform apply -auto-approve
       
       - name: Debug SSH connection
+        working-directory: qa/terraform
         run: |
           echo "Testing SSH connection to CANDC node..."
-          which pssh
-          which ssh-keygen
-          which ssh-keyscan
           source commands.sh
           ssh-keygen -R "$CANDC" > /dev/null
           ssh-keyscan -t ed25519 "$CANDC" >> "$HOME/.ssh/known_hosts"
           ssh -v -o StrictHostKeyChecking=no root@"$CANDC" "echo Connected successfully"
           ssh-cc "echo hello"
           _keyscan_cc
-          deploy_cc
-
-      - name: Debug SSH key scan
-        run: |
-          echo "Running ssh-keyscan on $CANDC_IP..."
-          ssh-keyscan $CANDC_IP
-
-      - name: Setup commands
-        working-directory: qa/terraform
-        run: |
-          sleep 10
-          set -x
-          source commands.sh
           deploy_cc
 
       - name: Terraform Destroy (Cleanup Nodes)
