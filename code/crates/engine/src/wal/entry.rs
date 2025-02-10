@@ -60,15 +60,15 @@ where
     {
         match self {
             WalEntry::ConsensusMsg(msg) => {
-                // Write tag
-                buf.write_u8(Self::TAG_CONSENSUS)?;
-
                 let bytes = codec.encode(msg).map_err(|e| {
                     io::Error::new(
                         io::ErrorKind::InvalidData,
                         format!("failed to encode consensus message: {e}"),
                     )
                 })?;
+
+                // Write tag
+                buf.write_u8(Self::TAG_CONSENSUS)?;
 
                 // Write encoded length
                 buf.write_u64::<BE>(bytes.len() as u64)?;
