@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use super::utils;
 use crate::streaming::{Message, MessageType, State as SpecificationState};
 use itf::Runner as ItfRunner;
-use malachitebft_engine::util::streaming::{StreamContent, StreamMessage};
+use malachitebft_engine::util::streaming::{StreamContent, StreamId, StreamMessage};
 use malachitebft_peer::PeerId;
 use malachitebft_starknet_host::{
     streaming::{PartStreamsMap, StreamState as StreamStateImpl},
@@ -12,13 +12,13 @@ use malachitebft_starknet_host::{
 
 pub struct StreamingRunner {
     peer_id: PeerId,
-    stream_id: u64,
+    stream_id: StreamId,
     incoming_messages_pool: HashSet<Message>,
     complete_proposal_message_sequence: Vec<Message>,
 }
 
 impl StreamingRunner {
-    pub fn new(peer_id: PeerId, stream_id: u64) -> Self {
+    pub fn new(peer_id: PeerId, stream_id: StreamId) -> Self {
         let complete_proposal_message_sequence = vec![
             Message {
                 sequence: 0,
@@ -66,7 +66,7 @@ impl ItfRunner for StreamingRunner {
         let mut streams_map = PartStreamsMap::default();
 
         let initial_state: StreamStateImpl<ProposalPart> = StreamStateImpl {
-            buffer: utils::spec_to_impl_buffer(&expected.state.buffer, self.stream_id),
+            buffer: utils::spec_to_impl_buffer(&expected.state.buffer, self.stream_id.clone()),
             init_info: utils::init_message_to_proposal_init(&expected.incoming_message),
             seen_sequences: expected
                 .state
@@ -82,7 +82,7 @@ impl ItfRunner for StreamingRunner {
 
         streams_map
             .streams
-            .insert((self.peer_id, self.stream_id), initial_state);
+            .insert((self.peer_id, self.stream_id.clone()), initial_state);
         Ok(streams_map)
     }
 
@@ -91,7 +91,7 @@ impl ItfRunner for StreamingRunner {
         actual: &mut Self::ActualState,
         expected: &Self::ExpectedState,
     ) -> Result<Self::Result, Self::Error> {
-        let stream_state = actual.streams.get(&(self.peer_id, self.stream_id));
+        let stream_state = actual.streams.get(&(self.peer_id, self.stream_id.clone()));
         // If exact stream state can't be found, then the proposal is completely emitted and
         // stream is already removed
         println!("🔸 step: model input={:?}", expected.incoming_message);
@@ -105,7 +105,7 @@ impl ItfRunner for StreamingRunner {
                         MessageType::Init => {
                             let proposal_init = utils::generate_dummy_proposal_init();
                             StreamMessage::<ProposalPart>::new(
-                                self.stream_id,
+                                self.stream_id.clone(),
                                 msg.sequence as u64,
                                 StreamContent::Data(ProposalPart::Init(proposal_init)),
                             )
@@ -113,15 +113,15 @@ impl ItfRunner for StreamingRunner {
                         MessageType::Data => {
                             let transactions = utils::generate_dummy_transactions();
                             StreamMessage::<ProposalPart>::new(
-                                self.stream_id,
+                                self.stream_id.clone(),
                                 msg.sequence as u64,
                                 StreamContent::Data(ProposalPart::Transactions(transactions)),
                             )
                         }
                         MessageType::Fin => StreamMessage::<ProposalPart>::new(
-                            self.stream_id,
+                            self.stream_id.clone(),
                             msg.sequence as u64,
-                            StreamContent::Fin(true),
+                            StreamContent::Fin,
                         ),
                     },
                     None => {
@@ -152,7 +152,7 @@ impl ItfRunner for StreamingRunner {
         actual: &Self::ActualState,
         expected: &Self::ExpectedState,
     ) -> Result<bool, Self::Error> {
-        let actual_stream_state = actual.streams.get(&(self.peer_id, self.stream_id));
+        let actual_stream_state = actual.streams.get(&(self.peer_id, self.stream_id.clone()));
 
         match actual_stream_state {
             Some(actual_stream_state) => {

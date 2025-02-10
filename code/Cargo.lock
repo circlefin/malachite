@@ -2442,6 +2442,7 @@ dependencies = [
 name = "informalsystems-malachitebft-starknet-test-mbt"
 version = "0.0.1"
 dependencies = [
+ "bytes",
  "glob",
  "informalsystems-malachitebft-core-types",
  "informalsystems-malachitebft-engine",

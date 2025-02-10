@@ -1,4 +1,6 @@
+use bytes::Bytes;
 use glob::glob;
+use malachitebft_engine::util::streaming::StreamId;
 use malachitebft_peer::PeerId;
 
 use crate::{streaming::State, utils::*};
@@ -42,7 +44,7 @@ fn test_mbt_part_streaming_specified_traces() {
         let hash = multihash::Multihash::<64>::wrap(SHA2_256, b"PeerId").unwrap();
         let peer_id = PeerId::from_multihash(hash).unwrap();
 
-        let streaming_runner = runner::StreamingRunner::new(peer_id, 0);
+        let streaming_runner = runner::StreamingRunner::new(peer_id, StreamId::new(Bytes::new()));
         trace.run_on(streaming_runner).unwrap();
     }
 }
@@ -84,7 +86,7 @@ fn test_mbt_part_streaming_random_traces() {
         let hash = multihash::Multihash::<64>::wrap(SHA2_256, b"PeerId").unwrap();
         let peer_id = PeerId::from_multihash(hash).unwrap();
 
-        let streaming_runner = runner::StreamingRunner::new(peer_id, 0);
+        let streaming_runner = runner::StreamingRunner::new(peer_id, StreamId::new(Bytes::new()));
         trace.run_on(streaming_runner).unwrap();
     }
 }

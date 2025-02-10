@@ -4,9 +4,10 @@ use crate::streaming::{Buffer, Message};
 use malachitebft_core_types::Round;
 use malachitebft_engine::util::streaming::{Sequence, StreamId};
 use malachitebft_engine::util::streaming::{StreamContent, StreamMessage};
+use malachitebft_starknet_host::types::TransactionBatch;
 use malachitebft_starknet_host::{
     streaming::MinHeap,
-    types::{Address, Height, ProposalInit, ProposalPart, Transaction, Transactions},
+    types::{Address, Height, ProposalInit, ProposalPart, Transaction},
 };
 
 pub fn messages_equal_sequences(
@@ -41,7 +42,7 @@ pub fn spec_to_impl_buffer(spec_buffer: &Buffer, stream_id: StreamId) -> MinHeap
             crate::streaming::MessageType::Init => {
                 let proposal_init = generate_dummy_proposal_init();
                 StreamMessage::<ProposalPart>::new(
-                    stream_id,
+                    stream_id.clone(),
                     rec.0 as u64,
                     StreamContent::Data(ProposalPart::Init(proposal_init)),
                 )
@@ -49,15 +50,15 @@ pub fn spec_to_impl_buffer(spec_buffer: &Buffer, stream_id: StreamId) -> MinHeap
             crate::streaming::MessageType::Data => {
                 let transactions = generate_dummy_transactions();
                 StreamMessage::<ProposalPart>::new(
-                    stream_id,
+                    stream_id.clone(),
                     rec.0 as u64,
                     StreamContent::Data(ProposalPart::Transactions(transactions)),
                 )
             }
             crate::streaming::MessageType::Fin => StreamMessage::<ProposalPart>::new(
-                stream_id,
+                stream_id.clone(),
                 rec.0 as u64,
-                StreamContent::Fin(true),
+                StreamContent::Fin,
             ),
         };
         impl_buffer.push(message);
@@ -92,19 +93,16 @@ pub fn generate_dummy_proposal_init() -> ProposalInit {
 
     ProposalInit {
         height: height,
-        proposal_round: round,
+        round: round,
         valid_round: valid_round,
         proposer: proposer_addr,
     }
 }
 
-pub fn generate_dummy_transactions() -> Transactions {
+pub fn generate_dummy_transactions() -> TransactionBatch {
     let tx1 = Transaction::new(vec![0x01, 0x02, 0x03]);
     let tx2 = Transaction::new(vec![0x04, 0x05, 0x06]);
     let tx3 = Transaction::new(vec![0x07, 0x08, 0x09]);
 
-    let tx_vec = vec![tx1, tx2, tx3];
-
-    let transactions = Transactions::new(tx_vec);
-    transactions
+    TransactionBatch::new(vec![tx1, tx2, tx3])
 }

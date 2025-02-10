@@ -18,6 +18,7 @@ serde = { workspace = true, features = ["derive"] }
 itf = { workspace = true }
 glob = { workspace = true }
 multihash = { workspace = true }
+bytes = { workspace = true }
 
 
 [dev-dependencies]
