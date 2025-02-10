@@ -48,7 +48,7 @@ jobs:
         run: |
           set -x
           source commands.sh
-          deploy_cc
+          ok_cc
 
       - name: Terraform Destroy (Cleanup Nodes)
         if: always()
