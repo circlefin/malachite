@@ -510,6 +510,9 @@ async fn run_node<S>(
                         Event::Published(msg) if is_full_node => {
                             panic!("Full node unexpectedly published a consensus message: {msg:?}");
                         }
+                        Event::WalReplayError(e) => {
+                            panic!("WAL replay error: {e}");
+                        }
                         _ => (),
                     }
 
@@ -528,14 +531,12 @@ async fn run_node<S>(
                 info!("Waiting until node reaches height {target_height}");
 
                 'inner: while let Ok(event) = rx_event.recv().await {
-                    let Event::StartedHeight(height) = event else {
-                        continue;
-                    };
+                    if let Event::StartedHeight(height) = &event {
+                        info!("Node started height {height}");
 
-                    info!("Node started height {height}");
-
-                    if height.as_u64() == target_height {
-                        break 'inner;
+                        if height.as_u64() == target_height {
+                            break 'inner;
+                        }
                     }
                 }
             }
