@@ -105,7 +105,7 @@ jobs:
         run: |
           cargo maelstrom \
             --slots 16 \
-            --include 'package.match(informalsystems-malachitebft-starknet-test) || informalsystems-malachitebft-starknet-test) || package.match(informalsystems-malachitebft-discovery-test)'
+            --include 'package.match(informalsystems-malachitebft-starknet-test) || package.match(informalsystems-malachitebft-starknet-test) || package.match(informalsystems-malachitebft-discovery-test)'
 
   no_std:
     name: no_std compatibility
