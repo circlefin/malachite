@@ -97,7 +97,7 @@ where
                     error!("ATTENTION: Failed to append entry to WAL: {e}");
                 } else {
                     debug!(
-                        type = %tpe, entry.size = %buf.len(), length = %log.len(),
+                        type = %tpe, entry.size = %buf.len(), log.entries = %log.len(),
                         "Wrote log entry"
                     );
                 }
@@ -115,8 +115,8 @@ where
                 error!("ATTENTION: Failed to flush WAL to disk: {e}");
             } else {
                 debug!(
-                    log.entries = %log.len(),
-                    log.size = %log.size_bytes().unwrap_or(0),
+                    wal.entries = %log.len(),
+                    wal.size = %log.size_bytes().unwrap_or(0),
                     "Flushed WAL to disk"
                 );
             }
