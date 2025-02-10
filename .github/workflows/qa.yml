@@ -43,6 +43,23 @@ jobs:
         working-directory: qa/terraform
         run: terraform apply -auto-approve
       
+      - name: Get Public IP
+        working-directory: qa/terraform
+        run: |
+          sleep 10
+          echo "Fetching the public IP of the control node..."
+          echo "CANDC_IP=$(terraform output -raw control_node_ip)" >> $GITHUB_ENV
+
+      - name: Debug SSH connection
+        run: |
+          echo "Testing SSH connection to CANDC node..."
+          ssh -v -o StrictHostKeyChecking=no root@$CANDC_IP "echo Connected successfully"
+
+      - name: Debug SSH key scan
+        run: |
+          echo "Running ssh-keyscan on $CANDC_IP..."
+          ssh-keyscan $CANDC_IP
+
       - name: Setup commands
         working-directory: qa/terraform
         run: |
