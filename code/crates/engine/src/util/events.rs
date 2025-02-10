@@ -49,6 +49,7 @@ pub enum Event<Ctx: Context> {
     WalReplayConsensus(SignedConsensusMsg<Ctx>),
     WalReplayTimeout(Timeout),
     WalReplayDone(Ctx::Height),
+    WalReplayError,
 }
 
 impl<Ctx: Context> fmt::Display for Event<Ctx> {
@@ -82,6 +83,7 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
             Event::WalReplayConsensus(msg) => write!(f, "WalReplayConsensus(msg: {msg:?})"),
             Event::WalReplayTimeout(timeout) => write!(f, "WalReplayTimeout(timeout: {timeout:?})"),
             Event::WalReplayDone(height) => write!(f, "WalReplayDone(height: {height})"),
+            Event::WalReplayError => write!(f, "WalReplayError"), // TODO: add error message
         }
     }
 }

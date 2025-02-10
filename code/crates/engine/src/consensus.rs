@@ -599,12 +599,14 @@ where
                 state.phase = Phase::Recovering;
 
                 if let Err(e) = self.replay_wal_entries(myself, state, entries).await {
+                    self.tx_event.send(|| Event::WalReplayError);
                     error!(%height, "Failed to replay WAL entries: {e}");
                 }
 
                 state.phase = Phase::Running;
             }
             Err(e) => {
+                self.tx_event.send(|| Event::WalReplayError);
                 error!(%height, "Error when notifying WAL of started height: {e}")
             }
         }

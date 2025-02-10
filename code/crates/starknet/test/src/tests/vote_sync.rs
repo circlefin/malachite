@@ -144,7 +144,7 @@ pub async fn start_late() {
 pub async fn crash_restart_after_vote_set_request() {
     init_logging(module_path!());
 
-    const HEIGHT: u64 = 4;
+    const HEIGHT: u64 = 3;
 
     let mut test = TestBuilder::<()>::new();
 
@@ -158,7 +158,7 @@ pub async fn crash_restart_after_vote_set_request() {
         // Wait for a vote set request for height 2
         .expect_vote_set_request(2)
         .crash()
-        // Restart again with W
+        // Restart again
         .restart_after(Duration::from_secs(5))
         .wait_until(HEIGHT)
         .success();

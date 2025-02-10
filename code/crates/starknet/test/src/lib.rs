@@ -530,14 +530,22 @@ async fn run_node<S>(
                 info!("Waiting until node reaches height {target_height}");
 
                 'inner: while let Ok(event) = rx_event.recv().await {
-                    let Event::StartedHeight(height) = event else {
-                        continue;
-                    };
+                    match &event {
+                        Event::StartedHeight(height) => {
+                            info!("Node started height {height}");
 
-                    info!("Node started height {height}");
+                            if height.as_u64() == target_height {
+                                break 'inner;
+                            }
+                        }
+                        Event::WalReplayError => {
+                            actor_ref.stop(Some("WAL replay error".to_string()));
+                            handle.abort();
+                            bg.abort();
 
-                    if height.as_u64() == target_height {
-                        break 'inner;
+                            return TestResult::Failure("WAL replay error".to_string());
+                        }
+                        _ => (),
                     }
                 }
             }
