@@ -80,11 +80,8 @@ where
             }
 
             WalEntry::Timeout(timeout) => {
-                // Write tag
-                buf.write_u8(Self::TAG_TIMEOUT)?;
-
-                // Write timeout
-                encode_timeout(timeout, &mut buf)?;
+                // Write tag and timeout if applicable
+                encode_timeout(Self::TAG_TIMEOUT, timeout, &mut buf)?;
 
                 Ok(())
             }
@@ -124,7 +121,7 @@ where
     }
 }
 
-fn encode_timeout(timeout: &Timeout, mut buf: impl Write) -> io::Result<()> {
+fn encode_timeout(tag: u8, timeout: &Timeout, mut buf: impl Write) -> io::Result<()> {
     use malachitebft_core_types::TimeoutKind;
 
     let step = match timeout.kind {
@@ -138,6 +135,7 @@ fn encode_timeout(timeout: &Timeout, mut buf: impl Write) -> io::Result<()> {
     };
 
     if step > 0 {
+        buf.write_u8(tag)?;
         buf.write_u8(step)?;
         buf.write_i64::<BE>(timeout.round.as_i64())?;
     }

@@ -91,20 +91,22 @@ where
             let mut buf = Vec::new();
             entry.encode(codec, &mut buf)?;
 
-            let result = log.append(&buf).map_err(Into::into);
+            if !buf.is_empty() {
+                let result = log.append(&buf).map_err(Into::into);
 
-            if let Err(e) = &result {
-                error!("ATTENTION: Failed to append entry to WAL: {e}");
-            } else {
-                let length = log.len();
-                debug!(
-                    type = %tpe, entry.size = %buf.len(), length,
-                    "Wrote log entry"
-                );
-            }
+                if let Err(e) = &result {
+                    error!("ATTENTION: Failed to append entry to WAL: {e}");
+                } else {
+                    let length = log.len();
+                    debug!(
+                        type = %tpe, entry.size = %buf.len(), length,
+                        "Wrote log entry"
+                    );
+                }
 
-            if reply.send(result).is_err() {
-                error!("Failed to send WAL append reply");
+                if reply.send(result).is_err() {
+                    error!("Failed to send WAL append reply");
+                }
             }
         }
 
