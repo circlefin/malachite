@@ -61,7 +61,6 @@ where
             let sequence = height.as_u64();
 
             if sequence == log.sequence() {
-                info!("Wal has {} entries", log.len());
                 // WAL is already at that sequence
                 // Let's check if there are any entries to replay
                 let entries = fetch_entries(log, codec);
@@ -97,9 +96,8 @@ where
                 if let Err(e) = &result {
                     error!("ATTENTION: Failed to append entry to WAL: {e}");
                 } else {
-                    let length = log.len();
                     debug!(
-                        type = %tpe, entry.size = %buf.len(), length,
+                        type = %tpe, entry.size = %buf.len(), length = %log.len(),
                         "Wrote log entry"
                     );
                 }
