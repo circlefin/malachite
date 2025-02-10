@@ -43,18 +43,19 @@ jobs:
         working-directory: qa/terraform
         run: terraform apply -auto-approve
       
-      - name: Get Control Node Public IP
-        working-directory: qa/terraform
-        run: |
-          echo "Fetching control node public IP..."
-          echo "CANDC_IP=$(terraform output -json ssh-cc | sed -n 2p | cut -d '@' -f2)" >> $GITHUB_ENV
-          echo "$CANDC_IP"
-
-
       - name: Debug SSH connection
         run: |
           echo "Testing SSH connection to CANDC node..."
-          ssh -v -o StrictHostKeyChecking=no root@$CANDC_IP "echo Connected successfully"
+          which pssh
+          which ssh-keygen
+          which ssh-keyscan
+          source commands.sh
+          ssh-keygen -R "$CANDC" > /dev/null
+          ssh-keyscan -t ed25519 "$CANDC" >> "$HOME/.ssh/known_hosts"
+          ssh -v -o StrictHostKeyChecking=no root@"$CANDC" "echo Connected successfully"
+          ssh-cc "echo hello"
+          _keyscan_cc
+          deploy_cc
 
       - name: Debug SSH key scan
         run: |
