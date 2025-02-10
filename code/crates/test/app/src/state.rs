@@ -145,7 +145,7 @@ impl State {
             .await
         else {
             return Err(eyre!(
-                "Trying to commit a value at height {} and round {} that is not decided: {}",
+                "Trying to commit a value at height {} and round {} for which there is no proposal: {}",
                 certificate.height,
                 certificate.round,
                 certificate.value_id
