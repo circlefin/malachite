@@ -46,6 +46,7 @@ jobs:
       - name: Deploy application and run it
         working-directory: qa/terraform
         run: |
+          shopt -s expand_aliases
           source commands.sh
           mkdir -p $HOME/.ssh
           touch "$HOME/.ssh/known_hosts"
