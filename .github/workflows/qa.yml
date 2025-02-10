@@ -43,12 +43,12 @@ jobs:
         working-directory: qa/terraform
         run: terraform apply -auto-approve
       
-      - name: Get Public IP
+      - name: Get Control Node Public IP
         working-directory: qa/terraform
         run: |
-          sleep 10
-          echo "Fetching the public IP of the control node..."
-          echo "CANDC_IP=$(terraform output -raw control_node_ip)" >> $GITHUB_ENV
+          echo "Fetching control node public IP..."
+          echo "CANDC_IP=$(terraform output -raw ssh-cc | cut -d '@' -f2)" >> $GITHUB_ENV
+
 
       - name: Debug SSH connection
         run: |
