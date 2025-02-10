@@ -46,7 +46,7 @@ if ! set -q _flag_home
     return 1
 end
 
-set app_name "informalsystems-malachitebft-example-channel"
+set app_name "informalsystems-malachitebft-starknet-app"
 set profile false
 set debug false
 set lldb false

@@ -1,29 +1,28 @@
 #![allow(clippy::too_many_arguments)]
 
 use std::sync::Arc;
+use std::time::SystemTime;
 
-use bytes::Bytes;
 use bytesize::ByteSize;
 use eyre::eyre;
-use rand::rngs::StdRng;
-use rand::{RngCore, SeedableRng};
-use sha3::Digest;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::{error, trace};
 
-use malachitebft_core_types::{Round, VoteExtensions};
+use malachitebft_core_types::Round;
 
 use crate::host::starknet::StarknetParams;
 use crate::mempool::{MempoolMsg, MempoolRef};
 use crate::types::*;
+
+const PROTOCOL_VERSION: &str = "0.13.0";
 
 pub async fn build_proposal_task(
     height: Height,
     round: Round,
     proposer: Address,
     private_key: PrivateKey,
-    vote_extensions: VoteExtensions<MockContext>,
+    // vote_extensions: VoteExtensions<MockContext>,
     params: StarknetParams,
     deadline: Instant,
     mempool: MempoolRef,
@@ -35,7 +34,7 @@ pub async fn build_proposal_task(
         round,
         proposer,
         private_key,
-        vote_extensions,
+        // vote_extensions,
         params,
         deadline,
         mempool,
@@ -52,44 +51,58 @@ async fn run_build_proposal_task(
     height: Height,
     round: Round,
     proposer: Address,
-    private_key: PrivateKey,
-    vote_extensions: VoteExtensions<MockContext>,
+    _private_key: PrivateKey,
+    // vote_extensions: VoteExtensions<MockContext>,
     params: StarknetParams,
     deadline: Instant,
     mempool: MempoolRef,
     tx_part: mpsc::Sender<ProposalPart>,
-    tx_block_hash: oneshot::Sender<BlockHash>,
+    tx_value_id: oneshot::Sender<Hash>,
 ) -> Result<(), Box<dyn core::error::Error>> {
     let start = Instant::now();
     let build_duration = (deadline - start).mul_f32(params.time_allowance_factor);
 
     let mut sequence = 0;
     let mut block_tx_count = 0;
-    let mut block_hasher = sha3::Keccak256::new();
-    let vote_extensions_size =
-        (params.vote_extensions.size.as_u64() * vote_extensions.extensions.len() as u64) as usize;
-    let mut block_size = vote_extensions_size;
+    let mut block_size = 0;
+
+    trace!(%height, %round, "Building local value");
 
     // Init
-    let init = {
-        let init = ProposalInit {
+    {
+        let part = ProposalPart::Init(ProposalInit {
             height,
-            proposal_round: round,
+            round,
             proposer,
             valid_round: Round::Nil,
-        };
+        });
 
-        tx_part.send(ProposalPart::Init(init.clone())).await?;
+        tx_part.send(part).await?;
         sequence += 1;
+    }
 
-        init
-    };
+    let now = SystemTime::UNIX_EPOCH.elapsed().unwrap().as_secs();
+
+    // Block Info
+    {
+        let part = ProposalPart::BlockInfo(BlockInfo {
+            height,
+            builder: proposer,
+            timestamp: now,
+            l1_gas_price_wei: 0,
+            l1_data_gas_price_wei: 0,
+            l2_gas_price_fri: 0,
+            eth_to_strk_rate: 0,
+            l1_da_mode: L1DataAvailabilityMode::Blob,
+        });
+
+        tx_part.send(part).await?;
+        sequence += 1;
+    }
 
     let max_block_size = params.max_block_size.as_u64() as usize;
 
     'reap: loop {
-        trace!(%height, %round, %sequence, "Building local value");
-
         let reaped_txes = mempool
             .call(
                 |reply| MempoolMsg::Reap {
@@ -136,9 +149,7 @@ async fn run_build_proposal_task(
 
         // Transactions
         {
-            let part = ProposalPart::Transactions(Transactions::new(txes));
-
-            block_hasher.update(part.to_sign_bytes());
+            let part = ProposalPart::Transactions(TransactionBatch::new(txes));
             tx_part.send(part).await?;
             sequence += 1;
         }
@@ -152,51 +163,39 @@ async fn run_build_proposal_task(
         }
     }
 
-    // Vote extensions
-    if !vote_extensions.extensions.is_empty() {
-        let transactions = vote_extensions
-            .extensions
-            .into_iter()
-            .map(|(_, e)| e.message)
-            .take_while(|e| {
-                let keep_going = block_size + e.len() <= max_block_size;
-                if keep_going {
-                    block_size += e.len();
-                    block_tx_count += 1;
-                }
-                keep_going
-            })
-            .map(Transaction::new)
-            .collect();
-
-        let part = ProposalPart::Transactions(Transactions::new(transactions));
-
-        block_hasher.update(part.to_sign_bytes());
-        tx_part.send(part).await?;
-        sequence += 1;
-    }
-
-    // BlockProof
+    // Proposal Commitment
     {
-        // TODO: Compute actual "proof"
-        let mut rng = StdRng::from_entropy();
-        let mut proof = vec![0; 32];
-        rng.fill_bytes(&mut proof);
+        let part = ProposalPart::Commitment(Box::new(ProposalCommitment {
+            height,
+            parent_commitment: Hash::new([0; 32]),
+            builder: proposer,
+            timestamp: now,
+            protocol_version: PROTOCOL_VERSION.to_string(),
+            old_state_root: Hash::new([0; 32]),
+            state_diff_commitment: Hash::new([0; 32]),
+            transaction_commitment: Hash::new([0; 32]),
+            event_commitment: Hash::new([0; 32]),
+            receipt_commitment: Hash::new([0; 32]),
+            concatenated_counts: Felt::ONE,
+            l1_gas_price_fri: 0,
+            l1_data_gas_price_fri: 0,
+            l2_gas_price_fri: 0,
+            l2_gas_used: 0,
+            l1_da_mode: L1DataAvailabilityMode::Blob,
+        }));
 
-        let part = ProposalPart::BlockProof(BlockProof::new(vec![Bytes::from(proof)]));
-
-        block_hasher.update(part.to_sign_bytes());
         tx_part.send(part).await?;
         sequence += 1;
     }
 
-    let block_hash = BlockHash::new(block_hasher.finalize().into());
+    // TODO: Compute the actual propoosal commitment hash
+    let proposal_commitment_hash = Hash::new([42; 32]);
 
     // Fin
     {
-        let signature = compute_proposal_signature(&init, &block_hash, &private_key);
-
-        let part = ProposalPart::Fin(ProposalFin { signature });
+        let part = ProposalPart::Fin(ProposalFin {
+            proposal_commitment_hash,
+        });
         tx_part.send(part).await?;
         sequence += 1;
     }
@@ -207,13 +206,13 @@ async fn run_build_proposal_task(
     let block_size = ByteSize::b(block_size as u64);
 
     trace!(
-        tx_count = %block_tx_count, size = %block_size, hash = %block_hash, parts = %sequence,
+        tx_count = %block_tx_count, size = %block_size, %proposal_commitment_hash, parts = %sequence,
         "Built block in {:?}", start.elapsed()
     );
 
-    tx_block_hash
-        .send(block_hash)
-        .map_err(|_| "Failed to send block hash")?;
+    tx_value_id
+        .send(proposal_commitment_hash)
+        .map_err(|_| "Failed to send proposal commitment hash")?;
 
     Ok(())
 }
@@ -238,32 +237,4 @@ async fn run_repropose_task(
         tx_part.send(part).await?;
     }
     Ok(())
-}
-
-pub fn compute_proposal_hash(init: &ProposalInit, block_hash: &BlockHash) -> Hash {
-    use sha3::Digest;
-
-    let mut hasher = sha3::Keccak256::new();
-
-    // 1. Block number
-    hasher.update(init.height.block_number.to_be_bytes());
-    // 2. Fork id
-    hasher.update(init.height.fork_id.to_be_bytes());
-    // 3. Proposal round
-    hasher.update(init.proposal_round.as_i64().to_be_bytes());
-    // 4. Valid round
-    hasher.update(init.valid_round.as_i64().to_be_bytes());
-    // 5. Block hash
-    hasher.update(block_hash.as_bytes());
-
-    Hash::new(hasher.finalize().into())
-}
-
-pub fn compute_proposal_signature(
-    init: &ProposalInit,
-    block_hash: &BlockHash,
-    private_key: &PrivateKey,
-) -> Signature {
-    let hash = compute_proposal_hash(init, block_hash);
-    private_key.sign(&hash.as_felt())
 }

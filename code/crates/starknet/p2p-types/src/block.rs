@@ -1,4 +1,4 @@
-use crate::{BlockHash, Height, Transactions};
+use crate::{BlockHash, Height, TransactionBatch};
 
 use malachitebft_proto::{Error as ProtoError, Protobuf};
 use malachitebft_starknet_p2p_proto as proto;
@@ -6,7 +6,7 @@ use malachitebft_starknet_p2p_proto as proto;
 #[derive(Clone, Debug)]
 pub struct Block {
     pub height: Height,
-    pub transactions: Transactions,
+    pub transactions: TransactionBatch,
     pub block_hash: BlockHash,
 }
 
@@ -24,7 +24,7 @@ impl Protobuf for Block {
 
         Ok(Self {
             height: Height::new(proto.block_number, proto.fork_id),
-            transactions: Transactions::from_proto(transactions)?,
+            transactions: TransactionBatch::from_proto(transactions)?,
             block_hash: BlockHash::from_proto(block_hash)?,
         })
     }

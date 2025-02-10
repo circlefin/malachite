@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-import "p2p/proto/common.proto";
+option go_package = "github.com/starknet-io/starknet-p2pspecs/p2p/proto/capabilities";
 
 // A capability for one of the following protocols:
 // 1. /starknet/headers/

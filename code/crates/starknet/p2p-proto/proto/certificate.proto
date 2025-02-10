@@ -3,7 +3,7 @@ syntax = "proto3";
 package certificate;
 
 import "p2p/proto/common.proto";
-import "p2p/proto/consensus.proto";
+import "p2p/proto/consensus/consensus.proto";
 import "p2p/proto/transaction.proto";
 
 message CommitSignature {

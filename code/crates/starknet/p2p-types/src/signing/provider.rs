@@ -23,35 +23,37 @@ impl EcdsaProvider {
 
 impl SigningProvider<MockContext> for EcdsaProvider {
     fn sign_vote(&self, vote: Vote) -> SignedVote<MockContext> {
-        let hash = starknet_keccak(&vote.to_sign_bytes());
-        let signature = self.private_key.sign(&hash);
-        SignedVote::new(vote, signature)
+        // Votes are not signed for now
+        // let hash = starknet_keccak(&vote.to_sign_bytes());
+        // let signature = self.private_key.sign(&hash);
+        SignedVote::new(vote, Signature::dummy())
     }
 
     fn verify_signed_vote(
         &self,
-        vote: &Vote,
-        signature: &Signature,
-        public_key: &PublicKey,
+        _vote: &Vote,
+        _signature: &Signature,
+        _public_key: &PublicKey,
     ) -> bool {
-        let hash = starknet_keccak(&vote.to_sign_bytes());
-        public_key.verify(&hash, signature)
+        // Votes are not signed for now
+        true
+        // let hash = starknet_keccak(&vote.to_sign_bytes());
+        // public_key.verify(&hash, signature)
     }
 
     fn sign_proposal(&self, proposal: Proposal) -> SignedProposal<MockContext> {
-        let hash = starknet_keccak(&proposal.to_sign_bytes());
-        let signature = self.private_key.sign(&hash);
-        SignedProposal::new(proposal, signature)
+        // Proposals are never sent over the network
+        SignedProposal::new(proposal, Signature::dummy())
     }
 
     fn verify_signed_proposal(
         &self,
-        proposal: &Proposal,
-        signature: &Signature,
-        public_key: &PublicKey,
+        _proposal: &Proposal,
+        _signature: &Signature,
+        _public_key: &PublicKey,
     ) -> bool {
-        let hash = starknet_keccak(&proposal.to_sign_bytes());
-        public_key.verify(&hash, signature)
+        // Proposals are never sent over the network
+        true
     }
 
     fn sign_proposal_part(&self, proposal_part: ProposalPart) -> SignedProposalPart<MockContext> {
