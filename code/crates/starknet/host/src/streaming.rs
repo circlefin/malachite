@@ -1,7 +1,19 @@
-/// The most of algorithm logic is explained in '/malachite/code/crates/starknet/host/src/actor.rs'
-/// Above 'on_received_proposal_part'
+// When inserting part in a map, stream tries to connect all received parts in the right order,
+// starting from beginning and emits parts sequence chunks  when it succeeds
+// If it can't connect part, it buffers it
+// E.g. buffered: 1 3 7
+// part 0 (first) arrives -> 0 and 1 are emitted
+// 4 arrives -> gets buffered
+// 2 arrives -> 2, 3 and 4 are emitted
+
+// `insert` returns connected sequence of parts if any is emitted
+
+// Emitted parts are stored and simulated (if it is tx)
+// (this is done inside `actor::on_received_proposal_part`)
+// When finish part is stored, proposal value is built from all of them
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BinaryHeap, HashSet};
+use std::fmt::Debug;
 
 use derive_where::derive_where;
 
@@ -10,12 +22,12 @@ use malachitebft_core_types::Round;
 use malachitebft_engine::util::streaming::{Sequence, StreamId, StreamMessage};
 
 use crate::types::{Address, Height, ProposalInit, ProposalPart};
-use std::fmt::Debug;
 
-// Wraps StreamMessage to implement custom ordering for a BinaryHeap
-// The default BinaryHeap is a max-heap, so we reverse the ordering
-// by implementing Ord in reverse to make it min-heap, which suits the purpose of efficiently
-// providing available proposal part with smallest sequence number
+/// Wraps a [`StreamMessage`] to implement custom ordering for a [`BinaryHeap`].
+///
+/// The default `BinaryHeap` is a max-heap, so we reverse the ordering
+/// by implementing `Ord` in reverse to make it a min-heap, which suits the purpose of efficiently
+/// providing available proposal part with smallest sequence number.
 #[derive(Debug)]
 pub struct MinSeq<T>(pub StreamMessage<T>);
 

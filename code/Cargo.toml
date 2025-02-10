@@ -31,7 +31,7 @@ members = [
 
   # Starknet
   "crates/starknet/*",
-  "crates/starknet/test/mbt", # wildcard from line above didn't work
+  "crates/starknet/test/mbt",
 
   # Examples
   "examples/channel",

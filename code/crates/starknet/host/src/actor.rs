@@ -572,7 +572,7 @@ async fn on_received_proposal_part(
     // 4 arrives -> gets buffered
     // 2 arrives -> 2, 3 and 4 are emitted
 
-    // 'insert' returns connected sequence of parts if any is emitted
+    // `insert` returns connected sequence of parts if any is emitted
     let Some(parts) = state.part_streams_map.insert(from, part) else {
         return Ok(());
     };
