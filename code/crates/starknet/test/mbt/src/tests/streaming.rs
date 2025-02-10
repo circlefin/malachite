@@ -1,8 +1,7 @@
 use glob::glob;
 use malachitebft_peer::PeerId;
-use malachitebft_test_mbt::utils::{generate_random_traces, generate_test_traces, quint_seed};
 
-use crate::streaming::State;
+use crate::{streaming::State, utils::*};
 
 pub mod runner;
 pub mod utils;
@@ -22,9 +21,8 @@ fn test_mbt_part_streaming_specified_traces() {
     let quint_seed = quint_seed();
 
     print!("{}\n", temp_path.to_string_lossy());
-    // WARNING: After moving starknet related specs to separate repo this probably won't  work
     generate_test_traces(
-        "starknet/block-streaming/part_stream.qnt",
+        "block-streaming/part_stream.qnt",
         &temp_path.to_string_lossy(),
         quint_seed,
     );
@@ -62,9 +60,8 @@ fn test_mbt_part_streaming_random_traces() {
     let quint_seed = quint_seed();
 
     print!("{}\n", temp_path.to_string_lossy());
-    // WARNING: After moving starknet related specs to separate repo this probably won't  work
     generate_random_traces(
-        "starknet/block-streaming/part_stream.qnt",
+        "block-streaming/part_stream.qnt",
         &temp_path.to_string_lossy(),
         quint_seed,
         // current quint spec has 4 message parts in tests so there are 24 (4!) possible traces

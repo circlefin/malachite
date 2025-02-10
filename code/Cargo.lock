@@ -2447,7 +2447,6 @@ dependencies = [
  "informalsystems-malachitebft-engine",
  "informalsystems-malachitebft-peer",
  "informalsystems-malachitebft-starknet-host",
- "informalsystems-malachitebft-test-mbt",
  "itf",
  "multihash",
  "serde",

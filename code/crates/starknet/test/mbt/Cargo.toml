@@ -13,7 +13,6 @@ malachitebft-core-types = { workspace = true }
 malachitebft-starknet-host = { workspace = true }
 malachitebft-engine = { workspace = true }
 malachitebft-peer = { workspace = true }
-malachitebft-test-mbt = { workspace = true }
 
 serde = { workspace = true, features = ["derive"] }
 itf = { workspace = true }
