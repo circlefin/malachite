@@ -513,9 +513,6 @@ async fn run_node<S>(
                         Event::WalReplayError(e) => {
                             panic!("WAL replay error: {e}");
                         }
-                        Event::WalReplayError(e) => {
-                            panic!("WAL replay error: {e}");
-                        }
                         _ => (),
                     }
 
