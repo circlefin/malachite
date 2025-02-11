@@ -65,10 +65,14 @@ export IS_CC="0"
 
 # More global variables and aliases that can be derived from previously available data.
 alias ssh-cc="ssh -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null root@$${CANDC}"
-alias ssh_cc="ssh -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null root@$${CANDC}"
 export PSSH_P="$${D_N}"
 export PSSH_T=120
 export PSSH_V="-v"
+
+# ssh_cc runs commands on the CC server.
+ssh_cc() {
+  ssh -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null root@$${CANDC} "$@"
+}
 
 # Translate node ID numbers to IP addresses. 0 -> 1.2.3.4
 get_ip() {
@@ -136,7 +140,7 @@ setup_config() {
     _change_config all
     _create_hostname_links
   else
-    ssh-cc "source /etc/profile.d/commands.sh && setup_config"
+    ssh_cc "source /etc/profile.d/commands.sh && setup_config"
   fi
 }
 
@@ -145,7 +149,7 @@ d_pull() {
 }
 
 d_run() {
-  PSSH_H="$(_parse_multiple_hosts "$@")" xssh docker run -d -p 27000:27000/udp -p 28000:28000/udp -p 9000:9000/tcp --name node --cap-add=NET_ADMIN --dns $CANDC --mount type=bind,source=/data,target=/data --mount type=bind,source=/config,target=/config -e RUST_LOG $CANDC/node --home /config start
+  PSSH_H="$(_parse_multiple_hosts "$@")" xssh docker run -d -p 27000:27000/udp -p 28000:28000/udp -p 9000:9000/tcp --name node --cap-add=NET_ADMIN --dns $CANDC --mount type=bind,source=/data,target=/data --mount type=bind,source=/config,target=/root/config -e RUST_LOG $CANDC/node --home /root start
 }
 
 d_log() {
@@ -192,7 +196,7 @@ get_prometheus_data() {
     docker stop prometheus && tar -cvzf prometheus.tgz -C /var/lib/docker/volumes/docker_prometheus/_data .
     docker start prometheus
   else
-    ssh-cc "rm -f prometheus.tgz; docker stop prometheus && tar -cvzf prometheus.tgz -C /var/lib/docker/volumes/docker_prometheus/_data . ; docker start prometheus"
+    ssh_cc "rm -f prometheus.tgz; docker stop prometheus && tar -cvzf prometheus.tgz -C /var/lib/docker/volumes/docker_prometheus/_data . ; docker start prometheus"
     scp -r "root@$CANDC:prometheus.tgz" .
   fi
 }
@@ -203,7 +207,7 @@ _reset_prometheus_db() {
     rm -rf /var/lib/docker/volumes/docker_prometheus/_data/*
     docker start prometheus
   else
-    ssh-cc "docker stop prometheus && rm -rf /var/lib/docker/volumes/docker_prometheus/_data/*; docker start prometheus"
+    ssh_cc "docker stop prometheus && rm -rf /var/lib/docker/volumes/docker_prometheus/_data/*; docker start prometheus"
   fi
 }
 
@@ -233,7 +237,7 @@ _reset_elastic_db() {
     rm -rf /var/lib/docker/volumes/docker-elk_elasticsearch/_data/*
     docker start docker-elk-elasticsearch-1
   else
-    ssh-cc "docker stop docker-elk-elasticsearch-1 && rm -rf /var/lib/docker/volumes/docker-elk_elasticsearch/_data/*; docker start docker-elk-elasticsearch-1"
+    ssh_cc "docker stop docker-elk-elasticsearch-1 && rm -rf /var/lib/docker/volumes/docker-elk_elasticsearch/_data/*; docker start docker-elk-elasticsearch-1"
   fi
 }
 
@@ -256,6 +260,8 @@ _is_cc() {
 }
 
 _keyscan_cc() {
+  mkdir -p "$HOME/.ssh"
+  touch "$HOME/.ssh/known_hosts"
   ssh-keygen -R "$CANDC" > /dev/null
   ssh-keyscan -t ed25519 "$CANDC" >> "$HOME/.ssh/known_hosts"
 }

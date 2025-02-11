@@ -138,7 +138,7 @@ runcmd:
 # Fix journald not logging entries
   - systemctl restart systemd-journald
 # Set up config directory
-  - ln -s /data/${id} /config
+  - ln -s /data/${id}/config /config
 # Set up NFS share, (Mounting will happen post-install)
   - mkdir /data
   - chown nobody:nogroup /data
