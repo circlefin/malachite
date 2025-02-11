@@ -20,11 +20,14 @@ use malachitebft_app_channel::app::types::{LocallyProposedValue, PeerId};
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{
     Address, Ed25519Provider, Genesis, Height, ProposalData, ProposalFin, ProposalInit,
-    ProposalPart, TestContext, ValidatorSet, Value,
+    ProposalPart, TestContext, ValidatorSet, Value, ValueId,
 };
 
 use crate::store::{DecidedValue, Store};
 use crate::streaming::{PartStreamsMap, ProposalParts};
+
+/// Number of historical values to keep in the store
+const HISTORY_LENGTH: u64 = 100;
 
 /// Represents the internal state of the application node
 /// Contains information about current height, round, proposals and blocks
@@ -34,11 +37,11 @@ pub struct State {
     signing_provider: Ed25519Provider,
     genesis: Genesis,
     address: Address,
-    store: Store,
     vote_extensions: HashMap<Height, VoteExtensions<TestContext>>,
     streams_map: PartStreamsMap,
     rng: StdRng,
 
+    pub store: Store,
     pub current_height: Height,
     pub current_round: Round,
     pub current_proposer: Option<Address>,
@@ -48,7 +51,10 @@ pub struct State {
 /// Represents errors that can occur during the verification of a proposal's signature.
 #[derive(Debug)]
 enum SignatureVerificationError {
-    /// Indicates that the `Fin` part of the proposal is missing.
+    /// Indicates that the `Init` part of the proposal is unexpectedly missing.
+    MissingInitPart,
+
+    /// Indicates that the `Fin` part of the proposal is unexpectedly missing.
     MissingFinPart,
 
     /// Indicates that the proposer was not found in the validator set.
@@ -118,10 +124,30 @@ impl State {
             return Ok(None);
         };
 
+        // Check if the proposal is outdated
+        if parts.height < self.current_height {
+            debug!(
+                height = %self.current_height,
+                round = %self.current_round,
+                part.height = %parts.height,
+                part.round = %parts.round,
+                part.sequence = %sequence,
+                "Received outdated proposal part, ignoring"
+            );
+
+            return Ok(None);
+        }
+
         // Verify the proposal signature
         match self.verify_proposal_signature(&parts) {
             Ok(()) => {
                 // Signature verified successfully, continue processing
+            }
+            Err(SignatureVerificationError::MissingInitPart) => {
+                return Err(eyre!(
+                    "Expected to have full proposal but `Init` proposal part is missing for proposer: {}",
+                    parts.proposer
+                ));
             }
             Err(SignatureVerificationError::MissingFinPart) => {
                 return Err(eyre!(
@@ -137,20 +163,6 @@ impl State {
                 error!(proposer = %parts.proposer, "Invalid signature in Fin part");
                 return Ok(None);
             }
-        }
-
-        // Check if the proposal is outdated
-        if parts.height < self.current_height {
-            debug!(
-                height = %self.current_height,
-                round = %self.current_round,
-                part.height = %parts.height,
-                part.round = %parts.round,
-                part.sequence = %sequence,
-                "Received outdated proposal part, ignoring"
-            );
-
-            return Ok(None);
         }
 
         // Re-assemble the proposal from its parts
@@ -173,29 +185,26 @@ impl State {
         certificate: CommitCertificate<TestContext>,
         extensions: VoteExtensions<TestContext>,
     ) -> eyre::Result<()> {
+        let (height, round) = (certificate.height, certificate.round);
+
         // Store extensions for use at next height if we are the proposer
-        self.vote_extensions
-            .insert(certificate.height.increment(), extensions);
+        self.vote_extensions.insert(height.increment(), extensions);
 
-        let Ok(Some(proposal)) = self
-            .store
-            .get_undecided_proposal(certificate.height, certificate.round)
-            .await
-        else {
-            error!(
-                height = %certificate.height,
-                "Trying to commit a value that is not decided"
-            );
-
-            return Ok(()); // FIXME: Return an actual error and handle in caller
+        let Ok(Some(proposal)) = self.store.get_undecided_proposal(height, round).await else {
+            return Err(eyre!(
+                "Trying to commit a value at height {height} and round {round} for which there is no proposal: {}",
+                certificate.value_id
+            ));
         };
 
         self.store
             .store_decided_value(&certificate, proposal.value)
             .await?;
 
-        // Prune the store, keep the last 5 heights
-        let retain_height = Height::new(certificate.height.as_u64().saturating_sub(5));
+        self.store.remove_undecided_proposal(height, round).await?;
+
+        // Prune the store, keep the last HISTORY_LENGTH values
+        let retain_height = Height::new(height.as_u64().saturating_sub(HISTORY_LENGTH));
         self.store.prune(retain_height).await?;
 
         // Move to next height
@@ -363,6 +372,21 @@ impl State {
         parts
     }
 
+    pub async fn get_proposal(
+        &self,
+        height: Height,
+        round: Round,
+        _valid_round: Round,
+        _proposer: Address,
+        value_id: ValueId,
+    ) -> Option<LocallyProposedValue<TestContext>> {
+        Some(LocallyProposedValue::new(
+            height,
+            round,
+            Value::new(value_id.as_u64()),
+        ))
+    }
+
     /// Returns the set of validators.
     pub fn get_validator_set(&self) -> &ValidatorSet {
         &self.genesis.validator_set
@@ -375,37 +399,39 @@ impl State {
         parts: &ProposalParts,
     ) -> Result<(), SignatureVerificationError> {
         let mut hasher = sha3::Keccak256::new();
-        let mut signature = None;
 
-        // Recreate the hash and extract the signature during traversal
-        for part in &parts.parts {
-            match part {
-                ProposalPart::Init(init) => {
-                    hasher.update(init.height.as_u64().to_be_bytes());
-                    hasher.update(init.round.as_i64().to_be_bytes());
-                }
-                ProposalPart::Data(data) => {
-                    hasher.update(data.factor.to_be_bytes());
-                }
-                ProposalPart::Fin(fin) => {
-                    signature = Some(&fin.signature);
-                }
+        let init = parts
+            .init()
+            .ok_or(SignatureVerificationError::MissingInitPart)?;
+
+        let fin = parts
+            .fin()
+            .ok_or(SignatureVerificationError::MissingFinPart)?;
+
+        let hash = {
+            hasher.update(init.height.as_u64().to_be_bytes());
+            hasher.update(init.round.as_i64().to_be_bytes());
+
+            // The correctness of the hash computation relies on the parts being ordered by sequence
+            // number, which is guaranteed by the `PartStreamsMap`.
+            for part in parts.parts.iter().filter_map(|part| part.as_data()) {
+                hasher.update(part.factor.to_be_bytes());
             }
-        }
 
-        let hash = hasher.finalize();
-        let signature = signature.ok_or(SignatureVerificationError::MissingFinPart)?;
+            hasher.finalize()
+        };
 
-        // Retrieve the public key of the proposer
-        let public_key = self
+        // Retrieve the the proposer
+        let proposer = self
             .get_validator_set()
             .get_by_address(&parts.proposer)
-            .map(|v| v.public_key);
-
-        let public_key = public_key.ok_or(SignatureVerificationError::ProposerNotFound)?;
+            .ok_or(SignatureVerificationError::ProposerNotFound)?;
 
         // Verify the signature
-        if !self.signing_provider.verify(&hash, signature, &public_key) {
+        if !self
+            .signing_provider
+            .verify(&hash, &fin.signature, &proposer.public_key)
+        {
             return Err(SignatureVerificationError::InvalidSignature);
         }
 

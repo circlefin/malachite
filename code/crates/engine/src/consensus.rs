@@ -475,7 +475,7 @@ where
 
                     NetworkEvent::ProposalPart(from, part) => {
                         if state.consensus.params.value_payload.proposal_only() {
-                            error!(%from, "Properly configured peer should never send block part messages in Proposal mode");
+                            error!(%from, "Properly configured peer should never send proposal part messages in Proposal mode");
                             return Ok(());
                         }
 
@@ -981,7 +981,7 @@ where
                 Ok(r.resume_with(validator_set))
             }
 
-            Effect::RestreamValue(height, round, valid_round, address, value_id, r) => {
+            Effect::RestreamProposal(height, round, valid_round, address, value_id, r) => {
                 self.host
                     .cast(HostMsg::RestreamValue {
                         height,

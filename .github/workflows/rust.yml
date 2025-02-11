@@ -66,6 +66,7 @@ jobs:
             --all-features \
             --no-fail-fast \
             --failure-output final \
+            --exclude informalsystems-malachitebft-test \
             --exclude informalsystems-malachitebft-starknet-test \
             --exclude informalsystems-malachitebft-starknet-test-mbt \
             --exclude informalsystems-malachitebft-discovery-test
@@ -106,8 +107,44 @@ jobs:
         run: |
           cargo maelstrom \
             --slots 16 \
-            --include 'package.match(informalsystems-malachitebft-starknet-test) || package.match(informalsystems-malachitebft-discovery-test)' \
+            --include 'package.equals(informalsystems-malachitebft-starknet-test) || package.equals(informalsystems-malachitebft-discovery-test)' \
             --exclude 'package.match(informalsystems-malachitebft-starknet-test-mbt)'
+
+  integration_test_app:
+    name: Integration Tests (test app)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: code
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+      - name: Install Quint
+        run: npm install -g @informalsystems/quint
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          cache-workspaces: "code"
+      - name: Install cargo-maelstrom
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-maelstrom
+      - name: Disable apparmor container restrictions
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Run integration tests
+        continue-on-error: true
+        run: |
+          cargo maelstrom \
+            --slots 8 \
+            --include 'package.equals(informalsystems-malachitebft-test)'
 
   no_std:
     name: no_std compatibility

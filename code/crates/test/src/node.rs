@@ -53,11 +53,8 @@ impl Node for TestNode {
         file
     }
 
-    fn load_private_key_file(
-        &self,
-        path: impl AsRef<Path>,
-    ) -> std::io::Result<Self::PrivateKeyFile> {
-        let private_key = std::fs::read_to_string(path)?;
+    fn load_private_key_file(&self) -> std::io::Result<Self::PrivateKeyFile> {
+        let private_key = std::fs::read_to_string(&self.private_key_file)?;
         serde_json::from_str(&private_key).map_err(|e| e.into())
     }
 

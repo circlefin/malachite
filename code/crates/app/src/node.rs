@@ -31,7 +31,7 @@ pub trait Node {
 
     fn load_private_key(&self, file: Self::PrivateKeyFile) -> PrivateKey<Self::Context>;
 
-    fn load_private_key_file(&self, path: impl AsRef<Path>) -> io::Result<Self::PrivateKeyFile>;
+    fn load_private_key_file(&self) -> io::Result<Self::PrivateKeyFile>;
 
     fn make_private_key_file(&self, private_key: PrivateKey<Self::Context>)
         -> Self::PrivateKeyFile;

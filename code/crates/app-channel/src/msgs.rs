@@ -2,12 +2,13 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use derive_where::derive_where;
-use malachitebft_app::consensus::VoteExtensionError;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
+use malachitebft_app::consensus::VoteExtensionError;
 use malachitebft_engine::consensus::Msg as ConsensusActorMsg;
 use malachitebft_engine::network::Msg as NetworkActorMsg;
+use malachitebft_engine::util::events::TxEvent;
 
 use crate::app::types::core::{CommitCertificate, Context, Round, ValueId, VoteExtensions};
 use crate::app::types::streaming::StreamMessage;
@@ -22,6 +23,8 @@ pub struct Channels<Ctx: Context> {
     pub consensus: mpsc::Receiver<AppMsg<Ctx>>,
     /// Channel for sending messages to the networking layer
     pub network: mpsc::Sender<NetworkMsg<Ctx>>,
+    /// Receiver of events, call `subscribe` to receive them
+    pub events: TxEvent<Ctx>,
 }
 
 /// Messages sent from consensus to the application.

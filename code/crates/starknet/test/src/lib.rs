@@ -9,6 +9,7 @@ use std::sync::Arc;
 use eyre::bail;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
+use tokio::sync::Mutex;
 use tokio::task::JoinSet;
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, error_span, info, Instrument, Span};
@@ -92,8 +93,8 @@ impl TestParams {
     fn apply_to_config(&self, config: &mut Config) {
         config.sync.enabled = self.enable_sync;
         config.consensus.p2p.protocol = self.protocol;
-        config.consensus.max_block_size = self.block_size;
         config.consensus.value_payload = self.value_payload;
+        config.test.max_block_size = self.block_size;
         config.test.tx_size = self.tx_size;
         config.test.txs_per_part = self.txs_per_part;
         config.test.vote_extensions.enabled = self.vote_extensions.is_some();
@@ -422,12 +423,10 @@ where
         {
             let validator_set = self.validator_set.clone();
 
-            let home_dir = tempfile::TempDir::with_prefix(format!(
-                "informalsystems-malachitebft-starknet-test-{}",
-                self.id
-            ))
-            .unwrap()
-            .into_path();
+            let home_dir =
+                tempfile::TempDir::with_prefix(format!("malachitebft-starknet-test-{}", self.id))
+                    .unwrap()
+                    .into_path();
 
             set.spawn(
                 async move {
@@ -498,7 +497,7 @@ async fn run_node<S>(
     let mut rx_event = tx_event.subscribe();
     let rx_event_bg = tx_event.subscribe();
 
-    let (mut actor_ref, mut handle) = spawn_node_actor(
+    let (mut actor_ref, _handle) = spawn_node_actor(
         config.clone(),
         home_dir.clone(),
         validator_set.clone(),
@@ -511,12 +510,14 @@ async fn run_node<S>(
 
     let decisions = Arc::new(AtomicUsize::new(0));
     let current_height = Arc::new(AtomicUsize::new(0));
+    let failure = Arc::new(Mutex::new(None));
     let is_full_node = node.is_full_node();
 
     let spawn_bg = |mut rx: RxEvent<MockContext>| {
         tokio::spawn({
             let decisions = Arc::clone(&decisions);
             let current_height = Arc::clone(&current_height);
+            let failure = Arc::clone(&failure);
 
             async move {
                 while let Ok(event) = rx.recv().await {
@@ -528,10 +529,15 @@ async fn run_node<S>(
                             decisions.fetch_add(1, Ordering::SeqCst);
                         }
                         Event::Published(msg) if is_full_node => {
-                            panic!("Full nodes unexpectedly publish a consensus message: {msg:?}");
+                            failure.lock().await.replace(format!(
+                                "Full node unexpectedly published a consensus message: {msg:?}"
+                            ));
                         }
                         Event::WalReplayError(e) => {
-                            panic!("WAL replay error: {e}");
+                            failure
+                                .lock()
+                                .await
+                                .replace(format!("WAL replay error: {e}"));
                         }
                         _ => (),
                     }
@@ -546,6 +552,10 @@ async fn run_node<S>(
     let mut bg = spawn_bg(rx_event_bg);
 
     for step in node.steps {
+        if let Some(failure) = failure.lock().await.take() {
+            return TestResult::Failure(failure);
+        }
+
         match step {
             Step::WaitUntil(target_height) => {
                 info!("Waiting until node reaches height {target_height}");
@@ -568,9 +578,7 @@ async fn run_node<S>(
                 sleep(after).await;
 
                 actor_ref.kill_and_wait(None).await.expect("Node must stop");
-
                 bg.abort();
-                handle.abort();
             }
 
             Step::ResetDb => {
@@ -591,7 +599,8 @@ async fn run_node<S>(
                 let new_rx_event_bg = tx_event.subscribe();
 
                 info!("Spawning node");
-                let (new_actor_ref, new_handle) = spawn_node_actor(
+
+                let (new_actor_ref, _) = spawn_node_actor(
                     config.clone(),
                     home_dir.clone(),
                     validator_set.clone(),
@@ -607,7 +616,6 @@ async fn run_node<S>(
                 bg = spawn_bg(new_rx_event_bg);
 
                 actor_ref = new_actor_ref;
-                handle = new_handle;
                 rx_event = new_rx_event;
             }
 
@@ -622,7 +630,6 @@ async fn run_node<S>(
                         }
                         Err(e) => {
                             actor_ref.stop(Some("Test failed".to_string()));
-                            handle.abort();
                             bg.abort();
 
                             return TestResult::Failure(e.to_string());
@@ -635,7 +642,6 @@ async fn run_node<S>(
                 let actual = decisions.load(Ordering::SeqCst);
 
                 actor_ref.stop(Some("Test is over".to_string()));
-                handle.abort();
                 bg.abort();
 
                 if expected.check(actual) {
@@ -655,7 +661,6 @@ async fn run_node<S>(
 
             Step::Fail(reason) => {
                 actor_ref.stop(Some("Test failed".to_string()));
-                handle.abort();
                 bg.abort();
 
                 return TestResult::Failure(reason);
@@ -663,7 +668,12 @@ async fn run_node<S>(
         }
     }
 
-    return TestResult::Success("OK".to_string());
+    let failure = failure.lock().await.take();
+    if let Some(failure) = failure {
+        TestResult::Failure(failure)
+    } else {
+        TestResult::Success("OK".to_string())
+    }
 }
 
 pub fn init_logging(test_module: &str) {
@@ -676,9 +686,9 @@ pub fn init_logging(test_module: &str) {
         .any(|(k, v)| std::env::var(k).as_deref() == Ok(v));
 
     let directive = if enable_debug {
-        format!("informalsystems=info,{test_module}=debug,ractor=error,debug")
+        format!("{test_module}=debug,ractor=error,informalsystems_malachitebft=debug")
     } else {
-        format!("informalsystems=debug,{test_module}=debug,ractor=error,warn")
+        format!("{test_module}=debug,ractor=error,informalsystems_malachitefbft=info")
     };
 
     let filter = EnvFilter::builder().parse(directive).unwrap();
@@ -726,7 +736,6 @@ pub fn make_node_config<S>(test: &Test<S>, i: usize) -> NodeConfig {
         moniker: format!("node-{}", test.nodes[i].id),
         logging: LoggingConfig::default(),
         consensus: ConsensusConfig {
-            max_block_size: ByteSize::mib(1),
             value_payload: ValuePayload::default(),
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {

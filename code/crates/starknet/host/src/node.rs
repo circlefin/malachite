@@ -88,11 +88,8 @@ impl Node for StarknetNode {
         file.private_key
     }
 
-    fn load_private_key_file(
-        &self,
-        path: impl AsRef<Path>,
-    ) -> std::io::Result<Self::PrivateKeyFile> {
-        let private_key = std::fs::read_to_string(path)?;
+    fn load_private_key_file(&self) -> std::io::Result<Self::PrivateKeyFile> {
+        let private_key = std::fs::read_to_string(&self.private_key_file)?;
         serde_json::from_str(&private_key).map_err(|e| e.into())
     }
 
@@ -123,10 +120,8 @@ impl Node for StarknetNode {
         let span = tracing::error_span!("node", moniker = %self.config.moniker);
         let _enter = span.enter();
 
-        let priv_key_file = self.load_private_key_file(self.private_key_file.clone())?;
-
+        let priv_key_file = self.load_private_key_file()?;
         let private_key = self.load_private_key(priv_key_file);
-
         let genesis = self.load_genesis(self.genesis_file.clone())?;
 
         let start_height = self.start_height.map(|height| Height::new(height, 1));

@@ -379,9 +379,6 @@ impl Default for SyncConfig {
 /// Consensus configuration options
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ConsensusConfig {
-    /// Max block size
-    pub max_block_size: ByteSize,
-
     /// Timeouts
     #[serde(flatten)]
     pub timeouts: TimeoutConfig,
@@ -401,6 +398,22 @@ pub enum ValuePayload {
     PartsOnly,
     ProposalOnly, // TODO - add small block app to test this option
     ProposalAndParts,
+}
+
+impl ValuePayload {
+    pub fn include_parts(&self) -> bool {
+        match self {
+            Self::ProposalOnly => false,
+            Self::PartsOnly | Self::ProposalAndParts => true,
+        }
+    }
+
+    pub fn include_proposal(&self) -> bool {
+        match self {
+            Self::PartsOnly => false,
+            Self::ProposalOnly | Self::ProposalAndParts => true,
+        }
+    }
 }
 
 /// Timeouts
@@ -535,6 +548,7 @@ pub struct VoteExtensionsConfig {
 
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TestConfig {
+    pub max_block_size: ByteSize,
     pub tx_size: ByteSize,
     pub txs_per_part: usize,
     pub time_allowance_factor: f32,
@@ -548,6 +562,7 @@ pub struct TestConfig {
 impl Default for TestConfig {
     fn default() -> Self {
         Self {
+            max_block_size: ByteSize::mib(1),
             tx_size: ByteSize::kib(1),
             txs_per_part: 256,
             time_allowance_factor: 0.5,

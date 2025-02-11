@@ -29,7 +29,7 @@ pub enum HostMsg<Ctx: Context> {
         proposer: Ctx::Address,
     },
 
-    /// Request to build a local block/value from Driver
+    /// Request to build a local value to propose
     GetValue {
         height: Ctx::Height,
         round: Round,

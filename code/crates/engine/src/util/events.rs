@@ -12,6 +12,7 @@ use malachitebft_core_types::{
 
 pub type RxEvent<Ctx> = broadcast::Receiver<Event<Ctx>>;
 
+#[derive_where(Clone)]
 pub struct TxEvent<Ctx: Context> {
     tx: broadcast::Sender<Event<Ctx>>,
 }

@@ -1,4 +1,7 @@
+use std::time::Duration;
+
 use eyre::eyre;
+use tokio::time::sleep;
 use tracing::{error, info};
 
 use malachitebft_app_channel::app::streaming::StreamContent;
@@ -8,7 +11,7 @@ use malachitebft_app_channel::app::types::sync::RawDecidedValue;
 use malachitebft_app_channel::app::types::ProposedValue;
 use malachitebft_app_channel::{AppMsg, Channels, ConsensusMsg, NetworkMsg};
 use malachitebft_test::codec::proto::ProtobufCodec;
-use malachitebft_test::TestContext;
+use malachitebft_test::{Height, TestContext};
 
 use crate::state::{decode_value, State};
 
@@ -18,13 +21,22 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             // The first message to handle is the `ConsensusReady` message, signaling to the app
             // that Malachite is ready to start consensus
             AppMsg::ConsensusReady { reply } => {
-                info!("Consensus is ready");
+                let start_height = state
+                    .store
+                    .max_decided_value_height()
+                    .await
+                    .map(|height| height.increment())
+                    .unwrap_or_else(|| Height::new(1));
+
+                info!(%start_height, "Consensus is ready");
+
+                sleep(Duration::from_millis(200)).await;
 
                 // We can simply respond by telling the engine to start consensus
                 // at the current height, which is initially 1
                 if reply
                     .send(ConsensusMsg::StartHeight(
-                        state.current_height,
+                        start_height,
                         state.get_validator_set().clone(),
                     ))
                     .is_err()
@@ -63,22 +75,19 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 info!(%height, %round, "Consensus is requesting a value to propose");
 
                 // Here it is important that, if we have previously built a value for this height and round,
-                // we send back the very same value. We will not go into details here but this has to do
-                // with crash recovery and is not strictly necessary in this example app since all our state
-                // is kept in-memory and therefore is not crash tolerant at all.
-                if let Some(proposal) = state.get_previously_built_value(height, round).await? {
-                    info!(value = %proposal.value.id(), "Re-using previously built value");
-
-                    if reply.send(proposal).is_err() {
-                        error!("Failed to send GetValue reply");
+                // we send back the very same value.
+                let proposal = match state.get_previously_built_value(height, round).await? {
+                    Some(proposal) => {
+                        info!(value = %proposal.value.id(), "Re-using previously built value");
+                        proposal
                     }
-
-                    return Ok(());
-                }
-
-                // If we have not previously built a value for that very same height and round,
-                // we need to create a new value to propose and send it back to consensus.
-                let proposal = state.propose_value(height, round).await?;
+                    None => {
+                        // If we have not previously built a value for that very same height and round,
+                        // we need to create a new value to propose and send it back to consensus.
+                        info!("Building a new value to propose");
+                        state.propose_value(height, round).await?
+                    }
+                };
 
                 // Send it to consensus
                 if reply.send(proposal.clone()).is_err() {
@@ -89,17 +98,12 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 // and send those parts over the network to our peers, for them to re-assemble the full value.
                 for stream_message in state.stream_proposal(proposal) {
                     info!(%height, %round, "Streaming proposal part: {stream_message:?}");
+
                     channels
                         .network
                         .send(NetworkMsg::PublishProposalPart(stream_message))
                         .await?;
                 }
-
-                // NOTE: In this tutorial, the value is simply an integer and therefore results in a very small
-                // message to gossip over the network, but if we were building a real application,
-                // say building blocks containing thousands of transactions, the proposal would typically only
-                // carry the block hash and the full block itself would be split into parts in order to
-                // avoid blowing up the bandwidth requirements by gossiping a single huge message.
             }
 
             AppMsg::ExtendVote {
@@ -229,7 +233,10 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             // that was decided at some lower height. In that case, we fetch it from our store
             // and send it to consensus.
             AppMsg::GetDecidedValue { height, reply } => {
+                info!(%height, "Received sync request for decided value");
+
                 let decided_value = state.get_decided_value(height).await;
+                info!(%height, "Found decided value: {decided_value:?}");
 
                 let raw_decided_value = decided_value.map(|decided_value| RawDecidedValue {
                     certificate: decided_value.certificate,
@@ -251,8 +258,31 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 }
             }
 
-            AppMsg::RestreamProposal { .. } => {
-                error!("RestreamProposal not implemented");
+            AppMsg::RestreamProposal {
+                height,
+                round,
+                valid_round,
+                address,
+                value_id,
+            } => {
+                info!(%height, %round, "Restreaming existing proposal...");
+
+                let Some(proposal) = state
+                    .get_proposal(height, round, valid_round, address, value_id)
+                    .await
+                else {
+                    error!(%height, %round, "Failed to find proposal to restream");
+                    return Ok(());
+                };
+
+                for stream_message in state.stream_proposal(proposal) {
+                    info!(%height, %round, "Publishing proposal part: {stream_message:?}");
+
+                    channels
+                        .network
+                        .send(NetworkMsg::PublishProposalPart(stream_message))
+                        .await?;
+                }
             }
 
             AppMsg::PeerJoined { peer_id } => {

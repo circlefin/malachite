@@ -105,11 +105,11 @@ where
 
     /// Requests the application to re-stream a proposal that it has already seen.
     ///
-    /// The application MUST re-publish again to its pwers all
+    /// The application MUST re-publish again to its peers all
     /// the proposal parts pertaining to that value.
     ///
     /// Resume with: [`resume::Continue`]
-    RestreamValue(
+    RestreamProposal(
         /// Height of the value
         Ctx::Height,
         /// Round of the value

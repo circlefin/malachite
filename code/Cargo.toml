@@ -24,9 +24,11 @@ members = [
 
   # Test
   "crates/test",
+  "crates/test/app",
   "crates/test/cli",
   "crates/test/mbt",
   "crates/test/mempool",
+  "crates/test/framework",
   "crates/network/test",
 
   # Starknet
@@ -64,7 +66,6 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage_nightly)'] }
 malachitebft-engine             = { version = "0.0.1", package = "informalsystems-malachitebft-engine", path = "crates/engine" }
 malachitebft-app                = { version = "0.0.1", package = "informalsystems-malachitebft-app", path = "crates/app" }
 malachitebft-app-channel        = { version = "0.0.1", package = "informalsystems-malachitebft-app-channel", path = "crates/app-channel" }
-malachitebft-test-cli           = { version = "0.0.1", package = "informalsystems-malachitebft-test-cli", path = "crates/test/cli" }
 malachitebft-codec              = { version = "0.0.1", package = "informalsystems-malachitebft-codec", path = "crates/codec" }
 malachitebft-config             = { version = "0.0.1", package = "informalsystems-malachitebft-config", path = "crates/config" }
 malachitebft-core-consensus     = { version = "0.0.1", package = "informalsystems-malachitebft-core-consensus", path = "crates/core-consensus" }
@@ -83,8 +84,11 @@ malachitebft-wal                = { version = "0.0.1", package = "informalsystem
 
 # Test
 malachitebft-test                   = { version = "0.0.1", package = "informalsystems-malachitebft-test", path = "crates/test" }
+malachitebft-test-app               = { version = "0.0.1", package = "informalsystems-malachitebft-test-app", path = "crates/test/app" }
+malachitebft-test-cli               = { version = "0.0.1", package = "informalsystems-malachitebft-test-cli", path = "crates/test/cli" }
 malachitebft-test-mbt               = { version = "0.0.1", package = "informalsystems-malachitebft-test-mbt", path = "crates/test/mbt" }
 malachitebft-test-mempool           = { version = "0.0.1", package = "informalsystems-malachitebft-test-mempool", path = "crates/test/mempool" }
+malachitebft-test-framework         = { version = "0.0.1", package = "informalsystems-malachitebft-test-framework", path = "crates/test/framework" }
 malachitebft-discovery-test         = { version = "0.0.1", package = "informalsystems-malachitebft-discovery-test", path = "crates/network/test" }
 
 # Starknet

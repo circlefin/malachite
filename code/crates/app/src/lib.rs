@@ -12,10 +12,12 @@ mod node;
 pub use node::Node;
 
 pub mod part_store;
+pub mod spawn;
 pub mod types;
 
-mod spawn;
-pub use spawn::{spawn_consensus_actor, spawn_network_actor, spawn_sync_actor, spawn_wal_actor};
+pub mod events {
+    pub use malachitebft_engine::util::events::TxEvent;
+}
 
 pub mod streaming {
     pub use malachitebft_engine::util::streaming::*;

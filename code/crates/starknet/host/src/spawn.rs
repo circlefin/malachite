@@ -101,17 +101,7 @@ pub async fn spawn_node_actor(
     .await;
 
     // Spawn the node actor
-    let node = Node::new(
-        ctx,
-        network,
-        consensus,
-        wal,
-        sync,
-        mempool.get_cell(),
-        host,
-        start_height,
-        span,
-    );
+    let node = Node::new(ctx, network, consensus, wal, sync, host, span);
 
     let (actor_ref, handle) = node.spawn().await.unwrap();
 
@@ -339,7 +329,7 @@ async fn spawn_host_actor(
 
     let mock_params = StarknetParams {
         value_payload,
-        max_block_size: cfg.consensus.max_block_size,
+        max_block_size: cfg.test.max_block_size,
         tx_size: cfg.test.tx_size,
         txs_per_part: cfg.test.txs_per_part,
         time_allowance_factor: cfg.test.time_allowance_factor,

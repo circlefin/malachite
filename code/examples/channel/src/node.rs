@@ -69,11 +69,8 @@ impl Node for App {
         file
     }
 
-    fn load_private_key_file(
-        &self,
-        path: impl AsRef<Path>,
-    ) -> std::io::Result<Self::PrivateKeyFile> {
-        let private_key = std::fs::read_to_string(path)?;
+    fn load_private_key_file(&self) -> std::io::Result<Self::PrivateKeyFile> {
+        let private_key = std::fs::read_to_string(&self.private_key_file)?;
         serde_json::from_str(&private_key).map_err(|e| e.into())
     }
 
@@ -104,24 +101,23 @@ impl Node for App {
         let span = tracing::error_span!("node", moniker = %self.config.moniker);
         let _enter = span.enter();
 
-        let private_key_file = self.load_private_key_file(&self.private_key_file)?;
+        let private_key_file = self.load_private_key_file()?;
         let private_key = self.load_private_key(private_key_file);
         let public_key = self.get_public_key(&private_key);
         let address = self.get_address(&public_key);
         let signing_provider = self.get_signing_provider(private_key);
         let ctx = TestContext::new();
 
-        let genesis = self.load_genesis(self.genesis_file.clone())?;
+        let genesis = self.load_genesis(&self.genesis_file)?;
         let initial_validator_set = genesis.validator_set.clone();
 
         let codec = ProtobufCodec;
 
-        let mut channels = malachitebft_app_channel::run(
+        let (mut channels, _handle) = malachitebft_app_channel::start_engine(
             ctx,
             codec,
             self.clone(),
             self.config.clone(),
-            self.private_key_file.clone(),
             self.start_height,
             initial_validator_set,
         )
