@@ -72,8 +72,9 @@ jobs:
         run: |
           cargo llvm-cov nextest \
             --workspace \
-            --exclude informalsystems-malachitebft-test-mbt \
             --exclude informalsystems-malachitebft-test \
+            --exclude informalsystems-malachitebft-test-mbt \
+            --exclude informalsystems-malachitebft-starknet-test-mbt \
             --ignore-filename-regex crates/cli \
             --all-features \
             --no-capture \
@@ -126,7 +127,11 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
-        run: cargo llvm-cov nextest -p informalsystems-malachitebft-test-mbt --all-features --lcov --output-path lcov-mbt.info
+        run: |
+          cargo llvm-cov nextest \
+           -p informalsystems-malachitebft-test-mbt \
+           -p informalsystems-malachitebft-starknet-test-mbt \
+           --all-features --lcov --output-path lcov-mbt.info
       - name: Generate text report
         run: cargo llvm-cov report
       - name: Upload coverage artifact
