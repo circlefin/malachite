@@ -7,11 +7,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use eyre::bail;
-use malachitebft_test_app::node::App;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tokio::sync::Mutex;
 use tokio::task::JoinSet;
+use tokio::time::error::Elapsed;
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, error_span, info, Instrument};
 
@@ -23,6 +23,7 @@ use malachitebft_core_consensus::{LocallyProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{SignedVote, VotingPower};
 use malachitebft_engine::util::events::{Event, RxEvent, TxEvent};
 use malachitebft_test::{Height, PrivateKey, TestContext, Validator, ValidatorSet};
+use malachitebft_test_app::node::App;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Expected {
@@ -347,8 +348,7 @@ where
     S: Send + Sync + 'static,
 {
     pub fn new(nodes: Vec<TestNode<S>>) -> Self {
-        let vals_and_keys = make_validators(voting_powers(&nodes));
-        let (validators, private_keys): (Vec<_>, Vec<_>) = vals_and_keys.into_iter().unzip();
+        let (validators, private_keys) = make_validators(voting_powers(&nodes));
         let validator_set = ValidatorSet::new(validators);
         let id = unique_id();
         let base_port = 20_000 + id * 1000;
@@ -408,44 +408,40 @@ where
             .unwrap()
             .into_path();
 
+            let id = node.id;
+            let task = run_node(node, home_dir, config, validator_set, private_key);
+
             set.spawn(
                 async move {
-                    let id = node.id;
-                    let result = run_node(node, home_dir, config, validator_set, private_key).await;
+                    let result = tokio::time::timeout(timeout, task).await;
                     (id, result)
                 }
                 .in_current_span(),
             );
         }
 
-        let metrics = tokio::spawn(serve_metrics("127.0.0.1:0".parse().unwrap()));
-        let results = tokio::time::timeout(timeout, set.join_all()).await;
-        metrics.abort();
-
-        match results {
-            Ok(results) => {
-                check_results(results);
-            }
-            Err(_) => {
-                error!("Test timed out after {timeout:?}");
-                std::process::exit(1);
-            }
-        }
+        let results = set.join_all().await;
+        check_results(results);
     }
 }
 
-fn check_results(results: Vec<(NodeId, TestResult)>) {
+fn check_results(results: Vec<(NodeId, Result<TestResult, Elapsed>)>) {
     let mut errors = 0;
 
     for (id, result) in results {
         let _span = tracing::error_span!("node", %id).entered();
+
         match result {
-            TestResult::Success(reason) => {
+            Ok(TestResult::Success(reason)) => {
                 info!("Test succeeded: {reason}");
             }
-            TestResult::Failure(reason) => {
+            Ok(TestResult::Failure(reason)) => {
                 errors += 1;
                 error!("Test failed: {reason}");
+            }
+            Err(_) => {
+                errors += 1;
+                error!("Test timed out");
             }
         }
     }
@@ -456,6 +452,7 @@ fn check_results(results: Vec<(NodeId, TestResult)>) {
     }
 }
 
+#[derive(Debug)]
 pub enum TestResult {
     Success(String),
     Failure(String),
@@ -490,7 +487,6 @@ async fn run_node<S>(
     let current_height = Arc::new(AtomicUsize::new(0));
     let failure = Arc::new(Mutex::new(None));
     let is_full_node = node.is_full_node();
-    let node_id = node.id;
 
     let spawn_bg = |mut rx: RxEvent<TestContext>| {
         tokio::spawn({
@@ -508,15 +504,14 @@ async fn run_node<S>(
                             decisions.fetch_add(1, Ordering::SeqCst);
                         }
                         Event::Published(msg) if is_full_node => {
-                            failure.lock().await.replace(format!(
-                                "[node-{node_id}] Full node unexpectedly published a consensus message: {msg:?}"
+                            error!("Full node unexpectedly published a consensus message: {msg:?}");
+                            *failure.lock().await = Some(format!(
+                                "Full node unexpectedly published a consensus message: {msg:?}"
                             ));
                         }
                         Event::WalReplayError(e) => {
-                            failure
-                                .lock()
-                                .await
-                                .replace(format!("[node-{node_id}] WAL replay error: {e}"));
+                            error!("WAL replay error: {e}");
+                            *failure.lock().await = Some(format!("WAL replay error: {e}"));
                         }
                         _ => (),
                     }
@@ -540,8 +535,12 @@ async fn run_node<S>(
                 info!("Waiting until node reaches height {target_height}");
 
                 'inner: while let Ok(event) = rx_event.recv().await {
+                    if let Some(failure) = failure.lock().await.take() {
+                        return TestResult::Failure(failure);
+                    }
+
                     let Event::StartedHeight(height) = event else {
-                        continue;
+                        continue 'inner;
                     };
 
                     info!("Node started height {height}");
@@ -767,18 +766,24 @@ fn voting_powers<S>(nodes: &[TestNode<S>]) -> Vec<VotingPower> {
     nodes.iter().map(|node| node.voting_power).collect()
 }
 
-pub fn make_validators(voting_powers: Vec<VotingPower>) -> Vec<(Validator, PrivateKey)> {
+pub fn make_validators(voting_powers: Vec<VotingPower>) -> (Vec<Validator>, Vec<PrivateKey>) {
     let mut rng = StdRng::seed_from_u64(0x42);
 
     let mut validators = Vec::with_capacity(voting_powers.len());
+    let mut private_keys = Vec::with_capacity(voting_powers.len());
 
     for vp in voting_powers {
         let sk = PrivateKey::generate(&mut rng);
-        let val = Validator::new(sk.public_key(), vp);
-        validators.push((val, sk));
+
+        if vp > 0 {
+            let val = Validator::new(sk.public_key(), vp);
+            validators.push(val);
+        }
+
+        private_keys.push(sk);
     }
 
-    validators
+    (validators, private_keys)
 }
 
 use axum::routing::get;
