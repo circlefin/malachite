@@ -93,8 +93,8 @@ impl TestParams {
     fn apply_to_config(&self, config: &mut Config) {
         config.sync.enabled = self.enable_sync;
         config.consensus.p2p.protocol = self.protocol;
-        config.consensus.max_block_size = self.block_size;
         config.consensus.value_payload = self.value_payload;
+        config.test.max_block_size = self.block_size;
         config.test.tx_size = self.tx_size;
         config.test.txs_per_part = self.txs_per_part;
         config.test.vote_extensions.enabled = self.vote_extensions.is_some();
@@ -718,7 +718,6 @@ pub fn make_node_config<S>(test: &Test<S>, i: usize) -> NodeConfig {
         moniker: format!("node-{}", test.nodes[i].id),
         logging: LoggingConfig::default(),
         consensus: ConsensusConfig {
-            max_block_size: ByteSize::mib(1),
             value_payload: ValuePayload::default(),
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
