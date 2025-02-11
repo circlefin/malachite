@@ -98,7 +98,7 @@ pub async fn run(
                     error!("Failed to send GetValue reply");
                 }
 
-                if !state.config.consensus.value_payload.include_parts() {
+                if !state.config.test.value_payload.include_parts() {
                     return Ok(());
                 }
 
@@ -249,7 +249,7 @@ pub async fn run(
                 address,
                 value_id,
             } => {
-                if !state.config.consensus.value_payload.include_parts() {
+                if !state.config.test.value_payload.include_parts() {
                     return Ok(());
                 }
 

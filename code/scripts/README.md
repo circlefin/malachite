@@ -27,7 +27,6 @@ instances will also be terminated.
 * The script overrides some of the configuration parameters for local testnet use:
 ```bash
 export MALACHITE__CONSENSUS__P2P__PROTOCOL__TYPE="gossipsub"
-export MALACHITE__CONSENSUS__VALUE_PAYLOAD="proposal-and-parts"
 export MALACHITE__CONSENSUS__TIMEOUT_PROPOSE="2s"
 export MALACHITE__CONSENSUS__TIMEOUT_PROPOSE_DELTA="1s"
 export MALACHITE__CONSENSUS__TIMEOUT_PREVOTE="1s"
@@ -37,6 +36,7 @@ export MALACHITE__CONSENSUS__TIMEOUT_STEP="6s"
 export MALACHITE__MEMPOOL__MAX_TX_COUNT="10000"
 export MALACHITE__MEMPOOL__GOSSIP_BATCH_SIZE=0
 export MALACHITE__TEST__MAX_BLOCK_SIZE="50KiB"
+export MALACHITE__TEST__VALUE_PAYLOAD="proposal-and-parts"
 export MALACHITE__TEST__TX_SIZE="1KiB"
 export MALACHITE__TEST__TXS_PER_PART=256
 export MALACHITE__TEST__TIME_ALLOWANCE_FACTOR=0.3

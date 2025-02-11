@@ -82,7 +82,6 @@ pub fn generate_config(
     Config {
         moniker: format!("test-{}", index),
         consensus: ConsensusConfig {
-            value_payload: ValuePayload::default(),
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
