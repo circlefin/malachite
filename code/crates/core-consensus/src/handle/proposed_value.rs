@@ -4,6 +4,7 @@ use crate::handle::decide::decide;
 use crate::handle::driver::apply_driver_input;
 use crate::types::ProposedValue;
 
+use super::decide::decide_current_no_timeout;
 use super::signature::sign_proposal;
 
 #[tracing::instrument(
@@ -80,18 +81,8 @@ where
     }
 
     if origin == ValueOrigin::Sync && state.driver.step_is_commit() {
-        perform!(
-            co,
-            Effect::CancelTimeout(Timeout::commit(state.driver.round()), Default::default())
-        );
-        let height = state.driver.height();
-        let round = state.driver.round();
-        let proposal = state
-            .decision
-            .remove(&(height, round))
-            .ok_or_else(|| Error::DecidedValueNotFound(height, round))?;
-
-        decide(co, state, metrics, round, proposal).await?;
+        decide_current_no_timeout(co, state, metrics).await?;
     }
+
     Ok(())
 }
