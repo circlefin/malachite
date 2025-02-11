@@ -9,6 +9,7 @@ use std::sync::Arc;
 use eyre::bail;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
+use tokio::sync::Mutex;
 use tokio::task::JoinSet;
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, error_span, info, Instrument, Span};
@@ -491,12 +492,14 @@ async fn run_node<S>(
 
     let decisions = Arc::new(AtomicUsize::new(0));
     let current_height = Arc::new(AtomicUsize::new(0));
+    let failure = Arc::new(Mutex::new(None));
     let is_full_node = node.is_full_node();
 
     let spawn_bg = |mut rx: RxEvent<MockContext>| {
         tokio::spawn({
             let decisions = Arc::clone(&decisions);
             let current_height = Arc::clone(&current_height);
+            let failure = Arc::clone(&failure);
 
             async move {
                 while let Ok(event) = rx.recv().await {
@@ -508,10 +511,15 @@ async fn run_node<S>(
                             decisions.fetch_add(1, Ordering::SeqCst);
                         }
                         Event::Published(msg) if is_full_node => {
-                            panic!("Full node unexpectedly published a consensus message: {msg:?}");
+                            failure.lock().await.replace(format!(
+                                "Full node unexpectedly published a consensus message: {msg:?}"
+                            ));
                         }
                         Event::WalReplayError(e) => {
-                            panic!("WAL replay error: {e}");
+                            failure
+                                .lock()
+                                .await
+                                .replace(format!("WAL replay error: {e}"));
                         }
                         _ => (),
                     }
@@ -526,6 +534,10 @@ async fn run_node<S>(
     let mut bg = spawn_bg(rx_event_bg);
 
     for step in node.steps {
+        if let Some(failure) = failure.lock().await.take() {
+            return TestResult::Failure(failure);
+        }
+
         match step {
             Step::WaitUntil(target_height) => {
                 info!("Waiting until node reaches height {target_height}");
@@ -638,7 +650,12 @@ async fn run_node<S>(
         }
     }
 
-    return TestResult::Success("OK".to_string());
+    let failure = failure.lock().await.take();
+    if let Some(failure) = failure {
+        TestResult::Failure(failure)
+    } else {
+        TestResult::Success("OK".to_string())
+    }
 }
 
 pub fn init_logging(test_module: &str) {
