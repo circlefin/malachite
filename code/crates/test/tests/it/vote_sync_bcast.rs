@@ -1,11 +1,13 @@
 use std::time::Duration;
 
-use crate::{TestBuilder, TestParams};
+use malachitebft_test_framework::{init_logging, TestBuilder, TestParams};
 
 // NOTE: These tests are similar to the vote sync tests, with the difference that
 //       the sync actor is disabled.
 #[tokio::test]
 pub async fn crash_restart_from_latest() {
+    init_logging(module_path!());
+
     const HEIGHT: u64 = 10;
 
     let mut test = TestBuilder::<()>::new();
@@ -35,8 +37,9 @@ pub async fn crash_restart_from_latest() {
 
 #[tokio::test]
 pub async fn start_late() {
-    const HEIGHT: u64 = 5;
+    init_logging(module_path!());
 
+    const HEIGHT: u64 = 5;
     let mut test = TestBuilder::<()>::new();
 
     test.add_node().start().wait_until(HEIGHT * 2).success();

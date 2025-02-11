@@ -243,6 +243,24 @@ impl<State> TestNode<State> {
         })
     }
 
+    pub fn expect_vote_rebroadcast(&mut self, at_height: u64) -> &mut Self {
+        self.on_event(move |event, _| {
+            let Event::Rebroadcast(msg) = event else {
+                return Ok(HandlerResult::WaitForNextEvent);
+            };
+
+            let (height, round) = (msg.height, msg.round);
+
+            if height.as_u64() != at_height {
+                bail!("Unexpected vote rebroadcast for height {height}, expected {at_height}")
+            }
+
+            info!(%height, %round, "Rebroadcasted vote");
+
+            Ok(HandlerResult::ContinueTest)
+        })
+    }
+
     pub fn on_proposed_value<F>(&mut self, f: F) -> &mut Self
     where
         F: Fn(LocallyProposedValue<TestContext>, &mut State) -> Result<HandlerResult, eyre::Report>
