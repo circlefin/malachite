@@ -3,10 +3,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "./proto/sync.proto",
         "./proto/certificate.proto",
         "./proto/p2p/proto/common.proto",
-        "./proto/p2p/proto/header.proto",
         "./proto/p2p/proto/transaction.proto",
-        "./proto/p2p/proto/consensus.proto",
-        "./proto/p2p/proto/streaming.proto",
+        "./proto/p2p/proto/consensus/consensus.proto",
     ];
 
     for proto in protos {

@@ -25,7 +25,7 @@ fn test_itf() {
     let quint_seed = quint_seed();
 
     generate_test_traces(
-        "consensus/consensusTest.qnt",
+        "consensus/quint/tests/consensus/consensusTest.qnt",
         &temp_path.to_string_lossy(),
         quint_seed,
     );

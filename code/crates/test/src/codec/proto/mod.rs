@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use prost::Message;
 
-use malachitebft_app::streaming::{StreamContent, StreamMessage};
+use malachitebft_app::streaming::{StreamContent, StreamId, StreamMessage};
 use malachitebft_codec::Codec;
 use malachitebft_core_consensus::{ProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{
@@ -127,11 +127,11 @@ impl Codec<StreamMessage<ProposalPart>> for ProtobufCodec {
             proto::stream_message::Content::Data(data) => {
                 StreamContent::Data(ProposalPart::from_bytes(&data)?)
             }
-            proto::stream_message::Content::Fin(end) => StreamContent::Fin(end),
+            proto::stream_message::Content::Fin(_) => StreamContent::Fin,
         };
 
         Ok(StreamMessage {
-            stream_id: proto.stream_id,
+            stream_id: StreamId::new(proto.stream_id),
             sequence: proto.sequence,
             content,
         })
@@ -139,13 +139,13 @@ impl Codec<StreamMessage<ProposalPart>> for ProtobufCodec {
 
     fn encode(&self, msg: &StreamMessage<ProposalPart>) -> Result<Bytes, Self::Error> {
         let proto = proto::StreamMessage {
-            stream_id: msg.stream_id,
+            stream_id: msg.stream_id.to_bytes(),
             sequence: msg.sequence,
             content: match &msg.content {
                 StreamContent::Data(data) => {
                     Some(proto::stream_message::Content::Data(data.to_bytes()?))
                 }
-                StreamContent::Fin(end) => Some(proto::stream_message::Content::Fin(*end)),
+                StreamContent::Fin => Some(proto::stream_message::Content::Fin(true)),
             },
         };
 

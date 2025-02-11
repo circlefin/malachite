@@ -54,11 +54,19 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
       - name: Install cargo-nextest
         uses: taiki-e/install-action@cargo-nextest
-      - name: Build code
-        working-directory: code/crates/test/mbt
-        run: cargo nextest run -p informalsystems-malachitebft-test-mbt --all-features --no-run
       - name: Current time as random seed for Quint
         run: echo "QUINT_SEED=$(date +%s)" >> $GITHUB_ENV
+      - name: Build code
+        working-directory: code/crates/test/mbt
+        run: |
+          cargo nextest run \
+           -p informalsystems-malachitebft-test-mbt \
+           -p informalsystems-malachitebft-starknet-test-mbt \
+           --all-features --no-run
       - name: Run tests
         working-directory: code/crates/test/mbt
-        run: cargo nextest run -p informalsystems-malachitebft-test-mbt --all-features
+        run: |
+          cargo nextest run \
+           -p informalsystems-malachitebft-test-mbt \
+           -p informalsystems-malachitebft-starknet-test-mbt \
+           --all-features

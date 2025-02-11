@@ -1,6 +1,7 @@
 syntax = "proto3";
 import "p2p/proto/common.proto";
 
+option go_package = "github.com/starknet-io/starknet-p2pspecs/p2p/proto/class";
 
 message EntryPoint {
     Felt252 selector = 1;
@@ -41,20 +42,4 @@ message Class {
     }
     uint32 domain = 3;
     Hash class_hash = 4;
-}
-
-message Classes {
-    repeated Class classes = 1;
-}
-
-message ClassesRequest {
-    Iteration iteration = 1;
-}
-
-// Responses are sent ordered by the order given in the request.
-message ClassesResponse {
-    oneof class_message {
-        Class class = 1;
-        Fin   fin   = 2; // Fin is sent after the peer sent all the data or when it encountered a block that it doesn't have its classes.
-    }
 }

@@ -16,7 +16,7 @@ use malachitebft_proto::Protobuf;
 use crate::codec::{self, ProtobufCodec};
 use crate::proto::{self as proto, Error as ProtoError};
 use crate::types::MockContext;
-use crate::types::{Block, BlockHash, Height, Transaction, Transactions};
+use crate::types::{Block, BlockHash, Height, Transaction, TransactionBatch};
 
 mod keys;
 use keys::{HeightKey, UndecidedValueKey};
@@ -276,7 +276,7 @@ impl BlockStore {
             block: Block {
                 height: certificate.height,
                 block_hash: certificate.value_id,
-                transactions: Transactions::new(txes.to_vec()),
+                transactions: TransactionBatch::new(txes.to_vec()),
             },
             certificate: certificate.clone(),
         };

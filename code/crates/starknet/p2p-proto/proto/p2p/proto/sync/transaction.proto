@@ -1,0 +1,106 @@
+syntax = "proto3";
+import "p2p/proto/common.proto";
+import "p2p/proto/sync/common.proto";
+import "p2p/proto/sync/receipt.proto";
+import "p2p/proto/transaction.proto";
+
+option go_package = "github.com/starknet-io/starknet-p2pspecs/p2p/proto/sync/transaction";
+
+// TBD: can support a flag to return tx hashes only, good for standalone mempool to remove them,
+// or any node that keeps track of transaction streaming in the consensus.
+message TransactionsRequest {
+    Iteration iteration = 1;
+}
+
+// Responses are sent ordered by the order given in the request. The order inside each block is
+// according to the execution order.
+message TransactionsResponse {
+    oneof transaction_message {
+        TransactionWithReceipt transaction_with_receipt = 1;
+        Fin fin = 2; // Fin is sent after the peer sent all the data or when it encountered a block that it doesn't have its transactions.
+    }
+}
+
+message TransactionWithReceipt {
+    TransactionInBlock transaction = 1;
+    Receipt receipt = 2;
+}
+
+message TransactionInBlock {
+    message DeclareV0WithoutClass {
+        Address sender = 1;
+        Felt252 max_fee = 2;
+        AccountSignature signature = 3;
+        Hash class_hash = 4;
+    }
+
+    message DeclareV1WithoutClass {
+        Address sender = 1;
+        Felt252 max_fee = 2;
+        AccountSignature signature = 3;
+        Hash class_hash = 4;
+        Felt252 nonce = 5;
+    }
+
+    message DeclareV2WithoutClass {
+        Address sender = 1;
+        Felt252 max_fee = 2;
+        AccountSignature signature = 3;
+        Hash class_hash = 4;
+        Felt252 nonce = 5;
+        Hash compiled_class_hash = 6;
+    }
+
+    // see https://external.integration.starknet.io/feeder_gateway/get_transaction?transactionHash=0x41d1f5206ef58a443e7d3d1ca073171ec25fa75313394318fc83a074a6631c3
+    message DeclareV3WithoutClass {
+        DeclareV3Common common = 1;
+        Hash class_hash = 2;
+    }
+
+    message Deploy {
+        Hash class_hash = 1;
+        Felt252 address_salt = 2;
+        repeated Felt252 calldata = 3;
+        uint32 version = 4;
+    }
+
+    message DeployAccountV1 {
+        Felt252 max_fee = 1;
+        AccountSignature signature = 2;
+        Hash class_hash = 3;
+        Felt252 nonce = 4;
+        Felt252 address_salt = 5;
+        repeated Felt252 calldata = 6;
+    }
+
+    message InvokeV0 {
+        Felt252 max_fee = 1;
+        AccountSignature signature = 2;
+        Address address = 3;
+        Felt252 entry_point_selector = 4;
+        repeated Felt252 calldata = 5;
+    }
+
+    message InvokeV1 {
+        Address sender = 1;
+        Felt252 max_fee = 2;
+        AccountSignature signature = 3;
+        repeated Felt252 calldata = 4;
+        Felt252 nonce = 5;
+    }
+
+    oneof txn {
+        DeclareV0WithoutClass declare_v0 = 1;
+        DeclareV1WithoutClass declare_v1 = 2;
+        DeclareV2WithoutClass declare_v2 = 3;
+        DeclareV3WithoutClass declare_v3 = 4;
+        Deploy deploy = 5;
+        DeployAccountV1 deploy_account_v1 = 6;
+        DeployAccountV3 deploy_account_v3 = 7;
+        InvokeV0 invoke_v0 = 8;
+        InvokeV1 invoke_v1 = 9;
+        InvokeV3 invoke_v3 = 10;
+        L1HandlerV0 l1_handler = 11;
+    }
+    Hash transaction_hash = 12;
+}

@@ -1,0 +1,25 @@
+[package]
+name = "informalsystems-malachitebft-starknet-test-mbt"
+description = "Library for model-based testing of the starknet"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+malachitebft-core-types = { workspace = true }
+malachitebft-starknet-host = { workspace = true }
+malachitebft-engine = { workspace = true }
+malachitebft-peer = { workspace = true }
+
+serde = { workspace = true, features = ["derive"] }
+itf = { workspace = true }
+glob = { workspace = true }
+multihash = { workspace = true }
+bytes = { workspace = true }
+
+
+[dev-dependencies]
+tempfile = { version = "3.15.0" }

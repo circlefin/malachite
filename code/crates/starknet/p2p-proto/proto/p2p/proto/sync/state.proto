@@ -1,5 +1,8 @@
 syntax = "proto3";
 import "p2p/proto/common.proto";
+import "p2p/proto/sync/common.proto";
+
+option go_package = "github.com/starknet-io/starknet-p2pspecs/p2p/proto/sync/state";
 
 
 // optimized for flat storage, not through a trie (not sharing key prefixes)

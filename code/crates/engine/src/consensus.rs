@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -600,12 +601,15 @@ where
 
                 if let Err(e) = self.replay_wal_entries(myself, state, entries).await {
                     error!(%height, "Failed to replay WAL entries: {e}");
+                    self.tx_event.send(|| Event::WalReplayError(Arc::new(e)));
                 }
 
                 state.phase = Phase::Running;
             }
             Err(e) => {
-                error!(%height, "Error when notifying WAL of started height: {e}")
+                error!(%height, "Error when notifying WAL of started height: {e}");
+                self.tx_event
+                    .send(|| Event::WalReplayError(Arc::new(e.into())));
             }
         }
 
