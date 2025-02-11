@@ -172,15 +172,11 @@ impl State {
         &mut self,
         certificate: CommitCertificate<TestContext>,
     ) -> eyre::Result<()> {
-        let Ok(Some(proposal)) = self
-            .store
-            .get_undecided_proposal(certificate.height, certificate.round)
-            .await
-        else {
+        let (height, round) = (certificate.height, certificate.round);
+
+        let Ok(Some(proposal)) = self.store.get_undecided_proposal(height, round).await else {
             return Err(eyre!(
-                "Trying to commit a value at height {} and round {} for which there is no proposal: {}",
-                certificate.height,
-                certificate.round,
+                "Trying to commit a value at height {height} and round {round} for which there is no proposal: {}",
                 certificate.value_id
             ));
         };
@@ -189,8 +185,10 @@ impl State {
             .store_decided_value(&certificate, proposal.value)
             .await?;
 
+        self.store.remove_undecided_proposal(height, round).await?;
+
         // Prune the store, keep the last HISTORY_LENGTH values
-        let retain_height = Height::new(certificate.height.as_u64().saturating_sub(HISTORY_LENGTH));
+        let retain_height = Height::new(height.as_u64().saturating_sub(HISTORY_LENGTH));
         self.store.prune(retain_height).await?;
 
         // Move to next height

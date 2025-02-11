@@ -26,6 +26,9 @@ use malachitebft_test::{
 use crate::store::{DecidedValue, Store};
 use crate::streaming::{PartStreamsMap, ProposalParts};
 
+/// Number of historical values to keep in the store
+const HISTORY_LENGTH: u64 = 100;
+
 /// Represents the internal state of the application node
 /// Contains information about current height, round, proposals and blocks
 pub struct State {
@@ -182,19 +185,14 @@ impl State {
         certificate: CommitCertificate<TestContext>,
         extensions: VoteExtensions<TestContext>,
     ) -> eyre::Result<()> {
-        // Store extensions for use at next height if we are the proposer
-        self.vote_extensions
-            .insert(certificate.height.increment(), extensions);
+        let (height, round) = (certificate.height, certificate.round);
 
-        let Ok(Some(proposal)) = self
-            .store
-            .get_undecided_proposal(certificate.height, certificate.round)
-            .await
-        else {
+        // Store extensions for use at next height if we are the proposer
+        self.vote_extensions.insert(height.increment(), extensions);
+
+        let Ok(Some(proposal)) = self.store.get_undecided_proposal(height, round).await else {
             return Err(eyre!(
-                "Trying to commit a value at height {} and round {} that is not decided: {}",
-                certificate.height,
-                certificate.round,
+                "Trying to commit a value at height {height} and round {round} for which there is no proposal: {}",
                 certificate.value_id
             ));
         };
@@ -203,8 +201,10 @@ impl State {
             .store_decided_value(&certificate, proposal.value)
             .await?;
 
-        // Prune the store, keep the last 5 heights
-        let retain_height = Height::new(certificate.height.as_u64().saturating_sub(5));
+        self.store.remove_undecided_proposal(height, round).await?;
+
+        // Prune the store, keep the last HISTORY_LENGTH values
+        let retain_height = Height::new(height.as_u64().saturating_sub(HISTORY_LENGTH));
         self.store.prune(retain_height).await?;
 
         // Move to next height
