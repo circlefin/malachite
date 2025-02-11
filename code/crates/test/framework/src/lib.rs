@@ -273,6 +273,8 @@ where
 
                     info!("Node started height {height}");
 
+                    current_height.store(height.as_u64() as usize, Ordering::SeqCst);
+
                     if height.as_u64() == target_height {
                         break 'inner;
                     }
