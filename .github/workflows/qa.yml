@@ -54,7 +54,7 @@ jobs:
           setup_config
           d_pull all
           d_run all
-          sleep 300
+          sleep 600
 
       - name: Terraform Destroy (Cleanup Nodes)
         if: always()
