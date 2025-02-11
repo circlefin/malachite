@@ -61,7 +61,7 @@ where
         Self {
             id,
             voting_power: 1,
-            start_height: Ctx::Height::default(),
+            start_height: Ctx::Height::INITIAL,
             start_delay: Duration::from_secs(0),
             steps: vec![],
             state,
@@ -87,7 +87,7 @@ where
     }
 
     pub fn start_after(&mut self, height: u64, delay: Duration) -> &mut Self {
-        self.start_height = Ctx::Height::default().increment_by(height);
+        self.start_height = Ctx::Height::ZERO.increment_by(height);
         self.start_delay = delay;
         self
     }

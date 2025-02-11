@@ -9,7 +9,7 @@ use crate::transition::Transition;
 #[cfg(feature = "debug")]
 use crate::traces::*;
 
-use malachitebft_core_types::{Context, Round};
+use malachitebft_core_types::{Context, Height, Round};
 
 /// A value and its associated round
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -152,6 +152,6 @@ where
     Ctx: Context,
 {
     fn default() -> Self {
-        Self::new(Ctx::Height::default(), Round::Nil)
+        Self::new(Ctx::Height::ZERO, Round::Nil)
     }
 }

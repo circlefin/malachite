@@ -9,7 +9,7 @@ use rand::{CryptoRng, RngCore};
 
 use malachitebft_app_channel::app::metrics::SharedRegistry;
 use malachitebft_app_channel::app::types::config::Config;
-use malachitebft_app_channel::app::types::core::VotingPower;
+use malachitebft_app_channel::app::types::core::{Height as _, VotingPower};
 use malachitebft_app_channel::app::types::Keypair;
 use malachitebft_app_channel::app::{EngineHandle, Node, NodeHandle};
 
@@ -156,7 +156,7 @@ impl Node for App {
         }
 
         let store = Store::open(self.get_home_dir().join("store.db"), metrics)?;
-        let start_height = self.start_height.unwrap_or_default();
+        let start_height = self.start_height.unwrap_or(Height::INITIAL);
         let mut state = State::new(ctx, signing_provider, genesis, address, start_height, store);
 
         let app_handle = tokio::spawn(async move {

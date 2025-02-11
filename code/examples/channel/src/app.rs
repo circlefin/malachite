@@ -6,7 +6,7 @@ use tracing::{error, info};
 
 use malachitebft_app_channel::app::streaming::StreamContent;
 use malachitebft_app_channel::app::types::codec::Codec;
-use malachitebft_app_channel::app::types::core::{Round, Validity};
+use malachitebft_app_channel::app::types::core::{Height as _, Round, Validity};
 use malachitebft_app_channel::app::types::sync::RawDecidedValue;
 use malachitebft_app_channel::app::types::ProposedValue;
 use malachitebft_app_channel::{AppMsg, Channels, ConsensusMsg, NetworkMsg};
@@ -26,7 +26,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     .max_decided_value_height()
                     .await
                     .map(|height| height.increment())
-                    .unwrap_or_else(|| Height::new(1));
+                    .unwrap_or_else(|| Height::INITIAL);
 
                 info!(%start_height, "Consensus is ready");
 
