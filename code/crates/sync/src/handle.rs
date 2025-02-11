@@ -378,7 +378,7 @@ async fn request_value_from_peer<Ctx>(
 where
     Ctx: Context,
 {
-    debug!(sync.height = %height, %peer, "Requesting value from peer");
+    info!(sync.height = %height, %peer, "Requesting sync value from peer");
 
     perform!(
         co,
