@@ -130,7 +130,7 @@ pub async fn run(
             AppMsg::ReceivedProposalPart { from, part, reply } => {
                 let part_type = match &part.content {
                     StreamContent::Data(part) => part.get_type(),
-                    StreamContent::Fin(_) => "end of stream",
+                    StreamContent::Fin => "end of stream",
                 };
 
                 info!(%from, %part.sequence, part.type = %part_type, "Received proposal part");
