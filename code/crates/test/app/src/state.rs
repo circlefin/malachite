@@ -8,7 +8,7 @@ use eyre::eyre;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use sha3::Digest;
-use tracing::{error, debug};
+use tracing::{debug, error};
 
 use malachitebft_app_channel::app::consensus::ProposedValue;
 use malachitebft_app_channel::app::streaming::{StreamContent, StreamId, StreamMessage};
@@ -18,8 +18,8 @@ use malachitebft_app_channel::app::types::core::{CommitCertificate, Round, Valid
 use malachitebft_app_channel::app::types::{LocallyProposedValue, PeerId};
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{
-    Address, Ed25519Provider, Height, ProposalData, ProposalFin, ProposalInit, ProposalPart,
-    TestContext, Value, ValueId, Genesis, ValidatorSet,
+    Address, Ed25519Provider, Genesis, Height, ProposalData, ProposalFin, ProposalInit,
+    ProposalPart, TestContext, ValidatorSet, Value, ValueId,
 };
 
 use crate::store::{DecidedValue, Store};

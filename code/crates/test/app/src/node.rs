@@ -81,7 +81,15 @@ impl App {
         let store = Store::open(self.get_home_dir().join("store.db"))?;
         let start_height = self.start_height.unwrap_or_default();
 
-        let mut state = State::new(ctx, config, genesis.clone(), address, start_height, store, signing_provider);
+        let mut state = State::new(
+            ctx,
+            config,
+            genesis.clone(),
+            address,
+            start_height,
+            store,
+            signing_provider,
+        );
 
         let tx_event = channels.events.clone();
 
