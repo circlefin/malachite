@@ -1,0 +1,125 @@
+syntax = "proto3";
+
+import "p2p/proto/common.proto";
+import "p2p/proto/transaction.proto";
+
+option go_package = "github.com/starknet-io/starknet-p2pspecs/p2p/proto/consensus/consensus";
+
+// WIP - will change
+
+// Contains all variants of mempool and an L1Handler variant to cover all transactions that can be
+// in a new block.
+message ConsensusTransaction {
+    oneof txn {
+        DeclareV3WithClass declare_v3 = 1;
+        DeployAccountV3 deploy_account_v3 = 2;
+        InvokeV3 invoke_v3 = 3;
+        L1HandlerV0 l1_handler = 4;
+        bytes dummy = 6;
+    }
+    Hash transaction_hash = 5;
+}
+
+message Vote {
+    enum  VoteType {
+        Prevote   = 0;
+        Precommit = 1;
+    };
+
+    // We use a type field to distinguish between prevotes and precommits instead of different
+    // messages, to make sure the data, and therefore the signatures, are unambiguous between
+    // Prevote and Precommit.
+    VoteType           vote_type    = 1;
+    uint64             block_number = 3;
+    uint64             fork_id      = 4;
+    uint32             round        = 5;
+    // This is optional since a vote can be NIL.
+    optional Hash      block_hash   = 6;
+    // Identifies the voter.
+    Address            voter        = 7;
+}
+
+// Streaming of proposals is done on the "consensus_proposal" topic.
+message ConsensusStreamId {
+    uint64 height = 1;
+    uint32 round  = 2;
+    uint64 nonce = 3;
+}
+
+// The timestamp of a proposal can impact consensus, specifically the lower bound applied. If nodes
+// apply a lower bound validation based on their local time, then we risk a scenario where in round
+// `R` proposal P is locked. Then in a later round the timestamp in P has gone stale. Therefore the
+// lower bound should be "greater than the previous timestamp". Upper bounds don't suffer from this
+// problem.
+message ProposalPart {
+    oneof messages {
+        ProposalInit       init         = 1;
+        ProposalFin        fin          = 2;
+        BlockInfo          block_info   = 3;
+        TransactionBatch   transactions = 4;
+        ProposalCommitment commitment   = 5;
+    }
+}
+
+message ProposalInit {
+    uint64 height = 1;
+    uint32 round = 2;
+    optional uint32 valid_round = 3;
+    Address proposer = 4;
+}
+
+// Identifies the content proposed (and executed). Consensus is reached on the value contained here.
+message ProposalFin {
+    Hash proposal_commitment = 1;
+}
+
+message TransactionBatch {
+    repeated ConsensusTransaction transactions = 1;
+}
+
+// The content and stream_id are generic fields. The user of the stream can choose to pass whatever
+// message that they want. The messages are then encoded in bytes.
+message StreamMessage {
+    oneof message {
+        bytes content = 1;
+        Fin fin = 2;
+    }
+    bytes stream_id = 3;
+    uint64 message_id = 4;
+}
+
+message ProposalCommitment {
+    uint64                 block_number           = 1;
+    uint64                 fork_id                = 2;
+    Hash                   parent_commitment      = 3;
+    Address                builder                = 4;
+    uint64                 timestamp              = 5;
+    string                 protocol_version       = 6; // Starknet version
+    // State root of block `H-K`, where `K` is defined by the protocol's version.
+    Hash                   old_state_root         = 7;
+    // The state diff commitment returned  by the Starknet Feeder Gateway
+    Hash                   state_diff_commitment  = 8;
+    Hash                   transaction_commitment = 9;
+    Hash                   event_commitment       = 10;
+    Hash                   receipt_commitment     = 11;
+    // TODO: Just put the sizes explicitly? This is relatively free compared actually hashing the
+    // lists we commit to. If not, should we also pack other fields?
+    Felt252                concatenated_counts    = 12;
+    Uint128                l1_gas_price_fri       = 13;
+    Uint128                l1_data_gas_price_fri  = 14;
+    Uint128                l2_gas_price_fri       = 15;
+    Uint128                l2_gas_used            = 16;
+    L1DataAvailabilityMode l1_da_mode             = 17;
+}
+
+message BlockInfo {
+    uint64                 block_number          = 1;
+    uint64                 fork_id               = 2;
+    Address                builder               = 3;
+    uint64                 timestamp             = 4;
+    Uint128                l2_gas_price_fri      = 5;
+    Uint128                l1_gas_price_wei      = 6;
+    Uint128                l1_data_gas_price_wei = 7;
+    Uint128                eth_to_strk_rate      = 8;
+    L1DataAvailabilityMode l1_da_mode            = 9;
+}

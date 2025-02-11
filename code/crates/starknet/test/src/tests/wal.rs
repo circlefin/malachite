@@ -21,6 +21,7 @@ async fn proposer_crashes_after_proposing_parts_only() {
 }
 
 #[tokio::test]
+#[ignore] // Starknet app only supports parts only mode
 async fn proposer_crashes_after_proposing_proposal_and_parts() {
     proposer_crashes_after_proposing(TestParams {
         value_payload: ValuePayload::ProposalAndParts,
@@ -30,6 +31,7 @@ async fn proposer_crashes_after_proposing_proposal_and_parts() {
 }
 
 #[tokio::test]
+#[ignore] // Starknet app only supports parts only mode
 async fn proposer_crashes_after_proposing_proposal_only() {
     proposer_crashes_after_proposing(TestParams {
         value_payload: ValuePayload::ProposalOnly,
@@ -113,6 +115,7 @@ async fn non_proposer_crashes_after_voting_parts_only() {
 }
 
 #[tokio::test]
+#[ignore] // Starknet app only supports parts only mode
 async fn non_proposer_crashes_after_voting_proposal_and_parts() {
     non_proposer_crashes_after_voting(TestParams {
         value_payload: ValuePayload::ProposalAndParts,
@@ -122,6 +125,7 @@ async fn non_proposer_crashes_after_voting_proposal_and_parts() {
 }
 
 #[tokio::test]
+#[ignore] // Starknet app only supports parts only mode
 async fn non_proposer_crashes_after_voting_proposal_only() {
     non_proposer_crashes_after_voting(TestParams {
         value_payload: ValuePayload::ProposalOnly,
@@ -188,6 +192,41 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
             TestParams {
                 enable_sync: false,
                 ..params
+            },
+        )
+        .await
+}
+
+#[tokio::test]
+pub async fn node_crashes_after_vote_set_request() {
+    init_logging(module_path!());
+
+    const HEIGHT: u64 = 3;
+
+    let mut test = TestBuilder::<()>::new();
+
+    test.add_node().start().wait_until(HEIGHT).success();
+    test.add_node()
+        .start()
+        .wait_until(2)
+        .crash()
+        // Restart from the latest height
+        .restart_after(Duration::from_secs(5))
+        // Wait for a vote set request for height 2
+        .expect_vote_set_request(2)
+        .crash()
+        // Restart again
+        .restart_after(Duration::from_secs(5))
+        .wait_until(HEIGHT)
+        .success();
+
+    test.build()
+        .run_with_custom_config(
+            Duration::from_secs(60),
+            TestParams {
+                enable_sync: true,
+                timeout_step: Duration::from_secs(5),
+                ..Default::default()
             },
         )
         .await

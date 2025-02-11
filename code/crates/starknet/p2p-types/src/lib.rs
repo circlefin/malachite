@@ -15,11 +15,8 @@ pub use height::Height;
 mod vote;
 pub use vote::Vote;
 
-mod proposal;
-pub use proposal::Proposal;
-
 mod transaction;
-pub use transaction::{Transaction, Transactions};
+pub use transaction::{Transaction, TransactionBatch};
 
 mod validator;
 pub use validator::Validator;
@@ -27,11 +24,20 @@ pub use validator::Validator;
 mod validator_set;
 pub use validator_set::ValidatorSet;
 
+mod proposal;
+pub use proposal::Proposal;
+
+mod proposal_commitment;
+pub use proposal_commitment::{L1DataAvailabilityMode, ProposalCommitment};
+
 mod proposal_part;
 pub use proposal_part::{PartType, ProposalFin, ProposalInit, ProposalPart};
 
 mod block;
 pub use block::Block;
+
+mod block_info;
+pub use block_info::BlockInfo;
 
 mod block_proof;
 pub use block_proof::BlockProof;

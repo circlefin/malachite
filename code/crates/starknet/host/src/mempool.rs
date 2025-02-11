@@ -11,7 +11,7 @@ use malachitebft_test_mempool::types::MempoolTransactionBatch;
 use malachitebft_test_mempool::{Event as NetworkEvent, NetworkMsg, PeerId};
 
 use crate::proto::Protobuf;
-use crate::types::{Hash, Transaction, Transactions};
+use crate::types::{Hash, Transaction, TransactionBatch};
 
 pub mod network;
 use network::{MempoolNetworkMsg, MempoolNetworkRef};
@@ -146,7 +146,7 @@ impl Mempool {
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
             NetworkMsg::TransactionBatch(batch) => {
-                let Ok(batch) = Transactions::from_any(&batch.transaction_batch) else {
+                let Ok(batch) = TransactionBatch::from_any(&batch.transaction_batch) else {
                     // TODO: Log error
                     return Ok(());
                 };
@@ -261,7 +261,7 @@ fn generate_and_broadcast_txes(
 
     let initial_count = transactions.len();
 
-    let mut tx_batch = Transactions::default();
+    let mut tx_batch = TransactionBatch::default();
     let mut rng = rand::thread_rng();
 
     for _ in initial_count..count {

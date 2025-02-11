@@ -90,19 +90,21 @@ where
             let mut buf = Vec::new();
             entry.encode(codec, &mut buf)?;
 
-            let result = log.append(&buf).map_err(Into::into);
+            if !buf.is_empty() {
+                let result = log.append(&buf).map_err(Into::into);
 
-            if let Err(e) = &result {
-                error!("ATTENTION: Failed to append entry to WAL: {e}");
-            } else {
-                debug!(
-                    type = %tpe, entry.size = %buf.len(), log.entries = %log.len(),
-                    "Wrote log entry"
-                );
-            }
+                if let Err(e) = &result {
+                    error!("ATTENTION: Failed to append entry to WAL: {e}");
+                } else {
+                    debug!(
+                        type = %tpe, entry.size = %buf.len(), log.entries = %log.len(),
+                        "Wrote log entry"
+                    );
+                }
 
-            if reply.send(result).is_err() {
-                error!("Failed to send WAL append reply");
+                if reply.send(result).is_err() {
+                    error!("Failed to send WAL append reply");
+                }
             }
         }
 
@@ -113,8 +115,8 @@ where
                 error!("ATTENTION: Failed to flush WAL to disk: {e}");
             } else {
                 debug!(
-                    log.entries = %log.len(),
-                    log.size = %log.size_bytes().unwrap_or(0),
+                    wal.entries = %log.len(),
+                    wal.size = %log.size_bytes().unwrap_or(0),
                     "Flushed WAL to disk"
                 );
             }
@@ -144,23 +146,32 @@ where
 
     let entries = log
         .iter()?
-        .filter_map(|result| match result {
-            Ok(entry) => Some(entry),
+        .enumerate() // Add enumeration to get the index
+        .filter_map(|(idx, result)| match result {
+            Ok(entry) => Some((idx, entry)),
             Err(e) => {
-                error!("Failed to retrieve a WAL entry: {e}");
+                error!("Failed to retrieve WAL entry {idx}: {e}");
                 None
             }
         })
         .filter_map(
-            |bytes| match WalEntry::decode(codec, io::Cursor::new(bytes)) {
+            |(idx, bytes)| match WalEntry::decode(codec, io::Cursor::new(bytes.clone())) {
                 Ok(entry) => Some(entry),
                 Err(e) => {
-                    error!("Failed to decode WAL entry: {e}");
+                    error!("Failed to decode WAL entry {idx}: {e} {:?}", bytes);
                     None
                 }
             },
         )
         .collect::<Vec<_>>();
 
-    Ok(entries)
+    if log.len() != entries.len() {
+        Err(eyre::eyre!(
+            "Failed to fetch and decode all WAL entries: expected {}, got {}",
+            log.len(),
+            entries.len()
+        ))
+    } else {
+        Ok(entries)
+    }
 }

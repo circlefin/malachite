@@ -67,6 +67,7 @@ jobs:
             --no-fail-fast \
             --failure-output final \
             --exclude informalsystems-malachitebft-starknet-test \
+            --exclude informalsystems-malachitebft-starknet-test-mbt \
             --exclude informalsystems-malachitebft-discovery-test
 
   integration:
@@ -101,10 +102,12 @@ jobs:
       - name: Disable apparmor container restrictions
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Run integration tests
+        # MBT tests don't work with maelstrom, but they execute successfully with nextest
         run: |
           cargo maelstrom \
             --slots 16 \
-            --include 'package.match(informalsystems-malachitebft-starknet-test) || package.match(informalsystems-malachitebft-discovery-test)'
+            --include 'package.match(informalsystems-malachitebft-starknet-test) || package.match(informalsystems-malachitebft-discovery-test)' \
+            --exclude 'package.match(informalsystems-malachitebft-starknet-test-mbt)'
 
   no_std:
     name: no_std compatibility

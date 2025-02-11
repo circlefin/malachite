@@ -1,8 +1,10 @@
 syntax = "proto3";
 
 import "p2p/proto/common.proto";
-import "p2p/proto/state.proto";
+import "p2p/proto/sync/state.proto";
 import "p2p/proto/class.proto";
+
+option go_package = "github.com/starknet-io/starknet-p2pspecs/p2p/proto/snapshot";
 
 message PatriciaNode {
     message Edge {
@@ -58,6 +60,11 @@ message ContractRangeResponse {
         ContractRange range = 4;
         Fin fin = 5;
     }
+}
+
+message Classes {
+    uint32   domain        = 1;
+    repeated Class classes = 2;
 }
 
 // duplicate of GetContractRange. Can introduce a 'type' instead.

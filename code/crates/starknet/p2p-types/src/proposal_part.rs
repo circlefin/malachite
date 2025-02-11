@@ -1,36 +1,38 @@
 use bytes::Bytes;
 use malachitebft_core_types::Round;
 use malachitebft_proto as proto;
-use malachitebft_starknet_p2p_proto as p2p_proto;
+use malachitebft_starknet_p2p_proto::{self as p2p_proto};
 
-use crate::{Address, BlockProof, Height, Signature, Transactions};
+use crate::{Address, BlockInfo, Hash, Height, ProposalCommitment, TransactionBatch};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProposalInit {
     pub height: Height,
-    pub proposal_round: Round,
+    pub round: Round,
     pub valid_round: Round,
     pub proposer: Address,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProposalFin {
-    pub signature: Signature,
+    pub proposal_commitment_hash: Hash,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ProposalPart {
     Init(ProposalInit),
-    Transactions(Transactions),
-    BlockProof(BlockProof),
+    BlockInfo(BlockInfo),
+    Transactions(TransactionBatch),
+    Commitment(Box<ProposalCommitment>),
     Fin(ProposalFin),
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum PartType {
     Init,
+    BlockInfo,
     Transactions,
-    BlockProof,
+    ProposalCommitment,
     Fin,
 }
 
@@ -38,8 +40,9 @@ impl ProposalPart {
     pub fn part_type(&self) -> PartType {
         match self {
             Self::Init(_) => PartType::Init,
+            Self::BlockInfo(_) => PartType::BlockInfo,
             Self::Transactions(_) => PartType::Transactions,
-            Self::BlockProof(_) => PartType::BlockProof,
+            Self::Commitment(_) => PartType::ProposalCommitment,
             Self::Fin(_) => PartType::Fin,
         }
     }
@@ -67,7 +70,15 @@ impl ProposalPart {
         }
     }
 
-    pub fn as_transactions(&self) -> Option<&Transactions> {
+    pub fn as_block_info(&self) -> Option<&BlockInfo> {
+        if let Self::BlockInfo(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_transactions(&self) -> Option<&TransactionBatch> {
         if let Self::Transactions(v) = self {
             Some(v)
         } else {
@@ -75,8 +86,8 @@ impl ProposalPart {
         }
     }
 
-    pub fn as_block_proof(&self) -> Option<&BlockProof> {
-        if let Self::BlockProof(v) = self {
+    pub fn as_commitment(&self) -> Option<&ProposalCommitment> {
+        if let Self::Commitment(v) = self {
             Some(v)
         } else {
             None
@@ -105,8 +116,8 @@ impl proto::Protobuf for ProposalPart {
 
         Ok(match message {
             Messages::Init(init) => ProposalPart::Init(ProposalInit {
-                height: Height::new(init.block_number, init.fork_id),
-                proposal_round: Round::new(init.proposal_round),
+                height: Height::new(init.height, 0),
+                round: Round::new(init.round),
                 valid_round: init.valid_round.into(),
                 proposer: Address::from_proto(
                     init.proposer
@@ -114,21 +125,24 @@ impl proto::Protobuf for ProposalPart {
                 )?,
             }),
 
-            Messages::Fin(fin) => ProposalPart::Fin(ProposalFin {
-                signature: Signature::from_proto(
-                    fin.signature
-                        .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("signature"))?,
-                )?,
-            }),
+            Messages::BlockInfo(block_info) => {
+                ProposalPart::BlockInfo(BlockInfo::from_proto(block_info)?)
+            }
 
             Messages::Transactions(txes) => {
-                let transactions = Transactions::from_proto(txes)?;
+                let transactions = TransactionBatch::from_proto(txes)?;
                 ProposalPart::Transactions(transactions)
             }
-            Messages::Proof(proof) => {
-                let block_proof = BlockProof::from_proto(proof)?;
-                ProposalPart::BlockProof(block_proof)
+
+            Messages::Commitment(commitment) => {
+                ProposalPart::Commitment(Box::new(ProposalCommitment::from_proto(commitment)?))
             }
+
+            Messages::Fin(fin) => ProposalPart::Fin(ProposalFin {
+                proposal_commitment_hash: Hash::from_proto(fin.proposal_commitment.ok_or_else(
+                    || proto::Error::missing_field::<Self::Proto>("proposal_commitment"),
+                )?)?,
+            }),
         })
     }
 
@@ -138,26 +152,25 @@ impl proto::Protobuf for ProposalPart {
 
         let message = match self {
             ProposalPart::Init(init) => Messages::Init(p2p_proto::ProposalInit {
-                block_number: init.height.block_number,
-                fork_id: init.height.fork_id,
-                proposal_round: init
-                    .proposal_round
-                    .as_u32()
-                    .expect("round should not be nil"),
+                height: init.height.block_number,
+                round: init.round.as_u32().expect("round should not be nil"),
                 valid_round: init.valid_round.as_u32(),
                 proposer: Some(init.proposer.to_proto()?),
             }),
+            ProposalPart::BlockInfo(block_info) => Messages::BlockInfo(block_info.to_proto()?),
+            ProposalPart::Transactions(txes) => {
+                Messages::Transactions(p2p_proto::TransactionBatch {
+                    transactions: txes
+                        .as_slice()
+                        .iter()
+                        .map(|tx| tx.to_proto())
+                        .collect::<Result<Vec<_>, _>>()?,
+                })
+            }
+            ProposalPart::Commitment(commitment) => Messages::Commitment(commitment.to_proto()?),
             ProposalPart::Fin(fin) => Messages::Fin(p2p_proto::ProposalFin {
-                signature: Some(fin.signature.to_proto()?),
+                proposal_commitment: Some(fin.proposal_commitment_hash.to_proto()?),
             }),
-            ProposalPart::Transactions(txes) => Messages::Transactions(p2p_proto::Transactions {
-                transactions: txes
-                    .as_slice()
-                    .iter()
-                    .map(|tx| tx.to_proto())
-                    .collect::<Result<Vec<_>, _>>()?,
-            }),
-            ProposalPart::BlockProof(block_proof) => Messages::Proof(block_proof.to_proto()?),
         };
 
         Ok(p2p_proto::ProposalPart {

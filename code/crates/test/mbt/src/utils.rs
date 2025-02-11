@@ -3,10 +3,8 @@ use std::path::Path;
 pub fn generate_test_traces(spec_rel_path: &str, gen_dir: &str, quint_seed: u64) {
     println!("🪄 Generating test traces for {spec_rel_path:?}...");
 
-    let spec_abs_path = format!("{}/specs/tests/{spec_rel_path}", env!("CARGO_MANIFEST_DIR"),);
+    let spec_abs_path = format!("{}/specs/{spec_rel_path}", env!("CARGO_MANIFEST_DIR"),);
     let spec_path = Path::new(&spec_abs_path);
-
-    println!("{}", spec_abs_path);
 
     std::process::Command::new("quint")
         .arg("test")
@@ -22,20 +20,21 @@ pub fn generate_test_traces(spec_rel_path: &str, gen_dir: &str, quint_seed: u64)
     println!("🪄 Generated traces in {gen_dir:?}");
 }
 
-// pub fn generate_random_traces(spec_rel_path: &str, gen_dir: &str, quint_seed: u64) {
+// pub fn generate_random_traces(
+//     spec_rel_path: &str,
+//     gen_dir: &str,
+//     quint_seed: u64,
+//     num_traces: u64,
+// ) {
 //     println!("🪄 Generating random traces for {spec_rel_path:?}...");
-//
-//     let spec_abs_path = format!(
-//         "{}/../../../../specs/quint/{spec_rel_path}",
-//         env!("CARGO_MANIFEST_DIR"),
-//     );
-//
+
+//     let spec_abs_path = format!("{}/specs/{spec_rel_path}", env!("CARGO_MANIFEST_DIR"),);
 //     let spec_path = Path::new(&spec_abs_path);
-//
+
 //     std::process::Command::new("quint")
 //         .arg("run")
 //         .arg("--n-traces")
-//         .arg("10")
+//         .arg(num_traces.to_string())
 //         .arg("--max-samples")
 //         .arg("1000")
 //         .arg("--out-itf")
@@ -46,7 +45,7 @@ pub fn generate_test_traces(spec_rel_path: &str, gen_dir: &str, quint_seed: u64)
 //         .current_dir(spec_path.parent().unwrap())
 //         .output()
 //         .expect("Failed to run quint test");
-//
+
 //     println!("🪄 Generated traces in {gen_dir:?}");
 // }
 

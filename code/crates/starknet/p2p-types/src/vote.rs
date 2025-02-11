@@ -1,10 +1,10 @@
 use bytes::Bytes;
 
-use malachitebft_core_types::{NilOrVal, Round, SignedExtension, VoteType};
+use malachitebft_core_types::{NilOrVal, Round, VoteType};
 use malachitebft_proto as proto;
 use malachitebft_starknet_p2p_proto as p2p_proto;
 
-use crate::{Address, BlockHash, Height, MockContext, Signature};
+use crate::{Address, BlockHash, Height};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Vote {
@@ -13,7 +13,6 @@ pub struct Vote {
     pub round: Round,
     pub block_hash: NilOrVal<BlockHash>,
     pub voter: Address,
-    pub extension: Option<SignedExtension<MockContext>>,
 }
 
 impl Vote {
@@ -29,7 +28,6 @@ impl Vote {
             round,
             block_hash,
             voter,
-            extension: None,
         }
     }
 
@@ -45,24 +43,6 @@ impl Vote {
             round,
             block_hash: value,
             voter: address,
-            extension: None,
-        }
-    }
-
-    pub fn new_precommit_with_extension(
-        height: Height,
-        round: Round,
-        value: NilOrVal<BlockHash>,
-        address: Address,
-        extension: SignedExtension<MockContext>,
-    ) -> Self {
-        Self {
-            vote_type: VoteType::Precommit,
-            height,
-            round,
-            block_hash: value,
-            voter: address,
-            extension: Some(extension),
         }
     }
 
@@ -78,20 +58,6 @@ impl proto::Protobuf for Vote {
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
         let vote_type = proto_to_common_vote_type(proto.vote_type());
 
-        let extension = proto
-            .extension
-            .map(|data| -> Result<_, proto::Error> {
-                let signature = data.signature.ok_or_else(|| {
-                    proto::Error::missing_field::<Self::Proto>("extension.signature")
-                })?;
-
-                Ok(SignedExtension::new(
-                    data.data,
-                    Signature::from_proto(signature)?,
-                ))
-            })
-            .transpose()?;
-
         Ok(Self {
             vote_type,
             height: Height::new(proto.block_number, proto.fork_id),
@@ -105,7 +71,6 @@ impl proto::Protobuf for Vote {
                     .voter
                     .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("voter"))?,
             )?,
-            extension,
         })
     }
 
@@ -121,16 +86,6 @@ impl proto::Protobuf for Vote {
                 NilOrVal::Val(v) => Some(v.to_proto()?),
             },
             voter: Some(self.voter.to_proto()?),
-            extension: self
-                .extension
-                .as_ref()
-                .map(|ext| -> Result<_, proto::Error> {
-                    Ok(p2p_proto::Extension {
-                        data: ext.message.clone(),
-                        signature: Some(ext.signature.to_proto()?),
-                    })
-                })
-                .transpose()?,
         })
     }
 }
