@@ -3,7 +3,7 @@
 set -eu
 
 ## Get TC parameters (Example: "delay 100ms 10ms")
-if [ -z "${TC_PARAMS:-}" ]; then
+if [ -z "${TC_PARAMS:-}" ] && [ -f "/config/config.toml" ]; then
   TC_PARAMS="$( (grep "^tc_params=" /config/config.toml | cut -d= -f2 | tr -d \") || echo "")"
 fi
 
