@@ -1,4 +1,4 @@
-use crate::handle::decide::{decide, decide_current_no_timeout};
+use crate::handle::decide::decide_current_no_timeout;
 use crate::handle::driver::apply_driver_input;
 use crate::handle::signature::verify_certificate;
 use crate::handle::validator_set::get_validator_set;

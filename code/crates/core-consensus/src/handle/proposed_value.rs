@@ -1,6 +1,5 @@
 use crate::prelude::*;
 
-use crate::handle::decide::decide;
 use crate::handle::driver::apply_driver_input;
 use crate::types::ProposedValue;
 
