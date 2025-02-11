@@ -92,3 +92,28 @@ pub fn extract_vote_extensions<Ctx: Context>(votes: &mut [SignedVote<Ctx>]) -> V
 
     VoteExtensions::new(extensions)
 }
+
+/// Decide on the current proposal without waiting for Commit timeout.
+pub async fn decide_current_no_timeout<Ctx>(
+    co: &Co<Ctx>,
+    state: &mut State<Ctx>,
+    metrics: &Metrics,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    let height = state.driver.height();
+    let round = state.driver.round();
+
+    perform!(
+        co,
+        Effect::CancelTimeout(Timeout::commit(round), Default::default())
+    );
+
+    let proposal = state
+        .decision
+        .remove(&(height, round))
+        .ok_or_else(|| Error::DecidedValueNotFound(height, round))?;
+
+    decide(co, state, metrics, round, proposal).await
+}

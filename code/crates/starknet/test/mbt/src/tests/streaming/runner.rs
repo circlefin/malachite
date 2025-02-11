@@ -242,9 +242,9 @@ impl ItfRunner for StreamingRunner {
                     && expected.state.emitted == self.complete_proposal_message_sequence
                     && expected.state.emitted.len() as i32 == expected.state.total_messages
                 {
-                    return Ok(true);
+                    Ok(true)
                 } else {
-                    return Ok(false);
+                    Ok(false)
                 }
             }
         }

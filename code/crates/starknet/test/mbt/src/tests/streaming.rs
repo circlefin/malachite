@@ -22,7 +22,7 @@ fn test_mbt_part_streaming_specified_traces() {
 
     let quint_seed = quint_seed();
 
-    print!("{}\n", temp_path.to_string_lossy());
+    println!("{}", temp_path.to_string_lossy());
     generate_test_traces(
         "block-streaming/part_stream.qnt",
         &temp_path.to_string_lossy(),
@@ -61,7 +61,7 @@ fn test_mbt_part_streaming_random_traces() {
 
     let quint_seed = quint_seed();
 
-    print!("{}\n", temp_path.to_string_lossy());
+    println!("{}", temp_path.to_string_lossy());
     generate_random_traces(
         "block-streaming/part_stream.qnt",
         &temp_path.to_string_lossy(),
