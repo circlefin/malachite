@@ -72,7 +72,6 @@ jobs:
         run: |
           cargo llvm-cov nextest \
             --workspace \
-            --exclude informalsystems-malachitebft-test \
             --exclude informalsystems-malachitebft-test-mbt \
             --exclude informalsystems-malachitebft-starknet-test-mbt \
             --ignore-filename-regex crates/cli \
