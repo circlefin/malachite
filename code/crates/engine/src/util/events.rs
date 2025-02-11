@@ -6,7 +6,9 @@ use ractor::ActorProcessingErr;
 use tokio::sync::broadcast;
 
 use malachitebft_core_consensus::{LocallyProposedValue, ProposedValue, SignedConsensusMsg};
-use malachitebft_core_types::{CommitCertificate, Context, Round, Timeout, ValueOrigin};
+use malachitebft_core_types::{
+    CommitCertificate, Context, Round, SignedVote, Timeout, ValueOrigin,
+};
 
 pub type RxEvent<Ctx> = broadcast::Receiver<Event<Ctx>>;
 
@@ -45,7 +47,7 @@ pub enum Event<Ctx: Context> {
     ProposedValue(LocallyProposedValue<Ctx>),
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
     Decided(CommitCertificate<Ctx>),
-    Rebroadcast(SignedConsensusMsg<Ctx>),
+    Rebroadcast(SignedVote<Ctx>),
     RequestedVoteSet(Ctx::Height, Round),
     SentVoteSetResponse(Ctx::Height, Round, usize),
     WalReplayBegin(Ctx::Height, usize),

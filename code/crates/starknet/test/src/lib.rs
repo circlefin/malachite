@@ -251,21 +251,13 @@ impl<State> TestNode<State> {
                 return Ok(HandlerResult::WaitForNextEvent);
             };
 
-            let height = msg.height();
-            let round = msg.round();
-            match msg {
-                SignedConsensusMsg::Vote(_) => {
-                    if height.as_u64() != at_height {
-                        bail!(
-                            "Unexpected vote rebroadcast for height {height}, expected {at_height}"
-                        )
-                    }
-                    info!("Rebroadcasted vote for height {height} and round {round}");
-                }
-                SignedConsensusMsg::Proposal(_) => {
-                    bail!("Unexpected proposal rebroadcast for height {height},round {round}")
-                }
+            let (height, round) = (msg.height, msg.round);
+
+            if height.as_u64() != at_height {
+                bail!("Unexpected vote rebroadcast for height {height}, expected {at_height}")
             }
+
+            info!(%height, %round, "Rebroadcasted vote");
 
             Ok(HandlerResult::ContinueTest)
         })

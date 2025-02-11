@@ -1,4 +1,4 @@
-use crate::{prelude::*, SignedConsensusMsg};
+use crate::prelude::*;
 
 #[cfg_attr(not(feature = "metrics"), allow(unused_variables))]
 pub async fn on_rebroadcast_timeout<Ctx>(
@@ -10,27 +10,26 @@ pub async fn on_rebroadcast_timeout<Ctx>(
 where
     Ctx: Context,
 {
+    let (height, round) = (state.driver.height(), state.driver.round());
+
     let (maybe_vote, timeout) = match timeout.kind {
-        TimeoutKind::PrevoteRebroadcast => (
-            &state.last_prevote,
-            Timeout::prevote_rebroadcast(state.driver.round()),
-        ),
-        TimeoutKind::PrecommitRebroadcast => (
-            &state.last_precommit,
-            Timeout::precommit_rebroadcast(state.driver.round()),
-        ),
+        TimeoutKind::PrevoteRebroadcast => {
+            (&state.last_prevote, Timeout::prevote_rebroadcast(round))
+        }
+        TimeoutKind::PrecommitRebroadcast => {
+            (&state.last_precommit, Timeout::precommit_rebroadcast(round))
+        }
         _ => return Ok(()),
     };
 
     if let Some(vote) = maybe_vote {
         warn!(
-            height = %state.driver.height(), round = %state.driver.round(),
-            "{:?} {:?} step, vote rebroadcast", timeout.kind, state.driver.step());
-
-        perform!(
-            co,
-            Effect::Rebroadcast(SignedConsensusMsg::Vote(vote.clone()), Default::default())
+            %height, %round,
+            "Rebroadcasting vote at {:?} step after {:?} timeout",
+            state.driver.step(), timeout.kind,
         );
+
+        perform!(co, Effect::Rebroadcast(vote.clone(), Default::default()));
         perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
     }
 

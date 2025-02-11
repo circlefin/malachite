@@ -79,10 +79,10 @@ where
     /// Resume with: [`resume::Continue`]
     Publish(SignedConsensusMsg<Ctx>, resume::Continue),
 
-    /// Rebroadcast a message to peers
+    /// Rebroadcast a vote to peers
     ///
     /// Resume with: [`resume::Continue`]
-    Rebroadcast(SignedConsensusMsg<Ctx>, resume::Continue),
+    Rebroadcast(SignedVote<Ctx>, resume::Continue),
 
     /// Requests the application to build a value for consensus to run on.
     ///
