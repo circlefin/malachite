@@ -69,10 +69,7 @@ pub fn spec_to_impl_buffer(spec_buffer: &Buffer, stream_id: StreamId) -> MinHeap
 
 // Specifications init messages is just string, so no useful data can be extracted from it
 pub fn init_message_to_proposal_init(message: &Option<Message>) -> Option<ProposalInit> {
-    match message {
-        Some(_) => Some(generate_dummy_proposal_init()),
-        None => None,
-    }
+    message.as_ref().map(|_| generate_dummy_proposal_init())
 }
 
 pub fn generate_dummy_proposal_init() -> ProposalInit {
@@ -92,9 +89,9 @@ pub fn generate_dummy_proposal_init() -> ProposalInit {
     let valid_round = Round::new(1);
 
     ProposalInit {
-        height: height,
-        round: round,
-        valid_round: valid_round,
+        height,
+        round,
+        valid_round,
         proposer: proposer_addr,
     }
 }
