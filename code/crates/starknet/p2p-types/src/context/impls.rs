@@ -3,8 +3,8 @@ use malachitebft_core_types::{
 };
 
 use crate::{
-    Address, BlockHash, Height, MockContext, PartType, Proposal, ProposalPart, PublicKey,
-    Validator, ValidatorSet, Vote,
+    Address, Hash, Height, MockContext, PartType, Proposal, ProposalPart, PublicKey, Validator,
+    ValidatorSet, Vote,
 };
 
 impl common::ProposalPart<MockContext> for ProposalPart {
@@ -26,12 +26,12 @@ impl common::Proposal<MockContext> for Proposal {
         self.round
     }
 
-    fn value(&self) -> &BlockHash {
-        &self.block_hash
+    fn value(&self) -> &Hash {
+        &self.value_id
     }
 
-    fn take_value(self) -> BlockHash {
-        self.block_hash
+    fn take_value(self) -> Hash {
+        self.value_id
     }
 
     fn pol_round(&self) -> Round {
@@ -52,11 +52,11 @@ impl common::Vote<MockContext> for Vote {
         self.round
     }
 
-    fn value(&self) -> &NilOrVal<BlockHash> {
+    fn value(&self) -> &NilOrVal<Hash> {
         &self.block_hash
     }
 
-    fn take_value(self) -> NilOrVal<BlockHash> {
+    fn take_value(self) -> NilOrVal<Hash> {
         self.block_hash
     }
 
@@ -69,18 +69,15 @@ impl common::Vote<MockContext> for Vote {
     }
 
     fn extension(&self) -> Option<&SignedExtension<MockContext>> {
-        self.extension.as_ref()
+        None
+    }
+
+    fn extend(self, _extension: SignedExtension<MockContext>) -> Self {
+        self
     }
 
     fn take_extension(&mut self) -> Option<SignedExtension<MockContext>> {
-        self.extension.take()
-    }
-
-    fn extend(self, extension: SignedExtension<MockContext>) -> Self {
-        Self {
-            extension: Some(extension),
-            ..self
-        }
+        None
     }
 }
 

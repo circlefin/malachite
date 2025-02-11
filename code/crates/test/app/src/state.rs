@@ -8,18 +8,18 @@ use eyre::eyre;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use sha3::Digest;
-use tracing::debug;
+use tracing::{debug, error};
 
 use malachitebft_app_channel::app::consensus::ProposedValue;
-use malachitebft_app_channel::app::streaming::{StreamContent, StreamMessage};
+use malachitebft_app_channel::app::streaming::{StreamContent, StreamId, StreamMessage};
 use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::config::Config; // TODO: Move into test app
 use malachitebft_app_channel::app::types::core::{CommitCertificate, Round, Validity};
 use malachitebft_app_channel::app::types::{LocallyProposedValue, PeerId};
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{
-    Address, Ed25519Provider, Height, ProposalData, ProposalFin, ProposalInit, ProposalPart,
-    TestContext, Value, ValueId,
+    Address, Ed25519Provider, Genesis, Height, ProposalData, ProposalFin, ProposalInit,
+    ProposalPart, TestContext, ValidatorSet, Value, ValueId,
 };
 
 use crate::store::{DecidedValue, Store};
@@ -33,6 +33,7 @@ const HISTORY_LENGTH: u64 = 500;
 pub struct State {
     pub ctx: TestContext,
     pub config: Config,
+    pub genesis: Genesis,
     pub address: Address,
     pub current_height: Height,
     pub current_round: Round,
@@ -41,7 +42,6 @@ pub struct State {
     pub store: Store,
 
     signing_provider: Ed25519Provider,
-    stream_id: u64,
     streams_map: PartStreamsMap,
     rng: StdRng,
 }
@@ -63,6 +63,7 @@ impl State {
     pub fn new(
         ctx: TestContext,
         config: Config,
+        genesis: Genesis,
         address: Address,
         height: Height,
         store: Store,
@@ -71,17 +72,22 @@ impl State {
         Self {
             ctx,
             config,
+            genesis,
             address,
             store,
             signing_provider,
             current_height: height,
             current_round: Round::new(0),
             current_proposer: None,
-            stream_id: 0,
             streams_map: PartStreamsMap::new(),
             rng: StdRng::seed_from_u64(seed_from_address(&address)),
             peers: HashSet::new(),
         }
+    }
+
+    /// Returns the set of validators.
+    pub fn get_validator_set(&self) -> &ValidatorSet {
+        &self.genesis.validator_set
     }
 
     /// Returns the earliest height available in the state
@@ -120,6 +126,33 @@ impl State {
             return Ok(None);
         }
 
+        // Verify the proposal signature
+        match self.verify_proposal_signature(&parts) {
+            Ok(()) => {
+                // Signature verified successfully, continue processing
+            }
+            Err(SignatureVerificationError::MissingInitPart) => {
+                return Err(eyre!(
+                    "Expected to have full proposal but `Init` proposal part is missing for proposer: {}",
+                    parts.proposer
+                ));
+            }
+            Err(SignatureVerificationError::MissingFinPart) => {
+                return Err(eyre!(
+                    "Expected to have full proposal but `Fin` proposal part is missing for proposer: {}",
+                    parts.proposer
+                ));
+            }
+            Err(SignatureVerificationError::ProposerNotFound) => {
+                error!(proposer = %parts.proposer, "Proposer not found in validator set");
+                return Ok(None);
+            }
+            Err(SignatureVerificationError::InvalidSignature) => {
+                error!(proposer = %parts.proposer, "Invalid signature in Fin part");
+                return Ok(None);
+            }
+        }
+
         // Re-assemble the proposal from its parts
         let value = assemble_value_from_parts(parts);
 
@@ -139,15 +172,11 @@ impl State {
         &mut self,
         certificate: CommitCertificate<TestContext>,
     ) -> eyre::Result<()> {
-        let Ok(Some(proposal)) = self
-            .store
-            .get_undecided_proposal(certificate.height, certificate.round)
-            .await
-        else {
+        let (height, round) = (certificate.height, certificate.round);
+
+        let Ok(Some(proposal)) = self.store.get_undecided_proposal(height, round).await else {
             return Err(eyre!(
-                "Trying to commit a value at height {} and round {} that is not decided: {}",
-                certificate.height,
-                certificate.round,
+                "Trying to commit a value at height {height} and round {round} for which there is no proposal: {}",
                 certificate.value_id
             ));
         };
@@ -156,8 +185,10 @@ impl State {
             .store_decided_value(&certificate, proposal.value)
             .await?;
 
+        self.store.remove_undecided_proposal(height, round).await?;
+
         // Prune the store, keep the last HISTORY_LENGTH values
-        let retain_height = Height::new(certificate.height.as_u64().saturating_sub(HISTORY_LENGTH));
+        let retain_height = Height::new(height.as_u64().saturating_sub(HISTORY_LENGTH));
         self.store.prune(retain_height).await?;
 
         // Move to next height
@@ -265,6 +296,13 @@ impl State {
         ))
     }
 
+    fn stream_id(&self) -> StreamId {
+        let mut bytes = Vec::with_capacity(size_of::<u64>() + size_of::<u32>());
+        bytes.extend_from_slice(&self.current_height.as_u64().to_be_bytes());
+        bytes.extend_from_slice(&self.current_round.as_u32().unwrap().to_be_bytes());
+        StreamId::new(bytes.into())
+    }
+
     /// Creates a stream message containing a proposal part.
     /// Updates internal sequence number and current proposal.
     pub fn stream_proposal(
@@ -272,24 +310,18 @@ impl State {
         value: LocallyProposedValue<TestContext>,
     ) -> impl Iterator<Item = StreamMessage<ProposalPart>> {
         let parts = self.value_to_parts(value);
-
-        let stream_id = self.stream_id;
-        self.stream_id += 1;
+        let stream_id = self.stream_id();
 
         let mut msgs = Vec::with_capacity(parts.len() + 1);
         let mut sequence = 0;
 
         for part in parts {
-            let msg = StreamMessage::new(stream_id, sequence, StreamContent::Data(part));
+            let msg = StreamMessage::new(stream_id.clone(), sequence, StreamContent::Data(part));
             sequence += 1;
             msgs.push(msg);
         }
 
-        msgs.push(StreamMessage::new(
-            stream_id,
-            sequence,
-            StreamContent::Fin(true),
-        ));
+        msgs.push(StreamMessage::new(stream_id, sequence, StreamContent::Fin));
 
         msgs.into_iter()
     }
@@ -330,6 +362,52 @@ impl State {
         }
 
         parts
+    }
+
+    /// Verifies the signature of the proposal.
+    /// Returns `Ok(())` if the signature is valid, or an appropriate `SignatureVerificationError`.
+    fn verify_proposal_signature(
+        &self,
+        parts: &ProposalParts,
+    ) -> Result<(), SignatureVerificationError> {
+        let mut hasher = sha3::Keccak256::new();
+
+        let init = parts
+            .init()
+            .ok_or(SignatureVerificationError::MissingInitPart)?;
+
+        let fin = parts
+            .fin()
+            .ok_or(SignatureVerificationError::MissingFinPart)?;
+
+        let hash = {
+            hasher.update(init.height.as_u64().to_be_bytes());
+            hasher.update(init.round.as_i64().to_be_bytes());
+
+            // The correctness of the hash computation relies on the parts being ordered by sequence
+            // number, which is guaranteed by the `PartStreamsMap`.
+            for part in parts.parts.iter().filter_map(|part| part.as_data()) {
+                hasher.update(part.factor.to_be_bytes());
+            }
+
+            hasher.finalize()
+        };
+
+        // Retrieve the the proposer
+        let proposer = self
+            .get_validator_set()
+            .get_by_address(&parts.proposer)
+            .ok_or(SignatureVerificationError::ProposerNotFound)?;
+
+        // Verify the signature
+        if !self
+            .signing_provider
+            .verify(&hash, &fin.signature, &proposer.public_key)
+        {
+            return Err(SignatureVerificationError::InvalidSignature);
+        }
+
+        Ok(())
     }
 }
 
@@ -382,4 +460,20 @@ fn factor_value(value: Value) -> Vec<u64> {
     }
 
     factors
+}
+
+/// Represents errors that can occur during the verification of a proposal's signature.
+#[derive(Debug)]
+enum SignatureVerificationError {
+    /// Indicates that the `Init` part of the proposal is unexpectedly missing.
+    MissingInitPart,
+
+    /// Indicates that the `Fin` part of the proposal is unexpectedly missing.
+    MissingFinPart,
+
+    /// Indicates that the proposer was not found in the validator set.
+    ProposerNotFound,
+
+    /// Indicates that the signature in the `Fin` part is invalid.
+    InvalidSignature,
 }

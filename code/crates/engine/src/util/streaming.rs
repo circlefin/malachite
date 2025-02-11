@@ -1,5 +1,30 @@
-pub type StreamId = u64;
+use core::fmt;
+
+use bytes::Bytes;
+
 pub type Sequence = u64;
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct StreamId(Bytes);
+
+impl StreamId {
+    pub fn new(bytes: Bytes) -> Self {
+        Self(bytes)
+    }
+
+    pub fn to_bytes(&self) -> Bytes {
+        self.0.clone()
+    }
+}
+
+impl fmt::Display for StreamId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for byte in &self.0 {
+            write!(f, "{byte:02x}")?;
+        }
+        Ok(())
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StreamMessage<T> {
@@ -38,8 +63,8 @@ pub enum StreamContent<T> {
     /// Serialized content.
     Data(T),
 
-    /// Fin must be set to true.
-    Fin(bool),
+    /// Indicates the end of the stream.
+    Fin,
 }
 
 impl<T> StreamContent<T> {
@@ -58,6 +83,6 @@ impl<T> StreamContent<T> {
     }
 
     pub fn is_fin(&self) -> bool {
-        matches!(self, Self::Fin(true))
+        matches!(self, Self::Fin)
     }
 }

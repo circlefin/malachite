@@ -60,6 +60,13 @@ impl ProposalPart {
         }
     }
 
+    pub fn as_fin(&self) -> Option<&ProposalFin> {
+        match self {
+            Self::Fin(fin) => Some(fin),
+            _ => None,
+        }
+    }
+
     pub fn to_sign_bytes(&self) -> Bytes {
         proto::Protobuf::to_bytes(self).unwrap()
     }

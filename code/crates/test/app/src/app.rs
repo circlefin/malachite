@@ -79,22 +79,19 @@ pub async fn run(
                 info!(%height, %round, "Consensus is requesting a value to propose");
 
                 // Here it is important that, if we have previously built a value for this height and round,
-                // we send back the very same value. We will not go into details here but this has to do
-                // with crash recovery and is not strictly necessary in this example app since all our state
-                // is kept in-memory and therefore is not crash tolerant at all.
-                if let Some(proposal) = state.get_previously_built_value(height, round).await? {
-                    info!(value = %proposal.value.id(), "Re-using previously built value");
-
-                    if reply.send(proposal).is_err() {
-                        error!("Failed to send GetValue reply");
+                // we send back the very same value.
+                let proposal = match state.get_previously_built_value(height, round).await? {
+                    Some(proposal) => {
+                        info!(value = %proposal.value.id(), "Re-using previously built value");
+                        proposal
                     }
-
-                    return Ok(());
-                }
-
-                // If we have not previously built a value for that very same height and round,
-                // we need to create a new value to propose and send it back to consensus.
-                let proposal = state.propose_value(height, round).await?;
+                    None => {
+                        // If we have not previously built a value for that very same height and round,
+                        // we need to create a new value to propose and send it back to consensus.
+                        info!("Building a new value to propose");
+                        state.propose_value(height, round).await?
+                    }
+                };
 
                 // Send it to consensus
                 if reply.send(proposal.clone()).is_err() {
@@ -114,12 +111,6 @@ pub async fn run(
                         .send(NetworkMsg::PublishProposalPart(stream_message))
                         .await?;
                 }
-
-                // NOTE: In this tutorial, the value is simply an integer and therefore results in a very small
-                // message to gossip over the network, but if we were building a real application,
-                // say building blocks containing thousands of transactions, the proposal would typically only
-                // carry the block hash and the full block itself would be split into parts in order to
-                // avoid blowing up the bandwidth requirements by gossiping a single huge message.
             }
 
             // On the receiving end of these proposal parts (ie. when we are not the proposer),
@@ -130,7 +121,7 @@ pub async fn run(
             AppMsg::ReceivedProposalPart { from, part, reply } => {
                 let part_type = match &part.content {
                     StreamContent::Data(part) => part.get_type(),
-                    StreamContent::Fin(_) => "end of stream",
+                    StreamContent::Fin => "end of stream",
                 };
 
                 info!(%from, %part.sequence, part.type = %part_type, "Received proposal part");

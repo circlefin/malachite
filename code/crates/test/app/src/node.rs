@@ -4,11 +4,11 @@
 use std::path::PathBuf;
 
 use async_trait::async_trait;
-use malachitebft_app_channel::app::events::{RxEvent, TxEvent};
 use rand::{CryptoRng, RngCore};
 use tokio::task::JoinHandle;
 use tracing::Instrument;
 
+use malachitebft_app_channel::app::events::{RxEvent, TxEvent};
 use malachitebft_app_channel::app::types::config::Config; // TODO: Move into test app
 use malachitebft_app_channel::app::types::core::VotingPower;
 use malachitebft_app_channel::app::types::Keypair;
@@ -155,7 +155,15 @@ impl Node for App {
         let store = Store::open(db_path.join("store.db"))?;
         let start_height = self.start_height.unwrap_or_default();
 
-        let mut state = State::new(ctx, config, address, start_height, store, signing_provider);
+        let mut state = State::new(
+            ctx,
+            config,
+            genesis.clone(),
+            address,
+            start_height,
+            store,
+            signing_provider,
+        );
 
         let tx_event = channels.events.clone();
 

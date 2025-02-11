@@ -207,6 +207,20 @@ impl Db {
         Ok(())
     }
 
+    pub fn remove_undecided_proposal(
+        &self,
+        height: Height,
+        round: Round,
+    ) -> Result<(), StoreError> {
+        let tx = self.db.begin_write()?;
+        {
+            let mut table = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
+            table.remove(&(height, round))?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
     fn height_range<Table>(
         &self,
         table: &Table,
@@ -360,6 +374,15 @@ impl Store {
     ) -> Result<(), StoreError> {
         let db = Arc::clone(&self.db);
         tokio::task::spawn_blocking(move || db.insert_undecided_proposal(value)).await?
+    }
+
+    pub async fn remove_undecided_proposal(
+        &self,
+        height: Height,
+        round: Round,
+    ) -> Result<(), StoreError> {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.remove_undecided_proposal(height, round)).await?
     }
 
     pub async fn get_undecided_proposal(

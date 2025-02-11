@@ -1,0 +1,18 @@
+syntax = "proto3";
+import "p2p/proto/class.proto";
+import "p2p/proto/common.proto";
+import "p2p/proto/sync/common.proto";
+
+option go_package = "github.com/starknet-io/starknet-p2pspecs/p2p/proto/sync/class";
+
+message ClassesRequest {
+    Iteration iteration = 1;
+}
+
+// Responses are sent ordered by the order given in the request.
+message ClassesResponse {
+    oneof class_message {
+        Class class = 1;
+        Fin   fin   = 2; // Fin is sent after the peer sent all the data or when it encountered a block that it doesn't have its classes.
+    }
+}

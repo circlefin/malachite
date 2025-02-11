@@ -33,6 +33,7 @@ members = [
 
   # Starknet
   "crates/starknet/*",
+  "crates/starknet/test/mbt",
 
   # Examples
   "examples/channel",

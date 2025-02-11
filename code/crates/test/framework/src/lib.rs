@@ -3,7 +3,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use axum::async_trait;
+use tokio::sync::Mutex;
 use tokio::task::JoinSet;
+use tokio::time::error::Elapsed;
 use tokio::time::sleep;
 use tracing::{debug, error, error_span, info, Instrument};
 
@@ -115,18 +117,23 @@ where
     }
 }
 
-fn check_results(results: Vec<(NodeId, TestResult)>) {
+fn check_results(results: Vec<(NodeId, Result<TestResult, Elapsed>)>) {
     let mut errors = 0;
 
     for (id, result) in results {
         let _span = tracing::error_span!("node", %id).entered();
+
         match result {
-            TestResult::Success(reason) => {
+            Ok(TestResult::Success(reason)) => {
                 info!("Test succeeded: {reason}");
             }
-            TestResult::Failure(reason) => {
+            Ok(TestResult::Failure(reason)) => {
                 errors += 1;
                 error!("Test failed: {reason}");
+            }
+            Err(_) => {
+                errors += 1;
+                error!("Test timed out");
             }
         }
     }
@@ -137,6 +144,7 @@ fn check_results(results: Vec<(NodeId, TestResult)>) {
     }
 }
 
+#[derive(Debug)]
 pub enum TestResult {
     Success(String),
     Failure(String),
@@ -162,24 +170,15 @@ where
         set.spawn(
             async move {
                 let id = node.id;
-                let result = run_node(runner, node).await;
+                let result = tokio::time::timeout(timeout, run_node(runner, node)).await;
                 (id, result)
             }
             .instrument(span.clone()),
         );
     }
 
-    let results = tokio::time::timeout(timeout, set.join_all()).await;
-
-    match results {
-        Ok(results) => {
-            check_results(results);
-        }
-        Err(_) => {
-            error!("Test timed out after {timeout:?}");
-            std::process::exit(1);
-        }
-    }
+    let results = set.join_all().await;
+    check_results(results);
 }
 
 #[async_trait]
@@ -214,12 +213,14 @@ where
 
     let decisions = Arc::new(AtomicUsize::new(0));
     let current_height = Arc::new(AtomicUsize::new(0));
+    let failure = Arc::new(Mutex::new(None));
     let is_full_node = node.is_full_node();
 
     let spawn_event_monitor = |mut rx: RxEvent<Ctx>| {
         tokio::spawn({
             let decisions = Arc::clone(&decisions);
             let current_height = Arc::clone(&current_height);
+            let failure = Arc::clone(&failure);
 
             async move {
                 while let Ok(event) = rx.recv().await {
@@ -231,7 +232,14 @@ where
                             decisions.fetch_add(1, Ordering::SeqCst);
                         }
                         Event::Published(msg) if is_full_node => {
-                            panic!("Full node unexpectedly published a consensus message: {msg:?}");
+                            error!("Full node unexpectedly published a consensus message: {msg:?}");
+                            *failure.lock().await = Some(format!(
+                                "Full node unexpectedly published a consensus message: {msg:?}"
+                            ));
+                        }
+                        Event::WalReplayError(e) => {
+                            error!("WAL replay error: {e}");
+                            *failure.lock().await = Some(format!("WAL replay error: {e}"));
                         }
                         _ => (),
                     }
@@ -246,13 +254,21 @@ where
     let mut event_monitor = spawn_event_monitor(rx_event_monitor);
 
     for step in node.steps {
+        if let Some(failure) = failure.lock().await.take() {
+            return TestResult::Failure(failure);
+        }
+
         match step {
             Step::WaitUntil(target_height) => {
                 info!("Waiting until node reaches height {target_height}");
 
                 'inner: while let Ok(event) = rx_event.recv().await {
+                    if let Some(failure) = failure.lock().await.take() {
+                        return TestResult::Failure(failure);
+                    }
+
                     let Event::StartedHeight(height) = event else {
-                        continue;
+                        continue 'inner;
                     };
 
                     info!("Node started height {height}");
@@ -325,9 +341,7 @@ where
                 handle.kill(Some("Test failed".to_string())).await.unwrap();
 
                 if expected.check(actual) {
-                    return TestResult::Success(format!(
-                        "Correct number of decisions: got {actual}, expected: {expected}"
-                    ));
+                    break;
                 } else {
                     return TestResult::Failure(format!(
                         "Incorrect number of decisions: got {actual}, expected: {expected}"
@@ -348,5 +362,10 @@ where
         }
     }
 
-    return TestResult::Success("OK".to_string());
+    let failure = failure.lock().await.take();
+    if let Some(failure) = failure {
+        TestResult::Failure(failure)
+    } else {
+        TestResult::Success("OK".to_string())
+    }
 }
