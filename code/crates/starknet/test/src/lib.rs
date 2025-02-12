@@ -144,7 +144,6 @@ impl TestRunner {
             moniker: format!("node-{}", node),
             logging: LoggingConfig::default(),
             consensus: ConsensusConfig {
-                max_block_size: ByteSize::mib(1),
                 value_payload: ValuePayload::PartsOnly,
                 timeouts: TimeoutConfig::default(),
                 p2p: P2pConfig {

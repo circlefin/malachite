@@ -329,7 +329,7 @@ async fn spawn_host_actor(
 
     let mock_params = StarknetParams {
         value_payload,
-        max_block_size: cfg.consensus.max_block_size,
+        max_block_size: cfg.test.max_block_size,
         tx_size: cfg.test.tx_size,
         txs_per_part: cfg.test.txs_per_part,
         time_allowance_factor: cfg.test.time_allowance_factor,
