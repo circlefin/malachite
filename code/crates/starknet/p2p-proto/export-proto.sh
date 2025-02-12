@@ -2,7 +2,7 @@
 
 SCRIPT_PATH="$(dirname "$(realpath "$0")")"
 
-ref="5d5fdc5983224cc594828442cd61cfe2"
+ref="72dda96ebb88492581b1bb2591fd2314"
 output="$SCRIPT_PATH/proto"
 
 echo "Exporting proto files from 'buf.build/romac/starknet-p2p:$ref' to '$output'..."

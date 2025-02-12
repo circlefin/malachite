@@ -9,7 +9,7 @@ use malachitebft_test_mempool::types::MempoolTransactionBatch;
 use malachitebft_test_mempool::{Event as NetworkEvent, NetworkMsg, PeerId};
 
 use crate::proto::Protobuf;
-use crate::types::{Hash, Transaction, Transactions};
+use crate::types::{Hash, Transaction, TransactionBatch};
 
 pub mod network;
 use network::{MempoolNetworkMsg, MempoolNetworkRef};
@@ -134,7 +134,7 @@ impl Mempool {
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
             NetworkMsg::TransactionBatch(batch) => {
-                let Ok(batch) = Transactions::from_any(&batch.transaction_batch) else {
+                let Ok(batch) = TransactionBatch::from_any(&batch.transaction_batch) else {
                     // TODO: Log error
                     return Ok(());
                 };
@@ -199,6 +199,7 @@ impl Actor for Mempool {
                     state,
                     &self.network,
                 )?;
+
                 reply.send(txes)?;
             }
 
@@ -245,13 +246,13 @@ fn reap_and_broadcast_txes(
         .take(count)
         .collect::<Vec<_>>();
 
-    let mut tx_batch = Transactions::new(transactions.clone());
+    let tx_batch = TransactionBatch::new(transactions);
 
     if gossip_enabled && tx_batch.len() >= batch_size {
-        let tx_batch = std::mem::take(&mut tx_batch).to_any().unwrap();
+        let tx_batch = tx_batch.to_any().unwrap();
         let mempool_batch = MempoolTransactionBatch::new(tx_batch);
         mempool_network.cast(MempoolNetworkMsg::BroadcastMsg(mempool_batch))?;
     }
 
-    Ok(transactions)
+    Ok(tx_batch.into_vec())
 }

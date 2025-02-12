@@ -9,7 +9,7 @@ pub enum Line {
     /// L11 - non-proposer: schedule proposeTimeout
     L11NonProposer,
 
-    /// L49 - valid v and precommit quorum: commit
+    /// L14 - check if proposer
     L14,
 
     /// L16 - validValue
@@ -57,7 +57,7 @@ pub enum Line {
     /// L32 - invalid value
     L32InvalidValue,
 
-    /// L34 - proposal in propose step: prevote
+    /// L34 - polka any: schedule prevoteTimeout
     L34,
 
     /// L35 - prevoteTimeout scheduled

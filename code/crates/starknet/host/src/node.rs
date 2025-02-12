@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use libp2p_identity::ecdsa;
+use malachitebft_starknet_p2p_types::EcdsaProvider;
 use ractor::async_trait;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -55,6 +56,7 @@ impl Node for StarknetNode {
     type Context = MockContext;
     type Genesis = Genesis;
     type PrivateKeyFile = PrivateKeyFile;
+    type SigningProvider = EcdsaProvider;
 
     fn get_home_dir(&self) -> PathBuf {
         self.home_dir.to_owned()
@@ -86,16 +88,17 @@ impl Node for StarknetNode {
         file.private_key
     }
 
-    fn load_private_key_file(
-        &self,
-        path: impl AsRef<Path>,
-    ) -> std::io::Result<Self::PrivateKeyFile> {
-        let private_key = std::fs::read_to_string(path)?;
+    fn load_private_key_file(&self) -> std::io::Result<Self::PrivateKeyFile> {
+        let private_key = std::fs::read_to_string(&self.private_key_file)?;
         serde_json::from_str(&private_key).map_err(|e| e.into())
     }
 
     fn make_private_key_file(&self, private_key: PrivateKey) -> Self::PrivateKeyFile {
         PrivateKeyFile::from(private_key)
+    }
+
+    fn get_signing_provider(&self, private_key: PrivateKey) -> Self::SigningProvider {
+        EcdsaProvider::new(private_key)
     }
 
     fn load_genesis(&self, path: impl AsRef<Path>) -> std::io::Result<Self::Genesis> {
@@ -117,10 +120,8 @@ impl Node for StarknetNode {
         let span = tracing::error_span!("node", moniker = %self.config.moniker);
         let _enter = span.enter();
 
-        let priv_key_file = self.load_private_key_file(self.private_key_file.clone())?;
-
+        let priv_key_file = self.load_private_key_file()?;
         let private_key = self.load_private_key(priv_key_file);
-
         let genesis = self.load_genesis(self.genesis_file.clone())?;
 
         let start_height = self.start_height.map(|height| Height::new(height, 1));

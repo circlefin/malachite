@@ -98,6 +98,48 @@ where
                 reply_to.send(rx.await?)?;
             }
 
+            HostMsg::ExtendVote {
+                height,
+                round,
+                value_id,
+                reply_to,
+            } => {
+                let (reply, rx) = oneshot::channel();
+
+                self.sender
+                    .send(AppMsg::ExtendVote {
+                        height,
+                        round,
+                        value_id,
+                        reply,
+                    })
+                    .await?;
+
+                reply_to.send(rx.await?)?;
+            }
+
+            HostMsg::VerifyVoteExtension {
+                height,
+                round,
+                value_id,
+                extension,
+                reply_to,
+            } => {
+                let (reply, rx) = oneshot::channel();
+
+                self.sender
+                    .send(AppMsg::VerifyVoteExtension {
+                        height,
+                        round,
+                        value_id,
+                        extension,
+                        reply,
+                    })
+                    .await?;
+
+                reply_to.send(rx.await?)?;
+            }
+
             HostMsg::RestreamValue {
                 height,
                 round,
@@ -154,15 +196,20 @@ where
 
             HostMsg::Decided {
                 certificate,
-                consensus: consensus_ref,
+                extensions,
+                consensus,
             } => {
                 let (reply, rx) = oneshot::channel();
 
                 self.sender
-                    .send(AppMsg::Decided { certificate, reply })
+                    .send(AppMsg::Decided {
+                        certificate,
+                        extensions,
+                        reply,
+                    })
                     .await?;
 
-                consensus_ref.cast(rx.await?.into())?;
+                consensus.cast(rx.await?.into())?;
             }
 
             HostMsg::GetDecidedValue { height, reply_to } => {

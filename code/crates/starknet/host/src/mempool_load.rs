@@ -1,14 +1,15 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
+use malachitebft_config::mempool_load::{NonUniformLoadConfig, UniformLoadConfig};
 use ractor::{concurrency::JoinHandle, Actor, ActorProcessingErr, ActorRef};
 use rand::rngs::SmallRng;
 use rand::seq::IteratorRandom;
 use rand::{Rng, RngCore, SeedableRng};
 use tracing::info;
 
-use malachitebft_config::{MempoolLoadType, NonUniformLoadConfig, UniformLoadConfig};
-use malachitebft_starknet_p2p_types::{Transaction, Transactions};
+use malachitebft_config::MempoolLoadType;
+use malachitebft_starknet_p2p_types::{Transaction, TransactionBatch};
 use malachitebft_test_mempool::types::MempoolTransactionBatch;
 
 use crate::proto::Protobuf;
@@ -171,7 +172,7 @@ impl Actor for MempoolLoad {
         match msg {
             Msg::GenerateTransactions { count, size } => {
                 let transactions = Self::generate_transactions(count, size);
-                let tx_batch = Transactions::new(transactions).to_any().unwrap();
+                let tx_batch = TransactionBatch::new(transactions).to_any().unwrap();
 
                 let mempool_batch: MempoolTransactionBatch = MempoolTransactionBatch::new(tx_batch);
                 self.network

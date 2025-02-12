@@ -26,6 +26,7 @@ mod timeout;
 mod validator_set;
 mod value;
 mod vote;
+mod vote_extension;
 mod vote_set;
 
 /// Type alias to make it easier to refer the `ValueId` type.
@@ -50,7 +51,7 @@ pub type SignedProposal<Ctx> = SignedMessage<Ctx, <Ctx as Context>::Proposal>;
 pub type SignedProposalPart<Ctx> = SignedMessage<Ctx, <Ctx as Context>::ProposalPart>;
 
 /// A signed vote extension
-pub type SignedExtension<Ctx> = SignedMessage<Ctx, Extension>;
+pub type SignedExtension<Ctx> = SignedMessage<Ctx, <Ctx as Context>::Extension>;
 
 pub use certificate::{AggregatedSignature, CertificateError, CommitCertificate, CommitSignature};
 pub use context::Context;
@@ -64,5 +65,6 @@ pub use threshold::{Threshold, ThresholdParam, ThresholdParams};
 pub use timeout::{Timeout, TimeoutKind};
 pub use validator_set::{Address, Validator, ValidatorSet, VotingPower};
 pub use value::{NilOrVal, Value, ValueOrigin, ValuePayload};
-pub use vote::{Extension, Vote, VoteType};
+pub use vote::{Vote, VoteType};
+pub use vote_extension::{Extension, VoteExtensions};
 pub use vote_set::VoteSet;

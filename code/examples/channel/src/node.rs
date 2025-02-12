@@ -16,7 +16,8 @@ use malachitebft_app_channel::app::Node;
 // A real application would use its own types and context instead.
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{
-    Address, Genesis, Height, PrivateKey, PublicKey, TestContext, Validator, ValidatorSet,
+    Address, Ed25519Provider, Genesis, Height, PrivateKey, PublicKey, TestContext, Validator,
+    ValidatorSet,
 };
 use malachitebft_test_cli::metrics;
 
@@ -39,6 +40,7 @@ impl Node for App {
     type Context = TestContext;
     type Genesis = Genesis;
     type PrivateKeyFile = PrivateKey;
+    type SigningProvider = Ed25519Provider;
 
     fn get_home_dir(&self) -> PathBuf {
         self.home_dir.to_owned()
@@ -67,16 +69,17 @@ impl Node for App {
         file
     }
 
-    fn load_private_key_file(
-        &self,
-        path: impl AsRef<Path>,
-    ) -> std::io::Result<Self::PrivateKeyFile> {
-        let private_key = std::fs::read_to_string(path)?;
+    fn load_private_key_file(&self) -> std::io::Result<Self::PrivateKeyFile> {
+        let private_key = std::fs::read_to_string(&self.private_key_file)?;
         serde_json::from_str(&private_key).map_err(|e| e.into())
     }
 
     fn make_private_key_file(&self, private_key: PrivateKey) -> Self::PrivateKeyFile {
         private_key
+    }
+
+    fn get_signing_provider(&self, private_key: PrivateKey) -> Self::SigningProvider {
+        Ed25519Provider::new(private_key)
     }
 
     fn load_genesis(&self, path: impl AsRef<Path>) -> std::io::Result<Self::Genesis> {
@@ -98,23 +101,23 @@ impl Node for App {
         let span = tracing::error_span!("node", moniker = %self.config.moniker);
         let _enter = span.enter();
 
-        let private_key_file = self.load_private_key_file(&self.private_key_file)?;
+        let private_key_file = self.load_private_key_file()?;
         let private_key = self.load_private_key(private_key_file);
         let public_key = self.get_public_key(&private_key);
         let address = self.get_address(&public_key);
-        let ctx = TestContext::new(private_key);
+        let signing_provider = self.get_signing_provider(private_key);
+        let ctx = TestContext::new();
 
-        let genesis = self.load_genesis(self.genesis_file.clone())?;
+        let genesis = self.load_genesis(&self.genesis_file)?;
         let initial_validator_set = genesis.validator_set.clone();
 
         let codec = ProtobufCodec;
 
-        let mut channels = malachitebft_app_channel::run(
-            ctx.clone(),
+        let (mut channels, _handle) = malachitebft_app_channel::start_engine(
+            ctx,
             codec,
             self.clone(),
             self.config.clone(),
-            self.private_key_file.clone(),
             self.start_height,
             initial_validator_set,
         )
@@ -129,7 +132,7 @@ impl Node for App {
 
         let store = Store::open(self.get_home_dir().join("store.db"), metrics)?;
         let start_height = self.start_height.unwrap_or_default();
-        let mut state = State::new(genesis, ctx, address, start_height, store);
+        let mut state = State::new(ctx, signing_provider, genesis, address, start_height, store);
 
         crate::app::run(&mut state, &mut channels).await
     }

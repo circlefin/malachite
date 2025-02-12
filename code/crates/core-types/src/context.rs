@@ -1,6 +1,5 @@
-use crate::signing::SigningProvider;
 use crate::{
-    Address, Height, NilOrVal, Proposal, ProposalPart, Round, SigningScheme, Validator,
+    Address, Extension, Height, NilOrVal, Proposal, ProposalPart, Round, SigningScheme, Validator,
     ValidatorSet, Value, ValueId, Vote,
 };
 
@@ -35,11 +34,11 @@ where
     /// The type of votes that can be cast.
     type Vote: Vote<Self>;
 
+    /// The type of vote extensions.
+    type Extension: Extension;
+
     /// The signing scheme used to sign consensus messages.
     type SigningScheme: SigningScheme;
-
-    /// The signing provider used to sign and verify consensus messages.
-    type SigningProvider: SigningProvider<Self>;
 
     /// Select a proposer in the validator set for the given height and round.
     fn select_proposer<'a>(
@@ -48,9 +47,6 @@ where
         height: Self::Height,
         round: Round,
     ) -> &'a Self::Validator;
-
-    /// Get the singing provider.
-    fn signing_provider(&self) -> &Self::SigningProvider;
 
     /// Build a new proposal for the given value at the given height, round and POL round.
     fn new_proposal(

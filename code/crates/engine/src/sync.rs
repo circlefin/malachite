@@ -265,7 +265,7 @@ where
                     .cast(NetworkMsg::OutgoingResponse(request_id, response))?;
             }
 
-            Effect::GetValue(request_id, height) => {
+            Effect::GetDecidedValue(request_id, height) => {
                 self.host.call_and_forward(
                     |reply_to| HostMsg::GetDecidedValue { height, reply_to },
                     myself,

@@ -1,6 +1,8 @@
 use core::fmt;
+use std::sync::Arc;
 
 use derive_where::derive_where;
+use ractor::ActorProcessingErr;
 use tokio::sync::broadcast;
 
 use malachitebft_core_consensus::{LocallyProposedValue, ProposedValue, SignedConsensusMsg};
@@ -8,6 +10,7 @@ use malachitebft_core_types::{CommitCertificate, Context, Round, Timeout, ValueO
 
 pub type RxEvent<Ctx> = broadcast::Receiver<Event<Ctx>>;
 
+#[derive_where(Clone)]
 pub struct TxEvent<Ctx: Context> {
     tx: broadcast::Sender<Event<Ctx>>,
 }
@@ -49,6 +52,7 @@ pub enum Event<Ctx: Context> {
     WalReplayConsensus(SignedConsensusMsg<Ctx>),
     WalReplayTimeout(Timeout),
     WalReplayDone(Ctx::Height),
+    WalReplayError(Arc<ActorProcessingErr>),
 }
 
 impl<Ctx: Context> fmt::Display for Event<Ctx> {
@@ -82,6 +86,7 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
             Event::WalReplayConsensus(msg) => write!(f, "WalReplayConsensus(msg: {msg:?})"),
             Event::WalReplayTimeout(timeout) => write!(f, "WalReplayTimeout(timeout: {timeout:?})"),
             Event::WalReplayDone(height) => write!(f, "WalReplayDone(height: {height})"),
+            Event::WalReplayError(error) => write!(f, "WalReplayError({error})"),
         }
     }
 }

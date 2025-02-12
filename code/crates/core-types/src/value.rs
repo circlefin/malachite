@@ -54,6 +54,20 @@ impl<Value> NilOrVal<Value> {
     }
 }
 
+impl<Value> NilOrVal<&Value> {
+    /// Clone the underlying value
+    #[must_use = "`self` will be dropped if the result is not used"]
+    pub fn cloned(self) -> NilOrVal<Value>
+    where
+        Value: Clone,
+    {
+        match self {
+            NilOrVal::Nil => NilOrVal::Nil,
+            NilOrVal::Val(value) => NilOrVal::Val(value.clone()),
+        }
+    }
+}
+
 /// The `Value` type denotes the value `v` carried by the `Proposal`
 /// consensus message broadcast by the proposer of a round of consensus.
 ///

@@ -2,7 +2,6 @@
 
 use std::time::Duration;
 
-use bytesize::ByteSize;
 use itertools::Itertools;
 use rand::prelude::StdRng;
 use rand::rngs::OsRng;
@@ -83,7 +82,6 @@ pub fn generate_config(
     Config {
         moniker: format!("test-{}", index),
         consensus: ConsensusConfig {
-            max_block_size: ByteSize::mib(1),
             value_payload: ValuePayload::default(),
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
@@ -148,9 +146,7 @@ pub fn generate_config(
             },
             max_tx_count: 10000,
             gossip_batch_size: 0,
-        },
-        mempool_load: MempoolLoadConfig {
-            load_type: MempoolLoadType::default(),
+            load: MempoolLoadConfig::default(),
         },
         sync: Default::default(),
         metrics: MetricsConfig {

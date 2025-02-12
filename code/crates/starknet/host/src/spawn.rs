@@ -4,6 +4,7 @@ use std::time::Duration;
 use libp2p_identity::ecdsa;
 use malachitebft_engine::util::events::TxEvent;
 use malachitebft_engine::wal::{Wal, WalRef};
+use malachitebft_starknet_p2p_types::EcdsaProvider;
 use tokio::task::JoinHandle;
 
 use malachitebft_config::{
@@ -40,19 +41,20 @@ pub async fn spawn_node_actor(
     tx_event: TxEvent<MockContext>,
     span: tracing::Span,
 ) -> (NodeRef, JoinHandle<()>) {
-    let ctx = MockContext::new(private_key);
+    let ctx = MockContext::new();
 
     let start_height = start_height.unwrap_or(Height::new(1, 1));
 
     let registry = SharedRegistry::global().with_moniker(cfg.moniker.as_str());
     let metrics = Metrics::register(&registry);
     let address = Address::from_public_key(private_key.public_key());
+    let signing_provider = EcdsaProvider::new(private_key);
 
     // Spawn mempool and its gossip layer
     let mempool_network = spawn_mempool_network_actor(&cfg, &private_key, &registry, &span).await;
     let mempool = spawn_mempool_actor(mempool_network.clone(), &cfg.mempool, &span).await;
     let mempool_load =
-        spawn_mempool_load_actor(&cfg.mempool_load, mempool_network.clone(), &span).await;
+        spawn_mempool_load_actor(&cfg.mempool.load, mempool_network.clone(), &span).await;
 
     // Spawn consensus gossip
     let network = spawn_network_actor(&cfg, &private_key, &registry, &span).await;
@@ -73,7 +75,7 @@ pub async fn spawn_node_actor(
     .await;
 
     let sync = spawn_sync_actor(
-        ctx.clone(),
+        ctx,
         network.clone(),
         host.clone(),
         &cfg.sync,
@@ -89,8 +91,9 @@ pub async fn spawn_node_actor(
         start_height,
         initial_validator_set,
         address,
-        ctx.clone(),
+        ctx,
         cfg,
+        signing_provider,
         network.clone(),
         host.clone(),
         wal.clone(),
@@ -102,17 +105,7 @@ pub async fn spawn_node_actor(
     .await;
 
     // Spawn the node actor
-    let node = Node::new(
-        ctx,
-        network,
-        consensus,
-        wal,
-        sync,
-        mempool.get_cell(),
-        host,
-        start_height,
-        span,
-    );
+    let node = Node::new(ctx, network, consensus, wal, sync, host, span);
 
     let (actor_ref, handle) = node.spawn().await.unwrap();
 
@@ -167,6 +160,7 @@ async fn spawn_consensus_actor(
     address: Address,
     ctx: MockContext,
     cfg: NodeConfig,
+    signing_provider: EcdsaProvider,
     network: NetworkRef<MockContext>,
     host: HostRef<MockContext>,
     wal: WalRef<MockContext>,
@@ -193,6 +187,7 @@ async fn spawn_consensus_actor(
         ctx,
         consensus_params,
         cfg.consensus.timeouts,
+        Box::new(signing_provider),
         network,
         host,
         wal,
@@ -353,13 +348,13 @@ async fn spawn_host_actor(
 
     let mock_params = StarknetParams {
         value_payload,
-        max_block_size: cfg.consensus.max_block_size,
+        max_block_size: cfg.test.max_block_size,
         tx_size: cfg.test.tx_size,
         txs_per_part: cfg.test.txs_per_part,
         time_allowance_factor: cfg.test.time_allowance_factor,
         exec_time_per_tx: cfg.test.exec_time_per_tx,
         max_retain_blocks: cfg.test.max_retain_blocks,
-        vote_extensions: cfg.test.vote_extensions,
+        // vote_extensions: cfg.test.vote_extensions,
     };
 
     let mock_host = StarknetHost::new(

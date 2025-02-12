@@ -76,6 +76,13 @@ impl Signature {
     pub fn inner(&self) -> &starknet_crypto::Signature {
         &self.0
     }
+
+    pub fn dummy() -> Self {
+        Self(starknet_crypto::Signature {
+            r: Felt::ZERO,
+            s: Felt::ZERO,
+        })
+    }
 }
 
 impl Clone for Signature {

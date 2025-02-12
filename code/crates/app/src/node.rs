@@ -2,6 +2,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
+use malachitebft_core_types::SigningProvider;
 use rand::{CryptoRng, RngCore};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -14,6 +15,7 @@ pub trait Node {
     type Context: Context;
     type Genesis: Serialize + DeserializeOwned;
     type PrivateKeyFile: Serialize + DeserializeOwned;
+    type SigningProvider: SigningProvider<Self::Context>;
 
     fn get_home_dir(&self) -> PathBuf;
 
@@ -29,10 +31,13 @@ pub trait Node {
 
     fn load_private_key(&self, file: Self::PrivateKeyFile) -> PrivateKey<Self::Context>;
 
-    fn load_private_key_file(&self, path: impl AsRef<Path>) -> io::Result<Self::PrivateKeyFile>;
+    fn load_private_key_file(&self) -> io::Result<Self::PrivateKeyFile>;
 
     fn make_private_key_file(&self, private_key: PrivateKey<Self::Context>)
         -> Self::PrivateKeyFile;
+
+    fn get_signing_provider(&self, private_key: PrivateKey<Self::Context>)
+        -> Self::SigningProvider;
 
     fn load_genesis(&self, path: impl AsRef<Path>) -> io::Result<Self::Genesis>;
 

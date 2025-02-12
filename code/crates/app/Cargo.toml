@@ -13,13 +13,13 @@ readme = "../../../README.md"
 all-features = true
 
 [dependencies]
-malachitebft-engine.workspace = true
 malachitebft-codec.workspace = true
-malachitebft-core-types.workspace = true
 malachitebft-config.workspace = true
 malachitebft-core-consensus.workspace = true
-malachitebft-network.workspace = true
+malachitebft-core-types.workspace = true
+malachitebft-engine.workspace = true
 malachitebft-metrics.workspace = true
+malachitebft-network.workspace = true
 malachitebft-peer.workspace = true
 malachitebft-sync.workspace = true
 
@@ -27,8 +27,10 @@ async-trait = { workspace = true }
 derive-where = { workspace = true }
 eyre = { workspace = true }
 libp2p-identity = { workspace = true }
+ractor = { workspace = true }
 rand = { workspace = true }
 serde = { workspace = true }
+tokio = { workspace = true }
 tracing = { workspace = true }
 
 [lints]
