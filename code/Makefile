@@ -21,6 +21,7 @@ integration-tests: ## Run the integration tests.
 		--all-features \
 		--no-fail-fast \
 		--failure-output final \
+		--test-threads 1 \
 		--exclude informalsystems-malachitebft-starknet-test \
 		--exclude informalsystems-malachitebft-discovery-test
 
