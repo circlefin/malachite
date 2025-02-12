@@ -424,6 +424,7 @@ pub mod mempool_load {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct MempoolLoadConfig {
     /// Mempool loading type
+    #[serde(flatten)]
     pub load_type: MempoolLoadType,
 }
 

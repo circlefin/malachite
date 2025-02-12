@@ -177,7 +177,7 @@ type = "gossipsub"
 ###       Mempool Load Configuration Options        ###
 #######################################################
 
-[mempool_load.load_type]
+[mempool.load]
 # Sets the type of generation for mempool transactions
 # Valid options are "no_load", "uniform_load", "non_uniform_load"
 load_type = "uniform_load"
@@ -199,16 +199,16 @@ count = 1000
 base_count = 1000
 
 # Only available when "non_uniform_load"
-# Base size in bytes  
+# Base size in bytes
 base_size = 256
 
 # Only available when "non_uniform_load"
 # Variation ranges: Transactions will vary by ±500 from base_count
-count_variation = { start = -500, end = 500 }  
+count_variation = { start = -500, end = 500 }
 
 # Only available when "non_uniform_load"
 # Variation ranges: Size will vary by -64 to +128 bytes from base_size
-size_variation = { start = -64, end = 128 }    
+size_variation = { start = -64, end = 128 }
 
 # Only available when "non_uniform_load"
 # Spike configuration: 10% chance of a spike occurring
