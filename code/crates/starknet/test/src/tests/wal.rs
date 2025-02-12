@@ -3,7 +3,6 @@ use std::time::Duration;
 use eyre::bail;
 use tracing::info;
 
-use malachitebft_config::ValuePayload;
 use malachitebft_core_consensus::LocallyProposedValue;
 use malachitebft_core_types::SignedVote;
 use malachitebft_engine::util::events::Event;
@@ -12,35 +11,7 @@ use malachitebft_starknet_host::types::MockContext;
 use crate::{init_logging, HandlerResult, TestBuilder, TestParams};
 
 #[tokio::test]
-async fn proposer_crashes_after_proposing_parts_only() {
-    proposer_crashes_after_proposing(TestParams {
-        value_payload: ValuePayload::PartsOnly,
-        ..TestParams::default()
-    })
-    .await
-}
-
-#[tokio::test]
-#[ignore] // Starknet app only supports parts only mode
-async fn proposer_crashes_after_proposing_proposal_and_parts() {
-    proposer_crashes_after_proposing(TestParams {
-        value_payload: ValuePayload::ProposalAndParts,
-        ..TestParams::default()
-    })
-    .await
-}
-
-#[tokio::test]
-#[ignore] // Starknet app only supports parts only mode
-async fn proposer_crashes_after_proposing_proposal_only() {
-    proposer_crashes_after_proposing(TestParams {
-        value_payload: ValuePayload::ProposalOnly,
-        ..TestParams::default()
-    })
-    .await
-}
-
-async fn proposer_crashes_after_proposing(params: TestParams) {
+async fn proposer_crashes_after_proposing() {
     init_logging(module_path!());
 
     #[derive(Clone, Debug, Default)]
@@ -99,42 +70,14 @@ async fn proposer_crashes_after_proposing(params: TestParams) {
             Duration::from_secs(60),
             TestParams {
                 enable_sync: false,
-                ..params
+                ..TestParams::default()
             },
         )
         .await
 }
 
 #[tokio::test]
-async fn non_proposer_crashes_after_voting_parts_only() {
-    non_proposer_crashes_after_voting(TestParams {
-        value_payload: ValuePayload::PartsOnly,
-        ..TestParams::default()
-    })
-    .await
-}
-
-#[tokio::test]
-#[ignore] // Starknet app only supports parts only mode
-async fn non_proposer_crashes_after_voting_proposal_and_parts() {
-    non_proposer_crashes_after_voting(TestParams {
-        value_payload: ValuePayload::ProposalAndParts,
-        ..TestParams::default()
-    })
-    .await
-}
-
-#[tokio::test]
-#[ignore] // Starknet app only supports parts only mode
-async fn non_proposer_crashes_after_voting_proposal_only() {
-    non_proposer_crashes_after_voting(TestParams {
-        value_payload: ValuePayload::ProposalOnly,
-        ..TestParams::default()
-    })
-    .await
-}
-
-async fn non_proposer_crashes_after_voting(params: TestParams) {
+async fn non_proposer_crashes_after_voting() {
     init_logging(module_path!());
 
     #[derive(Clone, Debug, Default)]
@@ -191,7 +134,7 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
             Duration::from_secs(60),
             TestParams {
                 enable_sync: false,
-                ..params
+                ..TestParams::default()
             },
         )
         .await

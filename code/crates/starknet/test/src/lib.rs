@@ -68,7 +68,6 @@ pub struct TestParams {
     pub tx_size: ByteSize,
     pub txs_per_part: usize,
     pub vote_extensions: Option<ByteSize>,
-    pub value_payload: ValuePayload,
     pub max_retain_blocks: usize,
     pub timeout_step: Duration,
 }
@@ -82,7 +81,6 @@ impl Default for TestParams {
             tx_size: ByteSize::kib(1),
             txs_per_part: 256,
             vote_extensions: None,
-            value_payload: ValuePayload::default(),
             max_retain_blocks: 50,
             timeout_step: Duration::from_secs(30),
         }
@@ -94,7 +92,6 @@ impl TestParams {
         config.sync.enabled = self.enable_sync;
         config.consensus.p2p.protocol = self.protocol;
         config.test.max_block_size = self.block_size;
-        config.test.value_payload = self.value_payload;
         config.test.tx_size = self.tx_size;
         config.test.txs_per_part = self.txs_per_part;
         config.test.vote_extensions.enabled = self.vote_extensions.is_some();
@@ -717,7 +714,6 @@ use bytesize::ByteSize;
 
 use malachitebft_config::{
     ConsensusConfig, MempoolConfig, MetricsConfig, P2pConfig, RuntimeConfig, TimeoutConfig,
-    ValuePayload,
 };
 
 fn transport_from_env(default: TransportProtocol) -> TransportProtocol {

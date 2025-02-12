@@ -1,10 +1,9 @@
 use std::time::Duration;
 
-use malachitebft_config::ValuePayload;
-
 use crate::{init_logging, TestBuilder, TestParams};
 
-pub async fn crash_restart_from_start(params: TestParams) {
+#[tokio::test]
+pub async fn crash_restart_from_start() {
     init_logging(module_path!());
 
     const HEIGHT: u64 = 10;
@@ -49,42 +48,10 @@ pub async fn crash_restart_from_start(params: TestParams) {
             Duration::from_secs(60), // Timeout for the whole test
             TestParams {
                 enable_sync: true, // Enable Sync
-                ..params
+                ..Default::default()
             },
         )
         .await
-}
-
-#[tokio::test]
-pub async fn crash_restart_from_start_parts_only() {
-    let params = TestParams {
-        value_payload: ValuePayload::PartsOnly,
-        ..Default::default()
-    };
-
-    crash_restart_from_start(params).await
-}
-
-#[tokio::test]
-#[ignore] // Starknet app only supports parts only mode
-pub async fn crash_restart_from_start_proposal_only() {
-    let params = TestParams {
-        value_payload: ValuePayload::ProposalOnly,
-        ..Default::default()
-    };
-
-    crash_restart_from_start(params).await
-}
-
-#[tokio::test]
-#[ignore] // Starknet app only supports parts only mode
-pub async fn crash_restart_from_start_proposal_and_parts() {
-    let params = TestParams {
-        value_payload: ValuePayload::ProposalAndParts,
-        ..Default::default()
-    };
-
-    crash_restart_from_start(params).await
 }
 
 #[tokio::test]

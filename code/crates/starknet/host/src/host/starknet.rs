@@ -7,8 +7,6 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::Instrument;
 
-// use malachitebft_config::VoteExtensionsConfig;
-use malachitebft_core_consensus::ValuePayload;
 use malachitebft_core_types::{CommitCertificate, Round, SignedVote};
 
 use crate::host::Host;
@@ -21,7 +19,6 @@ use super::proposal::{build_proposal_task, repropose_task};
 #[derive(Copy, Clone, Debug)]
 pub struct StarknetParams {
     pub max_block_size: ByteSize,
-    pub value_payload: ValuePayload,
     pub tx_size: ByteSize,
     pub txs_per_part: usize,
     pub time_allowance_factor: f32,
