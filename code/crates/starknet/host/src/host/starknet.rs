@@ -24,7 +24,6 @@ pub struct StarknetParams {
     pub time_allowance_factor: f32,
     pub exec_time_per_tx: Duration,
     pub max_retain_blocks: usize,
-    // pub vote_extensions: VoteExtensionsConfig,
 }
 
 pub struct StarknetHost {
@@ -34,7 +33,6 @@ pub struct StarknetHost {
     pub private_key: PrivateKey,
     pub validator_set: ValidatorSet,
     pub part_store: PartStore<MockContext>,
-    // pub vote_extensions: HashMap<Height, VoteExtensions<MockContext>>,
 }
 
 impl StarknetHost {
@@ -52,25 +50,8 @@ impl StarknetHost {
             private_key,
             validator_set,
             part_store: Default::default(),
-            // vote_extensions: Default::default(),
         }
     }
-
-    // pub fn generate_vote_extension(&self, _height: Height, _round: Round) -> Option<Bytes> {
-    //     use rand::RngCore;
-    //
-    //     if !self.params.vote_extensions.enabled {
-    //         return None;
-    //     }
-    //
-    //     let size = self.params.vote_extensions.size.as_u64() as usize;
-    //     debug!(%size, "Vote extensions are enabled");
-    //
-    //     let mut bytes = vec![0u8; size];
-    //     rand::thread_rng().fill_bytes(&mut bytes);
-    //
-    //     Some(Bytes::from(bytes))
-    // }
 }
 
 #[async_trait]
@@ -96,8 +77,6 @@ impl Host for StarknetHost {
     ) {
         let (tx_part, rx_content) = mpsc::channel(self.params.txs_per_part);
         let (tx_block_hash, rx_block_hash) = oneshot::channel();
-
-        // let vote_extensions = self.vote_extensions.remove(&height).unwrap_or_default();
 
         tokio::spawn(
             build_proposal_task(
