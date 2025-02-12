@@ -7,4 +7,3 @@ mod value_sync;
 mod vote_sync;
 mod vote_sync_bcast;
 mod wal;
-
