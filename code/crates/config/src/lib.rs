@@ -349,7 +349,7 @@ pub enum MempoolLoadType {
 
 impl Default for MempoolLoadType {
     fn default() -> Self {
-        Self::UniformLoad(mempool_load::UniformLoadConfig::default())
+        Self::NoLoad
     }
 }
 
