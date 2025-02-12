@@ -2,25 +2,25 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use libp2p_identity::ecdsa;
-use malachitebft_engine::util::events::TxEvent;
-use malachitebft_engine::wal::{Wal, WalRef};
-use malachitebft_starknet_p2p_types::EcdsaProvider;
 use tokio::task::JoinHandle;
+use tracing::warn;
 
 use malachitebft_config::{
     self as config, Config as NodeConfig, MempoolConfig, SyncConfig, TestConfig, TransportProtocol,
 };
+use malachitebft_core_types::ValuePayload;
 use malachitebft_engine::consensus::{Consensus, ConsensusParams, ConsensusRef};
 use malachitebft_engine::host::HostRef;
 use malachitebft_engine::network::{Network, NetworkRef};
 use malachitebft_engine::node::{Node, NodeRef};
 use malachitebft_engine::sync::{Params as SyncParams, Sync, SyncRef};
-use malachitebft_metrics::Metrics;
-use malachitebft_metrics::SharedRegistry;
+use malachitebft_engine::util::events::TxEvent;
+use malachitebft_engine::wal::{Wal, WalRef};
+use malachitebft_metrics::{Metrics, SharedRegistry};
 use malachitebft_network::Keypair;
+use malachitebft_starknet_p2p_types::EcdsaProvider;
 use malachitebft_sync as sync;
 use malachitebft_test_mempool::Config as MempoolNetworkConfig;
-use tracing::warn;
 
 use crate::actor::Host;
 use crate::codec::ProtobufCodec;
@@ -170,7 +170,7 @@ async fn spawn_consensus_actor(
         initial_validator_set,
         address,
         threshold_params: Default::default(),
-        value_payload: malachitebft_core_types::ValuePayload::PartsOnly,
+        value_payload: ValuePayload::PartsOnly,
     };
 
     Consensus::spawn(
@@ -315,9 +315,9 @@ async fn spawn_host_actor(
     metrics: Metrics,
     span: &tracing::Span,
 ) -> HostRef<MockContext> {
-    if cfg.test.value_payload != malachitebft_config::ValuePayload::PartsOnly {
+    if cfg.test.value_payload != config::ValuePayload::PartsOnly {
         warn!(
-            "`value_payload` must be set to `PartsOnly` for starknet app, ignoring current configuration `{:?}`",
+            "`value_payload` must be set to `PartsOnly` for Starknet app, ignoring current configuration `{:?}`",
             cfg.test.value_payload
         );
     }
