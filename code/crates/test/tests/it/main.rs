@@ -13,7 +13,6 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use bytesize::ByteSize;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tempfile::TempDir;
@@ -130,7 +129,6 @@ impl TestRunner {
             moniker: format!("node-{}", node),
             logging: LoggingConfig::default(),
             consensus: ConsensusConfig {
-                max_block_size: ByteSize::mib(1),
                 value_payload: ValuePayload::default(),
                 timeouts: TimeoutConfig::default(),
                 p2p: P2pConfig {

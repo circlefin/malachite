@@ -5,7 +5,6 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use bytesize::ByteSize;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
