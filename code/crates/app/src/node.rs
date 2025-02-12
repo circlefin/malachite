@@ -1,14 +1,34 @@
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use async_trait::async_trait;
-use malachitebft_core_types::SigningProvider;
 use rand::{CryptoRng, RngCore};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use tokio::task::JoinHandle;
+
+use malachitebft_core_types::SigningProvider;
+use malachitebft_engine::node::NodeRef;
+use malachitebft_engine::util::events::RxEvent;
 
 use crate::types::core::{Context, PrivateKey, PublicKey, VotingPower};
 use crate::types::Keypair;
+
+pub struct EngineHandle {
+    pub actor: NodeRef,
+    pub handle: JoinHandle<()>,
+}
+
+#[async_trait]
+pub trait NodeHandle<Ctx>
+where
+    Self: Send + Sync + 'static,
+    Ctx: Context,
+{
+    fn subscribe(&self) -> RxEvent<Ctx>;
+
+    async fn kill(&self, reason: Option<String>) -> eyre::Result<()>;
+}
 
 #[async_trait]
 pub trait Node {
@@ -16,6 +36,7 @@ pub trait Node {
     type Genesis: Serialize + DeserializeOwned;
     type PrivateKeyFile: Serialize + DeserializeOwned;
     type SigningProvider: SigningProvider<Self::Context>;
+    type NodeHandle: NodeHandle<Self::Context>;
 
     fn get_home_dir(&self) -> PathBuf;
 
@@ -39,12 +60,14 @@ pub trait Node {
     fn get_signing_provider(&self, private_key: PrivateKey<Self::Context>)
         -> Self::SigningProvider;
 
-    fn load_genesis(&self, path: impl AsRef<Path>) -> io::Result<Self::Genesis>;
+    fn load_genesis(&self) -> io::Result<Self::Genesis>;
 
     fn make_genesis(
         &self,
         validators: Vec<(PublicKey<Self::Context>, VotingPower)>,
     ) -> Self::Genesis;
+
+    async fn start(&self) -> eyre::Result<Self::NodeHandle>;
 
     async fn run(self) -> eyre::Result<()>;
 }

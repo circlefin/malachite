@@ -1,16 +1,17 @@
 //! The Application (or Node) definition. The Node trait implements the Consensus context and the
 //! cryptographic library used for signing.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use async_trait::async_trait;
+use malachitebft_app_channel::app::events::{RxEvent, TxEvent};
 use rand::{CryptoRng, RngCore};
 
 use malachitebft_app_channel::app::metrics::SharedRegistry;
 use malachitebft_app_channel::app::types::config::Config;
-use malachitebft_app_channel::app::types::core::VotingPower;
+use malachitebft_app_channel::app::types::core::{Height as _, VotingPower};
 use malachitebft_app_channel::app::types::Keypair;
-use malachitebft_app_channel::app::Node;
+use malachitebft_app_channel::app::{EngineHandle, Node, NodeHandle};
 
 // Use the same types used for integration tests.
 // A real application would use its own types and context instead.
@@ -20,6 +21,7 @@ use malachitebft_test::{
     ValidatorSet,
 };
 use malachitebft_test_cli::metrics;
+use tokio::task::JoinHandle;
 
 use crate::metrics::DbMetrics;
 use crate::state::State;
@@ -35,12 +37,33 @@ pub struct App {
     pub start_height: Option<Height>,
 }
 
+pub struct Handle {
+    pub app: JoinHandle<()>,
+    pub engine: EngineHandle,
+    pub tx_event: TxEvent<TestContext>,
+}
+
+#[async_trait]
+impl NodeHandle<TestContext> for Handle {
+    fn subscribe(&self) -> RxEvent<TestContext> {
+        self.tx_event.subscribe()
+    }
+
+    async fn kill(&self, _reason: Option<String>) -> eyre::Result<()> {
+        self.engine.actor.kill_and_wait(None).await?;
+        self.app.abort();
+        self.engine.handle.abort();
+        Ok(())
+    }
+}
+
 #[async_trait]
 impl Node for App {
     type Context = TestContext;
     type Genesis = Genesis;
     type PrivateKeyFile = PrivateKey;
     type SigningProvider = Ed25519Provider;
+    type NodeHandle = Handle;
 
     fn get_home_dir(&self) -> PathBuf {
         self.home_dir.to_owned()
@@ -82,8 +105,8 @@ impl Node for App {
         Ed25519Provider::new(private_key)
     }
 
-    fn load_genesis(&self, path: impl AsRef<Path>) -> std::io::Result<Self::Genesis> {
-        let genesis = std::fs::read_to_string(path)?;
+    fn load_genesis(&self) -> std::io::Result<Self::Genesis> {
+        let genesis = std::fs::read_to_string(&self.genesis_file)?;
         serde_json::from_str(&genesis).map_err(|e| e.into())
     }
 
@@ -97,7 +120,7 @@ impl Node for App {
         Genesis { validator_set }
     }
 
-    async fn run(self) -> eyre::Result<()> {
+    async fn start(&self) -> eyre::Result<Handle> {
         let span = tracing::error_span!("node", moniker = %self.config.moniker);
         let _enter = span.enter();
 
@@ -108,12 +131,12 @@ impl Node for App {
         let signing_provider = self.get_signing_provider(private_key);
         let ctx = TestContext::new();
 
-        let genesis = self.load_genesis(&self.genesis_file)?;
+        let genesis = self.load_genesis()?;
         let initial_validator_set = genesis.validator_set.clone();
 
         let codec = ProtobufCodec;
 
-        let (mut channels, _handle) = malachitebft_app_channel::start_engine(
+        let (mut channels, engine_handle) = malachitebft_app_channel::start_engine(
             ctx,
             codec,
             self.clone(),
@@ -123,6 +146,8 @@ impl Node for App {
         )
         .await?;
 
+        let tx_event = channels.events.clone();
+
         let registry = SharedRegistry::global().with_moniker(&self.config.moniker);
         let metrics = DbMetrics::register(&registry);
 
@@ -131,9 +156,24 @@ impl Node for App {
         }
 
         let store = Store::open(self.get_home_dir().join("store.db"), metrics)?;
-        let start_height = self.start_height.unwrap_or_default();
+        let start_height = self.start_height.unwrap_or(Height::INITIAL);
         let mut state = State::new(ctx, signing_provider, genesis, address, start_height, store);
 
-        crate::app::run(&mut state, &mut channels).await
+        let app_handle = tokio::spawn(async move {
+            if let Err(e) = crate::app::run(&mut state, &mut channels).await {
+                tracing::error!(%e, "Application error");
+            }
+        });
+
+        Ok(Handle {
+            app: app_handle,
+            engine: engine_handle,
+            tx_event,
+        })
+    }
+
+    async fn run(self) -> eyre::Result<()> {
+        let handles = self.start().await?;
+        handles.app.await.map_err(Into::into)
     }
 }

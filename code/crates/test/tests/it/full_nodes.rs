@@ -1,11 +1,9 @@
 use std::time::Duration;
 
-use malachitebft_test_framework::{init_logging, TestBuilder};
+use crate::{TestBuilder, TestParams};
 
 #[tokio::test]
 pub async fn basic_full_node() {
-    init_logging(module_path!());
-
     const HEIGHT: u64 = 5;
 
     let mut test = TestBuilder::<()>::new();
@@ -44,8 +42,6 @@ pub async fn basic_full_node() {
 
 #[tokio::test]
 pub async fn full_node_crash_and_sync() {
-    init_logging(module_path!());
-
     const HEIGHT: u64 = 10;
 
     let mut test = TestBuilder::<()>::new();
@@ -78,13 +74,19 @@ pub async fn full_node_crash_and_sync() {
         .wait_until(HEIGHT)
         .success();
 
-    test.build().run(Duration::from_secs(60)).await
+    test.build()
+        .run_with_params(
+            Duration::from_secs(60),
+            TestParams {
+                enable_sync: true,
+                ..Default::default()
+            },
+        )
+        .await
 }
 
 #[tokio::test]
 pub async fn late_starting_full_node() {
-    init_logging(module_path!());
-
     const HEIGHT: u64 = 10;
 
     let mut test = TestBuilder::<()>::new();
@@ -113,13 +115,19 @@ pub async fn late_starting_full_node() {
         .wait_until(HEIGHT)
         .success();
 
-    test.build().run(Duration::from_secs(60)).await
+    test.build()
+        .run_with_params(
+            Duration::from_secs(60),
+            TestParams {
+                enable_sync: true,
+                ..Default::default()
+            },
+        )
+        .await
 }
 
 #[tokio::test]
 pub async fn mixed_validator_and_full_node_failures() {
-    init_logging(module_path!());
-
     const HEIGHT: u64 = 10;
 
     let mut test = TestBuilder::<()>::new();
@@ -161,5 +169,13 @@ pub async fn mixed_validator_and_full_node_failures() {
         .wait_until(HEIGHT)
         .success();
 
-    test.build().run(Duration::from_secs(60)).await
+    test.build()
+        .run_with_params(
+            Duration::from_secs(60),
+            TestParams {
+                enable_sync: true,
+                ..Default::default()
+            },
+        )
+        .await
 }

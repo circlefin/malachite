@@ -9,14 +9,14 @@
 // )]
 
 mod node;
-pub use node::Node;
+pub use node::{EngineHandle, Node, NodeHandle};
 
 pub mod part_store;
 pub mod spawn;
 pub mod types;
 
 pub mod events {
-    pub use malachitebft_engine::util::events::TxEvent;
+    pub use malachitebft_engine::util::events::{RxEvent, TxEvent};
 }
 
 pub mod streaming {

@@ -29,21 +29,21 @@ pub async fn parts_only() {
 }
 
 #[tokio::test]
-pub async fn proposal_and_parts() {
+#[ignore] // Starknet app only supports parts only mode
+pub async fn proposal_only() {
     let params = TestParams {
-        value_payload: ValuePayload::ProposalAndParts,
+        value_payload: ValuePayload::ProposalOnly,
         ..Default::default()
     };
 
     run_test(params).await
 }
 
-// This functionality is not fully implemented yet
 #[tokio::test]
-#[ignore]
-pub async fn proposal_only() {
+#[ignore] // Starknet app only supports parts only mode
+pub async fn proposal_and_parts() {
     let params = TestParams {
-        value_payload: ValuePayload::ProposalOnly,
+        value_payload: ValuePayload::ProposalAndParts,
         ..Default::default()
     };
 

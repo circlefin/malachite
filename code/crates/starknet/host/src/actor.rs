@@ -121,7 +121,7 @@ impl Host {
         state: &mut HostState,
     ) -> Result<(), ActorProcessingErr> {
         match msg {
-            HostMsg::ConsensusReady(consensus) => on_consensus_ready(state, consensus),
+            HostMsg::ConsensusReady(consensus) => on_consensus_ready(state, consensus).await,
 
             HostMsg::StartedRound {
                 height,
@@ -225,7 +225,7 @@ impl Host {
     }
 }
 
-fn on_consensus_ready(
+async fn on_consensus_ready(
     state: &mut HostState,
     consensus: ConsensusRef<MockContext>,
 ) -> Result<(), ActorProcessingErr> {
@@ -233,6 +233,8 @@ fn on_consensus_ready(
     let start_height = latest_block_height.increment();
 
     state.consensus = Some(consensus.clone());
+
+    tokio::time::sleep(Duration::from_millis(200)).await;
 
     consensus.cast(ConsensusMsg::StartHeight(
         start_height,

@@ -38,8 +38,8 @@ where
     pub fn new(rng: Box<dyn rand::RngCore + Send>) -> Self {
         Self {
             rng,
-            tip_height: Ctx::Height::default(),
-            sync_height: Ctx::Height::default(),
+            tip_height: Ctx::Height::ZERO,
+            sync_height: Ctx::Height::ZERO,
             pending_decided_value_requests: BTreeMap::new(),
             pending_vote_set_requests: BTreeMap::new(),
             peers: BTreeMap::new(),

@@ -2436,6 +2436,7 @@ dependencies = [
 name = "informalsystems-malachitebft-starknet-test"
 version = "0.0.1"
 dependencies = [
+ "async-trait",
  "axum",
  "bytesize",
  "eyre",
@@ -2445,8 +2446,10 @@ dependencies = [
  "informalsystems-malachitebft-engine",
  "informalsystems-malachitebft-metrics",
  "informalsystems-malachitebft-starknet-host",
+ "informalsystems-malachitebft-test-framework",
  "ractor",
  "rand 0.8.5",
+ "serde_json",
  "tempfile",
  "tokio",
  "tracing",
@@ -2519,6 +2522,7 @@ dependencies = [
  "serde_json",
  "sha3",
  "signature",
+ "tempfile",
  "tokio",
  "tracing",
 ]
@@ -2577,8 +2581,9 @@ version = "0.0.1"
 dependencies = [
  "axum",
  "bytesize",
+ "derive-where",
  "eyre",
- "informalsystems-malachitebft-app-channel",
+ "informalsystems-malachitebft-app",
  "informalsystems-malachitebft-config",
  "informalsystems-malachitebft-core-consensus",
  "informalsystems-malachitebft-core-types",

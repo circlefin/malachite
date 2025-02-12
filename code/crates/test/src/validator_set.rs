@@ -98,6 +98,7 @@ impl ValidatorSet {
 
         vals.dedup();
     }
+
     pub fn get_keys(&self) -> Vec<PublicKey> {
         self.validators.iter().map(|v| v.public_key).collect()
     }

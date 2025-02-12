@@ -23,7 +23,7 @@ pub async fn crash_restart_from_latest() {
         .success();
 
     test.build()
-        .run_with_custom_config(
+        .run_with_params(
             Duration::from_secs(60),
             TestParams {
                 enable_sync: false,
@@ -48,7 +48,7 @@ pub async fn start_late() {
         .success();
 
     test.build()
-        .run_with_custom_config(
+        .run_with_params(
             Duration::from_secs(60),
             TestParams {
                 enable_sync: false,

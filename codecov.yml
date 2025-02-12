@@ -5,10 +5,14 @@ comment:
   layout: "header, diff, flags, components"
 
 ignore:
-  - "code/crates/test"
-  - "code/crates/signing-ed25519"
-  - "code/crates/proto"
   - "code/examples"
+  - "code/crates/proto"
+  - "code/crates/test/mempool"
+  - "code/crates/test/proto"
+  - "code/crates/test/cli"
+  - "code/crates/signing-ed25519"
+  - "code/crates/starknet/p2p-proto"
+  - "code/crates/starknet/p2p-types"
 
 component_management:
   individual_components:

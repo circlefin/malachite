@@ -7,9 +7,16 @@ use core::fmt::{Debug, Display};
 /// A height of 0 represents a chain which has not yet produced a block.
 pub trait Height
 where
-    Self:
-        Default + Copy + Clone + Debug + Display + PartialEq + Eq + PartialOrd + Ord + Send + Sync,
+    Self: Copy + Clone + Default + Debug + Display + Eq + Ord + Send + Sync,
 {
+    /// The zero-th height. Typically 0.
+    ///
+    /// This value must be the same as the one built by the `Default` impl.
+    const ZERO: Self;
+
+    /// The initial height. Typically 1.
+    const INITIAL: Self;
+
     /// Increment the height by one.
     fn increment(&self) -> Self {
         self.increment_by(1)

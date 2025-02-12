@@ -1,11 +1,9 @@
 use std::time::Duration;
 
-use malachitebft_test_framework::{init_logging, TestBuilder};
+use crate::TestBuilder;
 
 #[tokio::test]
 pub async fn all_correct_nodes() {
-    init_logging(module_path!());
-
     const HEIGHT: u64 = 5;
 
     let mut test = TestBuilder::<()>::new();

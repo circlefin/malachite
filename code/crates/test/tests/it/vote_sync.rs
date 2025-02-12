@@ -1,14 +1,13 @@
 use std::time::Duration;
 
 use malachitebft_config::ValuePayload;
-use malachitebft_test_framework::{init_logging, TestBuilder, TestParams};
+
+use crate::{TestBuilder, TestParams};
 
 // NOTE: These tests are very similar to the Sync tests, with the difference that
 //       all nodes have the same voting power and therefore get stuck when one of them dies.
 
 pub async fn crash_restart_from_start(params: TestParams) {
-    init_logging(module_path!());
-
     const HEIGHT: u64 = 10;
 
     let mut test = TestBuilder::<()>::new();
@@ -34,7 +33,7 @@ pub async fn crash_restart_from_start(params: TestParams) {
         .success();
 
     test.build()
-        .run_with_custom_config(
+        .run_with_params(
             Duration::from_secs(60), // Timeout for the whole test
             TestParams {
                 enable_sync: true, // Enable Sync
@@ -79,8 +78,6 @@ pub async fn crash_restart_from_start_proposal_and_parts() {
 
 #[tokio::test]
 pub async fn crash_restart_from_latest() {
-    init_logging(module_path!());
-
     const HEIGHT: u64 = 10;
 
     let mut test = TestBuilder::<()>::new();
@@ -99,7 +96,7 @@ pub async fn crash_restart_from_latest() {
         .success();
 
     test.build()
-        .run_with_custom_config(
+        .run_with_params(
             Duration::from_secs(60),
             TestParams {
                 enable_sync: true,
@@ -112,8 +109,6 @@ pub async fn crash_restart_from_latest() {
 
 #[tokio::test]
 pub async fn start_late() {
-    init_logging(module_path!());
-
     const HEIGHT: u64 = 5;
     let mut test = TestBuilder::<()>::new();
 
@@ -127,7 +122,7 @@ pub async fn start_late() {
         .success();
 
     test.build()
-        .run_with_custom_config(
+        .run_with_params(
             Duration::from_secs(60),
             TestParams {
                 enable_sync: true,

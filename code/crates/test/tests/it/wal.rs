@@ -10,7 +10,8 @@ use malachitebft_core_consensus::LocallyProposedValue;
 use malachitebft_core_types::SignedVote;
 use malachitebft_engine::util::events::Event;
 use malachitebft_test::TestContext;
-use malachitebft_test_framework::{init_logging, HandlerResult, TestBuilder, TestParams};
+
+use crate::{HandlerResult, TestBuilder, TestParams};
 
 #[tokio::test]
 async fn proposer_crashes_after_proposing_parts_only() {
@@ -22,7 +23,7 @@ async fn proposer_crashes_after_proposing_parts_only() {
 }
 
 #[tokio::test]
-#[ignore] // Test app onky supports parts-only mode
+#[ignore] // Test app only supports parts-only mode
 async fn proposer_crashes_after_proposing_proposal_and_parts() {
     proposer_crashes_after_proposing(TestParams {
         value_payload: ValuePayload::ProposalAndParts,
@@ -32,7 +33,7 @@ async fn proposer_crashes_after_proposing_proposal_and_parts() {
 }
 
 #[tokio::test]
-#[ignore] // Not fully implemented yet
+#[ignore] // Test app only supports parts-only mode
 async fn proposer_crashes_after_proposing_proposal_only() {
     proposer_crashes_after_proposing(TestParams {
         value_payload: ValuePayload::ProposalOnly,
@@ -42,14 +43,12 @@ async fn proposer_crashes_after_proposing_proposal_only() {
 }
 
 async fn proposer_crashes_after_proposing(params: TestParams) {
-    init_logging(module_path!());
-
     #[derive(Clone, Debug, Default)]
     struct State {
         first_proposed_value: Option<LocallyProposedValue<TestContext>>,
     }
 
-    const CRASH_HEIGHT: u64 = 4;
+    const CRASH_HEIGHT: u64 = 3;
 
     let mut test = TestBuilder::<State>::new();
 
@@ -96,7 +95,7 @@ async fn proposer_crashes_after_proposing(params: TestParams) {
         .success();
 
     test.build()
-        .run_with_custom_config(
+        .run_with_params(
             Duration::from_secs(60),
             TestParams {
                 enable_sync: false,
@@ -116,6 +115,7 @@ async fn non_proposer_crashes_after_voting_parts_only() {
 }
 
 #[tokio::test]
+#[ignore] // Test app only supports parts-only mode
 async fn non_proposer_crashes_after_voting_proposal_and_parts() {
     non_proposer_crashes_after_voting(TestParams {
         value_payload: ValuePayload::ProposalAndParts,
@@ -125,7 +125,7 @@ async fn non_proposer_crashes_after_voting_proposal_and_parts() {
 }
 
 #[tokio::test]
-#[ignore] // Not fully implemented yet
+#[ignore] // Test app only supports parts-only mode
 async fn non_proposer_crashes_after_voting_proposal_only() {
     non_proposer_crashes_after_voting(TestParams {
         value_payload: ValuePayload::ProposalOnly,
@@ -135,14 +135,12 @@ async fn non_proposer_crashes_after_voting_proposal_only() {
 }
 
 async fn non_proposer_crashes_after_voting(params: TestParams) {
-    init_logging(module_path!());
-
     #[derive(Clone, Debug, Default)]
     struct State {
         first_vote: Option<SignedVote<TestContext>>,
     }
 
-    const CRASH_HEIGHT: u64 = 3;
+    const CRASH_HEIGHT: u64 = 4;
 
     let mut test = TestBuilder::<State>::new();
 
@@ -187,7 +185,7 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
     test.add_node().with_voting_power(10).start().success();
 
     test.build()
-        .run_with_custom_config(
+        .run_with_params(
             Duration::from_secs(60),
             TestParams {
                 enable_sync: false,

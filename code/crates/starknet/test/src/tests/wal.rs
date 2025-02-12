@@ -8,12 +8,10 @@ use malachitebft_core_types::SignedVote;
 use malachitebft_engine::util::events::Event;
 use malachitebft_starknet_host::types::MockContext;
 
-use crate::{init_logging, HandlerResult, TestBuilder, TestParams};
+use crate::{HandlerResult, TestBuilder, TestParams};
 
 #[tokio::test]
 async fn proposer_crashes_after_proposing() {
-    init_logging(module_path!());
-
     #[derive(Clone, Debug, Default)]
     struct State {
         first_proposed_value: Option<LocallyProposedValue<MockContext>>,
@@ -66,7 +64,7 @@ async fn proposer_crashes_after_proposing() {
         .success();
 
     test.build()
-        .run_with_custom_config(
+        .run_with_params(
             Duration::from_secs(60),
             TestParams {
                 enable_sync: false,
@@ -78,8 +76,6 @@ async fn proposer_crashes_after_proposing() {
 
 #[tokio::test]
 async fn non_proposer_crashes_after_voting() {
-    init_logging(module_path!());
-
     #[derive(Clone, Debug, Default)]
     struct State {
         first_vote: Option<SignedVote<MockContext>>,
@@ -130,7 +126,7 @@ async fn non_proposer_crashes_after_voting() {
     test.add_node().with_voting_power(10).start().success();
 
     test.build()
-        .run_with_custom_config(
+        .run_with_params(
             Duration::from_secs(60),
             TestParams {
                 enable_sync: false,
@@ -142,8 +138,6 @@ async fn non_proposer_crashes_after_voting() {
 
 #[tokio::test]
 pub async fn node_crashes_after_vote_set_request() {
-    init_logging(module_path!());
-
     const HEIGHT: u64 = 3;
 
     let mut test = TestBuilder::<()>::new();
@@ -164,7 +158,7 @@ pub async fn node_crashes_after_vote_set_request() {
         .success();
 
     test.build()
-        .run_with_custom_config(
+        .run_with_params(
             Duration::from_secs(60),
             TestParams {
                 enable_sync: true,
