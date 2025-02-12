@@ -385,13 +385,13 @@ pub mod mempool_load {
     impl Default for NonUniformLoadConfig {
         fn default() -> Self {
             Self {
-                base_count: 1000,
+                base_count: 100,
                 base_size: 256,
-                count_variation: -500..500,
+                count_variation: -100..200,
                 size_variation: -64..128,
                 spike_probability: 0.10,
                 spike_multiplier: 2,
-                sleep_interval: 100..1000,
+                sleep_interval: 1000..5000,
             }
         }
     }
@@ -413,7 +413,7 @@ pub mod mempool_load {
         fn default() -> Self {
             Self {
                 interval: Duration::from_secs(3),
-                count: 10000,
+                count: 100,
                 size: 256,
             }
         }
