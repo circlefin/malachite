@@ -383,9 +383,6 @@ pub struct ConsensusConfig {
     #[serde(flatten)]
     pub timeouts: TimeoutConfig,
 
-    /// Message types that can carry values
-    pub value_payload: ValuePayload,
-
     /// P2P configuration options
     pub p2p: P2pConfig,
 }
@@ -464,6 +461,8 @@ impl TimeoutConfig {
             TimeoutKind::Commit => self.timeout_commit,
             TimeoutKind::PrevoteTimeLimit => self.timeout_step,
             TimeoutKind::PrecommitTimeLimit => self.timeout_step,
+            TimeoutKind::PrevoteRebroadcast => self.timeout_prevote,
+            TimeoutKind::PrecommitRebroadcast => self.timeout_precommit,
         }
     }
 
@@ -475,6 +474,8 @@ impl TimeoutConfig {
             TimeoutKind::Commit => None,
             TimeoutKind::PrevoteTimeLimit => None,
             TimeoutKind::PrecommitTimeLimit => None,
+            TimeoutKind::PrevoteRebroadcast => None,
+            TimeoutKind::PrecommitRebroadcast => None,
         }
     }
 }
@@ -545,6 +546,8 @@ pub struct VoteExtensionsConfig {
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TestConfig {
     pub max_block_size: ByteSize,
+    /// Message types that can carry values
+    pub value_payload: ValuePayload,
     pub tx_size: ByteSize,
     pub txs_per_part: usize,
     pub time_allowance_factor: f32,
@@ -559,6 +562,7 @@ impl Default for TestConfig {
     fn default() -> Self {
         Self {
             max_block_size: ByteSize::mib(1),
+            value_payload: ValuePayload::default(),
             tx_size: ByteSize::kib(1),
             txs_per_part: 256,
             time_allowance_factor: 0.5,

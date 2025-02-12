@@ -137,6 +137,8 @@ impl Timeouts {
             TimeoutKind::Commit => self.config.timeout_commit,
             TimeoutKind::PrevoteTimeLimit => self.config.timeout_step,
             TimeoutKind::PrecommitTimeLimit => self.config.timeout_step,
+            TimeoutKind::PrevoteRebroadcast => self.config.timeout_prevote,
+            TimeoutKind::PrecommitRebroadcast => self.config.timeout_precommit,
         }
     }
 
@@ -149,6 +151,8 @@ impl Timeouts {
             TimeoutKind::Commit => (),
             TimeoutKind::PrevoteTimeLimit => (),
             TimeoutKind::PrecommitTimeLimit => (),
+            TimeoutKind::PrevoteRebroadcast => (),
+            TimeoutKind::PrecommitRebroadcast => (),
         };
     }
 }
@@ -938,6 +942,22 @@ where
                 self.network
                     .cast(NetworkMsg::Publish(msg))
                     .map_err(|e| eyre!("Error when broadcasting gossip message: {e:?}"))?;
+
+                Ok(r.resume_with(()))
+            }
+
+            Effect::Rebroadcast(msg, r) => {
+                // Rebroadcast last vote only if sync is not enabled, otherwise vote set requests are issued.
+                // TODO - there is currently no easy access to the sync configuration. In addition there is
+                // a single configuration for both value and vote sync.
+                if self.sync.is_none() {
+                    // Notify any subscribers that we are about to rebroadcast a message
+                    self.tx_event.send(|| Event::Rebroadcast(msg.clone()));
+
+                    self.network
+                        .cast(NetworkMsg::Publish(SignedConsensusMsg::Vote(msg)))
+                        .map_err(|e| eyre!("Error when rebroadcasting vote message: {e:?}"))?;
+                }
 
                 Ok(r.resume_with(()))
             }

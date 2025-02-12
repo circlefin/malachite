@@ -256,8 +256,20 @@ where
 
                 perform!(
                     co,
-                    Effect::Publish(SignedConsensusMsg::Vote(signed_vote), Default::default())
+                    Effect::Publish(
+                        SignedConsensusMsg::Vote(signed_vote.clone()),
+                        Default::default()
+                    )
                 );
+
+                let timeout = match signed_vote.vote_type() {
+                    VoteType::Prevote => Timeout::prevote_rebroadcast(state.driver.round()),
+                    VoteType::Precommit => Timeout::precommit_rebroadcast(state.driver.round()),
+                };
+
+                state.set_last_sent_vote(signed_vote);
+
+                perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
             }
 
             Ok(())

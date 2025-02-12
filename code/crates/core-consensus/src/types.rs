@@ -25,6 +25,13 @@ impl<Ctx: Context> SignedConsensusMsg<Ctx> {
         }
     }
 
+    pub fn round(&self) -> Round {
+        match self {
+            SignedConsensusMsg::Vote(msg) => msg.round(),
+            SignedConsensusMsg::Proposal(msg) => msg.round(),
+        }
+    }
+
     pub fn signature(&self) -> &Signature<Ctx> {
         match self {
             SignedConsensusMsg::Vote(msg) => &msg.signature,

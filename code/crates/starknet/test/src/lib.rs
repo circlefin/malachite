@@ -143,7 +143,6 @@ impl TestRunner {
             moniker: format!("node-{}", node),
             logging: LoggingConfig::default(),
             consensus: ConsensusConfig {
-                value_payload: ValuePayload::PartsOnly,
                 timeouts: TimeoutConfig::default(),
                 p2p: P2pConfig {
                     transport,
@@ -183,7 +182,10 @@ impl TestRunner {
                     .unwrap(),
             },
             runtime: RuntimeConfig::single_threaded(),
-            test: TestConfig::default(),
+            test: TestConfig {
+                value_payload: ValuePayload::PartsOnly,
+                ..TestConfig::default()
+            },
         }
     }
 }

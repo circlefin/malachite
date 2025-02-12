@@ -86,7 +86,7 @@ where
 {
     use crate::types::config;
 
-    let value_payload = match cfg.consensus.value_payload {
+    let value_payload = match cfg.test.value_payload {
         config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
         config::ValuePayload::ProposalOnly => ValuePayload::ProposalOnly,
         config::ValuePayload::ProposalAndParts => ValuePayload::ProposalAndParts,

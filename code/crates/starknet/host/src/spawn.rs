@@ -165,7 +165,7 @@ async fn spawn_consensus_actor(
     tx_event: TxEvent<MockContext>,
     span: &tracing::Span,
 ) -> ConsensusRef<MockContext> {
-    let value_payload = match cfg.consensus.value_payload {
+    let value_payload = match cfg.test.value_payload {
         malachitebft_config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
         malachitebft_config::ValuePayload::ProposalOnly => ValuePayload::ProposalOnly,
         malachitebft_config::ValuePayload::ProposalAndParts => ValuePayload::ProposalAndParts,
@@ -321,7 +321,7 @@ async fn spawn_host_actor(
     metrics: Metrics,
     span: &tracing::Span,
 ) -> HostRef<MockContext> {
-    let value_payload = match cfg.consensus.value_payload {
+    let value_payload = match cfg.test.value_payload {
         malachitebft_config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
         malachitebft_config::ValuePayload::ProposalOnly => ValuePayload::ProposalOnly,
         malachitebft_config::ValuePayload::ProposalAndParts => ValuePayload::ProposalAndParts,

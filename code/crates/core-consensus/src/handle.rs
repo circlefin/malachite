@@ -3,6 +3,7 @@ mod driver;
 mod proposal;
 mod propose;
 mod proposed_value;
+mod rebroadcast_timeout;
 mod signature;
 mod start_height;
 mod step_timeout;

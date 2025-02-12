@@ -5,6 +5,7 @@ mod n3f0_pubsub_protocol;
 mod n3f1;
 mod value_sync;
 mod vote_sync;
+mod vote_sync_bcast;
 mod wal;
 
 use std::collections::HashMap;
@@ -129,7 +130,6 @@ impl TestRunner {
             moniker: format!("node-{}", node),
             logging: LoggingConfig::default(),
             consensus: ConsensusConfig {
-                value_payload: ValuePayload::default(),
                 timeouts: TimeoutConfig::default(),
                 p2p: P2pConfig {
                     transport,

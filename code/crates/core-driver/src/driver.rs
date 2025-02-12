@@ -365,10 +365,12 @@ where
             TimeoutKind::Prevote => RoundInput::TimeoutPrevote,
             TimeoutKind::Precommit => RoundInput::TimeoutPrecommit,
 
-            // The driver never receives a commit or time limit timeout, so we can just ignore it.
+            // The driver never receives these events, so we can just ignore them.
             TimeoutKind::Commit => return Ok(None),
             TimeoutKind::PrevoteTimeLimit => return Ok(None),
             TimeoutKind::PrecommitTimeLimit => return Ok(None),
+            TimeoutKind::PrevoteRebroadcast => return Ok(None),
+            TimeoutKind::PrecommitRebroadcast => return Ok(None),
         };
 
         self.apply_input(timeout.round, input)

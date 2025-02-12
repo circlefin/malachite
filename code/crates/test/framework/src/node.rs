@@ -4,7 +4,7 @@ use eyre::bail;
 use tracing::info;
 
 use malachitebft_core_consensus::{LocallyProposedValue, SignedConsensusMsg};
-use malachitebft_core_types::{Context, Height, SignedVote, VotingPower};
+use malachitebft_core_types::{Context, Height, SignedVote, Vote, VotingPower};
 use malachitebft_engine::util::events::Event;
 
 use crate::Expected;
@@ -155,6 +155,24 @@ where
             if height.as_u64() != at_height {
                 bail!("Unexpected vote set request for height {height}, expected {at_height}")
             }
+
+            Ok(HandlerResult::ContinueTest)
+        })
+    }
+
+    pub fn expect_vote_rebroadcast(&mut self, at_height: u64) -> &mut Self {
+        self.on_event(move |event, _| {
+            let Event::Rebroadcast(msg) = event else {
+                return Ok(HandlerResult::WaitForNextEvent);
+            };
+
+            let (height, round) = (msg.height(), msg.round());
+
+            if height.as_u64() != at_height {
+                bail!("Unexpected vote rebroadcast for height {height}, expected {at_height}")
+            }
+
+            info!(%height, %round, "Rebroadcasted vote");
 
             Ok(HandlerResult::ContinueTest)
         })
