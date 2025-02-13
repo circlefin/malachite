@@ -45,7 +45,7 @@ where
 /// It is parameterized by a context type `Ctx` that defines the specific types used
 /// for votes, proposals, and other consensus-related data structures.
 ///
-/// Implementors of this trait are responsible for managing the private keys used for signing
+/// Implementers of this trait are responsible for managing the private keys used for signing
 /// and providing verification logic using the corresponding public keys.
 pub trait SigningProvider<Ctx>
 where
