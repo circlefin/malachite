@@ -50,12 +50,17 @@ pub struct State {
 // order for each node to likely propose different values at
 // each round.
 fn seed_from_address(address: &Address) -> u64 {
-    address.into_inner().chunks(8).fold(0u64, |acc, chunk| {
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as u64;
+    let addr_seed = address.into_inner().chunks(8).fold(0u64, |acc, chunk| {
         let term = chunk.iter().fold(0u64, |acc, &x| {
             acc.wrapping_shl(8).wrapping_add(u64::from(x))
         });
         acc.wrapping_add(term)
-    })
+    });
+    addr_seed.wrapping_add(timestamp)
 }
 
 impl State {
