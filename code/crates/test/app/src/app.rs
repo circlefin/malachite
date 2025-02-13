@@ -82,14 +82,23 @@ pub async fn run(
                 // we send back the very same value.
                 let proposal = match state.get_previously_built_value(height, round).await? {
                     Some(proposal) => {
-                        info!(value = %proposal.value.id(), "Re-using previously built value");
-                        proposal
+                        let new_proposal = state.propose_value(height, round).await?;
+                        error!(
+                            "XXX Not Re-using previously built value {:} but a new one {:}",
+                            proposal.value.id(),
+                            new_proposal.value.id()
+                        );
+                        new_proposal
                     }
                     None => {
                         // If we have not previously built a value for that very same height and round,
                         // we need to create a new value to propose and send it back to consensus.
-                        info!("Building a new value to propose");
-                        state.propose_value(height, round).await?
+                        let proposal = state.propose_value(height, round).await?;
+                        error!(
+                            "XXX Building a new value to propose {:}",
+                            proposal.value.id()
+                        );
+                        proposal
                     }
                 };
 
