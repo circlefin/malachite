@@ -259,7 +259,87 @@ async fn byzantine_proposer_crashes_after_proposing(params: TestParams) {
         .run_with_params(
             Duration::from_secs(60),
             TestParams {
-                enable_sync: false,
+                enable_sync: true,
+                timeout_step: Duration::from_secs(5),
+                ..params
+            },
+        )
+        .await
+}
+
+#[tokio::test]
+async fn restart_with_byzantine_proposer_2() {
+    byzantine_proposer_crashes_after_proposing_2(TestParams {
+        enable_sync: true,
+        ..TestParams::default()
+    })
+    .await
+}
+
+async fn byzantine_proposer_crashes_after_proposing_2(params: TestParams) {
+    #[derive(Clone, Debug, Default)]
+    struct State {
+        first_proposed_value: Option<LocallyProposedValue<TestContext>>,
+        first_vote: Option<SignedVote<TestContext>>,
+    }
+
+    const CRASH_HEIGHT: u64 = 3;
+
+    let mut test = TestBuilder::<State>::new();
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(CRASH_HEIGHT)
+        .crash()
+        .restart_after(Duration::from_secs(6))
+        .success();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(CRASH_HEIGHT)
+        .on_vote(|vote, state| {
+            info!("Non-proposer voted");
+            state.first_vote = Some(vote);
+
+            Ok(HandlerResult::ContinueTest)
+        })
+        // Crash right after
+        .crash()
+        .restart_after(Duration::from_secs(5))
+        .success();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(CRASH_HEIGHT)
+        // Wait until this node proposes a value
+        .on_event(|event, state| match event {
+            Event::ProposedValue(value) => {
+                info!("Proposer proposed block: {:?}", value.value);
+                state.first_proposed_value = Some(value);
+                Ok(HandlerResult::ContinueTest)
+            }
+            _ => Ok(HandlerResult::WaitForNextEvent),
+        })
+        // Crash right after
+        .crash()
+        // Restart after 5 seconds
+        .restart_after(Duration::from_secs(5))
+        // Check that we replay messages from the WAL
+        .expect_wal_replay(CRASH_HEIGHT)
+        // Wait until it proposes a value again, while replaying WAL
+        // Check that it is the same value as the first time
+        .on_proposed_value(|_value, _state| Ok(HandlerResult::ContinueTest))
+        .wait_until(CRASH_HEIGHT + 2)
+        .success();
+
+    test.build()
+        .run_with_params(
+            Duration::from_secs(60),
+            TestParams {
+                enable_sync: true,
+                timeout_step: Duration::from_secs(5),
                 ..params
             },
         )
