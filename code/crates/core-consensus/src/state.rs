@@ -246,4 +246,51 @@ where
             }
         }
     }
+
+    /// Check if the vote is the same as the last sent vote for same height and round
+    pub fn check_vote_against_last_sent(&self, vote: &SignedVote<Ctx>) -> bool {
+        if vote.validator_address() != self.address() {
+            return false;
+        }
+
+        match vote.vote_type() {
+            VoteType::Prevote => {
+                self.last_prevote.is_none()
+                    || self
+                        .last_prevote
+                        .as_ref()
+                        .map(|v: &SignedMessage<Ctx, <Ctx as Context>::Vote>| v.height())
+                        != Some(vote.height())
+                    || self
+                        .last_prevote
+                        .as_ref()
+                        .map(|v: &SignedMessage<Ctx, <Ctx as Context>::Vote>| v.round())
+                        != Some(vote.round())
+                    || self
+                        .last_prevote
+                        .as_ref()
+                        .map(|v| v == vote)
+                        .unwrap_or(true)
+            }
+            VoteType::Precommit => {
+                self.last_precommit.is_none()
+                    || self
+                        .last_precommit
+                        .as_ref()
+                        .map(|v: &SignedMessage<Ctx, <Ctx as Context>::Vote>| v.height())
+                        != Some(vote.height())
+                    || self
+                        .last_precommit
+                        .as_ref()
+                        .map(|v: &SignedMessage<Ctx, <Ctx as Context>::Vote>| v.height())
+                        != Some(vote.height())
+                    || self.last_precommit.as_ref().map(|v| v.round()) != Some(vote.round())
+                    || self
+                        .last_precommit
+                        .as_ref()
+                        .map(|v| v == vote)
+                        .unwrap_or(true)
+            }
+        }
+    }
 }
