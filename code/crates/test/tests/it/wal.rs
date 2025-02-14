@@ -259,7 +259,7 @@ async fn byzantine_proposer_crashes_after_proposing(params: TestParams) {
         .run_with_params(
             Duration::from_secs(60),
             TestParams {
-                enable_sync: true,
+                enable_sync: true, // TODO: fails when disabled, i.e. with rebroadcasts
                 timeout_step: Duration::from_secs(5),
                 ..params
             },
@@ -338,7 +338,7 @@ async fn byzantine_proposer_crashes_after_proposing_2(params: TestParams) {
         .run_with_params(
             Duration::from_secs(60),
             TestParams {
-                enable_sync: true,
+                enable_sync: true, // TODO: fails when disabled, i.e. with rebroadcasts
                 timeout_step: Duration::from_secs(5),
                 ..params
             },
