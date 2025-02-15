@@ -149,7 +149,7 @@ d_pull() {
 }
 
 d_run() {
-  PSSH_H="$(_parse_multiple_hosts "$@")" xssh docker run -d -p 27000:27000/udp -p 28000:28000/udp -p 9000:9000/tcp --name node --cap-add=NET_ADMIN --dns $CANDC --mount type=bind,source=/data,target=/data --mount type=bind,source=/config,target=/root/config -e RUST_LOG $CANDC/node --home /root start
+  PSSH_H="$(_parse_multiple_hosts "$@")" xssh docker run -d -p 27000:27000/tcp -p 28000:28000/tcp -p 27000:27000/udp -p 28000:28000/udp -p 9000:9000/tcp --name node --cap-add=NET_ADMIN --dns $CANDC --mount type=bind,source=/data,target=/data --mount type=bind,source=/config,target=/root/config -e RUST_LOG $CANDC/node --home /root start
 }
 
 d_log() {
@@ -269,6 +269,7 @@ _keyscan_cc() {
 _compose_persistent_peers() {
   skip=$${1:-10000}
   port=$${2:-27000}
+  transport_protocol=$${3:-tcp}
 
   persistent_peers=""
   for i in $(seq 0 $((D_N-1)))
@@ -276,7 +277,11 @@ _compose_persistent_peers() {
     if [ "$i" -eq "$skip" ]; then
       continue
     fi
-    persistent_peers="$persistent_peers,/dns/node$i/udp/$port/quic-v1"
+    if [ "$transport_protocol" == "quic" ]; then
+      persistent_peers="$persistent_peers,/dns/node$i/udp/$port/quic-v1"
+    else
+      persistent_peers="$persistent_peers,/dns/node$i/tcp/$port"
+    fi
   done
   echo $${persistent_peers##,}
 }
@@ -292,13 +297,15 @@ _change_config() {
     sconfig "$file" \
       "moniker=test-$i" \
       "consensus.p2p.listen_addr=/ip4/0.0.0.0/udp/27000/quic-v1" \
+      "consensus.p2p.transport=quic" \
       "mempool.p2p.listen_addr=/ip4/0.0.0.0/udp/28000/quic-v1" \
+      "mempool.p2p.transport=quic" \
       "metrics.listen_addr=0.0.0.0:9000" \
       "runtime.flavor=multi_threaded" \
       "logging.log_format=json" && \
     sconfig "$file" -t stringSlice \
-      "consensus.p2p.persistent_peers=$(_compose_persistent_peers $i)" \
-      "mempool.p2p.persistent_peers=$(_compose_persistent_peers $i 28000)" && \
+      "consensus.p2p.persistent_peers=$(_compose_persistent_peers $i 27000 quic)" \
+      "mempool.p2p.persistent_peers=$(_compose_persistent_peers $i 28000 quic)" && \
     sconfig "$file" -t int \
       "runtime.worker_threads=0"
   done

@@ -1,0 +1,105 @@
+2025-02-15T02:06:23.609854Z ERROR Failed to load configuration. error=Failed to load configuration file: "configuration file \"/Users/greg/.malachite/1/config/config.toml\" not found"
+2025-02-15T02:06:23.609968Z ERROR Failed to load configuration. error=Failed to load configuration file: "configuration file \"/Users/greg/.malachite/3/config/config.toml\" not found"
+2025-02-15T02:06:23.609993Z ERROR Failed to load configuration. error=Failed to load configuration file: "configuration file \"/Users/greg/.malachite/0/config/config.toml\" not found"
+2025-02-15T02:06:23.609904Z ERROR Failed to load configuration. error=Failed to load configuration file: "configuration file \"/Users/greg/.malachite/4/config/config.toml\" not found"
+[[31[[313131m[The application panicked (crashed).m31The application panicked (crashed).mm[0mmThe application panicked (crashed).The application panicked (crashed).The application panicked (crashed).[0m[0m[0m
+
+Message:  Message:  [
+36[0mMessage:  
+[
+[Message:  36Message:  [m[called `Result::unwrap()` on an `Err` value: ()36[0mm
+called `Result::unwrap()` on an `Err` value: ()Location: [0m36mm[36called `Result::unwrap()` on an `Err` value: ()mcalled `Result::unwrap()` on an `Err` value: ()[0m[0mcalled `Result::unwrap()` on an `Err` value: ()
+352025-02-15T02:06:23.610067Z ERROR Failed to load configuration. error=Failed to load configuration file: "configuration file \"/Users/greg/.malachite/2/config/config.toml\" not found"
+Location: 
+[
+35Location: Location: [m[0m[crates/starknet/app/src/main.rs35m
+mcrates/starknet/app/src/main.rs[0mLocation: crates/starknet/app/src/main.rs[35[0mm::[crates/starknet/app/src/main.rs[0m[0m3535mm[52::[0m35
+
+[[crates/starknet/app/src/main.rsBacktrace omitted. Run with RUST_BACKTRACE=1 environment variable to display it.35m35m
+Run with RUST_BACKTRACE=full to include source snippets.
+5252m[0m52
+
+[0mBacktrace omitted. Run with RUST_BACKTRACE=1 environment variable to display it.
+
+
+Backtrace omitted. Run with RUST_BACKTRACE=1 environment variable to display it.Run with RUST_BACKTRACE=full to include source snippets.
+
+[0mRun with RUST_BACKTRACE=full to include source snippets.:[0m[
+
+35
+Backtrace omitted. Run with RUST_BACKTRACE=1 environment variable to display it.m
+52Run with RUST_BACKTRACE=full to include source snippets.[0m
+
+
+Backtrace omitted. Run with RUST_BACKTRACE=1 environment variable to display it.
+Run with RUST_BACKTRACE=full to include source snippets.
+2025-02-15T02:44:00.765397Z ERROR Failed to load configuration. error=Failed to load configuration file: "configuration file \"/Users/greg/.malachite/4/config/config.toml\" not found"
+[312025-02-15T02:44:00.765493Z ERROR Failed to load configuration. error=Failed to load configuration file: "configuration file \"/Users/greg/.malachite/3/config/config.toml\" not found"
+m[2025-02-15T02:44:00.765501Z ERROR Failed to load configuration. error=Failed to load configuration file: "configuration file \"/Users/greg/.malachite/2/config/config.toml\" not found"
+31[m31The application panicked (crashed).m[0m[
+Message:  The application panicked (crashed).[[0m3631m[The application panicked (crashed).2025-02-15T02:44:00.765432Z ERROR Failed to load configuration. error=Failed to load configuration file: "configuration file \"/Users/greg/.malachite/0/config/config.toml\" not found"
+mThe application panicked (crashed).
+[0m31Message:  called `Result::unwrap()` on an `Err` value: ()
+[0mm[0mThe application panicked (crashed).[
+36[0mmMessage:  called `Result::unwrap()` on an `Err` value: ()
+Message:  Location: 
+[Message:  [[35[0mm[
+Location: 2025-02-15T02:44:00.765500Z ERROR Failed to load configuration. error=Failed to load configuration file: "configuration file \"/Users/greg/.malachite/1/config/config.toml\" not found"
+crates/starknet/app/src/main.rs[3636m36[0mcalled `Result::unwrap()` on an `Err` value: ()m35[0mcalled `Result::unwrap()` on an `Err` value: ()m[0m
+:Location: 
+[mLocation: 35[mcalled `Result::unwrap()` on an `Err` value: ()3552[m[0mcrates/starknet/app/src/main.rscrates/starknet/app/src/main.rs[0m[0m35:
+[Location: 35[[0m35mm52crates/starknet/app/src/main.rs[0m
+
+
+
+mBacktrace omitted. Run with RUST_BACKTRACE=1 environment variable to display it.Backtrace omitted. Run with RUST_BACKTRACE=1 environment variable to display it.
+:Run with RUST_BACKTRACE=full to include source snippets.[
+crates/starknet/app/src/main.rs
+[0m[0mRun with RUST_BACKTRACE=full to include source snippets.::[
+3535mm5252[0m[0m
+
+Backtrace omitted. Run with RUST_BACKTRACE=1 environment variable to display it.[
+
+35Backtrace omitted. Run with RUST_BACKTRACE=1 environment variable to display it.m
+52Run with RUST_BACKTRACE=full to include source snippets.[0m
+
+
+
+Run with RUST_BACKTRACE=full to include source snippets.Backtrace omitted. Run with RUST_BACKTRACE=1 environment variable to display it.
+
+Run with RUST_BACKTRACE=full to include source snippets.
+2025-02-15T02:50:33.775828Z ERROR Failed to load configuration. error=Failed to load configuration file: "configuration file \"/Users/greg/.malachite/3/config/config.toml\" not found"
+2025-02-15T02:50:33.775825Z ERROR Failed to load configuration. error=Failed to load configuration file: "configuration file \"/Users/greg/.malachite/2/config/config.toml\" not found"
+2025-02-15T02:50:33.775708Z ERROR Failed to load configuration. error=Failed to load configuration file: "configuration file \"/Users/greg/.malachite/1/config/config.toml\" not found"
+2025-02-15T02:50:33.775737Z ERROR Failed to load configuration. error=Failed to load configuration file: "configuration file \"/Users/greg/.malachite/4/config/config.toml\" not found"
+[2025-02-15T02:50:33.775719Z ERROR Failed to load configuration. error=Failed to load configuration file: "configuration file \"/Users/greg/.malachite/0/config/config.toml\" not found"
+31[[[[31mm31The application panicked (crashed).The application panicked (crashed).[0m[0mm
+The application panicked (crashed).Message:  [0m[
+
+Message:  36Message:  m31called `Result::unwrap()` on an `Err` value: ()[[0m36m31mmcalled `Result::unwrap()` on an `Err` value: ()The application panicked (crashed).[0m[0m
+
+[
+36Location: m[called `Result::unwrap()` on an `Err` value: ()The application panicked (crashed).Location: [0m[[0mMessage:  35[m36
+crates/starknet/app/src/main.rsMessage:  m[0m
+[Location: 3536m:crates/starknet/app/src/main.rs[[0mmcalled `Result::unwrap()` on an `Err` value: ():[called `Result::unwrap()` on an `Err` value: ()3535[0m[0mm
+52[
+35mLocation: crates/starknet/app/src/main.rs[0mmLocation: 52
+
+[0m[0m[[:35[Backtrace omitted. Run with RUST_BACKTRACE=1 environment variable to display it.35mm
+
+5235Backtrace omitted. Run with RUST_BACKTRACE=1 environment variable to display it.m
+crates/starknet/app/src/main.rsRun with RUST_BACKTRACE=full to include source snippets.crates/starknet/app/src/main.rs[0m
+
+[0mRun with RUST_BACKTRACE=full to include source snippets.
+
+[0m
+::[[35Backtrace omitted. Run with RUST_BACKTRACE=1 environment variable to display it.m
+52Run with RUST_BACKTRACE=full to include source snippets.[0m
+
+
+Backtrace omitted. Run with RUST_BACKTRACE=1 environment variable to display it.35
+mRun with RUST_BACKTRACE=full to include source snippets.52
+[0m
+
+Backtrace omitted. Run with RUST_BACKTRACE=1 environment variable to display it.
+Run with RUST_BACKTRACE=full to include source snippets.
