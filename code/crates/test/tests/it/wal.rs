@@ -5,7 +5,7 @@ use tracing::info;
 
 use informalsystems_malachitebft_test as malachitebft_test;
 
-use malachitebft_config::ValuePayload;
+use malachitebft_config::{ValuePayload, VoteSyncMode};
 use malachitebft_core_consensus::LocallyProposedValue;
 use malachitebft_core_types::SignedVote;
 use malachitebft_engine::util::events::Event;
@@ -196,9 +196,18 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
 }
 
 #[tokio::test]
-async fn restart_with_byzantine_proposer_1() {
+async fn restart_with_byzantine_proposer_1_request_response() {
     byzantine_proposer_crashes_after_proposing_1(TestParams {
-        value_payload: ValuePayload::ProposalAndParts,
+        vote_sync_mode: Some(VoteSyncMode::RequestResponse),
+        ..TestParams::default()
+    })
+    .await
+}
+
+#[tokio::test]
+async fn restart_with_byzantine_proposer_1_rebroadcast() {
+    byzantine_proposer_crashes_after_proposing_1(TestParams {
+        vote_sync_mode: Some(VoteSyncMode::Rebroadcast),
         ..TestParams::default()
     })
     .await
@@ -252,18 +261,18 @@ async fn byzantine_proposer_crashes_after_proposing_1(params: TestParams) {
         .expect_wal_replay(CRASH_HEIGHT)
         // Wait until it proposes a value again, while replaying WAL
         // Check that it is the same value as the first time
-        .on_proposed_value(|_value, state| {
-            let Some(_first_value) = state.first_proposed_value.as_ref() else {
+        .on_proposed_value(|value, state| {
+            let Some(first_value) = state.first_proposed_value.as_ref() else {
                 bail!("Proposer did not propose a block");
             };
 
-            // if first_value.value != value.value {
-            //     bail!(
-            //         "Proposer just equivocated: expected {:?}, got {:?}",
-            //         first_value.value,
-            //         value.value
-            //     )
-            // }
+            if first_value.value != value.value {
+                bail!(
+                    "Proposer just equivocated: expected {:?}, got {:?}",
+                    first_value.value,
+                    value.value
+                )
+            }
 
             Ok(HandlerResult::ContinueTest)
         })
@@ -274,8 +283,9 @@ async fn byzantine_proposer_crashes_after_proposing_1(params: TestParams) {
         .run_with_params(
             Duration::from_secs(60),
             TestParams {
-                enable_sync: true, // TODO: fails when disabled, i.e. with rebroadcasts
+                enable_sync: true,
                 timeout_step: Duration::from_secs(5),
+                value_payload: ValuePayload::ProposalAndParts,
                 ..params
             },
         )
@@ -283,9 +293,18 @@ async fn byzantine_proposer_crashes_after_proposing_1(params: TestParams) {
 }
 
 #[tokio::test]
-async fn restart_with_byzantine_proposer_2() {
+async fn restart_with_byzantine_proposer_2_request_response() {
     byzantine_proposer_crashes_after_proposing_2(TestParams {
-        enable_sync: true, // TODO: fails when disabled, i.e. with rebroadcasts
+        vote_sync_mode: Some(VoteSyncMode::RequestResponse),
+        ..TestParams::default()
+    })
+    .await
+}
+
+#[tokio::test]
+async fn restart_with_byzantine_proposer_2_rebroadcast() {
+    byzantine_proposer_crashes_after_proposing_2(TestParams {
+        vote_sync_mode: Some(VoteSyncMode::Rebroadcast),
         ..TestParams::default()
     })
     .await
@@ -355,6 +374,7 @@ async fn byzantine_proposer_crashes_after_proposing_2(params: TestParams) {
             Duration::from_secs(60),
             TestParams {
                 timeout_step: Duration::from_secs(5),
+                value_payload: ValuePayload::ProposalAndParts,
                 ..params
             },
         )
