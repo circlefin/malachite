@@ -21,4 +21,17 @@ pub struct Params<Ctx: Context> {
 
     /// The messages required to deliver proposals
     pub value_payload: ValuePayload,
+
+    /// The VoteSync mode
+    pub vote_sync_mode: VoteSyncMode,
+}
+
+/// The mode of vote synchronization
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum VoteSyncMode {
+    /// The lagging node sends a request to a peer for the missing votes
+    #[default]
+    RequestResponse,
+    /// Nodes rebroadcast their last vote to all peers
+    Rebroadcast,
 }

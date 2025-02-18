@@ -69,6 +69,12 @@ impl State {
         store: Store,
         signing_provider: Ed25519Provider,
     ) -> Self {
+        let rng = if config.test.is_byzantine_proposer {
+            StdRng::from_entropy()
+        } else {
+            StdRng::seed_from_u64(seed_from_address(&address))
+        };
+
         Self {
             ctx,
             config,
@@ -80,7 +86,7 @@ impl State {
             current_round: Round::new(0),
             current_proposer: None,
             streams_map: PartStreamsMap::new(),
-            rng: StdRng::seed_from_u64(seed_from_address(&address)),
+            rng,
             peers: HashSet::new(),
         }
     }

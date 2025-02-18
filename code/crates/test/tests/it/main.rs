@@ -40,9 +40,7 @@ impl HasTestRunner<TestRunner> for TestContext {
 pub struct TestRunner {
     pub id: usize,
     pub params: TestParams,
-    pub nodes_count: usize,
-    pub start_height: HashMap<NodeId, Height>,
-    pub home_dir: HashMap<NodeId, PathBuf>,
+    pub nodes_info: HashMap<NodeId, NodeInfo>,
     pub private_keys: HashMap<NodeId, PrivateKey>,
     pub validator_set: ValidatorSet,
     pub consensus_base_port: usize,
@@ -51,9 +49,16 @@ pub struct TestRunner {
 }
 
 fn temp_dir(id: NodeId) -> PathBuf {
-    TempDir::with_prefix(format!("malachitebft-test-app--{id}"))
+    TempDir::with_prefix(format!("malachitebft-test-app-{id}"))
         .unwrap()
         .into_path()
+}
+
+#[derive(Clone)]
+pub struct NodeInfo {
+    start_height: Height,
+    home_dir: PathBuf,
+    is_byzantine_proposer: bool,
 }
 
 #[async_trait]
@@ -61,28 +66,29 @@ impl NodeRunner<TestContext> for TestRunner {
     type NodeHandle = Handle;
 
     fn new<S>(id: usize, nodes: &[TestNode<TestContext, S>], params: TestParams) -> Self {
-        let nodes_count = nodes.len();
         let base_port = 20_000 + id * 1000;
 
         let (validators, private_keys) = make_validators(nodes);
         let validator_set = ValidatorSet::new(validators);
 
-        let start_height = nodes
+        let nodes_info = nodes
             .iter()
-            .map(|node| (node.id, node.start_height))
-            .collect();
-
-        let home_dir = nodes
-            .iter()
-            .map(|node| (node.id, temp_dir(node.id)))
+            .map(|node| {
+                (
+                    node.id,
+                    NodeInfo {
+                        start_height: node.start_height,
+                        home_dir: temp_dir(node.id),
+                        is_byzantine_proposer: node.is_byzantine_proposer,
+                    },
+                )
+            })
             .collect();
 
         Self {
             id,
             params,
-            nodes_count,
-            start_height,
-            home_dir,
+            nodes_info,
             private_keys,
             validator_set,
             consensus_base_port: base_port,
@@ -94,17 +100,17 @@ impl NodeRunner<TestContext> for TestRunner {
     async fn spawn(&self, id: NodeId) -> eyre::Result<Handle> {
         let app = App {
             config: self.generate_config(id),
-            home_dir: self.home_dir[&id].clone(),
+            home_dir: self.nodes_info[&id].home_dir.clone(),
             validator_set: self.validator_set.clone(),
             private_key: self.private_keys[&id].clone(),
-            start_height: Some(self.start_height[&id]),
+            start_height: Some(self.nodes_info[&id].start_height),
         };
 
         app.start().await
     }
 
     async fn reset_db(&self, id: NodeId) -> eyre::Result<()> {
-        let db_dir = self.home_dir[&id].join("db");
+        let db_dir = self.nodes_info[&id].home_dir.join("db");
         std::fs::remove_dir_all(&db_dir)?;
         std::fs::create_dir_all(&db_dir)?;
         Ok(())
@@ -130,13 +136,16 @@ impl TestRunner {
             moniker: format!("node-{}", node),
             logging: LoggingConfig::default(),
             consensus: ConsensusConfig {
+                vote_sync: VoteSyncConfig {
+                    mode: VoteSyncMode::RequestResponse,
+                },
                 timeouts: TimeoutConfig::default(),
                 p2p: P2pConfig {
                     transport,
                     protocol,
                     discovery: DiscoveryConfig::default(),
                     listen_addr: transport.multiaddr("127.0.0.1", self.consensus_base_port + i),
-                    persistent_peers: (0..self.nodes_count)
+                    persistent_peers: (0..self.nodes_info.len())
                         .filter(|j| i != *j)
                         .map(|j| transport.multiaddr("127.0.0.1", self.consensus_base_port + j))
                         .collect(),
@@ -148,7 +157,7 @@ impl TestRunner {
                     transport,
                     protocol,
                     listen_addr: transport.multiaddr("127.0.0.1", self.mempool_base_port + i),
-                    persistent_peers: (0..self.nodes_count)
+                    persistent_peers: (0..self.nodes_info.len())
                         .filter(|j| i != *j)
                         .map(|j| transport.multiaddr("127.0.0.1", self.mempool_base_port + j))
                         .collect(),
@@ -169,7 +178,10 @@ impl TestRunner {
                     .unwrap(),
             },
             runtime: RuntimeConfig::single_threaded(),
-            test: TestConfig::default(),
+            test: TestConfig {
+                is_byzantine_proposer: self.nodes_info[&node].is_byzantine_proposer,
+                ..TestConfig::default()
+            },
         }
     }
 }

@@ -82,6 +82,9 @@ pub fn generate_config(
     Config {
         moniker: format!("test-{}", index),
         consensus: ConsensusConfig {
+            vote_sync: VoteSyncConfig {
+                mode: VoteSyncMode::RequestResponse,
+            },
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),

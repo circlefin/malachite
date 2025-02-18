@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use libp2p_identity::ecdsa;
+use malachitebft_core_consensus::VoteSyncMode;
 use tokio::task::JoinHandle;
 use tracing::warn;
 
@@ -171,6 +172,7 @@ async fn spawn_consensus_actor(
         address,
         threshold_params: Default::default(),
         value_payload: ValuePayload::PartsOnly,
+        vote_sync_mode: VoteSyncMode::Rebroadcast,
     };
 
     Consensus::spawn(

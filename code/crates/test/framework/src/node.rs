@@ -42,6 +42,7 @@ where
     pub voting_power: VotingPower,
     pub start_height: Ctx::Height,
     pub start_delay: Duration,
+    pub is_byzantine_proposer: bool,
     pub steps: Vec<Step<Ctx, State>>,
     pub state: State,
 }
@@ -63,6 +64,7 @@ where
             voting_power: 1,
             start_height: Ctx::Height::INITIAL,
             start_delay: Duration::from_secs(0),
+            is_byzantine_proposer: false,
             steps: vec![],
             state,
         }
@@ -75,6 +77,11 @@ where
 
     pub fn with_voting_power(&mut self, power: VotingPower) -> &mut Self {
         self.voting_power = power;
+        self
+    }
+
+    pub fn byzantine_proposer(&mut self) -> &mut Self {
+        self.is_byzantine_proposer = true;
         self
     }
 
