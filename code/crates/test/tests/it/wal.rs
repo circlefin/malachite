@@ -196,15 +196,15 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
 }
 
 #[tokio::test]
-async fn restart_with_byzantine_proposer() {
-    byzantine_proposer_crashes_after_proposing(TestParams {
+async fn restart_with_byzantine_proposer_1() {
+    byzantine_proposer_crashes_after_proposing_1(TestParams {
         value_payload: ValuePayload::ProposalAndParts,
         ..TestParams::default()
     })
     .await
 }
 
-async fn byzantine_proposer_crashes_after_proposing(params: TestParams) {
+async fn byzantine_proposer_crashes_after_proposing_1(params: TestParams) {
     #[derive(Clone, Debug, Default)]
     struct State {
         first_proposed_value: Option<LocallyProposedValue<TestContext>>,
@@ -232,6 +232,7 @@ async fn byzantine_proposer_crashes_after_proposing(params: TestParams) {
 
     test.add_node()
         .with_voting_power(10)
+        .byzantine_proposer()
         .start()
         .wait_until(CRASH_HEIGHT)
         // Wait until this node proposes a value
@@ -251,7 +252,21 @@ async fn byzantine_proposer_crashes_after_proposing(params: TestParams) {
         .expect_wal_replay(CRASH_HEIGHT)
         // Wait until it proposes a value again, while replaying WAL
         // Check that it is the same value as the first time
-        .on_proposed_value(|_value, _state| Ok(HandlerResult::ContinueTest))
+        .on_proposed_value(|_value, state| {
+            let Some(_first_value) = state.first_proposed_value.as_ref() else {
+                bail!("Proposer did not propose a block");
+            };
+
+            // if first_value.value != value.value {
+            //     bail!(
+            //         "Proposer just equivocated: expected {:?}, got {:?}",
+            //         first_value.value,
+            //         value.value
+            //     )
+            // }
+
+            Ok(HandlerResult::ContinueTest)
+        })
         .wait_until(CRASH_HEIGHT + 2)
         .success();
 
@@ -270,7 +285,7 @@ async fn byzantine_proposer_crashes_after_proposing(params: TestParams) {
 #[tokio::test]
 async fn restart_with_byzantine_proposer_2() {
     byzantine_proposer_crashes_after_proposing_2(TestParams {
-        enable_sync: true,
+        enable_sync: true, // TODO: fails when disabled, i.e. with rebroadcasts
         ..TestParams::default()
     })
     .await
@@ -311,6 +326,7 @@ async fn byzantine_proposer_crashes_after_proposing_2(params: TestParams) {
 
     test.add_node()
         .with_voting_power(10)
+        .byzantine_proposer()
         .start()
         .wait_until(CRASH_HEIGHT)
         // Wait until this node proposes a value
@@ -338,7 +354,6 @@ async fn byzantine_proposer_crashes_after_proposing_2(params: TestParams) {
         .run_with_params(
             Duration::from_secs(60),
             TestParams {
-                enable_sync: true, // TODO: fails when disabled, i.e. with rebroadcasts
                 timeout_step: Duration::from_secs(5),
                 ..params
             },

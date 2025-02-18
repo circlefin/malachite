@@ -50,17 +50,12 @@ pub struct State {
 // order for each node to likely propose different values at
 // each round.
 fn seed_from_address(address: &Address) -> u64 {
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos() as u64;
-    let addr_seed = address.into_inner().chunks(8).fold(0u64, |acc, chunk| {
+    address.into_inner().chunks(8).fold(0u64, |acc, chunk| {
         let term = chunk.iter().fold(0u64, |acc, &x| {
             acc.wrapping_shl(8).wrapping_add(u64::from(x))
         });
         acc.wrapping_add(term)
-    });
-    addr_seed.wrapping_add(timestamp)
+    })
 }
 
 impl State {
@@ -74,6 +69,12 @@ impl State {
         store: Store,
         signing_provider: Ed25519Provider,
     ) -> Self {
+        let rng = if config.test.is_byzantine_proposer {
+            StdRng::from_entropy()
+        } else {
+            StdRng::seed_from_u64(seed_from_address(&address))
+        };
+
         Self {
             ctx,
             config,
@@ -85,7 +86,7 @@ impl State {
             current_round: Round::new(0),
             current_proposer: None,
             streams_map: PartStreamsMap::new(),
-            rng: StdRng::seed_from_u64(seed_from_address(&address)),
+            rng,
             peers: HashSet::new(),
         }
     }

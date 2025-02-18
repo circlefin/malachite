@@ -385,6 +385,29 @@ pub struct ConsensusConfig {
 
     /// P2P configuration options
     pub p2p: P2pConfig,
+
+    /// VoteSync configuration options
+    #[serde(default)]
+    pub vote_sync: VoteSyncConfig,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VoteSyncConfig {
+    /// The mode of vote synchronization
+    /// - RequestResponse: The lagging node sends a request to a peer for the missing votes
+    /// - Rebroadcast: Nodes rebroadcast their last vote to all peers
+    pub mode: VoteSyncMode,
+}
+
+/// The mode of vote synchronization
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum VoteSyncMode {
+    /// The lagging node sends a request to a peer for the missing votes
+    #[default]
+    RequestResponse,
+    /// Nodes rebroadcast their last vote to all peers
+    Rebroadcast,
 }
 
 /// Message types required by consensus to deliver the value being proposed
@@ -556,6 +579,8 @@ pub struct TestConfig {
     pub max_retain_blocks: usize,
     #[serde(default)]
     pub vote_extensions: VoteExtensionsConfig,
+    #[serde(default)]
+    pub is_byzantine_proposer: bool,
 }
 
 impl Default for TestConfig {
@@ -569,6 +594,7 @@ impl Default for TestConfig {
             exec_time_per_tx: Duration::from_millis(1),
             max_retain_blocks: 1000,
             vote_extensions: VoteExtensionsConfig::default(),
+            is_byzantine_proposer: false,
         }
     }
 }

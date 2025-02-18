@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use bytesize::ByteSize;
-use malachitebft_config::{Config, PubSubProtocol, ValuePayload};
+use malachitebft_config::{Config, PubSubProtocol, ValuePayload, VoteSyncMode};
 
 #[derive(Copy, Clone, Debug)]
 pub struct TestParams {
@@ -14,6 +14,7 @@ pub struct TestParams {
     pub value_payload: ValuePayload,
     pub max_retain_blocks: usize,
     pub timeout_step: Duration,
+    pub vote_sync_mode: Option<VoteSyncMode>,
 }
 
 impl Default for TestParams {
@@ -28,6 +29,7 @@ impl Default for TestParams {
             value_payload: ValuePayload::PartsOnly,
             max_retain_blocks: 50,
             timeout_step: Duration::from_secs(30),
+            vote_sync_mode: None,
         }
     }
 }
@@ -44,5 +46,9 @@ impl TestParams {
         config.test.vote_extensions.enabled = self.vote_extensions.is_some();
         config.test.vote_extensions.size = self.vote_extensions.unwrap_or_default();
         config.test.max_retain_blocks = self.max_retain_blocks;
+
+        if let Some(vote_sync_mode) = self.vote_sync_mode {
+            config.consensus.vote_sync.mode = vote_sync_mode;
+        }
     }
 }

@@ -1,7 +1,7 @@
 //! Re-export of all types required to build a Malachite application.
 
 pub use malachitebft_core_consensus::{
-    ConsensusMsg, ProposedValue, SignedConsensusMsg, ValuePayload,
+    ConsensusMsg, ProposedValue, SignedConsensusMsg, ValuePayload, VoteSyncMode,
 };
 pub use malachitebft_engine::host::LocallyProposedValue;
 pub use malachitebft_peer::PeerId;
