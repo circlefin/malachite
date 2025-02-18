@@ -141,17 +141,30 @@ where
             .collect()
     }
 
-    pub fn restore_votes(&mut self, height: Ctx::Height, round: Round) -> Vec<SignedVote<Ctx>> {
-        // TODO optimization - get votes for all rounds higher than or equal to `round`
+    #[allow(clippy::type_complexity)]
+    pub fn restore_votes(
+        &mut self,
+        height: Ctx::Height,
+        round: Round,
+    ) -> Option<(Vec<SignedVote<Ctx>>, Option<PolkaCertificate<Ctx>>)> {
+        // TODO: optimization - get votes for all rounds higher than or equal to `round`
         if height != self.driver.height() {
-            return vec![];
+            return None;
         }
 
-        if let Some(per_round) = self.driver.votes().per_round(round) {
-            per_round.received_votes().iter().cloned().collect()
-        } else {
-            vec![]
+        let per_round = self.driver.votes().per_round(round)?;
+        let votes = per_round
+            .received_votes()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>();
+
+        if votes.is_empty() {
+            return None;
         }
+
+        let polka_certificate = self.driver.get_polka_certificate(round).cloned();
+        Some((votes, polka_certificate))
     }
 
     pub fn full_proposal_at_round_and_value(

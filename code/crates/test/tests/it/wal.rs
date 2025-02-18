@@ -229,6 +229,7 @@ async fn byzantine_proposer_crashes_after_proposing_1(params: TestParams) {
         .wait_until(CRASH_HEIGHT)
         .crash()
         .restart_after(Duration::from_secs(5))
+        .wait_until(CRASH_HEIGHT + 2)
         .success();
 
     test.add_node()
@@ -237,6 +238,7 @@ async fn byzantine_proposer_crashes_after_proposing_1(params: TestParams) {
         .wait_until(CRASH_HEIGHT)
         .crash()
         .restart_after(Duration::from_secs(5))
+        .wait_until(CRASH_HEIGHT + 2)
         .success();
 
     test.add_node()
@@ -392,7 +394,7 @@ async fn byzantine_proposer_crashes_after_proposing_2(params: TestParams) {
 
     test.build()
         .run_with_params(
-            Duration::from_secs(60),
+            Duration::from_secs(90),
             TestParams {
                 timeout_step: Duration::from_secs(5),
                 value_payload: ValuePayload::ProposalAndParts,

@@ -1,6 +1,7 @@
 use derive_where::derive_where;
 use malachitebft_core_types::{
-    CommitCertificate, Context, Round, SignedProposal, SignedVote, Timeout, ValueOrigin, VoteSet,
+    CommitCertificate, Context, PolkaCertificate, Round, SignedProposal, SignedVote, Timeout,
+    ValueOrigin, VoteSet,
 };
 
 use crate::types::ProposedValue;
@@ -40,5 +41,5 @@ where
     VoteSetRequest(RequestId, Ctx::Height, Round),
 
     /// Vote set to be sent to peer
-    VoteSetResponse(VoteSet<Ctx>),
+    VoteSetResponse(VoteSet<Ctx>, Option<PolkaCertificate<Ctx>>),
 }

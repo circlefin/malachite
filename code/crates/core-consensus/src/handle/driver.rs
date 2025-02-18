@@ -68,7 +68,19 @@ where
         DriverInput::CommitCertificate(certificate) => {
             if certificate.height != state.driver.height() {
                 warn!(
-                    "Ignoring certificate for height {}, current height: {}",
+                    "Ignoring commit certificate for height {}, current height: {}",
+                    certificate.height,
+                    state.driver.height()
+                );
+
+                return Ok(());
+            }
+        }
+
+        DriverInput::PolkaCertificate(certificate) => {
+            if certificate.height != state.driver.height() {
+                warn!(
+                    "Ignoring polka certificate for height {}, current height: {}",
                     certificate.height,
                     state.driver.height()
                 );

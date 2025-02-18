@@ -31,7 +31,7 @@ use alloc::vec::Vec;
 
 use malachitebft_core_state_machine::input::Input as RoundInput;
 use malachitebft_core_state_machine::state::Step;
-use malachitebft_core_types::{CommitCertificate, SignedProposal};
+use malachitebft_core_types::{CommitCertificate, PolkaCertificate, SignedProposal};
 use malachitebft_core_types::{Context, Proposal, Round, Validity, Value, ValueId, VoteType};
 use malachitebft_core_votekeeper::keeper::Output as VKOutput;
 use malachitebft_core_votekeeper::keeper::VoteKeeper;
@@ -121,7 +121,7 @@ where
         // L49
         if self.round_state.decision.is_none()
             && self
-                .get_certificate(proposal.round(), proposal.value().id())
+                .get_commit_certificate(proposal.round(), proposal.value().id())
                 .is_some()
         {
             return Some(RoundInput::ProposalAndPrecommitValue(proposal));
@@ -190,7 +190,7 @@ where
         self.multiplex_proposal(proposal, validity)
     }
 
-    pub(crate) fn store_and_multiplex_certificate(
+    pub(crate) fn store_and_multiplex_commit_certificate(
         &mut self,
         certificate: CommitCertificate<Ctx>,
     ) -> Option<RoundInput<Ctx>> {
@@ -201,7 +201,7 @@ where
         let certificate_value_id = certificate.value_id.clone();
 
         // Store the certificate
-        self.certificates.push(certificate);
+        self.commit_certificates.push(certificate);
 
         if let Some((signed_proposal, validity)) = self
             .proposal_keeper
@@ -214,6 +214,41 @@ where
         }
 
         None
+    }
+
+    pub(crate) fn store_and_multiplex_polka_certificate(
+        &mut self,
+        certificate: PolkaCertificate<Ctx>,
+    ) -> Option<RoundInput<Ctx>> {
+        // Should only receive proposals for our height.
+        assert_eq!(self.height(), certificate.height);
+
+        dbg!(&certificate);
+
+        let certificate_round = certificate.round;
+        let certificate_value_id = certificate.value_id.clone();
+
+        // Store the certificate
+        self.polka_certificates.push(certificate);
+
+        let Some((signed_proposal, validity)) = self
+            .proposal_keeper
+            .get_proposal_and_validity_for_round(certificate_round)
+        else {
+            return Some(RoundInput::PolkaAny);
+        };
+
+        let proposal = &signed_proposal.message;
+
+        if dbg!(dbg!(certificate_value_id) == dbg!(proposal.value().id())) {
+            if dbg!(validity.is_valid()) {
+                Some(RoundInput::ProposalAndPolkaCurrent(proposal.clone()))
+            } else {
+                None
+            }
+        } else {
+            Some(RoundInput::PolkaAny)
+        }
     }
 
     /// After a vote threshold change for a given round, check if we have a polka for nil, some value or any,

@@ -6,9 +6,9 @@ pub mod sync {
     include!(concat!(env!("OUT_DIR"), "/sync.rs"));
 }
 
-pub mod certificate {
-    include!(concat!(env!("OUT_DIR"), "/certificate.rs"));
-}
+// pub mod certificate {
+//     include!(concat!(env!("OUT_DIR"), "/certificate.rs"));
+// }
 
 impl From<Uint128> for u128 {
     fn from(value: Uint128) -> Self {

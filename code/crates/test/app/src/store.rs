@@ -28,11 +28,11 @@ pub struct DecidedValue {
 
 fn decode_certificate(bytes: &[u8]) -> Result<CommitCertificate<TestContext>, ProtoError> {
     let proto = proto::CommitCertificate::decode(bytes)?;
-    codec::decode_certificate(proto)
+    codec::decode_commit_certificate(proto)
 }
 
 fn encode_certificate(certificate: &CommitCertificate<TestContext>) -> Result<Vec<u8>, ProtoError> {
-    let proto = codec::encode_certificate(certificate)?;
+    let proto = codec::encode_commit_certificate(certificate)?;
     Ok(proto.encode_to_vec())
 }
 

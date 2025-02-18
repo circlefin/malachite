@@ -50,7 +50,7 @@ pub enum Event<Ctx: Context> {
     Decided(CommitCertificate<Ctx>),
     Rebroadcast(SignedVote<Ctx>),
     RequestedVoteSet(Ctx::Height, Round),
-    SentVoteSetResponse(Ctx::Height, Round, usize),
+    SentVoteSetResponse(Ctx::Height, Round, usize, bool),
     WalReplayBegin(Ctx::Height, usize),
     WalReplayConsensus(SignedConsensusMsg<Ctx>),
     WalReplayTimeout(Timeout),
@@ -78,10 +78,10 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
             Event::RequestedVoteSet(height, round) => {
                 write!(f, "RequestedVoteSet(height: {height}, round: {round})")
             }
-            Event::SentVoteSetResponse(height, round, count) => {
+            Event::SentVoteSetResponse(height, round, count, with_polka) => {
                 write!(
                     f,
-                    "SentVoteSetResponse(height: {height}, round: {round}, count: {count})"
+                    "SentVoteSetResponse(height: {height}, round: {round}, count: {count}, polka_certificate: {with_polka})"
                 )
             }
             Event::WalReplayBegin(height, count) => {
