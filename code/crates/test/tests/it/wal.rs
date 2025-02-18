@@ -260,19 +260,22 @@ async fn byzantine_proposer_crashes_after_proposing_1(params: TestParams) {
         // Check that we replay messages from the WAL
         .expect_wal_replay(CRASH_HEIGHT)
         // Wait until it proposes a value again, while replaying WAL
-        // Check that it is the same value as the first time
         .on_proposed_value(|value, state| {
             let Some(first_value) = state.first_proposed_value.as_ref() else {
                 bail!("Proposer did not propose a block");
             };
 
-            if first_value.value != value.value {
+            if first_value.value == value.value {
                 bail!(
-                    "Proposer just equivocated: expected {:?}, got {:?}",
-                    first_value.value,
+                    "Byzantine proposer unexpectedly re-proposed the same value: {:?}",
                     value.value
-                )
+                );
             }
+
+            info!(
+                "As per the test, the proposer just equivocated: expected {:?}, got {:?}",
+                first_value.value, value.value
+            );
 
             Ok(HandlerResult::ContinueTest)
         })
@@ -353,6 +356,7 @@ async fn byzantine_proposer_crashes_after_proposing_2(params: TestParams) {
             Event::ProposedValue(value) => {
                 info!("Proposer proposed block: {:?}", value.value);
                 state.first_proposed_value = Some(value);
+
                 Ok(HandlerResult::ContinueTest)
             }
             _ => Ok(HandlerResult::WaitForNextEvent),
@@ -364,8 +368,25 @@ async fn byzantine_proposer_crashes_after_proposing_2(params: TestParams) {
         // Check that we replay messages from the WAL
         .expect_wal_replay(CRASH_HEIGHT)
         // Wait until it proposes a value again, while replaying WAL
-        // Check that it is the same value as the first time
-        .on_proposed_value(|_value, _state| Ok(HandlerResult::ContinueTest))
+        .on_proposed_value(|value, state| {
+            let Some(first_value) = state.first_proposed_value.as_ref() else {
+                bail!("Proposer did not propose a block");
+            };
+
+            if first_value.value == value.value {
+                bail!(
+                    "Byzantine proposer unexpectedly re-proposed the same value: {:?}",
+                    value.value
+                );
+            }
+
+            info!(
+                "As per the test, the proposer just equivocated: expected {:?}, got {:?}",
+                first_value.value, value.value
+            );
+
+            Ok(HandlerResult::ContinueTest)
+        })
         .wait_until(CRASH_HEIGHT + 2)
         .success();
 
