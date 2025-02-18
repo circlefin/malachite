@@ -8,6 +8,7 @@ use crate::handle::vote::on_vote;
 use crate::prelude::*;
 use crate::types::SignedConsensusMsg;
 use crate::util::pretty::PrettyVal;
+use crate::VoteSyncMode;
 
 #[async_recursion]
 pub async fn apply_driver_input<Ctx>(
@@ -66,13 +67,6 @@ where
                 );
 
                 return Ok(());
-            }
-
-            // TODO: this is a hack to prevent the node from sending the same vote twice
-            // it doesn't cover multiple rounds.
-            // WAL replaying our own vote
-            if state.check_vote_against_last_sent(vote) {
-                state.set_last_sent_vote(vote.clone());
             }
         }
 
@@ -256,9 +250,10 @@ where
 
             let extended_vote = extend_vote(co, vote).await?;
             let signed_vote = sign_vote(co, extended_vote).await?;
+            let vote_type = signed_vote.vote_type();
 
             // Only sign and publish if we're in the validator set
-            if state.is_validator() && state.check_vote_against_last_sent(&signed_vote) {
+            if state.is_validator() {
                 on_vote(co, state, metrics, signed_vote.clone()).await?;
 
                 perform!(
@@ -269,16 +264,14 @@ where
                     )
                 );
 
-                let timeout = match signed_vote.vote_type() {
-                    VoteType::Prevote => Timeout::prevote_rebroadcast(state.driver.round()),
-                    VoteType::Precommit => Timeout::precommit_rebroadcast(state.driver.round()),
-                };
+                if state.params.vote_sync_mode == VoteSyncMode::Rebroadcast {
+                    let timeout = match vote_type {
+                        VoteType::Prevote => Timeout::prevote_rebroadcast(state.driver.round()),
+                        VoteType::Precommit => Timeout::precommit_rebroadcast(state.driver.round()),
+                    };
 
-                state.set_last_sent_vote(signed_vote);
-
-                perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
-            } else {
-                warn!("YYY - Vote is NOT the same as the last sent vote, ignoring");
+                    perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
+                }
             }
 
             Ok(())
