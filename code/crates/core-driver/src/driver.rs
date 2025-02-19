@@ -8,7 +8,7 @@ use malachitebft_core_state_machine::state::{RoundValue, State as RoundState, St
 use malachitebft_core_state_machine::state_machine::Info;
 use malachitebft_core_types::{
     CommitCertificate, Context, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutKind,
-    Validator, ValidatorSet, Validity, ValueId, Vote,
+    Validator, ValidatorSet, Validity, ValueId, Vote, VoteType,
 };
 use malachitebft_core_votekeeper::keeper::VoteKeeper;
 
@@ -55,6 +55,9 @@ where
     /// The pending inputs to be processed next, if any.
     /// The first element of the tuple is the round at which that input has been emitted.
     pending_inputs: Vec<(Round, RoundInput<Ctx>)>,
+
+    last_prevote: Option<Ctx::Vote>,
+    last_precommit: Option<Ctx::Vote>,
 }
 
 impl<Ctx> Driver<Ctx>
@@ -87,6 +90,8 @@ where
             proposer: None,
             pending_inputs: vec![],
             certificates: vec![],
+            last_prevote: None,
+            last_precommit: None,
         }
     }
 
@@ -108,6 +113,8 @@ where
         self.round_state = round_state;
         self.pending_inputs = vec![];
         self.certificates = vec![];
+        self.last_prevote = None;
+        self.last_precommit = None;
     }
 
     /// Return the height of the consensus.
@@ -200,6 +207,18 @@ where
             .find(|c| c.round == round && c.value_id == value_id)
     }
 
+    /// Store the last vote that we have cast
+    fn set_last_vote_cast(&mut self, vote: &Ctx::Vote) {
+        assert_eq!(vote.height(), self.height());
+
+        if vote.round() == self.round() {
+            match vote.vote_type() {
+                VoteType::Prevote => self.last_prevote = Some(vote.clone()),
+                VoteType::Precommit => self.last_precommit = Some(vote.clone()),
+            }
+        }
+    }
+
     /// Process the given input, returning the outputs to be broadcast to the network.
     pub fn process(&mut self, msg: Input<Ctx>) -> Result<Vec<Output<Ctx>>, Error<Ctx>> {
         let round_output = match self.apply(msg)? {
@@ -232,7 +251,7 @@ where
 
             RoundOutput::Proposal(proposal) => outputs.push(Output::Propose(proposal)),
 
-            RoundOutput::Vote(vote) => outputs.push(Output::Vote(vote)),
+            RoundOutput::Vote(vote) => self.lift_vote_output(vote, outputs),
 
             RoundOutput::ScheduleTimeout(timeout) => outputs.push(Output::ScheduleTimeout(timeout)),
 
@@ -242,6 +261,32 @@ where
             }
 
             RoundOutput::Decision(round, proposal) => outputs.push(Output::Decide(round, proposal)),
+        }
+    }
+
+    fn lift_vote_output(&mut self, vote: Ctx::Vote, outputs: &mut Vec<Output<Ctx>>) {
+        if vote.validator_address() != self.address() {
+            return;
+        }
+
+        // Only cast a vote if any of the following is true:
+        // - We have not voted yet
+        // - That vote is for a higher height than our last vote
+        // - That vote is for a higher round than our last vote
+        // - That vote is the same as our last vote
+        let can_vote = match vote.vote_type() {
+            VoteType::Prevote => self.last_prevote.as_ref().map_or(true, |prev| {
+                prev.height() < vote.height() || prev.round() < vote.round() || prev == &vote
+            }),
+            VoteType::Precommit => self.last_precommit.as_ref().map_or(true, |prev| {
+                prev.height() < vote.height() || prev.round() < vote.round() || prev == &vote
+            }),
+        };
+
+        if can_vote {
+            self.set_last_vote_cast(&vote);
+
+            outputs.push(Output::Vote(vote));
         }
     }
 

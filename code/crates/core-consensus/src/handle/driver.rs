@@ -62,13 +62,6 @@ where
 
                 return Ok(());
             }
-
-            // TODO: this is a hack to prevent the node from sending the same vote twice
-            // it doesn't cover multiple rounds.
-            // WAL replaying our own vote
-            if state.check_vote_against_last_sent(vote) {
-                state.set_last_sent_vote(vote.clone());
-            }
         }
 
         DriverInput::CommitCertificate(certificate) => {
@@ -256,11 +249,11 @@ where
                 "Voting",
             );
 
-            let extended_vote = extend_vote(co, vote).await?;
-            let signed_vote = sign_vote(co, extended_vote).await?;
-
             // Only sign and publish if we're in the validator set
-            if state.is_validator() && state.check_vote_against_last_sent(&signed_vote) {
+            if state.is_validator() {
+                let extended_vote = extend_vote(co, vote).await?;
+                let signed_vote = sign_vote(co, extended_vote).await?;
+
                 on_vote(co, state, metrics, signed_vote.clone()).await?;
 
                 perform!(
@@ -276,11 +269,7 @@ where
                     VoteType::Precommit => Timeout::precommit_rebroadcast(state.driver.round()),
                 };
 
-                state.set_last_sent_vote(signed_vote);
-
                 perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
-            } else {
-                warn!("YYY - Vote is NOT the same as the last sent vote, ignoring");
             }
 
             Ok(())
