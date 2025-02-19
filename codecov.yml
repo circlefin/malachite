@@ -19,16 +19,21 @@ component_management:
     - component_id: core
       name: core
       paths:
-        - "code/crates/core-*/**"
+        - "code/crates/core-consensus/**"
+        - "code/crates/core-driver/**"
+        - "code/crates/core-state-machine/**"
+        - "code/crates/core-state-types/**"
+        - "code/crates/core-state-votekeeper/**"
     - component_id: engine
       name: engine
       paths:
         - "code/crates/engine/**"
+        - "code/crates/sync/**"
     - component_id: app
       name: app
       paths:
         - "code/crates/app/**"
-        - "code/crates/app-*/**"
+        - "code/crates/app-channel/**"
     - component_id: starknet
       name: starknet
       paths:

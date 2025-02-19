@@ -51,11 +51,6 @@ where
 
                 return Ok(());
             }
-
-            perform!(
-                co,
-                Effect::CancelTimeout(Timeout::propose(proposal.round()), Default::default())
-            );
         }
 
         DriverInput::Vote(vote) => {
@@ -118,6 +113,13 @@ where
 
     if prev_step != new_step {
         if state.driver.step_is_prevote() {
+            // Cancel the Propose timeout since we have moved from Propose to Prevote
+            perform!(
+                co,
+                Effect::CancelTimeout(Timeout::propose(state.driver.round()), Default::default())
+            );
+
+            // Schedule the Prevote time limit timeout
             perform!(
                 co,
                 Effect::ScheduleTimeout(
@@ -248,12 +250,12 @@ where
                 "Voting",
             );
 
-            let extended_vote = extend_vote(co, vote).await?;
-            let signed_vote = sign_vote(co, extended_vote).await?;
-            let vote_type = signed_vote.vote_type();
-
             // Only sign and publish if we're in the validator set
             if state.is_validator() {
+                let vote_type = vote.vote_type();
+                let extended_vote = extend_vote(co, vote).await?;
+                let signed_vote = sign_vote(co, extended_vote).await?;
+
                 on_vote(co, state, metrics, signed_vote.clone()).await?;
 
                 perform!(
@@ -263,6 +265,8 @@ where
                         Default::default()
                     )
                 );
+
+                state.set_last_vote(signed_vote);
 
                 if state.params.vote_sync_mode == VoteSyncMode::Rebroadcast {
                     let timeout = match vote_type {

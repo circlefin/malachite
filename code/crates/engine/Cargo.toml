@@ -26,6 +26,7 @@ malachitebft-sync.workspace = true
 malachitebft-wal.workspace = true
 
 async-trait = { workspace = true }
+async-recursion = { workspace = true }
 bytes = { workspace = true, features = ["serde"] }
 byteorder = { workspace = true }
 derive-where = { workspace = true }

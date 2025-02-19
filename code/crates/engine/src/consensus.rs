@@ -2,11 +2,13 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::time::Duration;
 
+use async_recursion::async_recursion;
 use async_trait::async_trait;
+use derive_where::derive_where;
 use eyre::eyre;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::time::Instant;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, error_span, info, warn};
 
 use malachitebft_codec as codec;
 use malachitebft_config::TimeoutConfig;
@@ -27,6 +29,7 @@ use crate::network::{NetworkEvent, NetworkMsg, NetworkRef, Status};
 use crate::sync::Msg as SyncMsg;
 use crate::sync::SyncRef;
 use crate::util::events::{Event, TxEvent};
+use crate::util::msg_buffer::MessageBuffer;
 use crate::util::streaming::StreamMessage;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 use crate::wal::{Msg as WalMsg, WalEntry, WalRef};
@@ -80,6 +83,7 @@ where
 
 pub type ConsensusMsg<Ctx> = Msg<Ctx>;
 
+#[derive_where(Debug)]
 pub enum Msg<Ctx: Context> {
     /// Start consensus for the given height with the given validator set
     StartHeight(Ctx::Height, Ctx::ValidatorSet),
@@ -164,6 +168,10 @@ enum Phase {
     Recovering,
 }
 
+/// Maximum number of messages to buffer while consensus is
+/// in the `Unstarted` or `Recovering` phase
+const MAX_BUFFER_SIZE: usize = 1024;
+
 pub struct State<Ctx: Context> {
     /// Scheduler for timers
     timers: Timers,
@@ -179,6 +187,10 @@ pub struct State<Ctx: Context> {
 
     /// The current phase
     phase: Phase,
+
+    /// A buffer of messages that were received while
+    /// consensus was `Unstarted` or in the `Recovering` phase
+    msg_buffer: MessageBuffer<Ctx>,
 }
 
 impl<Ctx> State<Ctx>
@@ -251,6 +263,23 @@ where
         )
     }
 
+    #[async_recursion]
+    async fn process_buffered_msgs(&self, myself: &ActorRef<Msg<Ctx>>, state: &mut State<Ctx>) {
+        if state.msg_buffer.is_empty() {
+            return;
+        }
+
+        info!(count = %state.msg_buffer.len(), "Replaying buffered messages");
+
+        while let Some(msg) = state.msg_buffer.pop() {
+            info!("Replaying buffered message: {msg:?}");
+
+            if let Err(e) = self.handle_msg(myself.clone(), state, msg).await {
+                error!("Error when handling buffered message: {e:?}");
+            }
+        }
+    }
+
     async fn handle_msg(
         &self,
         myself: ActorRef<Msg<Ctx>>,
@@ -259,8 +288,6 @@ where
     ) -> Result<(), ActorProcessingErr> {
         match msg {
             Msg::StartHeight(height, validator_set) => {
-                state.phase = Phase::Running;
-
                 let result = self
                     .process_input(
                         &myself,
@@ -285,6 +312,10 @@ where
                 if let Err(e) = self.check_and_replay_wal(&myself, state, height).await {
                     error!(%height, "Error when checking and replaying WAL: {e}");
                 }
+
+                self.process_buffered_msgs(&myself, state).await;
+
+                state.phase = Phase::Running;
 
                 Ok(())
             }
@@ -607,8 +638,6 @@ where
                     error!(%height, "Failed to replay WAL entries: {e}");
                     self.tx_event.send(|| Event::WalReplayError(Arc::new(e)));
                 }
-
-                state.phase = Phase::Running;
             }
             Err(e) => {
                 error!(%height, "Error when notifying WAL of started height: {e}");
@@ -1102,6 +1131,7 @@ where
             consensus: ConsensusState::new(self.ctx.clone(), self.params.clone()),
             connected_peers: BTreeSet::new(),
             phase: Phase::Unstarted,
+            msg_buffer: MessageBuffer::new(MAX_BUFFER_SIZE),
         })
     }
 
@@ -1128,7 +1158,13 @@ where
         msg: Msg<Ctx>,
         state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
-        if let Err(e) = self.handle_msg(myself, state, msg).await {
+        if state.phase != Phase::Running && should_buffer(&msg) {
+            let _span = error_span!("buffer", phase = ?state.phase).entered();
+            state.msg_buffer.buffer(msg);
+            return Ok(());
+        }
+
+        if let Err(e) = self.handle_msg(myself.clone(), state, msg).await {
             error!("Error when handling message: {e:?}");
         }
 
@@ -1141,9 +1177,18 @@ where
         state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
         info!("Stopping...");
-
         state.timers.cancel_all();
-
         Ok(())
     }
+}
+
+fn should_buffer<Ctx: Context>(msg: &Msg<Ctx>) -> bool {
+    !matches!(
+        msg,
+        Msg::StartHeight(..)
+            | Msg::GetStatus(..)
+            | Msg::NetworkEvent(NetworkEvent::Listening(..))
+            | Msg::NetworkEvent(NetworkEvent::PeerConnected(..))
+            | Msg::NetworkEvent(NetworkEvent::PeerDisconnected(..))
+    )
 }

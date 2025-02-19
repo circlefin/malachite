@@ -6,15 +6,6 @@ use crate::types::ProposedValue;
 use super::decide::decide_current_no_timeout;
 use super::signature::sign_proposal;
 
-#[tracing::instrument(
-    skip_all,
-    fields(
-        height = %proposed_value.height,
-        round = %proposed_value.round,
-        validity = ?proposed_value.validity,
-        id = %proposed_value.value.id()
-    )
-)]
 pub async fn on_proposed_value<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,

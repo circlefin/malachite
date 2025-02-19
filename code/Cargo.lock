@@ -2254,6 +2254,7 @@ dependencies = [
 name = "informalsystems-malachitebft-engine"
 version = "0.0.1"
 dependencies = [
+ "async-recursion",
  "async-trait",
  "byteorder",
  "bytes",
