@@ -251,6 +251,7 @@ where
 
             // Only sign and publish if we're in the validator set
             if state.is_validator() {
+                let vote_type = vote.vote_type();
                 let extended_vote = extend_vote(co, vote).await?;
                 let signed_vote = sign_vote(co, extended_vote).await?;
 
@@ -264,7 +265,9 @@ where
                     )
                 );
 
-                let timeout = match signed_vote.vote_type() {
+                state.set_last_vote(signed_vote);
+
+                let timeout = match vote_type {
                     VoteType::Prevote => Timeout::prevote_rebroadcast(state.driver.round()),
                     VoteType::Precommit => Timeout::precommit_rebroadcast(state.driver.round()),
                 };

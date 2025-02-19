@@ -13,23 +13,25 @@ where
     let (height, round) = (state.driver.height(), state.driver.round());
 
     let (maybe_vote, timeout) = match timeout.kind {
-        TimeoutKind::PrevoteRebroadcast => {
-            (&state.last_prevote, Timeout::prevote_rebroadcast(round))
-        }
-        TimeoutKind::PrecommitRebroadcast => {
-            (&state.last_precommit, Timeout::precommit_rebroadcast(round))
-        }
+        TimeoutKind::PrevoteRebroadcast => (
+            state.last_prevote.as_ref(),
+            Timeout::prevote_rebroadcast(round),
+        ),
+        TimeoutKind::PrecommitRebroadcast => (
+            state.last_precommit.as_ref(),
+            Timeout::precommit_rebroadcast(round),
+        ),
         _ => return Ok(()),
     };
 
-    if let Some(vote) = maybe_vote {
+    if let Some(vote) = maybe_vote.cloned() {
         warn!(
             %height, %round,
             "Rebroadcasting vote at {:?} step after {:?} timeout",
             state.driver.step(), timeout.kind,
         );
 
-        perform!(co, Effect::Rebroadcast(vote.clone(), Default::default()));
+        perform!(co, Effect::Rebroadcast(vote, Default::default()));
         perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
     }
 
