@@ -1187,7 +1187,6 @@ fn should_buffer<Ctx: Context>(msg: &Msg<Ctx>) -> bool {
     !matches!(
         msg,
         Msg::StartHeight(..)
-            | Msg::TimeoutElapsed(..)
             | Msg::GetStatus(..)
             | Msg::NetworkEvent(NetworkEvent::Listening(..))
             | Msg::NetworkEvent(NetworkEvent::PeerConnected(..))
