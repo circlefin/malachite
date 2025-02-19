@@ -50,11 +50,6 @@ where
 
                 return Ok(());
             }
-
-            perform!(
-                co,
-                Effect::CancelTimeout(Timeout::propose(proposal.round()), Default::default())
-            );
         }
 
         DriverInput::Vote(vote) => {
@@ -117,6 +112,13 @@ where
 
     if prev_step != new_step {
         if state.driver.step_is_prevote() {
+            // Cancel the Propose timeout since we have moved from Propose to Prevote
+            perform!(
+                co,
+                Effect::CancelTimeout(Timeout::propose(state.driver.round()), Default::default())
+            );
+
+            // Schedule the Prevote time limit timeout
             perform!(
                 co,
                 Effect::ScheduleTimeout(
