@@ -387,7 +387,6 @@ pub struct ConsensusConfig {
     pub p2p: P2pConfig,
 
     /// VoteSync configuration options
-    #[serde(default)]
     pub vote_sync: VoteSyncConfig,
 }
 
