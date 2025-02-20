@@ -1046,7 +1046,7 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::GetVoteSet(height, round, r) => {
+            Effect::RequestVoteSet(height, round, r) => {
                 if let Some(sync) = &self.sync {
                     debug!(%height, %round, "Request sync to obtain the vote set from peers");
 
