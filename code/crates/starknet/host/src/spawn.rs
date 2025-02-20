@@ -2,13 +2,13 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use libp2p_identity::ecdsa;
-use malachitebft_core_consensus::VoteSyncMode;
 use tokio::task::JoinHandle;
 use tracing::warn;
 
 use malachitebft_config::{
     self as config, Config as NodeConfig, MempoolConfig, SyncConfig, TestConfig, TransportProtocol,
 };
+use malachitebft_core_consensus::VoteSyncMode;
 use malachitebft_core_types::ValuePayload;
 use malachitebft_engine::consensus::{Consensus, ConsensusParams, ConsensusRef};
 use malachitebft_engine::host::HostRef;
