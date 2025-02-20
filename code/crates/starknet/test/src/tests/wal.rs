@@ -3,6 +3,7 @@ use std::time::Duration;
 use eyre::bail;
 use tracing::info;
 
+use malachitebft_config::VoteSyncMode;
 use malachitebft_core_consensus::LocallyProposedValue;
 use malachitebft_core_types::SignedVote;
 use malachitebft_engine::util::events::Event;
@@ -162,6 +163,7 @@ pub async fn node_crashes_after_vote_set_request() {
             Duration::from_secs(60),
             TestParams {
                 enable_sync: true,
+                vote_sync_mode: Some(VoteSyncMode::RequestResponse),
                 timeout_step: Duration::from_secs(5),
                 ..Default::default()
             },

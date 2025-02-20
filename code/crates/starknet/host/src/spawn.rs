@@ -172,7 +172,10 @@ async fn spawn_consensus_actor(
         address,
         threshold_params: Default::default(),
         value_payload: ValuePayload::PartsOnly,
-        vote_sync_mode: VoteSyncMode::Rebroadcast,
+        vote_sync_mode: match cfg.consensus.vote_sync.mode {
+            config::VoteSyncMode::RequestResponse => VoteSyncMode::RequestResponse,
+            config::VoteSyncMode::Rebroadcast => VoteSyncMode::Rebroadcast,
+        },
     };
 
     Consensus::spawn(
