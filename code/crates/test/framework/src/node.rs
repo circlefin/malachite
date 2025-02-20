@@ -79,7 +79,8 @@ where
     }
 
     pub fn start(&mut self) -> &mut Self {
-        self.start_at(1)
+        self.start_height = <Ctx::Height>::INITIAL;
+        self
     }
 
     pub fn start_at(&mut self, height: u64) -> &mut Self {
