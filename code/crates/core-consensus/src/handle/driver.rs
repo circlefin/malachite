@@ -8,6 +8,7 @@ use crate::handle::vote::on_vote;
 use crate::prelude::*;
 use crate::types::SignedConsensusMsg;
 use crate::util::pretty::PrettyVal;
+use crate::VoteSyncMode;
 
 #[async_recursion]
 pub async fn apply_driver_input<Ctx>(
@@ -267,12 +268,15 @@ where
 
                 state.set_last_vote(signed_vote);
 
-                let timeout = match vote_type {
-                    VoteType::Prevote => Timeout::prevote_rebroadcast(state.driver.round()),
-                    VoteType::Precommit => Timeout::precommit_rebroadcast(state.driver.round()),
-                };
+                // Schedule rebroadcast timer if necessary
+                if state.params.vote_sync_mode == VoteSyncMode::Rebroadcast {
+                    let timeout = match vote_type {
+                        VoteType::Prevote => Timeout::prevote_rebroadcast(state.driver.round()),
+                        VoteType::Precommit => Timeout::precommit_rebroadcast(state.driver.round()),
+                    };
 
-                perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
+                    perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
+                }
             }
 
             Ok(())
