@@ -27,8 +27,8 @@ of Tendermint are detailed.
 
 ## Heights
 
-The algorithm presented in the [pseudo-code][pseudo-code] represent the
-operation of an instance of consensus in a process `p`.
+The algorithm presented in the [pseudo-code][pseudo-code] represents the
+operation of an instance of consensus in a process `p`. NM{The pseudo-code from the paper is not one instance/height, it is multi instance? }
 
 Each instance or **height** of the consensus algorithm is identified by an
 integer, represented by the `h_p` variable in the pseudo-code.
@@ -39,7 +39,7 @@ A this point, the process increases `h_p` (line 52) and starts the next height
 of consensus, in which the same algorithm is executed again.
 
 For the sake of the operation of the consensus algorithm, heights are
-completely independent executions.
+completely independent executions. NM{Not sure I fully understand what do we want to say here?}
 For this reason, in the remainder of this document we consider and discuss the
 execution of a **single height of consensus**.
 
@@ -73,7 +73,7 @@ processes during that round step.
 The current round step of a process `p` is stored in the `step_p` variable.
 In general terms, when entering a round step, a process performs one or more
 **actions**.
-And the reception a given set of **events** while in a round step, leads the
+And the reception of a given set of **events** while in a round step, leads the
 process to move to the next round step.
 
 ### Propose
@@ -83,7 +83,7 @@ A process `p` sets its `step_p` to `propose` in the `StartRound(round)`
 function, where it also increases `round_p` to the started `round` number.
 The `propose` step is the only round step that is asymmetric: different
 processes perform different actions when starting it.
-More specifically, the proposer of the round has a distinguish role in this round step.
+More specifically, the proposer of the round has a distinguished role in this round step.
 
 In the `propose` round step, the **proposer** of the current round selects the
 value to be the proposed in that round and **broadcast**s the proposed value to all
@@ -97,7 +97,7 @@ The `prevote` round step has the role of validating the value proposed in the
 `propose` step.
 The value proposed for the round can be accepted (lines 24 or 30) or rejected
 (lines 26 or 32) by the process.
-The proposed value can be also rejected if not received when the timeout
+The proposed value can also be rejected if not received before the timeout
 scheduled in the `propose` step expires (line 59).
 
 The action taken by a process when it moves from the `propose` to the `prevote`
@@ -166,9 +166,9 @@ The Tendermint consensus algorithm defines three message types, each type
 associated to a [round step](#round-steps):
 
 - `⟨PROPOSAL, h, r, v, vr⟩`: broadcast by the process returned by the proposer
-  selection function `proposer(h, r)` function when entering the
+  selection function `proposer(h, r)` when entering the
   [`propose`](#propose) step of round `r` of height `h`.
-  Carries the proposed value `v` for height `h` of consensus.
+  It carries the proposed value `v` for height `h` of consensus.
   Since only proposed values can be decided, the success of round `r` depends
   on the reception of this message.
 - `⟨PREVOTE, h, r, *⟩` broadcast by all processes when entering the
@@ -181,6 +181,7 @@ associated to a [round step](#round-steps):
   The last field can be either the unique identifier `id(v)` of a proposed
   value `v` for which the process has received `⟨PREVOTE, h, r, id(v)⟩`
   messages from a super-majority of processes, or the special `nil` value otherwise.
+  NM{I am not sure we have defined super-majority anywhere?} 
 
 Before discussing in detail the role of each message in the protocol, it is
 worth highlighting a main aspect that differentiate the adopted messages.
@@ -215,10 +216,10 @@ The success of round `r` results in `v` being the decision value for height `h`.
 The proposer of a round `r` defines which value `v` it will propose based on
 the values of the two state variables `validValue_p` and `validRound_p`.
 They are initialized to `nil` and `-1` at the beginning of each height, meaning
-that the process is not aware of any proposed value that has became **valid**
+that the process is not aware of any proposed value that has become **valid**
 in a previous round.
 A value `v` becomes **valid** at round `r` when a `PROPOSAL` for `v` and an
-enough number of `PREVOTE` messages for `id(v)` are received during round `r`.
+enough number of `PREVOTE` messages for `id(v)` are received during round `r`. \NM{why don't we say super-majority here ?}
 This logic is part of the pseudo-code block from line 36, where `validValue_p`
 and `validRound_p` are updated.
 
@@ -257,7 +258,7 @@ be a priori known by all consensus processes.
 Attacks 2. and 3. are constitute forms of the **amnesia attack** and are harder
 to identify.
 Notice, however, that correct processes check whether they can accept a proposed
-value `v` with valid round `vr` based in the content of its state variables
+value `v` with a valid round `vr` based on the content of its state variables
 `lockedValue_p` and `lockedRound_p` (lines 23 and 29) and are likely to reject
 such proposals.
 
