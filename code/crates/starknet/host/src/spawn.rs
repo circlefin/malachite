@@ -255,13 +255,6 @@ async fn spawn_network_actor(
     .unwrap()
 }
 
-// fn make_keypair(private_key: &PrivateKey) -> Keypair {
-//     let pk_bytes = private_key.inner().to_bytes_be();
-//     let secret_key = ecdsa::SecretKey::try_from_bytes(pk_bytes).unwrap();
-//     let ecdsa_keypair = ecdsa::Keypair::from(secret_key);
-//     Keypair::from(ecdsa_keypair)
-// }
-
 fn make_keypair(pk: &PrivateKey) -> Keypair {
     Keypair::ed25519_from_bytes(pk.inner().to_bytes()).unwrap()
 }
