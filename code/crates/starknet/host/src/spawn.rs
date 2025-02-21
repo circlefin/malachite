@@ -1,7 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use libp2p_identity::ecdsa;
 use tokio::task::JoinHandle;
 use tracing::warn;
 
@@ -18,7 +17,7 @@ use malachitebft_engine::util::events::TxEvent;
 use malachitebft_engine::wal::{Wal, WalRef};
 use malachitebft_metrics::{Metrics, SharedRegistry};
 use malachitebft_network::Keypair;
-use malachitebft_starknet_p2p_types::EcdsaProvider;
+use malachitebft_starknet_p2p_types::Ed25519Provider;
 use malachitebft_sync as sync;
 use malachitebft_test_mempool::Config as MempoolNetworkConfig;
 
@@ -46,7 +45,7 @@ pub async fn spawn_node_actor(
     let registry = SharedRegistry::global().with_moniker(cfg.moniker.as_str());
     let metrics = Metrics::register(&registry);
     let address = Address::from_public_key(private_key.public_key());
-    let signing_provider = EcdsaProvider::new(private_key);
+    let signing_provider = Ed25519Provider::new(private_key.clone());
 
     // Spawn mempool and its gossip layer
     let mempool_network = spawn_mempool_network_actor(&cfg, &private_key, &registry, &span).await;
@@ -156,7 +155,7 @@ async fn spawn_consensus_actor(
     address: Address,
     ctx: MockContext,
     cfg: NodeConfig,
-    signing_provider: EcdsaProvider,
+    signing_provider: Ed25519Provider,
     network: NetworkRef<MockContext>,
     host: HostRef<MockContext>,
     wal: WalRef<MockContext>,
@@ -256,11 +255,15 @@ async fn spawn_network_actor(
     .unwrap()
 }
 
-fn make_keypair(private_key: &PrivateKey) -> Keypair {
-    let pk_bytes = private_key.inner().to_bytes_be();
-    let secret_key = ecdsa::SecretKey::try_from_bytes(pk_bytes).unwrap();
-    let ecdsa_keypair = ecdsa::Keypair::from(secret_key);
-    Keypair::from(ecdsa_keypair)
+// fn make_keypair(private_key: &PrivateKey) -> Keypair {
+//     let pk_bytes = private_key.inner().to_bytes_be();
+//     let secret_key = ecdsa::SecretKey::try_from_bytes(pk_bytes).unwrap();
+//     let ecdsa_keypair = ecdsa::Keypair::from(secret_key);
+//     Keypair::from(ecdsa_keypair)
+// }
+
+fn make_keypair(pk: &PrivateKey) -> Keypair {
+    Keypair::ed25519_from_bytes(pk.inner().to_bytes()).unwrap()
 }
 
 async fn spawn_mempool_actor(
@@ -335,7 +338,7 @@ async fn spawn_host_actor(
         mock_params,
         mempool.clone(),
         *address,
-        *private_key,
+        private_key.clone(),
         initial_validator_set.clone(),
     );
 

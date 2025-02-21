@@ -1,6 +1,6 @@
 use bytes::Bytes;
 use malachitebft_app::streaming::StreamId;
-use malachitebft_starknet_p2p_types::Signature;
+use malachitebft_starknet_p2p_types::{Felt, FeltExt, Signature};
 use prost::Message;
 
 use malachitebft_codec::Codec;
@@ -350,7 +350,7 @@ pub fn decode_consensus_message(
     proto: proto::Vote,
 ) -> Result<SignedConsensusMsg<MockContext>, ProtoError> {
     let vote = Vote::from_proto(proto)?;
-    let signature = p2p::Signature::dummy();
+    let signature = p2p::Signature::test();
 
     Ok(SignedConsensusMsg::Vote(SignedVote::new(vote, signature)))
 }
@@ -418,6 +418,17 @@ where
     }
 }
 
+pub fn encode_signature(_signature: &Signature) -> Result<proto::ConsensusSignature, ProtoError> {
+    Ok(proto::ConsensusSignature {
+        r: Some(Felt::ONE.to_proto()?),
+        s: Some(Felt::ONE.to_proto()?),
+    })
+}
+
+pub fn decode_signature(_signature: proto::ConsensusSignature) -> Result<Signature, ProtoError> {
+    Ok(Signature::test())
+}
+
 pub fn decode_aggregated_signature(
     signature: proto::sync::AggregatedSignature,
 ) -> Result<AggregatedSignature<MockContext>, ProtoError> {
@@ -430,7 +441,7 @@ pub fn decode_aggregated_signature(
                 .ok_or_else(|| {
                     ProtoError::missing_field::<proto::sync::CommitSignature>("signature")
                 })
-                .and_then(p2p::Signature::from_proto)?;
+                .and_then(decode_signature)?;
 
             let address = s
                 .validator_address
@@ -454,7 +465,7 @@ pub fn encode_aggregate_signature(
         .iter()
         .map(|s| {
             let validator_address = s.address.to_proto()?;
-            let signature = s.signature.to_proto()?;
+            let signature = encode_signature(&s.signature)?;
 
             Ok(proto::sync::CommitSignature {
                 validator_address: Some(validator_address),
@@ -601,7 +612,7 @@ pub(crate) fn encode_vote(vote: &SignedVote<MockContext>) -> Result<proto::Vote,
 }
 
 pub(crate) fn decode_vote(msg: proto::Vote) -> Option<SignedVote<MockContext>> {
-    let signature = Signature::dummy();
+    let signature = Signature::test();
     let vote = Vote::from_proto(msg).ok()?;
     Some(SignedVote::new(vote, signature))
 }

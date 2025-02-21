@@ -1,7 +1,7 @@
 use core::fmt;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use libp2p_identity::{ecdsa, PeerId};
+use libp2p_identity::PeerId;
 use malachitebft_config::TransportProtocol;
 use malachitebft_metrics::SharedRegistry;
 use malachitebft_network::{
@@ -139,10 +139,7 @@ impl<const N: usize> Test<N> {
         );
         std::array::from_fn(|_| {
             let privkey = PrivateKey::generate(&mut rng);
-            let pk_bytes = privkey.inner().to_bytes_be();
-            let secret_key = ecdsa::SecretKey::try_from_bytes(pk_bytes).unwrap();
-            let ecdsa_keypair = ecdsa::Keypair::from(secret_key);
-            Keypair::from(ecdsa_keypair)
+            Keypair::ed25519_from_bytes(privkey.inner().to_bytes()).unwrap()
         })
     }
 

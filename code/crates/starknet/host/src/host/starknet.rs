@@ -83,7 +83,7 @@ impl Host for StarknetHost {
                 height,
                 round,
                 self.address,
-                self.private_key,
+                self.private_key.clone(),
                 self.params,
                 deadline,
                 self.mempool.clone(),
@@ -151,7 +151,7 @@ impl Host for StarknetHost {
 
     /// Sign a message hash
     async fn sign(&self, message: Self::MessageHash) -> Self::Signature {
-        self.private_key.sign(&message.as_felt())
+        self.private_key.sign(message.as_bytes().as_slice())
     }
 
     /// Validates the signature field of a message. If None returns false.
@@ -161,7 +161,9 @@ impl Host for StarknetHost {
         signature: &Self::Signature,
         public_key: &Self::PublicKey,
     ) -> bool {
-        public_key.verify(&hash.as_felt(), signature)
+        public_key
+            .verify(hash.as_bytes().as_slice(), signature)
+            .is_ok()
     }
 
     /// Update the Context about which decision has been made. It is responsible for pinging any

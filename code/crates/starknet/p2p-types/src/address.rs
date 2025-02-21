@@ -26,7 +26,10 @@ impl Address {
 impl fmt::Display for Address {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
+        for byte in self.0.as_bytes().iter() {
+            write!(f, "{:02X}", byte)?;
+        }
+        Ok(())
     }
 }
 
@@ -57,7 +60,7 @@ impl Protobuf for Address {
 
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(p2p_proto::Address {
-            elements: Bytes::copy_from_slice(&self.0.as_bytes()),
+            elements: Bytes::copy_from_slice(self.0.as_bytes().as_slice()),
         })
     }
 }
