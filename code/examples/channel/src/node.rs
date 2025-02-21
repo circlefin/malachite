@@ -22,6 +22,7 @@ use malachitebft_test::{
 };
 use malachitebft_test_cli::metrics;
 use tokio::task::JoinHandle;
+use tracing::Instrument;
 
 use crate::metrics::DbMetrics;
 use crate::state::State;
@@ -121,9 +122,6 @@ impl Node for App {
     }
 
     async fn start(&self) -> eyre::Result<Handle> {
-        let span = tracing::error_span!("node", moniker = %self.config.moniker);
-        let _enter = span.enter();
-
         let private_key_file = self.load_private_key_file()?;
         let private_key = self.load_private_key(private_key_file);
         let public_key = self.get_public_key(&private_key);
@@ -162,11 +160,15 @@ impl Node for App {
         let start_height = self.start_height.unwrap_or(Height::INITIAL);
         let mut state = State::new(ctx, signing_provider, genesis, address, start_height, store);
 
-        let app_handle = tokio::spawn(async move {
-            if let Err(e) = crate::app::run(&mut state, &mut channels).await {
-                tracing::error!(%e, "Application error");
+        let span = tracing::error_span!("node", moniker = %self.config.moniker);
+        let app_handle = tokio::spawn(
+            async move {
+                if let Err(e) = crate::app::run(&mut state, &mut channels).await {
+                    tracing::error!(%e, "Application error");
+                }
             }
-        });
+            .instrument(span),
+        );
 
         Ok(Handle {
             app: app_handle,
