@@ -265,13 +265,16 @@ such proposals.
 Attack 4. constitutes a double-signing or **equivocation** attack.
 The most common approach for a correct process is to only consider the first
 `⟨PROPOSAL, h, r, v, *⟩` received in the `propose` step, which can be accepted
-or rejected.
+or rejected. NM{"The most common approach" this is strange. I would rather remove this most common approach because it 
+sounds like they can also act in a different way}
 However, it is possible that a different `⟨PROPOSAL, h, r, v', *⟩` with
 `v' != v` is accepted by different processes and, as a result, triggers state
 transitions in the `prevote` or `precommit` round steps.
 So, a priori, the algorithm expects a correct process to store all the
 multiple proposals broadcast by a Byzantine proposer.
 Which, by itself, constitutes an attack vector to be considered.
+NM{I don't know how this is implemented in the code, but in a round process do need to store 
+all values but if one of the values collects 2f+1 prevotes it can discard others? }
 
 While hard to handle, it is easy to prove that a process has performed an
 equivocation attack: it is enough to receive and store distinct messages for
@@ -369,12 +372,12 @@ inducing undesirable behaviour, are two:
    expected contents of its `lockedValue_q` and `lockedRound_q` variables.
 
 Since Byzantine processes can always produce **equivocation attacks**, a
-correct process can deal with them is by only considering the first
+correct process can deal with them by only considering the first
 `⟨PREVOTE, h, r, *⟩` or `⟨PRECOMMIT, h, r, *⟩` messages received from a process
 in a round `r` of height `h`.
 Different (equivocating) versions of the same message from the same sender
 should, from a defensive point of view, be disregarded and dropped by the
-consensus logic as they were duplicated messages.
+consensus logic as they were duplicated messages. NM{Ok I guess this is the change you want to implement or have alrady implemented, that is different from the paper?}
 The reason for which is the fact that a Byzantine process can produce an
 arbitrary number of such messages, therefore store all of them may constitute
 an attack vector.
