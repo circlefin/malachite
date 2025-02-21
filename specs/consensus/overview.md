@@ -579,7 +579,7 @@ looks something like `valid(v, chain, height)`. (In the [Tendermint paper][tende
 the data about the blockchain state, that is, past decisions etc., is captured in `decision_p`.) 
 This implies that
 a value that might be valid at blockchain height 5, might be invalid at height 6. Observe 
-that this, strictly speaking, the above defined property 1.
+that this, strictly speaking, violates the above defined property 1.
 However, as long as all processes agree on 
 the state of the chain up to height 5 when they 
 start consensus for height 6, this still satisfies properties 2 and 3 and it will not harm 
@@ -587,7 +587,7 @@ liveness. (There have been cases of
 non-determinism in the application level that led to processes disagreeing on the 
 application state and thus consensus being blocked at a given height)
 
-> **Remark.** We have seen slight (ab)uses of valid, that use external data. Consider he toy 
+> **Remark.** We have seen slight (ab)uses of valid, that use external data. Consider the toy 
 example of the proposer proposing the current room temperature, and the processes 
 checking in `valid` whether the temperature is within one degree of their room 
 temperature. It is easy to see that this a priori violates the points 1-3 above. 
@@ -748,7 +748,7 @@ But `∆` is not always observed by the system, which may operate asynchronously
 for an arbitrary amount of time.
 There is, however, a (possibly unknown) Global Stabilization Time (`GST`), a
 time from which the system becomes synchronous and `∆` is observed for all
-messages sent by correct processes.
+messages sent by correct processes. \NM{Ok this "possibly unknown" in both sentences is confusing me? Did you try to somehow capture both versions of partially synchronous system models? }
 
 In practical systems, `GST` is usually unknown, although it is assumed that the
 system eventually stabilizes.
@@ -817,9 +817,9 @@ there is a valid Proof-of-Lock (POL) for `v` in a round `vr > lockedRound_p`,
 process `p` accepts the proposed value `v` even though `v != lockedValue_p`.
 The rationale is that `p` _could have_ locked and issued a `PRECOMMIT` for `v`
 in round `vr`, if `p` _had received_ the POL messages while in the `prevote`
-round step of round `vr`.
+round step of round `vr`. 
 If `p` could have locked `v` in round `vr`, then any correct process could
-have produced a valid lock in round `vr`.
+have produced a valid lock in round `vr`. \NM{Ok, this explanation is too high level for me but I understand that it is hard to explain at this point that it can accept it because it knows that lockedValue is not decided}
 And more recent (from high-numbered rounds) locks prevail.
 
 > **Remark**: notice that the actual condition in line 29 is `vr >= lockedRound_p`.
@@ -844,10 +844,10 @@ accepted by correct processes that have no locks.
 With the votes of Byzantine processes, which may misbehave, it is then
 possible to produce another lock in a round `r' > r`.
 None of the locked values can be decided, for the lack of votes, but liveness
-is under threat, as detailed in this [discussion][equivocation-discussion].
+is under threat, as detailed in this [discussion][equivocation-discussion]. \NM{Potentially they cannot be decided, so maybe we can rephrase a bit this sentence.  }
 The only way out of this _hidden locks_ scenario is when the processes locked
 in round `r` learn the POL for round `r' > r`, so that they can disregard
-their own lock.
+their own lock. 
 
 ### Valid Value
 
@@ -863,7 +863,7 @@ specific value `v` in a round, but the process observes that other processes
 may have locked `v` in this round.
 In this case, to ensure liveness, if the process becomes a proposer in a future
 round, it should re-propose `v`.
-This is achieved by setting `validValue_p` to `v` the in the pseudo-code line
+This is achieved by setting `validValue_p` to `v` in the pseudo-code line
 42 then using it as the proposal value when it becomes the proposer of a round,
 in line 16.
 The concrete scenario is detailed as follows.
@@ -871,7 +871,7 @@ The concrete scenario is detailed as follows.
 A proposed value `v` becomes _globally_ valid (in opposition to the _local_
 validity represented by the [`valid(v)` function](#validation)) in a round `r`
 when it is accepted by a big enough number of processes; they accept it by
-broadcasting a `PREVOTE` for `id(v)`.
+broadcasting a `PREVOTE` for `id(v)`. \NM{Why big enough? }
 If a process `p` observes these conditions, while still in round `r`, line 36
 of the pseudo-code is eventually triggered.
 There are however some scenarios to consider:
@@ -882,6 +882,8 @@ There are however some scenarios to consider:
    `PRECOMMIT` for `id(v)`;
 3. `step_p = precommit`: in this case, `p` only updates `validValue_p` to `v`
    and `validRound_p` to `r`.
+
+\NM{I would maybe just talk about two scenarios here, when it locks and when it just updates valid values}
 
 In scenarios 1 and 2, `p` locks the proposed value `v` and therefore cannot
 accept any value different than `v` in rounds greater than `r`.
@@ -995,7 +997,7 @@ such a good round. Here, there are two crucial points:
 The first set of conditions for the success of a round `r` depends on its proposer:
 
 1. The [`proposer(h, r)` function](#proposer-selection) returns a correct process `p`;
-2. And `validRound_p` equals the maximum `validRound_q` among every correct process `q`.
+2. And `validRound_p` equals the maximum `lockedRound_q` among every correct process `q`.
 
 A correct proposer `p` (Condition 1) broadcasts a single `PROPOSAL` message (it
 does not equivocate) in round `r`, including a proposed value `v` that will be
