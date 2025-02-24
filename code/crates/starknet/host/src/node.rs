@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use std::path::PathBuf;
 
 use ractor::async_trait;
@@ -7,12 +9,15 @@ use tokio::task::JoinHandle;
 
 use malachitebft_app::events::{RxEvent, TxEvent};
 use malachitebft_app::types::Keypair;
-use malachitebft_app::{Node, NodeHandle};
-use malachitebft_config::Config;
+use malachitebft_app::{
+    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, Node, NodeHandle,
+};
+use malachitebft_config::{BootstrapProtocol, RuntimeConfig, Selector, TransportProtocol};
 use malachitebft_core_types::VotingPower;
 use malachitebft_engine::node::NodeRef;
 use malachitebft_starknet_p2p_types::Ed25519Provider;
 
+use crate::config::{load_config, Config};
 use crate::spawn::spawn_node_actor;
 use crate::types::{Address, Height, MockContext, PrivateKey, PublicKey, Validator, ValidatorSet};
 
@@ -62,12 +67,26 @@ impl NodeHandle<MockContext> for Handle {
 
 #[derive(Clone, Debug)]
 pub struct StarknetNode {
-    pub config: Config,
     pub home_dir: PathBuf,
+    pub config: Config,
     pub start_height: Option<u64>,
 }
 
 impl StarknetNode {
+    pub fn new(
+        home_dir: PathBuf,
+        config_file: PathBuf,
+        start_height: Option<u64>,
+    ) -> eyre::Result<Self> {
+        let config = load_config(&config_file, Some("MALACHITE"))?;
+
+        Ok(Self {
+            home_dir,
+            config,
+            start_height,
+        })
+    }
+
     pub fn genesis_file(&self) -> PathBuf {
         self.home_dir.join("config").join("genesis.json")
     }
@@ -80,6 +99,7 @@ impl StarknetNode {
 #[async_trait]
 impl Node for StarknetNode {
     type Context = MockContext;
+    type Config = Config;
     type Genesis = Genesis;
     type PrivateKeyFile = PrivateKeyFile;
     type SigningProvider = Ed25519Provider;
@@ -89,11 +109,8 @@ impl Node for StarknetNode {
         self.home_dir.to_owned()
     }
 
-    fn generate_private_key<R>(&self, rng: R) -> PrivateKey
-    where
-        R: RngCore + CryptoRng,
-    {
-        PrivateKey::generate(rng)
+    fn load_config(&self) -> eyre::Result<Self::Config> {
+        Ok(self.config.clone())
     }
 
     fn get_address(&self, pk: &PublicKey) -> Address {
@@ -112,36 +129,24 @@ impl Node for StarknetNode {
         file.private_key
     }
 
-    fn load_private_key_file(&self) -> std::io::Result<Self::PrivateKeyFile> {
+    fn load_private_key_file(&self) -> eyre::Result<Self::PrivateKeyFile> {
         let private_key = std::fs::read_to_string(self.private_key_file())?;
         serde_json::from_str(&private_key).map_err(|e| e.into())
-    }
-
-    fn make_private_key_file(&self, private_key: PrivateKey) -> Self::PrivateKeyFile {
-        PrivateKeyFile::from(private_key)
     }
 
     fn get_signing_provider(&self, private_key: PrivateKey) -> Self::SigningProvider {
         Self::SigningProvider::new(private_key)
     }
 
-    fn load_genesis(&self) -> std::io::Result<Self::Genesis> {
+    fn load_genesis(&self) -> eyre::Result<Self::Genesis> {
         let genesis = std::fs::read_to_string(self.genesis_file())?;
         serde_json::from_str(&genesis).map_err(|e| e.into())
     }
 
-    fn make_genesis(&self, validators: Vec<(PublicKey, VotingPower)>) -> Self::Genesis {
-        let validators = validators
-            .into_iter()
-            .map(|(pk, vp)| Validator::new(pk, vp));
-
-        let validator_set = ValidatorSet::new(validators);
-
-        Genesis { validator_set }
-    }
-
     async fn start(&self) -> eyre::Result<Handle> {
-        let span = tracing::error_span!("node", moniker = %self.config.moniker);
+        let config = self.load_config()?;
+
+        let span = tracing::error_span!("node", moniker = %config.moniker);
         let _enter = span.enter();
 
         let priv_key_file = self.load_private_key_file()?;
@@ -152,7 +157,7 @@ impl Node for StarknetNode {
         let start_height = self.start_height.map(|height| Height::new(height, 1));
 
         let (actor, handle) = spawn_node_actor(
-            self.config.clone(),
+            config.clone(),
             self.home_dir.clone(),
             genesis.validator_set,
             private_key,
@@ -175,6 +180,168 @@ impl Node for StarknetNode {
     }
 }
 
+impl CanGeneratePrivateKey for StarknetNode {
+    fn generate_private_key<R>(&self, rng: R) -> PrivateKey
+    where
+        R: RngCore + CryptoRng,
+    {
+        PrivateKey::generate(rng)
+    }
+}
+
+impl CanMakePrivateKeyFile for StarknetNode {
+    fn make_private_key_file(&self, private_key: PrivateKey) -> Self::PrivateKeyFile {
+        PrivateKeyFile::from(private_key)
+    }
+}
+
+impl CanMakeGenesis for StarknetNode {
+    fn make_genesis(&self, validators: Vec<(PublicKey, VotingPower)>) -> Self::Genesis {
+        let validators = validators
+            .into_iter()
+            .map(|(pk, vp)| Validator::new(pk, vp));
+
+        let validator_set = ValidatorSet::new(validators);
+
+        Genesis { validator_set }
+    }
+}
+
+impl CanMakeConfig for StarknetNode {
+    fn make_config(
+        index: usize,
+        total: usize,
+        runtime: RuntimeConfig,
+        enable_discovery: bool,
+        bootstrap_protocol: BootstrapProtocol,
+        selector: Selector,
+        num_outbound_peers: usize,
+        num_inbound_peers: usize,
+        ephemeral_connection_timeout_ms: u64,
+        transport: TransportProtocol,
+    ) -> Self::Config {
+        make_config(
+            index,
+            total,
+            runtime,
+            enable_discovery,
+            bootstrap_protocol,
+            selector,
+            num_outbound_peers,
+            num_inbound_peers,
+            ephemeral_connection_timeout_ms,
+            transport,
+        )
+    }
+}
+
+/// Generate configuration for node "index" out of "total" number of nodes.
+fn make_config(
+    index: usize,
+    total: usize,
+    runtime: RuntimeConfig,
+    enable_discovery: bool,
+    bootstrap_protocol: BootstrapProtocol,
+    selector: Selector,
+    num_outbound_peers: usize,
+    num_inbound_peers: usize,
+    ephemeral_connection_timeout_ms: u64,
+    transport: TransportProtocol,
+) -> Config {
+    use itertools::Itertools;
+    use rand::seq::IteratorRandom;
+    use rand::Rng;
+    use std::time::Duration;
+
+    use malachitebft_config::*;
+
+    const CONSENSUS_BASE_PORT: usize = 27000;
+    const MEMPOOL_BASE_PORT: usize = 28000;
+    const METRICS_BASE_PORT: usize = 29000;
+
+    let consensus_port = CONSENSUS_BASE_PORT + index;
+    let mempool_port = MEMPOOL_BASE_PORT + index;
+    let metrics_port = METRICS_BASE_PORT + index;
+
+    Config {
+        moniker: format!("starknet-{}", index),
+        consensus: ConsensusConfig {
+            value_payload: ValuePayload::PartsOnly,
+            timeouts: TimeoutConfig::default(),
+            p2p: P2pConfig {
+                protocol: PubSubProtocol::default(),
+                listen_addr: transport.multiaddr("127.0.0.1", consensus_port),
+                persistent_peers: if enable_discovery {
+                    let mut rng = rand::thread_rng();
+                    let count = if total > 1 {
+                        rng.gen_range(1..=(total / 2))
+                    } else {
+                        0
+                    };
+                    let peers = (0..total)
+                        .filter(|j| *j != index)
+                        .choose_multiple(&mut rng, count);
+
+                    peers
+                        .iter()
+                        .unique()
+                        .map(|index| transport.multiaddr("127.0.0.1", CONSENSUS_BASE_PORT + index))
+                        .collect()
+                } else {
+                    (0..total)
+                        .filter(|j| *j != index)
+                        .map(|j| transport.multiaddr("127.0.0.1", CONSENSUS_BASE_PORT + j))
+                        .collect()
+                },
+                discovery: DiscoveryConfig {
+                    enabled: enable_discovery,
+                    bootstrap_protocol,
+                    selector,
+                    num_outbound_peers,
+                    num_inbound_peers,
+                    ephemeral_connection_timeout: Duration::from_millis(
+                        ephemeral_connection_timeout_ms,
+                    ),
+                },
+                transport,
+                ..Default::default()
+            },
+        },
+        mempool: MempoolConfig {
+            p2p: P2pConfig {
+                protocol: PubSubProtocol::default(),
+                listen_addr: transport.multiaddr("127.0.0.1", mempool_port),
+                persistent_peers: (0..total)
+                    .filter(|j| *j != index)
+                    .map(|j| transport.multiaddr("127.0.0.1", MEMPOOL_BASE_PORT + j))
+                    .collect(),
+                discovery: DiscoveryConfig {
+                    enabled: false,
+                    bootstrap_protocol,
+                    selector,
+                    num_outbound_peers,
+                    num_inbound_peers,
+                    ephemeral_connection_timeout: Duration::from_millis(
+                        ephemeral_connection_timeout_ms,
+                    ),
+                },
+                transport,
+                ..Default::default()
+            },
+            max_tx_count: 10000,
+            gossip_batch_size: 0,
+        },
+        sync: Default::default(),
+        metrics: MetricsConfig {
+            enabled: true,
+            listen_addr: format!("127.0.0.1:{metrics_port}").parse().unwrap(),
+        },
+        runtime,
+        logging: LoggingConfig::default(),
+        test: TestConfig::default(),
+    }
+}
+
 #[test]
 fn test_starknet_node() {
     // Create temp folder for configuration files
@@ -192,10 +359,18 @@ fn test_starknet_node() {
     // Create default configuration
     let node = StarknetNode {
         home_dir: temp_path.clone(),
-        config: Config {
-            moniker: "test-node".to_string(),
-            ..Default::default()
-        },
+        config: make_config(
+            1,
+            3,
+            RuntimeConfig::single_threaded(),
+            true,
+            BootstrapProtocol::Kademlia,
+            Selector::Random,
+            6,
+            4,
+            100,
+            TransportProtocol::Tcp,
+        ),
         start_height: Some(1),
     };
 
@@ -215,10 +390,12 @@ fn test_starknet_node() {
 
     file::save_genesis(&node, &node.genesis_file(), &genesis).unwrap();
 
+    let config = node.load_config().unwrap();
+
     // Run the node for a few seconds
     const TIMEOUT: u64 = 3;
     use tokio::time::{timeout, Duration};
-    let rt = malachitebft_test_cli::runtime::build_runtime(node.config.runtime).unwrap();
+    let rt = malachitebft_test_cli::runtime::build_runtime(config.runtime).unwrap();
     let result = rt.block_on(async { timeout(Duration::from_secs(TIMEOUT), node.run()).await });
 
     // Check that the node did not quit before the timeout.

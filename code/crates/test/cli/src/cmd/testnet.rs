@@ -7,7 +7,9 @@ use clap::Parser;
 use color_eyre::eyre::{eyre, Result};
 use tracing::info;
 
-use malachitebft_app::Node;
+use malachitebft_app::{
+    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, Node,
+};
 use malachitebft_config::*;
 
 use crate::args::Args;
@@ -105,9 +107,9 @@ pub struct TestnetCmd {
 
 impl TestnetCmd {
     /// Execute the testnet command
-    pub fn run<N>(&self, node: &N, home_dir: &Path, logging: LoggingConfig) -> Result<()>
+    pub fn run<N>(&self, node: &N, home_dir: &Path) -> Result<()>
     where
-        N: Node,
+        N: Node + CanMakeConfig + CanMakePrivateKeyFile + CanGeneratePrivateKey + CanMakeGenesis,
     {
         let runtime = match self.runtime {
             RuntimeFlavour::SingleThreaded => RuntimeConfig::SingleThreaded,
@@ -126,7 +128,6 @@ impl TestnetCmd {
             self.num_inbound_peers,
             self.ephemeral_connection_timeout_ms,
             self.transport,
-            logging,
             self.deterministic,
         )
         .map_err(|e| eyre!("Failed to generate testnet configuration: {:?}", e))
@@ -146,17 +147,17 @@ pub fn testnet<N>(
     num_inbound_peers: usize,
     ephemeral_connection_timeout_ms: u64,
     transport: TransportProtocol,
-    logging: LoggingConfig,
     deterministic: bool,
 ) -> std::result::Result<(), Error>
 where
-    N: Node,
+    N: Node + CanMakeConfig + CanMakePrivateKeyFile + CanGeneratePrivateKey + CanMakeGenesis,
 {
     let private_keys = crate::new::generate_private_keys(node, nodes, deterministic);
     let public_keys = private_keys
         .iter()
         .map(|pk| node.get_public_key(pk))
         .collect();
+
     let genesis = crate::new::generate_genesis(node, public_keys, deterministic);
 
     for (i, private_key) in private_keys.iter().enumerate().take(nodes) {
@@ -176,9 +177,9 @@ where
         };
 
         // Save config
-        save_config(
+        save_config::<N>(
             &args.get_config_file_path()?,
-            &crate::new::generate_config(
+            &N::make_config(
                 i,
                 nodes,
                 runtime,
@@ -189,7 +190,6 @@ where
                 num_inbound_peers,
                 ephemeral_connection_timeout_ms,
                 transport,
-                logging,
             ),
         )?;
 

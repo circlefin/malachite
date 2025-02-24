@@ -86,7 +86,7 @@ pub struct DistributedTestnetCmd {
 
 impl DistributedTestnetCmd {
     /// Execute the testnet command
-    pub fn run<N>(&self, node: &N, home_dir: &Path, logging: LoggingConfig) -> Result<()>
+    pub fn run<N>(&self, node: &N, home_dir: &Path) -> Result<()>
     where
         N: Node,
     {
@@ -109,7 +109,6 @@ impl DistributedTestnetCmd {
             self.ephemeral_connection_timeout_ms,
             self.bootstrap_set_size,
             self.transport,
-            logging,
             self.deterministic,
         )
         .map_err(|e| {
@@ -136,7 +135,6 @@ fn distributed_testnet<N>(
     ephemeral_connection_timeout_ms: u64,
     bootstrap_set_size: usize,
     transport: TransportProtocol,
-    logging: LoggingConfig,
     deterministic: bool,
 ) -> Result<()>
 where
@@ -180,7 +178,6 @@ where
                 ephemeral_connection_timeout_ms,
                 bootstrap_set_size,
                 transport,
-                logging,
             ),
         )?;
 
@@ -216,7 +213,6 @@ fn generate_distributed_config(
     ephemeral_connection_timeout_ms: u64,
     bootstrap_set_size: usize,
     transport: TransportProtocol,
-    logging: LoggingConfig,
 ) -> Config {
     let machine = machines[index % machines.len()].clone();
     let consensus_port = CONSENSUS_BASE_PORT + (index / machines.len());
@@ -226,6 +222,7 @@ fn generate_distributed_config(
     Config {
         moniker: format!("test-{}", index),
         consensus: ConsensusConfig {
+            value_payload: ValuePayload::PartsOnly,
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
@@ -299,8 +296,8 @@ fn generate_distributed_config(
             enabled: true,
             listen_addr: format!("{machine}:{metrics_port}").parse().unwrap(),
         },
-        logging,
         runtime,
+        logging: LoggingConfig::default(),
         test: TestConfig::default(),
     }
 }

@@ -2,15 +2,17 @@
 
 use std::path::Path;
 
+use clap::Parser;
+use tracing::{info, warn};
+
+use malachitebft_app::{
+    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, Node,
+};
+use malachitebft_config::{BootstrapProtocol, RuntimeConfig, Selector, TransportProtocol};
+
 use crate::error::Error;
 use crate::file::{save_config, save_genesis, save_priv_validator_key};
-use crate::new::{generate_config, generate_genesis, generate_private_keys};
-use clap::Parser;
-use malachitebft_app::Node;
-use malachitebft_config::{
-    BootstrapProtocol, Config, LoggingConfig, RuntimeConfig, Selector, TransportProtocol,
-};
-use tracing::{info, warn};
+use crate::new::{generate_genesis, generate_private_keys};
 
 #[derive(Parser, Debug, Clone, Default, PartialEq)]
 pub struct InitCmd {
@@ -62,12 +64,11 @@ impl InitCmd {
         config_file: &Path,
         genesis_file: &Path,
         priv_validator_key_file: &Path,
-        logging: LoggingConfig,
     ) -> Result<(), Error>
     where
-        N: Node,
+        N: Node + CanMakeConfig + CanMakePrivateKeyFile + CanGeneratePrivateKey + CanMakeGenesis,
     {
-        let config = &generate_config(
+        let config = N::make_config(
             0,
             1,
             RuntimeConfig::SingleThreaded,
@@ -78,12 +79,11 @@ impl InitCmd {
             self.num_inbound_peers,
             self.ephemeral_connection_timeout_ms,
             TransportProtocol::Tcp,
-            logging,
         );
 
         init(
             node,
-            config,
+            &config,
             config_file,
             genesis_file,
             priv_validator_key_file,
@@ -97,21 +97,21 @@ impl InitCmd {
 /// init command to generate defaults.
 pub fn init<N>(
     node: &N,
-    config: &Config,
+    config: &N::Config,
     config_file: &Path,
     genesis_file: &Path,
     priv_validator_key_file: &Path,
     overwrite: bool,
 ) -> Result<(), Error>
 where
-    N: Node,
+    N: Node + CanMakePrivateKeyFile + CanGeneratePrivateKey + CanMakeGenesis,
 {
     // Save configuration
     if config_file.exists() && !overwrite {
         warn!(file = ?config_file.display(), "Configuration file already exists, skipping")
     } else {
         info!(file = ?config_file, "Saving configuration");
-        save_config(config_file, config)?;
+        save_config::<N>(config_file, config)?;
     }
 
     // Save default priv_validator_key

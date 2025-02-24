@@ -3,12 +3,12 @@
 use std::fs;
 use std::path::Path;
 
-use crate::error::Error;
 use malachitebft_app::Node;
-use malachitebft_config::Config;
+
+use crate::error::Error;
 
 /// Save configuration to file
-pub fn save_config(config_file: &Path, config: &Config) -> Result<(), Error> {
+pub fn save_config<N: Node>(config_file: &Path, config: &N::Config) -> Result<(), Error> {
     save(
         config_file,
         &toml::to_string_pretty(config).map_err(|e| Error::ToJSON(e.to_string()))?,

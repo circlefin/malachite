@@ -2159,7 +2159,6 @@ dependencies = [
  "informalsystems-malachitebft-core-types",
  "multiaddr",
  "serde",
- "toml",
 ]
 
 [[package]]
@@ -2282,19 +2281,23 @@ dependencies = [
  "async-trait",
  "bytes",
  "color-eyre",
+ "config",
  "derive-where",
  "eyre",
  "informalsystems-malachitebft-app-channel",
  "informalsystems-malachitebft-proto",
  "informalsystems-malachitebft-test",
  "informalsystems-malachitebft-test-cli",
+ "itertools 0.13.0",
  "prost",
  "rand 0.8.5",
  "redb",
+ "serde",
  "serde_json",
  "sha3",
  "thiserror 2.0.11",
  "tokio",
+ "toml",
  "tracing",
 ]
 
@@ -2364,6 +2367,7 @@ version = "0.0.1"
 dependencies = [
  "clap",
  "color-eyre",
+ "informalsystems-malachitebft-app",
  "informalsystems-malachitebft-config",
  "informalsystems-malachitebft-starknet-host",
  "informalsystems-malachitebft-test-cli",
@@ -2379,6 +2383,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "bytesize",
+ "config",
  "derive-where",
  "eyre",
  "informalsystems-malachitebft-app",
@@ -2407,6 +2412,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.11",
  "tokio",
+ "toml",
  "tracing",
 ]
 
@@ -2536,6 +2542,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "color-eyre",
+ "config",
  "derive-where",
  "eyre",
  "informalsystems-malachitebft-app-channel",
@@ -2543,13 +2550,16 @@ dependencies = [
  "informalsystems-malachitebft-test",
  "informalsystems-malachitebft-test-cli",
  "informalsystems-malachitebft-test-framework",
+ "itertools 0.13.0",
  "prost",
  "rand 0.8.5",
  "redb",
+ "serde",
  "serde_json",
  "sha3",
  "thiserror 2.0.11",
  "tokio",
+ "toml",
  "tracing",
 ]
 
@@ -2568,6 +2578,7 @@ dependencies = [
  "informalsystems-malachitebft-metrics",
  "itertools 0.13.0",
  "rand 0.8.5",
+ "serde",
  "serde_json",
  "thiserror 2.0.11",
  "tokio",

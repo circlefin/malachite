@@ -9,7 +9,10 @@
 // )]
 
 mod node;
-pub use node::{EngineHandle, Node, NodeHandle};
+pub use node::{
+    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, EngineHandle,
+    Node, NodeConfig, NodeHandle,
+};
 
 pub mod part_store;
 pub mod spawn;
@@ -29,4 +32,8 @@ pub mod consensus {
 
 pub mod metrics {
     pub use malachitebft_metrics::*;
+}
+
+pub mod config {
+    pub use malachitebft_config::*;
 }

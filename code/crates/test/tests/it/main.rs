@@ -14,12 +14,12 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use malachitebft_test_app::config::Config;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tempfile::TempDir;
 
 use malachitebft_app::Node;
-use malachitebft_config::Config;
 use malachitebft_signing_ed25519::PrivateKey;
 use malachitebft_test_app::node::{App, Handle};
 use malachitebft_test_framework::HasTestRunner;
@@ -130,6 +130,7 @@ impl TestRunner {
             moniker: format!("node-{}", node),
             logging: LoggingConfig::default(),
             consensus: ConsensusConfig {
+                value_payload: ValuePayload::PartsOnly,
                 timeouts: TimeoutConfig::default(),
                 p2p: P2pConfig {
                     transport,
@@ -142,20 +143,6 @@ impl TestRunner {
                         .collect(),
                     ..Default::default()
                 },
-            },
-            mempool: MempoolConfig {
-                p2p: P2pConfig {
-                    transport,
-                    protocol,
-                    listen_addr: transport.multiaddr("127.0.0.1", self.mempool_base_port + i),
-                    persistent_peers: (0..self.nodes_count)
-                        .filter(|j| i != *j)
-                        .map(|j| transport.multiaddr("127.0.0.1", self.mempool_base_port + j))
-                        .collect(),
-                    ..Default::default()
-                },
-                max_tx_count: 10000,
-                gossip_batch_size: 100,
             },
             sync: SyncConfig {
                 enabled: true,

@@ -11,6 +11,7 @@ publish = false
 workspace = true
 
 [dependencies]
+malachitebft-app = { workspace = true }
 malachitebft-test-cli = { workspace = true }
 malachitebft-config = { workspace = true }
 malachitebft-starknet-host = { workspace = true }
