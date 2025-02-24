@@ -171,7 +171,7 @@ impl TestRunner {
                 max_tx_count: 10000,
                 gossip_batch_size: 100,
             },
-            sync: ValueSyncConfig {
+            value_sync: ValueSyncConfig {
                 enabled: true,
                 status_update_interval: Duration::from_secs(2),
                 request_timeout: Duration::from_secs(5),

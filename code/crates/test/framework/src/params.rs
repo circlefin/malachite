@@ -5,7 +5,7 @@ use malachitebft_config::{Config, PubSubProtocol, ValuePayload, VoteSyncMode};
 
 #[derive(Copy, Clone, Debug)]
 pub struct TestParams {
-    pub enable_sync: bool,
+    pub enable_value_sync: bool,
     pub protocol: PubSubProtocol,
     pub block_size: ByteSize,
     pub tx_size: ByteSize,
@@ -20,7 +20,7 @@ pub struct TestParams {
 impl Default for TestParams {
     fn default() -> Self {
         Self {
-            enable_sync: false,
+            enable_value_sync: false,
             protocol: PubSubProtocol::default(),
             block_size: ByteSize::mib(1),
             tx_size: ByteSize::kib(1),
@@ -36,7 +36,7 @@ impl Default for TestParams {
 
 impl TestParams {
     pub fn apply_to_config(&self, config: &mut Config) {
-        config.sync.enabled = self.enable_sync;
+        config.value_sync.enabled = self.enable_value_sync;
         config.consensus.p2p.protocol = self.protocol;
         config.consensus.timeouts.timeout_step = self.timeout_step;
         config.test.value_payload = self.value_payload;
@@ -53,7 +53,7 @@ impl TestParams {
 
         // Automatically enable the Sync actor if vote sync mode is request-response
         if config.consensus.vote_sync.mode == VoteSyncMode::RequestResponse {
-            config.sync.enabled = true;
+            config.value_sync.enabled = true;
         }
     }
 }
