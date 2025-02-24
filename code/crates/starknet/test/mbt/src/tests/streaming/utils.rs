@@ -4,7 +4,7 @@ use crate::streaming::{Buffer, Message};
 use malachitebft_core_types::Round;
 use malachitebft_engine::util::streaming::{Sequence, StreamId};
 use malachitebft_engine::util::streaming::{StreamContent, StreamMessage};
-use malachitebft_starknet_host::types::TransactionBatch;
+use malachitebft_starknet_host::types::{PrivateKey, TransactionBatch};
 use malachitebft_starknet_host::{
     streaming::MinHeap,
     types::{Address, Height, ProposalInit, ProposalPart, Transaction},
@@ -74,11 +74,13 @@ pub fn init_message_to_proposal_init(message: &Option<Message>) -> Option<Propos
 
 pub fn generate_dummy_proposal_init() -> ProposalInit {
     let bytes: [u8; 32] = [
-        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
-        0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E,
-        0x1F, 0x20,
+        0x08, 0xd7, 0xa2, 0x0f, 0x32, 0x0c, 0x4d, 0x23, 0xd9, 0xad, 0xf3, 0x29, 0xf5, 0x7c, 0x7b,
+        0x62, 0x35, 0x9d, 0x97, 0xce, 0x0b, 0xb3, 0xb7, 0x66, 0x19, 0xd8, 0x50, 0x4d, 0x59, 0xa1,
+        0x88, 0x4b,
     ];
-    let proposer_addr = Address::new(bytes);
+    let private_key = PrivateKey::from(bytes);
+
+    let proposer_addr = Address::new(*private_key.public_key().as_bytes());
 
     let height = Height {
         block_number: 1,

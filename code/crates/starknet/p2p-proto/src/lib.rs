@@ -12,7 +12,7 @@ pub mod certificate {
 
 impl From<Uint128> for u128 {
     fn from(value: Uint128) -> Self {
-        value.low as u128 | (value.high as u128) << 64
+        (value.low as u128) | ((value.high as u128) << 64)
     }
 }
 

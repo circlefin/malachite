@@ -2425,6 +2425,7 @@ dependencies = [
  "bytes",
  "informalsystems-malachitebft-core-types",
  "informalsystems-malachitebft-proto",
+ "informalsystems-malachitebft-signing-ed25519",
  "informalsystems-malachitebft-starknet-p2p-proto",
  "rand 0.8.5",
  "serde",

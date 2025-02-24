@@ -11,6 +11,7 @@ publish = false
 malachitebft-core-types.workspace = true
 malachitebft-proto.workspace = true
 malachitebft-starknet-p2p-proto.workspace = true
+malachitebft-signing-ed25519 = { workspace = true, features = ["serde", "rand"] }
 
 starknet-core.workspace = true
 starknet-crypto.workspace = true
