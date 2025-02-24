@@ -842,7 +842,7 @@ unaware of the lock in round `r`, therefore propose new values.
 Those values are rejected by processes locked in round `r`, but they are
 accepted by correct processes that have no locks.
 With the votes of Byzantine processes, which may misbehave, it is then
-possible to produce another lock in a round `r' > r`.
+possible to produce another lock in a round `r' > r`. \NM{These processes do not need to be Byzantine.}
 None of the locked values can be decided, for the lack of votes, but liveness
 is under threat, as detailed in this [discussion][equivocation-discussion]. \NM{Potentially they cannot be decided, so maybe we can rephrase a bit this sentence.  }
 The only way out of this _hidden locks_ scenario is when the processes locked
@@ -865,7 +865,7 @@ In this case, to ensure liveness, if the process becomes a proposer in a future
 round, it should re-propose `v`.
 This is achieved by setting `validValue_p` to `v` in the pseudo-code line
 42 then using it as the proposal value when it becomes the proposer of a round,
-in line 16.
+in line 16. 
 The concrete scenario is detailed as follows.
 
 A proposed value `v` becomes _globally_ valid (in opposition to the _local_
@@ -913,6 +913,11 @@ value in round `r`.
 This is the reason for which pseudo-code lines 15-16 adopt `validValue_p`
 instead of `lockedValue_p`.
 
+\NM{The explanations here are fine for me, but I am not good to review this as I know in detail how this mechanism 
+works. I think we should ask someone who does not understand how valid value and locked value correlate and see
+if he/she got it from this. I think this explanation introduces the difference but do not explain the mechanism. 
+Update: I saw that latter you do explain, so I am happy with the explanations. }
+
 ### Safety
 
 This section argues that Tendermint is a safe consensus algorithm.
@@ -935,7 +940,8 @@ correct processes, and consider the [Locked Value](#locked-value) handling:
 - every process `p` in `C` has set `lockedValue_p` to `v` and `lockedRound_p`
   to `r` ;
 - every process `p` in `C` will broadcast a `PREVOTE` for `nil` in rounds
-  `r' > r` where a value `v' != v` is proposed.
+  `r' > r` where a value `v' != v` is proposed. \NM{this might not be clear for all and this is 
+  what we explain below, so maybe we can somehow rephrase" }
 
 Next, lets define a `Q'` any set of processes that does not include process in
 `C`, i.e. `Q' ∩ C = ∅`:
@@ -990,14 +996,14 @@ such a good round. Here, there are two crucial points:
     - The content of the variables `lockedValue_p` and `validValue_p` change in
       a rather complicated manner at different processes in arbitrary
       asynchronous prefixes of the computation.
-- **Synchrony.** Messages should be delivered and timeouts should not expire.
+- **Synchrony.** Messages should be delivered and timeouts should not expire. \NM{timeouts will expire, but messages should be delivered before they expire}
 
 #### Value Handling
 
 The first set of conditions for the success of a round `r` depends on its proposer:
 
 1. The [`proposer(h, r)` function](#proposer-selection) returns a correct process `p`;
-2. And `validRound_p` equals the maximum `lockedRound_q` among every correct process `q`.
+2. And `validRound_p` equals the maximum `lockedRound_q` among every correct process `q`. \NM{It can be also larger, so >=}
 
 A correct proposer `p` (Condition 1) broadcasts a single `PROPOSAL` message (it
 does not equivocate) in round `r`, including a proposed value `v` that will be
@@ -1024,6 +1030,10 @@ POL for `v` in round `vr`.
 Notice, however, that from the [Gossip communication property](#network), `q`
 should eventually receive the POL for `v` in round `vr`, since `p` is a correct
 process.
+
+\NM{I think we should mention in the text here that we show the intution how condition 2 is achieved later, because
+while reading I was feeling that this was missing, and then I saw that you address it below}
+
 
 #### Synchrony
 
@@ -1053,14 +1063,14 @@ successful round is observed.
 In other words, it should be ensured that, from `GST` on, if any correct
 process executes pseudo-code line 36 for a round `r*`, then every correct
 process executes the same line while still in round `r*`.
-This is achieved by the means of, and it is actually the reason for which
-Tendermint has, the `timeoutPrecommit(r*)`.
+This is achieved by the means of, and it is actually the key reason for which
+Tendermint has, the `timeoutPrecommit(r*)`. 
 Before moving to the next round, because the current one has not succeeded,
 processes wait for a while to ensure that they have received all the `PREVOTE`
 messages from that round, broadcast or received by other correct processes.
 As a result, if a correct process has locked or updated its valid value in
-round `r*`, then every correct process will at least update its valid value in
-round `r*`.
+round `r*`,  then every correct process will at least update its valid value in
+round `r*`, because due to gossip communication property it will receive the same set of messages. 
 This enables the next correct proposer, of a round `r > r*` to fulfill
 Condition 2, thus enabling `r` to be a successful round.
 
