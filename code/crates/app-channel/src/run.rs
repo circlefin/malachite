@@ -58,7 +58,7 @@ where
         ctx.clone(),
         network.clone(),
         connector.clone(),
-        &cfg.sync,
+        &cfg.value_sync,
         &registry,
     )
     .await?;

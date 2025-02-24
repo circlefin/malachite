@@ -5,7 +5,8 @@ use tokio::task::JoinHandle;
 use tracing::warn;
 
 use malachitebft_config::{
-    self as config, Config as NodeConfig, MempoolConfig, SyncConfig, TestConfig, TransportProtocol,
+    self as config, Config as NodeConfig, MempoolConfig, TestConfig, TransportProtocol,
+    ValueSyncConfig,
 };
 use malachitebft_core_consensus::VoteSyncMode;
 use malachitebft_core_types::ValuePayload;
@@ -74,7 +75,7 @@ pub async fn spawn_node_actor(
         ctx,
         network.clone(),
         host.clone(),
-        &cfg.sync,
+        &cfg.value_sync,
         &registry,
         &span,
     )
@@ -128,7 +129,7 @@ async fn spawn_sync_actor(
     ctx: MockContext,
     network: NetworkRef<MockContext>,
     host: HostRef<MockContext>,
-    config: &SyncConfig,
+    config: &ValueSyncConfig,
     registry: &SharedRegistry,
     span: &tracing::Span,
 ) -> Option<SyncRef<MockContext>> {

@@ -16,7 +16,9 @@ use malachitebft_engine::util::events::TxEvent;
 use malachitebft_engine::wal::{Wal, WalCodec, WalRef};
 use malachitebft_network::{Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, Keypair};
 
-use crate::types::config::{Config as NodeConfig, PubSubProtocol, SyncConfig, TransportProtocol};
+use crate::types::config::{
+    Config as NodeConfig, PubSubProtocol, TransportProtocol, ValueSyncConfig,
+};
 use crate::types::core::{Context, SigningProvider};
 use crate::types::metrics::{Metrics, SharedRegistry};
 use crate::types::sync;
@@ -147,7 +149,7 @@ pub async fn spawn_sync_actor<Ctx>(
     ctx: Ctx,
     network: NetworkRef<Ctx>,
     host: HostRef<Ctx>,
-    config: &SyncConfig,
+    config: &ValueSyncConfig,
     registry: &SharedRegistry,
 ) -> Result<Option<SyncRef<Ctx>>>
 where

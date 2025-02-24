@@ -178,7 +178,7 @@ type = "gossipsub"
 #######################################################
 ###         Sync Configuration Options         ###
 #######################################################
-[sync]
+[value_sync]
 # Enable the synchronization protocol
 # Override with MALACHITE__SYNC__ENABLED env variable
 enabled = true
