@@ -1,14 +1,16 @@
+#![allow(clippy::too_many_arguments)]
+
 use std::path::PathBuf;
 
 use async_trait::async_trait;
-use malachitebft_config::{
-    BootstrapProtocol, ConsensusConfig, RuntimeConfig, Selector, SyncConfig, TransportProtocol,
-};
 use rand::{CryptoRng, RngCore};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use tokio::task::JoinHandle;
 
+use malachitebft_config::{
+    BootstrapProtocol, ConsensusConfig, RuntimeConfig, Selector, SyncConfig, TransportProtocol,
+};
 use malachitebft_core_types::SigningProvider;
 use malachitebft_engine::node::NodeRef;
 use malachitebft_engine::util::events::RxEvent;
@@ -37,8 +39,40 @@ pub trait NodeConfig {
     fn sync(&self) -> &SyncConfig;
 }
 
+#[async_trait]
+pub trait Node {
+    type Context: Context;
+    type Config: NodeConfig + Serialize + DeserializeOwned;
+    type Genesis: Serialize + DeserializeOwned;
+    type PrivateKeyFile: Serialize + DeserializeOwned;
+    type SigningProvider: SigningProvider<Self::Context>;
+    type NodeHandle: NodeHandle<Self::Context>;
+
+    async fn start(&self) -> eyre::Result<Self::NodeHandle>;
+
+    async fn run(self) -> eyre::Result<()>;
+
+    fn get_home_dir(&self) -> PathBuf;
+
+    fn load_config(&self) -> eyre::Result<Self::Config>;
+
+    fn get_address(&self, pk: &PublicKey<Self::Context>) -> <Self::Context as Context>::Address;
+
+    fn get_public_key(&self, pk: &PrivateKey<Self::Context>) -> PublicKey<Self::Context>;
+
+    fn get_keypair(&self, pk: PrivateKey<Self::Context>) -> Keypair;
+
+    fn load_private_key(&self, file: Self::PrivateKeyFile) -> PrivateKey<Self::Context>;
+
+    fn load_private_key_file(&self) -> eyre::Result<Self::PrivateKeyFile>;
+
+    fn load_genesis(&self) -> eyre::Result<Self::Genesis>;
+
+    fn get_signing_provider(&self, private_key: PrivateKey<Self::Context>)
+        -> Self::SigningProvider;
+}
+
 pub trait CanMakeConfig: Node {
-    #[allow(clippy::too_many_arguments)]
     fn make_config(
         index: usize,
         total: usize,
@@ -69,37 +103,4 @@ pub trait CanMakeGenesis: Node {
         &self,
         validators: Vec<(PublicKey<Self::Context>, VotingPower)>,
     ) -> Self::Genesis;
-}
-
-#[async_trait]
-pub trait Node {
-    type Context: Context;
-    type Config: NodeConfig + Serialize + DeserializeOwned;
-    type Genesis: Serialize + DeserializeOwned;
-    type PrivateKeyFile: Serialize + DeserializeOwned;
-    type SigningProvider: SigningProvider<Self::Context>;
-    type NodeHandle: NodeHandle<Self::Context>;
-
-    async fn start(&self) -> eyre::Result<Self::NodeHandle>;
-
-    async fn run(self) -> eyre::Result<()>;
-
-    fn get_home_dir(&self) -> PathBuf;
-
-    fn load_config(&self) -> eyre::Result<Self::Config>;
-
-    fn get_address(&self, pk: &PublicKey<Self::Context>) -> <Self::Context as Context>::Address;
-
-    fn get_public_key(&self, pk: &PrivateKey<Self::Context>) -> PublicKey<Self::Context>;
-
-    fn get_keypair(&self, pk: PrivateKey<Self::Context>) -> Keypair;
-
-    fn load_private_key(&self, file: Self::PrivateKeyFile) -> PrivateKey<Self::Context>;
-
-    fn load_private_key_file(&self) -> eyre::Result<Self::PrivateKeyFile>;
-
-    fn get_signing_provider(&self, private_key: PrivateKey<Self::Context>)
-        -> Self::SigningProvider;
-
-    fn load_genesis(&self) -> eyre::Result<Self::Genesis>;
 }
