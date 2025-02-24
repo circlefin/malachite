@@ -50,10 +50,5 @@ impl TestParams {
         if let Some(vote_sync_mode) = self.vote_sync_mode {
             config.consensus.vote_sync.mode = vote_sync_mode;
         }
-
-        // Automatically enable the Sync actor if vote sync mode is request-response
-        if config.consensus.vote_sync.mode == VoteSyncMode::RequestResponse {
-            config.value_sync.enabled = true;
-        }
     }
 }

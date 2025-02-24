@@ -17,7 +17,8 @@ use malachitebft_engine::wal::{Wal, WalCodec, WalRef};
 use malachitebft_network::{Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, Keypair};
 
 use crate::types::config::{
-    Config as NodeConfig, PubSubProtocol, TransportProtocol, ValueSyncConfig,
+    self as config, Config as NodeConfig, PubSubProtocol, TransportProtocol, ValueSyncConfig,
+    VoteSyncConfig,
 };
 use crate::types::core::{Context, SigningProvider};
 use crate::types::metrics::{Metrics, SharedRegistry};
@@ -150,12 +151,13 @@ pub async fn spawn_sync_actor<Ctx>(
     network: NetworkRef<Ctx>,
     host: HostRef<Ctx>,
     config: &ValueSyncConfig,
+    vote_sync: &VoteSyncConfig,
     registry: &SharedRegistry,
 ) -> Result<Option<SyncRef<Ctx>>>
 where
     Ctx: Context,
 {
-    if !config.enabled {
+    if !config.enabled && vote_sync.mode != config::VoteSyncMode::RequestResponse {
         return Ok(None);
     }
 

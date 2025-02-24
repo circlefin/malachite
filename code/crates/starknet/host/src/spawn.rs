@@ -6,7 +6,7 @@ use tracing::warn;
 
 use malachitebft_config::{
     self as config, Config as NodeConfig, MempoolConfig, TestConfig, TransportProtocol,
-    ValueSyncConfig,
+    ValueSyncConfig, VoteSyncConfig,
 };
 use malachitebft_core_consensus::VoteSyncMode;
 use malachitebft_core_types::ValuePayload;
@@ -76,6 +76,7 @@ pub async fn spawn_node_actor(
         network.clone(),
         host.clone(),
         &cfg.value_sync,
+        &cfg.consensus.vote_sync,
         &registry,
         &span,
     )
@@ -130,10 +131,11 @@ async fn spawn_sync_actor(
     network: NetworkRef<MockContext>,
     host: HostRef<MockContext>,
     config: &ValueSyncConfig,
+    vote_sync: &VoteSyncConfig,
     registry: &SharedRegistry,
     span: &tracing::Span,
 ) -> Option<SyncRef<MockContext>> {
-    if !config.enabled {
+    if !config.enabled && vote_sync.mode != config::VoteSyncMode::RequestResponse {
         return None;
     }
 
