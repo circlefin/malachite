@@ -1,12 +1,13 @@
 use std::time::Duration;
 
 use bytesize::ByteSize;
-use malachitebft_config::{PubSubProtocol, ValuePayload};
+
+use malachitebft_config::{PubSubProtocol, ValuePayload, VoteSyncMode};
 use malachitebft_test_app::config::Config;
 
 #[derive(Copy, Clone, Debug)]
 pub struct TestParams {
-    pub enable_sync: bool,
+    pub enable_value_sync: bool,
     pub protocol: PubSubProtocol,
     pub block_size: ByteSize,
     pub tx_size: ByteSize,
@@ -15,12 +16,13 @@ pub struct TestParams {
     pub value_payload: ValuePayload,
     pub max_retain_blocks: usize,
     pub timeout_step: Duration,
+    pub vote_sync_mode: Option<VoteSyncMode>,
 }
 
 impl Default for TestParams {
     fn default() -> Self {
         Self {
-            enable_sync: false,
+            enable_value_sync: false,
             protocol: PubSubProtocol::default(),
             block_size: ByteSize::mib(1),
             tx_size: ByteSize::kib(1),
@@ -29,13 +31,14 @@ impl Default for TestParams {
             value_payload: ValuePayload::PartsOnly,
             max_retain_blocks: 50,
             timeout_step: Duration::from_secs(30),
+            vote_sync_mode: None,
         }
     }
 }
 
 impl TestParams {
     pub fn apply_to_config(&self, config: &mut Config) {
-        config.sync.enabled = self.enable_sync;
+        config.value_sync.enabled = self.enable_value_sync;
         config.consensus.p2p.protocol = self.protocol;
         config.consensus.timeouts.timeout_step = self.timeout_step;
         config.consensus.value_payload = self.value_payload;
@@ -45,5 +48,9 @@ impl TestParams {
         config.test.vote_extensions.enabled = self.vote_extensions.is_some();
         config.test.vote_extensions.size = self.vote_extensions.unwrap_or_default();
         config.test.max_retain_blocks = self.max_retain_blocks;
+
+        if let Some(vote_sync_mode) = self.vote_sync_mode {
+            config.consensus.vote_sync.mode = vote_sync_mode;
+        }
     }
 }

@@ -46,7 +46,7 @@ pub async fn crash_restart_from_start(params: TestParams) {
         .run_with_params(
             Duration::from_secs(60), // Timeout for the whole test
             TestParams {
-                enable_sync: true, // Enable Sync
+                enable_value_sync: true, // Enable Sync
                 ..params
             },
         )
@@ -116,7 +116,7 @@ pub async fn crash_restart_from_latest() {
         .run_with_params(
             Duration::from_secs(60),
             TestParams {
-                enable_sync: true,
+                enable_value_sync: true,
                 ..Default::default()
             },
         )
@@ -155,8 +155,8 @@ pub async fn aggressive_pruning() {
         .run_with_params(
             Duration::from_secs(60), // Timeout for the whole test
             TestParams {
-                enable_sync: true,     // Enable Sync
-                max_retain_blocks: 10, // Prune blocks older than 10
+                enable_value_sync: true, // Enable Sync
+                max_retain_blocks: 10,   // Prune blocks older than 10
                 ..Default::default()
             },
         )
@@ -191,7 +191,7 @@ pub async fn start_late() {
         .run_with_params(
             Duration::from_secs(30),
             TestParams {
-                enable_sync: true,
+                enable_value_sync: true,
                 ..Default::default()
             },
         )

@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::{prelude::*, VoteSyncMode};
 
 #[cfg_attr(not(feature = "metrics"), allow(unused_variables))]
 pub async fn on_rebroadcast_timeout<Ctx>(
@@ -10,6 +10,10 @@ pub async fn on_rebroadcast_timeout<Ctx>(
 where
     Ctx: Context,
 {
+    if state.params.vote_sync_mode != VoteSyncMode::Rebroadcast {
+        return Ok(());
+    }
+
     let (height, round) = (state.driver.height(), state.driver.round());
 
     let (maybe_vote, timeout) = match timeout.kind {

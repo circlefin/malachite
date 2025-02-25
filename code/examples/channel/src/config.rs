@@ -6,8 +6,8 @@ use malachitebft_app_channel::app::NodeConfig;
 use serde::{Deserialize, Serialize};
 
 pub use malachitebft_app_channel::app::config::{
-    ConsensusConfig, LogFormat, LogLevel, LoggingConfig, MetricsConfig, RuntimeConfig, SyncConfig,
-    TimeoutConfig,
+    ConsensusConfig, LogFormat, LogLevel, LoggingConfig, MetricsConfig, RuntimeConfig,
+    TimeoutConfig, ValueSyncConfig,
 };
 
 /// Malachite configuration options
@@ -22,8 +22,8 @@ pub struct Config {
     /// Consensus configuration options
     pub consensus: ConsensusConfig,
 
-    /// Sync configuration options
-    pub sync: SyncConfig,
+    /// ValueSync configuration options
+    pub value_sync: ValueSyncConfig,
 
     /// Metrics configuration options
     pub metrics: MetricsConfig,
@@ -41,8 +41,8 @@ impl NodeConfig for Config {
         &self.consensus
     }
 
-    fn sync(&self) -> &SyncConfig {
-        &self.sync
+    fn value_sync(&self) -> &ValueSyncConfig {
+        &self.value_sync
     }
 }
 

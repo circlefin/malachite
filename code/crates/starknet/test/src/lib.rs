@@ -145,6 +145,9 @@ impl TestRunner {
             logging: LoggingConfig::default(),
             consensus: ConsensusConfig {
                 value_payload: ValuePayload::PartsOnly,
+                vote_sync: VoteSyncConfig {
+                    mode: VoteSyncMode::Rebroadcast,
+                },
                 timeouts: TimeoutConfig::default(),
                 p2p: P2pConfig {
                     transport,
@@ -172,7 +175,7 @@ impl TestRunner {
                 max_tx_count: 10000,
                 gossip_batch_size: 100,
             },
-            sync: SyncConfig {
+            value_sync: ValueSyncConfig {
                 enabled: true,
                 status_update_interval: Duration::from_secs(2),
                 request_timeout: Duration::from_secs(5),
@@ -222,7 +225,7 @@ fn make_validators<S>(
 }
 
 fn apply_params(config: &mut Config, params: &TestParams) {
-    config.sync.enabled = params.enable_sync;
+    config.value_sync.enabled = params.enable_value_sync;
     config.consensus.p2p.protocol = params.protocol;
     config.consensus.timeouts.timeout_step = params.timeout_step;
     config.consensus.value_payload = params.value_payload;

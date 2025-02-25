@@ -258,6 +258,9 @@ fn make_config(
         moniker: format!("test-{}", index),
         consensus: ConsensusConfig {
             value_payload: ValuePayload::PartsOnly,
+            vote_sync: VoteSyncConfig {
+                mode: VoteSyncMode::RequestResponse,
+            },
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
@@ -298,12 +301,12 @@ fn make_config(
                 ..Default::default()
             },
         },
-        sync: Default::default(),
         metrics: MetricsConfig {
             enabled: true,
             listen_addr: format!("127.0.0.1:{metrics_port}").parse().unwrap(),
         },
         runtime,
+        value_sync: ValueSyncConfig::default(),
         logging: LoggingConfig::default(),
         test: TestConfig::default(),
     }

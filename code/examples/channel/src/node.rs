@@ -27,6 +27,7 @@ use malachitebft_test::{
 };
 use malachitebft_test_cli::metrics;
 use tokio::task::JoinHandle;
+use tracing::Instrument;
 
 use crate::config::{load_config, Config};
 use crate::metrics::DbMetrics;
@@ -154,11 +155,15 @@ impl Node for App {
         let start_height = self.start_height.unwrap_or(Height::INITIAL);
         let mut state = State::new(ctx, signing_provider, genesis, address, start_height, store);
 
-        let app_handle = tokio::spawn(async move {
-            if let Err(e) = crate::app::run(&mut state, &mut channels).await {
-                tracing::error!(%e, "Application error");
+        let span = tracing::error_span!("node", moniker = %config.moniker);
+        let app_handle = tokio::spawn(
+            async move {
+                if let Err(e) = crate::app::run(&mut state, &mut channels).await {
+                    tracing::error!(%e, "Application error");
+                }
             }
-        });
+            .instrument(span),
+        );
 
         Ok(Handle {
             app: app_handle,
@@ -259,6 +264,9 @@ fn make_config(
         moniker: format!("app-{}", index),
         consensus: ConsensusConfig {
             value_payload: ValuePayload::PartsOnly,
+            vote_sync: VoteSyncConfig {
+                mode: VoteSyncMode::RequestResponse,
+            },
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
@@ -299,12 +307,12 @@ fn make_config(
                 ..Default::default()
             },
         },
-        sync: Default::default(),
         metrics: MetricsConfig {
             enabled: true,
             listen_addr: format!("127.0.0.1:{metrics_port}").parse().unwrap(),
         },
         runtime,
         logging: LoggingConfig::default(),
+        value_sync: ValueSyncConfig::default(),
     }
 }

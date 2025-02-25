@@ -6,7 +6,7 @@ use malachitebft_app::NodeConfig;
 
 pub use malachitebft_app::config::{
     ConsensusConfig, LogFormat, LogLevel, LoggingConfig, MempoolConfig, MetricsConfig,
-    RuntimeConfig, SyncConfig, TestConfig, TimeoutConfig,
+    RuntimeConfig, TestConfig, TimeoutConfig, ValueSyncConfig,
 };
 
 /// Malachite configuration options
@@ -25,7 +25,7 @@ pub struct Config {
     pub mempool: MempoolConfig,
 
     /// Sync configuration options
-    pub sync: SyncConfig,
+    pub value_sync: ValueSyncConfig,
 
     /// Metrics configuration options
     pub metrics: MetricsConfig,
@@ -47,8 +47,8 @@ impl NodeConfig for Config {
         &self.consensus
     }
 
-    fn sync(&self) -> &SyncConfig {
-        &self.sync
+    fn value_sync(&self) -> &ValueSyncConfig {
+        &self.value_sync
     }
 }
 

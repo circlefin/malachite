@@ -9,7 +9,7 @@ use serde::Serialize;
 use tokio::task::JoinHandle;
 
 use malachitebft_config::{
-    BootstrapProtocol, ConsensusConfig, RuntimeConfig, Selector, SyncConfig, TransportProtocol,
+    BootstrapProtocol, ConsensusConfig, RuntimeConfig, Selector, TransportProtocol, ValueSyncConfig,
 };
 use malachitebft_core_types::SigningProvider;
 use malachitebft_engine::node::NodeRef;
@@ -36,7 +36,7 @@ where
 pub trait NodeConfig {
     fn moniker(&self) -> &str;
     fn consensus(&self) -> &ConsensusConfig;
-    fn sync(&self) -> &SyncConfig;
+    fn value_sync(&self) -> &ValueSyncConfig;
 }
 
 #[async_trait]

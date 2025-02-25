@@ -267,6 +267,9 @@ fn make_config(
         moniker: format!("starknet-{}", index),
         consensus: ConsensusConfig {
             value_payload: ValuePayload::PartsOnly,
+            vote_sync: VoteSyncConfig {
+                mode: VoteSyncMode::Rebroadcast,
+            },
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
@@ -331,12 +334,12 @@ fn make_config(
             max_tx_count: 10000,
             gossip_batch_size: 0,
         },
-        sync: Default::default(),
         metrics: MetricsConfig {
             enabled: true,
             listen_addr: format!("127.0.0.1:{metrics_port}").parse().unwrap(),
         },
         runtime,
+        value_sync: ValueSyncConfig::default(),
         logging: LoggingConfig::default(),
         test: TestConfig::default(),
     }

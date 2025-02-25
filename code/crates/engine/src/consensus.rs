@@ -13,7 +13,7 @@ use tracing::{debug, error, error_span, info, warn};
 use malachitebft_codec as codec;
 use malachitebft_config::TimeoutConfig;
 use malachitebft_core_consensus::{
-    Effect, PeerId, Resumable, Resume, SignedConsensusMsg, VoteExtensionError,
+    Effect, PeerId, Resumable, Resume, SignedConsensusMsg, VoteExtensionError, VoteSyncMode,
 };
 use malachitebft_core_types::{
     Context, Round, SigningProvider, SigningProviderExt, Timeout, TimeoutKind, ValidatorSet,
@@ -976,10 +976,9 @@ where
             }
 
             Effect::Rebroadcast(msg, r) => {
-                // Rebroadcast last vote only if sync is not enabled, otherwise vote set requests are issued.
-                // TODO - there is currently no easy access to the sync configuration. In addition there is
-                // a single configuration for both value and vote sync.
-                if self.sync.is_none() {
+                // Rebroadcast last vote only if vote sync mode is set to "rebroadcast",
+                // otherwise vote set requests are issued automatically by the sync protocol.
+                if self.params.vote_sync_mode == VoteSyncMode::Rebroadcast {
                     // Notify any subscribers that we are about to rebroadcast a message
                     self.tx_event.send(|| Event::Rebroadcast(msg.clone()));
 
@@ -1047,7 +1046,7 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::GetVoteSet(height, round, r) => {
+            Effect::RequestVoteSet(height, round, r) => {
                 if let Some(sync) = &self.sync {
                     debug!(%height, %round, "Request sync to obtain the vote set from peers");
 
