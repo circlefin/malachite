@@ -342,6 +342,22 @@ fn make_config(
     }
 }
 
+#[cfg(test)]
+fn default_config() -> Config {
+    make_config(
+        1,
+        3,
+        RuntimeConfig::single_threaded(),
+        true,
+        BootstrapProtocol::Kademlia,
+        Selector::Random,
+        6,
+        4,
+        100,
+        TransportProtocol::Tcp,
+    )
+}
+
 #[test]
 fn test_starknet_node() {
     // Create temp folder for configuration files
@@ -359,18 +375,7 @@ fn test_starknet_node() {
     // Create default configuration
     let node = StarknetNode {
         home_dir: temp_path.clone(),
-        config: make_config(
-            1,
-            3,
-            RuntimeConfig::single_threaded(),
-            true,
-            BootstrapProtocol::Kademlia,
-            Selector::Random,
-            6,
-            4,
-            100,
-            TransportProtocol::Tcp,
-        ),
+        config: default_config(),
         start_height: Some(1),
     };
 

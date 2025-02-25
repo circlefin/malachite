@@ -76,9 +76,28 @@ mod tests {
     use color_eyre::eyre;
     use color_eyre::eyre::eyre;
 
+    use malachitebft_app::CanMakeConfig;
+    use malachitebft_starknet_host::config::Config;
     use malachitebft_starknet_host::node::StarknetNode;
     use malachitebft_test_cli::args::{Args, Commands};
     use malachitebft_test_cli::cmd::init::*;
+
+    fn default_config() -> Config {
+        use malachitebft_config::*;
+
+        StarknetNode::make_config(
+            1,
+            3,
+            RuntimeConfig::single_threaded(),
+            true,
+            BootstrapProtocol::Kademlia,
+            Selector::Random,
+            6,
+            4,
+            100,
+            TransportProtocol::Tcp,
+        )
+    }
 
     #[test]
     fn running_init_creates_config_files() -> eyre::Result<()> {
@@ -88,11 +107,11 @@ mod tests {
         let args = Args::parse_from(["test", "--home", tmp.path().to_str().unwrap(), "init"]);
         let cmd = InitCmd::default();
 
-        let node = &StarknetNode::new(
-            tmp.path().to_owned(),
-            args.get_config_file_path().unwrap(),
-            None,
-        )?;
+        let node = &StarknetNode {
+            home_dir: tmp.path().to_owned(),
+            config: default_config(),
+            start_height: None,
+        };
 
         cmd.run(
             node,
@@ -131,11 +150,12 @@ mod tests {
             return Err(eyre!("not testnet command"));
         };
 
-        let node = &StarknetNode::new(
-            tmp.path().to_owned(),
-            args.get_config_file_path().unwrap(),
-            None,
-        )?;
+        let node = &StarknetNode {
+            home_dir: tmp.path().to_owned(),
+            config: default_config(),
+            start_height: None,
+        };
+
         cmd.run(node, &args.get_home_dir().unwrap())
             .expect("Failed to run init command");
 
