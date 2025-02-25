@@ -8,11 +8,11 @@ use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;
 
 use malachitebft_app::events::{RxEvent, TxEvent};
-use malachitebft_app::types::Keypair;
-use malachitebft_app::{
-    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, Node, NodeHandle,
+use malachitebft_app::node::{
+    CanGeneratePrivateKey, CanMakeConfig, CanMakeDistributedConfig, CanMakeGenesis,
+    CanMakePrivateKeyFile, MakeConfigSettings, Node, NodeHandle,
 };
-use malachitebft_config::{BootstrapProtocol, RuntimeConfig, Selector, TransportProtocol};
+use malachitebft_app::types::Keypair;
 use malachitebft_core_types::VotingPower;
 use malachitebft_engine::node::NodeRef;
 use malachitebft_starknet_p2p_types::Ed25519Provider;
@@ -208,46 +208,25 @@ impl CanMakeGenesis for StarknetNode {
 }
 
 impl CanMakeConfig for StarknetNode {
-    fn make_config(
+    fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Self::Config {
+        make_config(index, total, settings)
+    }
+}
+
+impl CanMakeDistributedConfig for StarknetNode {
+    fn make_distributed_config(
         index: usize,
         total: usize,
-        runtime: RuntimeConfig,
-        enable_discovery: bool,
-        bootstrap_protocol: BootstrapProtocol,
-        selector: Selector,
-        num_outbound_peers: usize,
-        num_inbound_peers: usize,
-        ephemeral_connection_timeout_ms: u64,
-        transport: TransportProtocol,
+        machines: Vec<String>,
+        bootstrap_set_size: usize,
+        settings: MakeConfigSettings,
     ) -> Self::Config {
-        make_config(
-            index,
-            total,
-            runtime,
-            enable_discovery,
-            bootstrap_protocol,
-            selector,
-            num_outbound_peers,
-            num_inbound_peers,
-            ephemeral_connection_timeout_ms,
-            transport,
-        )
+        make_distributed_config(index, total, machines, bootstrap_set_size, settings)
     }
 }
 
 /// Generate configuration for node "index" out of "total" number of nodes.
-fn make_config(
-    index: usize,
-    total: usize,
-    runtime: RuntimeConfig,
-    enable_discovery: bool,
-    bootstrap_protocol: BootstrapProtocol,
-    selector: Selector,
-    num_outbound_peers: usize,
-    num_inbound_peers: usize,
-    ephemeral_connection_timeout_ms: u64,
-    transport: TransportProtocol,
-) -> Config {
+fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Config {
     use itertools::Itertools;
     use rand::seq::IteratorRandom;
     use rand::Rng;
@@ -273,8 +252,8 @@ fn make_config(
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
-                listen_addr: transport.multiaddr("127.0.0.1", consensus_port),
-                persistent_peers: if enable_discovery {
+                listen_addr: settings.transport.multiaddr("127.0.0.1", consensus_port),
+                persistent_peers: if settings.enable_discovery {
                     let mut rng = rand::thread_rng();
                     let count = if total > 1 {
                         rng.gen_range(1..=(total / 2))
@@ -288,47 +267,59 @@ fn make_config(
                     peers
                         .iter()
                         .unique()
-                        .map(|index| transport.multiaddr("127.0.0.1", CONSENSUS_BASE_PORT + index))
+                        .map(|index| {
+                            settings
+                                .transport
+                                .multiaddr("127.0.0.1", CONSENSUS_BASE_PORT + index)
+                        })
                         .collect()
                 } else {
                     (0..total)
                         .filter(|j| *j != index)
-                        .map(|j| transport.multiaddr("127.0.0.1", CONSENSUS_BASE_PORT + j))
+                        .map(|j| {
+                            settings
+                                .transport
+                                .multiaddr("127.0.0.1", CONSENSUS_BASE_PORT + j)
+                        })
                         .collect()
                 },
                 discovery: DiscoveryConfig {
-                    enabled: enable_discovery,
-                    bootstrap_protocol,
-                    selector,
-                    num_outbound_peers,
-                    num_inbound_peers,
+                    enabled: settings.enable_discovery,
+                    bootstrap_protocol: settings.bootstrap_protocol,
+                    selector: settings.selector,
+                    num_outbound_peers: settings.num_outbound_peers,
+                    num_inbound_peers: settings.num_inbound_peers,
                     ephemeral_connection_timeout: Duration::from_millis(
-                        ephemeral_connection_timeout_ms,
+                        settings.ephemeral_connection_timeout_ms,
                     ),
                 },
-                transport,
+                transport: settings.transport,
                 ..Default::default()
             },
         },
         mempool: MempoolConfig {
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
-                listen_addr: transport.multiaddr("127.0.0.1", mempool_port),
+                listen_addr: settings.transport.multiaddr("127.0.0.1", mempool_port),
                 persistent_peers: (0..total)
                     .filter(|j| *j != index)
-                    .map(|j| transport.multiaddr("127.0.0.1", MEMPOOL_BASE_PORT + j))
+                    .map(|j| {
+                        settings
+                            .transport
+                            .multiaddr("127.0.0.1", MEMPOOL_BASE_PORT + j)
+                    })
                     .collect(),
                 discovery: DiscoveryConfig {
                     enabled: false,
-                    bootstrap_protocol,
-                    selector,
-                    num_outbound_peers,
-                    num_inbound_peers,
+                    bootstrap_protocol: settings.bootstrap_protocol,
+                    selector: settings.selector,
+                    num_outbound_peers: settings.num_outbound_peers,
+                    num_inbound_peers: settings.num_inbound_peers,
                     ephemeral_connection_timeout: Duration::from_millis(
-                        ephemeral_connection_timeout_ms,
+                        settings.ephemeral_connection_timeout_ms,
                     ),
                 },
-                transport,
+                transport: settings.transport,
                 ..Default::default()
             },
             max_tx_count: 10000,
@@ -338,8 +329,110 @@ fn make_config(
             enabled: true,
             listen_addr: format!("127.0.0.1:{metrics_port}").parse().unwrap(),
         },
-        runtime,
+        runtime: settings.runtime,
         value_sync: ValueSyncConfig::default(),
+        logging: LoggingConfig::default(),
+        test: TestConfig::default(),
+    }
+}
+
+fn make_distributed_config(
+    index: usize,
+    _total: usize,
+    machines: Vec<String>,
+    bootstrap_set_size: usize,
+    settings: MakeConfigSettings,
+) -> Config {
+    use itertools::Itertools;
+    use malachitebft_config::*;
+    use std::time::Duration;
+
+    const CONSENSUS_BASE_PORT: usize = 27000;
+    const MEMPOOL_BASE_PORT: usize = 28000;
+    const METRICS_BASE_PORT: usize = 29000;
+
+    let machine = machines[index % machines.len()].clone();
+    let consensus_port = CONSENSUS_BASE_PORT + (index / machines.len());
+    let mempool_port = MEMPOOL_BASE_PORT + (index / machines.len());
+    let metrics_port = METRICS_BASE_PORT + (index / machines.len());
+
+    Config {
+        moniker: format!("test-{}", index),
+        consensus: ConsensusConfig {
+            value_payload: ValuePayload::PartsOnly,
+            vote_sync: VoteSyncConfig {
+                mode: VoteSyncMode::RequestResponse,
+            },
+            timeouts: TimeoutConfig::default(),
+            p2p: P2pConfig {
+                protocol: PubSubProtocol::default(),
+                listen_addr: settings.transport.multiaddr(&machine, consensus_port),
+                persistent_peers: if settings.enable_discovery {
+                    let peers =
+                        ((index.saturating_sub(bootstrap_set_size))..index).collect::<Vec<_>>();
+
+                    peers
+                        .iter()
+                        .unique()
+                        .map(|j| {
+                            settings.transport.multiaddr(
+                                &machines[j % machines.len()].clone(),
+                                CONSENSUS_BASE_PORT + (j / machines.len()),
+                            )
+                        })
+                        .collect()
+                } else {
+                    let peers = (0..index).collect::<Vec<_>>();
+
+                    peers
+                        .iter()
+                        .map(|j| {
+                            settings.transport.multiaddr(
+                                &machines[*j % machines.len()],
+                                CONSENSUS_BASE_PORT + (*j / machines.len()),
+                            )
+                        })
+                        .collect()
+                },
+                discovery: DiscoveryConfig {
+                    enabled: settings.enable_discovery,
+                    bootstrap_protocol: settings.bootstrap_protocol,
+                    selector: settings.selector,
+                    num_outbound_peers: settings.num_outbound_peers,
+                    num_inbound_peers: settings.num_inbound_peers,
+                    ephemeral_connection_timeout: Duration::from_millis(
+                        settings.ephemeral_connection_timeout_ms,
+                    ),
+                },
+                transport: settings.transport,
+                ..Default::default()
+            },
+        },
+        mempool: MempoolConfig {
+            p2p: P2pConfig {
+                protocol: PubSubProtocol::default(),
+                listen_addr: settings.transport.multiaddr(&machine, mempool_port),
+                persistent_peers: vec![],
+                discovery: DiscoveryConfig {
+                    enabled: false,
+                    ..DiscoveryConfig::default()
+                },
+                transport: settings.transport,
+                ..Default::default()
+            },
+            max_tx_count: 10000,
+            gossip_batch_size: 0,
+        },
+        value_sync: ValueSyncConfig {
+            enabled: false,
+            status_update_interval: Duration::from_secs(0),
+            request_timeout: Duration::from_secs(0),
+        },
+        metrics: MetricsConfig {
+            enabled: true,
+            listen_addr: format!("{machine}:{metrics_port}").parse().unwrap(),
+        },
+        runtime: settings.runtime,
         logging: LoggingConfig::default(),
         test: TestConfig::default(),
     }
@@ -347,17 +440,21 @@ fn make_config(
 
 #[cfg(test)]
 fn default_config() -> Config {
+    use malachitebft_config::{BootstrapProtocol, RuntimeConfig, Selector, TransportProtocol};
+
     make_config(
         1,
         3,
-        RuntimeConfig::single_threaded(),
-        true,
-        BootstrapProtocol::Kademlia,
-        Selector::Random,
-        6,
-        4,
-        100,
-        TransportProtocol::Tcp,
+        MakeConfigSettings {
+            enable_discovery: true,
+            bootstrap_protocol: BootstrapProtocol::Kademlia,
+            selector: Selector::Random,
+            num_inbound_peers: 6,
+            num_outbound_peers: 4,
+            ephemeral_connection_timeout_ms: 100,
+            transport: TransportProtocol::Tcp,
+            runtime: RuntimeConfig::single_threaded(),
+        },
     )
 }
 

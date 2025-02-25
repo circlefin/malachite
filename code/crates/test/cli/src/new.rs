@@ -4,7 +4,7 @@ use rand::prelude::StdRng;
 use rand::rngs::OsRng;
 use rand::{Rng, SeedableRng};
 
-use malachitebft_app::{CanGeneratePrivateKey, CanMakeGenesis, Node};
+use malachitebft_app::node::{CanGeneratePrivateKey, CanMakeGenesis, Node};
 use malachitebft_core_types::{PrivateKey, PublicKey};
 
 const MIN_VOTING_POWER: u64 = 1;

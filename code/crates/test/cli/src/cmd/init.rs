@@ -5,8 +5,9 @@ use std::path::Path;
 use clap::Parser;
 use tracing::{info, warn};
 
-use malachitebft_app::{
-    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, Node,
+use malachitebft_app::node::{
+    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile,
+    MakeConfigSettings, Node,
 };
 use malachitebft_config::{BootstrapProtocol, RuntimeConfig, Selector, TransportProtocol};
 
@@ -68,18 +69,18 @@ impl InitCmd {
     where
         N: Node + CanMakeConfig + CanMakePrivateKeyFile + CanGeneratePrivateKey + CanMakeGenesis,
     {
-        let config = N::make_config(
-            0,
-            1,
-            RuntimeConfig::SingleThreaded,
-            self.enable_discovery,
-            self.bootstrap_protocol,
-            self.selector,
-            self.num_outbound_peers,
-            self.num_inbound_peers,
-            self.ephemeral_connection_timeout_ms,
-            TransportProtocol::Tcp,
-        );
+        let settings = MakeConfigSettings {
+            runtime: RuntimeConfig::SingleThreaded,
+            enable_discovery: self.enable_discovery,
+            bootstrap_protocol: self.bootstrap_protocol,
+            selector: self.selector,
+            num_outbound_peers: self.num_outbound_peers,
+            num_inbound_peers: self.num_inbound_peers,
+            ephemeral_connection_timeout_ms: self.ephemeral_connection_timeout_ms,
+            transport: TransportProtocol::Tcp,
+        };
+
+        let config = N::make_config(0, 1, settings);
 
         init(
             node,

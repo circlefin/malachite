@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand};
 use directories::BaseDirs;
 
-// use crate::cmd::distributed_testnet::DistributedTestnetCmd;
+use crate::cmd::distributed_testnet::DistributedTestnetCmd;
 use crate::cmd::init::InitCmd;
 use crate::cmd::start::StartCmd;
 use crate::cmd::testnet::TestnetCmd;
@@ -43,8 +43,9 @@ pub enum Commands {
 
     /// Generate testnet configuration
     Testnet(TestnetCmd),
-    // /// Generate distributed testnet configuration
-    // DistributedTestnet(DistributedTestnetCmd),
+
+    /// Generate distributed testnet configuration
+    DistributedTestnet(DistributedTestnetCmd),
 }
 
 impl Default for Commands {

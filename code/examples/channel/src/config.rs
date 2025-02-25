@@ -2,13 +2,14 @@
 
 use std::path::Path;
 
-use malachitebft_app_channel::app::NodeConfig;
 use serde::{Deserialize, Serialize};
 
 pub use malachitebft_app_channel::app::config::{
     ConsensusConfig, LogFormat, LogLevel, LoggingConfig, MetricsConfig, RuntimeConfig,
     TimeoutConfig, ValueSyncConfig,
 };
+
+use malachitebft_app_channel::app::node::NodeConfig;
 
 /// Malachite configuration options
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

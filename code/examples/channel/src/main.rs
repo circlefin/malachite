@@ -4,7 +4,7 @@ use config::Config;
 use eyre::{eyre, Result};
 use tracing::info;
 
-use malachitebft_app_channel::app::Node;
+use malachitebft_app_channel::app::node::Node;
 use malachitebft_test::Height;
 use malachitebft_test_cli::args::{Args, Commands};
 use malachitebft_test_cli::cmd::init::InitCmd;
@@ -41,7 +41,7 @@ fn main() -> Result<()> {
         Commands::Start(cmd) => start(&args, cmd),
         Commands::Init(cmd) => init(&args, cmd),
         Commands::Testnet(cmd) => testnet(&args, cmd),
-        // _ => unimplemented!(),
+        _ => unimplemented!(),
     }
 }
 

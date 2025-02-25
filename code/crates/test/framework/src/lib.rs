@@ -11,7 +11,7 @@ use tracing::{debug, error, error_span, info, Instrument};
 
 use malachitebft_core_types::{Context, Height};
 
-pub use malachitebft_app::{
+pub use malachitebft_app::node::{
     CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, EngineHandle,
     Node, NodeHandle,
 };

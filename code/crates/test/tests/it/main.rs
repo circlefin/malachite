@@ -19,7 +19,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tempfile::TempDir;
 
-use malachitebft_app::Node;
+use malachitebft_app::node::Node;
 use malachitebft_signing_ed25519::PrivateKey;
 use malachitebft_test_app::node::{App, Handle};
 use malachitebft_test_framework::HasTestRunner;

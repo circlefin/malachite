@@ -72,18 +72,29 @@ pub trait Node {
         -> Self::SigningProvider;
 }
 
+#[derive(Copy, Clone, Debug)]
+pub struct MakeConfigSettings {
+    pub runtime: RuntimeConfig,
+    pub enable_discovery: bool,
+    pub bootstrap_protocol: BootstrapProtocol,
+    pub selector: Selector,
+    pub num_outbound_peers: usize,
+    pub num_inbound_peers: usize,
+    pub ephemeral_connection_timeout_ms: u64,
+    pub transport: TransportProtocol,
+}
+
 pub trait CanMakeConfig: Node {
-    fn make_config(
+    fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Self::Config;
+}
+
+pub trait CanMakeDistributedConfig: Node {
+    fn make_distributed_config(
         index: usize,
         total: usize,
-        runtime: RuntimeConfig,
-        enable_discovery: bool,
-        bootstrap_protocol: BootstrapProtocol,
-        selector: Selector,
-        num_outbound_peers: usize,
-        num_inbound_peers: usize,
-        ephemeral_connection_timeout_ms: u64,
-        transport: TransportProtocol,
+        machines: Vec<String>,
+        bootstrap_set_size: usize,
+        settings: MakeConfigSettings,
     ) -> Self::Config;
 }
 

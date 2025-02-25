@@ -7,8 +7,9 @@ use clap::Parser;
 use color_eyre::eyre::{eyre, Result};
 use tracing::info;
 
-use malachitebft_app::{
-    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, Node,
+use malachitebft_app::node::{
+    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile,
+    MakeConfigSettings, Node,
 };
 use malachitebft_config::*;
 
@@ -116,38 +117,28 @@ impl TestnetCmd {
             RuntimeFlavour::MultiThreaded(n) => RuntimeConfig::MultiThreaded { worker_threads: n },
         };
 
-        testnet(
-            node,
-            self.nodes,
-            home_dir,
+        let settings = MakeConfigSettings {
+            enable_discovery: self.enable_discovery,
+            bootstrap_protocol: self.bootstrap_protocol,
+            selector: self.selector,
+            num_outbound_peers: self.num_outbound_peers,
+            num_inbound_peers: self.num_inbound_peers,
+            ephemeral_connection_timeout_ms: self.ephemeral_connection_timeout_ms,
+            transport: self.transport,
             runtime,
-            self.enable_discovery,
-            self.bootstrap_protocol,
-            self.selector,
-            self.num_outbound_peers,
-            self.num_inbound_peers,
-            self.ephemeral_connection_timeout_ms,
-            self.transport,
-            self.deterministic,
-        )
-        .map_err(|e| eyre!("Failed to generate testnet configuration: {:?}", e))
+        };
+
+        testnet(node, self.nodes, home_dir, self.deterministic, settings)
+            .map_err(|e| eyre!("Failed to generate testnet configuration: {:?}", e))
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn testnet<N>(
     node: &N,
     nodes: usize,
     home_dir: &Path,
-    runtime: RuntimeConfig,
-    enable_discovery: bool,
-    bootstrap_protocol: BootstrapProtocol,
-    selector: Selector,
-    num_outbound_peers: usize,
-    num_inbound_peers: usize,
-    ephemeral_connection_timeout_ms: u64,
-    transport: TransportProtocol,
     deterministic: bool,
+    settings: MakeConfigSettings,
 ) -> std::result::Result<(), Error>
 where
     N: Node + CanMakeConfig + CanMakePrivateKeyFile + CanGeneratePrivateKey + CanMakeGenesis,
@@ -179,18 +170,7 @@ where
         // Save config
         save_config::<N>(
             &args.get_config_file_path()?,
-            &N::make_config(
-                i,
-                nodes,
-                runtime,
-                enable_discovery,
-                bootstrap_protocol,
-                selector,
-                num_outbound_peers,
-                num_inbound_peers,
-                ephemeral_connection_timeout_ms,
-                transport,
-            ),
+            &N::make_config(i, nodes, settings),
         )?;
 
         // Save private key

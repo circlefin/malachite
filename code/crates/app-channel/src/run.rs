@@ -3,17 +3,15 @@
 
 use eyre::Result;
 
-use malachitebft_app::NodeConfig;
 use malachitebft_engine::util::events::TxEvent;
 
-use crate::app;
 use crate::app::metrics::{Metrics, SharedRegistry};
+use crate::app::node::{self, EngineHandle, NodeConfig};
 use crate::app::spawn::{
     spawn_consensus_actor, spawn_node_actor, spawn_sync_actor, spawn_wal_actor,
 };
 use crate::app::types::codec::{ConsensusCodec, SyncCodec, WalCodec};
 use crate::app::types::core::Context;
-use crate::app::EngineHandle;
 use crate::spawn::{spawn_host_actor, spawn_network_actor};
 use crate::Channels;
 
@@ -28,7 +26,7 @@ pub async fn start_engine<Node, Ctx, Codec>(
 ) -> Result<(Channels<Ctx>, EngineHandle)>
 where
     Ctx: Context,
-    Node: app::Node<Context = Ctx>,
+    Node: node::Node<Context = Ctx>,
     Codec: WalCodec<Ctx> + Clone,
     Codec: ConsensusCodec<Ctx>,
     Codec: SyncCodec<Ctx>,

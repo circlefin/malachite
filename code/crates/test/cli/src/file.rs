@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::Path;
 
-use malachitebft_app::Node;
+use malachitebft_app::node::Node;
 
 use crate::error::Error;
 

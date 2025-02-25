@@ -4,19 +4,18 @@
 use std::path::PathBuf;
 
 use async_trait::async_trait;
-use malachitebft_app_channel::app::events::{RxEvent, TxEvent};
-use malachitebft_test_cli::config::{
-    BootstrapProtocol, RuntimeConfig, Selector, TransportProtocol,
-};
 use rand::{CryptoRng, RngCore};
+use tokio::task::JoinHandle;
+use tracing::Instrument;
 
+use malachitebft_app_channel::app::events::{RxEvent, TxEvent};
 use malachitebft_app_channel::app::metrics::SharedRegistry;
+use malachitebft_app_channel::app::node::{
+    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, EngineHandle,
+    MakeConfigSettings, Node, NodeHandle,
+};
 use malachitebft_app_channel::app::types::core::{Height as _, VotingPower};
 use malachitebft_app_channel::app::types::Keypair;
-use malachitebft_app_channel::app::{
-    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, EngineHandle,
-    Node, NodeHandle,
-};
 
 // Use the same types used for integration tests.
 // A real application would use its own types and context instead.
@@ -26,8 +25,6 @@ use malachitebft_test::{
     ValidatorSet,
 };
 use malachitebft_test_cli::metrics;
-use tokio::task::JoinHandle;
-use tracing::Instrument;
 
 use crate::config::{load_config, Config};
 use crate::metrics::DbMetrics;
@@ -206,47 +203,13 @@ impl CanMakePrivateKeyFile for App {
 }
 
 impl CanMakeConfig for App {
-    fn make_config(
-        index: usize,
-        total: usize,
-        runtime: RuntimeConfig,
-        enable_discovery: bool,
-        bootstrap_protocol: BootstrapProtocol,
-        selector: Selector,
-        num_outbound_peers: usize,
-        num_inbound_peers: usize,
-        ephemeral_connection_timeout_ms: u64,
-        transport: TransportProtocol,
-    ) -> Self::Config {
-        make_config(
-            index,
-            total,
-            runtime,
-            enable_discovery,
-            bootstrap_protocol,
-            selector,
-            num_outbound_peers,
-            num_inbound_peers,
-            ephemeral_connection_timeout_ms,
-            transport,
-        )
+    fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Self::Config {
+        make_config(index, total, settings)
     }
 }
 
 /// Generate configuration for node "index" out of "total" number of nodes.
-#[allow(clippy::too_many_arguments)]
-fn make_config(
-    index: usize,
-    total: usize,
-    runtime: RuntimeConfig,
-    enable_discovery: bool,
-    bootstrap_protocol: BootstrapProtocol,
-    selector: Selector,
-    num_outbound_peers: usize,
-    num_inbound_peers: usize,
-    ephemeral_connection_timeout_ms: u64,
-    transport: TransportProtocol,
-) -> Config {
+fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Config {
     use itertools::Itertools;
     use rand::seq::IteratorRandom;
     use rand::Rng;
@@ -270,8 +233,8 @@ fn make_config(
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
-                listen_addr: transport.multiaddr("127.0.0.1", consensus_port),
-                persistent_peers: if enable_discovery {
+                listen_addr: settings.transport.multiaddr("127.0.0.1", consensus_port),
+                persistent_peers: if settings.enable_discovery {
                     let mut rng = rand::thread_rng();
                     let count = if total > 1 {
                         rng.gen_range(1..=(total / 2))
@@ -285,25 +248,33 @@ fn make_config(
                     peers
                         .iter()
                         .unique()
-                        .map(|index| transport.multiaddr("127.0.0.1", CONSENSUS_BASE_PORT + index))
+                        .map(|index| {
+                            settings
+                                .transport
+                                .multiaddr("127.0.0.1", CONSENSUS_BASE_PORT + index)
+                        })
                         .collect()
                 } else {
                     (0..total)
                         .filter(|j| *j != index)
-                        .map(|j| transport.multiaddr("127.0.0.1", CONSENSUS_BASE_PORT + j))
+                        .map(|j| {
+                            settings
+                                .transport
+                                .multiaddr("127.0.0.1", CONSENSUS_BASE_PORT + j)
+                        })
                         .collect()
                 },
                 discovery: DiscoveryConfig {
-                    enabled: enable_discovery,
-                    bootstrap_protocol,
-                    selector,
-                    num_outbound_peers,
-                    num_inbound_peers,
+                    enabled: settings.enable_discovery,
+                    bootstrap_protocol: settings.bootstrap_protocol,
+                    selector: settings.selector,
+                    num_outbound_peers: settings.num_outbound_peers,
+                    num_inbound_peers: settings.num_inbound_peers,
                     ephemeral_connection_timeout: Duration::from_millis(
-                        ephemeral_connection_timeout_ms,
+                        settings.ephemeral_connection_timeout_ms,
                     ),
                 },
-                transport,
+                transport: settings.transport,
                 ..Default::default()
             },
         },
@@ -311,7 +282,7 @@ fn make_config(
             enabled: true,
             listen_addr: format!("127.0.0.1:{metrics_port}").parse().unwrap(),
         },
-        runtime,
+        runtime: settings.runtime,
         logging: LoggingConfig::default(),
         value_sync: ValueSyncConfig::default(),
     }

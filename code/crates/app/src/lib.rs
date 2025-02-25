@@ -8,12 +8,7 @@
 //     rustdoc::missing_doc_code_examples
 // )]
 
-mod node;
-pub use node::{
-    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, EngineHandle,
-    Node, NodeConfig, NodeHandle,
-};
-
+pub mod node;
 pub mod part_store;
 pub mod spawn;
 pub mod types;

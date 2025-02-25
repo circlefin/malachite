@@ -1,6 +1,6 @@
 use color_eyre::eyre::Context;
 
-use malachitebft_app::Node;
+use malachitebft_app::node::{MakeConfigSettings, Node};
 use malachitebft_config::{LogFormat, LogLevel};
 use malachitebft_starknet_host::config::Config;
 use malachitebft_starknet_host::node::StarknetNode;
@@ -68,37 +68,39 @@ pub fn main() -> color_eyre::Result<()> {
 
             cmd.run(node, &home_dir)
                 .wrap_err("Failed to run `testnet` command")
-        } // Commands::DistributedTestnet(cmd) => {
-          //     let _guard = logging::init(LogLevel::Info, LogFormat::Plaintext);
-          //
-          //     let node = &StarknetNode {
-          //         home_dir: home_dir.clone(),
-          //         config_file,
-          //         start_height: None,
-          //     };
-          //
-          //     cmd.run(node, &home_dir)
-          //         .wrap_err("Failed to run `distributed-testnet` command")
-          // }
+        }
+
+        Commands::DistributedTestnet(cmd) => {
+            let _guard = logging::init(LogLevel::Info, LogFormat::Plaintext);
+
+            let node = &StarknetNode {
+                home_dir: home_dir.clone(),
+                config: default_config(),
+                start_height: None,
+            };
+
+            cmd.run(node, &home_dir)
+                .wrap_err("Failed to run `distributed-testnet` command")
+        }
     }
 }
 
 fn default_config() -> Config {
-    use malachitebft_app::CanMakeConfig;
+    use malachitebft_app::node::CanMakeConfig;
     use malachitebft_config::*;
 
-    StarknetNode::make_config(
-        1,
-        3,
-        RuntimeConfig::single_threaded(),
-        true,
-        BootstrapProtocol::Kademlia,
-        Selector::Random,
-        6,
-        4,
-        100,
-        TransportProtocol::Tcp,
-    )
+    let settings = MakeConfigSettings {
+        runtime: RuntimeConfig::SingleThreaded,
+        enable_discovery: true,
+        bootstrap_protocol: BootstrapProtocol::Kademlia,
+        selector: Selector::Random,
+        num_outbound_peers: 6,
+        num_inbound_peers: 4,
+        ephemeral_connection_timeout_ms: 100,
+        transport: TransportProtocol::Tcp,
+    };
+
+    StarknetNode::make_config(1, 3, settings)
 }
 
 #[cfg(test)]
