@@ -1,6 +1,8 @@
 use color_eyre::eyre::Context;
 
 use malachitebft_app::Node;
+use malachitebft_config::{LogFormat, LogLevel};
+use malachitebft_starknet_host::config::Config;
 use malachitebft_starknet_host::node::StarknetNode;
 use malachitebft_test_cli::args::{Args, Commands};
 use malachitebft_test_cli::{logging, runtime};
@@ -38,7 +40,13 @@ pub fn main() -> color_eyre::Result<()> {
         }
 
         Commands::Init(cmd) => {
-            let node = &StarknetNode::new(home_dir.clone(), config_file.clone(), None)?;
+            let _guard = logging::init(LogLevel::Info, LogFormat::Plaintext);
+
+            let node = &StarknetNode {
+                home_dir: home_dir.clone(),
+                config: default_config(),
+                start_height: None,
+            };
 
             cmd.run(
                 node,
@@ -50,11 +58,19 @@ pub fn main() -> color_eyre::Result<()> {
         }
 
         Commands::Testnet(cmd) => {
-            let node = &StarknetNode::new(home_dir.clone(), config_file, None)?;
+            let _guard = logging::init(LogLevel::Info, LogFormat::Plaintext);
+
+            let node = &StarknetNode {
+                home_dir: home_dir.clone(),
+                config: default_config(),
+                start_height: None,
+            };
 
             cmd.run(node, &home_dir)
                 .wrap_err("Failed to run `testnet` command")
         } // Commands::DistributedTestnet(cmd) => {
+          //     let _guard = logging::init(LogLevel::Info, LogFormat::Plaintext);
+          //
           //     let node = &StarknetNode {
           //         home_dir: home_dir.clone(),
           //         config_file,
@@ -67,6 +83,24 @@ pub fn main() -> color_eyre::Result<()> {
     }
 }
 
+fn default_config() -> Config {
+    use malachitebft_app::CanMakeConfig;
+    use malachitebft_config::*;
+
+    StarknetNode::make_config(
+        1,
+        3,
+        RuntimeConfig::single_threaded(),
+        true,
+        BootstrapProtocol::Kademlia,
+        Selector::Random,
+        6,
+        4,
+        100,
+        TransportProtocol::Tcp,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs;
@@ -76,28 +110,11 @@ mod tests {
     use color_eyre::eyre;
     use color_eyre::eyre::eyre;
 
-    use malachitebft_app::CanMakeConfig;
-    use malachitebft_starknet_host::config::Config;
     use malachitebft_starknet_host::node::StarknetNode;
     use malachitebft_test_cli::args::{Args, Commands};
     use malachitebft_test_cli::cmd::init::*;
 
-    fn default_config() -> Config {
-        use malachitebft_config::*;
-
-        StarknetNode::make_config(
-            1,
-            3,
-            RuntimeConfig::single_threaded(),
-            true,
-            BootstrapProtocol::Kademlia,
-            Selector::Random,
-            6,
-            4,
-            100,
-            TransportProtocol::Tcp,
-        )
-    }
+    use super::default_config;
 
     #[test]
     fn running_init_creates_config_files() -> eyre::Result<()> {
