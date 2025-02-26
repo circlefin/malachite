@@ -230,7 +230,6 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
     use itertools::Itertools;
     use rand::seq::IteratorRandom;
     use rand::Rng;
-    use std::time::Duration;
 
     use malachitebft_config::*;
 
@@ -253,7 +252,7 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
                 listen_addr: settings.transport.multiaddr("127.0.0.1", consensus_port),
-                persistent_peers: if settings.enable_discovery {
+                persistent_peers: if settings.discovery.enabled {
                     let mut rng = rand::thread_rng();
                     let count = if total > 1 {
                         rng.gen_range(1..=(total / 2))
@@ -283,16 +282,7 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
                         })
                         .collect()
                 },
-                discovery: DiscoveryConfig {
-                    enabled: settings.enable_discovery,
-                    bootstrap_protocol: settings.bootstrap_protocol,
-                    selector: settings.selector,
-                    num_outbound_peers: settings.num_outbound_peers,
-                    num_inbound_peers: settings.num_inbound_peers,
-                    ephemeral_connection_timeout: Duration::from_millis(
-                        settings.ephemeral_connection_timeout_ms,
-                    ),
-                },
+                discovery: settings.discovery,
                 transport: settings.transport,
                 ..Default::default()
             },
@@ -311,13 +301,7 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
                     .collect(),
                 discovery: DiscoveryConfig {
                     enabled: false,
-                    bootstrap_protocol: settings.bootstrap_protocol,
-                    selector: settings.selector,
-                    num_outbound_peers: settings.num_outbound_peers,
-                    num_inbound_peers: settings.num_inbound_peers,
-                    ephemeral_connection_timeout: Duration::from_millis(
-                        settings.ephemeral_connection_timeout_ms,
-                    ),
+                    ..settings.discovery
                 },
                 transport: settings.transport,
                 ..Default::default()
@@ -367,7 +351,7 @@ fn make_distributed_config(
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
                 listen_addr: settings.transport.multiaddr(&machine, consensus_port),
-                persistent_peers: if settings.enable_discovery {
+                persistent_peers: if settings.discovery.enabled {
                     let peers =
                         ((index.saturating_sub(bootstrap_set_size))..index).collect::<Vec<_>>();
 
@@ -394,16 +378,7 @@ fn make_distributed_config(
                         })
                         .collect()
                 },
-                discovery: DiscoveryConfig {
-                    enabled: settings.enable_discovery,
-                    bootstrap_protocol: settings.bootstrap_protocol,
-                    selector: settings.selector,
-                    num_outbound_peers: settings.num_outbound_peers,
-                    num_inbound_peers: settings.num_inbound_peers,
-                    ephemeral_connection_timeout: Duration::from_millis(
-                        settings.ephemeral_connection_timeout_ms,
-                    ),
-                },
+                discovery: settings.discovery,
                 transport: settings.transport,
                 ..Default::default()
             },
@@ -440,20 +415,15 @@ fn make_distributed_config(
 
 #[cfg(test)]
 fn default_config() -> Config {
-    use malachitebft_config::{BootstrapProtocol, RuntimeConfig, Selector, TransportProtocol};
+    use malachitebft_config::{DiscoveryConfig, RuntimeConfig, TransportProtocol};
 
     make_config(
         1,
         3,
         MakeConfigSettings {
-            enable_discovery: true,
-            bootstrap_protocol: BootstrapProtocol::Kademlia,
-            selector: Selector::Random,
-            num_inbound_peers: 6,
-            num_outbound_peers: 4,
-            ephemeral_connection_timeout_ms: 100,
-            transport: TransportProtocol::Tcp,
             runtime: RuntimeConfig::single_threaded(),
+            transport: TransportProtocol::Tcp,
+            discovery: DiscoveryConfig::default(),
         },
     )
 }

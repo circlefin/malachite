@@ -48,7 +48,7 @@ impl Default for P2pConfig {
     }
 }
 /// Peer Discovery configuration options
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
 pub struct DiscoveryConfig {
     /// Enable peer discovery
     #[serde(default)]

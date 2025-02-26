@@ -1,6 +1,7 @@
 //! Distributed testnet command
 
 use std::path::Path;
+use std::time::Duration;
 
 use clap::Parser;
 use color_eyre::eyre::{eyre, Result};
@@ -101,14 +102,18 @@ impl DistributedTestnetCmd {
         };
 
         let settings = MakeConfigSettings {
-            enable_discovery: self.enable_discovery,
-            bootstrap_protocol: self.bootstrap_protocol,
-            selector: self.selector,
-            num_outbound_peers: self.num_outbound_peers,
-            num_inbound_peers: self.num_inbound_peers,
-            ephemeral_connection_timeout_ms: self.ephemeral_connection_timeout_ms,
-            transport: self.transport,
             runtime,
+            transport: self.transport,
+            discovery: DiscoveryConfig {
+                enabled: self.enable_discovery,
+                bootstrap_protocol: self.bootstrap_protocol,
+                selector: self.selector,
+                num_outbound_peers: self.num_outbound_peers,
+                num_inbound_peers: self.num_inbound_peers,
+                ephemeral_connection_timeout: Duration::from_millis(
+                    self.ephemeral_connection_timeout_ms,
+                ),
+            },
         };
 
         distributed_testnet(

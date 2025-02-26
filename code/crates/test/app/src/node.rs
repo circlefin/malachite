@@ -214,7 +214,6 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
     use itertools::Itertools;
     use rand::seq::IteratorRandom;
     use rand::Rng;
-    use std::time::Duration;
 
     const CONSENSUS_BASE_PORT: usize = 27000;
     const METRICS_BASE_PORT: usize = 29000;
@@ -233,7 +232,7 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
                 listen_addr: settings.transport.multiaddr("127.0.0.1", consensus_port),
-                persistent_peers: if settings.enable_discovery {
+                persistent_peers: if settings.discovery.enabled {
                     let mut rng = rand::thread_rng();
                     let count = if total > 1 {
                         rng.gen_range(1..=(total / 2))
@@ -263,16 +262,7 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
                         })
                         .collect()
                 },
-                discovery: DiscoveryConfig {
-                    enabled: settings.enable_discovery,
-                    bootstrap_protocol: settings.bootstrap_protocol,
-                    selector: settings.selector,
-                    num_outbound_peers: settings.num_outbound_peers,
-                    num_inbound_peers: settings.num_inbound_peers,
-                    ephemeral_connection_timeout: Duration::from_millis(
-                        settings.ephemeral_connection_timeout_ms,
-                    ),
-                },
+                discovery: settings.discovery,
                 transport: settings.transport,
                 ..Default::default()
             },

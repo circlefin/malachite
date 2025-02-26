@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use color_eyre::eyre::Context;
 
 use malachitebft_app::node::{MakeConfigSettings, Node};
@@ -91,13 +93,15 @@ fn default_config() -> Config {
 
     let settings = MakeConfigSettings {
         runtime: RuntimeConfig::SingleThreaded,
-        enable_discovery: true,
-        bootstrap_protocol: BootstrapProtocol::Kademlia,
-        selector: Selector::Random,
-        num_outbound_peers: 6,
-        num_inbound_peers: 4,
-        ephemeral_connection_timeout_ms: 100,
         transport: TransportProtocol::Tcp,
+        discovery: DiscoveryConfig {
+            enabled: true,
+            bootstrap_protocol: BootstrapProtocol::Kademlia,
+            selector: Selector::Random,
+            num_outbound_peers: 6,
+            num_inbound_peers: 4,
+            ephemeral_connection_timeout: Duration::from_millis(100),
+        },
     };
 
     StarknetNode::make_config(1, 3, settings)

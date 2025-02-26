@@ -1,6 +1,7 @@
 //! Init command
 
 use std::path::Path;
+use std::time::Duration;
 
 use clap::Parser;
 use tracing::{info, warn};
@@ -9,7 +10,9 @@ use malachitebft_app::node::{
     CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile,
     MakeConfigSettings, Node,
 };
-use malachitebft_config::{BootstrapProtocol, RuntimeConfig, Selector, TransportProtocol};
+use malachitebft_config::{
+    BootstrapProtocol, DiscoveryConfig, RuntimeConfig, Selector, TransportProtocol,
+};
 
 use crate::error::Error;
 use crate::file::{save_config, save_genesis, save_priv_validator_key};
@@ -71,13 +74,17 @@ impl InitCmd {
     {
         let settings = MakeConfigSettings {
             runtime: RuntimeConfig::SingleThreaded,
-            enable_discovery: self.enable_discovery,
-            bootstrap_protocol: self.bootstrap_protocol,
-            selector: self.selector,
-            num_outbound_peers: self.num_outbound_peers,
-            num_inbound_peers: self.num_inbound_peers,
-            ephemeral_connection_timeout_ms: self.ephemeral_connection_timeout_ms,
             transport: TransportProtocol::Tcp,
+            discovery: DiscoveryConfig {
+                enabled: self.enable_discovery,
+                bootstrap_protocol: self.bootstrap_protocol,
+                selector: self.selector,
+                num_outbound_peers: self.num_outbound_peers,
+                num_inbound_peers: self.num_inbound_peers,
+                ephemeral_connection_timeout: Duration::from_millis(
+                    self.ephemeral_connection_timeout_ms,
+                ),
+            },
         };
 
         let config = N::make_config(0, 1, settings);

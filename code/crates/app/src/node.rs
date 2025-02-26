@@ -9,7 +9,7 @@ use serde::Serialize;
 use tokio::task::JoinHandle;
 
 use malachitebft_config::{
-    BootstrapProtocol, ConsensusConfig, RuntimeConfig, Selector, TransportProtocol, ValueSyncConfig,
+    ConsensusConfig, DiscoveryConfig, RuntimeConfig, TransportProtocol, ValueSyncConfig,
 };
 use malachitebft_core_types::SigningProvider;
 use malachitebft_engine::node::NodeRef;
@@ -75,13 +75,8 @@ pub trait Node {
 #[derive(Copy, Clone, Debug)]
 pub struct MakeConfigSettings {
     pub runtime: RuntimeConfig,
-    pub enable_discovery: bool,
-    pub bootstrap_protocol: BootstrapProtocol,
-    pub selector: Selector,
-    pub num_outbound_peers: usize,
-    pub num_inbound_peers: usize,
-    pub ephemeral_connection_timeout_ms: u64,
     pub transport: TransportProtocol,
+    pub discovery: DiscoveryConfig,
 }
 
 pub trait CanMakeConfig: Node {
