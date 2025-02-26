@@ -28,7 +28,7 @@ of Tendermint are detailed.
 ## Heights
 
 The algorithm presented in the [pseudo-code][pseudo-code] represents the
-operation of an instance of consensus in a process `p`. NM{The pseudo-code from the paper is not one instance/height, it is multi instance? }
+operation the consensus algorithm running in a process `p`.
 
 Each instance or **height** of the consensus algorithm is identified by an
 integer, represented by the `h_p` variable in the pseudo-code.
@@ -166,7 +166,7 @@ The Tendermint consensus algorithm defines three message types, each type
 associated to a [round step](#round-steps):
 
 - `⟨PROPOSAL, h, r, v, vr⟩`: broadcast by the process returned by the proposer
-  selection function `proposer(h, r)` when entering the
+  selection function [`proposer(h, r)`](#proposer-selection) when entering the
   [`propose`](#propose) step of round `r` of height `h`.
   It carries the proposed value `v` for height `h` of consensus.
   Since only proposed values can be decided, the success of round `r` depends
@@ -180,7 +180,7 @@ associated to a [round step](#round-steps):
   [`precommit`](#precommit) step of round `r` of height `h`.
   The last field can be either the unique identifier `id(v)` of a proposed
   value `v` for which the process has received `⟨PREVOTE, h, r, id(v)⟩`
-  messages from a super-majority of processes, or the special `nil` value otherwise.
+  messages from a [super-majority](#voting-power) of processes, or the special `nil` value otherwise.
   NM{I am not sure we have defined super-majority anywhere?} 
 
 Before discussing in detail the role of each message in the protocol, it is
@@ -218,8 +218,8 @@ the values of the two state variables `validValue_p` and `validRound_p`.
 They are initialized to `nil` and `-1` at the beginning of each height, meaning
 that the process is not aware of any proposed value that has become **valid**
 in a previous round.
-A value `v` becomes **valid** at round `r` when a `PROPOSAL` for `v` and an
-enough number of `PREVOTE` messages for `id(v)` are received during round `r`. \NM{why don't we say super-majority here ?}
+A value `v` becomes **valid** at round `r` when a `PROPOSAL` for `v` and
+`PREVOTE` messages for `id(v)` are received from a super-majority of processes during round `r`.
 This logic is part of the pseudo-code block from line 36, where `validValue_p`
 and `validRound_p` are updated.
 
@@ -263,9 +263,9 @@ value `v` with a valid round `vr` based on the content of its state variables
 such proposals.
 
 Attack 4. constitutes a double-signing or **equivocation** attack.
-The most common approach for a correct process is to only consider the first
+A correct process can only consider the first
 `⟨PROPOSAL, h, r, v, *⟩` received in the `propose` step, which can be accepted
-or rejected. NM{"The most common approach" this is strange. I would rather remove this most common approach because it 
+or rejected.
 sounds like they can also act in a different way}
 However, it is possible that a different `⟨PROPOSAL, h, r, v', *⟩` with
 `v' != v` is accepted by different processes and, as a result, triggers state
@@ -817,7 +817,7 @@ there is a valid Proof-of-Lock (POL) for `v` in a round `vr > lockedRound_p`,
 process `p` accepts the proposed value `v` even though `v != lockedValue_p`.
 The rationale is that `p` _could have_ locked and issued a `PRECOMMIT` for `v`
 in round `vr`, if `p` _had received_ the POL messages while in the `prevote`
-round step of round `vr`. 
+round step of round `vr`.
 If `p` could have locked `v` in round `vr`, then any correct process could
 have produced a valid lock in round `vr`. \NM{Ok, this explanation is too high level for me but I understand that it is hard to explain at this point that it can accept it because it knows that lockedValue is not decided}
 And more recent (from high-numbered rounds) locks prevail.
@@ -847,7 +847,7 @@ None of the locked values can be decided, for the lack of votes, but liveness
 is under threat, as detailed in this [discussion][equivocation-discussion]. \NM{Potentially they cannot be decided, so maybe we can rephrase a bit this sentence.  }
 The only way out of this _hidden locks_ scenario is when the processes locked
 in round `r` learn the POL for round `r' > r`, so that they can disregard
-their own lock. 
+their own lock.
 
 ### Valid Value
 
@@ -865,13 +865,13 @@ In this case, to ensure liveness, if the process becomes a proposer in a future
 round, it should re-propose `v`.
 This is achieved by setting `validValue_p` to `v` in the pseudo-code line
 42 then using it as the proposal value when it becomes the proposer of a round,
-in line 16. 
+in line 16.
 The concrete scenario is detailed as follows.
 
 A proposed value `v` becomes _globally_ valid (in opposition to the _local_
 validity represented by the [`valid(v)` function](#validation)) in a round `r`
-when it is accepted by a big enough number of processes; they accept it by
-broadcasting a `PREVOTE` for `id(v)`. \NM{Why big enough? }
+when it is accepted by a super-majority of processes; they accept it by
+broadcasting a `PREVOTE` for `id(v)`.
 If a process `p` observes these conditions, while still in round `r`, line 36
 of the pseudo-code is eventually triggered.
 There are however some scenarios to consider:
@@ -996,14 +996,14 @@ such a good round. Here, there are two crucial points:
     - The content of the variables `lockedValue_p` and `validValue_p` change in
       a rather complicated manner at different processes in arbitrary
       asynchronous prefixes of the computation.
-- **Synchrony.** Messages should be delivered and timeouts should not expire. \NM{timeouts will expire, but messages should be delivered before they expire}
+- **Synchrony.** Messages should be delivered before the associated timeouts expire.
 
 #### Value Handling
 
 The first set of conditions for the success of a round `r` depends on its proposer:
 
 1. The [`proposer(h, r)` function](#proposer-selection) returns a correct process `p`;
-2. And `validRound_p` equals the maximum `lockedRound_q` among every correct process `q`. \NM{It can be also larger, so >=}
+2. And `validRound_p` is larger or equals the maximum `lockedRound_q` among every correct process `q`.
 
 A correct proposer `p` (Condition 1) broadcasts a single `PROPOSAL` message (it
 does not equivocate) in round `r`, including a proposed value `v` that will be
@@ -1030,7 +1030,7 @@ POL for `v` in round `vr`.
 Notice, however, that from the [Gossip communication property](#network), `q`
 should eventually receive the POL for `v` in round `vr`, since `p` is a correct
 process.
-
+And, as we detail on the next section, when the synchrony assumptions are observed, `p` will receive such messages before it receives the new `PROPOSAL`.
 \NM{I think we should mention in the text here that we show the intution how condition 2 is achieved later, because
 while reading I was feeling that this was missing, and then I saw that you address it below}
 
@@ -1064,13 +1064,14 @@ In other words, it should be ensured that, from `GST` on, if any correct
 process executes pseudo-code line 36 for a round `r*`, then every correct
 process executes the same line while still in round `r*`.
 This is achieved by the means of, and it is actually the key reason for which
-Tendermint has, the `timeoutPrecommit(r*)`. 
+Tendermint has, the `timeoutPrecommit(r*)`.
 Before moving to the next round, because the current one has not succeeded,
 processes wait for a while to ensure that they have received all the `PREVOTE`
 messages from that round, broadcast or received by other correct processes.
 As a result, if a correct process has locked or updated its valid value in
-round `r*`,  then every correct process will at least update its valid value in
-round `r*`, because due to gossip communication property it will receive the same set of messages. 
+round `r*`, then every correct process will at least update its valid value in
+round `r*`.
+This happens because, due to [Gossip communication property](#network), every correct process receives the same set of messages within `∆`. 
 This enables the next correct proposer, of a round `r > r*` to fulfill
 Condition 2, thus enabling `r` to be a successful round.
 
