@@ -4,7 +4,6 @@ use std::path::Path;
 use std::time::Duration;
 
 use eyre::Result;
-use malachitebft_config::ConsensusConfig;
 use tokio::task::JoinHandle;
 use tracing::Span;
 
@@ -17,7 +16,9 @@ use malachitebft_engine::util::events::TxEvent;
 use malachitebft_engine::wal::{Wal, WalCodec, WalRef};
 use malachitebft_network::{Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, Keypair};
 
-use crate::config::{self, PubSubProtocol, TransportProtocol, ValueSyncConfig, VoteSyncConfig};
+use crate::config::{
+    self, ConsensusConfig, PubSubProtocol, TransportProtocol, ValueSyncConfig, VoteSyncConfig,
+};
 use crate::metrics::{Metrics, SharedRegistry};
 use crate::types::core::{Context, SigningProvider};
 use crate::types::sync;
