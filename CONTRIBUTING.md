@@ -36,10 +36,12 @@ There are three ways you can contribute to Malachite:
 **Anybody can participate in any stage of contribution**. We urge you to participate in the discussion around bugs and
 participate in reviewing PRs.
 
+> [!IMPORTANT]
+> Please see [`CONTRIBUTING_CODE.md`](./CONTRIBUTING_CODE.md) for detailed information about how to setup your environment, build Malachite, and run the test suite.
+
 ### Contributions Related to Spelling and Grammar
 
-At this time, we will not be accepting contributions that only fix spelling or grammatical errors in documentation, code or
-elsewhere.
+At this time, we will not be accepting contributions that only fix spelling or grammatical errors in documentation, code or elsewhere.
 
 ### Getting Help
 
@@ -50,7 +52,6 @@ welcome everyone to ask and offer help.
 
 
 _Adapted from the CometBFT and Reth contributing guides._
-
 
 [rust-coc]: https://www.rust-lang.org/en-US/conduct.html
 [tg]: https://t.me/MalachiteEngine
