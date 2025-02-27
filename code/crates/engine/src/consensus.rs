@@ -348,8 +348,6 @@ where
             Msg::NetworkEvent(event) => {
                 match event {
                     NetworkEvent::Listening(address) => {
-                        dbg!(&address);
-                        println!("Got listening: {address}");
                         info!(%address, "Listening");
                         self.host.cast(HostMsg::ConsensusReady(myself.clone()))?;
                     }
