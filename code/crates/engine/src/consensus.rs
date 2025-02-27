@@ -348,6 +348,8 @@ where
             Msg::NetworkEvent(event) => {
                 match event {
                     NetworkEvent::Listening(address) => {
+                        dbg!(&address);
+                        println!("Got listening: {address}");
                         info!(%address, "Listening");
                         self.host.cast(HostMsg::ConsensusReady(myself.clone()))?;
                     }
@@ -1117,11 +1119,18 @@ where
     type State = State<Ctx>;
     type Arguments = ();
 
+    #[tracing::instrument(
+        name = "consensus",
+        parent = &self.span,
+        skip_all,
+    )]
     async fn pre_start(
         &self,
         myself: ActorRef<Msg<Ctx>>,
         _args: (),
     ) -> Result<State<Ctx>, ActorProcessingErr> {
+        info!("Consensus is starting");
+
         self.network
             .cast(NetworkMsg::Subscribe(Box::new(myself.clone())))?;
 
@@ -1135,11 +1144,22 @@ where
         })
     }
 
+    #[tracing::instrument(
+        name = "consensus",
+        parent = &self.span,
+        skip_all,
+        fields(
+            height = %state.consensus.height(),
+            round = %state.consensus.round()
+        )
+    )]
     async fn post_start(
         &self,
         _myself: ActorRef<Msg<Ctx>>,
         state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
+        info!("Consensus has started");
+
         state.timers.cancel_all();
         Ok(())
     }
@@ -1150,7 +1170,8 @@ where
         skip_all,
         fields(
             height = %state.consensus.height(),
-            round = %state.consensus.round())
+            round = %state.consensus.round()
+        )
     )]
     async fn handle(
         &self,
@@ -1171,12 +1192,21 @@ where
         Ok(())
     }
 
+    #[tracing::instrument(
+        name = "consensus",
+        parent = &self.span,
+        skip_all,
+        fields(
+            height = %state.consensus.height(),
+            round = %state.consensus.round()
+        )
+    )]
     async fn post_stop(
         &self,
         _myself: ActorRef<Self::Msg>,
         state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
-        info!("Stopping...");
+        info!("Consensus has stopped");
         state.timers.cancel_all();
         Ok(())
     }

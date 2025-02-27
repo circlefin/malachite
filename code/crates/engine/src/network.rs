@@ -6,8 +6,7 @@ use derive_where::derive_where;
 use eyre::eyre;
 use libp2p::identity::Keypair;
 use libp2p::request_response;
-use ractor::port::OutputPortSubscriber;
-use ractor::{Actor, ActorProcessingErr, ActorRef, OutputPort, RpcReplyPort};
+use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
 use tracing::{error, trace};
 
@@ -41,6 +40,18 @@ impl<Ctx, Codec> Network<Ctx, Codec> {
             codec,
             span,
             marker: PhantomData,
+        }
+    }
+
+    fn notify(
+        &self,
+        subscribers: &[Box<dyn Subscriber<NetworkEvent<Ctx>>>],
+        event: NetworkEvent<Ctx>,
+    ) where
+        Ctx: Context,
+    {
+        for subscriber in subscribers {
+            subscriber.send(event.clone());
         }
     }
 }
@@ -96,8 +107,9 @@ pub enum NetworkEvent<Ctx: Context> {
 pub enum State<Ctx: Context> {
     Stopped,
     Running {
+        listen_addrs: Vec<Multiaddr>,
         peers: BTreeSet<PeerId>,
-        output_port: OutputPort<NetworkEvent<Ctx>>,
+        subscribers: Vec<Box<dyn Subscriber<NetworkEvent<Ctx>>>>,
         ctrl_handle: CtrlHandle,
         recv_task: JoinHandle<()>,
         inbound_requests: HashMap<InboundRequestId, request_response::InboundRequestId>,
@@ -119,9 +131,23 @@ impl<Ctx: Context> Status<Ctx> {
     }
 }
 
+pub trait Subscriber<Msg>: Send + Sync + 'static {
+    fn send(&self, msg: Msg);
+}
+
+impl<Msg, To> Subscriber<Msg> for ActorRef<To>
+where
+    Msg: ractor::Message,
+    To: From<Msg> + ractor::Message,
+{
+    fn send(&self, msg: Msg) {
+        self.cast(To::from(msg)).unwrap()
+    }
+}
+
 pub enum Msg<Ctx: Context> {
     /// Subscribe this actor to receive gossip events
-    Subscribe(OutputPortSubscriber<NetworkEvent<Ctx>>),
+    Subscribe(Box<dyn Subscriber<NetworkEvent<Ctx>>>),
 
     /// Publish a signed consensus message
     Publish(SignedConsensusMsg<Ctx>),
@@ -181,8 +207,9 @@ where
         });
 
         Ok(State::Running {
+            listen_addrs: Vec::new(),
             peers: BTreeSet::new(),
-            output_port: OutputPort::default(),
+            subscribers: Vec::new(),
             ctrl_handle,
             recv_task,
             inbound_requests: HashMap::new(),
@@ -205,8 +232,9 @@ where
         state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
         let State::Running {
+            listen_addrs,
             peers,
-            output_port,
+            subscribers,
             ctrl_handle,
             inbound_requests,
             ..
@@ -216,7 +244,17 @@ where
         };
 
         match msg {
-            Msg::Subscribe(subscriber) => subscriber.subscribe_to_port(output_port),
+            Msg::Subscribe(subscriber) => {
+                for addr in listen_addrs.iter() {
+                    subscriber.send(NetworkEvent::Listening(addr.clone()));
+                }
+
+                for peer in peers.iter() {
+                    subscriber.send(NetworkEvent::PeerConnected(*peer));
+                }
+
+                subscribers.push(subscriber);
+            }
 
             Msg::Publish(msg) => match self.codec.encode(&msg) {
                 Ok(data) => ctrl_handle.publish(Channel::Consensus, data).await?,
@@ -282,17 +320,18 @@ where
             }
 
             Msg::NewEvent(Event::Listening(addr)) => {
-                output_port.send(NetworkEvent::Listening(addr));
+                listen_addrs.push(addr.clone());
+                self.notify(subscribers, NetworkEvent::Listening(addr));
             }
 
             Msg::NewEvent(Event::PeerConnected(peer_id)) => {
                 peers.insert(peer_id);
-                output_port.send(NetworkEvent::PeerConnected(peer_id));
+                self.notify(subscribers, NetworkEvent::PeerConnected(peer_id));
             }
 
             Msg::NewEvent(Event::PeerDisconnected(peer_id)) => {
                 peers.remove(&peer_id);
-                output_port.send(NetworkEvent::PeerDisconnected(peer_id));
+                self.notify(subscribers, NetworkEvent::PeerDisconnected(peer_id));
             }
 
             Msg::NewEvent(Event::Message(Channel::Consensus, from, data)) => {
@@ -311,7 +350,7 @@ where
                     }
                 };
 
-                output_port.send(event);
+                self.notify(subscribers, event);
             }
 
             Msg::NewEvent(Event::Message(Channel::ProposalParts, from, data)) => {
@@ -330,7 +369,7 @@ where
                     "Received proposal part"
                 );
 
-                output_port.send(NetworkEvent::ProposalPart(from, msg));
+                self.notify(subscribers, NetworkEvent::ProposalPart(from, msg));
             }
 
             Msg::NewEvent(Event::Message(Channel::Sync, from, data)) => {
@@ -349,10 +388,13 @@ where
 
                 trace!(%from, height = %status.height, "Received status");
 
-                output_port.send(NetworkEvent::Status(
-                    status.peer_id,
-                    Status::new(status.height, status.history_min_height),
-                ));
+                self.notify(
+                    subscribers,
+                    NetworkEvent::Status(
+                        status.peer_id,
+                        Status::new(status.height, status.history_min_height),
+                    ),
+                );
             }
 
             Msg::NewEvent(Event::Sync(raw_msg)) => match raw_msg {
@@ -371,11 +413,10 @@ where
 
                     inbound_requests.insert(InboundRequestId::new(request_id), request_id);
 
-                    output_port.send(NetworkEvent::Request(
-                        InboundRequestId::new(request_id),
-                        peer,
-                        request,
-                    ));
+                    self.notify(
+                        subscribers,
+                        NetworkEvent::Request(InboundRequestId::new(request_id), peer, request),
+                    );
                 }
 
                 RawMessage::Response {
@@ -391,11 +432,10 @@ where
                         }
                     };
 
-                    output_port.send(NetworkEvent::Response(
-                        OutboundRequestId::new(request_id),
-                        peer,
-                        response,
-                    ));
+                    self.notify(
+                        subscribers,
+                        NetworkEvent::Response(OutboundRequestId::new(request_id), peer, response),
+                    );
                 }
             },
 
