@@ -10,8 +10,8 @@ use rand::SeedableRng;
 use tokio::time::Instant;
 use tracing::{debug, error, info, trace, warn};
 
-use malachitebft_core_consensus::PeerId;
-use malachitebft_core_types::{CommitCertificate, Round, Validity, ValueOrigin};
+use malachitebft_core_consensus::{PeerId, VoteExtensionError};
+use malachitebft_core_types::{CommitCertificate, Round, Validity, ValueId, ValueOrigin};
 use malachitebft_engine::consensus::{ConsensusMsg, ConsensusRef};
 use malachitebft_engine::host::{LocallyProposedValue, ProposedValue};
 use malachitebft_engine::network::{NetworkMsg, NetworkRef};
@@ -19,7 +19,6 @@ use malachitebft_engine::util::streaming::{StreamContent, StreamMessage};
 use malachitebft_metrics::Metrics;
 use malachitebft_sync::RawDecidedValue;
 
-use crate::host::proposal::compute_proposal_signature;
 use crate::host::state::HostState;
 use crate::host::{Host as _, StarknetHost};
 use crate::mempool::{MempoolMsg, MempoolRef};
@@ -49,10 +48,12 @@ impl Host {
         std::fs::create_dir_all(&db_dir).map_err(|e| SpawnErr::StartupFailed(e.into()))?;
         let db_path = db_dir.join("blocks.db");
 
+        let ctx = MockContext::new();
+
         let (actor_ref, _) = Actor::spawn(
             None,
             Self::new(mempool, network, metrics, span),
-            HostState::new(host, db_path, &mut StdRng::from_entropy()),
+            HostState::new(ctx, host, db_path, &mut StdRng::from_entropy()),
         )
         .await?;
 
@@ -118,7 +119,7 @@ impl Host {
         state: &mut HostState,
     ) -> Result<(), ActorProcessingErr> {
         match msg {
-            HostMsg::ConsensusReady(consensus) => on_consensus_ready(state, consensus),
+            HostMsg::ConsensusReady(consensus) => on_consensus_ready(state, consensus).await,
 
             HostMsg::StartedRound {
                 height,
@@ -135,6 +136,23 @@ impl Host {
                 reply_to,
             } => on_get_value(state, &self.network, height, round, timeout, reply_to).await,
 
+            HostMsg::ExtendVote {
+                height,
+                round,
+                value_id,
+                reply_to,
+            } => on_extend_vote(state, height, round, value_id, reply_to).await,
+
+            HostMsg::VerifyVoteExtension {
+                height,
+                round,
+                value_id,
+                extension,
+                reply_to,
+            } => {
+                on_verify_vote_extension(state, height, round, value_id, extension, reply_to).await
+            }
+
             HostMsg::RestreamValue {
                 height,
                 round,
@@ -142,7 +160,7 @@ impl Host {
                 address,
                 value_id,
             } => {
-                on_restream_value(
+                on_restream_proposal(
                     state,
                     &self.network,
                     height,
@@ -167,6 +185,7 @@ impl Host {
             HostMsg::Decided {
                 certificate,
                 consensus,
+                ..
             } => on_decided(state, &consensus, &self.mempool, certificate, &self.metrics).await,
 
             HostMsg::GetDecidedValue { height, reply_to } => {
@@ -180,6 +199,7 @@ impl Host {
                 value_bytes,
                 reply_to,
             } => on_process_synced_value(value_bytes, height, round, validator_address, reply_to),
+
             HostMsg::PeerJoined { peer_id } => {
                 debug!(%peer_id, "Peer joined the network");
                 Ok(())
@@ -193,7 +213,7 @@ impl Host {
     }
 }
 
-fn on_consensus_ready(
+async fn on_consensus_ready(
     state: &mut HostState,
     consensus: ConsensusRef<MockContext>,
 ) -> Result<(), ActorProcessingErr> {
@@ -201,6 +221,8 @@ fn on_consensus_ready(
     let start_height = latest_block_height.increment();
 
     state.consensus = Some(consensus.clone());
+
+    tokio::time::sleep(Duration::from_millis(200)).await;
 
     consensus.cast(ConsensusMsg::StartHeight(
         start_height,
@@ -289,7 +311,6 @@ async fn on_get_value(
             value.height,
             value.round,
             value.value,
-            value.extension,
         ))?;
 
         return Ok(());
@@ -301,27 +322,27 @@ async fn on_get_value(
 
     let (mut rx_part, rx_hash) = state.host.build_new_proposal(height, round, deadline).await;
 
-    let stream_id = state.next_stream_id();
+    let stream_id = state.stream_id();
 
     let mut sequence = 0;
 
     while let Some(part) = rx_part.recv().await {
         state.host.part_store.store(height, round, part.clone());
 
-        if state.host.params.value_payload.include_parts() {
-            debug!(%stream_id, %sequence, "Broadcasting proposal part");
+        debug!(%stream_id, %sequence, "Broadcasting proposal part");
 
-            let msg = StreamMessage::new(stream_id, sequence, StreamContent::Data(part.clone()));
-            network.cast(NetworkMsg::PublishProposalPart(msg))?;
-        }
+        let msg = StreamMessage::new(
+            stream_id.clone(),
+            sequence,
+            StreamContent::Data(part.clone()),
+        );
+        network.cast(NetworkMsg::PublishProposalPart(msg))?;
 
         sequence += 1;
     }
 
-    if state.host.params.value_payload.include_parts() {
-        let msg = StreamMessage::new(stream_id, sequence, StreamContent::Fin(true));
-        network.cast(NetworkMsg::PublishProposalPart(msg))?;
-    }
+    let msg = StreamMessage::new(stream_id, sequence, StreamContent::Fin);
+    network.cast(NetworkMsg::PublishProposalPart(msg))?;
 
     let block_hash = rx_hash.await?;
     debug!(%block_hash, "Assembled block");
@@ -347,9 +368,33 @@ async fn on_get_value(
         value.height,
         value.round,
         value.value,
-        value.extension,
     ))?;
 
+    Ok(())
+}
+
+async fn on_extend_vote(
+    _state: &mut HostState,
+    _height: Height,
+    _round: Round,
+    _value_id: ValueId<MockContext>,
+    reply_to: RpcReplyPort<Option<Bytes>>,
+) -> Result<(), ActorProcessingErr> {
+    // let extension = state.host.generate_vote_extension(height, round);
+    reply_to.send(None)?;
+    Ok(())
+}
+
+async fn on_verify_vote_extension(
+    _state: &mut HostState,
+    _height: Height,
+    _round: Round,
+    _value_id: ValueId<MockContext>,
+    _extension: Bytes,
+    reply_to: RpcReplyPort<Result<(), VoteExtensionError>>,
+) -> Result<(), ActorProcessingErr> {
+    // TODO
+    reply_to.send(Ok(()))?;
     Ok(())
 }
 
@@ -372,32 +417,35 @@ async fn find_previously_built_value(
     Ok(proposed_value)
 }
 
-async fn on_restream_value(
+async fn on_restream_proposal(
     state: &mut HostState,
     network: &NetworkRef<MockContext>,
     height: Height,
     round: Round,
-    value_id: Hash,
+    proposal_commitment_hash: Hash,
     valid_round: Round,
-    address: Address,
+    proposer: Address,
 ) -> Result<(), ActorProcessingErr> {
     debug!(%height, %round, "Restreaming existing proposal...");
 
-    let mut rx_part = state.host.send_known_proposal(value_id).await;
+    let mut rx_part = state
+        .host
+        .send_known_proposal(proposal_commitment_hash)
+        .await;
 
-    let stream_id = state.next_stream_id();
+    let stream_id = state.stream_id();
 
     let init = ProposalInit {
         height,
-        proposal_round: round,
+        round,
         valid_round,
-        proposer: address,
+        proposer,
     };
 
-    let signature = compute_proposal_signature(&init, &value_id, &state.host.private_key);
-
     let init_part = ProposalPart::Init(init);
-    let fin_part = ProposalPart::Fin(ProposalFin { signature });
+    let fin_part = ProposalPart::Fin(ProposalFin {
+        proposal_commitment_hash,
+    });
 
     debug!(%height, %round, "Created new Init part: {init_part:?}");
 
@@ -406,21 +454,21 @@ async fn on_restream_value(
     while let Some(part) = rx_part.recv().await {
         let new_part = match part.part_type() {
             PartType::Init => init_part.clone(),
+            PartType::BlockInfo => part,
+            PartType::Transactions => part,
+            PartType::ProposalCommitment => part,
             PartType::Fin => fin_part.clone(),
-            PartType::Transactions | PartType::BlockProof => part,
         };
 
         state.host.part_store.store(height, round, new_part.clone());
 
-        if state.host.params.value_payload.include_parts() {
-            debug!(%stream_id, %sequence, "Broadcasting proposal part");
+        debug!(%stream_id, %sequence, "Broadcasting proposal part");
 
-            let msg = StreamMessage::new(stream_id, sequence, StreamContent::Data(new_part));
+        let msg = StreamMessage::new(stream_id.clone(), sequence, StreamContent::Data(new_part));
 
-            network.cast(NetworkMsg::PublishProposalPart(msg))?;
+        network.cast(NetworkMsg::PublishProposalPart(msg))?;
 
-            sequence += 1;
-        }
+        sequence += 1;
     }
 
     Ok(())
@@ -442,7 +490,6 @@ fn on_process_synced_value(
             proposer,
             value: block.block_hash,
             validity: Validity::Valid,
-            extension: None,
         };
 
         reply_to.send(proposed_value)?;
@@ -486,15 +533,30 @@ async fn on_get_decided_block(
     Ok(())
 }
 
+/// This function handles receiving parts of proposals
+/// And assembling proposal in right sequence when all parts are collected
+///
+/// For each proposal from distinct peer separate stream is opened
+/// Bookkeeping of streams is done inside HostState.part_streams_map ((peerId + streamId) -> streamState)
 async fn on_received_proposal_part(
     state: &mut HostState,
     part: StreamMessage<ProposalPart>,
     from: PeerId,
     reply_to: RpcReplyPort<ProposedValue<MockContext>>,
 ) -> Result<(), ActorProcessingErr> {
-    // TODO - use state.host.receive_proposal() and move some of the logic below there
+    // TODO: Use state.host.receive_proposal() and move some of the logic below there
+
     let sequence = part.sequence;
 
+    // When inserting part in a map, stream tries to connect all received parts in the right order,
+    // starting from beginning and emits parts sequence chunks  when it succeeds
+    // If it can't connect part, it buffers it
+    // E.g. buffered: 1 3 7
+    // part 0 (first) arrives -> 0 and 1 are emitted
+    // 4 arrives -> gets buffered
+    // 2 arrives -> 2, 3 and 4 are emitted
+
+    // `insert` returns connected sequence of parts if any is emitted
     let Some(parts) = state.part_streams_map.insert(from, part) else {
         return Ok(());
     };
@@ -512,6 +574,8 @@ async fn on_received_proposal_part(
         return Ok(());
     }
 
+    // Emitted parts are stored and simulated (if it is tx)
+    // When finish part is stored, proposal value is built from all of them
     for part in parts.parts {
         debug!(
             part.sequence = %sequence,
@@ -574,21 +638,11 @@ async fn on_decided(
     }
 
     // Update metrics
-    let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
-    let extension_size: usize = certificate
-        .aggregated_signature
-        .signatures
-        .iter()
-        .map(|c| c.extension.as_ref().map(|e| e.size_bytes()).unwrap_or(0))
-        .sum();
-
-    let block_and_commits_size = block_size + extension_size;
     let tx_count: usize = all_parts.iter().map(|p| p.tx_count()).sum();
+    let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
 
     metrics.block_tx_count.observe(tx_count as f64);
-    metrics
-        .block_size_bytes
-        .observe(block_and_commits_size as f64);
+    metrics.block_size_bytes.observe(block_size as f64);
     metrics.finalized_txes.inc_by(tx_count as u64);
 
     // Gather hashes of all the tx-es included in the block,

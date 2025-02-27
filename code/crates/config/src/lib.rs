@@ -25,8 +25,8 @@ pub struct Config {
     /// Mempool configuration options
     pub mempool: MempoolConfig,
 
-    /// Sync configuration options
-    pub sync: SyncConfig,
+    /// ValueSync configuration options
+    pub value_sync: ValueSyncConfig,
 
     /// Metrics configuration options
     pub metrics: MetricsConfig,
@@ -352,9 +352,10 @@ pub struct MempoolConfig {
     pub gossip_batch_size: usize,
 }
 
+/// ValueSync configuration options
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct SyncConfig {
-    /// Enable Sync
+pub struct ValueSyncConfig {
+    /// Enable ValueSync
     pub enabled: bool,
 
     /// Interval at which to update other peers of our status
@@ -366,7 +367,7 @@ pub struct SyncConfig {
     pub request_timeout: Duration,
 }
 
-impl Default for SyncConfig {
+impl Default for ValueSyncConfig {
     fn default() -> Self {
         Self {
             enabled: true,
@@ -379,18 +380,34 @@ impl Default for SyncConfig {
 /// Consensus configuration options
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ConsensusConfig {
-    /// Max block size
-    pub max_block_size: ByteSize,
-
     /// Timeouts
     #[serde(flatten)]
     pub timeouts: TimeoutConfig,
 
-    /// Message types that can carry values
-    pub value_payload: ValuePayload,
-
     /// P2P configuration options
     pub p2p: P2pConfig,
+
+    /// VoteSync configuration options
+    pub vote_sync: VoteSyncConfig,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VoteSyncConfig {
+    /// The mode of vote synchronization
+    /// - RequestResponse: The lagging node sends a request to a peer for the missing votes
+    /// - Rebroadcast: Nodes rebroadcast their last vote to all peers
+    pub mode: VoteSyncMode,
+}
+
+/// The mode of vote synchronization
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum VoteSyncMode {
+    /// The lagging node sends a request to a peer for the missing votes
+    #[default]
+    RequestResponse,
+    /// Nodes rebroadcast their last vote to all peers
+    Rebroadcast,
 }
 
 /// Message types required by consensus to deliver the value being proposed
@@ -401,6 +418,22 @@ pub enum ValuePayload {
     PartsOnly,
     ProposalOnly, // TODO - add small block app to test this option
     ProposalAndParts,
+}
+
+impl ValuePayload {
+    pub fn include_parts(&self) -> bool {
+        match self {
+            Self::ProposalOnly => false,
+            Self::PartsOnly | Self::ProposalAndParts => true,
+        }
+    }
+
+    pub fn include_proposal(&self) -> bool {
+        match self {
+            Self::PartsOnly => false,
+            Self::ProposalOnly | Self::ProposalAndParts => true,
+        }
+    }
 }
 
 /// Timeouts
@@ -451,6 +484,8 @@ impl TimeoutConfig {
             TimeoutKind::Commit => self.timeout_commit,
             TimeoutKind::PrevoteTimeLimit => self.timeout_step,
             TimeoutKind::PrecommitTimeLimit => self.timeout_step,
+            TimeoutKind::PrevoteRebroadcast => self.timeout_prevote,
+            TimeoutKind::PrecommitRebroadcast => self.timeout_precommit,
         }
     }
 
@@ -462,6 +497,8 @@ impl TimeoutConfig {
             TimeoutKind::Commit => None,
             TimeoutKind::PrevoteTimeLimit => None,
             TimeoutKind::PrecommitTimeLimit => None,
+            TimeoutKind::PrevoteRebroadcast => None,
+            TimeoutKind::PrecommitRebroadcast => None,
         }
     }
 }
@@ -531,6 +568,9 @@ pub struct VoteExtensionsConfig {
 
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TestConfig {
+    pub max_block_size: ByteSize,
+    /// Message types that can carry values
+    pub value_payload: ValuePayload,
     pub tx_size: ByteSize,
     pub txs_per_part: usize,
     pub time_allowance_factor: f32,
@@ -544,6 +584,8 @@ pub struct TestConfig {
 impl Default for TestConfig {
     fn default() -> Self {
         Self {
+            max_block_size: ByteSize::mib(1),
+            value_payload: ValuePayload::default(),
             tx_size: ByteSize::kib(1),
             txs_per_part: 256,
             time_allowance_factor: 0.5,

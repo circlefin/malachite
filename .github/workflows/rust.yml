@@ -66,7 +66,9 @@ jobs:
             --all-features \
             --no-fail-fast \
             --failure-output final \
+            --exclude informalsystems-malachitebft-test \
             --exclude informalsystems-malachitebft-starknet-test \
+            --exclude informalsystems-malachitebft-starknet-test-mbt \
             --exclude informalsystems-malachitebft-discovery-test
 
   integration:
@@ -100,11 +102,20 @@ jobs:
           tool: cargo-maelstrom
       - name: Disable apparmor container restrictions
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-      - name: Run integration tests
+      - name: Run integration tests (discovery)
         run: |
-          cargo maelstrom \
-            --slots 16 \
-            --include 'package.match(informalsystems-malachitebft-starknet-test) || package.match(informalsystems-malachitebft-discovery-test)'
+          cargo maelstrom --slots 8 \
+            --include 'package.equals(informalsystems-malachitebft-discovery-test)'
+      - name: Run integration tests (Starknet app)
+        run: |
+          cargo maelstrom --slots 8 \
+            --include 'package.equals(informalsystems-malachitebft-starknet-test)' \
+            --exclude 'package.match(informalsystems-malachitebft-starknet-test-mbt)'
+      - name: Run integration tests (Test app)
+        run: |
+          cargo maelstrom --slots 8 \
+            --include 'package.equals(informalsystems-malachitebft-test)' \
+            --exclude 'package.equals(informalsystems-malachitebft-test-mbt)'
 
   no_std:
     name: no_std compatibility

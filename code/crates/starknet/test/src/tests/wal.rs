@@ -3,44 +3,16 @@ use std::time::Duration;
 use eyre::bail;
 use tracing::info;
 
-use malachitebft_config::ValuePayload;
+use malachitebft_config::VoteSyncMode;
 use malachitebft_core_consensus::LocallyProposedValue;
 use malachitebft_core_types::SignedVote;
 use malachitebft_engine::util::events::Event;
 use malachitebft_starknet_host::types::MockContext;
 
-use crate::{init_logging, HandlerResult, TestBuilder, TestParams};
+use crate::{HandlerResult, TestBuilder, TestParams};
 
 #[tokio::test]
-async fn proposer_crashes_after_proposing_parts_only() {
-    proposer_crashes_after_proposing(TestParams {
-        value_payload: ValuePayload::PartsOnly,
-        ..TestParams::default()
-    })
-    .await
-}
-
-#[tokio::test]
-async fn proposer_crashes_after_proposing_proposal_and_parts() {
-    proposer_crashes_after_proposing(TestParams {
-        value_payload: ValuePayload::ProposalAndParts,
-        ..TestParams::default()
-    })
-    .await
-}
-
-#[tokio::test]
-async fn proposer_crashes_after_proposing_proposal_only() {
-    proposer_crashes_after_proposing(TestParams {
-        value_payload: ValuePayload::ProposalOnly,
-        ..TestParams::default()
-    })
-    .await
-}
-
-async fn proposer_crashes_after_proposing(params: TestParams) {
-    init_logging(module_path!());
-
+async fn proposer_crashes_after_proposing() {
     #[derive(Clone, Debug, Default)]
     struct State {
         first_proposed_value: Option<LocallyProposedValue<MockContext>>,
@@ -93,46 +65,18 @@ async fn proposer_crashes_after_proposing(params: TestParams) {
         .success();
 
     test.build()
-        .run_with_custom_config(
+        .run_with_params(
             Duration::from_secs(60),
             TestParams {
-                enable_sync: false,
-                ..params
+                enable_value_sync: false,
+                ..TestParams::default()
             },
         )
         .await
 }
 
 #[tokio::test]
-async fn non_proposer_crashes_after_voting_parts_only() {
-    non_proposer_crashes_after_voting(TestParams {
-        value_payload: ValuePayload::PartsOnly,
-        ..TestParams::default()
-    })
-    .await
-}
-
-#[tokio::test]
-async fn non_proposer_crashes_after_voting_proposal_and_parts() {
-    non_proposer_crashes_after_voting(TestParams {
-        value_payload: ValuePayload::ProposalAndParts,
-        ..TestParams::default()
-    })
-    .await
-}
-
-#[tokio::test]
-async fn non_proposer_crashes_after_voting_proposal_only() {
-    non_proposer_crashes_after_voting(TestParams {
-        value_payload: ValuePayload::ProposalOnly,
-        ..TestParams::default()
-    })
-    .await
-}
-
-async fn non_proposer_crashes_after_voting(params: TestParams) {
-    init_logging(module_path!());
-
+async fn non_proposer_crashes_after_voting() {
     #[derive(Clone, Debug, Default)]
     struct State {
         first_vote: Option<SignedVote<MockContext>>,
@@ -183,11 +127,45 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
     test.add_node().with_voting_power(10).start().success();
 
     test.build()
-        .run_with_custom_config(
+        .run_with_params(
             Duration::from_secs(60),
             TestParams {
-                enable_sync: false,
-                ..params
+                enable_value_sync: false,
+                ..TestParams::default()
+            },
+        )
+        .await
+}
+
+#[tokio::test]
+pub async fn node_crashes_after_vote_set_request() {
+    const HEIGHT: u64 = 3;
+
+    let mut test = TestBuilder::<()>::new();
+
+    test.add_node().start().wait_until(HEIGHT).success();
+    test.add_node()
+        .start()
+        .wait_until(2)
+        .crash()
+        // Restart from the latest height
+        .restart_after(Duration::from_secs(5))
+        // Wait for a vote set request for height 2
+        .expect_vote_set_request(2)
+        .crash()
+        // Restart again
+        .restart_after(Duration::from_secs(5))
+        .wait_until(HEIGHT)
+        .success();
+
+    test.build()
+        .run_with_params(
+            Duration::from_secs(60),
+            TestParams {
+                enable_value_sync: true,
+                vote_sync_mode: Some(VoteSyncMode::RequestResponse),
+                timeout_step: Duration::from_secs(5),
+                ..Default::default()
             },
         )
         .await

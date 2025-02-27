@@ -23,7 +23,7 @@ macro_rules! process {
         let mut gen = $crate::gen::Gen::new(|co| $crate::handle(co, $state, $metrics, $input));
         let mut co_result = gen.resume_with($crate::Resume::Start);
 
-        loop {
+        'proc: loop {
             match co_result {
                 $crate::gen::CoResult::Yielded($effect) => {
                     let resume = match $handle {
@@ -35,9 +35,7 @@ macro_rules! process {
                     };
                     co_result = gen.resume_with(resume)
                 }
-                $crate::gen::CoResult::Complete(result) => {
-                    return result.map_err(Into::into);
-                }
+                $crate::gen::CoResult::Complete(result) => break 'proc result.map_err(Into::into),
             }
         }
     }};

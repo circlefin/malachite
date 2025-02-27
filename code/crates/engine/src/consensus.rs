@@ -1,18 +1,23 @@
 use std::collections::BTreeSet;
+use std::sync::Arc;
 use std::time::Duration;
 
+use async_recursion::async_recursion;
 use async_trait::async_trait;
+use derive_where::derive_where;
 use eyre::eyre;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::time::Instant;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, error_span, info, warn};
 
 use malachitebft_codec as codec;
 use malachitebft_config::TimeoutConfig;
-use malachitebft_core_consensus::{Effect, PeerId, Resumable, Resume, SignedConsensusMsg};
+use malachitebft_core_consensus::{
+    Effect, PeerId, Resumable, Resume, SignedConsensusMsg, VoteExtensionError, VoteSyncMode,
+};
 use malachitebft_core_types::{
-    Context, Round, SignedExtension, SigningProvider, SigningProviderExt, Timeout, TimeoutKind,
-    ValidatorSet, ValueOrigin,
+    Context, Round, SigningProvider, SigningProviderExt, Timeout, TimeoutKind, ValidatorSet,
+    ValueId, ValueOrigin,
 };
 use malachitebft_metrics::Metrics;
 use malachitebft_sync::{
@@ -24,6 +29,7 @@ use crate::network::{NetworkEvent, NetworkMsg, NetworkRef, Status};
 use crate::sync::Msg as SyncMsg;
 use crate::sync::SyncRef;
 use crate::util::events::{Event, TxEvent};
+use crate::util::msg_buffer::MessageBuffer;
 use crate::util::streaming::StreamMessage;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 use crate::wal::{Msg as WalMsg, WalEntry, WalRef};
@@ -65,6 +71,7 @@ where
     ctx: Ctx,
     params: ConsensusParams<Ctx>,
     timeout_config: TimeoutConfig,
+    signing_provider: Box<dyn SigningProvider<Ctx>>,
     network: NetworkRef<Ctx>,
     host: HostRef<Ctx>,
     wal: WalRef<Ctx>,
@@ -76,6 +83,7 @@ where
 
 pub type ConsensusMsg<Ctx> = Msg<Ctx>;
 
+#[derive_where(Debug)]
 pub enum Msg<Ctx: Context> {
     /// Start consensus for the given height with the given validator set
     StartHeight(Ctx::Height, Ctx::ValidatorSet),
@@ -87,7 +95,7 @@ pub enum Msg<Ctx: Context> {
     TimeoutElapsed(TimeoutElapsed<Timeout>),
 
     /// The proposal builder has built a value and can be used in a new proposal consensus message
-    ProposeValue(Ctx::Height, Round, Ctx::Value, Option<SignedExtension<Ctx>>),
+    ProposeValue(Ctx::Height, Round, Ctx::Value),
 
     /// Received and assembled the full value proposed by a validator
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
@@ -133,6 +141,8 @@ impl Timeouts {
             TimeoutKind::Commit => self.config.timeout_commit,
             TimeoutKind::PrevoteTimeLimit => self.config.timeout_step,
             TimeoutKind::PrecommitTimeLimit => self.config.timeout_step,
+            TimeoutKind::PrevoteRebroadcast => self.config.timeout_prevote,
+            TimeoutKind::PrecommitRebroadcast => self.config.timeout_precommit,
         }
     }
 
@@ -145,6 +155,8 @@ impl Timeouts {
             TimeoutKind::Commit => (),
             TimeoutKind::PrevoteTimeLimit => (),
             TimeoutKind::PrecommitTimeLimit => (),
+            TimeoutKind::PrevoteRebroadcast => (),
+            TimeoutKind::PrecommitRebroadcast => (),
         };
     }
 }
@@ -155,6 +167,10 @@ enum Phase {
     Running,
     Recovering,
 }
+
+/// Maximum number of messages to buffer while consensus is
+/// in the `Unstarted` or `Recovering` phase
+const MAX_BUFFER_SIZE: usize = 1024;
 
 pub struct State<Ctx: Context> {
     /// Scheduler for timers
@@ -171,6 +187,10 @@ pub struct State<Ctx: Context> {
 
     /// The current phase
     phase: Phase,
+
+    /// A buffer of messages that were received while
+    /// consensus was `Unstarted` or in the `Recovering` phase
+    msg_buffer: MessageBuffer<Ctx>,
 }
 
 impl<Ctx> State<Ctx>
@@ -191,6 +211,7 @@ where
         ctx: Ctx,
         params: ConsensusParams<Ctx>,
         timeout_config: TimeoutConfig,
+        signing_provider: Box<dyn SigningProvider<Ctx>>,
         network: NetworkRef<Ctx>,
         host: HostRef<Ctx>,
         wal: WalRef<Ctx>,
@@ -203,6 +224,7 @@ where
             ctx,
             params,
             timeout_config,
+            signing_provider,
             network,
             host,
             wal,
@@ -241,6 +263,23 @@ where
         )
     }
 
+    #[async_recursion]
+    async fn process_buffered_msgs(&self, myself: &ActorRef<Msg<Ctx>>, state: &mut State<Ctx>) {
+        if state.msg_buffer.is_empty() {
+            return;
+        }
+
+        info!(count = %state.msg_buffer.len(), "Replaying buffered messages");
+
+        while let Some(msg) = state.msg_buffer.pop() {
+            info!("Replaying buffered message: {msg:?}");
+
+            if let Err(e) = self.handle_msg(myself.clone(), state, msg).await {
+                error!("Error when handling buffered message: {e:?}");
+            }
+        }
+    }
+
     async fn handle_msg(
         &self,
         myself: ActorRef<Msg<Ctx>>,
@@ -249,8 +288,6 @@ where
     ) -> Result<(), ActorProcessingErr> {
         match msg {
             Msg::StartHeight(height, validator_set) => {
-                state.phase = Phase::Running;
-
                 let result = self
                     .process_input(
                         &myself,
@@ -276,15 +313,18 @@ where
                     error!(%height, "Error when checking and replaying WAL: {e}");
                 }
 
+                self.process_buffered_msgs(&myself, state).await;
+
+                state.phase = Phase::Running;
+
                 Ok(())
             }
 
-            Msg::ProposeValue(height, round, value, extension) => {
+            Msg::ProposeValue(height, round, value) => {
                 let value_to_propose = LocallyProposedValue {
                     height,
                     round,
                     value: value.clone(),
-                    extension,
                 };
 
                 let result = self
@@ -466,7 +506,7 @@ where
 
                     NetworkEvent::ProposalPart(from, part) => {
                         if state.consensus.params.value_payload.proposal_only() {
-                            error!(%from, "Properly configured peer should never send block part messages in Proposal mode");
+                            error!(%from, "Properly configured peer should never send proposal part messages in Proposal mode");
                             return Ok(());
                         }
 
@@ -596,12 +636,13 @@ where
 
                 if let Err(e) = self.replay_wal_entries(myself, state, entries).await {
                     error!(%height, "Failed to replay WAL entries: {e}");
+                    self.tx_event.send(|| Event::WalReplayError(Arc::new(e)));
                 }
-
-                state.phase = Phase::Running;
             }
             Err(e) => {
-                error!(%height, "Error when notifying WAL of started height: {e}")
+                error!(%height, "Error when notifying WAL of started height: {e}");
+                self.tx_event
+                    .send(|| Event::WalReplayError(Arc::new(e.into())));
             }
         }
 
@@ -680,12 +721,7 @@ where
             },
             myself,
             |proposed: LocallyProposedValue<Ctx>| {
-                Msg::<Ctx>::ProposeValue(
-                    proposed.height,
-                    proposed.round,
-                    proposed.value,
-                    proposed.extension,
-                )
+                Msg::<Ctx>::ProposeValue(proposed.height, proposed.round, proposed.value)
             },
             None,
         )?;
@@ -704,6 +740,38 @@ where
         .map_err(|e| eyre!("Failed to get validator set at height {height}: {e:?}"))?;
 
         Ok(validator_set)
+    }
+
+    async fn extend_vote(
+        &self,
+        height: Ctx::Height,
+        round: Round,
+        value_id: ValueId<Ctx>,
+    ) -> Result<Option<Ctx::Extension>, ActorProcessingErr> {
+        ractor::call!(self.host, |reply_to| HostMsg::ExtendVote {
+            height,
+            round,
+            value_id,
+            reply_to
+        })
+        .map_err(|e| eyre!("Failed to get earliest block height: {e:?}").into())
+    }
+
+    async fn verify_vote_extension(
+        &self,
+        height: Ctx::Height,
+        round: Round,
+        value_id: ValueId<Ctx>,
+        extension: Ctx::Extension,
+    ) -> Result<Result<(), VoteExtensionError>, ActorProcessingErr> {
+        ractor::call!(self.host, |reply_to| HostMsg::VerifyVoteExtension {
+            height,
+            round,
+            value_id,
+            extension,
+            reply_to
+        })
+        .map_err(|e| eyre!("Failed to verify vote extension: {e:?}").into())
     }
 
     async fn get_history_min_height(&self) -> Result<Ctx::Height, ActorProcessingErr> {
@@ -811,7 +879,7 @@ where
             Effect::SignProposal(proposal, r) => {
                 let start = Instant::now();
 
-                let signed_proposal = self.ctx.signing_provider().sign_proposal(proposal);
+                let signed_proposal = self.signing_provider.sign_proposal(proposal);
 
                 self.metrics
                     .signature_signing_time
@@ -823,7 +891,7 @@ where
             Effect::SignVote(vote, r) => {
                 let start = Instant::now();
 
-                let signed_vote = self.ctx.signing_provider().sign_vote(vote);
+                let signed_vote = self.signing_provider.sign_vote(vote);
 
                 self.metrics
                     .signature_signing_time
@@ -839,13 +907,11 @@ where
 
                 let valid = match msg.message {
                     Msg::Vote(v) => {
-                        self.ctx
-                            .signing_provider()
+                        self.signing_provider
                             .verify_signed_vote(&v, &msg.signature, &pk)
                     }
                     Msg::Proposal(p) => {
-                        self.ctx
-                            .signing_provider()
+                        self.signing_provider
                             .verify_signed_proposal(&p, &msg.signature, &pk)
                     }
                 };
@@ -858,7 +924,7 @@ where
             }
 
             Effect::VerifyCertificate(certificate, validator_set, thresholds, r) => {
-                let valid = self.ctx.signing_provider().verify_certificate(
+                let valid = self.signing_provider.verify_certificate(
                     &certificate,
                     &validator_set,
                     thresholds,
@@ -867,9 +933,36 @@ where
                 Ok(r.resume_with(valid))
             }
 
+            Effect::ExtendVote(height, round, value_id, r) => {
+                if let Some(extension) = self.extend_vote(height, round, value_id).await? {
+                    let signed_extension = self.signing_provider.sign_vote_extension(extension);
+                    Ok(r.resume_with(Some(signed_extension)))
+                } else {
+                    Ok(r.resume_with(None))
+                }
+            }
+
+            Effect::VerifyVoteExtension(height, round, value_id, signed_extension, pk, r) => {
+                let valid = self.signing_provider.verify_signed_vote_extension(
+                    &signed_extension.message,
+                    &signed_extension.signature,
+                    &pk,
+                );
+
+                if !valid {
+                    return Ok(r.resume_with(Err(VoteExtensionError::InvalidSignature)));
+                }
+
+                let result = self
+                    .verify_vote_extension(height, round, value_id, signed_extension.message)
+                    .await?;
+
+                Ok(r.resume_with(result))
+            }
+
             Effect::Publish(msg, r) => {
                 // Sync the WAL to disk before we broadcast the message
-                // NOTE: The message has already been append to the WAL by the `PersistMessage` effect.
+                // NOTE: The message has already been append to the WAL by the `WalAppendMessage` effect.
                 self.wal_flush(phase).await?;
 
                 // Notify any subscribers that we are about to publish a message
@@ -878,6 +971,21 @@ where
                 self.network
                     .cast(NetworkMsg::Publish(msg))
                     .map_err(|e| eyre!("Error when broadcasting gossip message: {e:?}"))?;
+
+                Ok(r.resume_with(()))
+            }
+
+            Effect::Rebroadcast(msg, r) => {
+                // Rebroadcast last vote only if vote sync mode is set to "rebroadcast",
+                // otherwise vote set requests are issued automatically by the sync protocol.
+                if self.params.vote_sync_mode == VoteSyncMode::Rebroadcast {
+                    // Notify any subscribers that we are about to rebroadcast a message
+                    self.tx_event.send(|| Event::Rebroadcast(msg.clone()));
+
+                    self.network
+                        .cast(NetworkMsg::Publish(SignedConsensusMsg::Vote(msg)))
+                        .map_err(|e| eyre!("Error when rebroadcasting vote message: {e:?}"))?;
+                }
 
                 Ok(r.resume_with(()))
             }
@@ -901,7 +1009,7 @@ where
                 Ok(r.resume_with(validator_set))
             }
 
-            Effect::RestreamValue(height, round, valid_round, address, value_id, r) => {
+            Effect::RestreamProposal(height, round, valid_round, address, value_id, r) => {
                 self.host
                     .cast(HostMsg::RestreamValue {
                         height,
@@ -915,7 +1023,7 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::Decide(certificate, r) => {
+            Effect::Decide(certificate, extensions, r) => {
                 self.wal_flush(phase).await?;
 
                 self.tx_event.send(|| Event::Decided(certificate.clone()));
@@ -925,6 +1033,7 @@ where
                 self.host
                     .cast(HostMsg::Decided {
                         certificate,
+                        extensions,
                         consensus: myself.clone(),
                     })
                     .map_err(|e| eyre!("Error when sending decided value to host: {e:?}"))?;
@@ -937,21 +1046,26 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::GetVoteSet(height, round, r) => {
-                debug!(%height, %round, "Request sync to obtain the vote set from peers");
-
+            Effect::RequestVoteSet(height, round, r) => {
                 if let Some(sync) = &self.sync {
+                    debug!(%height, %round, "Request sync to obtain the vote set from peers");
+
                     sync.cast(SyncMsg::RequestVoteSet(height, round))
                         .map_err(|e| eyre!("Error when sending vote set request to sync: {e:?}"))?;
-                }
 
-                self.tx_event
-                    .send(|| Event::RequestedVoteSet(height, round));
+                    self.tx_event
+                        .send(|| Event::RequestedVoteSet(height, round));
+                }
 
                 Ok(r.resume_with(()))
             }
 
             Effect::SendVoteSetResponse(request_id_str, height, round, vote_set, r) => {
+                let Some(sync) = self.sync.as_ref() else {
+                    warn!("Responding to a vote set request but sync actor is not available");
+                    return Ok(r.resume_with(()));
+                };
+
                 let vote_count = vote_set.len();
                 let response =
                     Response::VoteSetResponse(VoteSetResponse::new(height, round, vote_set));
@@ -966,12 +1080,10 @@ where
                 self.network
                     .cast(NetworkMsg::OutgoingResponse(request_id.clone(), response))?;
 
-                if let Some(sync) = &self.sync {
-                    sync.cast(SyncMsg::SentVoteSetResponse(request_id, height, round))
-                        .map_err(|e| {
-                            eyre!("Error when notifying Sync about vote set response: {e:?}")
-                        })?;
-                }
+                sync.cast(SyncMsg::SentVoteSetResponse(request_id, height, round))
+                    .map_err(|e| {
+                        eyre!("Error when notifying Sync about vote set response: {e:?}")
+                    })?;
 
                 self.tx_event
                     .send(|| Event::SentVoteSetResponse(height, round, vote_count));
@@ -1005,11 +1117,18 @@ where
     type State = State<Ctx>;
     type Arguments = ();
 
+    #[tracing::instrument(
+        name = "consensus",
+        parent = &self.span,
+        skip_all,
+    )]
     async fn pre_start(
         &self,
         myself: ActorRef<Msg<Ctx>>,
         _args: (),
     ) -> Result<State<Ctx>, ActorProcessingErr> {
+        info!("Consensus is starting");
+
         self.network
             .cast(NetworkMsg::Subscribe(Box::new(myself.clone())))?;
 
@@ -1019,14 +1138,26 @@ where
             consensus: ConsensusState::new(self.ctx.clone(), self.params.clone()),
             connected_peers: BTreeSet::new(),
             phase: Phase::Unstarted,
+            msg_buffer: MessageBuffer::new(MAX_BUFFER_SIZE),
         })
     }
 
+    #[tracing::instrument(
+        name = "consensus",
+        parent = &self.span,
+        skip_all,
+        fields(
+            height = %state.consensus.height(),
+            round = %state.consensus.round()
+        )
+    )]
     async fn post_start(
         &self,
         _myself: ActorRef<Msg<Ctx>>,
         state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
+        info!("Consensus has started");
+
         state.timers.cancel_all();
         Ok(())
     }
@@ -1037,7 +1168,8 @@ where
         skip_all,
         fields(
             height = %state.consensus.height(),
-            round = %state.consensus.round())
+            round = %state.consensus.round()
+        )
     )]
     async fn handle(
         &self,
@@ -1045,22 +1177,46 @@ where
         msg: Msg<Ctx>,
         state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
-        if let Err(e) = self.handle_msg(myself, state, msg).await {
+        if state.phase != Phase::Running && should_buffer(&msg) {
+            let _span = error_span!("buffer", phase = ?state.phase).entered();
+            state.msg_buffer.buffer(msg);
+            return Ok(());
+        }
+
+        if let Err(e) = self.handle_msg(myself.clone(), state, msg).await {
             error!("Error when handling message: {e:?}");
         }
 
         Ok(())
     }
 
+    #[tracing::instrument(
+        name = "consensus",
+        parent = &self.span,
+        skip_all,
+        fields(
+            height = %state.consensus.height(),
+            round = %state.consensus.round()
+        )
+    )]
     async fn post_stop(
         &self,
         _myself: ActorRef<Self::Msg>,
         state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
-        info!("Stopping...");
-
+        info!("Consensus has stopped");
         state.timers.cancel_all();
-
         Ok(())
     }
+}
+
+fn should_buffer<Ctx: Context>(msg: &Msg<Ctx>) -> bool {
+    !matches!(
+        msg,
+        Msg::StartHeight(..)
+            | Msg::GetStatus(..)
+            | Msg::NetworkEvent(NetworkEvent::Listening(..))
+            | Msg::NetworkEvent(NetworkEvent::PeerConnected(..))
+            | Msg::NetworkEvent(NetworkEvent::PeerDisconnected(..))
+    )
 }

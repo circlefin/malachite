@@ -39,8 +39,6 @@ pub fn main() -> color_eyre::Result<()> {
     let node = &StarknetNode {
         home_dir: args.get_home_dir().unwrap(),
         config: Default::default(), // placeholder, because `init` and `testnet` has no valid configuration file.
-        genesis_file: args.get_genesis_file_path().unwrap(),
-        private_key_file: args.get_priv_validator_key_file_path().unwrap(),
         start_height: Default::default(), // placeholder, because start_height is only valid in StartCmd.
     };
 
@@ -68,8 +66,6 @@ pub fn main() -> color_eyre::Result<()> {
             let node = StarknetNode {
                 home_dir: args.get_home_dir().unwrap(),
                 config,
-                genesis_file: args.get_genesis_file_path().unwrap(),
-                private_key_file: args.get_priv_validator_key_file_path().unwrap(),
                 start_height: cmd.start_height,
             };
 
@@ -119,8 +115,6 @@ mod tests {
         let node = &StarknetNode {
             home_dir: tmp.path().to_owned(),
             config: Default::default(),
-            genesis_file: PathBuf::from("genesis.json"),
-            private_key_file: PathBuf::from("priv_validator_key.json"),
             start_height: Default::default(),
         };
         cmd.run(
@@ -167,8 +161,6 @@ mod tests {
         let node = &StarknetNode {
             home_dir: tmp.path().to_owned(),
             config: Default::default(),
-            genesis_file: PathBuf::from("genesis.json"),
-            private_key_file: PathBuf::from("priv_validator_key.json"),
             start_height: Default::default(),
         };
         cmd.run(

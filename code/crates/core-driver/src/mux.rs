@@ -161,7 +161,16 @@ where
             return Some(RoundInput::ProposalAndPolkaPrevious(proposal));
         }
 
-        Some(RoundInput::Proposal(proposal))
+        if proposal.pol_round().is_nil() {
+            // L22
+            return Some(RoundInput::Proposal(proposal));
+        }
+
+        // We have `vr >= 0` without a  matching polka from round `vr`,
+        // so we do not do anything and wait either:
+        // - For more votes to arrive and form a polka
+        // - For the Propose timeout to expire, prevote nil and move to prevote
+        None
     }
 
     pub(crate) fn store_and_multiplex_proposal(

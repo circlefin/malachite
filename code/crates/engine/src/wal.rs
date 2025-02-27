@@ -6,7 +6,7 @@ use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, RpcReplyPort, Spa
 use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, info};
 
-use malachitebft_core_types::Context;
+use malachitebft_core_types::{Context, Height};
 use malachitebft_metrics::SharedRegistry;
 use malachitebft_wal as wal;
 
@@ -185,6 +185,11 @@ where
     type Arguments = Args<Codec>;
     type State = State<Ctx>;
 
+    #[tracing::instrument(
+        name = "wal.pre_start",
+        parent = &self.span,
+        skip_all,
+    )]
     async fn pre_start(
         &self,
         _myself: WalRef<Ctx>,
@@ -196,10 +201,10 @@ where
         let (tx, rx) = mpsc::channel(100);
 
         // Spawn a system thread to perform blocking WAL operations.
-        let handle = self::thread::spawn(tracing::Span::current(), log, args.codec, rx);
+        let handle = self::thread::spawn(self.span.clone(), log, args.codec, rx);
 
         Ok(State {
-            height: Ctx::Height::default(),
+            height: Ctx::Height::ZERO,
             wal_sender: tx,
             _handle: handle,
         })
@@ -224,6 +229,12 @@ where
         Ok(())
     }
 
+    #[tracing::instrument(
+        name = "wal.post_stop",
+        parent = &self.span,
+        skip_all,
+        fields(height = %state.height),
+    )]
     async fn post_stop(
         &self,
         _: WalRef<Ctx>,

@@ -6,7 +6,7 @@ pub struct StreamMessage {
     /// Receivers identify streams by (sender, stream_id).
     /// This means each node can allocate stream_ids independently
     /// and that many streams can be sent on a single network topic.
-    pub id: u64,
+    pub id: Bytes,
 
     /// Identifies the sequence of each message in the stream starting from 0.
     pub sequence: u64,
@@ -18,26 +18,26 @@ pub struct StreamMessage {
 pub enum StreamContent {
     /// Serialized content.
     Data(Bytes),
-    /// Fin must be set to true.
-    Fin(bool),
+    /// Final message.
+    Fin,
 }
 
 impl Protobuf for StreamMessage {
-    type Proto = p2p_proto::Stream;
+    type Proto = p2p_proto::StreamMessage;
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, malachitebft_proto::Error> {
         let content = match proto
-            .content
+            .message
             .ok_or_else(|| malachitebft_proto::Error::missing_field::<Self::Proto>("content"))?
         {
-            p2p_proto::stream::Content::Data(data) => StreamContent::Data(data),
-            p2p_proto::stream::Content::Fin(fin) => StreamContent::Fin(fin),
+            p2p_proto::stream_message::Message::Content(data) => StreamContent::Data(data),
+            p2p_proto::stream_message::Message::Fin(_) => StreamContent::Fin,
         };
 
         Ok(Self {
             id: proto.stream_id,
-            sequence: proto.sequence_number,
+            sequence: proto.message_id,
             content,
         })
     }
@@ -45,11 +45,15 @@ impl Protobuf for StreamMessage {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, malachitebft_proto::Error> {
         Ok(Self::Proto {
-            stream_id: self.id,
-            sequence_number: self.sequence,
-            content: match &self.content {
-                StreamContent::Data(data) => Some(p2p_proto::stream::Content::Data(data.clone())),
-                StreamContent::Fin(fin) => Some(p2p_proto::stream::Content::Fin(*fin)),
+            stream_id: self.id.clone(),
+            message_id: self.sequence,
+            message: match &self.content {
+                StreamContent::Data(data) => {
+                    Some(p2p_proto::stream_message::Message::Content(data.clone()))
+                }
+                StreamContent::Fin => {
+                    Some(p2p_proto::stream_message::Message::Fin(p2p_proto::Fin {}))
+                }
             },
         })
     }

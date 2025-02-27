@@ -99,15 +99,15 @@ impl Args {
         Ok(self.get_config_dir()?.join(GENESIS_FILE))
     }
 
-    /// get_log_level_or_default returns the log level from the command-line or the default value.
-    pub fn get_log_level_or_default(&self) -> LogLevel {
-        self.log_level.unwrap_or_default()
-    }
-
     /// get_priv_validator_key_file_path returns the private validator key file path based on the
     /// configuration folder.
     pub fn get_priv_validator_key_file_path(&self) -> Result<PathBuf, Error> {
         Ok(self.get_config_dir()?.join(PRIV_VALIDATOR_KEY_FILE))
+    }
+
+    /// get_log_level_or_default returns the log level from the command-line or the default value.
+    pub fn get_log_level_or_default(&self) -> LogLevel {
+        self.log_level.unwrap_or_default()
     }
 }
 

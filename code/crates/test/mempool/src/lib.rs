@@ -163,7 +163,7 @@ pub async fn spawn(
     let (tx_ctrl, rx_ctrl) = mpsc::channel(32);
 
     let peer_id = swarm.local_peer_id();
-    let span = error_span!("mempool-network", peer = %peer_id);
+    let span = error_span!("mempool.network", peer = %peer_id);
     let task_handle =
         tokio::task::spawn(run(config, metrics, swarm, rx_ctrl, tx_event).instrument(span));
 

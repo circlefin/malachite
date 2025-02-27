@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef, SupervisionEvent};
+use ractor::{Actor, ActorProcessingErr, ActorRef, SupervisionEvent};
 use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
 
@@ -20,9 +20,7 @@ pub struct Node<Ctx: Context> {
     consensus: ConsensusRef<Ctx>,
     wal: WalRef<Ctx>,
     sync: Option<SyncRef<Ctx>>,
-    mempool: ActorCell,
     host: HostRef<Ctx>,
-    start_height: Ctx::Height,
     span: tracing::Span,
 }
 
@@ -37,9 +35,7 @@ where
         consensus: ConsensusRef<Ctx>,
         wal: WalRef<Ctx>,
         sync: Option<SyncRef<Ctx>>,
-        mempool: ActorCell,
         host: HostRef<Ctx>,
-        start_height: Ctx::Height,
         span: tracing::Span,
     ) -> Self {
         Self {
@@ -48,9 +44,7 @@ where
             consensus,
             wal,
             sync,
-            mempool,
             host,
-            start_height,
             span,
         }
     }
@@ -77,7 +71,6 @@ where
         // Set ourselves as the supervisor of the other actors
         self.network.link(myself.get_cell());
         self.consensus.link(myself.get_cell());
-        self.mempool.link(myself.get_cell());
         self.host.link(myself.get_cell());
         self.wal.link(myself.get_cell());
 

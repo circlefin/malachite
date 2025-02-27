@@ -33,6 +33,12 @@ where
 
     /// Decision per height
     pub decision: BTreeMap<(Ctx::Height, Round), SignedProposal<Ctx>>,
+
+    /// Last prevote broadcasted by this node
+    pub last_prevote: Option<SignedVote<Ctx>>,
+
+    /// Last precommit broadcasted by this node
+    pub last_precommit: Option<SignedVote<Ctx>>,
 }
 
 impl<Ctx> State<Ctx>
@@ -56,6 +62,8 @@ where
             full_proposal_keeper: Default::default(),
             signed_precommits: Default::default(),
             decision: Default::default(),
+            last_prevote: None,
+            last_precommit: None,
         }
     }
 
@@ -79,6 +87,13 @@ where
         self.ctx
             .select_proposer(self.validator_set(), height, round)
             .address()
+    }
+
+    pub fn set_last_vote(&mut self, vote: SignedVote<Ctx>) {
+        match vote.vote_type() {
+            VoteType::Prevote => self.last_prevote = Some(vote),
+            VoteType::Precommit => self.last_precommit = Some(vote),
+        }
     }
 
     pub fn store_signed_precommit(&mut self, precommit: SignedVote<Ctx>) {

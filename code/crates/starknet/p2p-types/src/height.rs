@@ -1,7 +1,7 @@
 use core::fmt;
 
 /// A blockchain height
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Height {
     pub block_number: u64,
     pub fork_id: u64,
@@ -45,6 +45,9 @@ impl fmt::Display for Height {
 }
 
 impl malachitebft_core_types::Height for Height {
+    const ZERO: Self = Self::new(0, 0);
+    const INITIAL: Self = Self::new(1, 0);
+
     fn increment_by(&self, n: u64) -> Self {
         Self {
             block_number: self.block_number + n,
@@ -61,5 +64,11 @@ impl malachitebft_core_types::Height for Height {
 
     fn as_u64(&self) -> u64 {
         self.block_number
+    }
+}
+
+impl Default for Height {
+    fn default() -> Self {
+        malachitebft_core_types::Height::ZERO
     }
 }

@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BinaryHeap, HashSet};
 use malachitebft_app_channel::app::consensus::PeerId;
 use malachitebft_app_channel::app::streaming::{Sequence, StreamId, StreamMessage};
 use malachitebft_app_channel::app::types::core::Round;
-use malachitebft_test::{Address, Height, ProposalInit, ProposalPart};
+use malachitebft_test::{Address, Height, ProposalFin, ProposalInit, ProposalPart};
 
 struct MinSeq<T>(StreamMessage<T>);
 
@@ -46,10 +46,13 @@ impl<T> MinHeap<T> {
     }
 
     fn drain(&mut self) -> Vec<T> {
-        self.0
-            .drain()
-            .filter_map(|msg| msg.0.content.into_data())
-            .collect()
+        let mut vec = Vec::with_capacity(self.0.len());
+        while let Some(MinSeq(msg)) = self.0.pop() {
+            if let Some(data) = msg.content.into_data() {
+                vec.push(data);
+            }
+        }
+        vec
     }
 }
 
@@ -102,6 +105,16 @@ pub struct ProposalParts {
     pub parts: Vec<ProposalPart>,
 }
 
+impl ProposalParts {
+    pub fn init(&self) -> Option<&ProposalInit> {
+        self.parts.iter().find_map(|p| p.as_init())
+    }
+
+    pub fn fin(&self) -> Option<&ProposalFin> {
+        self.parts.iter().find_map(|p| p.as_fin())
+    }
+}
+
 #[derive(Default)]
 pub struct PartStreamsMap {
     streams: BTreeMap<(PeerId, StreamId), StreamState>,
@@ -117,8 +130,11 @@ impl PartStreamsMap {
         peer_id: PeerId,
         msg: StreamMessage<ProposalPart>,
     ) -> Option<ProposalParts> {
-        let stream_id = msg.stream_id;
-        let state = self.streams.entry((peer_id, stream_id)).or_default();
+        let stream_id = msg.stream_id.clone();
+        let state = self
+            .streams
+            .entry((peer_id, stream_id.clone()))
+            .or_default();
 
         if !state.seen_sequences.insert(msg.sequence) {
             // We have already seen a message with this sequence number.

@@ -5,11 +5,9 @@ use async_trait::async_trait;
 use bytesize::ByteSize;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
-use tracing::{debug, Instrument};
+use tracing::Instrument;
 
-use malachitebft_config::VoteExtensionsConfig;
-use malachitebft_core_consensus::ValuePayload;
-use malachitebft_core_types::{CommitCertificate, Extension, Round, SignedExtension, SignedVote};
+use malachitebft_core_types::{CommitCertificate, Round, SignedVote};
 
 use crate::host::Host;
 use crate::mempool::MempoolRef;
@@ -21,13 +19,11 @@ use super::proposal::{build_proposal_task, repropose_task};
 #[derive(Copy, Clone, Debug)]
 pub struct StarknetParams {
     pub max_block_size: ByteSize,
-    pub value_payload: ValuePayload,
     pub tx_size: ByteSize,
     pub txs_per_part: usize,
     pub time_allowance_factor: f32,
     pub exec_time_per_tx: Duration,
     pub max_retain_blocks: usize,
-    pub vote_extensions: VoteExtensionsConfig,
 }
 
 pub struct StarknetHost {
@@ -56,31 +52,6 @@ impl StarknetHost {
             part_store: Default::default(),
         }
     }
-
-    pub fn generate_vote_extension(
-        &self,
-        _height: Height,
-        _round: Round,
-    ) -> Option<SignedExtension<MockContext>> {
-        use rand::RngCore;
-        use sha3::Digest;
-
-        if !self.params.vote_extensions.enabled {
-            return None;
-        }
-
-        let size = self.params.vote_extensions.size.as_u64() as usize;
-        debug!(%size, "Vote extensions are enabled");
-
-        let mut bytes = vec![0u8; size];
-        rand::thread_rng().fill_bytes(&mut bytes);
-
-        let hash = Hash::new(sha3::Keccak256::digest(&bytes).into());
-        let extension = Extension::from(bytes);
-        let signature = self.private_key.sign(&hash.as_felt());
-
-        Some(SignedExtension::new(extension, signature))
-    }
 }
 
 #[async_trait]
@@ -96,7 +67,7 @@ impl Host for StarknetHost {
 
     #[tracing::instrument(skip_all, fields(%height, %round))]
     async fn build_new_proposal(
-        &self,
+        &mut self,
         height: Self::Height,
         round: Round,
         deadline: Instant,
@@ -112,7 +83,7 @@ impl Host for StarknetHost {
                 height,
                 round,
                 self.address,
-                self.private_key,
+                self.private_key.clone(),
                 self.params,
                 deadline,
                 self.mempool.clone(),
@@ -180,7 +151,7 @@ impl Host for StarknetHost {
 
     /// Sign a message hash
     async fn sign(&self, message: Self::MessageHash) -> Self::Signature {
-        self.private_key.sign(&message.as_felt())
+        self.private_key.sign(message.as_bytes().as_slice())
     }
 
     /// Validates the signature field of a message. If None returns false.
@@ -190,7 +161,9 @@ impl Host for StarknetHost {
         signature: &Self::Signature,
         public_key: &Self::PublicKey,
     ) -> bool {
-        public_key.verify(&hash.as_felt(), signature)
+        public_key
+            .verify(hash.as_bytes().as_slice(), signature)
+            .is_ok()
     }
 
     /// Update the Context about which decision has been made. It is responsible for pinging any

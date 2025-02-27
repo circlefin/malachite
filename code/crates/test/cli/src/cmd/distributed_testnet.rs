@@ -3,7 +3,6 @@
 use std::path::Path;
 use std::time::Duration;
 
-use bytesize::ByteSize;
 use clap::Parser;
 use color_eyre::eyre::{eyre, Result};
 use itertools::Itertools;
@@ -227,8 +226,9 @@ fn generate_distributed_config(
     Config {
         moniker: format!("test-{}", index),
         consensus: ConsensusConfig {
-            max_block_size: ByteSize::mib(1),
-            value_payload: ValuePayload::default(),
+            vote_sync: VoteSyncConfig {
+                mode: VoteSyncMode::RequestResponse,
+            },
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
@@ -293,7 +293,7 @@ fn generate_distributed_config(
             max_tx_count: 10000,
             gossip_batch_size: 0,
         },
-        sync: SyncConfig {
+        value_sync: ValueSyncConfig {
             enabled: false,
             status_update_interval: Duration::from_secs(0),
             request_timeout: Duration::from_secs(0),

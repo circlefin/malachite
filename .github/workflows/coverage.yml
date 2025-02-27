@@ -33,11 +33,13 @@ jobs:
               - 'code/**'
             specs:
               - 'specs/**'
+            codecov:
+              - 'codecov.yml'
 
   integration:
     name: Integration
     needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
+    if: ${{ needs.changes.outputs.code == 'true' || needs.changes.outputs.codecov == 'true' || github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -71,6 +73,7 @@ jobs:
           cargo llvm-cov nextest \
             --workspace \
             --exclude informalsystems-malachitebft-test-mbt \
+            --exclude informalsystems-malachitebft-starknet-test-mbt \
             --ignore-filename-regex crates/cli \
             --all-features \
             --no-capture \
@@ -93,7 +96,7 @@ jobs:
   mbt:
     name: MBT
     needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' || needs.changes.outputs.specs == 'true' || github.ref == 'refs/heads/main' }}
+    if: ${{ needs.changes.outputs.code == 'true' || needs.changes.outputs.specs == 'true' || needs.changes.outputs.codecov == 'true' || github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -123,7 +126,11 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
-        run: cargo llvm-cov nextest -p informalsystems-malachitebft-test-mbt --all-features --lcov --output-path lcov-mbt.info
+        run: |
+          cargo llvm-cov nextest \
+           -p informalsystems-malachitebft-test-mbt \
+           -p informalsystems-malachitebft-starknet-test-mbt \
+           --all-features --lcov --output-path lcov-mbt.info
       - name: Generate text report
         run: cargo llvm-cov report
       - name: Upload coverage artifact

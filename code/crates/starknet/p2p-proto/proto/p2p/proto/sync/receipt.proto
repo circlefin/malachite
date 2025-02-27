@@ -1,6 +1,8 @@
 syntax = "proto3";
 import "p2p/proto/common.proto";
 
+option go_package = "github.com/starknet-io/starknet-p2pspecs/p2p/proto/sync/receipt";
+
 message MessageToL1 {
   Felt252 from_address = 2;
   repeated Felt252 payload = 3;
@@ -37,7 +39,8 @@ message Receipt {
     uint32 memory_holes = 3;
     Felt252 l1_gas = 4;
     Felt252 l1_data_gas = 5;
-    Felt252 total_l1_gas = 6;
+    Felt252 l2_gas = 6;
+    Felt252 total_l1_gas = 7;
   }
 
   message Common {
