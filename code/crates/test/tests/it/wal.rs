@@ -140,7 +140,7 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
         first_vote: Option<SignedVote<TestContext>>,
     }
 
-    const CRASH_HEIGHT: u64 = 4;
+    const CRASH_HEIGHT: u64 = 2;
 
     let mut test = TestBuilder::<State>::new();
 
@@ -161,8 +161,8 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
         .restart_after(Duration::from_secs(5))
         // Check that we replay messages from the WAL
         .expect_wal_replay(CRASH_HEIGHT)
-        // Wait until it proposes a value again, while replaying WAL
-        // Check that it is the same value as the first time
+        // Wait until the previous vote is replayed
+        // Check that it is the for the same value as the first time
         .on_vote(|vote, state| {
             let Some(first_vote) = state.first_vote.as_ref() else {
                 bail!("Non-proposer did not vote")
@@ -179,6 +179,7 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
                 )
             }
         })
+        .wait_until(CRASH_HEIGHT + 2)
         .success();
 
     test.add_node().with_voting_power(10).start().success();
