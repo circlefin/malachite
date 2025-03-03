@@ -291,7 +291,7 @@ where
         // - That vote is the same as our last vote
         // Precommits have the additional constraint that the value must match the valid value
         let can_vote = match vote.vote_type() {
-            VoteType::Prevote => self.last_prevote.as_ref().map_or(true, |prev| {
+            VoteType::Prevote => self.last_prevote.as_ref().is_none_or(|prev| {
                 prev.height() < vote.height() || prev.round() < vote.round() || prev == &vote
             }),
             VoteType::Precommit => {

@@ -147,7 +147,7 @@ where
     /// Consensus has been stuck in Prevote or Precommit step, ask for vote sets from peers
     ///
     /// Resume with: [`resume::Continue`]
-    GetVoteSet(Ctx::Height, Round, resume::Continue),
+    RequestVoteSet(Ctx::Height, Round, resume::Continue),
 
     /// A peer has required our vote set, send the response
     ///

@@ -98,7 +98,7 @@ async fn proposer_crashes_after_proposing(params: TestParams) {
         .run_with_params(
             Duration::from_secs(60),
             TestParams {
-                enable_sync: false,
+                enable_value_sync: false,
                 ..params
             },
         )
@@ -188,7 +188,7 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
         .run_with_params(
             Duration::from_secs(60),
             TestParams {
-                enable_sync: false,
+                enable_value_sync: false,
                 ..params
             },
         )
@@ -288,7 +288,7 @@ async fn byzantine_proposer_crashes_after_proposing_1(params: TestParams) {
         .run_with_params(
             Duration::from_secs(60),
             TestParams {
-                enable_sync: true,
+                enable_value_sync: true,
                 timeout_step: Duration::from_secs(5),
                 value_payload: ValuePayload::ProposalAndParts,
                 ..params

@@ -53,9 +53,7 @@ where
         self.inbound_connections.retain(|peer_id, connection_id| {
             self.outbound_connections
                 .get(peer_id)
-                .map_or(true, |out_conn| {
-                    out_conn.connection_id != Some(*connection_id)
-                })
+                .is_none_or(|out_conn| out_conn.connection_id != Some(*connection_id))
         });
     }
 
@@ -80,15 +78,13 @@ where
             .filter(|(peer_id, connection_id)| {
                 self.inbound_connections
                     .get(peer_id)
-                    .map_or(true, |in_conn_id| *in_conn_id != *connection_id)
+                    .is_none_or(|in_conn_id| *in_conn_id != *connection_id)
             })
             // Remove outbound connections
             .filter(|(peer_id, connection_id)| {
                 self.outbound_connections
                     .get(peer_id)
-                    .map_or(true, |out_conn| {
-                        out_conn.connection_id != Some(*connection_id)
-                    })
+                    .is_none_or(|out_conn| out_conn.connection_id != Some(*connection_id))
             })
             .collect();
 

@@ -17,7 +17,7 @@ where
         connection_data: &ConnectionData,
         check_already_dialed: bool,
     ) -> bool {
-        connection_data.peer_id().as_ref().map_or(true, |id| {
+        connection_data.peer_id().as_ref().is_none_or(|id| {
             // Is not itself (peer id)
             id != swarm.local_peer_id()
             // Is not already connected

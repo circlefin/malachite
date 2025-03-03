@@ -25,8 +25,8 @@ pub struct Config {
     /// Mempool configuration options
     pub mempool: MempoolConfig,
 
-    /// Sync configuration options
-    pub sync: SyncConfig,
+    /// ValueSync configuration options
+    pub value_sync: ValueSyncConfig,
 
     /// Metrics configuration options
     pub metrics: MetricsConfig,
@@ -352,9 +352,10 @@ pub struct MempoolConfig {
     pub gossip_batch_size: usize,
 }
 
+/// ValueSync configuration options
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct SyncConfig {
-    /// Enable Sync
+pub struct ValueSyncConfig {
+    /// Enable ValueSync
     pub enabled: bool,
 
     /// Interval at which to update other peers of our status
@@ -366,7 +367,7 @@ pub struct SyncConfig {
     pub request_timeout: Duration,
 }
 
-impl Default for SyncConfig {
+impl Default for ValueSyncConfig {
     fn default() -> Self {
         Self {
             enabled: true,
@@ -387,7 +388,6 @@ pub struct ConsensusConfig {
     pub p2p: P2pConfig,
 
     /// VoteSync configuration options
-    #[serde(default)]
     pub vote_sync: VoteSyncConfig,
 }
 

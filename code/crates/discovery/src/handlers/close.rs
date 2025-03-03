@@ -15,9 +15,7 @@ where
         // Only close ephemeral connections (i.e not inbound/outbound connections)
         self.outbound_connections
             .get(&peer_id)
-            .map_or(true, |out_conn| {
-                out_conn.connection_id != Some(connection_id)
-            })
+            .is_none_or(|out_conn| out_conn.connection_id != Some(connection_id))
             && self.inbound_connections.get(&peer_id) != Some(&connection_id)
     }
 

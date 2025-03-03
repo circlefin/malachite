@@ -280,6 +280,7 @@ where
 
                 state.set_last_vote(signed_vote);
 
+                // Schedule rebroadcast timer if necessary
                 if state.params.vote_sync_mode == VoteSyncMode::Rebroadcast {
                     let timeout = match vote_type {
                         VoteType::Prevote => Timeout::prevote_rebroadcast(state.driver.round()),
