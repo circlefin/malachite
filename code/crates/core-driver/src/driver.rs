@@ -295,10 +295,10 @@ where
                 prev.height() < vote.height() || prev.round() < vote.round() || prev == &vote
             }),
             VoteType::Precommit => {
-                let good_precommit = self.last_precommit.as_ref().map_or(true, |prev| {
+                let good_precommit = self.last_precommit.as_ref().is_none_or(|prev| {
                     prev.height() < vote.height() || prev.round() < vote.round() || prev == &vote
                 });
-                let match_valid = self.round_state.valid.as_ref().map_or(true, |valid| {
+                let match_valid = self.round_state.valid.as_ref().is_none_or(|valid| {
                     if let NilOrVal::Val(value_id) = vote.value() {
                         &valid.value.id() == value_id
                     } else {
