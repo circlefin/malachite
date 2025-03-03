@@ -58,10 +58,14 @@ where
         match msg {
             HostMsg::ConsensusReady(consensus_ref) => {
                 let (reply, rx) = oneshot::channel();
+                let (reply_value, rx_value) = oneshot::channel();
 
-                self.sender.send(AppMsg::ConsensusReady { reply }).await?;
+                self.sender
+                    .send(AppMsg::ConsensusReady { reply, reply_value })
+                    .await?;
 
                 consensus_ref.cast(rx.await?.into())?;
+                consensus_ref.cast(rx_value.await?.into())?;
             }
 
             HostMsg::StartedRound {

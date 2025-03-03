@@ -20,7 +20,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
         match msg {
             // The first message to handle is the `ConsensusReady` message, signaling to the app
             // that Malachite is ready to start consensus
-            AppMsg::ConsensusReady { reply } => {
+            AppMsg::ConsensusReady { reply, .. } => {
                 let start_height = state
                     .store
                     .max_decided_value_height()
