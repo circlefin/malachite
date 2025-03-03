@@ -668,8 +668,8 @@ pub(crate) fn encode_vote(vote: &SignedVote<MockContext>) -> Result<proto::Vote,
     vote.message.to_proto()
 }
 
-pub(crate) fn decode_vote(msg: proto::Vote) -> Option<SignedVote<MockContext>> {
+pub(crate) fn decode_vote(msg: proto::Vote) -> Result<SignedVote<MockContext>, ProtoError> {
     let signature = Signature::test();
-    let vote = Vote::from_proto(msg).ok()?;
-    Some(SignedVote::new(vote, signature))
+    let vote = Vote::from_proto(msg)?;
+    Ok(SignedVote::new(vote, signature))
 }
