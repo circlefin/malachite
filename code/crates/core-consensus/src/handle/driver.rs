@@ -130,7 +130,9 @@ where
             }
         }
 
-        if state.driver.step_is_precommit() && state.params.vote_sync_mode == VoteSyncMode::RequestResponse {
+        if state.driver.step_is_precommit()
+            && state.params.vote_sync_mode == VoteSyncMode::RequestResponse
+        {
             perform!(
                 co,
                 Effect::CancelTimeout(
