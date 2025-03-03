@@ -6,10 +6,10 @@ use std::ops::RangeFrom;
 use std::sync::Arc;
 use std::time::Duration;
 
-use ractor::port::OutputPortSubscriber;
-use ractor::OutputPort;
 use tokio::task::JoinHandle;
 use tracing::trace;
+
+use super::output_port::{OutputPort, OutputPortSubscriber};
 
 #[derive(Debug)]
 struct Timer<Key> {
@@ -30,7 +30,6 @@ pub struct TimeoutElapsed<Key> {
     generation: u64,
 }
 
-#[derive(Debug)]
 pub struct TimerScheduler<Key>
 where
     Key: Clone + Eq + Hash + Send + 'static,
@@ -45,7 +44,7 @@ where
     Key: Clone + Eq + Hash + Send + 'static,
 {
     pub fn new(subscriber: OutputPortSubscriber<TimeoutElapsed<Key>>) -> Self {
-        let output_port = OutputPort::default();
+        let output_port = OutputPort::with_capacity(32);
         subscriber.subscribe_to_port(&output_port);
 
         Self {

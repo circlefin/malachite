@@ -6,8 +6,7 @@ use derive_where::derive_where;
 use eyre::eyre;
 use libp2p::identity::Keypair;
 use libp2p::request_response;
-use ractor::port::OutputPortSubscriberTrait;
-use ractor::{Actor, ActorProcessingErr, ActorRef, OutputPort, RpcReplyPort};
+use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
 use tracing::{error, trace};
 
@@ -24,6 +23,7 @@ use malachitebft_network::{Channel, Config, Event, Multiaddr, PeerId};
 
 use crate::consensus::ConsensusCodec;
 use crate::sync::SyncCodec;
+use crate::util::output_port::{OutputPort, OutputPortSubscriberTrait};
 use crate::util::streaming::StreamMessage;
 
 pub type NetworkRef<Ctx> = ActorRef<Msg<Ctx>>;
@@ -203,7 +203,7 @@ where
         Ok(State::Running {
             listen_addrs: Vec::new(),
             peers: BTreeSet::new(),
-            output_port: OutputPort::default(),
+            output_port: OutputPort::with_capacity(128),
             ctrl_handle,
             recv_task,
             inbound_requests: HashMap::new(),
