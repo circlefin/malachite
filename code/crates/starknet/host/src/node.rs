@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 
-use libp2p_identity::ecdsa;
 use ractor::async_trait;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -12,7 +11,7 @@ use malachitebft_app::{Node, NodeHandle};
 use malachitebft_config::Config;
 use malachitebft_core_types::VotingPower;
 use malachitebft_engine::node::NodeRef;
-use malachitebft_starknet_p2p_types::EcdsaProvider;
+use malachitebft_starknet_p2p_types::Ed25519Provider;
 
 use crate::spawn::spawn_node_actor;
 use crate::types::{Address, Height, MockContext, PrivateKey, PublicKey, Validator, ValidatorSet};
@@ -83,7 +82,7 @@ impl Node for StarknetNode {
     type Context = MockContext;
     type Genesis = Genesis;
     type PrivateKeyFile = PrivateKeyFile;
-    type SigningProvider = EcdsaProvider;
+    type SigningProvider = Ed25519Provider;
     type NodeHandle = Handle;
 
     fn get_home_dir(&self) -> PathBuf {
@@ -106,10 +105,7 @@ impl Node for StarknetNode {
     }
 
     fn get_keypair(&self, pk: PrivateKey) -> Keypair {
-        let pk_bytes = pk.inner().to_bytes_be();
-        let secret_key = ecdsa::SecretKey::try_from_bytes(pk_bytes).unwrap();
-        let ecdsa_keypair = ecdsa::Keypair::from(secret_key);
-        Keypair::from(ecdsa_keypair)
+        Keypair::ed25519_from_bytes(pk.inner().to_bytes()).unwrap()
     }
 
     fn load_private_key(&self, file: Self::PrivateKeyFile) -> PrivateKey {
@@ -126,7 +122,7 @@ impl Node for StarknetNode {
     }
 
     fn get_signing_provider(&self, private_key: PrivateKey) -> Self::SigningProvider {
-        EcdsaProvider::new(private_key)
+        Self::SigningProvider::new(private_key)
     }
 
     fn load_genesis(&self) -> std::io::Result<Self::Genesis> {
@@ -213,7 +209,7 @@ fn test_starknet_node() {
     file::save_priv_validator_key(
         &node,
         &node.private_key_file(),
-        &PrivateKeyFile::from(priv_keys[0]),
+        &PrivateKeyFile::from(priv_keys[0].clone()),
     )
     .unwrap();
 

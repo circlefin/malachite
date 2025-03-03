@@ -58,7 +58,8 @@ where
         ctx.clone(),
         network.clone(),
         connector.clone(),
-        &cfg.sync,
+        &cfg.value_sync,
+        &cfg.consensus.vote_sync,
         &registry,
     )
     .await?;

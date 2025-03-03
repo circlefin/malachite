@@ -2,12 +2,14 @@
 //! A regular application would have mempool implemented, a proper database and input methods like RPC.
 
 use std::collections::{HashMap, HashSet};
+use std::time::Duration;
 
 use bytes::{Bytes, BytesMut};
 use eyre::eyre;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use sha3::Digest;
+use tokio::time::sleep;
 use tracing::{debug, error};
 
 use malachitebft_app_channel::app::consensus::ProposedValue;
@@ -243,6 +245,9 @@ impl State {
 
         // We create a new value.
         let value = self.make_value(height, round);
+
+        // Simulate some processing time
+        sleep(Duration::from_millis(500)).await;
 
         let proposal = ProposedValue {
             height,

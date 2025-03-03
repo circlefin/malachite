@@ -275,10 +275,10 @@ where
         // - That vote is for a higher round than our last vote
         // - That vote is the same as our last vote
         let can_vote = match vote.vote_type() {
-            VoteType::Prevote => self.last_prevote.as_ref().map_or(true, |prev| {
+            VoteType::Prevote => self.last_prevote.as_ref().is_none_or(|prev| {
                 prev.height() < vote.height() || prev.round() < vote.round() || prev == &vote
             }),
-            VoteType::Precommit => self.last_precommit.as_ref().map_or(true, |prev| {
+            VoteType::Precommit => self.last_precommit.as_ref().is_none_or(|prev| {
                 prev.height() < vote.height() || prev.round() < vote.round() || prev == &vote
             }),
         };

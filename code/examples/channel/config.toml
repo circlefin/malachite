@@ -62,6 +62,14 @@ timeout_commit = "0s"
 # Override with MALACHITE__CONSENSUS__TIMEOUT_STEP env variable
 timeout_step = "30s"
 
+# VoteSync configuration options
+[consensus.vote_sync]
+# The mode of vote synchronization
+# - "request-response": The lagging node sends a request to a peer for the missing votes
+# - "rebroadcast": Nodes rebroadcast their last vote to all peers
+# Override with MALACHITE__CONSENSUS__VOTE_SYNC__MODE env variable
+mode = "request-response"
+
 #######################################################
 ###       Consensus P2P Configuration Options       ###
 #######################################################
@@ -168,19 +176,19 @@ type = "gossipsub"
 
 
 #######################################################
-###         Sync Configuration Options         ###
+###         ValueSync Configuration Options         ###
 #######################################################
-[sync]
-# Enable the synchronization protocol
-# Override with MALACHITE__SYNC__ENABLED env variable
+[value_sync]
+# Enable the ValueSync synchronization protocol
+# Override with MALACHITE__VALUE_SYNC__ENABLED env variable
 enabled = true
 
 # Interval at which to update other peers of our status
-# Override with MALACHITE__SYNC__STATUS_UPDATE_INTERVAL env variable
+# Override with MALACHITE__VALUE_SYNC__STATUS_UPDATE_INTERVAL env variable
 status_update_interval = "10s"
 
-# Timeout duration for sync requests
-# Override with MALACHITE__SYNC__REQUEST_TIMEOUT env variable
+# Timeout duration for ValueSync requests
+# Override with MALACHITE__VALUE_SYNC__REQUEST_TIMEOUT env variable
 request_timeout = "10s"
 
 #######################################################

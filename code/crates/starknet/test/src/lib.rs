@@ -103,7 +103,7 @@ impl NodeRunner<MockContext> for TestRunner {
         fs::create_dir_all(app.genesis_file().parent().unwrap())?;
         fs::write(app.genesis_file(), serde_json::to_string(&genesis)?)?;
 
-        let priv_key_file = app.make_private_key_file(self.private_keys[&id]);
+        let priv_key_file = app.make_private_key_file(self.private_keys[&id].clone());
         fs::create_dir_all(app.private_key_file().parent().unwrap())?;
         fs::write(
             app.private_key_file(),
@@ -171,7 +171,7 @@ impl TestRunner {
                 max_tx_count: 10000,
                 gossip_batch_size: 100,
             },
-            sync: SyncConfig {
+            value_sync: ValueSyncConfig {
                 enabled: true,
                 status_update_interval: Duration::from_secs(2),
                 request_timeout: Duration::from_secs(5),

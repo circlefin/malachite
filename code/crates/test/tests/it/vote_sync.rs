@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use malachitebft_config::ValuePayload;
+use malachitebft_config::{ValuePayload, VoteSyncMode};
 
 use crate::{TestBuilder, TestParams};
 
@@ -9,6 +9,7 @@ use crate::{TestBuilder, TestParams};
 
 pub async fn crash_restart_from_start(params: TestParams) {
     const HEIGHT: u64 = 10;
+    const CRASH_HEIGHT: u64 = 4;
 
     let mut test = TestBuilder::<()>::new();
 
@@ -18,7 +19,7 @@ pub async fn crash_restart_from_start(params: TestParams) {
     test.add_node()
         .start()
         // Wait until the node reaches height 4...
-        .wait_until(4)
+        .wait_until(CRASH_HEIGHT)
         // ...then kill it
         .crash()
         // Reset the database so that the node has to do Sync from height 1
@@ -26,7 +27,7 @@ pub async fn crash_restart_from_start(params: TestParams) {
         // After that, it waits 5 seconds before restarting the node
         .restart_after(Duration::from_secs(5))
         // Expect a vote set request for height 4
-        .expect_vote_set_request(4)
+        .expect_vote_set_request(CRASH_HEIGHT)
         // Wait until the node reached the expected height
         .wait_until(HEIGHT)
         // Record a successful test for this node
@@ -36,7 +37,8 @@ pub async fn crash_restart_from_start(params: TestParams) {
         .run_with_params(
             Duration::from_secs(60), // Timeout for the whole test
             TestParams {
-                enable_sync: true, // Enable Sync
+                enable_value_sync: true, // Enable Sync
+                vote_sync_mode: Some(VoteSyncMode::RequestResponse),
                 timeout_step: Duration::from_secs(5),
                 ..params
             },
@@ -79,19 +81,29 @@ pub async fn crash_restart_from_start_proposal_and_parts() {
 #[tokio::test]
 pub async fn crash_restart_from_latest() {
     const HEIGHT: u64 = 10;
+    const CRASH_HEIGHT: u64 = 4;
 
     let mut test = TestBuilder::<()>::new();
 
-    test.add_node().start().wait_until(HEIGHT).success();
-    test.add_node().start().wait_until(HEIGHT).success();
     test.add_node()
         .start()
-        .wait_until(2)
+        .wait_until(CRASH_HEIGHT)
+        .wait_until(HEIGHT)
+        .success();
+
+    test.add_node()
+        .start()
+        .wait_until(CRASH_HEIGHT)
+        .wait_until(HEIGHT)
+        .success();
+
+    test.add_node()
+        .start()
+        .wait_until(CRASH_HEIGHT)
         .crash()
         // We do not reset the database so that the node can restart from the latest height
         .restart_after(Duration::from_secs(5))
-        // Expect a vote set request for height 2
-        .expect_vote_set_request(2)
+        .expect_vote_set_request(CRASH_HEIGHT)
         .wait_until(HEIGHT)
         .success();
 
@@ -99,7 +111,8 @@ pub async fn crash_restart_from_latest() {
         .run_with_params(
             Duration::from_secs(60),
             TestParams {
-                enable_sync: true,
+                enable_value_sync: true,
+                vote_sync_mode: Some(VoteSyncMode::RequestResponse),
                 timeout_step: Duration::from_secs(5),
                 ..Default::default()
             },
@@ -110,13 +123,15 @@ pub async fn crash_restart_from_latest() {
 #[tokio::test]
 pub async fn start_late() {
     const HEIGHT: u64 = 5;
+
     let mut test = TestBuilder::<()>::new();
 
-    test.add_node().start().wait_until(HEIGHT * 2).success();
-    test.add_node().start().wait_until(HEIGHT * 2).success();
+    test.add_node().start().wait_until(HEIGHT).success();
+
+    test.add_node().start().wait_until(HEIGHT).success();
+
     test.add_node()
         .start_after(1, Duration::from_secs(10))
-        // Expect a vote set request for height 1
         .expect_vote_set_request(1)
         .wait_until(HEIGHT)
         .success();
@@ -125,7 +140,8 @@ pub async fn start_late() {
         .run_with_params(
             Duration::from_secs(60),
             TestParams {
-                enable_sync: true,
+                enable_value_sync: true,
+                vote_sync_mode: Some(VoteSyncMode::RequestResponse),
                 timeout_step: Duration::from_secs(5),
                 ..Default::default()
             },

@@ -3,6 +3,7 @@ use std::time::Duration;
 use eyre::bail;
 use tracing::info;
 
+use malachitebft_config::VoteSyncMode;
 use malachitebft_core_consensus::LocallyProposedValue;
 use malachitebft_core_types::SignedVote;
 use malachitebft_engine::util::events::Event;
@@ -67,7 +68,7 @@ async fn proposer_crashes_after_proposing() {
         .run_with_params(
             Duration::from_secs(60),
             TestParams {
-                enable_sync: false,
+                enable_value_sync: false,
                 ..TestParams::default()
             },
         )
@@ -129,7 +130,7 @@ async fn non_proposer_crashes_after_voting() {
         .run_with_params(
             Duration::from_secs(60),
             TestParams {
-                enable_sync: false,
+                enable_value_sync: false,
                 ..TestParams::default()
             },
         )
@@ -161,7 +162,8 @@ pub async fn node_crashes_after_vote_set_request() {
         .run_with_params(
             Duration::from_secs(60),
             TestParams {
-                enable_sync: true,
+                enable_value_sync: true,
+                vote_sync_mode: Some(VoteSyncMode::RequestResponse),
                 timeout_step: Duration::from_secs(5),
                 ..Default::default()
             },

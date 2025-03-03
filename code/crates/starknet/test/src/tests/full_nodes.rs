@@ -80,7 +80,7 @@ pub async fn full_node_crash_and_sync() {
         .run_with_params(
             Duration::from_secs(60),
             TestParams {
-                enable_sync: true,
+                enable_value_sync: true,
                 ..Default::default()
             },
         )
@@ -121,7 +121,7 @@ pub async fn late_starting_full_node() {
         .run_with_params(
             Duration::from_secs(60),
             TestParams {
-                enable_sync: true,
+                enable_value_sync: true,
                 ..Default::default()
             },
         )
@@ -175,7 +175,7 @@ pub async fn mixed_validator_and_full_node_failures() {
         .run_with_params(
             Duration::from_secs(60),
             TestParams {
-                enable_sync: true,
+                enable_value_sync: true,
                 ..Default::default()
             },
         )

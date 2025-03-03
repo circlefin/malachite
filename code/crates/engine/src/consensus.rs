@@ -627,7 +627,7 @@ where
         match result {
             Ok(None) => {
                 // Nothing to replay
-                info!(%height, "No WAL entries to replay");
+                debug!(%height, "No WAL entries to replay");
             }
             Ok(Some(entries)) => {
                 info!("Found {} WAL entries to replay", entries.len());
@@ -976,8 +976,8 @@ where
             }
 
             Effect::Rebroadcast(msg, r) => {
-                // Rebroadcast last vote only if sync is not enabled, otherwise vote set requests are issued.
-                // TODO: There is a single configuration for both value and vote sync.
+                // Rebroadcast last vote only if vote sync mode is set to "rebroadcast",
+                // otherwise vote set requests are issued automatically by the sync protocol.
                 if self.params.vote_sync_mode == VoteSyncMode::Rebroadcast {
                     // Notify any subscribers that we are about to rebroadcast a message
                     self.tx_event.send(|| Event::Rebroadcast(msg.clone()));
@@ -1046,7 +1046,7 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::GetVoteSet(height, round, r) => {
+            Effect::RequestVoteSet(height, round, r) => {
                 if let Some(sync) = &self.sync {
                     debug!(%height, %round, "Request sync to obtain the vote set from peers");
 
@@ -1117,11 +1117,18 @@ where
     type State = State<Ctx>;
     type Arguments = ();
 
+    #[tracing::instrument(
+        name = "consensus",
+        parent = &self.span,
+        skip_all,
+    )]
     async fn pre_start(
         &self,
         myself: ActorRef<Msg<Ctx>>,
         _args: (),
     ) -> Result<State<Ctx>, ActorProcessingErr> {
+        info!("Consensus is starting");
+
         self.network
             .cast(NetworkMsg::Subscribe(Box::new(myself.clone())))?;
 
@@ -1135,11 +1142,22 @@ where
         })
     }
 
+    #[tracing::instrument(
+        name = "consensus",
+        parent = &self.span,
+        skip_all,
+        fields(
+            height = %state.consensus.height(),
+            round = %state.consensus.round()
+        )
+    )]
     async fn post_start(
         &self,
         _myself: ActorRef<Msg<Ctx>>,
         state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
+        info!("Consensus has started");
+
         state.timers.cancel_all();
         Ok(())
     }
@@ -1150,7 +1168,8 @@ where
         skip_all,
         fields(
             height = %state.consensus.height(),
-            round = %state.consensus.round())
+            round = %state.consensus.round()
+        )
     )]
     async fn handle(
         &self,
@@ -1171,12 +1190,21 @@ where
         Ok(())
     }
 
+    #[tracing::instrument(
+        name = "consensus",
+        parent = &self.span,
+        skip_all,
+        fields(
+            height = %state.consensus.height(),
+            round = %state.consensus.round()
+        )
+    )]
     async fn post_stop(
         &self,
         _myself: ActorRef<Self::Msg>,
         state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
-        info!("Stopping...");
+        info!("Consensus has stopped");
         state.timers.cancel_all();
         Ok(())
     }
