@@ -9,7 +9,7 @@ use eyre::eyre;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
 use rand::SeedableRng;
 use tokio::task::JoinHandle;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, warn, Instrument};
 
 use malachitebft_codec as codec;
 use malachitebft_core_consensus::PeerId;
@@ -490,11 +490,12 @@ where
         self.gossip
             .cast(NetworkMsg::Subscribe(Box::new(myself.clone())))?;
 
-        let ticker = tokio::spawn(ticker(
-            self.params.status_update_interval,
-            myself.clone(),
-            || Msg::Tick,
-        ));
+        let ticker = tokio::spawn(
+            ticker(self.params.status_update_interval, myself.clone(), || {
+                Msg::Tick
+            })
+            .in_current_span(),
+        );
 
         let rng = Box::new(rand::rngs::StdRng::from_entropy());
 
