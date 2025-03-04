@@ -27,11 +27,11 @@ implement two main roles:
 - **Value Decision**: a single value, among the possibly multiple proposed
   values, must be decided.
 
-Usually, the most expensive, in terms of latency and bandwidth consumption,
-part of the algorithm is the **Value Propagation** one, as discussed in this
-[section](#value-propagation).
-The next [section](#tendermint) discusses how these roles are implemented by
-Tendermint; readers familiar with the algorithm may skip it.
+As discussed in the [Value Propagation](#value-propagation) section,
+this role tends to be the most expensive, in terms of latency and bandwidth
+consumption, of the algorithm.
+The [Tendermint](#tendermint) section discusses how these roles are implemented
+by Tendermint; readers familiar with the algorithm may skip it.
 
 ### Tendermint
 
@@ -80,6 +80,49 @@ number `vr < r`, which is only relevant during the `propose` round step.
 
 ### Value Propagation
 
+The propagation of proposed values in Tendermint happens in the first step, the
+`propose` step, of a consensus round.
+The `proposer` of the round selects a value `v` to propose and includes it in a
+`PROPOSAL` message that is send to every process.
+In the ordinary case, the proposed value is the input for the process,
+retrieved via the `getValue()` function ([pseudo-code][consensus-code] line 18).
+
+The propagation latency for the `PROPOSAL` message is directly associated to
+the byte size of the proposed value `v`.
+This is in contrast with the other consensus messages, `PREVOTE` and
+`PRECOMMIT`, that carry an `id(v)`, which is an identifier of a proposed value
+`v`, that is expected to be smaller than `v` and essentially of fixed byte
+size. As a result, the latency of the `prevote` and `precommit` round steps
+should be fairly constant.
+
+Thus, as proposed values `v` get larger, the `propose` step becomes the most
+expensive of a consensus round.
+It is therefore natural to devise strategies to render the implementation of
+the **Value Propagation** role more efficient.
+
+Here it is important to notice that the
+[High Level Architecture for Tendermint Consensus Implementation (ADR 001)][adr001]
+already enables distinct implementations for the broadcast of `PROPOSAL` messages,
+that propagate potentially _large_ (variable-size) proposed values `v`,
+and for vote messages (`PREVOTE` and `PRECOMMIT`),
+carrying _small_ (fixed-size) value identifiers `id(v)`:
+
+```rust
+/// Output of the round state machine.
+pub enum Output<Ctx>
+    where Ctx: Context,
+{
+    [...]
+
+    /// Broadcast the proposal.
+    Proposal(Ctx::Proposal),
+
+    /// Broadcast the vote.
+    Vote(Ctx::Vote),
+
+    [...]
+}
+```
 
 ## Decision
 
@@ -114,3 +157,4 @@ Proposed
 [consensus-code]: ../../specs/consensus/pseudo-code.md
 [consensus-proposals]: ../../specs/consensus/overview.md#proposals
 [consensus-votes]: ../../specs/consensus/overview.md#votes
+[adr001]: ./adr-001-architecture.md
