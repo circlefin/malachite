@@ -141,7 +141,7 @@ impl Node for StarknetNode {
     }
 
     async fn start(&self) -> eyre::Result<Handle> {
-        let span = tracing::error_span!("node", moniker = %self.config.moniker);
+        let span = tracing::error_span!("app", moniker = %self.config.moniker);
         let _enter = span.enter();
 
         let priv_key_file = self.load_private_key_file()?;
