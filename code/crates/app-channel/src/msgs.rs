@@ -38,12 +38,6 @@ pub enum AppMsg<Ctx: Context> {
     ConsensusReady {
         /// Channel for sending a [`ConsensusMsg::StartHeight`] message back to consensus
         reply: Reply<ConsensusMsg<Ctx>>,
-
-        /// Channel for sending back a previously received undecided value to consensus
-        /// TODO: AZ - doesn't seem to be the right place for this, also might need to replay values
-        /// from multiple rounds. Using StartedRound does not easily work as we don't have a reply channel
-        /// and neither a consensus actor ref handy.
-        reply_value: Reply<ConsensusMsg<Ctx>>,
     },
 
     /// Notifies the application that a new consensus round has begun.
@@ -54,6 +48,8 @@ pub enum AppMsg<Ctx: Context> {
         round: Round,
         /// Proposer for that round
         proposer: Ctx::Address,
+        /// Channel for sending back a previously received undecided value to consensus
+        reply_value: Reply<Option<ProposedValue<Ctx>>>,
     },
 
     /// Requests the application to build a value for consensus to run on.

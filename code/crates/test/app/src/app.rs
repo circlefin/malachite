@@ -6,7 +6,7 @@ use tracing::{error, info};
 
 use malachitebft_app_channel::app::streaming::StreamContent;
 use malachitebft_app_channel::app::types::codec::Codec;
-use malachitebft_app_channel::app::types::core::{Round, Validity, ValueOrigin};
+use malachitebft_app_channel::app::types::core::{Round, Validity};
 use malachitebft_app_channel::app::types::sync::RawDecidedValue;
 use malachitebft_app_channel::app::types::ProposedValue;
 use malachitebft_app_channel::{AppMsg, Channels, ConsensusMsg, NetworkMsg};
@@ -24,7 +24,7 @@ pub async fn run(
         match msg {
             // The first message to handle is the `ConsensusReady` message, signaling to the app
             // that Malachite is ready to start consensus
-            AppMsg::ConsensusReady { reply, reply_value } => {
+            AppMsg::ConsensusReady { reply } => {
                 let start_height = state
                     .store
                     .max_decided_value_height()
@@ -47,24 +47,6 @@ pub async fn run(
                 {
                     error!("Failed to send ConsensusReady reply");
                 }
-
-                // If we have already built or seen a value for this height and round,
-                // send it back to consensus. This may happen when we are restarting after a crash.
-                let round = Round::Some(0);
-                if let Some(proposal) = state
-                    .store
-                    .get_undecided_proposal(start_height, round)
-                    .await?
-                {
-                    info!(%start_height, %round, "Replaying already known proposed value {:?}", proposal.value.id());
-                    let reply_result = reply_value.send(ConsensusMsg::ReceivedProposedValue(
-                        proposal,
-                        ValueOrigin::Consensus,
-                    ));
-                    if reply_result.is_err() {
-                        error!("Failed to send undecided proposal");
-                    }
-                }
             }
 
             // The next message to handle is the `StartRound` message, signaling to the app
@@ -73,6 +55,7 @@ pub async fn run(
                 height,
                 round,
                 proposer,
+                reply_value,
             } => {
                 info!(%height, %round, %proposer, "Started round");
 
@@ -80,6 +63,18 @@ pub async fn run(
                 state.current_height = height;
                 state.current_round = round;
                 state.current_proposer = Some(proposer);
+
+                // If we have already built or seen a value for this height and round,
+                // send it back to consensus. This may happen when we are restarting after a crash.
+                if let Some(proposal) = state.store.get_undecided_proposal(height, round).await? {
+                    info!(%height, %round, "Replaying already known proposed value: {}", proposal.value.id());
+
+                    if reply_value.send(Some(proposal)).is_err() {
+                        error!("Failed to send undecided proposal");
+                    }
+                } else {
+                    let _ = reply_value.send(None);
+                }
             }
 
             // At some point, we may end up being the proposer for that round, and the engine

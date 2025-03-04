@@ -51,6 +51,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 height,
                 round,
                 proposer,
+                reply_value,
             } => {
                 info!(%height, %round, %proposer, "Started round");
 
@@ -58,6 +59,18 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 state.current_height = height;
                 state.current_round = round;
                 state.current_proposer = Some(proposer);
+
+                // If we have already built or seen a value for this height and round,
+                // send it back to consensus. This may happen when we are restarting after a crash.
+                if let Some(proposal) = state.store.get_undecided_proposal(height, round).await? {
+                    info!(%height, %round, "Replaying already known proposed value: {}", proposal.value.id());
+
+                    if reply_value.send(Some(proposal)).is_err() {
+                        error!("Failed to send undecided proposal");
+                    }
+                } else {
+                    let _ = reply_value.send(None);
+                }
             }
 
             // At some point, we may end up being the proposer for that round, and the engine
