@@ -8,6 +8,69 @@
 
 > This section contains all the context one needs to understand the current state, and why there is a problem. It should be as succinct as possible and introduce the high level idea behind the solution.
 
+Malachite implements a consensus algorithm, [Tendermint][consensus-spec],
+that receives as input, for each instance or height of consensus,
+a number of proposed values and should output a single decided value,
+among the proposed ones.
+
+There is no assumptions regarding what a **value** is or represents:
+its semantics is defined by whatever software uses consensus to propose and
+decide values, which from now on we generically refer to as the *application*.
+For example, blockchain applications provide as input to consensus blocks to be
+appended to the blockchain.
+
+This ADR is motivated by the fact that a consensus algorithm should actually
+implement two main roles:
+
+- **Value Propagation**: proposed values should be transmitted to all consensus
+  processes;
+- **Value Decision**: a single value, among the possibly multiple proposed
+  values, must be decided.
+
+As most abstract consensus algorithms, Tendermint implements both the Value
+Propagation and Value Decision roles.
+But the analysis of its [pseudo-code][consensus-code] reveals that there is
+already an abstract distinction between the two roles.
+More specifically, Tendermint is organized into heights and rounds; each round
+has three round steps (`propose`, `prevote`, and `precommit`), each of which
+having an associated message type:
+
+- `PROPOSAL` messages carry a proposed value `v` and its main role is of
+  **Value Propagation**.
+  They are referred to as [**proposals**][consensus-proposals] and are
+  broadcast by the `proposer` of a round in the `propose` round step;
+- `PREVOTE` and `PRECOMMIT` messages carry an identifier `id(v)` of a proposed
+  value `v`, or the special value `nil` meaning "no value", and play the role
+  of **Value Decision**.
+  They are referred to as [**votes**][consensus-votes], and are broadcast by
+  all processes, respectively, in the `prevote` and `precommit` round steps.
+
+Note that `PROPOSAL` messages have also a role on **Value Decision**, as they
+carry consensus-related fields that are validated by processes and have
+implications in the algorithm.
+The point is that they are the only messages with **Value Dissemination** role,
+so that the `propose` round step is where the dissemination of values takes
+place.
+
+A second remark is that if a vote issued by a process carries `id(v)`, then the
+process must have received `v` as part of a `PROPOSAL` message.
+In other words, the **Value Decision** stage of a round can only succeed in
+deciding a value if the associated **Value Propagation** stage has also been
+successful in delivering the proposed value `v`.
+
+In fact, every state-transition predicate in the [pseudo-code][consensus-code]
+that may lead to a successful round of consensus, i.e. to the decision of a
+value `v`, requires the **Value Propagation** stage to be successful, that is,
+has the condition:
+
+```
+XX: upon ⟨PROPOSAL, h_p, r, v, vr⟩ from proposer(h_p, r)
+```
+
+where `h_p` is current height of consensus process `p`, `r` is a round
+(typically `p`'s current round `round_p`), and `vr` is a previous valid round
+number `vr < r`, which is only relevant during the `propose` round step.
+
 ## Decision
 
 > This section explains all of the details of the proposed solution, including implementation details.
@@ -35,4 +98,9 @@ Proposed
 
 > Are there any relevant PR comments, issues that led up to this, or articles referenced for why we made the given design choice? If so link them here!
 
-* {reference link}
+* [Tendermint consensus specification][consensus-spec] and [pseudo-code][consensus-code]
+
+[consensus-spec]: ../../specs/consensus/README.md
+[consensus-code]: ../../specs/consensus/pseudo-code.md
+[consensus-proposals]: ../../specs/consensus/overview.md#proposals
+[consensus-votes]: ../../specs/consensus/overview.md#votes
