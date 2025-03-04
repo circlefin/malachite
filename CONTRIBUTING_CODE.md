@@ -42,6 +42,8 @@ To build and test Malachite, you need the following tools:
 
 2. **Install the Protocol Buffers Compiler**:
 
+   `protoc` is needed for compiling Protobuf definitions used in the test applications to Rust code.
+
    For Ubuntu/Debian:
 
    ```bash
@@ -85,6 +87,10 @@ To build and test Malachite, you need the following tools:
    git clone https://github.com/USERNAME/malachite.git
    cd malachite/code
    ```
+
+   > [!NOTE]
+   > If you do not intend to contribute code and just want to play around with the codebase,
+   > you can just clone the repository directly: `git clone https://github.com/informalsystems/malachite.git`
 
 ## Building the Project
 
