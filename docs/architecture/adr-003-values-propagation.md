@@ -2,7 +2,7 @@
 
 ## Changelog
 
-* 2025-03-04: First draft
+* 2025-03-04: Context and proposed values propagation Alternatives
 
 ## Context
 
@@ -90,10 +90,10 @@ retrieved via the `getValue()` function ([pseudo-code][consensus-code] line 18).
 The propagation latency for the `PROPOSAL` message is directly associated to
 the byte size of the proposed value `v`.
 This is in contrast with the other consensus messages, `PREVOTE` and
-`PRECOMMIT`, that carry an `id(v)`, which is an identifier of a proposed value
-`v`, that is expected to be smaller than `v` and essentially of fixed byte
-size. As a result, the latency of the `prevote` and `precommit` round steps
-should be fairly constant.
+`PRECOMMIT`, that carry an identifier `id(v)` of a proposed value `v`,
+that is expected to be smaller than `v` and essentially fixed size.
+As a result, the latency of the `prevote` and `precommit` round steps should be
+fairly constant.
 
 Thus, as proposed values `v` get larger, the `propose` step becomes the most
 expensive of a consensus round.
@@ -102,9 +102,11 @@ the **Value Propagation** role more efficient.
 
 Here it is important to notice that the
 [High Level Architecture for Tendermint Consensus Implementation (ADR 001)][adr001]
-already enables distinct implementations for the broadcast of `PROPOSAL` messages,
+already enables the use of distinct protocols
+for the broadcast of [proposals][consensus-proposals] or `PROPOSAL` messages,
 that propagate potentially _large_ (variable-size) proposed values `v`,
-and for vote messages (`PREVOTE` and `PRECOMMIT`),
+and for the broadcast of [votes][consensus-votes],
+the generic name for `PREVOTE` and `PRECOMMIT` messages,
 carrying _small_ (fixed-size) value identifiers `id(v)`:
 
 ```rust
@@ -112,17 +114,69 @@ carrying _small_ (fixed-size) value identifiers `id(v)`:
 pub enum Output<Ctx>
     where Ctx: Context,
 {
-    [...]
+    // Several fields ommitted
 
     /// Broadcast the proposal.
     Proposal(Ctx::Proposal),
 
     /// Broadcast the vote.
     Vote(Ctx::Vote),
-
-    [...]
 }
 ```
+
+In the same [ADR 001][adr001], are defined the corresponding inputs to the
+consensus state-machine implementation.
+The `ProposeValue` input provides the proposed value `v` for a round,
+namely the return of the `getValue()` function.
+The `Proposal` input represents the reception of a proposal,
+carrying  a proposed value `v`.
+And the `Vote` input represents the reception of a vote,
+carrying an identifier `id(v)` of a proposed value `v`
+(or the special value `nil`, meaning "no value"):
+
+```rust
+pub enum Input<Ctx>
+    where Ctx: Context,
+{
+    // Several fields ommitted
+
+    /// Propose a value for the given round
+    ProposeValue(Round, Ctx::Value),
+
+    /// Receive a proposal, of the given validity
+    Proposal(Ctx::Proposal, Validity),
+
+    /// Receive a vote
+    Vote(Vote<Ctx>),
+}
+```
+
+The issues that this ADR is meant to address are mainly two:
+
+1. The fact that [ADR 001][adr001] is not any longer in line with the implementation;
+2. The ways that applications, given Malachite consensus' interface, handle the
+   propagation of proposed values.
+
+The [Alternatives](#alternatives) section below overviews and discusses some
+approaches to handle **Value Propagation** efficiently.
+
+## Alternatives
+
+This section presents a (possibly not comprehensive) list of approaches to
+handle **Value Propagation** for consensus protocols in general, and for
+Tendermint in particular, discussing the pros and cons of each of them.
+
+### Consensus by Value
+
+In this approach, the consensus implementation play both the
+**Value Propagation** and **Value Decision** roles.
+
+
+### Consensus by Reference
+
+In this approach, the consensus implementation plays only the
+**Value Decision** role.
+The application is responsible for implementing the **Value Propagation** role.
 
 ## Decision
 
