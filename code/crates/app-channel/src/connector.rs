@@ -67,10 +67,10 @@ where
         match msg {
             HostMsg::ConsensusReady(consensus_ref) => {
                 let (reply, rx) = oneshot::channel();
-
                 self.sender.send(AppMsg::ConsensusReady { reply }).await?;
 
-                consensus_ref.cast(rx.await?.into())?;
+                let (start_height, validator_set) = rx.await?;
+                consensus_ref.cast(ConsensusMsg::StartHeight(start_height, validator_set))?;
 
                 state.consensus = Some(consensus_ref);
             }

@@ -39,10 +39,7 @@ pub async fn run(
                 // We can simply respond by telling the engine to start consensus
                 // at the next height, and provide it with the genesis validator set
                 if reply
-                    .send(ConsensusMsg::StartHeight(
-                        start_height,
-                        genesis.validator_set.clone(),
-                    ))
+                    .send((start_height, genesis.validator_set.clone()))
                     .is_err()
                 {
                     error!("Failed to send ConsensusReady reply");

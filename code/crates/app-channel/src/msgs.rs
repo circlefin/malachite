@@ -36,8 +36,9 @@ pub enum AppMsg<Ctx: Context> {
     /// The application MAY reply with a message to instruct
     /// consensus to start at a given height.
     ConsensusReady {
-        /// Channel for sending a [`ConsensusMsg::StartHeight`] message back to consensus
-        reply: Reply<ConsensusMsg<Ctx>>,
+        /// Channel for sending back the height to start at
+        /// and the validator set for that height
+        reply: Reply<(Ctx::Height, Ctx::ValidatorSet)>,
     },
 
     /// Notifies the application that a new consensus round has begun.
