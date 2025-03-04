@@ -88,9 +88,9 @@ To build and test Malachite, you need the following tools:
    cd malachite/code
    ```
 
-   > [!NOTE]
-   > If you do not intend to contribute code and just want to play around with the codebase,
-   > you can just clone the repository directly: `git clone https://github.com/informalsystems/malachite.git`
+> [!NOTE]
+> If you do not intend to contribute code and just want to play around with the codebase,
+> you can just clone the repository directly: `git clone https://github.com/informalsystems/malachite.git`
 
 ## Building the Project
 
