@@ -27,12 +27,19 @@ implement two main roles:
 - **Value Decision**: a single value, among the possibly multiple proposed
   values, must be decided.
 
-As most abstract consensus algorithms, Tendermint implements both the Value
-Propagation and Value Decision roles.
-But the analysis of its [pseudo-code][consensus-code] reveals that there is
-already an abstract distinction between the two roles.
+Usually, the most expensive, in terms of latency and bandwidth consumption,
+part of the algorithm is the **Value Propagation** one, as discussed in this
+[section](#value-propagation).
+The next [section](#tendermint) discusses how these roles are implemented by
+Tendermint; readers familiar with the algorithm may skip it.
+
+### Tendermint
+
+Tendermint implements both the **Value Propagation** and **Value Decision** roles.
+Its [pseudo-code][consensus-code], however, reveals that there is already an
+abstract distinction between the two roles.
 More specifically, Tendermint is organized into heights and rounds; each round
-has three round steps (`propose`, `prevote`, and `precommit`), each of which
+has three round steps (`propose`, `prevote`, and `precommit`), each round step
 having an associated message type:
 
 - `PROPOSAL` messages carry a proposed value `v` and its main role is of
@@ -53,15 +60,15 @@ so that the `propose` round step is where the dissemination of values takes
 place.
 
 A second remark is that if a vote issued by a process carries `id(v)`, then the
-process must have received `v` as part of a `PROPOSAL` message.
+process must have received a `PROPOSAL` message carrying value `v`.
 In other words, the **Value Decision** stage of a round can only succeed in
-deciding a value if the associated **Value Propagation** stage has also been
-successful in delivering the proposed value `v`.
+deciding a value `v` if the associated **Value Propagation** stage has also
+been successful in delivering the proposed value `v` to all (correct) processes.
 
 In fact, every state-transition predicate in the [pseudo-code][consensus-code]
 that may lead to a successful round of consensus, i.e. to the decision of a
-value `v`, requires the **Value Propagation** stage to be successful, that is,
-has the condition:
+value `v`, requires the **Value Propagation** stage to have been successful,
+that is, includes the condition:
 
 ```
 XX: upon ⟨PROPOSAL, h_p, r, v, vr⟩ from proposer(h_p, r)
@@ -70,6 +77,9 @@ XX: upon ⟨PROPOSAL, h_p, r, v, vr⟩ from proposer(h_p, r)
 where `h_p` is current height of consensus process `p`, `r` is a round
 (typically `p`'s current round `round_p`), and `vr` is a previous valid round
 number `vr < r`, which is only relevant during the `propose` round step.
+
+### Value Propagation
+
 
 ## Decision
 
@@ -98,7 +108,7 @@ Proposed
 
 > Are there any relevant PR comments, issues that led up to this, or articles referenced for why we made the given design choice? If so link them here!
 
-* [Tendermint consensus specification][consensus-spec] and [pseudo-code][consensus-code]
+* [Tendermint consensus specification][consensus-spec]
 
 [consensus-spec]: ../../specs/consensus/README.md
 [consensus-code]: ../../specs/consensus/pseudo-code.md
