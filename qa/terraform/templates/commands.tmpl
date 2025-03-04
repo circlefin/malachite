@@ -296,16 +296,18 @@ _change_config() {
     file="/data/$i/config/config.toml"
     sconfig "$file" \
       "moniker=test-$i" \
-      "consensus.p2p.listen_addr=/ip4/0.0.0.0/udp/27000/quic-v1" \
-      "consensus.p2p.transport=quic" \
-      "mempool.p2p.listen_addr=/ip4/0.0.0.0/udp/28000/quic-v1" \
-      "mempool.p2p.transport=quic" \
+      "consensus.p2p.listen_addr=/ip4/0.0.0.0/tcp/27000" \
+      "consensus.p2p.transport=tcp" \
+      "consensus.p2p.discovery.enabled=true" \
+      "mempool.p2p.listen_addr=/ip4/0.0.0.0/tcp/28000" \
+      "mempool.p2p.transport=tcp" \
+      "mempool.p2p.discovery.enabled=true" \
       "metrics.listen_addr=0.0.0.0:9000" \
-      "runtime.flavor=multi_threaded" \
+      "runtime.flavor=single_threaded" \
       "logging.log_format=json" && \
     sconfig "$file" -t stringSlice \
-      "consensus.p2p.persistent_peers=$(_compose_persistent_peers $i 27000 quic)" \
-      "mempool.p2p.persistent_peers=$(_compose_persistent_peers $i 28000 quic)" && \
+      "consensus.p2p.persistent_peers=$(_compose_persistent_peers $i 27000 tcp)" \
+      "mempool.p2p.persistent_peers=$(_compose_persistent_peers $i 28000 tcp)" && \
     sconfig "$file" -t int \
       "runtime.worker_threads=0"
   done
