@@ -6,7 +6,7 @@ use derive_where::derive_where;
 use eyre::eyre;
 use libp2p::identity::Keypair;
 use libp2p::request_response;
-use ractor::port::OutputPortSubscriber;
+use ractor::port::OutputPortSubscriberTrait;
 use ractor::{Actor, ActorProcessingErr, ActorRef, OutputPort, RpcReplyPort};
 use tokio::task::JoinHandle;
 use tracing::{error, trace};
@@ -28,6 +28,25 @@ use crate::util::streaming::StreamMessage;
 
 pub type NetworkRef<Ctx> = ActorRef<Msg<Ctx>>;
 pub type NetworkMsg<Ctx> = Msg<Ctx>;
+
+pub trait Subscriber<Msg>: OutputPortSubscriberTrait<Msg>
+where
+    Msg: Clone + ractor::Message,
+{
+    fn send(&self, msg: Msg);
+}
+
+impl<Msg, To> Subscriber<Msg> for ActorRef<To>
+where
+    Msg: Clone + ractor::Message,
+    To: From<Msg> + ractor::Message,
+{
+    fn send(&self, msg: Msg) {
+        if let Err(e) = self.cast(To::from(msg)) {
+            error!("Failed to send message to subscriber: {e:?}");
+        }
+    }
+}
 
 pub struct Network<Ctx, Codec> {
     codec: Codec,
@@ -96,6 +115,7 @@ pub enum NetworkEvent<Ctx: Context> {
 pub enum State<Ctx: Context> {
     Stopped,
     Running {
+        listen_addrs: Vec<Multiaddr>,
         peers: BTreeSet<PeerId>,
         output_port: OutputPort<NetworkEvent<Ctx>>,
         ctrl_handle: CtrlHandle,
@@ -121,7 +141,7 @@ impl<Ctx: Context> Status<Ctx> {
 
 pub enum Msg<Ctx: Context> {
     /// Subscribe this actor to receive gossip events
-    Subscribe(OutputPortSubscriber<NetworkEvent<Ctx>>),
+    Subscribe(Box<dyn Subscriber<NetworkEvent<Ctx>>>),
 
     /// Publish a signed consensus message
     Publish(SignedConsensusMsg<Ctx>),
@@ -181,6 +201,7 @@ where
         });
 
         Ok(State::Running {
+            listen_addrs: Vec::new(),
             peers: BTreeSet::new(),
             output_port: OutputPort::default(),
             ctrl_handle,
@@ -205,6 +226,7 @@ where
         state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
         let State::Running {
+            listen_addrs,
             peers,
             output_port,
             ctrl_handle,
@@ -216,7 +238,17 @@ where
         };
 
         match msg {
-            Msg::Subscribe(subscriber) => subscriber.subscribe_to_port(output_port),
+            Msg::Subscribe(subscriber) => {
+                for addr in listen_addrs.iter() {
+                    subscriber.send(NetworkEvent::Listening(addr.clone()));
+                }
+
+                for peer in peers.iter() {
+                    subscriber.send(NetworkEvent::PeerConnected(*peer));
+                }
+
+                subscriber.subscribe_to_port(output_port);
+            }
 
             Msg::Publish(msg) => match self.codec.encode(&msg) {
                 Ok(data) => ctrl_handle.publish(Channel::Consensus, data).await?,
@@ -282,6 +314,7 @@ where
             }
 
             Msg::NewEvent(Event::Listening(addr)) => {
+                listen_addrs.push(addr.clone());
                 output_port.send(NetworkEvent::Listening(addr));
             }
 
