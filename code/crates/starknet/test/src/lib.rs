@@ -9,7 +9,7 @@ use malachitebft_starknet_host::config::Config;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use malachitebft_starknet_host::node::{Handle, StarknetNode};
+use malachitebft_starknet_host::node::{ConfigSource, Handle, StarknetNode};
 use malachitebft_starknet_host::types::{Height, MockContext, PrivateKey, Validator, ValidatorSet};
 use malachitebft_test_framework::HasTestRunner;
 use malachitebft_test_framework::{NodeRunner, TestNode};
@@ -90,8 +90,8 @@ impl NodeRunner<MockContext> for TestRunner {
         let home_dir = &self.home_dir[&id].clone();
 
         let app = StarknetNode {
-            config: self.generate_config(id),
             home_dir: home_dir.clone(),
+            config_source: ConfigSource::Value(Box::new(self.generate_config(id))),
             start_height: Some(self.start_height[&id].as_u64()),
         };
 

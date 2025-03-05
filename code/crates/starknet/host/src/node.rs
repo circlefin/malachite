@@ -66,25 +66,26 @@ impl NodeHandle<MockContext> for Handle {
 }
 
 #[derive(Clone, Debug)]
+pub enum ConfigSource {
+    File(PathBuf),
+    Value(Box<Config>),
+    Default,
+}
+
+#[derive(Clone, Debug)]
 pub struct StarknetNode {
     pub home_dir: PathBuf,
-    pub config: Config,
+    pub config_source: ConfigSource,
     pub start_height: Option<u64>,
 }
 
 impl StarknetNode {
-    pub fn new(
-        home_dir: PathBuf,
-        config_file: PathBuf,
-        start_height: Option<u64>,
-    ) -> eyre::Result<Self> {
-        let config = load_config(&config_file, Some("MALACHITE"))?;
-
-        Ok(Self {
+    pub fn new(home_dir: PathBuf, config_source: ConfigSource, start_height: Option<u64>) -> Self {
+        Self {
             home_dir,
-            config,
+            config_source,
             start_height,
-        })
+        }
     }
 
     pub fn genesis_file(&self) -> PathBuf {
@@ -110,7 +111,11 @@ impl Node for StarknetNode {
     }
 
     fn load_config(&self) -> eyre::Result<Self::Config> {
-        Ok(self.config.clone())
+        match self.config_source {
+            ConfigSource::File(ref path) => load_config(path, Some("MALACHITE")),
+            ConfigSource::Value(ref config) => Ok(*config.clone()),
+            ConfigSource::Default => Ok(default_config()),
+        }
     }
 
     fn get_address(&self, pk: &PublicKey) -> Address {
@@ -413,7 +418,6 @@ fn make_distributed_config(
     }
 }
 
-#[cfg(test)]
 fn default_config() -> Config {
     use malachitebft_config::{DiscoveryConfig, RuntimeConfig, TransportProtocol};
 
@@ -443,11 +447,7 @@ fn test_starknet_node() {
     std::fs::create_dir_all(temp_path.join("config")).unwrap();
 
     // Create default configuration
-    let node = StarknetNode {
-        home_dir: temp_path.clone(),
-        config: default_config(),
-        start_height: Some(1),
-    };
+    let node = StarknetNode::new(temp_path.clone(), ConfigSource::Default, Some(1));
 
     // Create configuration files
     use malachitebft_test_cli::*;

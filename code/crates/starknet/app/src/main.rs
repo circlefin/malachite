@@ -1,11 +1,8 @@
-use std::time::Duration;
-
 use color_eyre::eyre::Context;
 
-use malachitebft_app::node::{MakeConfigSettings, Node};
+use malachitebft_app::node::Node;
 use malachitebft_config::{LogFormat, LogLevel};
-use malachitebft_starknet_host::config::Config;
-use malachitebft_starknet_host::node::StarknetNode;
+use malachitebft_starknet_host::node::{ConfigSource, StarknetNode};
 use malachitebft_test_cli::args::{Args, Commands};
 use malachitebft_test_cli::{logging, runtime};
 
@@ -26,7 +23,9 @@ pub fn main() -> color_eyre::Result<()> {
     match &args.command {
         Commands::Start(cmd) => {
             // Redefine the node with the valid configuration.
-            let node = StarknetNode::new(home_dir, config_file, cmd.start_height)?;
+            let node =
+                StarknetNode::new(home_dir, ConfigSource::File(config_file), cmd.start_height);
+
             let config = node.load_config()?;
 
             // This is a drop guard responsible for flushing any remaining logs when the program terminates.
@@ -44,11 +43,7 @@ pub fn main() -> color_eyre::Result<()> {
         Commands::Init(cmd) => {
             let _guard = logging::init(LogLevel::Info, LogFormat::Plaintext);
 
-            let node = &StarknetNode {
-                home_dir: home_dir.clone(),
-                config: default_config(),
-                start_height: None,
-            };
+            let node = &StarknetNode::new(home_dir.clone(), ConfigSource::Default, None);
 
             cmd.run(
                 node,
@@ -64,7 +59,7 @@ pub fn main() -> color_eyre::Result<()> {
 
             let node = &StarknetNode {
                 home_dir: home_dir.clone(),
-                config: default_config(),
+                config_source: ConfigSource::Default,
                 start_height: None,
             };
 
@@ -77,7 +72,7 @@ pub fn main() -> color_eyre::Result<()> {
 
             let node = &StarknetNode {
                 home_dir: home_dir.clone(),
-                config: default_config(),
+                config_source: ConfigSource::Default,
                 start_height: None,
             };
 
@@ -85,26 +80,6 @@ pub fn main() -> color_eyre::Result<()> {
                 .wrap_err("Failed to run `distributed-testnet` command")
         }
     }
-}
-
-fn default_config() -> Config {
-    use malachitebft_app::node::CanMakeConfig;
-    use malachitebft_config::*;
-
-    let settings = MakeConfigSettings {
-        runtime: RuntimeConfig::SingleThreaded,
-        transport: TransportProtocol::Tcp,
-        discovery: DiscoveryConfig {
-            enabled: true,
-            bootstrap_protocol: BootstrapProtocol::Kademlia,
-            selector: Selector::Random,
-            num_outbound_peers: 6,
-            num_inbound_peers: 4,
-            ephemeral_connection_timeout: Duration::from_millis(100),
-        },
-    };
-
-    StarknetNode::make_config(1, 3, settings)
 }
 
 #[cfg(test)]
@@ -116,11 +91,9 @@ mod tests {
     use color_eyre::eyre;
     use color_eyre::eyre::eyre;
 
-    use malachitebft_starknet_host::node::StarknetNode;
+    use malachitebft_starknet_host::node::{ConfigSource, StarknetNode};
     use malachitebft_test_cli::args::{Args, Commands};
     use malachitebft_test_cli::cmd::init::*;
-
-    use super::default_config;
 
     #[test]
     fn running_init_creates_config_files() -> eyre::Result<()> {
@@ -132,7 +105,7 @@ mod tests {
 
         let node = &StarknetNode {
             home_dir: tmp.path().to_owned(),
-            config: default_config(),
+            config_source: ConfigSource::Default,
             start_height: None,
         };
 
@@ -175,7 +148,7 @@ mod tests {
 
         let node = &StarknetNode {
             home_dir: tmp.path().to_owned(),
-            config: default_config(),
+            config_source: ConfigSource::Default,
             start_height: None,
         };
 
