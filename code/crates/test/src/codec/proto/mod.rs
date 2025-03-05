@@ -301,9 +301,10 @@ pub fn decode_sync_response(
                 round,
                 decode_vote_set(vote_set)?,
                 vote_set_response
-                    .polka_certificate
+                    .polka_certificates
+                    .into_iter()
                     .map(decode_polka_certificate)
-                    .transpose()?,
+                    .collect::<Result<Vec<_>, _>>()?,
             ))
         }
     };
@@ -335,11 +336,11 @@ pub fn encode_sync_response(
                         .as_u32()
                         .expect("round should not be nil"),
                     vote_set: Some(encode_vote_set(&vote_set_response.vote_set)?),
-                    polka_certificate: vote_set_response
-                        .polka_certificate
-                        .as_ref()
+                    polka_certificates: vote_set_response
+                        .polka_certificates
+                        .iter()
                         .map(encode_polka_certificate)
-                        .transpose()?,
+                        .collect::<Result<Vec<_>, _>>()?,
                 },
             )),
         },

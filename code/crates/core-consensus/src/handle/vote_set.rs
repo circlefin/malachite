@@ -38,7 +38,7 @@ pub async fn on_vote_set_response<Ctx>(
     state: &mut State<Ctx>,
     metrics: &Metrics,
     vote_set: VoteSet<Ctx>,
-    polka_certificate: Option<PolkaCertificate<Ctx>>,
+    polka_certificates: Vec<PolkaCertificate<Ctx>>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
@@ -46,22 +46,22 @@ where
     debug!(
         height = %state.height(), round = %state.round(),
         votes.count = %vote_set.len(),
-        polka.certificate = %polka_certificate.is_some(),
+        polka_certificates.count = %polka_certificates.len(),
         "Received vote set response"
     );
 
-    if let Some(certificate) = polka_certificate {
+    for polka_certificate in polka_certificates {
         apply_driver_input(
             co,
             state,
             metrics,
-            DriverInput::PolkaCertificate(certificate),
+            DriverInput::PolkaCertificate(polka_certificate),
         )
         .await?;
-    } else {
-        for vote in vote_set.votes {
-            on_vote(co, state, metrics, vote).await?;
-        }
+    }
+
+    for vote in vote_set.votes {
+        on_vote(co, state, metrics, vote).await?;
     }
 
     Ok(())

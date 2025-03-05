@@ -40,6 +40,6 @@ where
     /// Peer needs vote set
     VoteSetRequest(RequestId, Ctx::Height, Round),
 
-    /// Vote set to be sent to peer
-    VoteSetResponse(VoteSet<Ctx>, Option<PolkaCertificate<Ctx>>),
+    /// Vote set response to be sent to peer
+    VoteSetResponse(VoteSet<Ctx>, Vec<PolkaCertificate<Ctx>>),
 }

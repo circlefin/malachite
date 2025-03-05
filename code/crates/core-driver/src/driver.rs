@@ -214,12 +214,9 @@ where
             .find(|c| c.round == round && c.value_id == value_id)
     }
 
-    /// Get a polka certificate for the given round.
-    pub fn get_polka_certificate(&self, round: Round) -> Option<&PolkaCertificate<Ctx>> {
-        self.polka_certificates
-            .iter()
-            .filter(|c| c.round <= round)
-            .last()
+    /// Get all polka certificates
+    pub fn polka_certificates(&self) -> &[PolkaCertificate<Ctx>] {
+        &self.polka_certificates
     }
 
     /// Store the last vote that we have cast

@@ -128,8 +128,8 @@ pub struct VoteSetResponse<Ctx: Context> {
     pub round: Round,
     /// The set of votes at this height and round
     pub vote_set: VoteSet<Ctx>,
-    /// A certificate witnessing a Polka at this height and round (if any)
-    pub polka_certificate: Option<PolkaCertificate<Ctx>>,
+    /// Certificates witnessing a Polka at this height for any round up to this round included
+    pub polka_certificates: Vec<PolkaCertificate<Ctx>>,
 }
 
 impl<Ctx: Context> VoteSetResponse<Ctx> {
@@ -137,13 +137,13 @@ impl<Ctx: Context> VoteSetResponse<Ctx> {
         height: Ctx::Height,
         round: Round,
         vote_set: VoteSet<Ctx>,
-        polka_certificate: Option<PolkaCertificate<Ctx>>,
+        polka_certificates: Vec<PolkaCertificate<Ctx>>,
     ) -> Self {
         Self {
             height,
             round,
             vote_set,
-            polka_certificate,
+            polka_certificates,
         }
     }
 }

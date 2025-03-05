@@ -146,7 +146,7 @@ where
         &mut self,
         height: Ctx::Height,
         round: Round,
-    ) -> Option<(Vec<SignedVote<Ctx>>, Option<PolkaCertificate<Ctx>>)> {
+    ) -> Option<(Vec<SignedVote<Ctx>>, Vec<PolkaCertificate<Ctx>>)> {
         assert!(round.is_defined());
 
         if height != self.driver.height() {
@@ -161,15 +161,16 @@ where
             .cloned()
             .collect::<Vec<_>>();
 
-        let upper_round = round.as_u32().unwrap_or(0);
+        // Gather polka certificates for all rounds up to `round` included
+        let certificates = self
+            .driver
+            .polka_certificates()
+            .iter()
+            .filter(|c| c.round <= round && c.height == height)
+            .cloned()
+            .collect::<Vec<_>>();
 
-        for r in (0..=upper_round).rev() {
-            if let Some(certificate) = self.driver.get_polka_certificate(Round::new(r)).cloned() {
-                return Some((votes, Some(certificate)));
-            }
-        }
-
-        Some((votes, None))
+        Some((votes, certificates))
     }
 
     pub fn full_proposal_at_round_and_value(

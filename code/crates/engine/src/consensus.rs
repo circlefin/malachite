@@ -460,7 +460,7 @@ where
                             height,
                             round,
                             vote_set,
-                            polka_certificate,
+                            polka_certificates,
                         }),
                     ) => {
                         if vote_set.votes.is_empty() {
@@ -474,7 +474,7 @@ where
                             .process_input(
                                 &myself,
                                 state,
-                                ConsensusInput::VoteSetResponse(vote_set, polka_certificate),
+                                ConsensusInput::VoteSetResponse(vote_set, polka_certificates),
                             )
                             .await
                         {
@@ -1066,7 +1066,7 @@ where
                 height,
                 round,
                 vote_set,
-                polka_certificate,
+                polka_certificates,
                 r,
             ) => {
                 let Some(sync) = self.sync.as_ref() else {
@@ -1075,13 +1075,13 @@ where
                 };
 
                 let vote_count = vote_set.len();
-                let with_polka = polka_certificate.is_some();
+                let polka_certificates_count = polka_certificates.len();
 
                 let response = Response::VoteSetResponse(VoteSetResponse::new(
                     height,
                     round,
                     vote_set,
-                    polka_certificate,
+                    polka_certificates,
                 ));
 
                 let request_id = InboundRequestId::new(request_id_str);
@@ -1099,8 +1099,9 @@ where
                         eyre!("Error when notifying Sync about vote set response: {e:?}")
                     })?;
 
-                self.tx_event
-                    .send(|| Event::SentVoteSetResponse(height, round, vote_count, with_polka));
+                self.tx_event.send(|| {
+                    Event::SentVoteSetResponse(height, round, vote_count, polka_certificates_count)
+                });
 
                 Ok(r.resume_with(()))
             }

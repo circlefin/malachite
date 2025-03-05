@@ -87,7 +87,7 @@ message VoteSetResponse {
   uint64 block_number = 2;
   uint32 round = 3;
   VoteSet vote_set = 4;
-  optional PolkaCertificate polka_certificate = 5;
+  repeated PolkaCertificate polka_certificates = 5;
 }
 
 message VoteSet {

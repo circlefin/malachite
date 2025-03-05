@@ -70,7 +70,7 @@ message VoteSetResponse {
   uint64 height = 1;
   uint32 round = 2;
   VoteSet vote_set = 3;
-  optional PolkaCertificate polka_certificate = 5;
+  repeated PolkaCertificate polka_certificates = 5;
 }
 
 message VoteSet {
