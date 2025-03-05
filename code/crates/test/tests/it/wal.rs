@@ -291,7 +291,7 @@ async fn byzantine_proposer_crashes_after_proposing_1(params: TestParams) {
             TestParams {
                 enable_value_sync: true,
                 timeout_step: Duration::from_secs(5),
-                value_payload: ValuePayload::ProposalAndParts,
+                value_payload: ValuePayload::PartsOnly,
                 ..params
             },
         )
@@ -398,7 +398,7 @@ async fn byzantine_proposer_crashes_after_proposing_2(params: TestParams) {
             Duration::from_secs(90),
             TestParams {
                 timeout_step: Duration::from_secs(5),
-                value_payload: ValuePayload::ProposalAndParts,
+                value_payload: ValuePayload::PartsOnly,
                 ..params
             },
         )
