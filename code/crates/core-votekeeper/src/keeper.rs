@@ -195,6 +195,11 @@ where
         self.per_round.len()
     }
 
+    /// Return the highest round we have seen votes for so far.
+    pub fn max_round(&self) -> Round {
+        self.per_round.keys().max().copied().unwrap_or(Round::Nil)
+    }
+
     /// Return the evidence of equivocation.
     pub fn evidence(&self) -> &EvidenceMap<Ctx> {
         &self.evidence

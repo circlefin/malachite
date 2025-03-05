@@ -153,13 +153,13 @@ where
             return None;
         }
 
-        // TODO: optimization - get votes for all rounds higher than or equal to `round`
-        let per_round = self.driver.votes().per_round(round)?;
-        let votes = per_round
-            .received_votes()
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>();
+        let mut votes = Vec::new();
+
+        let upper_round = self.driver.votes().max_round();
+        for r in round_range_inclusive(round, upper_round) {
+            let per_round = self.driver.votes().per_round(r)?;
+            votes.extend(per_round.received_votes().iter().cloned());
+        }
 
         // Gather polka certificates for all rounds up to `round` included
         let certificates = self
@@ -261,4 +261,16 @@ where
             .get_by_address(self.address())
             .is_some()
     }
+}
+
+fn round_range_inclusive(from: Round, to: Round) -> Box<dyn Iterator<Item = Round>> {
+    if !from.is_defined() || !to.is_defined() || from > to {
+        return Box::new(std::iter::empty());
+    }
+
+    if from == to {
+        return Box::new(std::iter::once(from));
+    }
+
+    Box::new((from.as_u32().unwrap_or(0)..=to.as_u32().unwrap_or(0)).map(Round::new))
 }
