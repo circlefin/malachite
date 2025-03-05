@@ -1,7 +1,9 @@
 use std::time::Duration;
 
 use bytesize::ByteSize;
-use malachitebft_config::{Config, PubSubProtocol, ValuePayload, VoteSyncMode};
+
+use malachitebft_config::{PubSubProtocol, ValuePayload, VoteSyncMode};
+use malachitebft_test_app::config::Config;
 
 #[derive(Copy, Clone, Debug)]
 pub struct TestParams {
@@ -39,7 +41,7 @@ impl TestParams {
         config.value_sync.enabled = self.enable_value_sync;
         config.consensus.p2p.protocol = self.protocol;
         config.consensus.timeouts.timeout_step = self.timeout_step;
-        config.test.value_payload = self.value_payload;
+        config.consensus.value_payload = self.value_payload;
         config.test.max_block_size = self.block_size;
         config.test.tx_size = self.tx_size;
         config.test.txs_per_part = self.txs_per_part;

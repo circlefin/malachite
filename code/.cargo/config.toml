@@ -1,3 +1,4 @@
 [alias]
-mbt         = "nextest run -p malachite-itf --all-features --no-fail-fast"
-integration = "nextest run --workspace --exclude malachite-itf --no-fail-fast"
+lint      = "clippy --all-targets --all-features -- -D warnings"
+mbt       = "nextest run --package informalsystems-malachitebft-test-mbt --no-fail-fast"
+all-tests = "nextest run --exclude informalsystems-malachitebft-test-mbt --no-fail-fast --workspace --test-threads=1"

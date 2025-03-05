@@ -1,6 +1,7 @@
 pub mod actor;
 pub mod block_store;
 pub mod codec;
+pub mod config;
 pub mod host;
 pub mod mempool;
 pub mod node;
