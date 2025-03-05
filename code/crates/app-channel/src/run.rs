@@ -17,7 +17,6 @@ use crate::app::EngineHandle;
 use crate::spawn::{spawn_host_actor, spawn_network_actor};
 use crate::Channels;
 
-#[tracing::instrument("node", skip_all, fields(moniker = %cfg.moniker))]
 pub async fn start_engine<Node, Ctx, Codec>(
     ctx: Ctx,
     codec: Codec,
