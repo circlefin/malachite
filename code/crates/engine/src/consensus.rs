@@ -1167,8 +1167,8 @@ where
         parent = &self.span,
         skip_all,
         fields(
-            height = %state.consensus.height(),
-            round = %state.consensus.round()
+            height = %span_height(state.consensus.height(), &msg),
+            round = %span_round(state.consensus.round(), &msg)
         )
     )]
     async fn handle(
@@ -1219,4 +1219,24 @@ fn should_buffer<Ctx: Context>(msg: &Msg<Ctx>) -> bool {
             | Msg::NetworkEvent(NetworkEvent::PeerConnected(..))
             | Msg::NetworkEvent(NetworkEvent::PeerDisconnected(..))
     )
+}
+
+/// Use the height we are about to start instead of the consensus state height
+/// for the tracing span of the Consensus actor when starting a new height.
+fn span_height<Ctx: Context>(height: Ctx::Height, msg: &Msg<Ctx>) -> Ctx::Height {
+    if let Msg::StartHeight(h, _) = msg {
+        *h
+    } else {
+        height
+    }
+}
+
+/// Use round 0 instead of the consensus state round for the tracing span of
+/// the Consensus actor when starting a new height.
+fn span_round<Ctx: Context>(round: Round, msg: &Msg<Ctx>) -> Round {
+    if let Msg::StartHeight(_, _) = msg {
+        Round::new(0)
+    } else {
+        round
+    }
 }
