@@ -14,9 +14,16 @@ where
     }
 
     pub(crate) fn update_connections_metrics(&mut self) {
+        let num_inbound_connections = self.inbound_connections.len();
+
+        if !self.is_enabled() {
+            info!("Connections: {}", num_inbound_connections);
+
+            return;
+        }
+
         let num_active_connections = self.active_connections_len();
         let num_outbound_connections = self.outbound_connections.len();
-        let num_inbound_connections = self.inbound_connections.len();
         let num_ephemeral_connections = num_active_connections
             .saturating_sub(num_outbound_connections + num_inbound_connections);
 

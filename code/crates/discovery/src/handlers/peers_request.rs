@@ -4,7 +4,7 @@ use libp2p::{
     request_response::{OutboundRequestId, ResponseChannel},
     Multiaddr, PeerId, Swarm,
 };
-use tracing::{error, info, trace};
+use tracing::{debug, error, trace};
 
 use crate::{
     behaviour::{self, Response},
@@ -44,7 +44,7 @@ where
             self.metrics.increment_total_peer_requests();
         }
 
-        info!(
+        debug!(
             "Requesting peers from peer {}, retry #{}",
             request_data.peer_id(),
             request_data.retry.count()
@@ -147,23 +147,21 @@ where
     fn get_all_peers_except(&self, peer: PeerId) -> HashSet<(Option<PeerId>, Multiaddr)> {
         let mut remaining_bootstrap_nodes: Vec<_> = self.bootstrap_nodes.clone();
 
-        let mut peers: HashSet<_> = self
+        let mut peers: HashSet<(Option<PeerId>, Multiaddr)> = self
             .discovered_peers
             .iter()
             .filter_map(|(peer_id, info)| {
-                if peer_id == &peer {
-                    // Remove the peer also from the bootstrap nodes (if it is there)
-                    if let Some(addr) = info.listen_addrs.first() {
-                        remaining_bootstrap_nodes.retain(|(_, x)| x != addr);
+                if let Some(addr) = info.listen_addrs.first() {
+                    remaining_bootstrap_nodes.retain(|(_, x)| x != addr);
+
+                    if peer_id == &peer {
+                        return None;
                     }
 
-                    return None;
+                    Some((Some(*peer_id), addr.clone()))
+                } else {
+                    None
                 }
-
-                info.listen_addrs.first().map(|addr| {
-                    remaining_bootstrap_nodes.retain(|(_, x)| x != addr);
-                    (Some(*peer_id), addr.clone())
-                })
             })
             .collect();
 

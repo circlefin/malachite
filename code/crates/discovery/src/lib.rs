@@ -104,7 +104,11 @@ where
             config,
             state,
 
-            selector: Discovery::get_selector(config.bootstrap_protocol, config.selector),
+            selector: Discovery::get_selector(
+                config.enabled,
+                config.bootstrap_protocol,
+                config.selector,
+            ),
 
             bootstrap_nodes: bootstrap_nodes
                 .clone()

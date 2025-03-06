@@ -1,5 +1,5 @@
 use libp2p::{core::ConnectedPoint, swarm::ConnectionId, PeerId, Swarm};
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 use crate::{connection::ConnectionData, controller::PeerData, Discovery, DiscoveryClient};
 
@@ -50,7 +50,7 @@ where
             self.metrics.increment_total_dials();
         }
 
-        info!(
+        debug!(
             "Dialing peer at {}, retry #{}",
             connection_data.multiaddr(),
             connection_data.retry.count()
