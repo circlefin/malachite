@@ -223,8 +223,6 @@ where
         // Should only receive proposals for our height.
         assert_eq!(self.height(), certificate.height);
 
-        dbg!(&certificate);
-
         let certificate_round = certificate.round;
         let certificate_value_id = certificate.value_id.clone();
 
@@ -240,8 +238,8 @@ where
 
         let proposal = &signed_proposal.message;
 
-        if dbg!(dbg!(certificate_value_id) == dbg!(proposal.value().id())) {
-            if dbg!(validity.is_valid()) {
+        if certificate_value_id == proposal.value().id() {
+            if validity.is_valid() {
                 Some(RoundInput::ProposalAndPolkaCurrent(proposal.clone()))
             } else {
                 None

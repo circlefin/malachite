@@ -357,8 +357,8 @@ where
             });
         }
 
-        match dbg!(self.store_and_multiplex_polka_certificate(certificate)) {
-            Some(round_input) => dbg!(self.apply_input(self.round(), round_input)),
+        match self.store_and_multiplex_polka_certificate(certificate) {
+            Some(round_input) => self.apply_input(self.round(), round_input),
             None => Ok(None),
         }
     }
