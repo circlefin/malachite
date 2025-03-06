@@ -85,12 +85,10 @@ where
     ) {
         match endpoint {
             ConnectedPoint::Dialer { .. } => {
-                debug!("Connected to {peer_id} with connection {connection_id}");
+                debug!(peer = %peer_id, %connection_id, "Connected to peer");
             }
             ConnectedPoint::Listener { .. } => {
-                debug!(
-                    "Accepted incoming connection from {peer_id} with connection {connection_id}"
-                );
+                debug!(peer = %peer_id, %connection_id, "Accepted incoming connection from peer");
             }
         }
 

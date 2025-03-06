@@ -37,10 +37,10 @@ where
 
         match self.discovered_peers.insert(peer_id, info.clone()) {
             Some(_) => {
-                info!("New connection from known peer {peer_id}");
+                info!(peer = %peer_id, "New connection from known peer");
             }
             None => {
-                info!("Discovered peer {peer_id}");
+                info!(peer = %peer_id, "Discovered peer");
 
                 self.metrics.increment_total_discovered();
 
@@ -75,7 +75,10 @@ where
                 // This case happens when the peer was selected to be part of the outbound connections
                 // but no connection was established yet. No need to trigger a connect request, it
                 // was already done during the selection process.
-                debug!("Connection {connection_id} from peer {peer_id} is outbound (pending connect request)");
+                debug!(
+                    peer = %peer_id, %connection_id,
+                    "Connection is outbound (pending connect request)"
+                );
 
                 if let Some(out_conn) = self.outbound_connections.get_mut(&peer_id) {
                     out_conn.connection_id = Some(connection_id);
@@ -88,7 +91,10 @@ where
                 // If the initial discovery process is done and did not find enough peers,
                 // the connection is outbound, otherwise it is ephemeral, except if later
                 // the connection is requested to be persistent (inbound).
-                debug!("Connection {connection_id} from peer {peer_id} is outbound (incomplete initial discovery)");
+                debug!(
+                    peer = %peer_id, %connection_id,
+                    "Connection is outbound (incomplete initial discovery)"
+                );
 
                 self.outbound_connections.insert(
                     peer_id,
@@ -103,10 +109,13 @@ where
                     .add_to_queue(RequestData::new(peer_id), None);
 
                 if self.outbound_connections.len() >= self.config.num_outbound_peers {
-                    debug!("Minimum number of peers reached");
+                    debug!(
+                        count = self.outbound_connections.len(),
+                        "Minimum number of peers reached"
+                    );
                 }
             } else {
-                debug!("Connection {connection_id} from peer {peer_id} is ephemeral");
+                debug!(peer = %peer_id, %connection_id, "Connection is ephemeral");
 
                 self.controller.close.add_to_queue(
                     (peer_id, connection_id),
@@ -129,11 +138,11 @@ where
             // maximum number of inbound connections is enforced by the
             // corresponding parameter in the configuration.
             if self.inbound_connections.len() < self.config.num_inbound_peers {
-                debug!("Connection {connection_id} from peer {peer_id} is inbound");
+                debug!(peer = %peer_id, %connection_id, "Connection is inbound");
 
                 self.inbound_connections.insert(peer_id, connection_id);
             } else {
-                warn!("Connections limit reached, refusing connection {connection_id} from peer {peer_id}");
+                warn!(peer = %peer_id, %connection_id, "Connections limit reached, refusing connection");
 
                 self.controller
                     .close
