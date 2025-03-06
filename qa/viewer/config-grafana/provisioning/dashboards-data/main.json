@@ -646,7 +646,7 @@
           "refId": "A"
         }
       ],
-      "title": "consensus time (latency)",
+      "title": "Consensus Latency",
       "type": "timeseries"
     },
     {
@@ -1275,8 +1275,8 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Malachite first stab",
+  "title": "Malachite metrics",
   "uid": "fdo24nq8yvf28f",
-  "version": 16,
+  "version": 3,
   "weekStart": ""
 }
