@@ -15,7 +15,7 @@ jobs:
       TF_VAR_nyc1: 1
       TF_VAR_tor1: 1
       TF_VAR_fra1: 1
-      TF_VAR_syd1: 1
+      TF_VAR_lon1: 1
 
     steps:
       - name: Checkout code
