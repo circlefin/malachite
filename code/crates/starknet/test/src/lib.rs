@@ -152,11 +152,7 @@ impl TestRunner {
                 p2p: P2pConfig {
                     transport,
                     protocol,
-                    discovery: DiscoveryConfig {
-                        enabled: false,
-                        num_inbound_peers: 20,
-                        ..Default::default()
-                    },
+                    discovery: DiscoveryConfig::default(),
                     listen_addr: transport.multiaddr("127.0.0.1", self.consensus_base_port + i),
                     persistent_peers: (0..self.nodes_count)
                         .filter(|j| i != *j)
