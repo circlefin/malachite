@@ -15,8 +15,8 @@ resource digitalocean_ssh_key cc {
 resource "digitalocean_droplet" "cc" {
   name      = "cc"
   image     = "debian-12-x64"
-  region    = "tor1"
-  tags      = concat(var.instance_tags, ["cc", "tor1"])
+  region    = var.cc_region
+  tags      = concat(var.instance_tags, ["cc", var.cc_region])
   size      = var.cc_size
   ssh_keys  = concat(var.ssh_keys, [digitalocean_ssh_key.cc.id])
   user_data = templatefile("user-data/cc-data.txt", {

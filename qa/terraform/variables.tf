@@ -11,6 +11,12 @@ variable project_name {
   default = "malachite-testnet"
 }
 
+# CC server region
+variable cc_region {
+  type = string
+  default = "fra1"
+}
+
 # Regions and number of servers to deploy there
 # Regions list: https://docs.digitalocean.com/platform/regional-availability/
 # ams3 - Amsterdam
