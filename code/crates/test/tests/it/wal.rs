@@ -92,6 +92,7 @@ async fn proposer_crashes_after_proposing(params: TestParams) {
                 )
             }
         })
+        .wait_until(CRASH_HEIGHT + 2)
         .success();
 
     test.build()

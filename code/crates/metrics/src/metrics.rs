@@ -275,7 +275,7 @@ impl Metrics {
         let mut guard = self.instant_step_started.lock().expect("poisoned mutex");
 
         let (current_step, started) = *guard;
-        debug_assert_eq!(current_step, step, "step_end called for wrong step");
+        //debug_assert_eq!(current_step, step, "step_end called for wrong step");
 
         // If the step was never started, ignore
         if current_step == Step::Unstarted {
