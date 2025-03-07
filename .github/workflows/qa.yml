@@ -12,6 +12,8 @@ jobs:
     env:
       TF_VAR_do_token: "${{ secrets.DO_TOKEN }}"
       TF_VAR_ssh_keys: '["${{ secrets.DO_SSH_FINGERPRINT }}"]'
+      # Define the number of nodes in each region
+      # Available regions: ams3, blr1, fra1, lon1, nyc1, nyc3, sfo2, sfo3, sgp1, syd1, tor1
       TF_VAR_nyc1: 1
       TF_VAR_tor1: 1
       TF_VAR_fra1: 1
@@ -21,20 +23,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - uses: webfactory/ssh-agent@v0.9.0
+      - name: Set up SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.DO_SSH_KEY }}
 
       - name: Install parallel-ssh and create symlink
         run: |
-          sudo apt-get update && sudo apt-get install -y pssh
-          sudo ln /usr/bin/parallel-ssh /usr/bin/pssh
+          sudo apt-get update -qq && sudo apt-get install -y pssh
+          sudo ln -sf /usr/bin/parallel-ssh /usr/bin/pssh
           pssh --version
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.10.5 
+          terraform_version: 1.10.5
 
       - name: Terraform Init
         working-directory: qa/terraform
@@ -42,22 +45,24 @@ jobs:
 
       - name: Terraform Apply (Provision Nodes)
         working-directory: qa/terraform
-        run: terraform apply -auto-approve
-      
+        run: |
+          terraform apply -auto-approve > output.log 2>&1 || { cat output.log; exit 1; }
+
       - name: Deploy application and run it
         working-directory: qa/terraform
         run: |
           shopt -s expand_aliases
           source commands.sh
-          mkdir -p $HOME/.ssh
+          mkdir -p "$HOME/.ssh"
           touch "$HOME/.ssh/known_hosts"
-          deploy_cc
-          setup_config
-          d_pull all
-          d_run all
+          deploy_cc > deploy.log 2>&1 || { cat deploy.log; exit 1; }
+          setup_config > setup.log 2>&1 || { cat setup.log; exit 1; }
+          d_pull all > pull.log 2>&1 || { cat pull.log; exit 1; }
+          d_run all > run.log 2>&1 || { cat run.log; exit 1; }
           sleep 600
 
       - name: Terraform Destroy (Cleanup Nodes)
         if: always()
         working-directory: qa/terraform
-        run: terraform destroy -auto-approve
+        run: |
+          terraform destroy -auto-approve > destroy.log 2>&1 || { cat destroy.log; exit 1; }
