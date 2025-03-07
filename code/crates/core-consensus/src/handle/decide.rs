@@ -18,6 +18,12 @@ where
     // We only decide proposals for the current height
     assert_eq!(height, state.driver.height());
 
+    // Cancel the commit timeout
+    perform!(
+        co,
+        Effect::CancelTimeout(Timeout::commit(consensus_round), Default::default())
+    );
+
     // Clean proposals and values
     state.remove_full_proposals(height);
 
@@ -104,11 +110,6 @@ where
 {
     let height = state.driver.height();
     let round = state.driver.round();
-
-    perform!(
-        co,
-        Effect::CancelTimeout(Timeout::commit(round), Default::default())
-    );
 
     let proposal = state
         .decision

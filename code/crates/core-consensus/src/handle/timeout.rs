@@ -18,22 +18,17 @@ where
 
     if timeout.round != round && timeout.kind != TimeoutKind::Commit {
         debug!(
-            %height,
-            %round,
+            consensus.height = %height,
+            consensus.round = %round,
             timeout.round = %timeout.round,
+            timeout.kind = ?timeout.kind,
             "Ignoring timeout for different round",
         );
 
         return Ok(());
     }
 
-    info!(
-        step = ?timeout.kind,
-        %timeout.round,
-        %height,
-        %round,
-        "Timeout elapsed"
-    );
+    info!(%height, %round, step = ?timeout.kind, "Timeout elapsed");
 
     if matches!(
         timeout.kind,
