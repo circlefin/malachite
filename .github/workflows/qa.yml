@@ -18,6 +18,7 @@ jobs:
       TF_VAR_tor1: 1
       TF_VAR_fra1: 1
       TF_VAR_lon1: 1
+      EXPR_DURATION: "600"
 
     steps:
       - name: Checkout code
@@ -46,7 +47,7 @@ jobs:
       - name: Terraform Apply (Provision Nodes)
         working-directory: qa/terraform
         run: |
-          terraform apply -auto-approve > output.log 2>&1 || { cat output.log; exit 1; }
+          terraform apply -auto-approve
 
       - name: Deploy application and run it
         working-directory: qa/terraform
@@ -55,14 +56,14 @@ jobs:
           source commands.sh
           mkdir -p "$HOME/.ssh"
           touch "$HOME/.ssh/known_hosts"
-          deploy_cc > deploy.log 2>&1 || { cat deploy.log; exit 1; }
-          setup_config > setup.log 2>&1 || { cat setup.log; exit 1; }
-          d_pull all > pull.log 2>&1 || { cat pull.log; exit 1; }
-          d_run all > run.log 2>&1 || { cat run.log; exit 1; }
-          sleep 600
+          deploy_cc 
+          setup_config
+          d_pull all
+          d_run all
+          sleep "$EXPR_DURATION"
 
       - name: Terraform Destroy (Cleanup Nodes)
         if: always()
         working-directory: qa/terraform
         run: |
-          terraform destroy -auto-approve > destroy.log 2>&1 || { cat destroy.log; exit 1; }
+          terraform destroy -auto-approve
