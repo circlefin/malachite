@@ -162,13 +162,16 @@ where
         }
 
         // Gather polka certificates for all rounds up to `round` included
-        let certificates = self
+        let mut certificates = self
             .driver
             .polka_certificates()
             .iter()
             .filter(|c| c.round <= round && c.height == height)
             .cloned()
             .collect::<Vec<_>>();
+
+        votes.sort_unstable_by_key(|v| v.round());
+        certificates.sort_unstable_by_key(|c| c.round);
 
         Some((votes, certificates))
     }
