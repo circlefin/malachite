@@ -273,6 +273,7 @@ where
                 let nil_vote = if vote_type == VoteType::Prevote
                     && state.is_proposer()
                     && vote.round() == Round::new(0)
+                    && vote.height() == Height::INITIAL
                 {
                     Ctx::new_prevote(
                         vote.height(),
