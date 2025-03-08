@@ -91,14 +91,21 @@ where
             return None;
         }
 
-        // Determine if there is a polka for a previous round
+        // Find the polka certificate for the pol_round
+        let polka_certificate_for_previous = self
+            .polka_certificates
+            .iter()
+            .find(|cert| cert.round == proposal.pol_round());
+
+        // Determine if there is a polka for a previous round, either from the vote keeper or from the polka certificate
         let polka_previous = proposal.pol_round().is_defined()
             && proposal.pol_round() < self.round_state.round
-            && self.vote_keeper.is_threshold_met(
-                &proposal.pol_round(),
-                VoteType::Prevote,
-                Threshold::Value(proposal.value().id()),
-            );
+            && (polka_certificate_for_previous.is_some()
+                || self.vote_keeper.is_threshold_met(
+                    &proposal.pol_round(),
+                    VoteType::Prevote,
+                    Threshold::Value(proposal.value().id()),
+                ));
 
         // Handle invalid proposal
         if !validity.is_valid() {
@@ -143,11 +150,19 @@ where
             return None;
         }
 
-        let polka_for_current = self.vote_keeper.is_threshold_met(
-            &proposal.round(),
-            VoteType::Prevote,
-            Threshold::Value(proposal.value().id()),
-        );
+        // Find the polka certificate for the current round
+        let polka_certificate_for_current = self
+            .polka_certificates
+            .iter()
+            .find(|cert| cert.round == proposal.round());
+
+        // Determine if there is a polka for the current round, either from the vote keeper or from the polka certificate
+        let polka_for_current = polka_certificate_for_current.is_some()
+            || self.vote_keeper.is_threshold_met(
+                &proposal.round(),
+                VoteType::Prevote,
+                Threshold::Value(proposal.value().id()),
+            );
 
         let polka_current = polka_for_current && self.round_state.step >= Step::Prevote;
 
