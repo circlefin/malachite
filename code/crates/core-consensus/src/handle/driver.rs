@@ -265,13 +265,31 @@ where
                 "Voting",
             );
 
+            // TODO - Hack to trigger vote equivocation. Proposer at round 0 will always send a nil vote
+            // to its own state machine and the correct vote to other nodes.
             // Only sign and publish if we're in the validator set
             if state.is_validator() {
                 let vote_type = vote.vote_type();
+                let nil_vote = if vote_type == VoteType::Prevote
+                    && state.is_proposer()
+                    && vote.round() == Round::new(0)
+                {
+                    Ctx::new_prevote(
+                        vote.height(),
+                        vote.round(),
+                        NilOrVal::Nil,
+                        vote.validator_address().clone(),
+                    )
+                } else {
+                    vote.clone()
+                };
+                let extended_nil_vote = extend_vote(co, nil_vote).await?;
+                let signed_nil_vote = sign_vote(co, extended_nil_vote).await?;
+
                 let extended_vote = extend_vote(co, vote).await?;
                 let signed_vote = sign_vote(co, extended_vote).await?;
 
-                on_vote(co, state, metrics, signed_vote.clone()).await?;
+                on_vote(co, state, metrics, signed_nil_vote).await?;
 
                 perform!(
                     co,

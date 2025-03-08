@@ -261,6 +261,13 @@ where
             .get_by_address(self.address())
             .is_some()
     }
+
+    pub fn is_proposer(&self) -> bool {
+        let Ok(proposer) = self.driver.get_proposer() else {
+            return false;
+        };
+        proposer.address() == self.address()
+    }
 }
 
 fn round_range_inclusive(from: Round, to: Round) -> Box<dyn Iterator<Item = Round>> {
