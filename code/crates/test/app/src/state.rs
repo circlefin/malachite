@@ -160,15 +160,20 @@ impl State {
         &mut self,
         certificate: CommitCertificate<TestContext>,
     ) -> eyre::Result<()> {
-        let (height, round) = (certificate.height, certificate.round);
+        let (height, round, value_id) =
+            (certificate.height, certificate.round, certificate.value_id);
 
-        let Ok(Some(proposal)) = self.store.get_undecided_proposal(height, round).await else {
+        // Get the first proposal with the given value id. There may be multiple identical ones
+        // if peers have restreamed at different rounds.
+        let Ok(Some(proposal)) = self
+            .store
+            .get_undecided_proposal_by_value_id(value_id)
+            .await
+        else {
             return Err(eyre!(
-                "Trying to commit a value at height {height} and round {round} for which there is no proposal: {}",
-                certificate.value_id
+                "Trying to commit a value with value id {value_id} at height {height} and round {round} for which there is no proposal"
             ));
         };
-
         self.store
             .store_decided_value(&certificate, proposal.value)
             .await?;

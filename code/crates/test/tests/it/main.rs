@@ -136,11 +136,15 @@ impl TestRunner {
             moniker: format!("node-{}", node),
             logging: LoggingConfig::default(),
             consensus: ConsensusConfig {
-                value_payload: ValuePayload::PartsOnly,
+                // Current test app does not support proposal-only value payload properly as Init does not include valid_round
+                value_payload: ValuePayload::ProposalAndParts,
                 vote_sync: VoteSyncConfig {
                     mode: VoteSyncMode::RequestResponse,
                 },
-                timeouts: TimeoutConfig::default(),
+                timeouts: TimeoutConfig {
+                    timeout_step: Duration::from_secs(2),
+                    ..Default::default()
+                },
                 p2p: P2pConfig {
                     transport,
                     protocol,

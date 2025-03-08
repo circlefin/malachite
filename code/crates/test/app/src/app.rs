@@ -9,7 +9,7 @@ use malachitebft_app_channel::app::streaming::StreamContent;
 use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::{Round, Validity};
 use malachitebft_app_channel::app::types::sync::RawDecidedValue;
-use malachitebft_app_channel::app::types::ProposedValue;
+use malachitebft_app_channel::app::types::{LocallyProposedValue, ProposedValue};
 use malachitebft_app_channel::{AppMsg, Channels, ConsensusMsg, NetworkMsg};
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{Genesis, Height, TestContext};
@@ -272,34 +272,34 @@ pub async fn run(
 
             AppMsg::RestreamProposal {
                 height,
-                round,
+                round: _,
                 valid_round,
-                address,
+                address: _,
                 value_id,
             } => {
-                // assert_eq!(
-                //     state.config.consensus.value_payload,
-                //     ValuePayload::PartsOnly,
-                //     "The test application only support parts-only mode for now"
-                // );
+                //  Look for a proposal at valid_round (should be already stored)
+                info!(%height, %valid_round, "Restreaming existing propos*al...");
 
-                info!(%height, %round, %value_id, "Restreaming existing proposal...");
+                let proposal = state
+                    .store
+                    .get_undecided_proposal(height, valid_round)
+                    .await?;
 
-                let Some(proposal) = state
-                    .get_proposal(height, round, valid_round, address, value_id)
-                    .await
-                else {
-                    error!(%height, %round, %value_id, "Failed to find proposal to restream");
-                    return Ok(());
-                };
+                if let Some(proposal) = proposal {
+                    assert_eq!(proposal.value.id(), value_id);
+                    let locally_proposed_value = LocallyProposedValue {
+                        height,
+                        round: valid_round,
+                        value: proposal.value,
+                    };
+                    for stream_message in state.stream_proposal(locally_proposed_value) {
+                        info!(%height, %valid_round, "Publishing proposal part: {stream_message:?}");
 
-                for stream_message in state.stream_proposal(proposal) {
-                    info!(%height, %round, %value_id, "Publishing proposal part: {stream_message:?}");
-
-                    channels
-                        .network
-                        .send(NetworkMsg::PublishProposalPart(stream_message))
-                        .await?;
+                        channels
+                            .network
+                            .send(NetworkMsg::PublishProposalPart(stream_message))
+                            .await?;
+                    }
                 }
             }
 

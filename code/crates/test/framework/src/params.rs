@@ -30,7 +30,7 @@ impl Default for TestParams {
             vote_extensions: None,
             value_payload: ValuePayload::PartsOnly,
             max_retain_blocks: 50,
-            timeout_step: Duration::from_secs(30),
+            timeout_step: Duration::from_secs(2),
             vote_sync_mode: None,
         }
     }
