@@ -45,14 +45,13 @@ export MALACHITE__CONSENSUS__TIMEOUT_PRECOMMIT="1s"
 export MALACHITE__CONSENSUS__TIMEOUT_COMMIT="0s"
 # Set the timeout step to 2 seconds to trigger the vote sync and polka certificate faster
 export MALACHITE__CONSENSUS__TIMEOUT_STEP="2s"
-# Only use "parts-only" with starknet app for now, but for the channel app use "proposal-and-parts".
-# "proposal-and-parts" also works for starknet app
-export MALACHITE__CONSENSUS__VALUE_PAYLOAD="proposal-and-parts"
 # Set to request-response to be able to sync polka certificates, "broadcast" does not yet send the certificates
 export MALACHITE__CONSENSUS__VOTE_SYNC__MODE="request-response"
 export MALACHITE__MEMPOOL__MAX_TX_COUNT="10000"
 export MALACHITE__MEMPOOL__GOSSIP_BATCH_SIZE=0
 export MALACHITE__TEST__MAX_BLOCK_SIZE="50KiB"
+# Only use "parts-only" with starknet app for now, but for the channel app use "proposal-and-parts".
+# "proposal-and-parts" also works for starknet app
 export MALACHITE__TEST__VALUE_PAYLOAD="proposal-and-parts"
 export MALACHITE__TEST__TX_SIZE="1KiB"
 export MALACHITE__TEST__TXS_PER_PART=256
@@ -63,7 +62,7 @@ export MALACHITE__TEST__VOTE_EXTENSIONS__ENABLED="false"
 export MALACHITE__TEST__VOTE_EXTENSIONS__SIZE="1KiB"
 
 echo "Compiling '$APP_BINARY'..."
-cargo build -p $APP_BINARY --release
+cargo build -p $APP_BINARY
 
 # Create nodes and logs directories, run nodes
 for NODE in $(seq 0 $((NODES_COUNT - 1))); do
@@ -82,7 +81,7 @@ for NODE in $(seq 0 $((NODES_COUNT - 1))); do
     mkdir -p "$NODES_HOME/$NODE/traces"
 
     echo "[Node $NODE] Spawning node..."
-    cargo run -p $APP_BINARY -q --release -- start --home "$NODES_HOME/$NODE" > "$NODES_HOME/$NODE/logs/node.log" 2>&1 &
+    RUST_BACKTRACE=full cargo run -p $APP_BINARY -- start --home "$NODES_HOME/$NODE" > "$NODES_HOME/$NODE/logs/node.log" 2>&1 &
     echo $! > "$NODES_HOME/$NODE/node.pid"
 done
 
