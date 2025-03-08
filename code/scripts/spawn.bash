@@ -43,11 +43,17 @@ export MALACHITE__CONSENSUS__TIMEOUT_PROPOSE_DELTA="1s"
 export MALACHITE__CONSENSUS__TIMEOUT_PREVOTE="1s"
 export MALACHITE__CONSENSUS__TIMEOUT_PRECOMMIT="1s"
 export MALACHITE__CONSENSUS__TIMEOUT_COMMIT="0s"
-export MALACHITE__CONSENSUS__TIMEOUT_STEP="6s"
+# Set the timeout step to 2 seconds to trigger the vote sync and polka certificate faster
+export MALACHITE__CONSENSUS__TIMEOUT_STEP="2s"
+# Only use "parts-only" with starknet app for now, but for the channel app use "proposal-and-parts".
+# "proposal-and-parts" also works for starknet app
+export MALACHITE__CONSENSUS__VALUE_PAYLOAD="proposal-and-parts"
+# Set to request-response to be able to sync polka certificates, "broadcast" does not yet send the certificates
+export MALACHITE__CONSENSUS__VOTE_SYNC__MODE="request-response"
 export MALACHITE__MEMPOOL__MAX_TX_COUNT="10000"
 export MALACHITE__MEMPOOL__GOSSIP_BATCH_SIZE=0
 export MALACHITE__TEST__MAX_BLOCK_SIZE="50KiB"
-export MALACHITE__TEST__VALUE_PAYLOAD="parts-only"
+export MALACHITE__TEST__VALUE_PAYLOAD="proposal-and-parts"
 export MALACHITE__TEST__TX_SIZE="1KiB"
 export MALACHITE__TEST__TXS_PER_PART=256
 export MALACHITE__TEST__TIME_ALLOWANCE_FACTOR=0.3
