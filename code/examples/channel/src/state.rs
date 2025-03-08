@@ -10,7 +10,7 @@ use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use sha3::Digest;
 use tokio::time::sleep;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 use malachitebft_app_channel::app::consensus::ProposedValue;
 use malachitebft_app_channel::app::streaming::{StreamContent, StreamId, StreamMessage};
@@ -22,7 +22,7 @@ use malachitebft_app_channel::app::types::{LocallyProposedValue, PeerId};
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{
     Address, Ed25519Provider, Genesis, Height, ProposalData, ProposalFin, ProposalInit,
-    ProposalPart, TestContext, ValidatorSet, Value, ValueId,
+    ProposalPart, TestContext, ValidatorSet, Value,
 };
 
 use crate::store::{DecidedValue, Store};
@@ -170,6 +170,10 @@ impl State {
         // Re-assemble the proposal from its parts
         let value = assemble_value_from_parts(parts);
 
+        info!(
+            "Storing undecided proposal {} {}",
+            value.height, value.round
+        );
         self.store.store_undecided_proposal(value.clone()).await?;
 
         Ok(Some(value))
@@ -187,15 +191,21 @@ impl State {
         certificate: CommitCertificate<TestContext>,
         extensions: VoteExtensions<TestContext>,
     ) -> eyre::Result<()> {
-        let (height, round) = (certificate.height, certificate.round);
+        let (height, round, value_id) =
+            (certificate.height, certificate.round, certificate.value_id);
 
         // Store extensions for use at next height if we are the proposer
         self.vote_extensions.insert(height.increment(), extensions);
 
-        let Ok(Some(proposal)) = self.store.get_undecided_proposal(height, round).await else {
+        // Get the first proposal with the given value id. There may be multiple identical ones
+        // if peers have restreamed at different rounds.
+        let Ok(Some(proposal)) = self
+            .store
+            .get_undecided_proposal_by_value_id(value_id)
+            .await
+        else {
             return Err(eyre!(
-                "Trying to commit a value at height {height} and round {round} for which there is no proposal: {}",
-                certificate.value_id
+                "Trying to commit a value with value id {value_id} at height {height} and round {round} for which there is no proposal"
             ));
         };
 
@@ -203,7 +213,10 @@ impl State {
             .store_decided_value(&certificate, proposal.value)
             .await?;
 
-        self.store.remove_undecided_proposal(height, round).await?;
+        // Remove all proposals with the given value id.
+        self.store
+            .remove_undecided_proposals_by_value_id(value_id)
+            .await?;
 
         // Prune the store, keep the last HISTORY_LENGTH values
         let retain_height = Height::new(height.as_u64().saturating_sub(HISTORY_LENGTH));
@@ -375,21 +388,6 @@ impl State {
         }
 
         parts
-    }
-
-    pub async fn get_proposal(
-        &self,
-        height: Height,
-        round: Round,
-        _valid_round: Round,
-        _proposer: Address,
-        value_id: ValueId,
-    ) -> Option<LocallyProposedValue<TestContext>> {
-        Some(LocallyProposedValue::new(
-            height,
-            round,
-            Value::new(value_id.as_u64()),
-        ))
     }
 
     /// Returns the set of validators.
