@@ -216,36 +216,58 @@ where
         None
     }
 
+    /// Store the polka certificate and multiplex the proposal.
+    /// Returns the round and the input to the round state machine.
+    /// The round is:
+    /// - the round of the Proposal with a pol_round matching the certificate's round (L28), or
+    /// - the matching proposal is at the same round (L36), or
+    /// - the round of the certificate if there is no matching proposal (L44)
     pub(crate) fn store_and_multiplex_polka_certificate(
         &mut self,
         certificate: PolkaCertificate<Ctx>,
-    ) -> Option<RoundInput<Ctx>> {
+    ) -> Option<(Round, RoundInput<Ctx>)> {
         // Should only receive proposals for our height.
         assert_eq!(self.height(), certificate.height);
 
         let certificate_round = certificate.round;
         let certificate_value_id = certificate.value_id.clone();
 
-        // Store the certificate
-        self.polka_certificates.push(certificate);
+        // Only add if an identical certificate isn't already present
+        if !self.polka_certificates.iter().any(|existing| {
+            existing.round == certificate.round && existing.value_id == certificate.value_id
+        }) {
+            self.polka_certificates.push(certificate);
+        }
 
         let Some((signed_proposal, validity)) = self
             .proposal_keeper
-            .get_proposal_and_validity_for_round(certificate_round)
+            .get_proposal_and_validity_for_round(self.round())
         else {
-            return Some(RoundInput::PolkaAny);
+            return Some((certificate_round, RoundInput::PolkaAny));
         };
 
         let proposal = &signed_proposal.message;
 
         if certificate_value_id == proposal.value().id() {
             if validity.is_valid() {
-                Some(RoundInput::ProposalAndPolkaCurrent(proposal.clone()))
+                if proposal.pol_round() == certificate_round {
+                    Some((
+                        proposal.round(),
+                        RoundInput::ProposalAndPolkaPrevious(proposal.clone()),
+                    ))
+                } else if proposal.round() == certificate_round {
+                    Some((
+                        proposal.round(),
+                        RoundInput::ProposalAndPolkaCurrent(proposal.clone()),
+                    ))
+                } else {
+                    None
+                }
             } else {
                 None
             }
         } else {
-            Some(RoundInput::PolkaAny)
+            Some((certificate_round, RoundInput::PolkaAny))
         }
     }
 
