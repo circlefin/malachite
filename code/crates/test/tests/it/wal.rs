@@ -310,7 +310,6 @@ async fn byzantine_proposer_crashes_after_proposing_1(params: TestParams) {
             Duration::from_secs(60),
             TestParams {
                 enable_value_sync: true,
-                timeout_step: Duration::from_secs(5),
                 ..params
             },
         )
