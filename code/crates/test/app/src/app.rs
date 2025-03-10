@@ -130,9 +130,13 @@ pub async fn run(
                 //     "The test application only support parts-only mode for now"
                 // );
 
+                // The POL round is always nil when we propose a newly built value.
+                // See L15/L18 of the Tendermint algorithm.
+                let pol_round = Round::Nil;
+
                 // Now what's left to do is to break down the value to propose into parts,
                 // and send those parts over the network to our peers, for them to re-assemble the full value.
-                for stream_message in state.stream_proposal(proposal) {
+                for stream_message in state.stream_proposal(proposal, pol_round) {
                     info!(%height, %round, "Streaming proposal part: {stream_message:?}");
                     channels
                         .network
@@ -272,14 +276,16 @@ pub async fn run(
 
             AppMsg::RestreamProposal {
                 height,
-                round: _,
+                round,
                 valid_round,
                 address: _,
                 value_id,
             } => {
-                //  Look for a proposal at valid_round (should be already stored)
-                info!(%height, %valid_round, "Restreaming existing propos*al...");
+                info!(%height, %valid_round, "Restreaming existing proposal...");
 
+                assert_ne!(valid_round, Round::Nil, "valid_round should not be nil");
+
+                //  Look for a proposal at valid_round (should be already stored)
                 let proposal = state
                     .store
                     .get_undecided_proposal(height, valid_round)
@@ -287,12 +293,15 @@ pub async fn run(
 
                 if let Some(proposal) = proposal {
                     assert_eq!(proposal.value.id(), value_id);
+
                     let locally_proposed_value = LocallyProposedValue {
                         height,
-                        round: valid_round,
+                        round,
                         value: proposal.value,
                     };
-                    for stream_message in state.stream_proposal(locally_proposed_value) {
+
+                    for stream_message in state.stream_proposal(locally_proposed_value, valid_round)
+                    {
                         info!(%height, %valid_round, "Publishing proposal part: {stream_message:?}");
 
                         channels

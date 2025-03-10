@@ -104,9 +104,13 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     error!("Failed to send GetValue reply");
                 }
 
+                // The POL round is always nil when we propose a newly built value.
+                // See L15/L18 of the Tendermint algorithm.
+                let pol_round = Round::Nil;
+
                 // Now what's left to do is to break down the value to propose into parts,
                 // and send those parts over the network to our peers, for them to re-assemble the full value.
-                for stream_message in state.stream_proposal(proposal) {
+                for stream_message in state.stream_proposal(proposal, pol_round) {
                     info!(%height, %round, "Streaming proposal part: {stream_message:?}");
 
                     channels
@@ -270,7 +274,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
             AppMsg::RestreamProposal {
                 height,
-                round: _,
+                round,
                 valid_round,
                 address: _,
                 value_id: _,
@@ -286,10 +290,12 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 if let Some(proposal) = proposal {
                     let locally_proposed_value = LocallyProposedValue {
                         height,
-                        round: valid_round,
+                        round,
                         value: proposal.value,
                     };
-                    for stream_message in state.stream_proposal(locally_proposed_value) {
+
+                    for stream_message in state.stream_proposal(locally_proposed_value, valid_round)
+                    {
                         info!(%height, %valid_round, "Publishing proposal part: {stream_message:?}");
 
                         channels

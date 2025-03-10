@@ -58,9 +58,9 @@ pub enum AppMsg<Ctx: Context> {
     /// The application MUST reply to this message with the requested value
     /// within the specified timeout duration.
     GetValue {
-        /// Height which consensus is at
+        /// Height for which the value is requested
         height: Ctx::Height,
-        /// Round which consensus is at
+        /// Round for which the value is requested
         round: Round,
         /// Maximum time allowed for the application to respond
         timeout: Duration,

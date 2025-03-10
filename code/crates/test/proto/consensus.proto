@@ -59,6 +59,7 @@ message ProposalInit {
     uint64 height = 1;
     uint32 round = 2;
     Address proposer = 4;
+    optional uint32 pol_round = 5;
 }
 
 message ProposalData {

@@ -301,8 +301,9 @@ impl State {
     pub fn stream_proposal(
         &mut self,
         value: LocallyProposedValue<TestContext>,
+        pol_round: Round,
     ) -> impl Iterator<Item = StreamMessage<ProposalPart>> {
-        let parts = self.value_to_parts(value);
+        let parts = self.value_to_parts(value, pol_round);
         let stream_id = self.stream_id();
 
         let mut msgs = Vec::with_capacity(parts.len() + 1);
@@ -319,7 +320,11 @@ impl State {
         msgs.into_iter()
     }
 
-    fn value_to_parts(&self, value: LocallyProposedValue<TestContext>) -> Vec<ProposalPart> {
+    fn value_to_parts(
+        &self,
+        value: LocallyProposedValue<TestContext>,
+        pol_round: Round,
+    ) -> Vec<ProposalPart> {
         let mut hasher = sha3::Keccak256::new();
         let mut parts = Vec::new();
 
@@ -329,6 +334,7 @@ impl State {
             parts.push(ProposalPart::Init(ProposalInit::new(
                 value.height,
                 value.round,
+                pol_round,
                 self.address,
             )));
 
