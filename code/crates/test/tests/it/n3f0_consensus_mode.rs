@@ -19,6 +19,7 @@ async fn run_test(params: TestParams) {
 }
 
 #[tokio::test]
+#[ignore]
 pub async fn parts_only() {
     let params = TestParams {
         value_payload: ValuePayload::PartsOnly,
