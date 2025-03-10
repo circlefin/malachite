@@ -54,7 +54,6 @@ pub async fn crash_restart_from_start(params: TestParams) {
 }
 
 #[tokio::test]
-#[ignore]
 pub async fn crash_restart_from_start_parts_only() {
     let params = TestParams {
         value_payload: ValuePayload::PartsOnly,
