@@ -96,7 +96,7 @@ where
             }
         }
 
-        // Add the vote to the round
+        // Tally this vote
         self.votes.add_vote(&vote, weight);
 
         // Update the weight of the validator
@@ -198,6 +198,13 @@ where
     /// Return the evidence of equivocation.
     pub fn evidence(&self) -> &EvidenceMap<Ctx> {
         &self.evidence
+    }
+
+    /// Check if we have already seen a vote.
+    pub fn has_vote(&self, vote: &SignedVote<Ctx>) -> bool {
+        self.per_round
+            .get(&vote.round())
+            .is_some_and(|per_round| per_round.received_votes().contains(vote))
     }
 
     /// Apply a vote with a given weight, potentially triggering an output.
