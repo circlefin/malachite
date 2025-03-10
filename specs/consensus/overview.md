@@ -912,10 +912,6 @@ value in round `r`.
 This is the reason for which pseudo-code lines 15-16 adopt `validValue_p`
 instead of `lockedValue_p`.
 
-\NM{The explanations here are fine for me, but I am not good to review this as I know in detail how this mechanism 
-works. I think we should ask someone who does not understand how valid value and locked value correlate and see
-if he/she got it from this. I think this explanation introduces the difference but do not explain the mechanism. 
-Update: I saw that latter you do explain, so I am happy with the explanations. }
 
 ### Safety
 
