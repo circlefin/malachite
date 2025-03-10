@@ -181,7 +181,6 @@ associated to a [round step](#round-steps):
   The last field can be either the unique identifier `id(v)` of a proposed
   value `v` for which the process has received `⟨PREVOTE, h, r, id(v)⟩`
   messages from a [super-majority](#voting-power) of processes, or the special `nil` value otherwise.
-  NM{I am not sure we have defined super-majority anywhere?} 
 
 Before discussing in detail the role of each message in the protocol, it is
 worth highlighting a main aspect that differentiate the adopted messages.
