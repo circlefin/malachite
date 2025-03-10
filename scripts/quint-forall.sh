@@ -31,7 +31,7 @@ FAILED_FILES=()
 # Read input files, one per line
 while IFS="" read -r file; do
 	info "Running: quint $CMD ${UNDERLINE}$file"
-	if ! time npx @informalsystems/quint $CMD "$file"; then
+	if ! npx @informalsystems/quint $CMD "$file"; then
 		FAILED_FILES+=("$file")
 		FAILED=$((FAILED + 1))
 	fi
