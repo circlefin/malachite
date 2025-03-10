@@ -39,7 +39,7 @@ A this point, the process increases `h_p` (line 52) and starts the next height
 of consensus, in which the same algorithm is executed again.
 
 For the sake of the operation of the consensus algorithm, heights are
-completely independent executions. NM{Not sure I fully understand what do we want to say here?}
+communication-closed, that is, a message from some height `H` does not influence a process that is in height `H' != H`.
 For this reason, in the remainder of this document we consider and discuss the
 execution of a **single height of consensus**.
 
