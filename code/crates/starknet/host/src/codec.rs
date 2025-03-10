@@ -1,18 +1,16 @@
 use bytes::Bytes;
-use malachitebft_app::streaming::StreamId;
-use malachitebft_starknet_p2p_types::{Felt, FeltExt, Signature};
 use prost::Message;
 
 use malachitebft_codec::Codec;
+use malachitebft_core_consensus::{PeerId, ProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{
     AggregatedSignature, CommitCertificate, CommitSignature, Round, SignedVote, Validity,
 };
-use malachitebft_engine::util::streaming::{StreamContent, StreamMessage};
+use malachitebft_engine::util::streaming::{StreamContent, StreamId, StreamMessage};
+use malachitebft_starknet_p2p_types::{Felt, FeltExt, Signature};
 use malachitebft_sync::{
     self as sync, ValueRequest, ValueResponse, VoteSetRequest, VoteSetResponse,
 };
-
-use malachitebft_core_consensus::{PeerId, ProposedValue, SignedConsensusMsg};
 
 use crate::proto::{self as proto, Error as ProtoError, Protobuf};
 use crate::types::{self as p2p, Address, BlockHash, Height, MockContext, ProposalPart, Vote};

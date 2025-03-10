@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use prost::Message;
 
-use malachitebft_app::streaming::{StreamContent, StreamId, StreamMessage};
+use malachitebft_app::engine::util::streaming::{StreamContent, StreamId, StreamMessage};
 use malachitebft_codec::Codec;
 use malachitebft_core_consensus::{ProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{
