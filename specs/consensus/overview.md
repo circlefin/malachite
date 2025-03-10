@@ -28,7 +28,7 @@ of Tendermint are detailed.
 ## Heights
 
 The algorithm presented in the [pseudo-code][pseudo-code] represents the
-operation the consensus algorithm running in a process `p`.
+operation of the consensus algorithm running in a process `p`.
 
 Each instance or **height** of the consensus algorithm is identified by an
 integer, represented by the `h_p` variable in the pseudo-code.
@@ -181,7 +181,6 @@ associated to a [round step](#round-steps):
   The last field can be either the unique identifier `id(v)` of a proposed
   value `v` for which the process has received `⟨PREVOTE, h, r, id(v)⟩`
   messages from a [super-majority](#voting-power) of processes, or the special `nil` value otherwise.
-  NM{I am not sure we have defined super-majority anywhere?} 
 
 Before discussing in detail the role of each message in the protocol, it is
 worth highlighting a main aspect that differentiate the adopted messages.
@@ -1031,9 +1030,6 @@ Notice, however, that from the [Gossip communication property](#network), `q`
 should eventually receive the POL for `v` in round `vr`, since `p` is a correct
 process.
 And, as we detail on the next section, when the synchrony assumptions are observed, `p` will receive such messages before it receives the new `PROPOSAL`.
-\NM{I think we should mention in the text here that we show the intution how condition 2 is achieved later, because
-while reading I was feeling that this was missing, and then I saw that you address it below}
-
 
 #### Synchrony
 
