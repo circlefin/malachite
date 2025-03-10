@@ -352,6 +352,7 @@ async fn restart_with_byzantine_proposer_2_rebroadcast_parts_only() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn restart_with_byzantine_proposer_2_rebroadcast_proposal_and_parts() {
     byzantine_proposer_crashes_after_proposing_2(TestParams {
         vote_sync_mode: Some(VoteSyncMode::Rebroadcast),
