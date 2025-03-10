@@ -222,51 +222,84 @@ where
         &mut self,
         new_threshold: VKOutput<ValueId<Ctx>>,
         threshold_round: Round,
-    ) -> RoundInput<Ctx> {
-        if let Some((proposal, validity)) = self
-            .proposal_keeper
-            .get_proposal_and_validity_for_round(threshold_round)
-        {
-            let proposal = &proposal.message;
+    ) -> (Round, RoundInput<Ctx>) {
+        match new_threshold {
+            VKOutput::PolkaAny => (threshold_round, RoundInput::PolkaAny),
+            VKOutput::PolkaNil => (threshold_round, RoundInput::PolkaNil),
+            VKOutput::PrecommitAny => (threshold_round, RoundInput::PrecommitAny),
+            VKOutput::SkipRound(r) => (threshold_round, RoundInput::SkipRound(r)),
+            VKOutput::PrecommitValue(v) => {
+                if let Some((proposal, validity)) = self
+                    .proposal_keeper
+                    .get_proposal_and_validity_for_round(threshold_round)
+                {
+                    let proposal = &proposal.message;
+                    if v == proposal.value().id() && validity.is_valid() {
+                        (
+                            threshold_round,
+                            RoundInput::ProposalAndPrecommitValue(proposal.clone()),
+                        )
+                    } else {
+                        (threshold_round, RoundInput::PrecommitAny)
+                    }
+                } else {
+                    (threshold_round, RoundInput::PrecommitAny)
+                }
+            }
+            VKOutput::PolkaValue(v) => {
+                if let Some((proposal, validity)) = self
+                    .proposal_keeper
+                    .get_proposal_and_validity_for_round(self.round())
+                {
+                    let proposal = &proposal.message;
 
-            match new_threshold {
-                VKOutput::PolkaAny => RoundInput::PolkaAny,
-                VKOutput::PolkaNil => RoundInput::PolkaNil,
-                VKOutput::PolkaValue(v) => {
                     if v == proposal.value().id() {
-                        if validity.is_valid() {
-                            RoundInput::ProposalAndPolkaCurrent(proposal.clone())
-                        } else {
-                            RoundInput::NoInput
+                        // We have a proposal for the same value as the threshold.
+                        // validity  proposal(v, roundp, pol_round)      threshold(v, threshold_round) Output Line
+                        // =================================================================================
+                        // invalid   (v, roundp, pol_round)              (v, pol_round)             ProposalAndPolkaPrevious L32
+                        // valid     (v, roundp, pol_round)              (v, pol_round)             InvalidProposalAndPolkaPrevious L30
+                        //
+                        // valid     (v, roundp, pol_round)              (v, roundp)                ProposalAndPolkaCurrent L36
+                        // valid     (v, roundp, nil)                    (v, roundp)                ProposalAndPolkaCurrent L36
+                        //
+                        // *         *                                   (v, threshold_round)       PolkaAny L34
+                        let proposal_round = proposal.round();
+                        let pol_round = proposal.pol_round();
+                        let pol_round_match = pol_round == threshold_round;
+                        let round_match = proposal_round == threshold_round;
+                        match pol_round {
+                            // L32 - state machine will vote nil
+                            Round::Some(_) if !validity.is_valid() && pol_round_match => (
+                                proposal_round,
+                                RoundInput::InvalidProposalAndPolkaPrevious(proposal.clone()),
+                            ),
+                            // L30
+                            Round::Some(_) if validity.is_valid() && pol_round_match => (
+                                proposal_round,
+                                RoundInput::ProposalAndPolkaPrevious(proposal.clone()),
+                            ),
+                            // L36 with pol_round != *
+                            _ if round_match && validity.is_valid() => (
+                                threshold_round,
+                                RoundInput::ProposalAndPolkaCurrent(proposal.clone()),
+                            ),
+                            _ => (threshold_round, RoundInput::PolkaAny),
                         }
                     } else {
-                        RoundInput::PolkaAny
+                        // L34
+                        (threshold_round, RoundInput::PolkaAny)
                     }
+                } else {
+                    // L34
+                    (threshold_round, RoundInput::PolkaAny)
                 }
-                VKOutput::PrecommitAny => RoundInput::PrecommitAny,
-                VKOutput::PrecommitValue(v) => {
-                    if v == proposal.value().id() {
-                        RoundInput::ProposalAndPrecommitValue(proposal.clone())
-                    } else {
-                        RoundInput::PrecommitAny
-                    }
-                }
-                VKOutput::SkipRound(r) => RoundInput::SkipRound(r),
-            }
-        } else {
-            match new_threshold {
-                VKOutput::PolkaAny => RoundInput::PolkaAny,
-                VKOutput::PolkaNil => RoundInput::PolkaNil,
-                VKOutput::PolkaValue(_) => RoundInput::PolkaAny,
-                VKOutput::PrecommitAny => RoundInput::PrecommitAny,
-                VKOutput::PrecommitValue(_) => RoundInput::PrecommitAny,
-                VKOutput::SkipRound(r) => RoundInput::SkipRound(r),
             }
         }
     }
 
     /// After a step change, check for inputs to be sent to the round state machine.
-    pub(crate) fn multiplex_step_change(&mut self, round: Round) -> Vec<RoundInput<Ctx>> {
+    pub(crate) fn multiplex_step_change(&mut self, round: Round) -> Vec<(Round, RoundInput<Ctx>)> {
         let mut result = Vec::new();
 
         if let Some((signed_proposal, validity)) = self
@@ -278,7 +311,7 @@ where
             match self.round_state().step {
                 Step::Propose => {
                     if let Some(input) = self.multiplex_proposal(proposal.clone(), *validity) {
-                        result.push(input)
+                        result.push((self.round(), input))
                     }
                 }
 

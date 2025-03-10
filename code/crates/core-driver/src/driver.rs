@@ -390,18 +390,19 @@ where
         }
 
         let vote_round = vote.round();
+        let this_round = self.round();
 
-        let Some(output) = self.vote_keeper.apply_vote(vote, self.round()) else {
+        let Some(output) = self.vote_keeper.apply_vote(vote, this_round) else {
             return Ok(None);
         };
 
-        let round_input = self.multiplex_vote_threshold(output, vote_round);
+        let (input_round, round_input) = self.multiplex_vote_threshold(output, vote_round);
 
         if round_input == RoundInput::NoInput {
             return Ok(None);
         }
 
-        self.apply_input(vote_round, round_input)
+        self.apply_input(input_round, round_input)
     }
 
     fn apply_timeout(&mut self, timeout: Timeout) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
@@ -443,10 +444,7 @@ where
         if previous_step != self.round_state.step && self.round_state.step != Step::Unstarted {
             let pending_inputs = self.multiplex_step_change(input_round);
 
-            self.pending_inputs = pending_inputs
-                .into_iter()
-                .map(|input| (input_round, input))
-                .collect();
+            self.pending_inputs = pending_inputs;
         }
 
         // Return output, if any
