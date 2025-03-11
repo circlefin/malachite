@@ -211,18 +211,21 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 info!(%height, %round, "Processing synced value");
 
                 let value = decode_value(value_bytes);
+                let proposed_value = ProposedValue {
+                    height,
+                    round,
+                    valid_round: Round::Nil,
+                    proposer,
+                    value,
+                    validity: Validity::Valid,
+                };
 
-                if reply
-                    .send(ProposedValue {
-                        height,
-                        round,
-                        valid_round: Round::Nil,
-                        proposer,
-                        value,
-                        validity: Validity::Valid,
-                    })
-                    .is_err()
-                {
+                state
+                    .store
+                    .store_undecided_proposal(proposed_value.clone())
+                    .await?;
+
+                if reply.send(proposed_value).is_err() {
                     error!("Failed to send ProcessSyncedValue reply");
                 }
             }
