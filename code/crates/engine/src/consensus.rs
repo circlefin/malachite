@@ -270,7 +270,7 @@ where
         info!(count = %state.msg_buffer.len(), "Replaying buffered messages");
 
         while let Some(msg) = state.msg_buffer.pop() {
-            info!("Replaying buffered message: {msg:?}");
+            debug!("Replaying buffered message: {msg:?}");
 
             if let Err(e) = self.handle_msg(myself.clone(), state, msg).await {
                 error!("Error when handling buffered message: {e:?}");

@@ -159,7 +159,8 @@ pub async fn run(
                 reply,
             } => {
                 info!(
-                    height = %certificate.height, round = %certificate.round,
+                    height = %certificate.height,
+                    round = %certificate.round,
                     value = %certificate.value_id,
                     "Consensus has decided on value"
                 );
