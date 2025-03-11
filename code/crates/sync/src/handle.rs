@@ -180,6 +180,11 @@ where
 
     state.update_status(status);
 
+    if !state.started {
+        // Consensus has not started yet, no need to sync (yet).
+            return Ok(());
+    }
+
     if peer_height > state.tip_height {
         info!(
             tip.height = %state.tip_height,
@@ -247,6 +252,7 @@ where
 {
     debug!(%height, "Starting new height");
 
+    state.started = true;
     state.sync_height = height;
 
     // Check if there is any peer already at or above the height we just started,
@@ -357,12 +363,14 @@ where
     let sync_height = state.sync_height;
 
     if state.has_pending_decided_value_request(&sync_height) {
-        debug!(sync.height = %sync_height, "Already have a pending value request for this height");
+        warn!(sync.height = %sync_height, "Already have a pending value request for this height");
         return Ok(());
     }
 
     if let Some(peer) = state.random_peer_with_value(sync_height) {
         request_value_from_peer(co, state, metrics, sync_height, peer).await?;
+    } else {
+        warn!(sync.height = %sync_height, "No peer to request sync from");
     }
 
     Ok(())

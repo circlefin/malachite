@@ -14,6 +14,9 @@ where
 {
     rng: Box<dyn rand::RngCore + Send>,
 
+    /// Consensus has started
+    pub started: bool,
+
     /// Height of last decided value
     pub tip_height: Ctx::Height,
 
@@ -38,6 +41,7 @@ where
     pub fn new(rng: Box<dyn rand::RngCore + Send>) -> Self {
         Self {
             rng,
+            started: false,
             tip_height: Ctx::Height::ZERO,
             sync_height: Ctx::Height::ZERO,
             pending_decided_value_requests: BTreeMap::new(),
