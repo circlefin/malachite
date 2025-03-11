@@ -374,7 +374,7 @@ correct process can deal with them by only considering the first
 in a round `r` of height `h`.
 Different (equivocating) versions of the same message from the same sender
 should, from a defensive point of view, be disregarded and dropped by the
-consensus logic as they were duplicated messages. NM{Ok I guess this is the change you want to implement or have alrady implemented, that is different from the paper?}
+consensus logic as they were duplicated messages. 
 The reason for which is the fact that a Byzantine process can produce an
 arbitrary number of such messages, therefore store all of them may constitute
 an attack vector.
