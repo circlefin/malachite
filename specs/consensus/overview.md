@@ -816,7 +816,7 @@ The rationale is that `p` _could have_ locked and issued a `PRECOMMIT` for `v`
 in round `vr`, if `p` _had received_ the POL messages while in the `prevote`
 round step of round `vr`.
 If `p` could have locked `v` in round `vr`, then any correct process could
-have produced a valid lock in round `vr`. \NM{Ok, this explanation is too high level for me but I understand that it is hard to explain at this point that it can accept it because it knows that lockedValue is not decided}
+have produced a valid lock in round `vr`. 
 And more recent (from high-numbered rounds) locks prevail.
 
 > **Remark**: notice that the actual condition in line 29 is `vr >= lockedRound_p`.
