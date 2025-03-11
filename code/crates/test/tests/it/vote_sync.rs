@@ -38,7 +38,6 @@ pub async fn crash_restart_from_start(params: TestParams) {
             Duration::from_secs(60), // Timeout for the whole test
             TestParams {
                 vote_sync_mode: Some(VoteSyncMode::RequestResponse),
-                timeout_step: Duration::from_secs(5),
                 ..params
             },
         )
@@ -110,7 +109,6 @@ pub async fn crash_restart_from_latest() {
             Duration::from_secs(60),
             TestParams {
                 vote_sync_mode: Some(VoteSyncMode::RequestResponse),
-                timeout_step: Duration::from_secs(5),
                 ..Default::default()
             },
         )
@@ -138,7 +136,6 @@ pub async fn start_late() {
             TestParams {
                 enable_value_sync: true, // Enable ValueSync to allow node to catch up to latest height
                 vote_sync_mode: Some(VoteSyncMode::RequestResponse),
-                timeout_step: Duration::from_secs(5),
                 ..Default::default()
             },
         )
