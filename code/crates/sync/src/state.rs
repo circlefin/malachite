@@ -99,6 +99,7 @@ where
     pub fn has_pending_decided_value_request(&self, height: &Ctx::Height) -> bool {
         self.pending_decided_value_requests.contains_key(height)
     }
+
     pub fn store_pending_vote_set_request(
         &mut self,
         height: Ctx::Height,

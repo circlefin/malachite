@@ -488,7 +488,10 @@ pub async fn on_vote_set_request<Ctx>(
 where
     Ctx: Context,
 {
-    debug!(height = %request.height, round = %request.round, %request_id, %peer, "Received request for vote set");
+    debug!(
+        %request.height, %request.round, %request_id, %peer,
+        "Received request for vote set"
+    );
 
     metrics.vote_set_request_received(request.height.as_u64(), request.round.as_i64());
 
