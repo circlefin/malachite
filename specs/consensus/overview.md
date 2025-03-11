@@ -265,7 +265,6 @@ Attack 4. constitutes a double-signing or **equivocation** attack.
 A correct process can only consider the first
 `⟨PROPOSAL, h, r, v, *⟩` received in the `propose` step, which can be accepted
 or rejected.
-sounds like they can also act in a different way}
 However, it is possible that a different `⟨PROPOSAL, h, r, v', *⟩` with
 `v' != v` is accepted by different processes and, as a result, triggers state
 transitions in the `prevote` or `precommit` round steps.
