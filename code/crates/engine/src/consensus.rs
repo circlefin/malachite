@@ -164,6 +164,7 @@ impl Timeouts {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum Phase {
     Unstarted,
+    Ready,
     Running,
     Recovering,
 }
@@ -349,7 +350,12 @@ where
                 match event {
                     NetworkEvent::Listening(address) => {
                         info!(%address, "Listening");
-                        self.host.cast(HostMsg::ConsensusReady(myself.clone()))?;
+
+                        if state.phase == Phase::Unstarted {
+                            state.phase = Phase::Ready;
+
+                            self.host.cast(HostMsg::ConsensusReady(myself.clone()))?;
+                        }
                     }
 
                     NetworkEvent::PeerConnected(peer_id) => {
