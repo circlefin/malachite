@@ -151,7 +151,7 @@ pub async fn on_tick<Ctx>(
 where
     Ctx: Context,
 {
-    debug!(height = %state.tip_height, "Broadcasting status");
+    debug!(height.tip = %state.tip_height, "Broadcasting status");
 
     perform!(co, Effect::BroadcastStatus(state.tip_height));
 
@@ -161,8 +161,8 @@ where
 #[tracing::instrument(
     skip_all,
     fields(
-        sync_height = %state.sync_height,
-        tip_height = %state.tip_height
+        height.sync = %state.sync_height,
+        height.tip = %state.tip_height
     )
 )]
 pub async fn on_status<Ctx>(
@@ -182,14 +182,14 @@ where
 
     if !state.started {
         // Consensus has not started yet, no need to sync (yet).
-            return Ok(());
+        return Ok(());
     }
 
     if peer_height > state.tip_height {
-        info!(
-            tip.height = %state.tip_height,
-            sync.height = %state.sync_height,
-            peer.height = %peer_height,
+        warn!(
+            height.tip = %state.tip_height,
+            height.sync = %state.sync_height,
+            height.peer = %peer_height,
             "SYNC REQUIRED: Falling behind"
         );
 
@@ -213,7 +213,7 @@ pub async fn on_value_request<Ctx>(
 where
     Ctx: Context,
 {
-    debug!(height = %request.height, %peer, "Received request for value");
+    debug!(%request.height, %peer, "Received request for value");
 
     metrics.decided_value_request_received(request.height.as_u64());
 
@@ -234,7 +234,7 @@ pub async fn on_value_response<Ctx>(
 where
     Ctx: Context,
 {
-    debug!(height = %response.height, %request_id, %peer, "Received response");
+    debug!(%response.height, %request_id, %peer, "Received response");
 
     metrics.decided_value_response_received(response.height.as_u64());
 
@@ -250,7 +250,7 @@ pub async fn on_start_height<Ctx>(
 where
     Ctx: Context,
 {
-    debug!(%height, "Starting new height");
+    debug!(height.sync = %height, "Starting new height");
 
     state.started = true;
     state.sync_height = height;
@@ -272,7 +272,7 @@ where
     Ctx: Context,
 {
     if state.tip_height < height {
-        debug!(%height, "Update height");
+        debug!(tip.height = %height, "Updating tip height");
 
         state.tip_height = height;
         state.remove_pending_decided_value_request(height);
@@ -294,18 +294,18 @@ where
 {
     let response = match value {
         None => {
-            error!(%height, "Received empty response");
+            error!(%height, "Received empty value response from host");
             None
         }
         Some(value) if value.certificate.height != height => {
             error!(
                 %height, value.height = %value.certificate.height,
-                "Received value for wrong height"
+                "Received value response for wrong height"
             );
             None
         }
         Some(value) => {
-            debug!(%height, "Received decided value");
+            info!(%height, "Received value response from host, sending it out");
             Some(value)
         }
     };
@@ -363,14 +363,14 @@ where
     let sync_height = state.sync_height;
 
     if state.has_pending_decided_value_request(&sync_height) {
-        warn!(sync.height = %sync_height, "Already have a pending value request for this height");
+        warn!(height.sync = %sync_height, "Already have a pending value request for this height");
         return Ok(());
     }
 
     if let Some(peer) = state.random_peer_with_value(sync_height) {
         request_value_from_peer(co, state, metrics, sync_height, peer).await?;
     } else {
-        warn!(sync.height = %sync_height, "No peer to request sync from");
+        warn!(height.sync = %sync_height, "No peer to request sync from");
     }
 
     Ok(())
@@ -386,7 +386,7 @@ async fn request_value_from_peer<Ctx>(
 where
     Ctx: Context,
 {
-    info!(sync.height = %height, %peer, "Requesting sync value from peer");
+    info!(height.sync = %height, %peer, "Requesting sync value from peer");
 
     perform!(
         co,
@@ -413,11 +413,11 @@ where
     error!(%error, %certificate.height, %certificate.round, "Received invalid certificate");
     trace!("Certificate: {certificate:#?}");
 
-    info!("Requesting sync from another peer");
+    info!(height.sync = %certificate.height, "Requesting sync from another peer");
     state.remove_pending_decided_value_request(certificate.height);
 
     let Some(peer) = state.random_peer_with_value_except(certificate.height, from) else {
-        error!("No other peer to request sync from");
+        error!(height.sync = %certificate.height, "No other peer to request sync from");
         return Ok(());
     };
 
