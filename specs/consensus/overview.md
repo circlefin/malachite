@@ -745,7 +745,7 @@ But `∆` is not always observed by the system, which may operate asynchronously
 for an arbitrary amount of time.
 There is, however, a (possibly unknown) Global Stabilization Time (`GST`), a
 time from which the system becomes synchronous and `∆` is observed for all
-messages sent by correct processes. \NM{Ok this "possibly unknown" in both sentences is confusing me? Did you try to somehow capture both versions of partially synchronous system models? }
+messages sent by correct processes.
 
 In practical systems, `GST` is usually unknown, although it is assumed that the
 system eventually stabilizes.
