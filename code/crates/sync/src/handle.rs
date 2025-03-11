@@ -274,7 +274,7 @@ where
     Ctx: Context,
 {
     if state.tip_height < height {
-        debug!(tip.height = %height, "Updating tip height");
+        debug!(height.tip = %height, "Updating tip height");
 
         state.tip_height = height;
         state.remove_pending_decided_value_request(height);
