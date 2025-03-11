@@ -785,39 +785,44 @@ Tendermint more broadly.
 
 ### Locked Value
 
-As many consensus algorithms in the literature, Tendermint adopts a locking
-mechanism to prevent the decision of different values in different rounds of
-a consensus instance.
-The general approach is that a process, before issuing a vote that may lead to
-the decision of a value `v` in a round `r`, locks value `v` at the associated
-round `r`.
-Once a process locks value in a round, it rejects any value proposed in future
-rounds that is different from its locked value.
+Like many consensus algorithms in the literature, Tendermint employs a locking 
+mechanism to prevent different values from being decided in different rounds 
+of the same consensus instance. The general approach ensures that before a 
+process decides on a value `v` in round `r`, it must first verify that a 
+sufficient number of correct processes have locked `v` at round `r`. These 
+locked processes safeguard the decision's safety by rejecting any future 
+proposals for a value different from their locked value `v`.
 
-The message that may lead to the decision of a proposed value in Tendermint is
-the `PRECOMMIT` message, in the case it carries a value identifier `id(v)`.
-So in the pseudo-code block starting from line 36, a process `p` in the
-`prevote` round step sets `lockedValue_p` to `v` and `lockedRound_p` to
-its current round `round_p` _before_ signing and broadcasting a
-`⟨PRECOMMIT, h_p, round_p, id(v)⟩` message.
+In Tendermint, a correct process informs other processes that it has locked 
+`v` in round `r` by broadcasting the `PRECOMMIT` message containing the value 
+identifier `id(v)`. This is demonstrated in the pseudo-code block starting 
+from line 36, where a process `p`, in the `prevote` step, sets `lockedValue_p` 
+to `v` and `lockedRound_p` to its current round `round_p` _before_ signing 
+and broadcasting a `⟨PRECOMMIT, h_p, round_p, id(v)⟩` message.
 
-From this point on, the process can only accept a proposed value `v`, by
-broadcasting a `PREVOTE` for `id(v)`, if `v = lockedValue_p`.
-This logic is present in the pseudo-code blocks starting from lines 22 and 28:
-if a value `v != lockedValue_p` is proposed, the process rejects it by issuing
-a `PREVOTE` for `nil`.
+From this point on, the process can only accept a proposed value 
+`v` and broadcast a `PREVOTE` for `id(v)` if `v = lockedValue_p`. 
+This logic appears in the pseudo-code blocks starting from lines 
+22 and 28: if a proposed value `v != lockedValue_p`, the process rejects 
+it by issuing a `PREVOTE` for `nil`.
 
-There is, however, an exception to this rule, presented in the pseudo-code
-block starting from line 28.
-If the proposer of the current round `round_p` re-proposes a value `v`, and
-there is a valid Proof-of-Lock (POL) for `v` in a round `vr > lockedRound_p`,
-process `p` accepts the proposed value `v` even though `v != lockedValue_p`.
-The rationale is that `p` _could have_ locked and issued a `PRECOMMIT` for `v`
-in round `vr`, if `p` _had received_ the POL messages while in the `prevote`
-round step of round `vr`.
-If `p` could have locked `v` in round `vr`, then any correct process could
-have produced a valid lock in round `vr`. 
-And more recent (from high-numbered rounds) locks prevail.
+There is, however, an exception to this rule, outlined in the pseudo-code 
+block starting from line 28. If the proposer of the current round `round_p` 
+re-proposes a value `v` and presents a valid Proof-of-Lock (POL) for `v` 
+from a round `vr > lockedRound_p`, process `p` will accept `v` even if `v != lockedValue_p`.
+
+The reasoning behind this exception is that a valid Proof-of-Lock for `v` in 
+round `vr > lockedRound_p` implies that a supermajority of processes accepted 
+`v` in a round later than `lockedRound_p`. This, in turn, indicates that not 
+enough correct processes had locked `lockedValue_p` in `lockedRound_p`. As a 
+result, `p` can be certain that no correct process decided on `lockedValue_p` 
+in `lockedRound_p`. Otherwise, the creation of a Proof-of-Lock for `v` would 
+have been impossible, as we will see later in the [Safety](#safety) section.
+
+Thus, since the purpose of locking is to preserve safety in case some correct 
+process had decided on `lockedValue_p` in `lockedRound_p`, process `p` can 
+safely switch to a value with a more recent (higher-numbered round) lock once 
+it determines that no decision was made on the previous locked value.
 
 > **Remark**: notice that the actual condition in line 29 is `vr >= lockedRound_p`.
 > But, as discussed in this [issue][line29-issue], if `vr = lockedRound_p` then
@@ -828,16 +833,17 @@ And more recent (from high-numbered rounds) locks prevail.
 > But this would require more than one third of the voting power to be owned by
 > Byzantine processes, which is a violation of Tendermint's failure model.
 
+\NM{I think with the current version of this paragraph the text below is not necessary.}
 It is worth discussing why the above described exception for locking rule is
 needed in Tendermint.
-It is possible that in a round `r` a single or few correct processes have
-locked the proposed value and issued a `PRECOMMIT` for it.
+It is possible that, due to network asynchrony or Byzantine leader, in a round `r` a 
+single or few correct processes have locked the proposed value and issued a `PRECOMMIT` for it.
 The proposed value, in this case, will not be decided, for the lack of enough
 `PRECOMMIT`s, but this or these processes are locked on it.
 In an unfavorable scenario, the proposers of subsequent rounds are Byzantine or
 unaware of the lock in round `r`, therefore propose new values.
 Those values are rejected by processes locked in round `r`, but they are
-accepted by correct processes that have no locks.
+accepted by correct processes that have no locks. 
 With the votes of Byzantine processes, which may misbehave, it is then
 possible to produce another lock in a round `r' > r`. \NM{These processes do not need to be Byzantine.}
 None of the locked values can be decided, for the lack of votes, but liveness
