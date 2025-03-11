@@ -168,12 +168,13 @@ impl State {
         }
 
         // Re-assemble the proposal from its parts
-        let value = assemble_value_from_parts(parts);
+        let value = assemble_value_from_parts(parts)?;
 
         info!(
             "Storing undecided proposal {} {}",
             value.height, value.round
         );
+
         self.store.store_undecided_proposal(value.clone()).await?;
 
         Ok(Some(value))
@@ -451,21 +452,23 @@ impl State {
 /// Re-assemble a [`ProposedValue`] from its [`ProposalParts`].
 ///
 /// This is done by multiplying all the factors in the parts.
-fn assemble_value_from_parts(parts: ProposalParts) -> ProposedValue<TestContext> {
+fn assemble_value_from_parts(parts: ProposalParts) -> eyre::Result<ProposedValue<TestContext>> {
+    let init = parts.init().ok_or_else(|| eyre!("Missing Init part"))?;
+
     let value = parts
         .parts
         .iter()
         .filter_map(|part| part.as_data())
         .fold(1, |acc, data| acc * data.factor);
 
-    ProposedValue {
+    Ok(ProposedValue {
         height: parts.height,
         round: parts.round,
-        valid_round: Round::Nil,
+        valid_round: init.pol_round,
         proposer: parts.proposer,
         value: Value::new(value),
         validity: Validity::Valid,
-    }
+    })
 }
 
 /// Decodes a Value from its byte representation using ProtobufCodec
