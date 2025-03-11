@@ -6,7 +6,7 @@ use async_recursion::async_recursion;
 use async_trait::async_trait;
 use derive_where::derive_where;
 use eyre::eyre;
-use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
+use ractor::{Actor, ActorProcessingErr, ActorRef};
 use tokio::time::Instant;
 use tracing::{debug, error, error_span, info, warn};
 
@@ -25,7 +25,7 @@ use malachitebft_sync::{
 };
 
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
-use crate::network::{NetworkEvent, NetworkMsg, NetworkRef, Status};
+use crate::network::{NetworkEvent, NetworkMsg, NetworkRef};
 use crate::sync::Msg as SyncMsg;
 use crate::sync::SyncRef;
 use crate::util::events::{Event, TxEvent};
@@ -99,9 +99,6 @@ pub enum Msg<Ctx: Context> {
 
     /// Received and assembled the full value proposed by a validator
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
-
-    /// Get the status of the consensus state machine
-    GetStatus(RpcReplyPort<Status<Ctx>>),
 }
 
 impl<Ctx: Context> From<NetworkEvent<Ctx>> for Msg<Ctx> {
@@ -583,17 +580,6 @@ where
 
                 Ok(())
             }
-
-            Msg::GetStatus(reply_to) => {
-                let history_min_height = self.get_history_min_height().await?;
-                let status = Status::new(state.consensus.height(), history_min_height);
-
-                if let Err(e) = reply_to.send(status) {
-                    error!("Error when replying to GetStatus message: {e}");
-                }
-
-                Ok(())
-            }
         }
     }
 
@@ -778,13 +764,6 @@ where
             reply_to
         })
         .map_err(|e| eyre!("Failed to verify vote extension: {e:?}").into())
-    }
-
-    async fn get_history_min_height(&self) -> Result<Ctx::Height, ActorProcessingErr> {
-        ractor::call!(self.host, |reply_to| HostMsg::GetHistoryMinHeight {
-            reply_to
-        })
-        .map_err(|e| eyre!("Failed to get earliest block height: {e:?}").into())
     }
 
     async fn wal_append(
@@ -1220,7 +1199,6 @@ fn should_buffer<Ctx: Context>(msg: &Msg<Ctx>) -> bool {
     !matches!(
         msg,
         Msg::StartHeight(..)
-            | Msg::GetStatus(..)
             | Msg::NetworkEvent(NetworkEvent::Listening(..))
             | Msg::NetworkEvent(NetworkEvent::PeerConnected(..))
             | Msg::NetworkEvent(NetworkEvent::PeerDisconnected(..))
