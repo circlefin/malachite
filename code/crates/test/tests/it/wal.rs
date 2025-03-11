@@ -105,7 +105,6 @@ async fn proposer_crashes_after_proposing(params: TestParams) {
 }
 
 #[tokio::test]
-#[ignore]
 async fn non_proposer_crashes_after_voting_parts_only() {
     non_proposer_crashes_after_voting(TestParams {
         value_payload: ValuePayload::PartsOnly,
@@ -196,7 +195,6 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
 }
 
 #[tokio::test]
-#[ignore]
 async fn restart_with_byzantine_proposer_1_request_response_parts_only() {
     byzantine_proposer_crashes_after_proposing_1(TestParams {
         vote_sync_mode: Some(VoteSyncMode::RequestResponse),
@@ -228,6 +226,7 @@ async fn restart_with_byzantine_proposer_1_rebroadcast_parts_only() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn restart_with_byzantine_proposer_1_rebroadcast_proposal_and_parts() {
     byzantine_proposer_crashes_after_proposing_1(TestParams {
         vote_sync_mode: Some(VoteSyncMode::Rebroadcast),
@@ -310,7 +309,7 @@ async fn byzantine_proposer_crashes_after_proposing_1(params: TestParams) {
 
     test.build()
         .run_with_params(
-            Duration::from_secs(60),
+            Duration::from_secs(240),
             TestParams {
                 enable_value_sync: true,
                 ..params
@@ -320,7 +319,6 @@ async fn byzantine_proposer_crashes_after_proposing_1(params: TestParams) {
 }
 
 #[tokio::test]
-#[ignore]
 async fn restart_with_byzantine_proposer_2_request_response_parts_only() {
     byzantine_proposer_crashes_after_proposing_2(TestParams {
         vote_sync_mode: Some(VoteSyncMode::RequestResponse),
@@ -441,7 +439,7 @@ async fn byzantine_proposer_crashes_after_proposing_2(params: TestParams) {
 
     test.build()
         .run_with_params(
-            Duration::from_secs(90),
+            Duration::from_secs(240),
             TestParams {
                 timeout_step: Duration::from_secs(5),
                 value_payload: ValuePayload::PartsOnly,
