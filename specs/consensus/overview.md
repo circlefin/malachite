@@ -272,8 +272,6 @@ transitions in the `prevote` or `precommit` round steps.
 So, a priori, the algorithm expects a correct process to store all the
 multiple proposals broadcast by a Byzantine proposer.
 Which, by itself, constitutes an attack vector to be considered.
-NM{I don't know how this is implemented in the code, but in a round process do need to store 
-all values but if one of the values collects 2f+1 prevotes it can discard others? }
 
 While hard to handle, it is easy to prove that a process has performed an
 equivocation attack: it is enough to receive and store distinct messages for
