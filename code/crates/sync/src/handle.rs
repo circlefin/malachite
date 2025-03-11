@@ -225,7 +225,7 @@ where
 #[tracing::instrument(skip_all)]
 pub async fn on_value_response<Ctx>(
     _co: Co<Ctx>,
-    _state: &mut State<Ctx>,
+    state: &mut State<Ctx>,
     metrics: &Metrics,
     request_id: OutboundRequestId,
     peer: PeerId,
@@ -235,6 +235,8 @@ where
     Ctx: Context,
 {
     debug!(%response.height, %request_id, %peer, "Received response");
+
+    state.remove_pending_decided_value_request(response.height);
 
     metrics.decided_value_response_received(response.height.as_u64());
 
