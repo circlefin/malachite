@@ -865,7 +865,8 @@ There is a scenario (detailed below) where a process `p` does not lock a
 specific value `v` in a round, but the process observes that other processes
 may have locked `v` in this round.
 In this case, to ensure liveness, if the process becomes a proposer in a future
-round, it should re-propose `v`.
+round, it should re-propose `v`. Otherwise, processes that have locked on `v` will
+not accept its proposal and the proposal might not receive enough votes to be decided. 
 This is achieved by setting `validValue_p` to `v` in the pseudo-code line
 42 then using it as the proposal value when it becomes the proposer of a round,
 in line 16.
@@ -875,27 +876,24 @@ A proposed value `v` becomes _globally_ valid (in opposition to the _local_
 validity represented by the [`valid(v)` function](#validation)) in a round `r`
 when it is accepted by a super-majority of processes; they accept it by
 broadcasting a `PREVOTE` for `id(v)`.
-If a process `p` observes these conditions, while still in round `r`, line 36
+If a process `p` observes this condition, while still in round `r`, line 36
 of the pseudo-code is eventually triggered.
-There are however some scenarios to consider:
+There are however two scenarios to consider:
 
-1. `step_p = propose`: in this case, `p` eventually moves to the `prevote`
    round step below;
-2. `step_p = prevote`: in this case, `p` locks `v` at round `r` and broadcast a
+1. `step_p = prevote`: in this case, `p` locks `v` at round `r` and broadcast a
    `PRECOMMIT` for `id(v)`;
-3. `step_p = precommit`: in this case, `p` only updates `validValue_p` to `v`
+2. `step_p = precommit`: in this case, `p` only updates `validValue_p` to `v`
    and `validRound_p` to `r`.
 
-\NM{I would maybe just talk about two scenarios here, when it locks and when it just updates valid values}
-
-In scenarios 1 and 2, `p` locks the proposed value `v` and therefore cannot
+In scenarios 1, `p` locks the proposed value `v` and therefore cannot
 accept any value different than `v` in rounds greater than `r`.
 To provide liveness, if `p` becomes the proposer of a upcoming round, it must
 re-propose the only value that it can accept, namely `v`.
 This is implemented by line 15 of the pseudo-code, in particular because the
 valid value and round are equal to the locked value and round.
 
-In scenario 3, `p` has already broadcast a `PRECOMMIT` for `nil` in round `r`;
+In scenario 2, `p` has already broadcast a `PRECOMMIT` for `nil` in round `r`;
 broadcasting a conflicting `PRECOMMIT` for `id(v)` when the conditions of
 pseudo-code line 36 are observed would constitute a misbehavior.
 In fact, because `p` has not observed the conditions of line 36 (that is, a `PROPOSAL`
@@ -908,7 +906,7 @@ eventually expired (lines 61-64), leading `p` to broadcast a `PRECOMMIT` for `ni
 > considered scenarios by any correct process in round `r` for a distinct
 > proposed value `v' != v`.
 
-Still in scenario 3, although `p` could not lock `v` in round `r`, it realizes
+Still in scenario 2, although `p` could not lock `v` in round `r`, it realizes
 that some correct process may have done so.
 To provide liveness, if `p` becomes the proposer of a upcoming round, it should
 re-propose `v`, since it has learned that `v` has become a globally valid
@@ -932,15 +930,13 @@ then:
 - the aggregated voting power of processes in set `Q` represents more 2/3 of
   the total voting power in height `h`.
 
-From this initial definition, lets `C` be the subset of `Q` formed only by
-correct processes, and consider the [Locked Value](#locked-value) handling:
-
-- processes in `C` own more than 1/3 of the total voting power in height `h`;
-- every process `p` in `C` has set `lockedValue_p` to `v` and `lockedRound_p`
-  to `r` ;
-- every process `p` in `C` will broadcast a `PREVOTE` for `nil` in rounds
-  `r' > r` where a value `v' != v` is proposed. \NM{this might not be clear for all and this is 
-  what we explain below, so maybe we can somehow rephrase" }
+Based on this initial definition, let `C` be the subset of `Q` consisting 
+only of correct processes. If the processes in `C` collectively hold more 
+than one-third of the total voting power at height `h`, and each process 
+`p` in `C` has set `lockedValue_p` to `v` and `lockedRound_p` to `r`, then, 
+due to the [Locked Value](#locked-value) handling, every process `p` in `C` 
+will broadcast a `PREVOTE` for `nil` in any round `r' > r` where a value 
+`v' != v` is proposed.
 
 Next, lets define a `Q'` any set of processes that does not include process in
 `C`, i.e. `Q' ∩ C = ∅`:
