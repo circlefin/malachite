@@ -235,11 +235,11 @@ pub fn prevote_state_with_proposal_and_locked_and_valid(
         step: Step::Prevote,
         valid: Some(RoundValue {
             value: proposal.value.clone(),
-            round: Round::new(0),
+            round: proposal.round,
         }),
         locked: Some(RoundValue {
             value: proposal.value,
-            round: Round::new(0),
+            round: proposal.round,
         }),
         ..Default::default()
     }

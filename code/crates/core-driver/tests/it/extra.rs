@@ -618,14 +618,28 @@ fn driver_steps_polka_previous_locked_vote_last_l32() {
 
     let steps = vec![
         TestStep {
-            desc: "Start round 0, we, v2, are not the proposer, start timeout propose",
+            desc: "(v2): Starts round 0 (v1 is proposer), starts timeout propose",
             input: new_round_input(Round::new(0), v1.address),
             expected_outputs: vec![start_propose_timer_output(Round::new(0))],
             expected_round: Round::new(0),
             new_state: propose_state(Round::new(0)),
         },
         TestStep {
-            desc: "Receive a proposal from v1 - L22 send prevote",
+            desc: "(v2): Timeout propose expires in round 0",
+            input: timeout_propose_input(Round::new(0)),
+            expected_outputs: vec![prevote_nil_output(Round::new(0), &my_addr)],
+            expected_round: Round::new(0),
+            new_state: prevote_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "(v2): Receives a prevote(nil) from v2(itself) in round 0",
+            input: prevote_nil_input(&my_addr),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: prevote_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "(v2): Receives a proposal(value1) from v1 in round 0",
             input: proposal_input(
                 Round::new(0),
                 value1.clone(),
@@ -633,19 +647,55 @@ fn driver_steps_polka_previous_locked_vote_last_l32() {
                 Validity::Valid,
                 v1.address,
             ),
-            expected_outputs: vec![prevote_output(Round::new(0), value1.clone(), &my_addr)],
-            expected_round: Round::new(0),
-            new_state: prevote_state(Round::new(0)),
-        },
-        TestStep {
-            desc: "v2 prevotes the proposal in round 0",
-            input: prevote_input(value1.clone(), &v2.address),
             expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: prevote_state(Round::new(0)),
         },
         TestStep {
-            desc: "v3 proposes another value in round 1",
+            desc: "(v2): Receives a prevote(value1) from v3 in round 0",
+            input: prevote_input(value1.clone(), &v3.address),
+            expected_outputs: vec![start_prevote_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: prevote_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "(v2): Timeout prevote expires in round 0",
+            input: timeout_prevote_input(Round::new(0)),
+            expected_outputs: vec![precommit_nil_output(Round::new(0), &my_addr)],
+            expected_round: Round::new(0),
+            new_state: precommit_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "(v2): Receives a precommit(nil) from v2(itself) in round 0",
+            input: precommit_nil_input(Round::new(0), &my_addr),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: precommit_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "(v2): Receives a precommit(nil) from v3 in round 0",
+            input: precommit_nil_input(Round::new(0), &v3.address),
+            expected_outputs: vec![start_precommit_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: precommit_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "(v2): Timeout precommit expires in round 0",
+            input: timeout_precommit_input(Round::new(0)),
+            expected_outputs: vec![new_round_output(Round::new(1))],
+            expected_round: Round::new(1),
+            new_state: new_round(Round::new(1)),
+        },
+        // Round 1
+        TestStep {
+            desc: "(v2): Starts round 1",
+            input: new_round_input(Round::new(1), v3.address),
+            expected_outputs: vec![start_propose_timer_output(Round::new(1))],
+            expected_round: Round::new(1),
+            new_state: propose_state(Round::new(1)),
+        },
+        TestStep {
+            desc: "(v2): Receives a proposal(value2) from v3 in round 1",
             input: proposal_input(
                 Round::new(1),
                 value2.clone(),
@@ -653,29 +703,19 @@ fn driver_steps_polka_previous_locked_vote_last_l32() {
                 Validity::Valid,
                 v3.address,
             ),
-            expected_outputs: vec![],
-            expected_round: Round::new(0),
-            new_state: prevote_state(Round::new(0)),
-        },
-        TestStep {
-            desc: "v3 prevotes the proposal in round 1 (Receive f+1 vote for round 1 from v3)",
-            input: prevote_input_at(Round::new(1), value2.clone(), &v3.address),
-            expected_outputs: vec![new_round_output(Round::new(1))],
-            expected_round: Round::new(1),
-            new_state: new_round(Round::new(1)),
-        },
-        TestStep {
-            desc: "Start round 1",
-            input: new_round_input(Round::new(1), v3.address),
-            expected_outputs: vec![
-                start_propose_timer_output(Round::new(1)),
-                prevote_output(Round::new(1), value2.clone(), &my_addr),
-            ],
+            expected_outputs: vec![prevote_output(Round::new(1), value2.clone(), &my_addr)],
             expected_round: Round::new(1),
             new_state: prevote_state(Round::new(1)),
         },
         TestStep {
-            desc: "v2 prevotes the proposal in round 1",
+            desc: "(v2): Receives a prevote(value1) from v3 in round 1",
+            input: prevote_input_at(Round::new(1), value2.clone(), &v3.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(1),
+            new_state: prevote_state(Round::new(1)),
+        },
+        TestStep {
+            desc: "(v2): Receives a prevote(value1) from v2 in round 1",
             input: prevote_input_at(Round::new(1), value2.clone(), &v2.address),
             expected_outputs: vec![precommit_output(Round::new(1), value2.clone(), &my_addr)],
             expected_round: Round::new(1),
@@ -691,14 +731,8 @@ fn driver_steps_polka_previous_locked_vote_last_l32() {
             ),
         },
         TestStep {
-            desc: "v1 proposes value1 in round 2",
-            input: proposal_input(
-                Round::new(2),
-                value1.clone(),
-                Round::new(0),
-                Validity::Valid,
-                v1.address,
-            ),
+            desc: "(v2): Receives a precommit(value1) from v2 in round 1",
+            input: precommit_input_at(Round::new(1), value2.clone(), &my_addr),
             expected_outputs: vec![],
             expected_round: Round::new(1),
             new_state: precommit_state_with_proposal_and_locked_and_valid(
@@ -712,10 +746,10 @@ fn driver_steps_polka_previous_locked_vote_last_l32() {
                 ),
             ),
         },
-        /*TestStep {
-            desc: "v1 prevotes the proposal in round 2",
-            input: prevote_input_at(Round::new(2), value1.clone(), &v1.address),
-            expected_outputs: vec![],
+        TestStep {
+            desc: "(v2): Receives precommit(nil) from v3 in round 1",
+            input: precommit_nil_input(Round::new(1), &v3.address),
+            expected_outputs: vec![start_precommit_timer_output(Round::new(1))],
             expected_round: Round::new(1),
             new_state: precommit_state_with_proposal_and_locked_and_valid(
                 Round::new(1),
@@ -727,10 +761,10 @@ fn driver_steps_polka_previous_locked_vote_last_l32() {
                     v3.address,
                 ),
             ),
-        },*/
+        },
         TestStep {
-            desc: "v3 prevotes nil in round 2 (f+1 votes for round 2)",
-            input: prevote_nil_input_at(Round::new(2), &v3.address),
+            desc: "(v2): Timeout precommit expires in round 1",
+            input: timeout_precommit_input(Round::new(1)),
             expected_outputs: vec![new_round_output(Round::new(2))],
             expected_round: Round::new(2),
             new_state: new_round_with_proposal_and_locked_and_valid(
@@ -744,8 +778,9 @@ fn driver_steps_polka_previous_locked_vote_last_l32() {
                 ),
             ),
         },
+        // Round 2
         TestStep {
-            desc: "Start round 2",
+            desc: "(v2): Starts round 2",
             input: new_round_input(Round::new(2), v1.address),
             expected_outputs: vec![start_propose_timer_output(Round::new(2))],
             expected_round: Round::new(2),
@@ -761,8 +796,30 @@ fn driver_steps_polka_previous_locked_vote_last_l32() {
             ),
         },
         TestStep {
-            desc: "v3 prevotes the proposal at round 0",
-            input: prevote_input_at(Round::new(0), value1.clone(), &v3.address),
+            desc: "(v2): Receives proposal(value1) from v1 in round 2",
+            input: proposal_input(
+                Round::new(2),
+                value1.clone(),
+                Round::new(0),
+                Validity::Valid,
+                v1.address,
+            ),
+            expected_outputs: vec![],
+            expected_round: Round::new(2),
+            new_state: propose_state_with_proposal_and_locked_and_valid(
+                Round::new(2),
+                Proposal::new(
+                    Height::new(1),
+                    Round::new(1),
+                    value2.clone(),
+                    Round::Nil,
+                    v3.address,
+                ),
+            ),
+        },
+        TestStep {
+            desc: "(v2): Receives prevote(value1) from v1 from round 0",
+            input: prevote_input_at(Round::new(0), value1.clone(), &v1.address),
             expected_outputs: vec![prevote_nil_output(Round::new(2), &my_addr)],
             expected_round: Round::new(2),
             new_state: prevote_state_with_proposal_and_locked_and_valid(
