@@ -204,7 +204,7 @@ where
     }
 
     /// Get a commit certificate for the given round and value id.
-    pub fn get_commit_certificate(
+    pub fn commit_certificate(
         &self,
         round: Round,
         value_id: ValueId<Ctx>,
