@@ -87,7 +87,7 @@ towards the `f + 1` threshold.
 The question then is whether we count the senders of `PREVOTE` and `PRECOMMIT`
 messages separately (i.e., one set per vote type) or together.
 
-According to the vote keeper [spec in Quint][quint-votekeeper], the
+According to the vote keeper [spec in Quint](./quint/votekeeper.qnt), the
 first interpretation has been adopted.
 Namely, the senders of both `PREVOTE` and `PRECOMMIT` messages of a round `r' > r`
 are counted together towards the `f + 1` threshold.

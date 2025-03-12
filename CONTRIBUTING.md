@@ -33,15 +33,14 @@ There are three ways you can contribute to Malachite:
    by opening a pull request that fixes the underlying problem, in a concrete and
    reviewable manner.
 
-**Anybody can participate in any stage of contribution**. We urge you to participate in the discussion around bugs and
-participate in reviewing PRs.
-
 > [!IMPORTANT]
 > Please see [`CONTRIBUTING_CODE.md`](./CONTRIBUTING_CODE.md) for detailed information about how to setup your environment, build Malachite, and run the test suite.
 
-### Contributions Related to Spelling and Grammar
+### Scope of Contributions
 
 At this time, we will not be accepting contributions that only fix spelling or grammatical errors in documentation, code or elsewhere.
+
+Moreover, we will not accept any pull request which does not address an already existing issue, and which do not clearly specify which issue it is resolving and explains how it does so. 
 
 ### Getting Help
 

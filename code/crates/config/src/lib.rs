@@ -48,7 +48,7 @@ impl Default for P2pConfig {
     }
 }
 /// Peer Discovery configuration options
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DiscoveryConfig {
     /// Enable peer discovery
     #[serde(default)]
@@ -74,6 +74,19 @@ pub struct DiscoveryConfig {
     #[serde(default)]
     #[serde(with = "humantime_serde")]
     pub ephemeral_connection_timeout: Duration,
+}
+
+impl Default for DiscoveryConfig {
+    fn default() -> Self {
+        DiscoveryConfig {
+            enabled: false,
+            bootstrap_protocol: Default::default(),
+            selector: Default::default(),
+            num_outbound_peers: 0,
+            num_inbound_peers: 20,
+            ephemeral_connection_timeout: Default::default(),
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]

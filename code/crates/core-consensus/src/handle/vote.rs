@@ -1,3 +1,5 @@
+use tracing::trace;
+
 use crate::handle::driver::apply_driver_input;
 use crate::handle::signature::verify_signature;
 use crate::handle::validator_set::get_validator_set;
@@ -48,7 +50,7 @@ where
     // Process messages received for the current height.
     // Drop all others.
     if consensus_round == Round::Nil {
-        debug!(
+        trace!(
             consensus.height = %consensus_height,
             vote.height = %vote_height,
             validator = %validator_address,
@@ -61,7 +63,7 @@ where
     }
 
     if consensus_height < vote_height {
-        debug!(
+        trace!(
             consensus.height = %consensus_height,
             vote.height = %vote_height,
             validator = %validator_address,

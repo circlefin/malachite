@@ -104,7 +104,11 @@ where
             config,
             state,
 
-            selector: Discovery::get_selector(config.bootstrap_protocol, config.selector),
+            selector: Discovery::get_selector(
+                config.enabled,
+                config.bootstrap_protocol,
+                config.selector,
+            ),
 
             bootstrap_nodes: bootstrap_nodes
                 .clone()
@@ -172,13 +176,13 @@ where
                             },
                     } => match request {
                         behaviour::Request::Peers(peers) => {
-                            debug!(peer_id = %peer, %connection_id, "Received peers request from peer");
+                            debug!(peer_id = %peer, %connection_id, "Received peers request");
 
                             self.handle_peers_request(swarm, peer, channel, peers);
                         }
 
                         behaviour::Request::Connect() => {
-                            debug!(peer_id = %peer, %connection_id, "Received connect request from peer");
+                            debug!(peer_id = %peer, %connection_id, "Received connect request");
 
                             self.handle_connect_request(swarm, channel, peer, connection_id);
                         }
@@ -195,13 +199,13 @@ where
                             },
                     } => match response {
                         behaviour::Response::Peers(peers) => {
-                            debug!(peer_id = %peer, %connection_id, count = peers.len(), "Received peers response from peer");
+                            debug!(%peer, %connection_id, count = peers.len(), "Received peers response");
 
                             self.handle_peers_response(swarm, request_id, peers);
                         }
 
                         behaviour::Response::Connect(accepted) => {
-                            debug!(peer_id = %peer, %connection_id, accepted, "Received connect response from peer");
+                            debug!(%peer, %connection_id, accepted, "Received connect response");
 
                             self.handle_connect_response(
                                 swarm,
@@ -216,10 +220,10 @@ where
                     request_response::Event::OutboundFailure {
                         peer,
                         request_id,
-                        connection_id: _,
+                        connection_id,
                         error,
                     } => {
-                        error!("Outbound request to {peer} failed: {error}");
+                        error!(%peer, %connection_id, "Outbound request to failed: {error}");
 
                         if self.controller.peers_request.is_in_progress(&request_id) {
                             self.handle_failed_peers_request(swarm, request_id);
@@ -227,7 +231,7 @@ where
                             self.handle_failed_connect_request(swarm, request_id);
                         } else {
                             // This should not happen
-                            error!("Unknown outbound request failure to {peer}");
+                            error!(%peer, %connection_id, "Unknown outbound request failure");
                         }
                     }
 

@@ -44,7 +44,12 @@ where
     })
 }
 
-#[tracing::instrument(name = "wal", parent = span, skip_all, fields(height = log.sequence()))]
+#[tracing::instrument(
+    name = "wal",
+    parent = span,
+    skip_all,
+    fields(height = span_sequence(log.sequence(), &msg))
+)]
 fn process_msg<Ctx, Codec>(
     msg: WalMsg<Ctx>,
     span: &tracing::Span,
@@ -173,5 +178,13 @@ where
         ))
     } else {
         Ok(entries)
+    }
+}
+
+fn span_sequence(sequence: u64, msg: &WalMsg<impl Context>) -> u64 {
+    if let WalMsg::StartedHeight(height, _) = msg {
+        height.as_u64()
+    } else {
+        sequence
     }
 }
