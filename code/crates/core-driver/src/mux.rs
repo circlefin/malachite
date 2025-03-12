@@ -237,6 +237,11 @@ where
     /// - the round of the Proposal with a pol_round matching the certificate's round (L28), or
     /// - the matching proposal is at the same round (L36), or
     /// - the round of the certificate if there is no matching proposal (L44)
+    #[tracing::instrument(level = "debug", skip_all, fields(
+        height = %certificate.height,
+        round = %certificate.round,
+        value_id = %certificate.value_id,
+    ))]
     pub(crate) fn store_and_multiplex_polka_certificate(
         &mut self,
         certificate: PolkaCertificate<Ctx>,
@@ -246,6 +251,8 @@ where
 
         let certificate_round = certificate.round;
         let certificate_value_id = certificate.value_id.clone();
+
+        tracing::debug!("Received polka certificate");
 
         // Only add if an identical certificate isn't already present
         if !self.polka_certificates.iter().any(|existing| {
@@ -258,31 +265,41 @@ where
             .proposal_keeper
             .get_proposal_and_validity_for_round(self.round())
         else {
+            tracing::debug!("No proposal found for polka certificate -> PolkaAny");
             return Some((certificate_round, RoundInput::PolkaAny));
         };
 
+        tracing::debug!("Proposal found for polka certificate");
+
         let proposal = &signed_proposal.message;
 
-        if certificate_value_id == proposal.value().id() {
-            if validity.is_valid() {
-                if proposal.pol_round() == certificate_round {
-                    Some((
-                        proposal.round(),
-                        RoundInput::ProposalAndPolkaPrevious(proposal.clone()),
-                    ))
-                } else if proposal.round() == certificate_round {
-                    Some((
-                        proposal.round(),
-                        RoundInput::ProposalAndPolkaCurrent(proposal.clone()),
-                    ))
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
+        if certificate_value_id != proposal.value().id() {
+            tracing::debug!("Polka certificate does not match proposal value -> PolkaAny");
+            return Some((certificate_round, RoundInput::PolkaAny));
+        }
+
+        if !validity.is_valid() {
+            tracing::debug!("Invalid proposal -> None");
+            return None;
+        }
+
+        if proposal.pol_round() == certificate_round {
+            tracing::debug!(
+                "Polka certificate matches proposal POL round -> ProposalAndPolkaPrevious"
+            );
+            Some((
+                proposal.round(),
+                RoundInput::ProposalAndPolkaPrevious(proposal.clone()),
+            ))
+        } else if proposal.round() == certificate_round {
+            tracing::debug!("Polka certificate matches proposal round -> ProposalAndPolkaCurrent");
+            Some((
+                proposal.round(),
+                RoundInput::ProposalAndPolkaCurrent(proposal.clone()),
+            ))
         } else {
-            Some((certificate_round, RoundInput::PolkaAny))
+            tracing::debug!("Polka certificate does not match proposal (POL) round -> None");
+            None
         }
     }
 

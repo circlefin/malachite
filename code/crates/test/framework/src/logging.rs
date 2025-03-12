@@ -8,7 +8,7 @@ pub fn init_logging() {
         .iter()
         .any(|(k, v)| std::env::var(k).as_deref() == Ok(v));
 
-    let trace_level = if enable_debug { "trace" } else { "info" };
+    let trace_level = if enable_debug { "debug" } else { "info" };
     let directive = format!(
         "{crate_name}=debug,informalsystems_malachitebft={trace_level},informalsystems_malachitebft_discovery=error,libp2p=warn,ractor=warn"
     );
