@@ -54,6 +54,8 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             } => {
                 info!(%height, %round, %proposer, "Started round");
 
+                reload_log_level(height, round);
+
                 // We can use that opportunity to update our internal state
                 state.current_height = height;
                 state.current_round = round;
@@ -308,4 +310,14 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
     // from consensus has been closed, meaning that the consensus actor has died.
     // We can do nothing but return an error here.
     Err(eyre!("Consensus channel closed unexpectedly"))
+}
+
+fn reload_log_level(_height: Height, round: Round) {
+    use malachitebft_test_cli::logging;
+
+    if round.as_i64() > 0 {
+        logging::reload(logging::LogLevel::Trace);
+    } else {
+        logging::reset();
+    }
 }
