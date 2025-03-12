@@ -877,9 +877,8 @@ when it is accepted by a super-majority of processes; they accept it by
 broadcasting a `PREVOTE` for `id(v)`.
 If a process `p` observes this condition, while still in round `r`, line 36
 of the pseudo-code is eventually triggered.
-There are however two scenarios to consider:
-
-   round step below;
+There are however two scenarios to consider based on the round step process `p` is
+currently at:
 1. `step_p = prevote`: in this case, `p` locks `v` at round `r` and broadcast a
    `PRECOMMIT` for `id(v)`;
 2. `step_p = precommit`: in this case, `p` only updates `validValue_p` to `v`
