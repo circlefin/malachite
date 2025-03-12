@@ -79,6 +79,8 @@ jobs:
     defaults:
       run:
         working-directory: code
+    env:
+      MALACHITE_DEBUG: 1
     steps:
       - name: Checkout
         uses: actions/checkout@v4
