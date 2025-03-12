@@ -524,7 +524,7 @@ fn driver_steps_polka_previous_with_locked() {
 }
 
 #[test]
-fn driver_steps_polka_previous_not_locked_vote_last_l32() {
+fn driver_steps_polka_previous_not_locked_vote_last_l30() {
     let value = Value::new(9999);
 
     let [(v1, _sk1), (v2, sk2), (v3, _sk3)] = make_validators([2, 2, 3]);
@@ -594,7 +594,7 @@ fn driver_steps_polka_previous_not_locked_vote_last_l32() {
         TestStep {
             desc: "v3 prevotes the proposal at round 0",
             input: prevote_input(value.clone(), &v3.address),
-            expected_outputs: vec![prevote_nil_output(Round::new(1), &my_addr)],
+            expected_outputs: vec![prevote_output(Round::new(1), value.clone(), &my_addr)],
             expected_round: Round::new(1),
             new_state: prevote_state(Round::new(1)),
         },
