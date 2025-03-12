@@ -13,6 +13,8 @@ pub fn init_logging() {
         "{crate_name}=debug,informalsystems_malachitebft={trace_level},informalsystems_malachitebft_discovery=error,libp2p=warn,ractor=warn"
     );
 
+    println!("Logging directive: {directive}");
+
     let filter = EnvFilter::builder().parse(directive).unwrap();
 
     pub fn enable_ansi() -> bool {
