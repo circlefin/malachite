@@ -81,7 +81,6 @@ jobs:
         working-directory: code
     env:
       MALACHITE_DEBUG: 1
-      MALACHITE_TRANSPORT: quic
     steps:
       - name: Checkout
         uses: actions/checkout@v4
