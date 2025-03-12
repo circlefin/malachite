@@ -79,6 +79,13 @@ pub fn prevote_input_at(round: Round, value: Value, addr: &Address) -> Input<Tes
     ))
 }
 
+pub fn prevote_nil_input_at(round: Round, addr: &Address) -> Input<TestContext> {
+    Input::Vote(SignedVote::new(
+        Vote::new_prevote(Height::new(1), round, NilOrVal::Nil, *addr),
+        Signature::test(),
+    ))
+}
+
 pub fn precommit_output(round: Round, value: Value, addr: &Address) -> Output<TestContext> {
     Output::Vote(Vote::new_precommit(
         Height::new(1),
@@ -182,11 +189,11 @@ pub fn propose_state_with_proposal_and_locked_and_valid(
         step: Step::Propose,
         valid: Some(RoundValue {
             value: proposal.value.clone(),
-            round: Round::new(0),
+            round: proposal.round,
         }),
         locked: Some(RoundValue {
             value: proposal.value,
-            round: Round::new(0),
+            round: proposal.round,
         }),
         ..Default::default()
     }
@@ -311,11 +318,11 @@ pub fn new_round_with_proposal_and_locked_and_valid(
         step: Step::Unstarted,
         valid: Some(RoundValue {
             value: proposal.value.clone(),
-            round: Round::new(0),
+            round: proposal.round,
         }),
         locked: Some(RoundValue {
             value: proposal.value,
-            round: Round::new(0),
+            round: proposal.round,
         }),
         ..Default::default()
     }
