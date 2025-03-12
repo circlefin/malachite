@@ -142,7 +142,7 @@ impl State {
         }
 
         // Re-assemble the proposal from its parts
-        let value = assemble_value_from_parts(parts);
+        let value = assemble_value_from_parts(parts)?;
 
         self.store.store_undecided_proposal(value.clone()).await?;
 
@@ -160,15 +160,20 @@ impl State {
         &mut self,
         certificate: CommitCertificate<TestContext>,
     ) -> eyre::Result<()> {
-        let (height, round) = (certificate.height, certificate.round);
+        let (height, round, value_id) =
+            (certificate.height, certificate.round, certificate.value_id);
 
-        let Ok(Some(proposal)) = self.store.get_undecided_proposal(height, round).await else {
+        // Get the first proposal with the given value id. There may be multiple identical ones
+        // if peers have restreamed at different rounds.
+        let Ok(Some(proposal)) = self
+            .store
+            .get_undecided_proposal_by_value_id(value_id)
+            .await
+        else {
             return Err(eyre!(
-                "Trying to commit a value at height {height} and round {round} for which there is no proposal: {}",
-                certificate.value_id
+                "Trying to commit a value with value id {value_id} at height {height} and round {round} for which there is no proposal"
             ));
         };
-
         self.store
             .store_decided_value(&certificate, proposal.value)
             .await?;
@@ -296,8 +301,9 @@ impl State {
     pub fn stream_proposal(
         &mut self,
         value: LocallyProposedValue<TestContext>,
+        pol_round: Round,
     ) -> impl Iterator<Item = StreamMessage<ProposalPart>> {
-        let parts = self.value_to_parts(value);
+        let parts = self.value_to_parts(value, pol_round);
         let stream_id = self.stream_id();
 
         let mut msgs = Vec::with_capacity(parts.len() + 1);
@@ -314,7 +320,11 @@ impl State {
         msgs.into_iter()
     }
 
-    fn value_to_parts(&self, value: LocallyProposedValue<TestContext>) -> Vec<ProposalPart> {
+    fn value_to_parts(
+        &self,
+        value: LocallyProposedValue<TestContext>,
+        pol_round: Round,
+    ) -> Vec<ProposalPart> {
         let mut hasher = sha3::Keccak256::new();
         let mut parts = Vec::new();
 
@@ -324,6 +334,7 @@ impl State {
             parts.push(ProposalPart::Init(ProposalInit::new(
                 value.height,
                 value.round,
+                pol_round,
                 self.address,
             )));
 
@@ -402,21 +413,23 @@ impl State {
 /// Re-assemble a [`ProposedValue`] from its [`ProposalParts`].
 ///
 /// This is done by multiplying all the factors in the parts.
-fn assemble_value_from_parts(parts: ProposalParts) -> ProposedValue<TestContext> {
+fn assemble_value_from_parts(parts: ProposalParts) -> eyre::Result<ProposedValue<TestContext>> {
+    let init = parts.init().ok_or_else(|| eyre!("Missing Init part"))?;
+
     let value = parts
         .parts
         .iter()
         .filter_map(|part| part.as_data())
         .fold(1, |acc, data| acc * data.factor);
 
-    ProposedValue {
+    Ok(ProposedValue {
         height: parts.height,
         round: parts.round,
-        valid_round: Round::Nil,
+        valid_round: init.pol_round,
         proposer: parts.proposer,
         value: Value::new(value),
         validity: Validity::Valid, // TODO: Check signature in Fin part
-    }
+    })
 }
 
 /// Decodes a Value from its byte representation using ProtobufCodec

@@ -358,7 +358,7 @@ where
         }
 
         match self.store_and_multiplex_polka_certificate(certificate) {
-            Some(round_input) => self.apply_input(self.round(), round_input),
+            Some((input_round, round_input)) => self.apply_input(input_round, round_input),
             None => Ok(None),
         }
     }
