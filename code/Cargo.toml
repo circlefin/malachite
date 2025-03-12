@@ -164,6 +164,6 @@ time               = "0.3"
 tokio              = "1.43.0"
 tokio-stream       = "0.1"
 toml               = "0.8.19"
-tracing            = { version = "0.1.41" , default-features = false }
+tracing            = { version = "0.1.41" , default-features = false, features = ["attributes"] }
 tracing-appender   = "0.2.3"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
