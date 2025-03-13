@@ -8,7 +8,6 @@ use crate::{TestBuilder, TestParams};
 //       all nodes have the same voting power and therefore get stuck when one of them dies.
 
 #[tokio::test]
-#[ignore]
 pub async fn crash_restart_from_start() {
     const CRASH_HEIGHT: u64 = 4;
     const HEIGHT: u64 = 10;
@@ -60,7 +59,6 @@ pub async fn crash_restart_from_start() {
 }
 
 #[tokio::test]
-#[ignore]
 pub async fn crash_restart_from_latest() {
     const HEIGHT: u64 = 10;
     const CRASH_HEIGHT: u64 = 4;

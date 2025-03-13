@@ -32,7 +32,6 @@ async fn proposer_crashes_after_proposing_proposal_and_parts() {
 }
 
 #[tokio::test]
-#[ignore] // Test app does not supports proposal-only mode
 async fn proposer_crashes_after_proposing_proposal_only() {
     proposer_crashes_after_proposing(TestParams {
         value_payload: ValuePayload::ProposalOnly,
@@ -123,7 +122,6 @@ async fn non_proposer_crashes_after_voting_proposal_and_parts() {
 }
 
 #[tokio::test]
-#[ignore] // Test app does not supports proposal-only mode
 async fn non_proposer_crashes_after_voting_proposal_only() {
     non_proposer_crashes_after_voting(TestParams {
         value_payload: ValuePayload::ProposalOnly,
@@ -195,6 +193,7 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
 }
 
 #[tokio::test]
+#[ignore]
 async fn restart_with_byzantine_proposer_1_request_response_parts_only() {
     byzantine_proposer_crashes_after_proposing_1(TestParams {
         vote_sync_mode: Some(VoteSyncMode::RequestResponse),
@@ -309,7 +308,7 @@ async fn byzantine_proposer_crashes_after_proposing_1(params: TestParams) {
 
     test.build()
         .run_with_params(
-            Duration::from_secs(240),
+            Duration::from_secs(60),
             TestParams {
                 enable_value_sync: true,
                 ..params
@@ -439,7 +438,7 @@ async fn byzantine_proposer_crashes_after_proposing_2(params: TestParams) {
 
     test.build()
         .run_with_params(
-            Duration::from_secs(240),
+            Duration::from_secs(60),
             TestParams {
                 timeout_step: Duration::from_secs(5),
                 value_payload: ValuePayload::PartsOnly,

@@ -62,7 +62,7 @@ export MALACHITE__TEST__VOTE_EXTENSIONS__ENABLED="false"
 export MALACHITE__TEST__VOTE_EXTENSIONS__SIZE="1KiB"
 
 echo "Compiling '$APP_BINARY'..."
-cargo build -p $APP_BINARY
+cargo build -p $APP_BINARY --release
 
 # Create nodes and logs directories, run nodes
 for NODE in $(seq 0 $((NODES_COUNT - 1))); do
@@ -81,7 +81,7 @@ for NODE in $(seq 0 $((NODES_COUNT - 1))); do
     mkdir -p "$NODES_HOME/$NODE/traces"
 
     echo "[Node $NODE] Spawning node..."
-    RUST_BACKTRACE=full cargo run -p $APP_BINARY -- start --home "$NODES_HOME/$NODE" > "$NODES_HOME/$NODE/logs/node.log" 2>&1 &
+    cargo run -p $APP_BINARY -- start --home "$NODES_HOME/$NODE" > "$NODES_HOME/$NODE/logs/node.log" 2>&1 &
     echo $! > "$NODES_HOME/$NODE/node.pid"
 done
 
