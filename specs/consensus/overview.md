@@ -912,7 +912,6 @@ value in round `r`.
 This is the reason for which pseudo-code lines 15-16 adopt `validValue_p`
 instead of `lockedValue_p`.
 
-
 ### Safety
 
 This section argues that Tendermint is a safe consensus algorithm.
