@@ -113,7 +113,7 @@ impl Node for App {
     async fn start(&self) -> eyre::Result<Handle> {
         let config = self.load_config()?;
 
-        let span = tracing::error_span!("app", moniker = %config.moniker);
+        let span = tracing::error_span!("node", moniker = %config.moniker);
         let _guard = span.enter();
 
         let ctx = TestContext::new();
