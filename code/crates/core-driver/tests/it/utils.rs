@@ -79,13 +79,6 @@ pub fn prevote_input_at(round: Round, value: Value, addr: &Address) -> Input<Tes
     ))
 }
 
-pub fn prevote_nil_input_at(round: Round, addr: &Address) -> Input<TestContext> {
-    Input::Vote(SignedVote::new(
-        Vote::new_prevote(Height::new(1), round, NilOrVal::Nil, *addr),
-        Signature::test(),
-    ))
-}
-
 pub fn precommit_output(round: Round, value: Value, addr: &Address) -> Output<TestContext> {
     Output::Vote(Vote::new_precommit(
         Height::new(1),
