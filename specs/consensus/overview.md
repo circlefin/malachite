@@ -832,25 +832,6 @@ it determines that no decision was made on the previous locked value.
 > But this would require more than one third of the voting power to be owned by
 > Byzantine processes, which is a violation of Tendermint's failure model.
 
-\NM{I think with the current version of this paragraph the text below is not necessary.}
-It is worth discussing why the above described exception for locking rule is
-needed in Tendermint.
-It is possible that, due to network asynchrony or Byzantine leader, in a round `r` a 
-single or few correct processes have locked the proposed value and issued a `PRECOMMIT` for it.
-The proposed value, in this case, will not be decided, for the lack of enough
-`PRECOMMIT`s, but this or these processes are locked on it.
-In an unfavorable scenario, the proposers of subsequent rounds are Byzantine or
-unaware of the lock in round `r`, therefore propose new values.
-Those values are rejected by processes locked in round `r`, but they are
-accepted by correct processes that have no locks. 
-With the votes of Byzantine processes, which may misbehave, it is then
-possible to produce another lock in a round `r' > r`. \NM{These processes do not need to be Byzantine.}
-None of the locked values can be decided, for the lack of votes, but liveness
-is under threat, as detailed in this [discussion][equivocation-discussion]. \NM{Potentially they cannot be decided, so maybe we can rephrase a bit this sentence.  }
-The only way out of this _hidden locks_ scenario is when the processes locked
-in round `r` learn the POL for round `r' > r`, so that they can disregard
-their own lock.
-
 ### Valid Value
 
 In the same pseudo-code block, starting from line 36, where the locked value
@@ -904,13 +885,14 @@ eventually expired (lines 61-64), leading `p` to broadcast a `PRECOMMIT` for `ni
 > considered scenarios by any correct process in round `r` for a distinct
 > proposed value `v' != v`.
 
-Still in scenario 2, although `p` could not lock `v` in round `r`, it realizes
-that some correct process may have done so.
-To provide liveness, if `p` becomes the proposer of a upcoming round, it should
-re-propose `v`, since it has learned that `v` has become a globally valid
-value in round `r`.
-This is the reason for which pseudo-code lines 15-16 adopt `validValue_p`
-instead of `lockedValue_p`.
+Still in Scenario 2, although `p` was unable to lock `v` in round `r`, it recognizes 
+that some correct process may have done so. To ensure liveness, if `p` becomes the 
+proposer in a future round, it should re-propose `v`, as it has learned that `v` became 
+a _globally_ valid value in round `r`. This is why the pseudo-code at lines 15–16 uses 
+`validValue_p` instead of `lockedValue_p`. Furthermore, the algorithm [guarantees](#liveness) 
+that, eventually, a correct proposer `p` will have `validValue_p` set to the most recent 
+_globally_ valid value. Consequently, when `p` proposes this value, all correct 
+processes will accept it, leading to a decision.
 
 
 ### Safety
