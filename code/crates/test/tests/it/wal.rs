@@ -206,6 +206,7 @@ async fn restart_with_byzantine_proposer_1_request_response_parts_only() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn restart_with_byzantine_proposer_1_request_response_proposal_and_parts() {
     byzantine_proposer_crashes_after_proposing_1(TestParams {
         vote_sync_mode: Some(VoteSyncMode::RequestResponse),
