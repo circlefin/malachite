@@ -152,7 +152,7 @@ impl Node for App {
         let start_height = self.start_height.unwrap_or(Height::INITIAL);
         let mut state = State::new(ctx, signing_provider, genesis, address, start_height, store);
 
-        let span = tracing::error_span!("app", moniker = %config.moniker);
+        let span = tracing::error_span!("node", moniker = %config.moniker);
         let app_handle = tokio::spawn(
             async move {
                 if let Err(e) = crate::app::run(&mut state, &mut channels).await {
