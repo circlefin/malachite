@@ -1,16 +1,22 @@
 //! Init command
 
 use std::path::Path;
+use std::time::Duration;
+
+use clap::Parser;
+use tracing::{info, warn};
+
+use malachitebft_app::node::{
+    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile,
+    MakeConfigSettings, Node,
+};
+use malachitebft_config::{
+    BootstrapProtocol, DiscoveryConfig, RuntimeConfig, Selector, TransportProtocol,
+};
 
 use crate::error::Error;
 use crate::file::{save_config, save_genesis, save_priv_validator_key};
-use crate::new::{generate_config, generate_genesis, generate_private_keys};
-use clap::Parser;
-use malachitebft_app::Node;
-use malachitebft_config::{
-    BootstrapProtocol, Config, LoggingConfig, RuntimeConfig, Selector, TransportProtocol,
-};
-use tracing::{info, warn};
+use crate::new::{generate_genesis, generate_private_keys};
 
 #[derive(Parser, Debug, Clone, Default, PartialEq)]
 pub struct InitCmd {
@@ -62,28 +68,30 @@ impl InitCmd {
         config_file: &Path,
         genesis_file: &Path,
         priv_validator_key_file: &Path,
-        logging: LoggingConfig,
     ) -> Result<(), Error>
     where
-        N: Node,
+        N: Node + CanMakeConfig + CanMakePrivateKeyFile + CanGeneratePrivateKey + CanMakeGenesis,
     {
-        let config = &generate_config(
-            0,
-            1,
-            RuntimeConfig::SingleThreaded,
-            self.enable_discovery,
-            self.bootstrap_protocol,
-            self.selector,
-            self.num_outbound_peers,
-            self.num_inbound_peers,
-            self.ephemeral_connection_timeout_ms,
-            TransportProtocol::Tcp,
-            logging,
-        );
+        let settings = MakeConfigSettings {
+            runtime: RuntimeConfig::SingleThreaded,
+            transport: TransportProtocol::Tcp,
+            discovery: DiscoveryConfig {
+                enabled: self.enable_discovery,
+                bootstrap_protocol: self.bootstrap_protocol,
+                selector: self.selector,
+                num_outbound_peers: self.num_outbound_peers,
+                num_inbound_peers: self.num_inbound_peers,
+                ephemeral_connection_timeout: Duration::from_millis(
+                    self.ephemeral_connection_timeout_ms,
+                ),
+            },
+        };
+
+        let config = N::make_config(0, 1, settings);
 
         init(
             node,
-            config,
+            &config,
             config_file,
             genesis_file,
             priv_validator_key_file,
@@ -97,21 +105,21 @@ impl InitCmd {
 /// init command to generate defaults.
 pub fn init<N>(
     node: &N,
-    config: &Config,
+    config: &N::Config,
     config_file: &Path,
     genesis_file: &Path,
     priv_validator_key_file: &Path,
     overwrite: bool,
 ) -> Result<(), Error>
 where
-    N: Node,
+    N: Node + CanMakePrivateKeyFile + CanGeneratePrivateKey + CanMakeGenesis,
 {
     // Save configuration
     if config_file.exists() && !overwrite {
         warn!(file = ?config_file.display(), "Configuration file already exists, skipping")
     } else {
         info!(file = ?config_file, "Saving configuration");
-        save_config(config_file, config)?;
+        save_config::<N>(config_file, config)?;
     }
 
     // Save default priv_validator_key

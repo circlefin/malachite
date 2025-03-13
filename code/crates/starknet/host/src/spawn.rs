@@ -5,8 +5,7 @@ use tokio::task::JoinHandle;
 use tracing::warn;
 
 use malachitebft_config::{
-    self as config, Config as NodeConfig, MempoolConfig, TestConfig, TransportProtocol,
-    ValueSyncConfig, VoteSyncConfig,
+    self as config, MempoolConfig, TestConfig, TransportProtocol, ValueSyncConfig, VoteSyncConfig,
 };
 use malachitebft_core_consensus::VoteSyncMode;
 use malachitebft_core_types::ValuePayload;
@@ -25,6 +24,7 @@ use malachitebft_test_mempool::Config as MempoolNetworkConfig;
 
 use crate::actor::Host;
 use crate::codec::ProtobufCodec;
+use crate::config::Config;
 use crate::host::{StarknetHost, StarknetParams};
 use crate::mempool::network::{MempoolNetwork, MempoolNetworkRef};
 use crate::mempool::{Mempool, MempoolRef};
@@ -32,7 +32,7 @@ use crate::types::MockContext;
 use crate::types::{Address, Height, PrivateKey, ValidatorSet};
 
 pub async fn spawn_node_actor(
-    cfg: NodeConfig,
+    cfg: Config,
     home_dir: PathBuf,
     initial_validator_set: ValidatorSet,
     private_key: PrivateKey,
@@ -158,7 +158,7 @@ async fn spawn_consensus_actor(
     initial_validator_set: ValidatorSet,
     address: Address,
     ctx: MockContext,
-    cfg: NodeConfig,
+    cfg: Config,
     signing_provider: Ed25519Provider,
     network: NetworkRef<MockContext>,
     host: HostRef<MockContext>,
@@ -198,7 +198,7 @@ async fn spawn_consensus_actor(
 }
 
 async fn spawn_network_actor(
-    cfg: &NodeConfig,
+    cfg: &Config,
     private_key: &PrivateKey,
     registry: &SharedRegistry,
     span: &tracing::Span,
@@ -285,7 +285,7 @@ async fn spawn_mempool_actor(
 }
 
 async fn spawn_mempool_network_actor(
-    cfg: &NodeConfig,
+    cfg: &Config,
     private_key: &PrivateKey,
     registry: &SharedRegistry,
     span: &tracing::Span,
@@ -310,7 +310,7 @@ async fn spawn_mempool_network_actor(
 #[allow(clippy::too_many_arguments)]
 async fn spawn_host_actor(
     home_dir: &Path,
-    cfg: &NodeConfig,
+    cfg: &Config,
     address: &Address,
     private_key: &PrivateKey,
     initial_validator_set: &ValidatorSet,
@@ -319,10 +319,10 @@ async fn spawn_host_actor(
     metrics: Metrics,
     span: &tracing::Span,
 ) -> HostRef<MockContext> {
-    if cfg.test.value_payload != config::ValuePayload::PartsOnly {
+    if cfg.consensus.value_payload != config::ValuePayload::PartsOnly {
         warn!(
             "`value_payload` must be set to `PartsOnly` for Starknet app, ignoring current configuration `{:?}`",
-            cfg.test.value_payload
+            cfg.consensus.value_payload
         );
     }
 

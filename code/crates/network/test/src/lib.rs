@@ -4,9 +4,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use libp2p_identity::PeerId;
 use malachitebft_config::TransportProtocol;
 use malachitebft_metrics::SharedRegistry;
-use malachitebft_network::{
-    spawn, BootstrapProtocol, Config, DiscoveryConfig, Keypair, PeerIdExt, Selector,
-};
+use malachitebft_network::{spawn, Config, DiscoveryConfig, Keypair, PeerIdExt};
 use malachitebft_starknet_host::types::PrivateKey;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use tokio::time::sleep;
@@ -111,6 +109,7 @@ pub struct Test<const N: usize> {
     consensus_base_port: usize,
     spawn_delay: Duration,
     timeout: Duration,
+    discovery_config: DiscoveryConfig,
 }
 
 impl<const N: usize> Test<N> {
@@ -119,6 +118,7 @@ impl<const N: usize> Test<N> {
         expected_peers_sets: [Expected; N],
         spawn_delay: Duration,
         timeout: Duration,
+        discovery_config: DiscoveryConfig,
     ) -> Self {
         Self {
             nodes,
@@ -127,6 +127,7 @@ impl<const N: usize> Test<N> {
             consensus_base_port: rand::thread_rng().gen_range(21000..50000),
             spawn_delay,
             timeout,
+            discovery_config,
         }
     }
 
@@ -143,7 +144,7 @@ impl<const N: usize> Test<N> {
         })
     }
 
-    fn generate_default_configs(&self) -> [Config; N] {
+    fn generate_default_configs(&self, discovery_config: DiscoveryConfig) -> [Config; N] {
         std::array::from_fn(|i| Config {
             listen_addr: TransportProtocol::Quic
                 .multiaddr("127.0.0.1", self.consensus_base_port + i),
@@ -154,12 +155,7 @@ impl<const N: usize> Test<N> {
                     TransportProtocol::Quic.multiaddr("127.0.0.1", self.consensus_base_port + *j)
                 })
                 .collect(),
-            discovery: DiscoveryConfig {
-                enabled: true,
-                bootstrap_protocol: BootstrapProtocol::Full,
-                selector: Selector::Random,
-                ..Default::default()
-            },
+            discovery: discovery_config,
             idle_connection_timeout: Duration::from_secs(60),
             transport: malachitebft_network::TransportProtocol::Quic,
             gossipsub: malachitebft_network::GossipSubConfig::default(),
@@ -173,7 +169,7 @@ impl<const N: usize> Test<N> {
         init_logging();
         info!("Starting test with {} nodes", N);
 
-        let configs = self.generate_default_configs();
+        let configs = self.generate_default_configs(self.discovery_config);
         debug!("Generated configs");
 
         let mut handles = Vec::with_capacity(N);

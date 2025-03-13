@@ -47,7 +47,7 @@ pub async fn crash_restart_from_start() {
         .run_with_params(
             Duration::from_secs(60),
             TestParams {
-                // Enable Sync to allow the node to catch up to the latest height
+                // Enable ValueSync to allow the node to catch up to the latest height
                 enable_value_sync: true,
                 vote_sync_mode: Some(VoteSyncMode::Rebroadcast),
                 timeout_step: Duration::from_secs(5),
@@ -129,7 +129,8 @@ pub async fn start_late() {
         .run_with_params(
             Duration::from_secs(60),
             TestParams {
-                enable_value_sync: false,
+                // Enable ValueSync to allow the node to catch up to the latest height
+                enable_value_sync: true,
                 vote_sync_mode: Some(VoteSyncMode::Rebroadcast),
                 ..Default::default()
             },

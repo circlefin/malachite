@@ -1,6 +1,8 @@
 [profile.default]
 retries = 1
 fail-fast = false
+test-threads = 1
+failure-output = "immediate-final"
 
 [profile.default.junit]
 path = "junit.xml"

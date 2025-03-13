@@ -10,7 +10,7 @@ use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, quic, SwarmBuilder};
 use libp2p_broadcast as broadcast;
 use tokio::sync::{mpsc, oneshot};
-use tracing::{debug, error, error_span, trace, warn, Instrument};
+use tracing::{debug, error, error_span, info, trace, warn, Instrument};
 
 use malachitebft_discovery::{self as discovery};
 use malachitebft_metrics::SharedRegistry;
@@ -202,7 +202,10 @@ pub async fn spawn(
     let state = State::new(discovery);
 
     let peer_id = PeerId::from_libp2p(swarm.local_peer_id());
-    let span = error_span!("network", peer = %peer_id);
+    let span = error_span!("network");
+
+    info!(parent: span.clone(), %peer_id, "Starting network service");
+
     let task_handle =
         tokio::task::spawn(run(config, metrics, state, swarm, rx_ctrl, tx_event).instrument(span));
 

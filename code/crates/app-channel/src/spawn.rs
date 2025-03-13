@@ -3,17 +3,17 @@
 use eyre::Result;
 use tokio::sync::mpsc;
 
-use malachitebft_app as app;
-use malachitebft_app::types::metrics::SharedRegistry;
-use malachitebft_app::types::Keypair;
-use malachitebft_config::Config as NodeConfig;
 use malachitebft_engine::consensus::ConsensusCodec;
 use malachitebft_engine::host::HostRef;
 use malachitebft_engine::network::NetworkRef;
 use malachitebft_engine::sync::SyncCodec;
 
+use crate::app;
+use crate::app::config::ConsensusConfig;
+use crate::app::metrics::Metrics;
+use crate::app::metrics::SharedRegistry;
 use crate::app::types::core::Context;
-use crate::app::types::metrics::Metrics;
+use crate::app::types::Keypair;
 use crate::connector::Connector;
 use crate::{AppMsg, NetworkMsg};
 
@@ -29,7 +29,7 @@ where
 }
 
 pub async fn spawn_network_actor<Ctx, Codec>(
-    cfg: &NodeConfig,
+    cfg: &ConsensusConfig,
     keypair: Keypair,
     registry: &SharedRegistry,
     codec: Codec,
