@@ -894,7 +894,6 @@ that, eventually, a correct proposer `p` will have `validValue_p` set to the mos
 _globally_ valid value. Consequently, when `p` proposes this value, all correct 
 processes will accept it, leading to a decision.
 
-
 ### Safety
 
 This section argues that Tendermint is a safe consensus algorithm.
