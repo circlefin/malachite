@@ -822,7 +822,7 @@ fn driver_steps_polka_previous_locked_vote_last_l32() {
             input: prevote_input_at(Round::new(0), value1.clone(), &v1.address),
             expected_outputs: vec![prevote_nil_output(Round::new(2), &my_addr)],
             expected_round: Round::new(2),
-            new_state: prevote_state_with_proposal_and_locked_and_valid(
+            new_state: prevote_state_with_matching_proposal_and_locked_and_valid(
                 Round::new(2),
                 Proposal::new(
                     Height::new(1),

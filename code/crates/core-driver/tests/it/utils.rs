@@ -228,6 +228,26 @@ pub fn prevote_state_with_proposal_and_locked_and_valid(
         step: Step::Prevote,
         valid: Some(RoundValue {
             value: proposal.value.clone(),
+            round: Round::new(0),
+        }),
+        locked: Some(RoundValue {
+            value: proposal.value,
+            round: Round::new(0),
+        }),
+        ..Default::default()
+    }
+}
+
+pub fn prevote_state_with_matching_proposal_and_locked_and_valid(
+    round: Round,
+    proposal: Proposal,
+) -> State<TestContext> {
+    State {
+        height: Height::new(1),
+        round,
+        step: Step::Prevote,
+        valid: Some(RoundValue {
+            value: proposal.value.clone(),
             round: proposal.round,
         }),
         locked: Some(RoundValue {
