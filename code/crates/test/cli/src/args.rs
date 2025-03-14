@@ -12,6 +12,7 @@ use clap::{Parser, Subcommand};
 use directories::BaseDirs;
 
 use crate::cmd::distributed_testnet::DistributedTestnetCmd;
+use crate::cmd::dump_wal::DumpWalCmd;
 use crate::cmd::init::InitCmd;
 use crate::cmd::start::StartCmd;
 use crate::cmd::testnet::TestnetCmd;
@@ -46,6 +47,9 @@ pub enum Commands {
 
     /// Generate distributed testnet configuration
     DistributedTestnet(DistributedTestnetCmd),
+
+    /// Dump WAL entries
+    DumpWal(DumpWalCmd),
 }
 
 impl Default for Commands {
