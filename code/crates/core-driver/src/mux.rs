@@ -128,7 +128,7 @@ where
         // L49
         if self.round_state.decision.is_none()
             && self
-                .get_commit_certificate(proposal.round(), proposal.value().id())
+                .commit_certificate(proposal.round(), proposal.value().id())
                 .is_some()
         {
             return Some(RoundInput::ProposalAndPrecommitValue(proposal));

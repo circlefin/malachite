@@ -64,7 +64,7 @@ pub async fn crash_restart_from_start_parts_only() {
 }
 
 #[tokio::test]
-#[ignore] // Test app does not support proposal-only mode
+#[ignore]
 pub async fn crash_restart_from_start_proposal_only() {
     let params = TestParams {
         value_payload: ValuePayload::ProposalOnly,

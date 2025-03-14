@@ -124,12 +124,6 @@ pub async fn run(
                     error!("Failed to send GetValue reply");
                 }
 
-                // assert_eq!(
-                //     state.config.consensus.value_payload,
-                //     ValuePayload::PartsOnly,
-                //     "The test application only support parts-only mode for now"
-                // );
-
                 // The POL round is always nil when we propose a newly built value.
                 // See L15/L18 of the Tendermint algorithm.
                 let pol_round = Round::Nil;
