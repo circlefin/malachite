@@ -62,7 +62,7 @@ export MALACHITE__TEST__VOTE_EXTENSIONS__ENABLED="false"
 export MALACHITE__TEST__VOTE_EXTENSIONS__SIZE="1KiB"
 
 echo "Compiling '$APP_BINARY'..."
-cargo build -p $APP_BINARY --release
+cargo build -p $APP_BINARY
 
 # Create nodes and logs directories, run nodes
 for NODE in $(seq 0 $((NODES_COUNT - 1))); do
