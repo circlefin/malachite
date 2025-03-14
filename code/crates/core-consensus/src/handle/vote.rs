@@ -79,7 +79,7 @@ where
 
     // Only append to WAL and store precommits if we're in the validator set,
     // and we have not yet seen this vote.
-    if state.is_validator() && !state.driver.votes().has_vote(&signed_vote) {
+    if !state.driver.votes().has_vote(&signed_vote) {
         // Append the vote to the Write-ahead Log
         perform!(
             co,
