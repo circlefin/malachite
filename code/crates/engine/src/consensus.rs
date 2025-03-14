@@ -1010,6 +1010,8 @@ where
             }
 
             Effect::Decide(certificate, extensions, r) => {
+                assert!(!certificate.aggregated_signature.signatures.is_empty());
+
                 self.wal_flush(phase).await?;
 
                 self.tx_event.send(|| Event::Decided(certificate.clone()));
