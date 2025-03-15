@@ -314,7 +314,7 @@ where
             }
             VKOutput::PolkaValue(v) => {
                 if let Some((proposal, validity)) =
-                    self.proposal_and_validity_for_round(threshold_round)
+                    self.proposal_and_validity_for_round(self.round())
                 {
                     let proposal = &proposal.message;
 
