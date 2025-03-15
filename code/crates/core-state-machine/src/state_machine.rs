@@ -541,9 +541,19 @@ pub fn commit<Ctx>(state: State<Ctx>, round: Round, proposal: Ctx::Proposal) -> 
 where
     Ctx: Context,
 {
-    let new_state = state
-        .set_decision(proposal.value().clone())
-        .with_step(Step::Commit);
-    let output = Output::decision(round, proposal.clone());
-    Transition::to(new_state).with_output(output)
+    match &state.decision {
+        // We already decided this value
+        Some(decision) if decision.value.id() == proposal.value().id() => Transition::to(state),
+        // We decided a different value
+        // TODO: Should we panic here?
+        Some(_) => Transition::invalid(state),
+        // We haven't decided anything yet
+        None => {
+            let new_state = state
+                .set_decision(proposal.round(), proposal.value().clone())
+                .with_step(Step::Commit);
+            let output = Output::decision(round, proposal.clone());
+            Transition::to(new_state).with_output(output)
+        }
+    }
 }

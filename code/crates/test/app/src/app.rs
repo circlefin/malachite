@@ -110,12 +110,7 @@ pub async fn run(
                     None => {
                         // If we have not previously built a value for that very same height and round,
                         // we need to create a new value to propose and send it back to consensus.
-                        let proposal = state.propose_value(height, round).await?;
-                        error!(
-                            "XXX Building a new value to propose {:}",
-                            proposal.value.id()
-                        );
-                        proposal
+                        state.propose_value(height, round).await?
                     }
                 };
 
@@ -187,6 +182,7 @@ pub async fn run(
                     value = %certificate.value_id,
                     "Consensus has decided on value"
                 );
+                assert!(!certificate.aggregated_signature.signatures.is_empty());
 
                 // When that happens, we store the decided value in our store
                 state.commit(certificate).await?;

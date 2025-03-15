@@ -79,6 +79,11 @@ where
         Ok(())
     }
 
+    /// Remove the proposal.
+    pub fn remove(&mut self) {
+        self.proposal = None;
+    }
+
     /// Return the proposal received from the given validator.
     pub fn get_proposal(&self) -> Option<&(SignedProposal<Ctx>, Validity)> {
         self.proposal.as_ref()
@@ -151,6 +156,13 @@ where
                     existing.validator_address(), conflicting.validator_address()
                 );
             }
+        }
+    }
+
+    /// Remove the proposal for the specified round.
+    pub fn remove_proposal(&mut self, round: Round) {
+        if let Some(per_round) = self.per_round.get_mut(&round) {
+            per_round.remove();
         }
     }
 }

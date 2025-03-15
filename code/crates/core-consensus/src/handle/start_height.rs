@@ -19,6 +19,7 @@ where
     #[cfg(feature = "metrics")]
     metrics.step_end(state.driver.step());
 
+    state.decided = false;
     state.driver.move_to_height(height, validator_set);
 
     debug_assert_eq!(state.driver.height(), height);

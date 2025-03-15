@@ -5,21 +5,22 @@ pub async fn decide<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    consensus_round: Round,
-    proposal: SignedProposal<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
-    let height = proposal.height();
-    let proposal_round = proposal.round();
-    let value = proposal.value();
+    assert!(state.driver.step_is_commit());
 
-    // We only decide proposals for the current height
-    assert_eq!(height, state.driver.height());
+    if state.decided {
+        return Ok(());
+    };
 
-    // Clean proposals and values
-    state.remove_full_proposals(height);
+    let height = state.driver.height();
+    let consensus_round = state.driver.round();
+
+    let Some((proposal_round, decided_value)) = state.decided_value() else {
+        return Err(Error::DecidedValueNotFound(height, consensus_round));
+    };
 
     // Update metrics
     #[cfg(feature = "metrics")]
@@ -48,23 +49,40 @@ where
         }
     }
 
+    let decided_id = decided_value.id();
+
     // Look for an existing certificate
     let (certificate, extensions) = state
         .driver
-        .commit_certificate(proposal_round, value.id())
+        .commit_certificate(proposal_round, decided_id.clone())
         .cloned()
         .map(|certificate| (certificate, VoteExtensions::default()))
         .unwrap_or_else(|| {
             // Restore the commits. Note that they will be removed from `state`
-            let mut commits = state.restore_precommits(height, proposal_round, value);
+            let mut commits = state.restore_precommits(height, proposal_round, &decided_value);
 
             let extensions = extract_vote_extensions(&mut commits);
 
             // TODO: Should we verify we have 2/3rd commits?
-            let certificate = CommitCertificate::new(height, proposal_round, value.id(), commits);
+            let certificate =
+                CommitCertificate::new(height, proposal_round, decided_id.clone(), commits);
 
             (certificate, extensions)
         });
+
+    let Some((proposal, validity)) = state.driver.proposal_and_validity_for_round(proposal_round)
+    else {
+        return Err(Error::DecidedValueNotFound(height, proposal_round));
+    };
+
+    assert_eq!(*validity, Validity::Valid);
+    assert_eq!(proposal.value().id(), decided_id);
+
+    // Remove the proposal and full proposals for this round
+    state.remove_full_proposals(height);
+    state.remove_proposal(proposal_round);
+
+    state.decided = true;
 
     perform!(
         co,
@@ -102,18 +120,10 @@ pub async fn decide_current_no_timeout<Ctx>(
 where
     Ctx: Context,
 {
-    let height = state.driver.height();
-    let round = state.driver.round();
-
     perform!(
         co,
-        Effect::CancelTimeout(Timeout::commit(round), Default::default())
+        Effect::CancelTimeout(Timeout::commit(state.driver.round()), Default::default())
     );
 
-    let proposal = state
-        .decision
-        .remove(&(height, round))
-        .ok_or_else(|| Error::DecidedValueNotFound(height, round))?;
-
-    decide(co, state, metrics, round, proposal).await
+    decide(co, state, metrics).await
 }

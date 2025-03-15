@@ -174,6 +174,14 @@ where
         &self.round_state
     }
 
+    /// Return the round and value of the decided proposal
+    pub fn decided_value(&self) -> Option<(Round, Ctx::Value)> {
+        self.round_state
+            .decision
+            .as_ref()
+            .map(|decision| (decision.round, decision.value.clone()))
+    }
+
     /// Return the address of the node.
     pub fn address(&self) -> &Ctx::Address {
         &self.address
@@ -217,6 +225,20 @@ where
     /// Get all polka certificates
     pub fn polka_certificates(&self) -> &[PolkaCertificate<Ctx>] {
         &self.polka_certificates
+    }
+
+    /// Get the proposal for the given round.
+    pub fn proposal_and_validity_for_round(
+        &self,
+        round: Round,
+    ) -> Option<&(SignedProposal<Ctx>, Validity)> {
+        self.proposal_keeper
+            .get_proposal_and_validity_for_round(round)
+    }
+
+    /// Remove the proposal for the given round.
+    pub fn remove_proposal(&mut self, round: Round) {
+        self.proposal_keeper.remove_proposal(round);
     }
 
     /// Store the last vote that we have cast

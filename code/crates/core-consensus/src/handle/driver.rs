@@ -305,9 +305,6 @@ where
                 "Decided",
             );
 
-            // Store value decided on for retrieval when timeout commit elapses
-            state.store_decision(state.driver.height(), consensus_round, proposal.clone());
-
             perform!(
                 co,
                 Effect::ScheduleTimeout(Timeout::commit(consensus_round), Default::default())

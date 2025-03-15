@@ -113,7 +113,7 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
             ),
             expected_outputs: vec![decide_output(Round::new(0), proposal)],
             expected_round: Round::new(0),
-            new_state: decided_state(Round::new(0), value),
+            new_state: decided_state(Round::new(0), Round::new(0), value),
         },
     ];
 
@@ -230,7 +230,7 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
             ),
             expected_outputs: vec![decide_output(Round::new(1), proposal)],
             expected_round: Round::new(1),
-            new_state: decided_state(Round::new(1), value),
+            new_state: decided_state(Round::new(1), Round::new(0), value),
         },
     ];
 
@@ -1855,7 +1855,7 @@ fn driver_step_change_mux_with_proposal_and_commit_quorum() {
                 decide_output(Round::new(1), proposal),
             ],
             expected_round: Round::new(1),
-            new_state: decided_state(Round::new(1), value),
+            new_state: decided_state(Round::new(1), Round::new(1), value),
         },
     ];
 
@@ -2001,7 +2001,7 @@ fn proposal_mux_with_commit_quorum() {
             ),
             expected_outputs: vec![decide_output(Round::new(1), proposal)],
             expected_round: Round::new(1),
-            new_state: decided_state(Round::new(1), value),
+            new_state: decided_state(Round::new(1), Round::new(1), value),
         },
     ];
 

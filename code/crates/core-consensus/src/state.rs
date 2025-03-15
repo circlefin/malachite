@@ -31,14 +31,15 @@ where
     /// Store Precommit votes to be sent along the decision to the host
     pub signed_precommits: BTreeMap<(Ctx::Height, Round), BTreeSet<SignedVote<Ctx>>>,
 
-    /// Decision per height
-    pub decision: BTreeMap<(Ctx::Height, Round), SignedProposal<Ctx>>,
-
     /// Last prevote broadcasted by this node
     pub last_prevote: Option<SignedVote<Ctx>>,
 
     /// Last precommit broadcasted by this node
     pub last_precommit: Option<SignedVote<Ctx>>,
+
+    /// The height has been decided and the effect has been sent to the host
+    /// TODO - move to state machine? It's the only place that keeps the height.
+    pub decided: bool,
 }
 
 impl<Ctx> State<Ctx>
@@ -61,9 +62,9 @@ where
             input_queue: Default::default(),
             full_proposal_keeper: Default::default(),
             signed_precommits: Default::default(),
-            decision: Default::default(),
             last_prevote: None,
             last_precommit: None,
+            decided: false,
         }
     }
 
@@ -106,19 +107,6 @@ where
             .entry((height, round))
             .or_default()
             .insert(precommit);
-    }
-
-    pub fn store_decision(&mut self, height: Ctx::Height, round: Round, proposal: Ctx::Proposal) {
-        if let Some(full_proposal) = self.full_proposal_keeper.full_proposal_at_round_and_value(
-            &height,
-            proposal.round(),
-            &proposal.value().id(),
-        ) {
-            self.decision.insert(
-                (self.driver.height(), round),
-                full_proposal.proposal.clone(),
-            );
-        }
     }
 
     pub fn restore_precommits(
@@ -206,6 +194,16 @@ where
     pub fn remove_full_proposals(&mut self, height: Ctx::Height) {
         debug!(%height, "Pruning full proposals");
         self.full_proposal_keeper.remove_full_proposals(height)
+    }
+
+    /// Remove the proposal for the given round.
+    pub fn remove_proposal(&mut self, round: Round) {
+        self.driver.remove_proposal(round);
+    }
+
+    /// Return the round and value id of the decided value.
+    pub fn decided_value(&self) -> Option<(Round, Ctx::Value)> {
+        self.driver.decided_value()
     }
 
     /// Queue an input for later processing, only keep inputs for the highest height seen so far.

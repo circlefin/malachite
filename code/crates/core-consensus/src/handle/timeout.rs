@@ -53,14 +53,7 @@ where
         TimeoutKind::PrevoteTimeLimit | TimeoutKind::PrecommitTimeLimit => {
             on_step_limit_timeout(co, state, metrics, timeout.round).await
         }
-        TimeoutKind::Commit => {
-            let proposal = state
-                .decision
-                .remove(&(height, round))
-                .ok_or_else(|| Error::DecidedValueNotFound(height, round))?;
-
-            decide(co, state, metrics, round, proposal).await
-        }
+        TimeoutKind::Commit => decide(co, state, metrics).await,
         _ => Ok(()),
     }
 }

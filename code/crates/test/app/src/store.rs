@@ -245,42 +245,6 @@ impl Db {
         Ok(())
     }
 
-    fn remove_undecided_proposals_by_value_id(&self, value_id: ValueId) -> Result<(), StoreError> {
-        let tx = self.db.begin_write()?;
-
-        {
-            let mut table = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
-            // Iterate through all entries
-            let keys_to_remove: Vec<_> = table
-                .iter()?
-                .flatten()
-                .filter_map(|(key, value)| {
-                    // Decode the proposal
-                    let bytes = value.value();
-                    let proposal: ProposedValue<TestContext> = ProtobufCodec
-                        .decode(Bytes::from(bytes))
-                        .map_err(StoreError::Protobuf)
-                        .ok()?;
-
-                    // Check if the value matches
-                    if proposal.value.id() == value_id {
-                        return Some(key.value());
-                    }
-                    None
-                })
-                .collect();
-
-            // Remove all matching entries
-            for key in keys_to_remove {
-                table.remove(&key)?;
-            }
-        }
-
-        tx.commit()?;
-
-        Ok(())
-    }
-
     fn get_undecided_proposal_by_value_id(
         &self,
         value_id: ValueId,
@@ -383,15 +347,6 @@ impl Store {
     pub async fn prune(&self, retain_height: Height) -> Result<Vec<Height>, StoreError> {
         let db = Arc::clone(&self.db);
         tokio::task::spawn_blocking(move || db.prune(retain_height)).await?
-    }
-
-    pub async fn remove_undecided_proposals_by_value_id(
-        &self,
-        value_id: ValueId,
-    ) -> Result<(), StoreError> {
-        let db = Arc::clone(&self.db);
-        tokio::task::spawn_blocking(move || db.remove_undecided_proposals_by_value_id(value_id))
-            .await?
     }
 
     pub async fn get_undecided_proposal_by_value_id(

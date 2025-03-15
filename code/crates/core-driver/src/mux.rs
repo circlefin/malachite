@@ -218,9 +218,8 @@ where
         // Store the certificate
         self.commit_certificates.push(certificate);
 
-        if let Some((signed_proposal, validity)) = self
-            .proposal_keeper
-            .get_proposal_and_validity_for_round(certificate_round)
+        if let Some((signed_proposal, validity)) =
+            self.proposal_and_validity_for_round(certificate_round)
         {
             let proposal = &signed_proposal.message;
             if proposal.value().id() == certificate_value_id && validity.is_valid() {
@@ -254,9 +253,7 @@ where
             self.polka_certificates.push(certificate);
         }
 
-        let Some((signed_proposal, validity)) = self
-            .proposal_keeper
-            .get_proposal_and_validity_for_round(self.round())
+        let Some((signed_proposal, validity)) = self.proposal_and_validity_for_round(self.round())
         else {
             return Some((certificate_round, RoundInput::PolkaAny));
         };
@@ -299,9 +296,8 @@ where
             VKOutput::PrecommitAny => (threshold_round, RoundInput::PrecommitAny),
             VKOutput::SkipRound(r) => (threshold_round, RoundInput::SkipRound(r)),
             VKOutput::PrecommitValue(v) => {
-                if let Some((proposal, validity)) = self
-                    .proposal_keeper
-                    .get_proposal_and_validity_for_round(threshold_round)
+                if let Some((proposal, validity)) =
+                    self.proposal_and_validity_for_round(threshold_round)
                 {
                     let proposal = &proposal.message;
                     if v == proposal.value().id() && validity.is_valid() {
@@ -317,9 +313,8 @@ where
                 }
             }
             VKOutput::PolkaValue(v) => {
-                if let Some((proposal, validity)) = self
-                    .proposal_keeper
-                    .get_proposal_and_validity_for_round(self.round())
+                if let Some((proposal, validity)) =
+                    self.proposal_and_validity_for_round(threshold_round)
                 {
                     let proposal = &proposal.message;
 
@@ -372,10 +367,7 @@ where
     pub(crate) fn multiplex_step_change(&mut self, round: Round) -> Vec<(Round, RoundInput<Ctx>)> {
         let mut result = Vec::new();
 
-        if let Some((signed_proposal, validity)) = self
-            .proposal_keeper
-            .get_proposal_and_validity_for_round(round)
-        {
+        if let Some((signed_proposal, validity)) = self.proposal_and_validity_for_round(round) {
             let proposal = &signed_proposal.message;
 
             match self.round_state().step {

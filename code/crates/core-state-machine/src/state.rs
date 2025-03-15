@@ -69,7 +69,9 @@ where
     pub valid: Option<RoundValue<Ctx::Value>>,
 
     /// The value we have decided on, None if no decision has been made yet.
-    pub decision: Option<Ctx::Value>,
+    /// The decision round is the round of the proposal that we decided on.
+    /// It may be different, lower or higher, than the state machine round.
+    pub decision: Option<RoundValue<Ctx::Value>>,
 
     /// Buffer with traces of tendermint algorithm lines,
     #[cfg(feature = "debug")]
@@ -122,9 +124,9 @@ where
     }
 
     /// Set the value we have decided on.
-    pub fn set_decision(self, value: Ctx::Value) -> Self {
+    pub fn set_decision(self, proposal_round: Round, value: Ctx::Value) -> Self {
         Self {
-            decision: Some(value),
+            decision: Some(RoundValue::new(value, proposal_round)),
             ..self
         }
     }
