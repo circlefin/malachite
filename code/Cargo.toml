@@ -106,7 +106,7 @@ starknet-crypto = "0.7.3"
 
 advisory-lock      = "0.3.0"
 async-recursion    = "1.1"
-async-trait        = "0.1.85"
+async-trait        = "0.1.88"
 axum               = "0.7"
 base64             = "0.22.0"
 bs58               = { version = "0.5.1", default-features = false }
