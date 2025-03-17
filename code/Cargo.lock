@@ -2295,7 +2295,7 @@ dependencies = [
  "informalsystems-malachitebft-proto",
  "informalsystems-malachitebft-test",
  "informalsystems-malachitebft-test-cli",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "prost",
  "rand 0.8.5",
  "redb",
@@ -2407,7 +2407,7 @@ dependencies = [
  "informalsystems-malachitebft-sync",
  "informalsystems-malachitebft-test-cli",
  "informalsystems-malachitebft-test-mempool",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "libp2p-identity",
  "prost",
  "ractor",
@@ -2557,7 +2557,7 @@ dependencies = [
  "informalsystems-malachitebft-test",
  "informalsystems-malachitebft-test-cli",
  "informalsystems-malachitebft-test-framework",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "prost",
  "rand 0.8.5",
  "redb",
@@ -2583,7 +2583,7 @@ dependencies = [
  "informalsystems-malachitebft-config",
  "informalsystems-malachitebft-core-types",
  "informalsystems-malachitebft-metrics",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "rand 0.8.5",
  "serde",
  "serde_json",
@@ -2724,15 +2724,6 @@ name = "itertools"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
 dependencies = [
  "either",
 ]
