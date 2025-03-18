@@ -11,10 +11,12 @@ use malachitebft_metrics::SharedRegistry;
 use malachitebft_wal as wal;
 
 mod entry;
+mod iter;
 mod thread;
 
 pub use entry::WalCodec;
 pub use entry::WalEntry;
+pub use iter::log_entries;
 
 pub type WalRef<Ctx> = ActorRef<Msg<Ctx>>;
 
@@ -53,6 +55,7 @@ pub enum Msg<Ctx: Context> {
     StartedHeight(Ctx::Height, WalReply<Option<Vec<WalEntry<Ctx>>>>),
     Append(Ctx::Height, WalEntry<Ctx>, WalReply<()>),
     Flush(WalReply<()>),
+    Dump,
 }
 
 pub struct Args<Codec> {
@@ -100,6 +103,10 @@ where
 
             Msg::Flush(reply_to) => {
                 self.flush_log(state, reply_to).await?;
+            }
+
+            Msg::Dump => {
+                state.wal_sender.send(self::thread::WalMsg::Dump).await?;
             }
         }
 

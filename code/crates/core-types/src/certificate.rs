@@ -86,6 +86,19 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
     }
 }
 
+/// Represents a certificate witnessing a Polka at a given height and round.
+#[derive_where(Clone, Debug, PartialEq, Eq)]
+pub struct PolkaCertificate<Ctx: Context> {
+    /// The height at which a Polka was witnessed
+    pub height: Ctx::Height,
+    /// The round at which a Polka that was witnessed
+    pub round: Round,
+    /// The value that the Polka is for
+    pub value_id: ValueId<Ctx>,
+    /// The votes that make up the Polka
+    pub votes: Vec<SignedVote<Ctx>>,
+}
+
 /// Represents an error that can occur when verifying a certificate.
 #[derive_where(Clone, Debug)]
 #[derive(Error)]

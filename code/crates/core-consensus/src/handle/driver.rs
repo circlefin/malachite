@@ -68,7 +68,19 @@ where
         DriverInput::CommitCertificate(certificate) => {
             if certificate.height != state.driver.height() {
                 warn!(
-                    "Ignoring certificate for height {}, current height: {}",
+                    "Ignoring commit certificate for height {}, current height: {}",
+                    certificate.height,
+                    state.driver.height()
+                );
+
+                return Ok(());
+            }
+        }
+
+        DriverInput::PolkaCertificate(certificate) => {
+            if certificate.height != state.driver.height() {
+                warn!(
+                    "Ignoring polka certificate for height {}, current height: {}",
                     certificate.height,
                     state.driver.height()
                 );
@@ -118,18 +130,21 @@ where
                 co,
                 Effect::CancelTimeout(Timeout::propose(state.driver.round()), Default::default())
             );
-
-            // Schedule the Prevote time limit timeout
-            perform!(
-                co,
-                Effect::ScheduleTimeout(
-                    Timeout::prevote_time_limit(state.driver.round()),
-                    Default::default()
-                )
-            );
+            if state.params.vote_sync_mode == VoteSyncMode::RequestResponse {
+                // Schedule the Prevote time limit timeout
+                perform!(
+                    co,
+                    Effect::ScheduleTimeout(
+                        Timeout::prevote_time_limit(state.driver.round()),
+                        Default::default()
+                    )
+                );
+            }
         }
 
-        if state.driver.step_is_precommit() {
+        if state.driver.step_is_precommit()
+            && state.params.vote_sync_mode == VoteSyncMode::RequestResponse
+        {
             perform!(
                 co,
                 Effect::CancelTimeout(
@@ -250,9 +265,9 @@ where
                 "Voting",
             );
 
-            // Only sign and publish if we're in the validator set
             if state.is_validator() {
                 let vote_type = vote.vote_type();
+
                 let extended_vote = extend_vote(co, vote).await?;
                 let signed_vote = sign_vote(co, extended_vote).await?;
 
