@@ -2,7 +2,7 @@
 
 ## Changelog
 
-* 2025-03-04: Context and proposed values propagation Alternatives
+* 2025-03-18: Context and description of the problem
 
 ## Context
 
@@ -34,7 +34,7 @@ actually comprises two stages:
 - **Value Decision**: a single value, among the possibly multiple proposed and
   successfully propagated values, must be decided.
 
-The cost of the **Value Propagation** state,
+The cost of the **Value Propagation** stage,
 in terms of latency and bandwidth consumption, 
 evidently depends on the size of the proposed values.
 While the cost of the **Value Decision** stage should be independent from the
@@ -49,6 +49,23 @@ The function `id(v)` can be implemented in multiple ways, the most common of
 which is by returning a hash of `v`.
 This means that the size of the messages used in the **Value Decision** stage
 is usually fixed and independent from the size of the proposed value.
+
+## Alternatives
+
+This section presents a (possibly not comprehensive) list of approaches to
+handle **Value Propagation** for consensus protocols in general, and for
+Tendermint in particular, discussing the pros and cons of each of them.
+
+### Consensus by Value
+
+In this approach, the consensus implementation plays both the
+**Value Propagation** and **Value Decision** roles.
+
+### Consensus by Reference
+
+In this approach, the consensus implementation plays only the
+**Value Decision** role, while the application is fully responsible for
+implementing the **Value Propagation** role.
 
 ## Decision
 
