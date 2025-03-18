@@ -379,8 +379,19 @@ pub enum VoteSyncMode {
     /// The lagging node sends a request to a peer for the missing votes
     #[default]
     RequestResponse,
+
     /// Nodes rebroadcast their last vote to all peers
     Rebroadcast,
+}
+
+impl VoteSyncMode {
+    pub fn is_request_response(&self) -> bool {
+        matches!(self, Self::RequestResponse)
+    }
+
+    pub fn is_rebroadcast(&self) -> bool {
+        matches!(self, Self::Rebroadcast)
+    }
 }
 
 /// Message types required by consensus to deliver the value being proposed
