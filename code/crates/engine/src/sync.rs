@@ -254,7 +254,7 @@ where
                         );
                     }
                     Err(e) => {
-                        error!("Failed to send request to gossip layer: {e}");
+                        error!("Failed to send request to network layer: {e}");
                     }
                 }
             }

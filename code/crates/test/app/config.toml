@@ -65,8 +65,8 @@ timeout_step = "30s"
 # The message(s) required to carry the value payload.
 # Available options are:
 # - "parts-only": Full value is included in the proposal parts and there is no explicit Proposal message (default)
-# - "proposal-only": Full value is included in the (explicit) consensus Proposal message (not supported by example app)
-# - "proposal-and-parts": Both proposal parts and Proposal message are required (similar to CometBFT implementation of Tendermint, not supported by example app)
+# - "proposal-only": Full value is included in the (explicit) consensus Proposal message (not supported by test app)
+# - "proposal-and-parts": Both proposal parts and Proposal message are required (similar to CometBFT implementation of Tendermint, not supported by test app)
 # Override with MALACHITE__CONSENSUS__VALUE_PAYLOAD env variable
 value_payload = "parts-only"
 
@@ -137,6 +137,22 @@ mesh_n_low = 4
 mesh_outbound_min = 2
 
 #######################################################
+###         ValueSync Configuration Options         ###
+#######################################################
+[value_sync]
+# Enable the ValueSync synchronization protocol
+# Override with MALACHITE__VALUE_SYNC__ENABLED env variable
+enabled = true
+
+# Interval at which to update other peers of our status
+# Override with MALACHITE__VALUE_SYNC__STATUS_UPDATE_INTERVAL env variable
+status_update_interval = "10s"
+
+# Timeout duration for ValueSync requests
+# Override with MALACHITE__VALUE_SYNC__REQUEST_TIMEOUT env variable
+request_timeout = "10s"
+
+#######################################################
 ###          Mempool Configuration Options          ###
 #######################################################
 [mempool]
@@ -184,19 +200,19 @@ type = "gossipsub"
 
 
 #######################################################
-###         ValueSync Configuration Options         ###
+###         Sync Configuration Options         ###
 #######################################################
-[value_sync]
-# Enable the ValueSync synchronization protocol
-# Override with MALACHITE__VALUE_SYNC__ENABLED env variable
+[sync]
+# Enable the synchronization protocol
+# Override with MALACHITE__SYNC__ENABLED env variable
 enabled = true
 
 # Interval at which to update other peers of our status
-# Override with MALACHITE__VALUE_SYNC__STATUS_UPDATE_INTERVAL env variable
+# Override with MALACHITE__SYNC__STATUS_UPDATE_INTERVAL env variable
 status_update_interval = "10s"
 
-# Timeout duration for ValueSync requests
-# Override with MALACHITE__VALUE_SYNC__REQUEST_TIMEOUT env variable
+# Timeout duration for sync requests
+# Override with MALACHITE__SYNC__REQUEST_TIMEOUT env variable
 request_timeout = "10s"
 
 #######################################################
@@ -253,3 +269,4 @@ exec_time_per_tx = "1ms"
 max_retain_blocks = 1000
 # Override with MALACHITE__TEST__VOTE_EXTENSIONS__ENABLED and MALACHITE__TEST__VOTE_EXTENSIONS__SIZE env variables
 vote_extensions = { enabled = false, size = "0 KB" }
+

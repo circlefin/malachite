@@ -1,55 +1,12 @@
 use core::fmt;
 use std::net::{IpAddr, SocketAddr};
-use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
 
 use bytesize::ByteSize;
-use config as config_rs;
 use malachitebft_core_types::TimeoutKind;
 use multiaddr::Multiaddr;
 use serde::{Deserialize, Serialize};
-
-/// Malachite configuration options
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct Config {
-    /// A custom human-readable name for this node
-    pub moniker: String,
-
-    /// Log configuration options
-    pub logging: LoggingConfig,
-
-    /// Consensus configuration options
-    pub consensus: ConsensusConfig,
-
-    /// Mempool configuration options
-    pub mempool: MempoolConfig,
-
-    /// ValueSync configuration options
-    pub value_sync: ValueSyncConfig,
-
-    /// Metrics configuration options
-    pub metrics: MetricsConfig,
-
-    /// Runtime configuration options
-    pub runtime: RuntimeConfig,
-
-    /// Test configuration
-    #[serde(default)]
-    pub test: TestConfig,
-}
-
-/// load_config parses the environment variables and loads the provided config file path
-/// to create a Config struct.
-pub fn load_config(config_file_path: &Path, prefix: Option<&str>) -> Result<Config, String> {
-    config_rs::Config::builder()
-        .add_source(config::File::from(config_file_path))
-        .add_source(config::Environment::with_prefix(prefix.unwrap_or("MALACHITE")).separator("__"))
-        .build()
-        .map_err(|error| error.to_string())?
-        .try_deserialize()
-        .map_err(|error| error.to_string())
-}
 
 /// P2P configuration options
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -91,7 +48,7 @@ impl Default for P2pConfig {
     }
 }
 /// Peer Discovery configuration options
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DiscoveryConfig {
     /// Enable peer discovery
     #[serde(default)]
@@ -117,6 +74,19 @@ pub struct DiscoveryConfig {
     #[serde(default)]
     #[serde(with = "humantime_serde")]
     pub ephemeral_connection_timeout: Duration,
+}
+
+impl Default for DiscoveryConfig {
+    fn default() -> Self {
+        DiscoveryConfig {
+            enabled: false,
+            bootstrap_protocol: Default::default(),
+            selector: Default::default(),
+            num_outbound_peers: 0,
+            num_inbound_peers: 20,
+            ephemeral_connection_timeout: Default::default(),
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -387,6 +357,9 @@ pub struct ConsensusConfig {
     /// P2P configuration options
     pub p2p: P2pConfig,
 
+    /// Message types that can carry values
+    pub value_payload: ValuePayload,
+
     /// VoteSync configuration options
     pub vote_sync: VoteSyncConfig,
 }
@@ -569,8 +542,6 @@ pub struct VoteExtensionsConfig {
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TestConfig {
     pub max_block_size: ByteSize,
-    /// Message types that can carry values
-    pub value_payload: ValuePayload,
     pub tx_size: ByteSize,
     pub txs_per_part: usize,
     pub time_allowance_factor: f32,
@@ -585,7 +556,6 @@ impl Default for TestConfig {
     fn default() -> Self {
         Self {
             max_block_size: ByteSize::mib(1),
-            value_payload: ValuePayload::default(),
             tx_size: ByteSize::kib(1),
             txs_per_part: 256,
             time_allowance_factor: 0.5,
@@ -672,23 +642,6 @@ impl fmt::Display for LogFormat {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn parse_default_config_file() {
-        let file = include_str!("../../../examples/channel/config.toml");
-        let config = toml::from_str::<Config>(file).unwrap();
-        assert_eq!(config.consensus.timeouts, TimeoutConfig::default());
-        assert_eq!(config.test, TestConfig::default());
-
-        let tmp_file = std::env::temp_dir().join("informalsystems-malachitebft-config.toml");
-        std::fs::write(&tmp_file, file).unwrap();
-
-        let config = load_config(&tmp_file, None).unwrap();
-        assert_eq!(config.consensus.timeouts, TimeoutConfig::default());
-        assert_eq!(config.test, TestConfig::default());
-
-        std::fs::remove_file(tmp_file).unwrap();
-    }
 
     #[test]
     fn log_format() {

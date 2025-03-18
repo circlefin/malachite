@@ -29,6 +29,7 @@ pub async fn parts_only() {
 }
 
 #[tokio::test]
+#[ignore] // Test app only supports parts-only mode
 pub async fn proposal_and_parts() {
     let params = TestParams {
         value_payload: ValuePayload::ProposalAndParts,
@@ -38,9 +39,8 @@ pub async fn proposal_and_parts() {
     run_test(params).await
 }
 
-// This functionality is not fully implemented yet
 #[tokio::test]
-#[ignore]
+#[ignore] // This functionality is not fully implemented yet
 pub async fn proposal_only() {
     let params = TestParams {
         value_payload: ValuePayload::ProposalOnly,

@@ -5,37 +5,34 @@ use eyre::Result;
 
 use malachitebft_engine::util::events::TxEvent;
 
-use crate::app;
+use crate::app::metrics::{Metrics, SharedRegistry};
+use crate::app::node::{self, EngineHandle, NodeConfig};
 use crate::app::spawn::{
     spawn_consensus_actor, spawn_node_actor, spawn_sync_actor, spawn_wal_actor,
 };
 use crate::app::types::codec::{ConsensusCodec, SyncCodec, WalCodec};
-use crate::app::types::config::Config as NodeConfig;
 use crate::app::types::core::Context;
-use crate::app::types::metrics::{Metrics, SharedRegistry};
-use crate::app::EngineHandle;
 use crate::spawn::{spawn_host_actor, spawn_network_actor};
 use crate::Channels;
 
-#[tracing::instrument("node", skip_all, fields(moniker = %cfg.moniker))]
 pub async fn start_engine<Node, Ctx, Codec>(
     ctx: Ctx,
     codec: Codec,
     node: Node,
-    cfg: NodeConfig,
+    cfg: Node::Config,
     start_height: Option<Ctx::Height>,
     initial_validator_set: Ctx::ValidatorSet,
 ) -> Result<(Channels<Ctx>, EngineHandle)>
 where
     Ctx: Context,
-    Node: app::Node<Context = Ctx>,
+    Node: node::Node<Context = Ctx>,
     Codec: WalCodec<Ctx> + Clone,
     Codec: ConsensusCodec<Ctx>,
     Codec: SyncCodec<Ctx>,
 {
     let start_height = start_height.unwrap_or_default();
 
-    let registry = SharedRegistry::global().with_moniker(cfg.moniker.as_str());
+    let registry = SharedRegistry::global().with_moniker(cfg.moniker());
     let metrics = Metrics::register(&registry);
 
     let private_key_file = node.load_private_key_file()?;
@@ -47,7 +44,7 @@ where
 
     // Spawn consensus gossip
     let (network, tx_network) =
-        spawn_network_actor(&cfg, keypair, &registry, codec.clone()).await?;
+        spawn_network_actor(cfg.consensus(), keypair, &registry, codec.clone()).await?;
 
     let wal = spawn_wal_actor(&ctx, codec, &node.get_home_dir(), &registry).await?;
 
@@ -58,8 +55,8 @@ where
         ctx.clone(),
         network.clone(),
         connector.clone(),
-        &cfg.value_sync,
-        &cfg.consensus.vote_sync,
+        cfg.value_sync(),
+        &cfg.consensus().vote_sync,
         &registry,
     )
     .await?;
@@ -72,7 +69,7 @@ where
         initial_validator_set,
         address,
         ctx.clone(),
-        cfg,
+        cfg.consensus(),
         Box::new(signing_provider),
         network.clone(),
         connector.clone(),

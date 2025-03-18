@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use std::path::PathBuf;
 
 use ractor::async_trait;
@@ -6,13 +8,16 @@ use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;
 
 use malachitebft_app::events::{RxEvent, TxEvent};
+use malachitebft_app::node::{
+    CanGeneratePrivateKey, CanMakeConfig, CanMakeDistributedConfig, CanMakeGenesis,
+    CanMakePrivateKeyFile, MakeConfigSettings, Node, NodeHandle,
+};
 use malachitebft_app::types::Keypair;
-use malachitebft_app::{Node, NodeHandle};
-use malachitebft_config::Config;
 use malachitebft_core_types::VotingPower;
 use malachitebft_engine::node::NodeRef;
 use malachitebft_starknet_p2p_types::Ed25519Provider;
 
+use crate::config::{load_config, Config};
 use crate::spawn::spawn_node_actor;
 use crate::types::{Address, Height, MockContext, PrivateKey, PublicKey, Validator, ValidatorSet};
 
@@ -61,13 +66,28 @@ impl NodeHandle<MockContext> for Handle {
 }
 
 #[derive(Clone, Debug)]
+pub enum ConfigSource {
+    File(PathBuf),
+    Value(Box<Config>),
+    Default,
+}
+
+#[derive(Clone, Debug)]
 pub struct StarknetNode {
-    pub config: Config,
     pub home_dir: PathBuf,
+    pub config_source: ConfigSource,
     pub start_height: Option<u64>,
 }
 
 impl StarknetNode {
+    pub fn new(home_dir: PathBuf, config_source: ConfigSource, start_height: Option<u64>) -> Self {
+        Self {
+            home_dir,
+            config_source,
+            start_height,
+        }
+    }
+
     pub fn genesis_file(&self) -> PathBuf {
         self.home_dir.join("config").join("genesis.json")
     }
@@ -80,6 +100,7 @@ impl StarknetNode {
 #[async_trait]
 impl Node for StarknetNode {
     type Context = MockContext;
+    type Config = Config;
     type Genesis = Genesis;
     type PrivateKeyFile = PrivateKeyFile;
     type SigningProvider = Ed25519Provider;
@@ -89,11 +110,12 @@ impl Node for StarknetNode {
         self.home_dir.to_owned()
     }
 
-    fn generate_private_key<R>(&self, rng: R) -> PrivateKey
-    where
-        R: RngCore + CryptoRng,
-    {
-        PrivateKey::generate(rng)
+    fn load_config(&self) -> eyre::Result<Self::Config> {
+        match self.config_source {
+            ConfigSource::File(ref path) => load_config(path, Some("MALACHITE")),
+            ConfigSource::Value(ref config) => Ok(*config.clone()),
+            ConfigSource::Default => Ok(default_config()),
+        }
     }
 
     fn get_address(&self, pk: &PublicKey) -> Address {
@@ -112,36 +134,24 @@ impl Node for StarknetNode {
         file.private_key
     }
 
-    fn load_private_key_file(&self) -> std::io::Result<Self::PrivateKeyFile> {
+    fn load_private_key_file(&self) -> eyre::Result<Self::PrivateKeyFile> {
         let private_key = std::fs::read_to_string(self.private_key_file())?;
         serde_json::from_str(&private_key).map_err(|e| e.into())
-    }
-
-    fn make_private_key_file(&self, private_key: PrivateKey) -> Self::PrivateKeyFile {
-        PrivateKeyFile::from(private_key)
     }
 
     fn get_signing_provider(&self, private_key: PrivateKey) -> Self::SigningProvider {
         Self::SigningProvider::new(private_key)
     }
 
-    fn load_genesis(&self) -> std::io::Result<Self::Genesis> {
+    fn load_genesis(&self) -> eyre::Result<Self::Genesis> {
         let genesis = std::fs::read_to_string(self.genesis_file())?;
         serde_json::from_str(&genesis).map_err(|e| e.into())
     }
 
-    fn make_genesis(&self, validators: Vec<(PublicKey, VotingPower)>) -> Self::Genesis {
-        let validators = validators
-            .into_iter()
-            .map(|(pk, vp)| Validator::new(pk, vp));
-
-        let validator_set = ValidatorSet::new(validators);
-
-        Genesis { validator_set }
-    }
-
     async fn start(&self) -> eyre::Result<Handle> {
-        let span = tracing::error_span!("node", moniker = %self.config.moniker);
+        let config = self.load_config()?;
+
+        let span = tracing::error_span!("node", moniker = %config.moniker);
         let _enter = span.enter();
 
         let priv_key_file = self.load_private_key_file()?;
@@ -152,7 +162,7 @@ impl Node for StarknetNode {
         let start_height = self.start_height.map(|height| Height::new(height, 1));
 
         let (actor, handle) = spawn_node_actor(
-            self.config.clone(),
+            config.clone(),
             self.home_dir.clone(),
             genesis.validator_set,
             private_key,
@@ -175,6 +185,253 @@ impl Node for StarknetNode {
     }
 }
 
+impl CanGeneratePrivateKey for StarknetNode {
+    fn generate_private_key<R>(&self, rng: R) -> PrivateKey
+    where
+        R: RngCore + CryptoRng,
+    {
+        PrivateKey::generate(rng)
+    }
+}
+
+impl CanMakePrivateKeyFile for StarknetNode {
+    fn make_private_key_file(&self, private_key: PrivateKey) -> Self::PrivateKeyFile {
+        PrivateKeyFile::from(private_key)
+    }
+}
+
+impl CanMakeGenesis for StarknetNode {
+    fn make_genesis(&self, validators: Vec<(PublicKey, VotingPower)>) -> Self::Genesis {
+        let validators = validators
+            .into_iter()
+            .map(|(pk, vp)| Validator::new(pk, vp));
+
+        let validator_set = ValidatorSet::new(validators);
+
+        Genesis { validator_set }
+    }
+}
+
+impl CanMakeConfig for StarknetNode {
+    fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Self::Config {
+        make_config(index, total, settings)
+    }
+}
+
+impl CanMakeDistributedConfig for StarknetNode {
+    fn make_distributed_config(
+        index: usize,
+        total: usize,
+        machines: Vec<String>,
+        bootstrap_set_size: usize,
+        settings: MakeConfigSettings,
+    ) -> Self::Config {
+        make_distributed_config(index, total, machines, bootstrap_set_size, settings)
+    }
+}
+
+/// Generate configuration for node "index" out of "total" number of nodes.
+fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Config {
+    use itertools::Itertools;
+    use rand::seq::IteratorRandom;
+    use rand::Rng;
+
+    use malachitebft_config::*;
+
+    const CONSENSUS_BASE_PORT: usize = 27000;
+    const MEMPOOL_BASE_PORT: usize = 28000;
+    const METRICS_BASE_PORT: usize = 29000;
+
+    let consensus_port = CONSENSUS_BASE_PORT + index;
+    let mempool_port = MEMPOOL_BASE_PORT + index;
+    let metrics_port = METRICS_BASE_PORT + index;
+
+    Config {
+        moniker: format!("starknet-{}", index),
+        consensus: ConsensusConfig {
+            value_payload: ValuePayload::PartsOnly,
+            vote_sync: VoteSyncConfig {
+                mode: VoteSyncMode::Rebroadcast,
+            },
+            timeouts: TimeoutConfig::default(),
+            p2p: P2pConfig {
+                protocol: PubSubProtocol::default(),
+                listen_addr: settings.transport.multiaddr("127.0.0.1", consensus_port),
+                persistent_peers: if settings.discovery.enabled {
+                    let mut rng = rand::thread_rng();
+                    let count = if total > 1 {
+                        rng.gen_range(1..=(total / 2))
+                    } else {
+                        0
+                    };
+                    let peers = (0..total)
+                        .filter(|j| *j != index)
+                        .choose_multiple(&mut rng, count);
+
+                    peers
+                        .iter()
+                        .unique()
+                        .map(|index| {
+                            settings
+                                .transport
+                                .multiaddr("127.0.0.1", CONSENSUS_BASE_PORT + index)
+                        })
+                        .collect()
+                } else {
+                    (0..total)
+                        .filter(|j| *j != index)
+                        .map(|j| {
+                            settings
+                                .transport
+                                .multiaddr("127.0.0.1", CONSENSUS_BASE_PORT + j)
+                        })
+                        .collect()
+                },
+                discovery: settings.discovery,
+                transport: settings.transport,
+                ..Default::default()
+            },
+        },
+        mempool: MempoolConfig {
+            p2p: P2pConfig {
+                protocol: PubSubProtocol::default(),
+                listen_addr: settings.transport.multiaddr("127.0.0.1", mempool_port),
+                persistent_peers: (0..total)
+                    .filter(|j| *j != index)
+                    .map(|j| {
+                        settings
+                            .transport
+                            .multiaddr("127.0.0.1", MEMPOOL_BASE_PORT + j)
+                    })
+                    .collect(),
+                discovery: DiscoveryConfig {
+                    enabled: false,
+                    ..settings.discovery
+                },
+                transport: settings.transport,
+                ..Default::default()
+            },
+            max_tx_count: 10000,
+            gossip_batch_size: 0,
+        },
+        metrics: MetricsConfig {
+            enabled: true,
+            listen_addr: format!("127.0.0.1:{metrics_port}").parse().unwrap(),
+        },
+        runtime: settings.runtime,
+        value_sync: ValueSyncConfig::default(),
+        logging: LoggingConfig::default(),
+        test: TestConfig::default(),
+    }
+}
+
+fn make_distributed_config(
+    index: usize,
+    _total: usize,
+    machines: Vec<String>,
+    bootstrap_set_size: usize,
+    settings: MakeConfigSettings,
+) -> Config {
+    use itertools::Itertools;
+    use malachitebft_config::*;
+    use std::time::Duration;
+
+    const CONSENSUS_BASE_PORT: usize = 27000;
+    const MEMPOOL_BASE_PORT: usize = 28000;
+    const METRICS_BASE_PORT: usize = 29000;
+
+    let machine = machines[index % machines.len()].clone();
+    let consensus_port = CONSENSUS_BASE_PORT + (index / machines.len());
+    let mempool_port = MEMPOOL_BASE_PORT + (index / machines.len());
+    let metrics_port = METRICS_BASE_PORT + (index / machines.len());
+
+    Config {
+        moniker: format!("test-{}", index),
+        consensus: ConsensusConfig {
+            value_payload: ValuePayload::PartsOnly,
+            vote_sync: VoteSyncConfig {
+                mode: VoteSyncMode::RequestResponse,
+            },
+            timeouts: TimeoutConfig::default(),
+            p2p: P2pConfig {
+                protocol: PubSubProtocol::default(),
+                listen_addr: settings.transport.multiaddr(&machine, consensus_port),
+                persistent_peers: if settings.discovery.enabled {
+                    let peers =
+                        ((index.saturating_sub(bootstrap_set_size))..index).collect::<Vec<_>>();
+
+                    peers
+                        .iter()
+                        .unique()
+                        .map(|j| {
+                            settings.transport.multiaddr(
+                                &machines[j % machines.len()].clone(),
+                                CONSENSUS_BASE_PORT + (j / machines.len()),
+                            )
+                        })
+                        .collect()
+                } else {
+                    let peers = (0..index).collect::<Vec<_>>();
+
+                    peers
+                        .iter()
+                        .map(|j| {
+                            settings.transport.multiaddr(
+                                &machines[*j % machines.len()],
+                                CONSENSUS_BASE_PORT + (*j / machines.len()),
+                            )
+                        })
+                        .collect()
+                },
+                discovery: settings.discovery,
+                transport: settings.transport,
+                ..Default::default()
+            },
+        },
+        mempool: MempoolConfig {
+            p2p: P2pConfig {
+                protocol: PubSubProtocol::default(),
+                listen_addr: settings.transport.multiaddr(&machine, mempool_port),
+                persistent_peers: vec![],
+                discovery: DiscoveryConfig {
+                    enabled: false,
+                    ..DiscoveryConfig::default()
+                },
+                transport: settings.transport,
+                ..Default::default()
+            },
+            max_tx_count: 10000,
+            gossip_batch_size: 0,
+        },
+        value_sync: ValueSyncConfig {
+            enabled: false,
+            status_update_interval: Duration::from_secs(0),
+            request_timeout: Duration::from_secs(0),
+        },
+        metrics: MetricsConfig {
+            enabled: true,
+            listen_addr: format!("{machine}:{metrics_port}").parse().unwrap(),
+        },
+        runtime: settings.runtime,
+        logging: LoggingConfig::default(),
+        test: TestConfig::default(),
+    }
+}
+
+fn default_config() -> Config {
+    use malachitebft_config::{DiscoveryConfig, RuntimeConfig, TransportProtocol};
+
+    make_config(
+        1,
+        3,
+        MakeConfigSettings {
+            runtime: RuntimeConfig::single_threaded(),
+            transport: TransportProtocol::Tcp,
+            discovery: DiscoveryConfig::default(),
+        },
+    )
+}
+
 #[test]
 fn test_starknet_node() {
     // Create temp folder for configuration files
@@ -190,14 +447,7 @@ fn test_starknet_node() {
     std::fs::create_dir_all(temp_path.join("config")).unwrap();
 
     // Create default configuration
-    let node = StarknetNode {
-        home_dir: temp_path.clone(),
-        config: Config {
-            moniker: "test-node".to_string(),
-            ..Default::default()
-        },
-        start_height: Some(1),
-    };
+    let node = StarknetNode::new(temp_path.clone(), ConfigSource::Default, Some(1));
 
     // Create configuration files
     use malachitebft_test_cli::*;
@@ -215,10 +465,12 @@ fn test_starknet_node() {
 
     file::save_genesis(&node, &node.genesis_file(), &genesis).unwrap();
 
+    let config = node.load_config().unwrap();
+
     // Run the node for a few seconds
     const TIMEOUT: u64 = 3;
     use tokio::time::{timeout, Duration};
-    let rt = malachitebft_test_cli::runtime::build_runtime(node.config.runtime).unwrap();
+    let rt = malachitebft_test_cli::runtime::build_runtime(config.runtime).unwrap();
     let result = rt.block_on(async { timeout(Duration::from_secs(TIMEOUT), node.run()).await });
 
     // Check that the node did not quit before the timeout.

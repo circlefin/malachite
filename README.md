@@ -68,11 +68,11 @@ Please reach-out if interested, we would love to speak with more teams.
 
 ### Repository
 
-The repository is split in three areas, each covering one of the important areas of this project:
+The repository is split into three areas, each covering one of the important aspects of this project:
 
-1. [code](./code): Comprises the Rust implementation of the Tendermint consensus algorithm, split across multiple Rust crates.
-2. [docs](./docs): Comprises Architectural Decision Records (ADRs) and other documentation, such as the 2018 paper describing the core consensus algorithm.
-3. [specs](./specs): English and [Quint][quint-repo] specifications.
+1. [code](./code): Contains the Rust implementation of the Tendermint consensus algorithm, split across multiple Rust crates.
+2. [docs](./docs): Contains Architectural Decision Records (ADRs) and other documentation, such as the 2018 paper describing the core consensus algorithm.
+3. [specs](./specs): Contains English and [Quint][quint-repo] specifications.
 
 ### Crates and Status
 

@@ -11,8 +11,6 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand};
 use directories::BaseDirs;
 
-use malachitebft_config::{LogFormat, LogLevel};
-
 use crate::cmd::distributed_testnet::DistributedTestnetCmd;
 use crate::cmd::init::InitCmd;
 use crate::cmd::start::StartCmd;
@@ -30,14 +28,6 @@ pub struct Args {
     /// Home directory for Malachite (default: `~/.malachite`)
     #[arg(long, global = true, value_name = "HOME_DIR")]
     pub home: Option<PathBuf>,
-
-    /// Log level (default: `malachite=debug`)
-    #[arg(long, global = true, value_name = "LOG_LEVEL")]
-    pub log_level: Option<LogLevel>,
-
-    /// Log format (default: `plaintext`)
-    #[arg(long, global = true, value_name = "LOG_FORMAT")]
-    pub log_format: Option<LogFormat>,
 
     #[command(subcommand)]
     pub command: Commands,
@@ -104,35 +94,18 @@ impl Args {
     pub fn get_priv_validator_key_file_path(&self) -> Result<PathBuf, Error> {
         Ok(self.get_config_dir()?.join(PRIV_VALIDATOR_KEY_FILE))
     }
-
-    /// get_log_level_or_default returns the log level from the command-line or the default value.
-    pub fn get_log_level_or_default(&self) -> LogLevel {
-        self.log_level.unwrap_or_default()
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use malachitebft_config::LogLevel;
-
     use super::*;
 
     #[test]
     fn parse_args() {
-        let args = Args::parse_from([
-            "test",
-            "--log-level",
-            "warn",
-            "--log-format",
-            "json",
-            "init",
-        ]);
-        assert_eq!(args.log_level, Some(LogLevel::Warn));
-        assert_eq!(args.log_format, Some(LogFormat::Json));
+        let args = Args::parse_from(["test", "init"]);
         assert!(matches!(args.command, Commands::Init(_)));
 
         let args = Args::parse_from(["test", "start"]);
-        assert_eq!(args.log_level, None);
         assert!(matches!(args.command, Commands::Start(_)));
     }
 

@@ -6,7 +6,7 @@ use async_recursion::async_recursion;
 use async_trait::async_trait;
 use derive_where::derive_where;
 use eyre::eyre;
-use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
+use ractor::{Actor, ActorProcessingErr, ActorRef};
 use tokio::time::Instant;
 use tracing::{debug, error, error_span, info, warn};
 
@@ -25,7 +25,7 @@ use malachitebft_sync::{
 };
 
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
-use crate::network::{NetworkEvent, NetworkMsg, NetworkRef, Status};
+use crate::network::{NetworkEvent, NetworkMsg, NetworkRef};
 use crate::sync::Msg as SyncMsg;
 use crate::sync::SyncRef;
 use crate::util::events::{Event, TxEvent};
@@ -99,9 +99,6 @@ pub enum Msg<Ctx: Context> {
 
     /// Received and assembled the full value proposed by a validator
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
-
-    /// Get the status of the consensus state machine
-    GetStatus(RpcReplyPort<Status<Ctx>>),
 }
 
 impl<Ctx: Context> From<NetworkEvent<Ctx>> for Msg<Ctx> {
@@ -164,6 +161,7 @@ impl Timeouts {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum Phase {
     Unstarted,
+    Ready,
     Running,
     Recovering,
 }
@@ -272,7 +270,7 @@ where
         info!(count = %state.msg_buffer.len(), "Replaying buffered messages");
 
         while let Some(msg) = state.msg_buffer.pop() {
-            info!("Replaying buffered message: {msg:?}");
+            debug!("Replaying buffered message: {msg:?}");
 
             if let Err(e) = self.handle_msg(myself.clone(), state, msg).await {
                 error!("Error when handling buffered message: {e:?}");
@@ -349,7 +347,12 @@ where
                 match event {
                     NetworkEvent::Listening(address) => {
                         info!(%address, "Listening");
-                        self.host.cast(HostMsg::ConsensusReady(myself.clone()))?;
+
+                        if state.phase == Phase::Unstarted {
+                            state.phase = Phase::Ready;
+
+                            self.host.cast(HostMsg::ConsensusReady(myself.clone()))?;
+                        }
                     }
 
                     NetworkEvent::PeerConnected(peer_id) => {
@@ -577,17 +580,6 @@ where
 
                 Ok(())
             }
-
-            Msg::GetStatus(reply_to) => {
-                let history_min_height = self.get_history_min_height().await?;
-                let status = Status::new(state.consensus.height(), history_min_height);
-
-                if let Err(e) = reply_to.send(status) {
-                    error!("Error when replying to GetStatus message: {e}");
-                }
-
-                Ok(())
-            }
         }
     }
 
@@ -772,13 +764,6 @@ where
             reply_to
         })
         .map_err(|e| eyre!("Failed to verify vote extension: {e:?}").into())
-    }
-
-    async fn get_history_min_height(&self) -> Result<Ctx::Height, ActorProcessingErr> {
-        ractor::call!(self.host, |reply_to| HostMsg::GetHistoryMinHeight {
-            reply_to
-        })
-        .map_err(|e| eyre!("Failed to get earliest block height: {e:?}").into())
     }
 
     async fn wal_append(
@@ -1167,8 +1152,8 @@ where
         parent = &self.span,
         skip_all,
         fields(
-            height = %state.consensus.height(),
-            round = %state.consensus.round()
+            height = %span_height(state.consensus.height(), &msg),
+            round = %span_round(state.consensus.round(), &msg)
         )
     )]
     async fn handle(
@@ -1214,9 +1199,28 @@ fn should_buffer<Ctx: Context>(msg: &Msg<Ctx>) -> bool {
     !matches!(
         msg,
         Msg::StartHeight(..)
-            | Msg::GetStatus(..)
             | Msg::NetworkEvent(NetworkEvent::Listening(..))
             | Msg::NetworkEvent(NetworkEvent::PeerConnected(..))
             | Msg::NetworkEvent(NetworkEvent::PeerDisconnected(..))
     )
+}
+
+/// Use the height we are about to start instead of the consensus state height
+/// for the tracing span of the Consensus actor when starting a new height.
+fn span_height<Ctx: Context>(height: Ctx::Height, msg: &Msg<Ctx>) -> Ctx::Height {
+    if let Msg::StartHeight(h, _) = msg {
+        *h
+    } else {
+        height
+    }
+}
+
+/// Use round 0 instead of the consensus state round for the tracing span of
+/// the Consensus actor when starting a new height.
+fn span_round<Ctx: Context>(round: Round, msg: &Msg<Ctx>) -> Round {
+    if let Msg::StartHeight(_, _) = msg {
+        Round::new(0)
+    } else {
+        round
+    }
 }

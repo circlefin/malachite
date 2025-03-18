@@ -6,8 +6,8 @@ use tokio::sync::oneshot;
 
 use malachitebft_engine::host::HostMsg;
 
+use crate::app::metrics::Metrics;
 use crate::app::types::core::Context;
-use crate::app::types::metrics::Metrics;
 use crate::msgs::AppMsg;
 
 /// Actor for bridging consensus and the application via a set of channels.

@@ -13,7 +13,6 @@ use tracing::{debug, error};
 use malachitebft_app_channel::app::consensus::ProposedValue;
 use malachitebft_app_channel::app::streaming::{StreamContent, StreamId, StreamMessage};
 use malachitebft_app_channel::app::types::codec::Codec;
-use malachitebft_app_channel::app::types::config::Config; // TODO: Move into test app
 use malachitebft_app_channel::app::types::core::{CommitCertificate, Round, Validity};
 use malachitebft_app_channel::app::types::{LocallyProposedValue, PeerId};
 use malachitebft_test::codec::proto::ProtobufCodec;
@@ -22,6 +21,7 @@ use malachitebft_test::{
     ProposalPart, TestContext, ValidatorSet, Value, ValueId,
 };
 
+use crate::config::Config;
 use crate::store::{DecidedValue, Store};
 use crate::streaming::{PartStreamsMap, ProposalParts};
 

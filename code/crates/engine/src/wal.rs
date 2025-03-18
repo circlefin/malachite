@@ -214,7 +214,7 @@ where
         name = "wal",
         parent = &self.span,
         skip_all,
-        fields(height = %state.height),
+        fields(height = %span_height(state.height, &msg)),
     )]
     async fn handle(
         &self,
@@ -245,5 +245,15 @@ where
         let _ = state.wal_sender.send(self::thread::WalMsg::Shutdown).await;
 
         Ok(())
+    }
+}
+
+/// Use the height we are about to start instead of the current height
+/// for the tracing span of the WAL actor when starting a new height.
+fn span_height<Ctx: Context>(height: Ctx::Height, msg: &Msg<Ctx>) -> Ctx::Height {
+    if let Msg::StartedHeight(h, _) = msg {
+        *h
+    } else {
+        height
     }
 }

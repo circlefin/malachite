@@ -16,12 +16,11 @@ use malachitebft_engine::util::events::TxEvent;
 use malachitebft_engine::wal::{Wal, WalCodec, WalRef};
 use malachitebft_network::{Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, Keypair};
 
-use crate::types::config::{
-    self as config, Config as NodeConfig, PubSubProtocol, TransportProtocol, ValueSyncConfig,
-    VoteSyncConfig,
+use crate::config::{
+    self, ConsensusConfig, PubSubProtocol, TransportProtocol, ValueSyncConfig, VoteSyncConfig,
 };
+use crate::metrics::{Metrics, SharedRegistry};
 use crate::types::core::{Context, SigningProvider};
-use crate::types::metrics::{Metrics, SharedRegistry};
 use crate::types::sync;
 use crate::types::{ValuePayload, VoteSyncMode};
 
@@ -52,7 +51,7 @@ where
 }
 
 pub async fn spawn_network_actor<Ctx, Codec>(
-    cfg: &NodeConfig,
+    cfg: &ConsensusConfig,
     keypair: Keypair,
     registry: &SharedRegistry,
     codec: Codec,
@@ -75,7 +74,7 @@ pub async fn spawn_consensus_actor<Ctx>(
     initial_validator_set: Ctx::ValidatorSet,
     address: Ctx::Address,
     ctx: Ctx,
-    cfg: NodeConfig,
+    cfg: &ConsensusConfig,
     signing_provider: Box<dyn SigningProvider<Ctx>>,
     network: NetworkRef<Ctx>,
     host: HostRef<Ctx>,
@@ -87,15 +86,15 @@ pub async fn spawn_consensus_actor<Ctx>(
 where
     Ctx: Context,
 {
-    use crate::types::config;
+    use crate::config;
 
-    let value_payload = match cfg.test.value_payload {
+    let value_payload = match cfg.value_payload {
         config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
         config::ValuePayload::ProposalOnly => ValuePayload::ProposalOnly,
         config::ValuePayload::ProposalAndParts => ValuePayload::ProposalAndParts,
     };
 
-    let vote_sync_mode = match cfg.consensus.vote_sync.mode {
+    let vote_sync_mode = match cfg.vote_sync.mode {
         config::VoteSyncMode::RequestResponse => VoteSyncMode::RequestResponse,
         config::VoteSyncMode::Rebroadcast => VoteSyncMode::Rebroadcast,
     };
@@ -112,7 +111,7 @@ where
     Consensus::spawn(
         ctx,
         consensus_params,
-        cfg.consensus.timeouts,
+        cfg.timeouts,
         signing_provider,
         network,
         host,
@@ -173,24 +172,24 @@ where
     Ok(Some(actor_ref))
 }
 
-fn make_gossip_config(cfg: &NodeConfig) -> NetworkConfig {
+fn make_gossip_config(cfg: &ConsensusConfig) -> NetworkConfig {
     NetworkConfig {
-        listen_addr: cfg.consensus.p2p.listen_addr.clone(),
-        persistent_peers: cfg.consensus.p2p.persistent_peers.clone(),
+        listen_addr: cfg.p2p.listen_addr.clone(),
+        persistent_peers: cfg.p2p.persistent_peers.clone(),
         discovery: DiscoveryConfig {
-            enabled: cfg.consensus.p2p.discovery.enabled,
+            enabled: cfg.p2p.discovery.enabled,
             ..Default::default()
         },
         idle_connection_timeout: Duration::from_secs(15 * 60),
-        transport: match cfg.consensus.p2p.transport {
+        transport: match cfg.p2p.transport {
             TransportProtocol::Tcp => malachitebft_network::TransportProtocol::Tcp,
             TransportProtocol::Quic => malachitebft_network::TransportProtocol::Quic,
         },
-        pubsub_protocol: match cfg.consensus.p2p.protocol {
+        pubsub_protocol: match cfg.p2p.protocol {
             PubSubProtocol::GossipSub(_) => malachitebft_network::PubSubProtocol::GossipSub,
             PubSubProtocol::Broadcast => malachitebft_network::PubSubProtocol::Broadcast,
         },
-        gossipsub: match cfg.consensus.p2p.protocol {
+        gossipsub: match cfg.p2p.protocol {
             PubSubProtocol::GossipSub(config) => GossipSubConfig {
                 mesh_n: config.mesh_n(),
                 mesh_n_high: config.mesh_n_high(),
@@ -199,7 +198,7 @@ fn make_gossip_config(cfg: &NodeConfig) -> NetworkConfig {
             },
             PubSubProtocol::Broadcast => GossipSubConfig::default(),
         },
-        rpc_max_size: cfg.consensus.p2p.rpc_max_size.as_u64() as usize,
-        pubsub_max_size: cfg.consensus.p2p.pubsub_max_size.as_u64() as usize,
+        rpc_max_size: cfg.p2p.rpc_max_size.as_u64() as usize,
+        pubsub_max_size: cfg.p2p.pubsub_max_size.as_u64() as usize,
     }
 }

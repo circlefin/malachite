@@ -4,6 +4,7 @@ use eyre::eyre;
 use tokio::time::sleep;
 use tracing::{error, info};
 
+use malachitebft_app_channel::app::config::ValuePayload;
 use malachitebft_app_channel::app::streaming::StreamContent;
 use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::{Round, Validity};
@@ -98,9 +99,11 @@ pub async fn run(
                     error!("Failed to send GetValue reply");
                 }
 
-                if !state.config.test.value_payload.include_parts() {
-                    return Ok(());
-                }
+                assert_eq!(
+                    state.config.consensus.value_payload,
+                    ValuePayload::PartsOnly,
+                    "The test application only support parts-only mode for now"
+                );
 
                 // Now what's left to do is to break down the value to propose into parts,
                 // and send those parts over the network to our peers, for them to re-assemble the full value.
@@ -156,7 +159,8 @@ pub async fn run(
                 reply,
             } => {
                 info!(
-                    height = %certificate.height, round = %certificate.round,
+                    height = %certificate.height,
+                    round = %certificate.round,
                     value = %certificate.value_id,
                     "Consensus has decided on value"
                 );
@@ -249,9 +253,11 @@ pub async fn run(
                 address,
                 value_id,
             } => {
-                if !state.config.test.value_payload.include_parts() {
-                    return Ok(());
-                }
+                assert_eq!(
+                    state.config.consensus.value_payload,
+                    ValuePayload::PartsOnly,
+                    "The test application only support parts-only mode for now"
+                );
 
                 info!(%height, %round, %value_id, "Restreaming existing proposal...");
 
