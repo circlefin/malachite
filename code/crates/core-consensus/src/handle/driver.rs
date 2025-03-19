@@ -8,6 +8,7 @@ use crate::handle::vote::on_vote;
 use crate::prelude::*;
 use crate::types::SignedConsensusMsg;
 use crate::util::pretty::PrettyVal;
+use crate::VoteSyncMode;
 
 #[async_recursion]
 pub async fn apply_driver_input<Ctx>(
@@ -50,11 +51,6 @@ where
 
                 return Ok(());
             }
-
-            perform!(
-                co,
-                Effect::CancelTimeout(Timeout::propose(proposal.round()), Default::default())
-            );
         }
 
         DriverInput::Vote(vote) => {
@@ -72,7 +68,19 @@ where
         DriverInput::CommitCertificate(certificate) => {
             if certificate.height != state.driver.height() {
                 warn!(
-                    "Ignoring certificate for height {}, current height: {}",
+                    "Ignoring commit certificate for height {}, current height: {}",
+                    certificate.height,
+                    state.driver.height()
+                );
+
+                return Ok(());
+            }
+        }
+
+        DriverInput::PolkaCertificate(certificate) => {
+            if certificate.height != state.driver.height() {
+                warn!(
+                    "Ignoring polka certificate for height {}, current height: {}",
                     certificate.height,
                     state.driver.height()
                 );
@@ -117,16 +125,26 @@ where
 
     if prev_step != new_step {
         if state.driver.step_is_prevote() {
+            // Cancel the Propose timeout since we have moved from Propose to Prevote
             perform!(
                 co,
-                Effect::ScheduleTimeout(
-                    Timeout::prevote_time_limit(state.driver.round()),
-                    Default::default()
-                )
+                Effect::CancelTimeout(Timeout::propose(state.driver.round()), Default::default())
             );
+            if state.params.vote_sync_mode == VoteSyncMode::RequestResponse {
+                // Schedule the Prevote time limit timeout
+                perform!(
+                    co,
+                    Effect::ScheduleTimeout(
+                        Timeout::prevote_time_limit(state.driver.round()),
+                        Default::default()
+                    )
+                );
+            }
         }
 
-        if state.driver.step_is_precommit() {
+        if state.driver.step_is_precommit()
+            && state.params.vote_sync_mode == VoteSyncMode::RequestResponse
+        {
             perform!(
                 co,
                 Effect::CancelTimeout(
@@ -247,8 +265,9 @@ where
                 "Voting",
             );
 
-            // Only sign and publish if we're in the validator set
             if state.is_validator() {
+                let vote_type = vote.vote_type();
+
                 let extended_vote = extend_vote(co, vote).await?;
                 let signed_vote = sign_vote(co, extended_vote).await?;
 
@@ -256,8 +275,23 @@ where
 
                 perform!(
                     co,
-                    Effect::Publish(SignedConsensusMsg::Vote(signed_vote), Default::default())
+                    Effect::Publish(
+                        SignedConsensusMsg::Vote(signed_vote.clone()),
+                        Default::default()
+                    )
                 );
+
+                state.set_last_vote(signed_vote);
+
+                // Schedule rebroadcast timer if necessary
+                if state.params.vote_sync_mode == VoteSyncMode::Rebroadcast {
+                    let timeout = match vote_type {
+                        VoteType::Prevote => Timeout::prevote_rebroadcast(state.driver.round()),
+                        VoteType::Precommit => Timeout::precommit_rebroadcast(state.driver.round()),
+                    };
+
+                    perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
+                }
             }
 
             Ok(())

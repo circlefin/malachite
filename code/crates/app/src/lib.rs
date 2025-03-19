@@ -8,25 +8,18 @@
 //     rustdoc::missing_doc_code_examples
 // )]
 
-mod node;
-pub use node::Node;
-
+pub mod node;
 pub mod part_store;
 pub mod spawn;
 pub mod types;
 
 pub mod events {
-    pub use malachitebft_engine::util::events::TxEvent;
+    pub use malachitebft_engine::util::events::{RxEvent, TxEvent};
 }
 
-pub mod streaming {
-    pub use malachitebft_engine::util::streaming::*;
-}
-
-pub mod consensus {
-    pub use malachitebft_core_consensus::*;
-}
-
-pub mod metrics {
-    pub use malachitebft_metrics::*;
-}
+pub use malachitebft_config as config;
+pub use malachitebft_core_consensus as consensus;
+pub use malachitebft_engine as engine;
+pub use malachitebft_engine::util::streaming;
+pub use malachitebft_metrics as metrics;
+pub use malachitebft_wal as wal;

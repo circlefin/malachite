@@ -81,6 +81,9 @@ pub struct Inner {
     /// Number of times consensus was blocked in Prevote or Precommit step and required vote synchronization
     pub step_timeouts: Counter,
 
+    /// Number of times consensus rebroadcasted Prevote or Precommit votes due to no round progress
+    pub rebroadcast_timeouts: Counter,
+
     /// Number of connected peers, ie. for each consensus node, how many peers is it connected to)
     pub connected_peers: Gauge,
 
@@ -121,6 +124,7 @@ impl Metrics {
             consensus_round: Histogram::new(linear_buckets(0.0, 1.0, 20)),
             proposal_round: Histogram::new(linear_buckets(0.0, 1.0, 20)),
             step_timeouts: Counter::default(),
+            rebroadcast_timeouts: Counter::default(),
             connected_peers: Gauge::default(),
             height: Gauge::default(),
             round: Gauge::default(),
@@ -193,6 +197,12 @@ impl Metrics {
             registry.register(
                 "step_timeouts",
                 "Number of times consensus was blocked and required vote synchronization",
+                metrics.step_timeouts.clone(),
+            );
+
+            registry.register(
+                "rebroadcast_timeouts",
+                "Number of times consensus rebroadcasted its vote due to no round progress",
                 metrics.step_timeouts.clone(),
             );
 

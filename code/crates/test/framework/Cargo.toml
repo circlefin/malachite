@@ -9,6 +9,7 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+malachitebft-app.workspace = true
 malachitebft-engine.workspace = true
 malachitebft-core-types.workspace = true
 malachitebft-config.workspace = true
@@ -16,10 +17,10 @@ malachitebft-core-consensus.workspace = true
 malachitebft-metrics.workspace = true
 malachitebft-test.workspace = true
 malachitebft-test-app.workspace = true
-malachitebft-app-channel.workspace = true
 
 axum.workspace = true
 bytesize.workspace = true
+derive-where.workspace = true
 eyre.workspace = true
 rand.workspace = true
 ractor.workspace = true

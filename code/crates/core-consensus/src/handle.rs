@@ -3,6 +3,7 @@ mod driver;
 mod proposal;
 mod propose;
 mod proposed_value;
+mod rebroadcast_timeout;
 mod signature;
 mod start_height;
 mod step_timeout;
@@ -63,8 +64,8 @@ where
         Input::VoteSetRequest(request_id, height, round) => {
             on_vote_set_request(co, state, metrics, request_id, height, round).await
         }
-        Input::VoteSetResponse(vote_set) => {
-            on_vote_set_response(co, state, metrics, vote_set).await
+        Input::VoteSetResponse(vote_set, polka_certificate) => {
+            on_vote_set_response(co, state, metrics, vote_set, polka_certificate).await
         }
     }
 }

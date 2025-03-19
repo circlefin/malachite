@@ -1,5 +1,5 @@
 use libp2p::{core::ConnectedPoint, swarm::ConnectionId, PeerId, Swarm};
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 use crate::{connection::ConnectionData, controller::PeerData, Discovery, DiscoveryClient};
 
@@ -17,7 +17,7 @@ where
         connection_data: &ConnectionData,
         check_already_dialed: bool,
     ) -> bool {
-        connection_data.peer_id().as_ref().map_or(true, |id| {
+        connection_data.peer_id().as_ref().is_none_or(|id| {
             // Is not itself (peer id)
             id != swarm.local_peer_id()
             // Is not already connected
@@ -50,7 +50,7 @@ where
             self.metrics.increment_total_dials();
         }
 
-        info!(
+        debug!(
             "Dialing peer at {}, retry #{}",
             connection_data.multiaddr(),
             connection_data.retry.count()
@@ -85,12 +85,10 @@ where
     ) {
         match endpoint {
             ConnectedPoint::Dialer { .. } => {
-                debug!("Connected to {peer_id} with connection {connection_id}");
+                debug!(peer = %peer_id, %connection_id, "Connected to peer");
             }
             ConnectedPoint::Listener { .. } => {
-                debug!(
-                    "Accepted incoming connection from {peer_id} with connection {connection_id}"
-                );
+                debug!(peer = %peer_id, %connection_id, "Accepted incoming connection from peer");
             }
         }
 

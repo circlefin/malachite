@@ -14,7 +14,7 @@ all-features = true
 
 [features]
 default = ["std", "metrics"]
-std = []
+std = ["malachitebft-core-driver/std"]
 metrics = ["std", "dep:malachitebft-metrics"]
 debug = ["std", "malachitebft-core-driver/debug"]
 

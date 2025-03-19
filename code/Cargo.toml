@@ -62,6 +62,9 @@ debug = true
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage_nightly)'] }
 
+[workspace.lints.clippy]
+disallowed_types = "deny"
+
 [workspace.dependencies]
 malachitebft-engine             = { version = "0.0.1", package = "informalsystems-malachitebft-engine", path = "crates/engine" }
 malachitebft-app                = { version = "0.0.1", package = "informalsystems-malachitebft-app", path = "crates/app" }

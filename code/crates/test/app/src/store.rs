@@ -15,7 +15,7 @@ use malachitebft_proto::{Error as ProtoError, Protobuf};
 use malachitebft_test::codec::proto as codec;
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::proto;
-use malachitebft_test::{Height, TestContext, Value};
+use malachitebft_test::{Height, TestContext, Value, ValueId};
 
 mod keys;
 use keys::{HeightKey, UndecidedValueKey};
@@ -28,11 +28,11 @@ pub struct DecidedValue {
 
 fn decode_certificate(bytes: &[u8]) -> Result<CommitCertificate<TestContext>, ProtoError> {
     let proto = proto::CommitCertificate::decode(bytes)?;
-    codec::decode_certificate(proto)
+    codec::decode_commit_certificate(proto)
 }
 
 fn encode_certificate(certificate: &CommitCertificate<TestContext>) -> Result<Vec<u8>, ProtoError> {
-    let proto = codec::encode_certificate(certificate)?;
+    let proto = codec::encode_commit_certificate(certificate)?;
     Ok(proto.encode_to_vec())
 }
 
@@ -244,6 +244,63 @@ impl Db {
         tx.commit()?;
         Ok(())
     }
+
+    fn remove_undecided_proposals_by_value_id(&self, value_id: ValueId) -> Result<(), StoreError> {
+        let tx = self.db.begin_write()?;
+
+        {
+            let mut table = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
+            // Iterate through all entries
+            let keys_to_remove: Vec<_> = table
+                .iter()?
+                .flatten()
+                .filter_map(|(key, value)| {
+                    // Decode the proposal
+                    let bytes = value.value();
+                    let proposal: ProposedValue<TestContext> = ProtobufCodec
+                        .decode(Bytes::from(bytes))
+                        .map_err(StoreError::Protobuf)
+                        .ok()?;
+
+                    // Check if the value matches
+                    if proposal.value.id() == value_id {
+                        return Some(key.value());
+                    }
+                    None
+                })
+                .collect();
+
+            // Remove all matching entries
+            for key in keys_to_remove {
+                table.remove(&key)?;
+            }
+        }
+
+        tx.commit()?;
+
+        Ok(())
+    }
+
+    fn get_undecided_proposal_by_value_id(
+        &self,
+        value_id: ValueId,
+    ) -> Result<Option<ProposedValue<TestContext>>, StoreError> {
+        let tx = self.db.begin_read()?;
+        let table = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
+
+        for result in table.iter()? {
+            let (_, value) = result?;
+            let proposal: ProposedValue<TestContext> = ProtobufCodec
+                .decode(Bytes::from(value.value()))
+                .map_err(StoreError::Protobuf)?;
+
+            if proposal.value.id() == value_id {
+                return Ok(Some(proposal));
+            }
+        }
+
+        Ok(None)
+    }
 }
 
 #[derive(Clone)]
@@ -326,5 +383,22 @@ impl Store {
     pub async fn prune(&self, retain_height: Height) -> Result<Vec<Height>, StoreError> {
         let db = Arc::clone(&self.db);
         tokio::task::spawn_blocking(move || db.prune(retain_height)).await?
+    }
+
+    pub async fn remove_undecided_proposals_by_value_id(
+        &self,
+        value_id: ValueId,
+    ) -> Result<(), StoreError> {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.remove_undecided_proposals_by_value_id(value_id))
+            .await?
+    }
+
+    pub async fn get_undecided_proposal_by_value_id(
+        &self,
+        value_id: ValueId,
+    ) -> Result<Option<ProposedValue<TestContext>>, StoreError> {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.get_undecided_proposal_by_value_id(value_id)).await?
     }
 }

@@ -18,6 +18,27 @@ impl TestContext {
     pub fn new() -> Self {
         Self
     }
+
+    pub fn select_proposer<'a>(
+        &self,
+        validator_set: &'a ValidatorSet,
+        height: Height,
+        round: Round,
+    ) -> &'a Validator {
+        assert!(validator_set.count() > 0);
+        assert!(round != Round::Nil && round.as_i64() >= 0);
+
+        let proposer_index = {
+            let height = height.as_u64() as usize;
+            let round = round.as_i64() as usize;
+
+            (height - 1 + round) % validator_set.count()
+        };
+
+        validator_set
+            .get_by_index(proposer_index)
+            .expect("proposer_index is valid")
+    }
 }
 
 impl Context for TestContext {
@@ -38,19 +59,7 @@ impl Context for TestContext {
         height: Self::Height,
         round: Round,
     ) -> &'a Self::Validator {
-        assert!(validator_set.count() > 0);
-        assert!(round != Round::Nil && round.as_i64() >= 0);
-
-        let proposer_index = {
-            let height = height.as_u64() as usize;
-            let round = round.as_i64() as usize;
-
-            (height - 1 + round) % validator_set.count()
-        };
-
-        validator_set
-            .get_by_index(proposer_index)
-            .expect("proposer_index is valid")
+        self.select_proposer(validator_set, height, round)
     }
 
     fn new_proposal(

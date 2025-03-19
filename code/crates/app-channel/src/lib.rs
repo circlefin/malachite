@@ -19,4 +19,4 @@ mod msgs;
 pub use msgs::{AppMsg, Channels, ConsensusMsg, NetworkMsg, Reply};
 
 mod run;
-pub use run::{start_engine, EngineHandle};
+pub use run::start_engine;

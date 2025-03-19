@@ -43,10 +43,11 @@ pub fn init(log_level: LogLevel, log_format: LogFormat) -> WorkerGuard {
     guard
 }
 
-/// Check if both stdout and stderr are proper terminal (tty),
-/// so that we know whether or not to enable colored output,
-/// using ANSI escape codes. If either is not, eg. because
-/// stdout is redirected to a file, we don't enable colored output.
+/// Checks if output is going to a terminal.
+///
+/// Determines if both stdout and stderr are proper terminals (TTY).
+/// This helps decide whether to enable colored output with ANSI escape codes.
+/// Colors are disabled when output is redirected to a file.
 pub fn enable_ansi() -> bool {
     use std::io::IsTerminal;
     std::io::stdout().is_terminal() && std::io::stderr().is_terminal()

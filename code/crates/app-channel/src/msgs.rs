@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use derive_where::derive_where;
+use malachitebft_app::types::core::ValueOrigin;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
@@ -35,8 +36,9 @@ pub enum AppMsg<Ctx: Context> {
     /// The application MAY reply with a message to instruct
     /// consensus to start at a given height.
     ConsensusReady {
-        /// Channel for sending a [`ConsensusMsg::StartHeight`] message back to consensus
-        reply: Reply<ConsensusMsg<Ctx>>,
+        /// Channel for sending back the height to start at
+        /// and the validator set for that height
+        reply: Reply<(Ctx::Height, Ctx::ValidatorSet)>,
     },
 
     /// Notifies the application that a new consensus round has begun.
@@ -47,6 +49,8 @@ pub enum AppMsg<Ctx: Context> {
         round: Round,
         /// Proposer for that round
         proposer: Ctx::Address,
+        /// Channel for sending back a previously received undecided value to consensus
+        reply_value: Reply<Option<ProposedValue<Ctx>>>,
     },
 
     /// Requests the application to build a value for consensus to run on.
@@ -54,9 +58,9 @@ pub enum AppMsg<Ctx: Context> {
     /// The application MUST reply to this message with the requested value
     /// within the specified timeout duration.
     GetValue {
-        /// Height which consensus is at
+        /// Height for which the value is requested
         height: Ctx::Height,
-        /// Round which consensus is at
+        /// Round for which the value is requested
         round: Round,
         /// Maximum time allowed for the application to respond
         timeout: Duration,
@@ -206,6 +210,9 @@ pub enum AppMsg<Ctx: Context> {
 pub enum ConsensusMsg<Ctx: Context> {
     /// Instructs consensus to start a new height with the given validator set.
     StartHeight(Ctx::Height, Ctx::ValidatorSet),
+
+    /// Previousuly received value proposed by a validator
+    ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
 }
 
 impl<Ctx: Context> From<ConsensusMsg<Ctx>> for ConsensusActorMsg<Ctx> {
@@ -213,6 +220,9 @@ impl<Ctx: Context> From<ConsensusMsg<Ctx>> for ConsensusActorMsg<Ctx> {
         match msg {
             ConsensusMsg::StartHeight(height, validator_set) => {
                 ConsensusActorMsg::StartHeight(height, validator_set)
+            }
+            ConsensusMsg::ReceivedProposedValue(value, origin) => {
+                ConsensusActorMsg::ReceivedProposedValue(value, origin)
             }
         }
     }

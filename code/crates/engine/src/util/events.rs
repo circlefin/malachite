@@ -6,7 +6,9 @@ use ractor::ActorProcessingErr;
 use tokio::sync::broadcast;
 
 use malachitebft_core_consensus::{LocallyProposedValue, ProposedValue, SignedConsensusMsg};
-use malachitebft_core_types::{CommitCertificate, Context, Round, Timeout, ValueOrigin};
+use malachitebft_core_types::{
+    CommitCertificate, Context, Round, SignedVote, Timeout, ValueOrigin,
+};
 
 pub type RxEvent<Ctx> = broadcast::Receiver<Event<Ctx>>;
 
@@ -46,8 +48,9 @@ pub enum Event<Ctx: Context> {
     ProposedValue(LocallyProposedValue<Ctx>),
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
     Decided(CommitCertificate<Ctx>),
+    Rebroadcast(SignedVote<Ctx>),
     RequestedVoteSet(Ctx::Height, Round),
-    SentVoteSetResponse(Ctx::Height, Round, usize),
+    SentVoteSetResponse(Ctx::Height, Round, usize, usize),
     WalReplayBegin(Ctx::Height, usize),
     WalReplayConsensus(SignedConsensusMsg<Ctx>),
     WalReplayTimeout(Timeout),
@@ -71,13 +74,14 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
                 )
             }
             Event::Decided(cert) => write!(f, "Decided(value: {})", cert.value_id),
+            Event::Rebroadcast(msg) => write!(f, "Rebroadcast(msg: {msg:?})"),
             Event::RequestedVoteSet(height, round) => {
                 write!(f, "RequestedVoteSet(height: {height}, round: {round})")
             }
-            Event::SentVoteSetResponse(height, round, count) => {
+            Event::SentVoteSetResponse(height, round, vote_count, polka_count) => {
                 write!(
                     f,
-                    "SentVoteSetResponse(height: {height}, round: {round}, count: {count})"
+                    "SentVoteSetResponse(height: {height}, round: {round}, count: {vote_count}, polka_certificates: {polka_count})"
                 )
             }
             Event::WalReplayBegin(height, count) => {

@@ -4,7 +4,7 @@ mod context;
 pub use context::MockContext;
 
 mod felt;
-pub use felt::Felt;
+pub use felt::{Felt, FeltExt};
 
 mod address;
 pub use address::Address;
@@ -49,4 +49,4 @@ mod streaming;
 pub use streaming::{StreamContent, StreamMessage};
 
 mod signing;
-pub use signing::{Ecdsa, EcdsaProvider, PrivateKey, PublicKey, Signature};
+pub use signing::{Ed25519, Ed25519Provider, PrivateKey, PublicKey, Signature};

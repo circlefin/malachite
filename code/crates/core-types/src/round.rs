@@ -15,6 +15,9 @@ pub enum Round {
 }
 
 impl Round {
+    /// The zero-th or initial round.
+    pub const ZERO: Self = Self::Some(0);
+
     /// Create a new non-nil round.
     pub const fn new(round: u32) -> Self {
         Self::Some(round)
@@ -47,7 +50,7 @@ impl Round {
         matches!(self, Round::Some(_))
     }
 
-    /// Whether the round is nil, ie. `r == 0`.
+    /// Whether the round is nil, ie. `r == -1`.
     pub fn is_nil(&self) -> bool {
         matches!(self, Round::Nil)
     }

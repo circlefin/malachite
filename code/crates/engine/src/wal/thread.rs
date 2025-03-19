@@ -10,6 +10,7 @@ use malachitebft_core_types::{Context, Height};
 use malachitebft_wal as wal;
 
 use super::entry::{WalCodec, WalEntry};
+use super::iter::log_entries;
 
 pub type ReplyTo<T> = oneshot::Sender<Result<T>>;
 
@@ -18,6 +19,7 @@ pub enum WalMsg<Ctx: Context> {
     Append(WalEntry<Ctx>, ReplyTo<()>),
     Flush(ReplyTo<()>),
     Shutdown,
+    Dump,
 }
 
 pub fn spawn<Ctx, Codec>(
@@ -44,7 +46,12 @@ where
     })
 }
 
-#[tracing::instrument(name = "wal", parent = span, skip_all, fields(height = log.sequence()))]
+#[tracing::instrument(
+    name = "wal",
+    parent = span,
+    skip_all,
+    fields(height = span_sequence(log.sequence(), &msg))
+)]
 fn process_msg<Ctx, Codec>(
     msg: WalMsg<Ctx>,
     span: &tracing::Span,
@@ -126,6 +133,12 @@ where
             }
         }
 
+        WalMsg::Dump => {
+            if let Err(e) = dump_entries(log, codec) {
+                error!("Failed to dump WAL: {e}");
+            }
+        }
+
         WalMsg::Shutdown => {
             info!("Shutting down WAL thread");
             return Ok(ControlFlow::Break(()));
@@ -173,5 +186,46 @@ where
         ))
     } else {
         Ok(entries)
+    }
+}
+
+fn dump_entries<'a, Ctx, Codec>(log: &'a mut wal::Log, codec: &'a Codec) -> Result<()>
+where
+    Ctx: Context,
+    Codec: WalCodec<Ctx>,
+{
+    let len = log.len();
+    let mut count = 0;
+
+    info!("WAL Dump");
+    info!("- Entries: {len}");
+    info!("- Size:    {} bytes", log.size_bytes().unwrap_or(0));
+    info!("Entries:");
+
+    for (idx, entry) in log_entries(log, codec)?.enumerate() {
+        count += 1;
+
+        match entry {
+            Ok(entry) => {
+                info!("- #{idx}: {entry:?}");
+            }
+            Err(e) => {
+                error!("- #{idx}: Error decoding WAL entry: {e}");
+            }
+        }
+    }
+
+    if count != len {
+        error!("Expected {len} entries, but found {count} entries");
+    }
+
+    Ok(())
+}
+
+fn span_sequence(sequence: u64, msg: &WalMsg<impl Context>) -> u64 {
+    if let WalMsg::StartedHeight(height, _) = msg {
+        height.as_u64()
+    } else {
+        sequence
     }
 }

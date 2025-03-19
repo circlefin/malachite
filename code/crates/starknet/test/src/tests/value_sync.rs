@@ -1,12 +1,9 @@
 use std::time::Duration;
 
-use malachitebft_config::ValuePayload;
+use crate::{TestBuilder, TestParams};
 
-use crate::{init_logging, TestBuilder, TestParams};
-
-pub async fn crash_restart_from_start(params: TestParams) {
-    init_logging(module_path!());
-
+#[tokio::test]
+pub async fn crash_restart_from_start() {
     const HEIGHT: u64 = 10;
 
     let mut test = TestBuilder::<()>::new();
@@ -45,52 +42,18 @@ pub async fn crash_restart_from_start(params: TestParams) {
         .success();
 
     test.build()
-        .run_with_custom_config(
+        .run_with_params(
             Duration::from_secs(60), // Timeout for the whole test
             TestParams {
-                enable_sync: true, // Enable Sync
-                ..params
+                enable_value_sync: true, // Enable Sync
+                ..Default::default()
             },
         )
         .await
 }
 
 #[tokio::test]
-pub async fn crash_restart_from_start_parts_only() {
-    let params = TestParams {
-        value_payload: ValuePayload::PartsOnly,
-        ..Default::default()
-    };
-
-    crash_restart_from_start(params).await
-}
-
-#[tokio::test]
-#[ignore] // Starknet app only supports parts only mode
-pub async fn crash_restart_from_start_proposal_only() {
-    let params = TestParams {
-        value_payload: ValuePayload::ProposalOnly,
-        ..Default::default()
-    };
-
-    crash_restart_from_start(params).await
-}
-
-#[tokio::test]
-#[ignore] // Starknet app only supports parts only mode
-pub async fn crash_restart_from_start_proposal_and_parts() {
-    let params = TestParams {
-        value_payload: ValuePayload::ProposalAndParts,
-        ..Default::default()
-    };
-
-    crash_restart_from_start(params).await
-}
-
-#[tokio::test]
 pub async fn crash_restart_from_latest() {
-    init_logging(module_path!());
-
     const HEIGHT: u64 = 10;
 
     let mut test = TestBuilder::<()>::new();
@@ -117,10 +80,10 @@ pub async fn crash_restart_from_latest() {
         .success();
 
     test.build()
-        .run_with_custom_config(
+        .run_with_params(
             Duration::from_secs(60),
             TestParams {
-                enable_sync: true,
+                enable_value_sync: true,
                 ..Default::default()
             },
         )
@@ -129,8 +92,6 @@ pub async fn crash_restart_from_latest() {
 
 #[tokio::test]
 pub async fn aggressive_pruning() {
-    init_logging(module_path!());
-
     const HEIGHT: u64 = 15;
 
     let mut test = TestBuilder::<()>::new();
@@ -158,11 +119,11 @@ pub async fn aggressive_pruning() {
         .success();
 
     test.build()
-        .run_with_custom_config(
+        .run_with_params(
             Duration::from_secs(60), // Timeout for the whole test
             TestParams {
-                enable_sync: true,     // Enable Sync
-                max_retain_blocks: 10, // Prune blocks older than 10
+                enable_value_sync: true, // Enable Sync
+                max_retain_blocks: 10,   // Prune blocks older than 10
                 ..Default::default()
             },
         )
@@ -171,7 +132,7 @@ pub async fn aggressive_pruning() {
 
 #[tokio::test]
 pub async fn start_late() {
-    const HEIGHT: u64 = 5;
+    const HEIGHT: u64 = 3;
 
     let mut test = TestBuilder::<()>::new();
 
@@ -194,10 +155,10 @@ pub async fn start_late() {
         .success();
 
     test.build()
-        .run_with_custom_config(
+        .run_with_params(
             Duration::from_secs(30),
             TestParams {
-                enable_sync: true,
+                enable_value_sync: true,
                 ..Default::default()
             },
         )

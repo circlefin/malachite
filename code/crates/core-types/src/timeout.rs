@@ -22,6 +22,12 @@ pub enum TimeoutKind {
 
     /// Timeout for the commit step.
     Commit,
+
+    /// Timeout to rebroadcast the last prevote
+    PrevoteRebroadcast,
+
+    /// Timeout to rebroadcast the last precommit
+    PrecommitRebroadcast,
 }
 
 /// A timeout for a round step.
@@ -67,6 +73,16 @@ impl Timeout {
     /// Create a new timeout for the commit step of the given round.
     pub const fn commit(round: Round) -> Self {
         Self::new(round, TimeoutKind::Commit)
+    }
+
+    /// Create a new timeout for rebroadcasting the last prevote.
+    pub const fn prevote_rebroadcast(round: Round) -> Self {
+        Self::new(round, TimeoutKind::PrevoteRebroadcast)
+    }
+
+    /// Create a new timeout for rebroadcasting the last precommit.
+    pub const fn precommit_rebroadcast(round: Round) -> Self {
+        Self::new(round, TimeoutKind::PrecommitRebroadcast)
     }
 }
 

@@ -7,9 +7,11 @@ use malachitebft_core_state_machine::output::Output as RoundOutput;
 use malachitebft_core_state_machine::state::{RoundValue, State as RoundState, Step};
 use malachitebft_core_state_machine::state_machine::Info;
 use malachitebft_core_types::{
-    CommitCertificate, Context, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutKind,
-    Validator, ValidatorSet, Validity, ValueId, Vote,
+    CommitCertificate, Context, NilOrVal, PolkaCertificate, Proposal, Round, SignedProposal,
+    SignedVote, Timeout, TimeoutKind, Validator, ValidatorSet, Validity, Value, ValueId, Vote,
+    VoteType,
 };
+use malachitebft_core_votekeeper::keeper::Output as VKOutput;
 use malachitebft_core_votekeeper::keeper::VoteKeeper;
 
 use crate::input::Input;
@@ -46,8 +48,11 @@ where
     /// The vote keeper.
     pub(crate) vote_keeper: VoteKeeper<Ctx>,
 
-    /// The certificate keeper
-    pub(crate) certificates: Vec<CommitCertificate<Ctx>>,
+    /// The commit certificates
+    pub(crate) commit_certificates: Vec<CommitCertificate<Ctx>>,
+
+    /// The polka certificates
+    pub(crate) polka_certificates: Vec<PolkaCertificate<Ctx>>,
 
     /// The state of the round state machine.
     pub(crate) round_state: RoundState<Ctx>,
@@ -55,6 +60,9 @@ where
     /// The pending inputs to be processed next, if any.
     /// The first element of the tuple is the round at which that input has been emitted.
     pending_inputs: Vec<(Round, RoundInput<Ctx>)>,
+
+    last_prevote: Option<Ctx::Vote>,
+    last_precommit: Option<Ctx::Vote>,
 }
 
 impl<Ctx> Driver<Ctx>
@@ -86,7 +94,10 @@ where
             round_state,
             proposer: None,
             pending_inputs: vec![],
-            certificates: vec![],
+            commit_certificates: vec![],
+            polka_certificates: vec![],
+            last_prevote: None,
+            last_precommit: None,
         }
     }
 
@@ -107,7 +118,10 @@ where
         self.vote_keeper = vote_keeper;
         self.round_state = round_state;
         self.pending_inputs = vec![];
-        self.certificates = vec![];
+        self.commit_certificates = vec![];
+        self.polka_certificates = vec![];
+        self.last_prevote = None;
+        self.last_precommit = None;
     }
 
     /// Return the height of the consensus.
@@ -190,14 +204,31 @@ where
     }
 
     /// Get a commit certificate for the given round and value id.
-    pub fn get_certificate(
+    pub fn commit_certificate(
         &self,
         round: Round,
         value_id: ValueId<Ctx>,
     ) -> Option<&CommitCertificate<Ctx>> {
-        self.certificates
+        self.commit_certificates
             .iter()
             .find(|c| c.round == round && c.value_id == value_id)
+    }
+
+    /// Get all polka certificates
+    pub fn polka_certificates(&self) -> &[PolkaCertificate<Ctx>] {
+        &self.polka_certificates
+    }
+
+    /// Store the last vote that we have cast
+    fn set_last_vote_cast(&mut self, vote: &Ctx::Vote) {
+        assert_eq!(vote.height(), self.height());
+
+        if vote.round() == self.round() {
+            match vote.vote_type() {
+                VoteType::Prevote => self.last_prevote = Some(vote.clone()),
+                VoteType::Precommit => self.last_precommit = Some(vote.clone()),
+            }
+        }
     }
 
     /// Process the given input, returning the outputs to be broadcast to the network.
@@ -232,7 +263,7 @@ where
 
             RoundOutput::Proposal(proposal) => outputs.push(Output::Propose(proposal)),
 
-            RoundOutput::Vote(vote) => outputs.push(Output::Vote(vote)),
+            RoundOutput::Vote(vote) => self.lift_vote_output(vote, outputs),
 
             RoundOutput::ScheduleTimeout(timeout) => outputs.push(Output::ScheduleTimeout(timeout)),
 
@@ -245,10 +276,47 @@ where
         }
     }
 
+    fn lift_vote_output(&mut self, vote: Ctx::Vote, outputs: &mut Vec<Output<Ctx>>) {
+        if vote.validator_address() != self.address() {
+            return;
+        }
+
+        // Only cast a vote if any of the following is true:
+        // - We have not voted yet
+        // - That vote is for a higher height than our last vote
+        // - That vote is for a higher round than our last vote
+        // - That vote is the same as our last vote
+        // Precommits have the additional constraint that the value must match the valid value
+        let can_vote = match vote.vote_type() {
+            VoteType::Prevote => self.last_prevote.as_ref().is_none_or(|prev| {
+                prev.height() < vote.height() || prev.round() < vote.round() || prev == &vote
+            }),
+            VoteType::Precommit => {
+                let good_precommit = self.last_precommit.as_ref().is_none_or(|prev| {
+                    prev.height() < vote.height() || prev.round() < vote.round() || prev == &vote
+                });
+                let match_valid = self.round_state.valid.as_ref().is_none_or(|valid| {
+                    if let NilOrVal::Val(value_id) = vote.value() {
+                        &valid.value.id() == value_id
+                    } else {
+                        true
+                    }
+                });
+                good_precommit && match_valid
+            }
+        };
+
+        if can_vote {
+            self.set_last_vote_cast(&vote);
+            outputs.push(Output::Vote(vote));
+        }
+    }
+
     /// Apply the given input to the state machine, returning the output, if any.
     fn apply(&mut self, input: Input<Ctx>) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         match input {
             Input::CommitCertificate(certificate) => self.apply_commit_certificate(certificate),
+            Input::PolkaCertificate(certificate) => self.apply_polka_certificate(certificate),
             Input::NewRound(height, round, proposer) => {
                 self.apply_new_round(height, round, proposer)
             }
@@ -272,8 +340,25 @@ where
 
         let round = certificate.round;
 
-        match self.store_and_multiplex_certificate(certificate) {
+        match self.store_and_multiplex_commit_certificate(certificate) {
             Some(round_input) => self.apply_input(round, round_input),
+            None => Ok(None),
+        }
+    }
+
+    fn apply_polka_certificate(
+        &mut self,
+        certificate: PolkaCertificate<Ctx>,
+    ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
+        if self.height() != certificate.height {
+            return Err(Error::InvalidCertificateHeight {
+                certificate_height: certificate.height,
+                consensus_height: self.height(),
+            });
+        }
+
+        match self.store_and_multiplex_polka_certificate(certificate) {
+            Some((input_round, round_input)) => self.apply_input(input_round, round_input),
             None => Ok(None),
         }
     }
@@ -345,18 +430,44 @@ where
         }
 
         let vote_round = vote.round();
+        let this_round = self.round();
 
-        let Some(output) = self.vote_keeper.apply_vote(vote, self.round()) else {
+        let Some(output) = self.vote_keeper.apply_vote(vote, this_round) else {
             return Ok(None);
         };
 
-        let round_input = self.multiplex_vote_threshold(output, vote_round);
+        if let VKOutput::PolkaValue(val) = &output {
+            self.store_polka_certificate(vote_round, val);
+        }
+
+        let (input_round, round_input) = self.multiplex_vote_threshold(output, vote_round);
 
         if round_input == RoundInput::NoInput {
             return Ok(None);
         }
 
-        self.apply_input(vote_round, round_input)
+        self.apply_input(input_round, round_input)
+    }
+
+    fn store_polka_certificate(&mut self, vote_round: Round, value_id: &ValueId<Ctx>) {
+        let Some(per_round) = self.vote_keeper.per_round(vote_round) else {
+            return;
+        };
+
+        self.polka_certificates.push(PolkaCertificate {
+            height: self.height(),
+            round: vote_round,
+            value_id: value_id.clone(),
+            votes: per_round
+                .received_votes()
+                .iter()
+                .filter(|v| {
+                    v.vote_type() == VoteType::Prevote
+                        && v.value().as_ref() == NilOrVal::Val(value_id)
+                })
+                .cloned()
+                .collect(),
+        })
     }
 
     fn apply_timeout(&mut self, timeout: Timeout) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
@@ -365,10 +476,12 @@ where
             TimeoutKind::Prevote => RoundInput::TimeoutPrevote,
             TimeoutKind::Precommit => RoundInput::TimeoutPrecommit,
 
-            // The driver never receives a commit or time limit timeout, so we can just ignore it.
+            // The driver never receives these events, so we can just ignore them.
             TimeoutKind::Commit => return Ok(None),
             TimeoutKind::PrevoteTimeLimit => return Ok(None),
             TimeoutKind::PrecommitTimeLimit => return Ok(None),
+            TimeoutKind::PrevoteRebroadcast => return Ok(None),
+            TimeoutKind::PrecommitRebroadcast => return Ok(None),
         };
 
         self.apply_input(timeout.round, input)
@@ -396,10 +509,7 @@ where
         if previous_step != self.round_state.step && self.round_state.step != Step::Unstarted {
             let pending_inputs = self.multiplex_step_change(input_round);
 
-            self.pending_inputs = pending_inputs
-                .into_iter()
-                .map(|input| (input_round, input))
-                .collect();
+            self.pending_inputs = pending_inputs;
         }
 
         // Return output, if any

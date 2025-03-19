@@ -1,5 +1,5 @@
 use libp2p::{swarm::ConnectionId, PeerId, Swarm};
-use tracing::{error, info, warn};
+use tracing::{debug, error, warn};
 
 use crate::{Discovery, DiscoveryClient, State};
 
@@ -15,9 +15,7 @@ where
         // Only close ephemeral connections (i.e not inbound/outbound connections)
         self.outbound_connections
             .get(&peer_id)
-            .map_or(true, |out_conn| {
-                out_conn.connection_id != Some(connection_id)
-            })
+            .is_none_or(|out_conn| out_conn.connection_id != Some(connection_id))
             && self.inbound_connections.get(&peer_id) != Some(&connection_id)
     }
 
@@ -37,7 +35,7 @@ where
             .is_some_and(|connections| connections.contains(&connection_id))
         {
             if swarm.close_connection(connection_id) {
-                info!("Closing connection {connection_id} to peer {peer_id}");
+                debug!("Closing connection {connection_id} to peer {peer_id}");
             } else {
                 error!("Error closing connection {connection_id} to peer {peer_id}");
             }

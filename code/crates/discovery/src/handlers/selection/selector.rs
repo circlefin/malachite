@@ -14,9 +14,14 @@ where
     C: DiscoveryClient,
 {
     pub(crate) fn get_selector(
+        is_enabled: bool,
         bootstrap_protocol: config::BootstrapProtocol,
         selector: config::Selector,
     ) -> Box<dyn Selector<C>> {
+        if !is_enabled {
+            return Box::new(RandomSelector::new());
+        }
+
         match selector {
             config::Selector::Kademlia => {
                 if bootstrap_protocol != config::BootstrapProtocol::Kademlia {

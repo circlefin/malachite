@@ -1,299 +1,35 @@
-use core::fmt;
-use std::fs::{create_dir_all, remove_dir_all};
-use std::net::SocketAddr;
-use std::path::PathBuf;
-use std::str::FromStr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
-use eyre::bail;
-use rand::rngs::StdRng;
-use rand::SeedableRng;
+use axum::async_trait;
 use tokio::sync::Mutex;
 use tokio::task::JoinSet;
 use tokio::time::error::Elapsed;
-use tokio::time::{sleep, Duration};
+use tokio::time::sleep;
 use tracing::{debug, error, error_span, info, Instrument};
 
-use malachitebft_config::{
-    Config as NodeConfig, Config, DiscoveryConfig, LoggingConfig, MempoolLoadConfig,
-    PubSubProtocol, SyncConfig, TestConfig, TransportProtocol,
+use malachitebft_core_types::{Context, Height};
+
+pub use malachitebft_app::node::{
+    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, EngineHandle,
+    Node, NodeHandle,
 };
-use malachitebft_core_consensus::{LocallyProposedValue, SignedConsensusMsg};
-use malachitebft_core_types::{SignedVote, VotingPower};
-use malachitebft_engine::util::events::{Event, RxEvent, TxEvent};
-use malachitebft_test::{Height, PrivateKey, TestContext, Validator, ValidatorSet};
-use malachitebft_test_app::node::App;
+pub use malachitebft_engine::util::events::{Event, RxEvent, TxEvent};
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Expected {
-    Exactly(usize),
-    AtLeast(usize),
-    AtMost(usize),
-    LessThan(usize),
-    GreaterThan(usize),
-}
+mod logging;
+use logging::init_logging;
 
-impl Expected {
-    pub fn check(&self, actual: usize) -> bool {
-        match self {
-            Expected::Exactly(expected) => actual == *expected,
-            Expected::AtLeast(expected) => actual >= *expected,
-            Expected::AtMost(expected) => actual <= *expected,
-            Expected::LessThan(expected) => actual < *expected,
-            Expected::GreaterThan(expected) => actual > *expected,
-        }
-    }
-}
+mod node;
+pub use node::{HandlerResult, NodeId, TestNode};
 
-impl fmt::Display for Expected {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Expected::Exactly(n) => write!(f, "exactly {n}"),
-            Expected::AtLeast(n) => write!(f, "at least {n}"),
-            Expected::AtMost(n) => write!(f, "at most {n}"),
-            Expected::LessThan(n) => write!(f, "less than {n}"),
-            Expected::GreaterThan(n) => write!(f, "greater than {n}"),
-        }
-    }
-}
+mod params;
+pub use params::TestParams;
 
-pub struct TestParams {
-    pub enable_sync: bool,
-    pub protocol: PubSubProtocol,
-    pub block_size: ByteSize,
-    pub tx_size: ByteSize,
-    pub txs_per_part: usize,
-    pub vote_extensions: Option<ByteSize>,
-    pub value_payload: ValuePayload,
-    pub max_retain_blocks: usize,
-    pub timeout_step: Duration,
-}
+mod expected;
+pub use expected::Expected;
 
-impl Default for TestParams {
-    fn default() -> Self {
-        Self {
-            enable_sync: false,
-            protocol: PubSubProtocol::default(),
-            block_size: ByteSize::mib(1),
-            tx_size: ByteSize::kib(1),
-            txs_per_part: 256,
-            vote_extensions: None,
-            value_payload: ValuePayload::default(),
-            max_retain_blocks: 50,
-            timeout_step: Duration::from_secs(30),
-        }
-    }
-}
-
-impl TestParams {
-    fn apply_to_config(&self, config: &mut Config) {
-        config.sync.enabled = self.enable_sync;
-        config.consensus.p2p.protocol = self.protocol;
-        config.consensus.value_payload = self.value_payload;
-        config.test.max_block_size = self.block_size;
-        config.test.tx_size = self.tx_size;
-        config.test.txs_per_part = self.txs_per_part;
-        config.test.vote_extensions.enabled = self.vote_extensions.is_some();
-        config.test.vote_extensions.size = self.vote_extensions.unwrap_or_default();
-        config.test.max_retain_blocks = self.max_retain_blocks;
-        config.consensus.timeouts.timeout_step = self.timeout_step;
-    }
-}
-
-pub enum Step<S> {
-    Crash(Duration),
-    ResetDb,
-    Restart(Duration),
-    WaitUntil(u64),
-    OnEvent(EventHandler<S>),
-    Expect(Expected),
-    Success,
-    Fail(String),
-}
-
-#[derive(Copy, Clone, Debug)]
-pub enum HandlerResult {
-    WaitForNextEvent,
-    ContinueTest,
-}
-
-pub type EventHandler<S> =
-    Box<dyn Fn(Event<TestContext>, &mut S) -> Result<HandlerResult, eyre::Report> + Send + Sync>;
-
-pub type NodeId = usize;
-
-pub struct TestNode<State = ()> {
-    pub id: NodeId,
-    pub voting_power: VotingPower,
-    pub start_height: Height,
-    pub start_delay: Duration,
-    pub steps: Vec<Step<State>>,
-    pub state: State,
-}
-
-impl<State> TestNode<State> {
-    pub fn new(id: usize) -> Self
-    where
-        State: Default,
-    {
-        Self::new_with_state(id, State::default())
-    }
-
-    pub fn new_with_state(id: usize, state: State) -> Self {
-        Self {
-            id,
-            voting_power: 1,
-            start_height: Height::new(1),
-            start_delay: Duration::from_secs(0),
-            steps: vec![],
-            state,
-        }
-    }
-
-    pub fn with_state(&mut self, state: State) -> &mut Self {
-        self.state = state;
-        self
-    }
-
-    pub fn with_voting_power(&mut self, power: VotingPower) -> &mut Self {
-        self.voting_power = power;
-        self
-    }
-
-    pub fn start(&mut self) -> &mut Self {
-        self.start_at(1)
-    }
-
-    pub fn start_at(&mut self, height: u64) -> &mut Self {
-        self.start_after(height, Duration::from_secs(0))
-    }
-
-    pub fn start_after(&mut self, height: u64, delay: Duration) -> &mut Self {
-        self.start_height = Height::new(height);
-        self.start_delay = delay;
-        self
-    }
-
-    pub fn crash(&mut self) -> &mut Self {
-        self.steps.push(Step::Crash(Duration::from_secs(0)));
-        self
-    }
-
-    pub fn crash_after(&mut self, duration: Duration) -> &mut Self {
-        self.steps.push(Step::Crash(duration));
-        self
-    }
-
-    pub fn reset_db(&mut self) -> &mut Self {
-        self.steps.push(Step::ResetDb);
-        self
-    }
-
-    pub fn restart_after(&mut self, delay: Duration) -> &mut Self {
-        self.steps.push(Step::Restart(delay));
-        self
-    }
-
-    pub fn wait_until(&mut self, height: u64) -> &mut Self {
-        self.steps.push(Step::WaitUntil(height));
-        self
-    }
-
-    pub fn on_event<F>(&mut self, on_event: F) -> &mut Self
-    where
-        F: Fn(Event<TestContext>, &mut State) -> Result<HandlerResult, eyre::Report>
-            + Send
-            + Sync
-            + 'static,
-    {
-        self.steps.push(Step::OnEvent(Box::new(on_event)));
-        self
-    }
-
-    pub fn expect_wal_replay(&mut self, at_height: u64) -> &mut Self {
-        self.on_event(move |event, _| {
-            let Event::WalReplayBegin(height, count) = event else {
-                return Ok(HandlerResult::WaitForNextEvent);
-            };
-
-            info!("Replaying WAL at height {height} with {count} messages");
-
-            if height.as_u64() != at_height {
-                bail!("Unexpected WAL replay at height {height}, expected {at_height}")
-            }
-
-            Ok(HandlerResult::ContinueTest)
-        })
-    }
-
-    pub fn expect_vote_set_request(&mut self, at_height: u64) -> &mut Self {
-        self.on_event(move |event, _| {
-            let Event::RequestedVoteSet(height, round) = event else {
-                return Ok(HandlerResult::WaitForNextEvent);
-            };
-
-            info!("Requested vote set for height {height} and round {round}");
-
-            if height.as_u64() != at_height {
-                bail!("Unexpected vote set request for height {height}, expected {at_height}")
-            }
-
-            Ok(HandlerResult::ContinueTest)
-        })
-    }
-
-    pub fn on_proposed_value<F>(&mut self, f: F) -> &mut Self
-    where
-        F: Fn(LocallyProposedValue<TestContext>, &mut State) -> Result<HandlerResult, eyre::Report>
-            + Send
-            + Sync
-            + 'static,
-    {
-        self.on_event(move |event, state| {
-            if let Event::ProposedValue(value) = event {
-                f(value, state)
-            } else {
-                Ok(HandlerResult::WaitForNextEvent)
-            }
-        })
-    }
-
-    pub fn on_vote<F>(&mut self, f: F) -> &mut Self
-    where
-        F: Fn(SignedVote<TestContext>, &mut State) -> Result<HandlerResult, eyre::Report>
-            + Send
-            + Sync
-            + 'static,
-    {
-        self.on_event(move |event, state| {
-            if let Event::Published(SignedConsensusMsg::Vote(vote)) = event {
-                f(vote, state)
-            } else {
-                Ok(HandlerResult::WaitForNextEvent)
-            }
-        })
-    }
-
-    pub fn expect_decisions(&mut self, expected: Expected) -> &mut Self {
-        self.steps.push(Step::Expect(expected));
-        self
-    }
-
-    pub fn success(&mut self) -> &mut Self {
-        self.steps.push(Step::Success);
-        self
-    }
-
-    pub fn full_node(&mut self) -> &mut Self {
-        self.voting_power = 0;
-        self
-    }
-
-    pub fn is_full_node(&self) -> bool {
-        self.voting_power == 0
-    }
-}
+use node::Step;
 
 fn unique_id() -> usize {
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -301,25 +37,32 @@ fn unique_id() -> usize {
     ID.fetch_add(1, Ordering::SeqCst)
 }
 
-pub struct TestBuilder<S> {
-    nodes: Vec<TestNode<S>>,
+pub struct TestBuilder<Ctx, S>
+where
+    Ctx: Context,
+{
+    nodes: Vec<TestNode<Ctx, S>>,
 }
 
-impl<S> Default for TestBuilder<S> {
+impl<Ctx, S> Default for TestBuilder<Ctx, S>
+where
+    Ctx: Context,
+{
     fn default() -> Self {
         Self { nodes: Vec::new() }
     }
 }
 
-impl<S> TestBuilder<S>
+impl<Ctx, S> TestBuilder<Ctx, S>
 where
+    Ctx: Context,
     S: Send + Sync + 'static,
 {
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub fn add_node(&mut self) -> &mut TestNode<S>
+    pub fn add_node(&mut self) -> &mut TestNode<Ctx, S>
     where
         S: Default,
     {
@@ -328,100 +71,52 @@ where
         self.nodes.last_mut().unwrap()
     }
 
-    pub fn build(self) -> Test<S> {
+    pub fn build(self) -> Test<Ctx, S> {
         Test::new(self.nodes)
     }
 }
 
-pub struct Test<S> {
-    pub id: usize,
-    pub nodes: Vec<TestNode<S>>,
-    pub private_keys: Vec<PrivateKey>,
-    pub validator_set: ValidatorSet,
-    pub consensus_base_port: usize,
-    pub mempool_base_port: usize,
-    pub metrics_base_port: usize,
+/// In order to work around orphan rules, `R` must be a type
+/// defined in the same crate where this trait is implemented.
+/// It does not matter what the type is, as long as it is local.
+/// You can use the same type as for the `Runner` type member.
+pub trait HasTestRunner<R>: Context {
+    type Runner: NodeRunner<Self>;
 }
 
-impl<S> Test<S>
+pub struct Test<Ctx, S>
 where
-    S: Send + Sync + 'static,
+    Ctx: Context,
 {
-    pub fn new(nodes: Vec<TestNode<S>>) -> Self {
-        let (validators, private_keys) = make_validators(voting_powers(&nodes));
-        let validator_set = ValidatorSet::new(validators);
-        let id = unique_id();
-        let base_port = 20_000 + id * 1000;
+    pub id: usize,
+    pub nodes: Vec<TestNode<Ctx, S>>,
+}
 
+impl<Ctx, S> Test<Ctx, S>
+where
+    Ctx: Context,
+{
+    pub fn new(nodes: Vec<TestNode<Ctx, S>>) -> Self {
         Self {
-            id,
+            id: unique_id(),
             nodes,
-            private_keys,
-            validator_set,
-            consensus_base_port: base_port,
-            mempool_base_port: base_port + 100,
-            metrics_base_port: base_port + 200,
         }
     }
 
-    pub fn generate_default_configs(&self) -> Vec<Config> {
-        (0..self.nodes.len())
-            .map(|i| make_node_config(self, i))
-            .collect()
+    pub async fn run<R>(self, timeout: Duration)
+    where
+        Ctx: HasTestRunner<R>,
+        S: Send + Sync + 'static,
+    {
+        self.run_with_params(timeout, TestParams::default()).await
     }
 
-    pub fn generate_custom_configs(&self, params: TestParams) -> Vec<Config> {
-        let mut configs = self.generate_default_configs();
-        for config in &mut configs {
-            params.apply_to_config(config);
-        }
-        configs
-    }
-
-    pub async fn run(self, timeout: Duration) {
-        let configs = self.generate_default_configs();
-        self.run_with_config(configs, timeout).await
-    }
-
-    pub async fn run_with_custom_config(self, timeout: Duration, params: TestParams) {
-        let configs = self.generate_custom_configs(params);
-        self.run_with_config(configs, timeout).await
-    }
-
-    pub async fn run_with_config(self, configs: Vec<Config>, timeout: Duration) {
-        let _span = error_span!("test", id = %self.id).entered();
-
-        let mut set = JoinSet::new();
-
-        for ((node, config), private_key) in self
-            .nodes
-            .into_iter()
-            .zip(configs.into_iter())
-            .zip(self.private_keys.into_iter())
-        {
-            let validator_set = self.validator_set.clone();
-
-            let home_dir = tempfile::TempDir::with_prefix(format!(
-                "informalsystems-malachitebft-starknet-test-{}",
-                self.id
-            ))
-            .unwrap()
-            .into_path();
-
-            let id = node.id;
-            let task = run_node(node, home_dir, config, validator_set, private_key);
-
-            set.spawn(
-                async move {
-                    let result = tokio::time::timeout(timeout, task).await;
-                    (id, result)
-                }
-                .in_current_span(),
-            );
-        }
-
-        let results = set.join_all().await;
-        check_results(results);
+    pub async fn run_with_params<R>(self, timeout: Duration, params: TestParams)
+    where
+        Ctx: HasTestRunner<R>,
+        S: Send + Sync + 'static,
+    {
+        run_test::<Ctx::Runner, Ctx, S>(self, timeout, params).await
     }
 }
 
@@ -458,37 +153,73 @@ pub enum TestResult {
     Failure(String),
 }
 
+pub async fn run_test<R, Ctx, S>(test: Test<Ctx, S>, timeout: Duration, params: TestParams)
+where
+    Ctx: Context,
+    R: NodeRunner<Ctx>,
+    S: Send + Sync + 'static,
+{
+    init_logging();
+
+    let span = error_span!("test", id = %test.id);
+
+    let mut set = JoinSet::new();
+
+    let runner = R::new(test.id, &test.nodes, params);
+
+    for node in test.nodes {
+        let runner = runner.clone();
+
+        set.spawn(
+            async move {
+                let id = node.id;
+                let result = tokio::time::timeout(timeout, run_node(runner, node)).await;
+                (id, result)
+            }
+            .instrument(span.clone()),
+        );
+    }
+
+    let results = set.join_all().await;
+    check_results(results);
+}
+
+#[async_trait]
+pub trait NodeRunner<Ctx>
+where
+    Self: Clone + Send + Sync + 'static,
+    Ctx: Context,
+{
+    type NodeHandle: NodeHandle<Ctx>;
+
+    fn new<S>(id: usize, nodes: &[TestNode<Ctx, S>], params: TestParams) -> Self;
+
+    async fn spawn(&self, id: NodeId) -> eyre::Result<Self::NodeHandle>;
+    async fn reset_db(&self, id: NodeId) -> eyre::Result<()>;
+}
+
 #[tracing::instrument("node", skip_all, fields(id = %node.id))]
-async fn run_node<S>(
-    mut node: TestNode<S>,
-    home_dir: PathBuf,
-    config: Config,
-    validator_set: ValidatorSet,
-    private_key: PrivateKey,
-) -> TestResult {
+pub async fn run_node<Ctx, R, S>(runner: R, mut node: TestNode<Ctx, S>) -> TestResult
+where
+    Ctx: Context,
+    R: NodeRunner<Ctx>,
+    S: Send + Sync + 'static,
+{
     sleep(node.start_delay).await;
 
-    info!("Spawning node with voting power {}", node.voting_power);
+    info!(%node.voting_power, "Spawning node");
 
-    let app = App {
-        config,
-        home_dir: home_dir.clone(),
-        private_key,
-        validator_set,
-        start_height: Some(node.start_height),
-    };
+    let mut handle = runner.spawn(node.id).await.unwrap();
 
-    let mut handles = app.start().await.unwrap();
-
-    let mut rx_event = handles.tx_event.subscribe();
-    let rx_event_bg = handles.tx_event.subscribe();
+    let mut rx_event = handle.subscribe();
+    let rx_event_monitor = handle.subscribe();
 
     let decisions = Arc::new(AtomicUsize::new(0));
     let current_height = Arc::new(AtomicUsize::new(0));
     let failure = Arc::new(Mutex::new(None));
     let is_full_node = node.is_full_node();
 
-    let spawn_bg = |mut rx: RxEvent<TestContext>| {
+    let spawn_event_monitor = |mut rx: RxEvent<Ctx>| {
         tokio::spawn({
             let decisions = Arc::clone(&decisions);
             let current_height = Arc::clone(&current_height);
@@ -523,7 +254,7 @@ async fn run_node<S>(
         })
     };
 
-    let mut bg = spawn_bg(rx_event_bg);
+    let mut event_monitor = spawn_event_monitor(rx_event_monitor);
 
     for step in node.steps {
         if let Some(failure) = failure.lock().await.take() {
@@ -545,6 +276,8 @@ async fn run_node<S>(
 
                     info!("Node started height {height}");
 
+                    current_height.store(height.as_u64() as usize, Ordering::SeqCst);
+
                     if height.as_u64() == target_height {
                         break 'inner;
                     }
@@ -557,24 +290,17 @@ async fn run_node<S>(
                 info!("Node will crash at height {height}");
                 sleep(after).await;
 
-                handles
-                    .engine
-                    .actor
-                    .kill_and_wait(None)
+                event_monitor.abort();
+
+                handle
+                    .kill(Some("Test framework has crashed the node".to_string()))
                     .await
                     .expect("Node must stop");
-
-                bg.abort();
-                handles.app.abort();
-                handles.engine.handle.abort();
             }
 
             Step::ResetDb => {
                 info!("Resetting database");
-
-                let db_path = home_dir.join("db");
-                let _ = remove_dir_all(&db_path);
-                create_dir_all(&db_path).expect("Database must be created");
+                runner.reset_db(node.id).await.unwrap();
             }
 
             Step::Restart(after) => {
@@ -582,17 +308,15 @@ async fn run_node<S>(
 
                 sleep(after).await;
 
-                let tx_event = TxEvent::new();
-                let new_rx_event = tx_event.subscribe();
-                let new_rx_event_bg = tx_event.subscribe();
-
                 info!("Spawning node");
-                let new_handles = app.start().await.unwrap();
-
+                let new_handle = runner.spawn(node.id).await.unwrap();
                 info!("Spawned");
 
-                bg = spawn_bg(new_rx_event_bg);
-                handles = new_handles;
+                let new_rx_event = new_handle.subscribe();
+                let new_rx_event_bg = new_handle.subscribe();
+
+                event_monitor = spawn_event_monitor(new_rx_event_bg);
+                handle = new_handle;
                 rx_event = new_rx_event;
             }
 
@@ -606,10 +330,8 @@ async fn run_node<S>(
                             break 'inner;
                         }
                         Err(e) => {
-                            bg.abort();
-                            handles.engine.actor.stop(Some("Test failed".to_string()));
-                            handles.app.abort();
-                            handles.engine.handle.abort();
+                            event_monitor.abort();
+                            handle.kill(Some("Test failed".to_string())).await.unwrap();
 
                             return TestResult::Failure(e.to_string());
                         }
@@ -620,10 +342,8 @@ async fn run_node<S>(
             Step::Expect(expected) => {
                 let actual = decisions.load(Ordering::SeqCst);
 
-                bg.abort();
-                handles.engine.actor.stop(Some("Test failed".to_string()));
-                handles.app.abort();
-                handles.engine.handle.abort();
+                event_monitor.abort();
+                handle.kill(Some("Test failed".to_string())).await.unwrap();
 
                 if expected.check(actual) {
                     break;
@@ -639,10 +359,8 @@ async fn run_node<S>(
             }
 
             Step::Fail(reason) => {
-                bg.abort();
-                handles.engine.actor.stop(Some("Test failed".to_string()));
-                handles.app.abort();
-                handles.engine.handle.abort();
+                event_monitor.abort();
+                handle.kill(Some("Test failed".to_string())).await.unwrap();
 
                 return TestResult::Failure(reason);
             }
@@ -655,153 +373,4 @@ async fn run_node<S>(
     } else {
         TestResult::Success("OK".to_string())
     }
-}
-
-pub fn init_logging(test_module: &str) {
-    use tracing_subscriber::util::SubscriberInitExt;
-    use tracing_subscriber::{EnvFilter, FmtSubscriber};
-
-    let debug_vars = &[("ACTIONS_RUNNER_DEBUG", "true"), ("MALACHITE_DEBUG", "1")];
-    let enable_debug = debug_vars
-        .iter()
-        .any(|(k, v)| std::env::var(k).as_deref() == Ok(v));
-
-    let directive = if enable_debug {
-        format!("{test_module}=debug,informalsystems_malachitebft=trace,informalsystems_malachitebft_discovery=error,libp2p=warn,ractor=warn")
-    } else {
-        format!("{test_module}=debug,informalsystems_malachitebft=info,informalsystems_malachitebft_discovery=error,libp2p=warn,ractor=warn")
-    };
-
-    let filter = EnvFilter::builder().parse(directive).unwrap();
-
-    pub fn enable_ansi() -> bool {
-        use std::io::IsTerminal;
-        std::io::stdout().is_terminal() && std::io::stderr().is_terminal()
-    }
-
-    // Construct a tracing subscriber with the supplied filter and enable reloading.
-    let builder = FmtSubscriber::builder()
-        .with_target(false)
-        .with_env_filter(filter)
-        .with_test_writer()
-        .with_ansi(enable_ansi())
-        .with_thread_ids(false);
-
-    let subscriber = builder.finish();
-
-    if let Err(e) = subscriber.try_init() {
-        eprintln!("Failed to initialize logging: {e}");
-    }
-}
-
-use bytesize::ByteSize;
-
-use malachitebft_config::{
-    ConsensusConfig, MempoolConfig, MetricsConfig, P2pConfig, RuntimeConfig, TimeoutConfig,
-    ValuePayload,
-};
-
-fn transport_from_env(default: TransportProtocol) -> TransportProtocol {
-    if let Ok(protocol) = std::env::var("MALACHITE_TRANSPORT") {
-        TransportProtocol::from_str(&protocol).unwrap_or(default)
-    } else {
-        default
-    }
-}
-
-pub fn make_node_config<S>(test: &Test<S>, i: usize) -> NodeConfig {
-    let transport = transport_from_env(TransportProtocol::Tcp);
-    let protocol = PubSubProtocol::default();
-
-    NodeConfig {
-        moniker: format!("node-{}", test.nodes[i].id),
-        logging: LoggingConfig::default(),
-        consensus: ConsensusConfig {
-            value_payload: ValuePayload::default(),
-            timeouts: TimeoutConfig::default(),
-            p2p: P2pConfig {
-                transport,
-                protocol,
-                discovery: DiscoveryConfig::default(),
-                listen_addr: transport.multiaddr("127.0.0.1", test.consensus_base_port + i),
-                persistent_peers: (0..test.nodes.len())
-                    .filter(|j| i != *j)
-                    .map(|j| transport.multiaddr("127.0.0.1", test.consensus_base_port + j))
-                    .collect(),
-                ..Default::default()
-            },
-        },
-        mempool: MempoolConfig {
-            p2p: P2pConfig {
-                transport,
-                protocol,
-                listen_addr: transport.multiaddr("127.0.0.1", test.mempool_base_port + i),
-                persistent_peers: (0..test.nodes.len())
-                    .filter(|j| i != *j)
-                    .map(|j| transport.multiaddr("127.0.0.1", test.mempool_base_port + j))
-                    .collect(),
-                ..Default::default()
-            },
-            max_tx_count: 10000,
-            gossip_batch_size: 100,
-            load: MempoolLoadConfig::default(),
-        },
-        sync: SyncConfig {
-            enabled: true,
-            status_update_interval: Duration::from_secs(2),
-            request_timeout: Duration::from_secs(5),
-        },
-        metrics: MetricsConfig {
-            enabled: false,
-            listen_addr: format!("127.0.0.1:{}", test.metrics_base_port + i)
-                .parse()
-                .unwrap(),
-        },
-        runtime: RuntimeConfig::single_threaded(),
-        test: TestConfig::default(),
-    }
-}
-
-fn voting_powers<S>(nodes: &[TestNode<S>]) -> Vec<VotingPower> {
-    nodes.iter().map(|node| node.voting_power).collect()
-}
-
-pub fn make_validators(voting_powers: Vec<VotingPower>) -> (Vec<Validator>, Vec<PrivateKey>) {
-    let mut rng = StdRng::seed_from_u64(0x42);
-
-    let mut validators = Vec::with_capacity(voting_powers.len());
-    let mut private_keys = Vec::with_capacity(voting_powers.len());
-
-    for vp in voting_powers {
-        let sk = PrivateKey::generate(&mut rng);
-
-        if vp > 0 {
-            let val = Validator::new(sk.public_key(), vp);
-            validators.push(val);
-        }
-
-        private_keys.push(sk);
-    }
-
-    (validators, private_keys)
-}
-
-use axum::routing::get;
-use axum::Router;
-use tokio::net::TcpListener;
-
-#[tracing::instrument(name = "metrics", skip_all)]
-async fn serve_metrics(listen_addr: SocketAddr) {
-    let app = Router::new().route("/metrics", get(get_metrics));
-    let listener = TcpListener::bind(listen_addr).await.unwrap();
-    let address = listener.local_addr().unwrap();
-
-    async fn get_metrics() -> String {
-        let mut buf = String::new();
-        malachitebft_metrics::export(&mut buf);
-        buf
-    }
-
-    info!(%address, "Serving metrics");
-    axum::serve(listener, app).await.unwrap();
 }

@@ -1,12 +1,12 @@
 use std::time::Duration;
 
 use bytesize::ByteSize;
+
 use malachitebft_config::{GossipSubConfig, PubSubProtocol};
-use malachitebft_test_framework::{init_logging, TestBuilder, TestParams};
+
+use crate::{TestBuilder, TestParams};
 
 async fn run_test(params: TestParams) {
-    init_logging(module_path!());
-
     const HEIGHT: u64 = 5;
 
     let mut test = TestBuilder::<()>::new();
@@ -16,14 +16,14 @@ async fn run_test(params: TestParams) {
     test.add_node().start().wait_until(HEIGHT).success();
 
     test.build()
-        .run_with_custom_config(Duration::from_secs(30), params)
+        .run_with_params(Duration::from_secs(30), params)
         .await
 }
 
 #[tokio::test]
 pub async fn broadcast_custom_config_1ktx() {
     let params = TestParams {
-        enable_sync: false,
+        enable_value_sync: false,
         protocol: PubSubProtocol::Broadcast,
         block_size: ByteSize::kib(1),
         tx_size: ByteSize::kib(1),
@@ -37,7 +37,7 @@ pub async fn broadcast_custom_config_1ktx() {
 #[tokio::test]
 pub async fn broadcast_custom_config_2ktx() {
     let params = TestParams {
-        enable_sync: false,
+        enable_value_sync: false,
         protocol: PubSubProtocol::Broadcast,
         block_size: ByteSize::kib(2),
         tx_size: ByteSize::kib(2),
@@ -51,7 +51,7 @@ pub async fn broadcast_custom_config_2ktx() {
 #[tokio::test]
 pub async fn gossip_custom_config_1ktx() {
     let params = TestParams {
-        enable_sync: false,
+        enable_value_sync: false,
         protocol: PubSubProtocol::GossipSub(GossipSubConfig::default()),
         block_size: ByteSize::kib(1),
         tx_size: ByteSize::kib(1),
@@ -65,7 +65,7 @@ pub async fn gossip_custom_config_1ktx() {
 #[tokio::test]
 pub async fn gossip_custom_config_2ktx() {
     let params = TestParams {
-        enable_sync: false,
+        enable_value_sync: false,
         protocol: PubSubProtocol::GossipSub(GossipSubConfig::default()),
         block_size: ByteSize::kib(2),
         tx_size: ByteSize::kib(2),

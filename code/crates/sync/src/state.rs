@@ -14,6 +14,9 @@ where
 {
     rng: Box<dyn rand::RngCore + Send>,
 
+    /// Consensus has started
+    pub started: bool,
+
     /// Height of last decided value
     pub tip_height: Ctx::Height,
 
@@ -38,8 +41,9 @@ where
     pub fn new(rng: Box<dyn rand::RngCore + Send>) -> Self {
         Self {
             rng,
-            tip_height: Ctx::Height::default(),
-            sync_height: Ctx::Height::default(),
+            started: false,
+            tip_height: Ctx::Height::ZERO,
+            sync_height: Ctx::Height::ZERO,
             pending_decided_value_requests: BTreeMap::new(),
             pending_vote_set_requests: BTreeMap::new(),
             peers: BTreeMap::new(),
@@ -95,6 +99,7 @@ where
     pub fn has_pending_decided_value_request(&self, height: &Ctx::Height) -> bool {
         self.pending_decided_value_requests.contains_key(height)
     }
+
     pub fn store_pending_vote_set_request(
         &mut self,
         height: Ctx::Height,

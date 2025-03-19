@@ -157,7 +157,7 @@ impl Keypair for PrivateKey {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
 pub struct PublicKey(
@@ -172,6 +172,10 @@ impl PublicKey {
 
     pub fn as_bytes(&self) -> &[u8; 32] {
         self.0.as_bytes()
+    }
+
+    pub fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(ed25519_consensus::VerificationKey::try_from(bytes).unwrap())
     }
 
     pub fn verify(&self, msg: &[u8], signature: &Signature) -> Result<(), signature::Error> {

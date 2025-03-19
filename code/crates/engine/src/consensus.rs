@@ -2,16 +2,18 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::time::Duration;
 
+use async_recursion::async_recursion;
 use async_trait::async_trait;
+use derive_where::derive_where;
 use eyre::eyre;
-use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
+use ractor::{Actor, ActorProcessingErr, ActorRef};
 use tokio::time::Instant;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, error_span, info, warn};
 
 use malachitebft_codec as codec;
 use malachitebft_config::TimeoutConfig;
 use malachitebft_core_consensus::{
-    Effect, PeerId, Resumable, Resume, SignedConsensusMsg, VoteExtensionError,
+    Effect, PeerId, Resumable, Resume, SignedConsensusMsg, VoteExtensionError, VoteSyncMode,
 };
 use malachitebft_core_types::{
     Context, Round, SigningProvider, SigningProviderExt, Timeout, TimeoutKind, ValidatorSet,
@@ -23,10 +25,11 @@ use malachitebft_sync::{
 };
 
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
-use crate::network::{NetworkEvent, NetworkMsg, NetworkRef, Status};
+use crate::network::{NetworkEvent, NetworkMsg, NetworkRef};
 use crate::sync::Msg as SyncMsg;
 use crate::sync::SyncRef;
 use crate::util::events::{Event, TxEvent};
+use crate::util::msg_buffer::MessageBuffer;
 use crate::util::streaming::StreamMessage;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 use crate::wal::{Msg as WalMsg, WalEntry, WalRef};
@@ -80,6 +83,7 @@ where
 
 pub type ConsensusMsg<Ctx> = Msg<Ctx>;
 
+#[derive_where(Debug)]
 pub enum Msg<Ctx: Context> {
     /// Start consensus for the given height with the given validator set
     StartHeight(Ctx::Height, Ctx::ValidatorSet),
@@ -95,9 +99,6 @@ pub enum Msg<Ctx: Context> {
 
     /// Received and assembled the full value proposed by a validator
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
-
-    /// Get the status of the consensus state machine
-    GetStatus(RpcReplyPort<Status<Ctx>>),
 }
 
 impl<Ctx: Context> From<NetworkEvent<Ctx>> for Msg<Ctx> {
@@ -137,6 +138,8 @@ impl Timeouts {
             TimeoutKind::Commit => self.config.timeout_commit,
             TimeoutKind::PrevoteTimeLimit => self.config.timeout_step,
             TimeoutKind::PrecommitTimeLimit => self.config.timeout_step,
+            TimeoutKind::PrevoteRebroadcast => self.config.timeout_prevote,
+            TimeoutKind::PrecommitRebroadcast => self.config.timeout_precommit,
         }
     }
 
@@ -149,6 +152,8 @@ impl Timeouts {
             TimeoutKind::Commit => (),
             TimeoutKind::PrevoteTimeLimit => (),
             TimeoutKind::PrecommitTimeLimit => (),
+            TimeoutKind::PrevoteRebroadcast => (),
+            TimeoutKind::PrecommitRebroadcast => (),
         };
     }
 }
@@ -156,9 +161,14 @@ impl Timeouts {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum Phase {
     Unstarted,
+    Ready,
     Running,
     Recovering,
 }
+
+/// Maximum number of messages to buffer while consensus is
+/// in the `Unstarted` or `Recovering` phase
+const MAX_BUFFER_SIZE: usize = 1024;
 
 pub struct State<Ctx: Context> {
     /// Scheduler for timers
@@ -175,6 +185,10 @@ pub struct State<Ctx: Context> {
 
     /// The current phase
     phase: Phase,
+
+    /// A buffer of messages that were received while
+    /// consensus was `Unstarted` or in the `Recovering` phase
+    msg_buffer: MessageBuffer<Ctx>,
 }
 
 impl<Ctx> State<Ctx>
@@ -247,6 +261,23 @@ where
         )
     }
 
+    #[async_recursion]
+    async fn process_buffered_msgs(&self, myself: &ActorRef<Msg<Ctx>>, state: &mut State<Ctx>) {
+        if state.msg_buffer.is_empty() {
+            return;
+        }
+
+        info!(count = %state.msg_buffer.len(), "Replaying buffered messages");
+
+        while let Some(msg) = state.msg_buffer.pop() {
+            debug!("Replaying buffered message: {msg:?}");
+
+            if let Err(e) = self.handle_msg(myself.clone(), state, msg).await {
+                error!("Error when handling buffered message: {e:?}");
+            }
+        }
+    }
+
     async fn handle_msg(
         &self,
         myself: ActorRef<Msg<Ctx>>,
@@ -255,8 +286,6 @@ where
     ) -> Result<(), ActorProcessingErr> {
         match msg {
             Msg::StartHeight(height, validator_set) => {
-                state.phase = Phase::Running;
-
                 let result = self
                     .process_input(
                         &myself,
@@ -281,6 +310,10 @@ where
                 if let Err(e) = self.check_and_replay_wal(&myself, state, height).await {
                     error!(%height, "Error when checking and replaying WAL: {e}");
                 }
+
+                self.process_buffered_msgs(&myself, state).await;
+
+                state.phase = Phase::Running;
 
                 Ok(())
             }
@@ -314,7 +347,12 @@ where
                 match event {
                     NetworkEvent::Listening(address) => {
                         info!(%address, "Listening");
-                        self.host.cast(HostMsg::ConsensusReady(myself.clone()))?;
+
+                        if state.phase == Phase::Unstarted {
+                            state.phase = Phase::Ready;
+
+                            self.host.cast(HostMsg::ConsensusReady(myself.clone()))?;
+                        }
                     }
 
                     NetworkEvent::PeerConnected(peer_id) => {
@@ -425,6 +463,7 @@ where
                             height,
                             round,
                             vote_set,
+                            polka_certificates,
                         }),
                     ) => {
                         if vote_set.votes.is_empty() {
@@ -438,7 +477,7 @@ where
                             .process_input(
                                 &myself,
                                 state,
-                                ConsensusInput::VoteSetResponse(vote_set),
+                                ConsensusInput::VoteSetResponse(vote_set, polka_certificates),
                             )
                             .await
                         {
@@ -542,17 +581,6 @@ where
 
                 Ok(())
             }
-
-            Msg::GetStatus(reply_to) => {
-                let history_min_height = self.get_history_min_height().await?;
-                let status = Status::new(state.consensus.height(), history_min_height);
-
-                if let Err(e) = reply_to.send(status) {
-                    error!("Error when replying to GetStatus message: {e}");
-                }
-
-                Ok(())
-            }
         }
     }
 
@@ -592,7 +620,7 @@ where
         match result {
             Ok(None) => {
                 // Nothing to replay
-                info!(%height, "No WAL entries to replay");
+                debug!(%height, "No WAL entries to replay");
             }
             Ok(Some(entries)) => {
                 info!("Found {} WAL entries to replay", entries.len());
@@ -603,8 +631,6 @@ where
                     error!(%height, "Failed to replay WAL entries: {e}");
                     self.tx_event.send(|| Event::WalReplayError(Arc::new(e)));
                 }
-
-                state.phase = Phase::Running;
             }
             Err(e) => {
                 error!(%height, "Error when notifying WAL of started height: {e}");
@@ -739,13 +765,6 @@ where
             reply_to
         })
         .map_err(|e| eyre!("Failed to verify vote extension: {e:?}").into())
-    }
-
-    async fn get_history_min_height(&self) -> Result<Ctx::Height, ActorProcessingErr> {
-        ractor::call!(self.host, |reply_to| HostMsg::GetHistoryMinHeight {
-            reply_to
-        })
-        .map_err(|e| eyre!("Failed to get earliest block height: {e:?}").into())
     }
 
     async fn wal_append(
@@ -942,6 +961,21 @@ where
                 Ok(r.resume_with(()))
             }
 
+            Effect::Rebroadcast(msg, r) => {
+                // Rebroadcast last vote only if vote sync mode is set to "rebroadcast",
+                // otherwise vote set requests are issued automatically by the sync protocol.
+                if self.params.vote_sync_mode == VoteSyncMode::Rebroadcast {
+                    // Notify any subscribers that we are about to rebroadcast a message
+                    self.tx_event.send(|| Event::Rebroadcast(msg.clone()));
+
+                    self.network
+                        .cast(NetworkMsg::Publish(SignedConsensusMsg::Vote(msg)))
+                        .map_err(|e| eyre!("Error when rebroadcasting vote message: {e:?}"))?;
+                }
+
+                Ok(r.resume_with(()))
+            }
+
             Effect::GetValue(height, round, timeout, r) => {
                 let timeout_duration = timeouts.duration_for(timeout.kind);
 
@@ -976,6 +1010,8 @@ where
             }
 
             Effect::Decide(certificate, extensions, r) => {
+                assert!(!certificate.aggregated_signature.signatures.is_empty());
+
                 self.wal_flush(phase).await?;
 
                 self.tx_event.send(|| Event::Decided(certificate.clone()));
@@ -998,7 +1034,7 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::GetVoteSet(height, round, r) => {
+            Effect::RequestVoteSet(height, round, r) => {
                 if let Some(sync) = &self.sync {
                     debug!(%height, %round, "Request sync to obtain the vote set from peers");
 
@@ -1012,15 +1048,28 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::SendVoteSetResponse(request_id_str, height, round, vote_set, r) => {
+            Effect::SendVoteSetResponse(
+                request_id_str,
+                height,
+                round,
+                vote_set,
+                polka_certificates,
+                r,
+            ) => {
                 let Some(sync) = self.sync.as_ref() else {
                     warn!("Responding to a vote set request but sync actor is not available");
                     return Ok(r.resume_with(()));
                 };
 
                 let vote_count = vote_set.len();
-                let response =
-                    Response::VoteSetResponse(VoteSetResponse::new(height, round, vote_set));
+                let polka_certificates_count = polka_certificates.len();
+
+                let response = Response::VoteSetResponse(VoteSetResponse::new(
+                    height,
+                    round,
+                    vote_set,
+                    polka_certificates,
+                ));
 
                 let request_id = InboundRequestId::new(request_id_str);
 
@@ -1037,8 +1086,9 @@ where
                         eyre!("Error when notifying Sync about vote set response: {e:?}")
                     })?;
 
-                self.tx_event
-                    .send(|| Event::SentVoteSetResponse(height, round, vote_count));
+                self.tx_event.send(|| {
+                    Event::SentVoteSetResponse(height, round, vote_count, polka_certificates_count)
+                });
 
                 Ok(r.resume_with(()))
             }
@@ -1069,11 +1119,18 @@ where
     type State = State<Ctx>;
     type Arguments = ();
 
+    #[tracing::instrument(
+        name = "consensus",
+        parent = &self.span,
+        skip_all,
+    )]
     async fn pre_start(
         &self,
         myself: ActorRef<Msg<Ctx>>,
         _args: (),
     ) -> Result<State<Ctx>, ActorProcessingErr> {
+        info!("Consensus is starting");
+
         self.network
             .cast(NetworkMsg::Subscribe(Box::new(myself.clone())))?;
 
@@ -1083,14 +1140,26 @@ where
             consensus: ConsensusState::new(self.ctx.clone(), self.params.clone()),
             connected_peers: BTreeSet::new(),
             phase: Phase::Unstarted,
+            msg_buffer: MessageBuffer::new(MAX_BUFFER_SIZE),
         })
     }
 
+    #[tracing::instrument(
+        name = "consensus",
+        parent = &self.span,
+        skip_all,
+        fields(
+            height = %state.consensus.height(),
+            round = %state.consensus.round()
+        )
+    )]
     async fn post_start(
         &self,
         _myself: ActorRef<Msg<Ctx>>,
         state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
+        info!("Consensus has started");
+
         state.timers.cancel_all();
         Ok(())
     }
@@ -1100,8 +1169,9 @@ where
         parent = &self.span,
         skip_all,
         fields(
-            height = %state.consensus.height(),
-            round = %state.consensus.round())
+            height = %span_height(state.consensus.height(), &msg),
+            round = %span_round(state.consensus.round(), &msg)
+        )
     )]
     async fn handle(
         &self,
@@ -1109,22 +1179,65 @@ where
         msg: Msg<Ctx>,
         state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
-        if let Err(e) = self.handle_msg(myself, state, msg).await {
+        if state.phase != Phase::Running && should_buffer(&msg) {
+            let _span = error_span!("buffer", phase = ?state.phase).entered();
+            state.msg_buffer.buffer(msg);
+            return Ok(());
+        }
+
+        if let Err(e) = self.handle_msg(myself.clone(), state, msg).await {
             error!("Error when handling message: {e:?}");
         }
 
         Ok(())
     }
 
+    #[tracing::instrument(
+        name = "consensus",
+        parent = &self.span,
+        skip_all,
+        fields(
+            height = %state.consensus.height(),
+            round = %state.consensus.round()
+        )
+    )]
     async fn post_stop(
         &self,
         _myself: ActorRef<Self::Msg>,
         state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
-        info!("Stopping...");
-
+        info!("Consensus has stopped");
         state.timers.cancel_all();
-
         Ok(())
+    }
+}
+
+fn should_buffer<Ctx: Context>(msg: &Msg<Ctx>) -> bool {
+    !matches!(
+        msg,
+        Msg::StartHeight(..)
+            | Msg::NetworkEvent(NetworkEvent::Listening(..))
+            | Msg::NetworkEvent(NetworkEvent::PeerConnected(..))
+            | Msg::NetworkEvent(NetworkEvent::PeerDisconnected(..))
+    )
+}
+
+/// Use the height we are about to start instead of the consensus state height
+/// for the tracing span of the Consensus actor when starting a new height.
+fn span_height<Ctx: Context>(height: Ctx::Height, msg: &Msg<Ctx>) -> Ctx::Height {
+    if let Msg::StartHeight(h, _) = msg {
+        *h
+    } else {
+        height
+    }
+}
+
+/// Use round 0 instead of the consensus state round for the tracing span of
+/// the Consensus actor when starting a new height.
+fn span_round<Ctx: Context>(round: Round, msg: &Msg<Ctx>) -> Round {
+    if let Msg::StartHeight(_, _) = msg {
+        Round::new(0)
+    } else {
+        round
     }
 }

@@ -6,15 +6,17 @@ use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, RpcReplyPort, Spa
 use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, info};
 
-use malachitebft_core_types::Context;
+use malachitebft_core_types::{Context, Height};
 use malachitebft_metrics::SharedRegistry;
 use malachitebft_wal as wal;
 
 mod entry;
+mod iter;
 mod thread;
 
 pub use entry::WalCodec;
 pub use entry::WalEntry;
+pub use iter::log_entries;
 
 pub type WalRef<Ctx> = ActorRef<Msg<Ctx>>;
 
@@ -53,6 +55,7 @@ pub enum Msg<Ctx: Context> {
     StartedHeight(Ctx::Height, WalReply<Option<Vec<WalEntry<Ctx>>>>),
     Append(Ctx::Height, WalEntry<Ctx>, WalReply<()>),
     Flush(WalReply<()>),
+    Dump,
 }
 
 pub struct Args<Codec> {
@@ -100,6 +103,10 @@ where
 
             Msg::Flush(reply_to) => {
                 self.flush_log(state, reply_to).await?;
+            }
+
+            Msg::Dump => {
+                state.wal_sender.send(self::thread::WalMsg::Dump).await?;
             }
         }
 
@@ -204,7 +211,7 @@ where
         let handle = self::thread::spawn(self.span.clone(), log, args.codec, rx);
 
         Ok(State {
-            height: Ctx::Height::default(),
+            height: Ctx::Height::ZERO,
             wal_sender: tx,
             _handle: handle,
         })
@@ -214,7 +221,7 @@ where
         name = "wal",
         parent = &self.span,
         skip_all,
-        fields(height = %state.height),
+        fields(height = %span_height(state.height, &msg)),
     )]
     async fn handle(
         &self,
@@ -245,5 +252,15 @@ where
         let _ = state.wal_sender.send(self::thread::WalMsg::Shutdown).await;
 
         Ok(())
+    }
+}
+
+/// Use the height we are about to start instead of the current height
+/// for the tracing span of the WAL actor when starting a new height.
+fn span_height<Ctx: Context>(height: Ctx::Height, msg: &Msg<Ctx>) -> Ctx::Height {
+    if let Msg::StartedHeight(h, _) = msg {
+        *h
+    } else {
+        height
     }
 }

@@ -134,6 +134,8 @@ fn encode_timeout(tag: u8, timeout: &Timeout, mut buf: impl Write) -> io::Result
         // but we still need to handle them here.
         TimeoutKind::PrevoteTimeLimit => 5,
         TimeoutKind::PrecommitTimeLimit => 6,
+        TimeoutKind::PrevoteRebroadcast => 7,
+        TimeoutKind::PrecommitRebroadcast => 8,
     };
 
     buf.write_u8(tag)?;

@@ -1,30 +1,31 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use libp2p_identity::ecdsa;
-use malachitebft_engine::util::events::TxEvent;
-use malachitebft_engine::wal::{Wal, WalRef};
-use malachitebft_starknet_p2p_types::EcdsaProvider;
 use tokio::task::JoinHandle;
+use tracing::warn;
 
 use malachitebft_config::{
-    self as config, Config as NodeConfig, MempoolConfig, MempoolLoadConfig, SyncConfig,
-    TransportProtocol,
+    self as config, MempoolConfig, MempoolLoadConfig, TransportProtocol, ValueSyncConfig,
+    VoteSyncConfig,
 };
-use malachitebft_core_consensus::ValuePayload;
+use malachitebft_core_consensus::VoteSyncMode;
+use malachitebft_core_types::ValuePayload;
 use malachitebft_engine::consensus::{Consensus, ConsensusParams, ConsensusRef};
 use malachitebft_engine::host::HostRef;
 use malachitebft_engine::network::{Network, NetworkRef};
 use malachitebft_engine::node::{Node, NodeRef};
 use malachitebft_engine::sync::{Params as SyncParams, Sync, SyncRef};
-use malachitebft_metrics::Metrics;
-use malachitebft_metrics::SharedRegistry;
+use malachitebft_engine::util::events::TxEvent;
+use malachitebft_engine::wal::{Wal, WalRef};
+use malachitebft_metrics::{Metrics, SharedRegistry};
 use malachitebft_network::Keypair;
+use malachitebft_starknet_p2p_types::Ed25519Provider;
 use malachitebft_sync as sync;
 use malachitebft_test_mempool::Config as MempoolNetworkConfig;
 
 use crate::actor::Host;
 use crate::codec::ProtobufCodec;
+use crate::config::Config;
 use crate::host::{StarknetHost, StarknetParams};
 use crate::mempool::network::{MempoolNetwork, MempoolNetworkRef};
 use crate::mempool::{Mempool, MempoolRef};
@@ -33,7 +34,7 @@ use crate::types::MockContext;
 use crate::types::{Address, Height, PrivateKey, ValidatorSet};
 
 pub async fn spawn_node_actor(
-    cfg: NodeConfig,
+    cfg: Config,
     home_dir: PathBuf,
     initial_validator_set: ValidatorSet,
     private_key: PrivateKey,
@@ -48,7 +49,7 @@ pub async fn spawn_node_actor(
     let registry = SharedRegistry::global().with_moniker(cfg.moniker.as_str());
     let metrics = Metrics::register(&registry);
     let address = Address::from_public_key(private_key.public_key());
-    let signing_provider = EcdsaProvider::new(private_key);
+    let signing_provider = Ed25519Provider::new(private_key.clone());
 
     // Spawn mempool and its gossip layer
     let mempool_network = spawn_mempool_network_actor(&cfg, &private_key, &registry, &span).await;
@@ -78,7 +79,8 @@ pub async fn spawn_node_actor(
         ctx,
         network.clone(),
         host.clone(),
-        &cfg.sync,
+        &cfg.value_sync,
+        &cfg.consensus.vote_sync,
         &registry,
         &span,
     )
@@ -132,11 +134,12 @@ async fn spawn_sync_actor(
     ctx: MockContext,
     network: NetworkRef<MockContext>,
     host: HostRef<MockContext>,
-    config: &SyncConfig,
+    config: &ValueSyncConfig,
+    vote_sync: &VoteSyncConfig,
     registry: &SharedRegistry,
     span: &tracing::Span,
 ) -> Option<SyncRef<MockContext>> {
-    if !config.enabled {
+    if !config.enabled && vote_sync.mode != config::VoteSyncMode::RequestResponse {
         return None;
     }
 
@@ -159,8 +162,8 @@ async fn spawn_consensus_actor(
     initial_validator_set: ValidatorSet,
     address: Address,
     ctx: MockContext,
-    cfg: NodeConfig,
-    signing_provider: EcdsaProvider,
+    cfg: Config,
+    signing_provider: Ed25519Provider,
     network: NetworkRef<MockContext>,
     host: HostRef<MockContext>,
     wal: WalRef<MockContext>,
@@ -169,18 +172,16 @@ async fn spawn_consensus_actor(
     tx_event: TxEvent<MockContext>,
     span: &tracing::Span,
 ) -> ConsensusRef<MockContext> {
-    let value_payload = match cfg.consensus.value_payload {
-        malachitebft_config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
-        malachitebft_config::ValuePayload::ProposalOnly => ValuePayload::ProposalOnly,
-        malachitebft_config::ValuePayload::ProposalAndParts => ValuePayload::ProposalAndParts,
-    };
-
     let consensus_params = ConsensusParams {
         initial_height,
         initial_validator_set,
         address,
         threshold_params: Default::default(),
-        value_payload,
+        value_payload: ValuePayload::PartsOnly,
+        vote_sync_mode: match cfg.consensus.vote_sync.mode {
+            config::VoteSyncMode::RequestResponse => VoteSyncMode::RequestResponse,
+            config::VoteSyncMode::Rebroadcast => VoteSyncMode::Rebroadcast,
+        },
     };
 
     Consensus::spawn(
@@ -201,7 +202,7 @@ async fn spawn_consensus_actor(
 }
 
 async fn spawn_network_actor(
-    cfg: &NodeConfig,
+    cfg: &Config,
     private_key: &PrivateKey,
     registry: &SharedRegistry,
     span: &tracing::Span,
@@ -266,11 +267,8 @@ async fn spawn_network_actor(
     .unwrap()
 }
 
-fn make_keypair(private_key: &PrivateKey) -> Keypair {
-    let pk_bytes = private_key.inner().to_bytes_be();
-    let secret_key = ecdsa::SecretKey::try_from_bytes(pk_bytes).unwrap();
-    let ecdsa_keypair = ecdsa::Keypair::from(secret_key);
-    Keypair::from(ecdsa_keypair)
+fn make_keypair(pk: &PrivateKey) -> Keypair {
+    Keypair::ed25519_from_bytes(pk.inner().to_bytes()).unwrap()
 }
 
 async fn spawn_mempool_actor(
@@ -305,7 +303,7 @@ async fn spawn_mempool_load_actor(
 }
 
 async fn spawn_mempool_network_actor(
-    cfg: &NodeConfig,
+    cfg: &Config,
     private_key: &PrivateKey,
     registry: &SharedRegistry,
     span: &tracing::Span,
@@ -330,7 +328,7 @@ async fn spawn_mempool_network_actor(
 #[allow(clippy::too_many_arguments)]
 async fn spawn_host_actor(
     home_dir: &Path,
-    cfg: &NodeConfig,
+    cfg: &Config,
     address: &Address,
     private_key: &PrivateKey,
     initial_validator_set: &ValidatorSet,
@@ -340,21 +338,20 @@ async fn spawn_host_actor(
     metrics: Metrics,
     span: &tracing::Span,
 ) -> HostRef<MockContext> {
-    let value_payload = match cfg.consensus.value_payload {
-        malachitebft_config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
-        malachitebft_config::ValuePayload::ProposalOnly => ValuePayload::ProposalOnly,
-        malachitebft_config::ValuePayload::ProposalAndParts => ValuePayload::ProposalAndParts,
-    };
+    if cfg.consensus.value_payload != config::ValuePayload::PartsOnly {
+        warn!(
+            "`value_payload` must be set to `PartsOnly` for Starknet app, ignoring current configuration `{:?}`",
+            cfg.consensus.value_payload
+        );
+    }
 
     let mock_params = StarknetParams {
-        value_payload,
         max_block_size: cfg.test.max_block_size,
         tx_size: cfg.test.tx_size,
         txs_per_part: cfg.test.txs_per_part,
         time_allowance_factor: cfg.test.time_allowance_factor,
         exec_time_per_tx: cfg.test.exec_time_per_tx,
         max_retain_blocks: cfg.test.max_retain_blocks,
-        // vote_extensions: cfg.test.vote_extensions,
     };
 
     let mock_host = StarknetHost::new(
@@ -362,7 +359,7 @@ async fn spawn_host_actor(
         mempool.clone(),
         mempool_load.clone(),
         *address,
-        *private_key,
+        private_key.clone(),
         initial_validator_set.clone(),
     );
 

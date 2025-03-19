@@ -1,11 +1,9 @@
 use std::time::Duration;
 
-use crate::{init_logging, TestBuilder};
+use crate::TestBuilder;
 
 #[tokio::test]
 pub async fn proposer_fails_to_start() {
-    init_logging(module_path!());
-
     const HEIGHT: u64 = 5;
 
     let mut test = TestBuilder::<()>::new();
@@ -29,8 +27,6 @@ pub async fn proposer_fails_to_start() {
 
 #[tokio::test]
 pub async fn one_node_fails_to_start() {
-    init_logging(module_path!());
-
     const HEIGHT: u64 = 5;
 
     let mut test = TestBuilder::<()>::new();
@@ -54,8 +50,6 @@ pub async fn one_node_fails_to_start() {
 
 #[tokio::test]
 pub async fn proposer_crashes_at_height_2() {
-    init_logging(module_path!());
-
     const HEIGHT: u64 = 5;
 
     let mut test = TestBuilder::<()>::new();
@@ -84,8 +78,6 @@ pub async fn proposer_crashes_at_height_2() {
 
 #[tokio::test]
 pub async fn one_node_crashes_at_height_3() {
-    init_logging(module_path!());
-
     const HEIGHT: u64 = 5;
 
     let mut test = TestBuilder::<()>::new();

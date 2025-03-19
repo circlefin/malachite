@@ -1,55 +1,12 @@
 use core::fmt;
 use std::net::{IpAddr, SocketAddr};
-use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
 
 use bytesize::ByteSize;
-use config as config_rs;
 use malachitebft_core_types::TimeoutKind;
 use multiaddr::Multiaddr;
 use serde::{Deserialize, Serialize};
-
-/// Malachite configuration options
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct Config {
-    /// A custom human-readable name for this node
-    pub moniker: String,
-
-    /// Log configuration options
-    pub logging: LoggingConfig,
-
-    /// Consensus configuration options
-    pub consensus: ConsensusConfig,
-
-    /// Mempool configuration options
-    pub mempool: MempoolConfig,
-
-    /// Sync configuration options
-    pub sync: SyncConfig,
-
-    /// Metrics configuration options
-    pub metrics: MetricsConfig,
-
-    /// Runtime configuration options
-    pub runtime: RuntimeConfig,
-
-    /// Test configuration
-    #[serde(default)]
-    pub test: TestConfig,
-}
-
-/// load_config parses the environment variables and loads the provided config file path
-/// to create a Config struct.
-pub fn load_config(config_file_path: &Path, prefix: Option<&str>) -> Result<Config, String> {
-    config_rs::Config::builder()
-        .add_source(config::File::from(config_file_path))
-        .add_source(config::Environment::with_prefix(prefix.unwrap_or("MALACHITE")).separator("__"))
-        .build()
-        .map_err(|error| error.to_string())?
-        .try_deserialize()
-        .map_err(|error| error.to_string())
-}
 
 /// P2P configuration options
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -91,7 +48,7 @@ impl Default for P2pConfig {
     }
 }
 /// Peer Discovery configuration options
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DiscoveryConfig {
     /// Enable peer discovery
     #[serde(default)]
@@ -117,6 +74,19 @@ pub struct DiscoveryConfig {
     #[serde(default)]
     #[serde(with = "humantime_serde")]
     pub ephemeral_connection_timeout: Duration,
+}
+
+impl Default for DiscoveryConfig {
+    fn default() -> Self {
+        DiscoveryConfig {
+            enabled: false,
+            bootstrap_protocol: Default::default(),
+            selector: Default::default(),
+            num_outbound_peers: 0,
+            num_inbound_peers: 20,
+            ephemeral_connection_timeout: Default::default(),
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -444,9 +414,10 @@ pub struct MempoolConfig {
     pub load: MempoolLoadConfig,
 }
 
+/// ValueSync configuration options
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct SyncConfig {
-    /// Enable Sync
+pub struct ValueSyncConfig {
+    /// Enable ValueSync
     pub enabled: bool,
 
     /// Interval at which to update other peers of our status
@@ -458,7 +429,7 @@ pub struct SyncConfig {
     pub request_timeout: Duration,
 }
 
-impl Default for SyncConfig {
+impl Default for ValueSyncConfig {
     fn default() -> Self {
         Self {
             enabled: true,
@@ -475,11 +446,33 @@ pub struct ConsensusConfig {
     #[serde(flatten)]
     pub timeouts: TimeoutConfig,
 
+    /// P2P configuration options
+    pub p2p: P2pConfig,
+
     /// Message types that can carry values
     pub value_payload: ValuePayload,
 
-    /// P2P configuration options
-    pub p2p: P2pConfig,
+    /// VoteSync configuration options
+    pub vote_sync: VoteSyncConfig,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VoteSyncConfig {
+    /// The mode of vote synchronization
+    /// - RequestResponse: The lagging node sends a request to a peer for the missing votes
+    /// - Rebroadcast: Nodes rebroadcast their last vote to all peers
+    pub mode: VoteSyncMode,
+}
+
+/// The mode of vote synchronization
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum VoteSyncMode {
+    /// The lagging node sends a request to a peer for the missing votes
+    #[default]
+    RequestResponse,
+    /// Nodes rebroadcast their last vote to all peers
+    Rebroadcast,
 }
 
 /// Message types required by consensus to deliver the value being proposed
@@ -556,6 +549,8 @@ impl TimeoutConfig {
             TimeoutKind::Commit => self.timeout_commit,
             TimeoutKind::PrevoteTimeLimit => self.timeout_step,
             TimeoutKind::PrecommitTimeLimit => self.timeout_step,
+            TimeoutKind::PrevoteRebroadcast => self.timeout_prevote,
+            TimeoutKind::PrecommitRebroadcast => self.timeout_precommit,
         }
     }
 
@@ -567,6 +562,8 @@ impl TimeoutConfig {
             TimeoutKind::Commit => None,
             TimeoutKind::PrevoteTimeLimit => None,
             TimeoutKind::PrecommitTimeLimit => None,
+            TimeoutKind::PrevoteRebroadcast => None,
+            TimeoutKind::PrecommitRebroadcast => None,
         }
     }
 }
@@ -645,6 +642,8 @@ pub struct TestConfig {
     pub max_retain_blocks: usize,
     #[serde(default)]
     pub vote_extensions: VoteExtensionsConfig,
+    #[serde(default)]
+    pub is_byzantine_proposer: bool,
 }
 
 impl Default for TestConfig {
@@ -657,6 +656,7 @@ impl Default for TestConfig {
             exec_time_per_tx: Duration::from_millis(1),
             max_retain_blocks: 1000,
             vote_extensions: VoteExtensionsConfig::default(),
+            is_byzantine_proposer: false,
         }
     }
 }
@@ -737,23 +737,6 @@ impl fmt::Display for LogFormat {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn parse_default_config_file() {
-        let file = include_str!("../../../examples/channel/config.toml");
-        let config = toml::from_str::<Config>(file).unwrap();
-        assert_eq!(config.consensus.timeouts, TimeoutConfig::default());
-        assert_eq!(config.test, TestConfig::default());
-
-        let tmp_file = std::env::temp_dir().join("informalsystems-malachitebft-config.toml");
-        std::fs::write(&tmp_file, file).unwrap();
-
-        let config = load_config(&tmp_file, None).unwrap();
-        assert_eq!(config.consensus.timeouts, TimeoutConfig::default());
-        assert_eq!(config.test, TestConfig::default());
-
-        std::fs::remove_file(tmp_file).unwrap();
-    }
 
     #[test]
     fn log_format() {

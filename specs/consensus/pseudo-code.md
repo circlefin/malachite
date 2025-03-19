@@ -31,7 +31,8 @@ Tendermint consensus algorithm.
 20:    else
 21:       schedule OnTimeoutPropose(h_p, round_p) to be executed after timeoutPropose(round_p)
 
-22: upon ⟨PROPOSAL, h_p, round_p, v, −1⟩ from proposer(h_p, round_p) while step_p = propose do
+22: upon ⟨PROPOSAL, h_p, round_p, v, −1⟩ from proposer(h_p, round_p)
+    while step_p = propose do
 23:    if valid(v) ∧ (lockedRound_p = −1 ∨ lockedValue_p = v) then
 24:       broadcast ⟨PREVOTE, h_p, round_p, id(v)⟩
 25:    else
@@ -49,8 +50,8 @@ Tendermint consensus algorithm.
 34: upon 2f + 1 ⟨PREVOTE, h_p, round_p, ∗⟩ while step_p = prevote for the first time do
 35:    schedule OnTimeoutPrevote(h_p, round_p) to be executed after timeoutPrevote(round_p)
 
-36: upon ⟨PROPOSAL, h_p, round_p, v, ∗⟩ from proposer(h_p, round_p) AND 2f + 1 ⟨PREVOTE, h_p, round_p, id(v)⟩ while
-    valid(v) ∧ step_p ≥ prevote for the first time do
+36: upon ⟨PROPOSAL, h_p, round_p, v, ∗⟩ from proposer(h_p, round_p) AND 2f + 1 ⟨PREVOTE, h_p, round_p, id(v)⟩
+    while valid(v) ∧ step_p ≥ prevote for the first time do
 37:    if step_p = prevote then
 38:       lockedValue_p ← v
 39:       lockedRound_p ← round_p
@@ -66,18 +67,19 @@ Tendermint consensus algorithm.
 47: upon 2f + 1 ⟨PRECOMMIT, h_p, round_p, ∗⟩ for the first time do
 48:    schedule OnTimeoutPrecommit(h_p, round_p) to be executed after timeoutPrecommit(round_p)
 
-49: upon ⟨PROPOSAL, h_p, r, v, ∗⟩ from proposer(h_p, r) AND 2f + 1 ⟨PRECOMMIT, h_p, r, id(v)⟩ while decision_p[h_p] = nil do
+49: upon ⟨PROPOSAL, h_p, r, v, ∗⟩ from proposer(h_p, r) AND 2f + 1 ⟨PRECOMMIT, h_p, r, id(v)⟩
+    while decision_p[h_p] = nil do
 50:    if valid(v) then
 51:       decision_p[h_p] = v
 52:       h_p ← h_p + 1
-53:       reset lockedRound_p, lockedValue_p, validRound_p and validValue_p to initial values and empty message log
+53:       reset lockedRound_p, lockedValue_p, validRound_p and validValue_p to initial values
 54:       StartRound(0)
 
-55: upon f + 1 ⟨∗, h_p, round, ∗, ∗⟩ with round > round_p do
+55: upon f + 1 ⟨∗, h_p, round, ∗⟩ with round > round_p do
 56:    StartRound(round)
 
 57: Function OnTimeoutPropose(height, round):
-58:    if height = h_p ∧ round = round_p ∧ step_p = prevote then
+58:    if height = h_p ∧ round = round_p ∧ step_p = propose then
 59:       broadcast ⟨PREVOTE, h_p, round_p, nil⟩
 60:       step_p ← prevote
 
