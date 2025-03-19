@@ -382,7 +382,7 @@ pub mod mempool_load {
     impl Default for UniformLoadConfig {
         fn default() -> Self {
             Self {
-                interval: Duration::from_secs(3),
+                interval: Duration::from_secs(1),
                 count: 100,
                 size: 256,
             }

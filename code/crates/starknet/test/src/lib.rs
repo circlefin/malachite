@@ -5,10 +5,11 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use malachitebft_starknet_host::config::Config;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
+use malachitebft_config::mempool_load::UniformLoadConfig;
+use malachitebft_starknet_host::config::Config;
 use malachitebft_starknet_host::node::{ConfigSource, Handle, StarknetNode};
 use malachitebft_starknet_host::types::{Height, MockContext, PrivateKey, Validator, ValidatorSet};
 use malachitebft_test_framework::HasTestRunner;
@@ -174,7 +175,9 @@ impl TestRunner {
                 },
                 max_tx_count: 10000,
                 gossip_batch_size: 100,
-                load: MempoolLoadConfig::default(),
+                load: MempoolLoadConfig {
+                    load_type: MempoolLoadType::UniformLoad(UniformLoadConfig::default()),
+                },
             },
             value_sync: ValueSyncConfig {
                 enabled: true,
