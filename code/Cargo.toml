@@ -147,7 +147,7 @@ prost              = "0.13"
 prost-build        = "0.13"
 prost-types        = "0.13"
 ractor             = { version = "0.14.6", default-features = false, features = ["async-trait", "tokio_runtime"] }
-rand               = { version = "0.8.5", features = ["std_rng"] }
+rand               = { version = "0.8.5", features = ["std_rng", "small_rng"] }
 rand_chacha        = "0.3.1"
 redb               = "2.4.0"
 seahash            = "4.1"

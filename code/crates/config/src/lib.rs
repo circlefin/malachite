@@ -309,6 +309,95 @@ mod gossipsub {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "load_type", rename_all = "snake_case")]
+pub enum MempoolLoadType {
+    NoLoad,
+    UniformLoad(mempool_load::UniformLoadConfig),
+    NonUniformLoad(mempool_load::NonUniformLoadConfig),
+}
+
+impl Default for MempoolLoadType {
+    fn default() -> Self {
+        Self::NoLoad
+    }
+}
+
+pub mod mempool_load {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+    pub struct NonUniformLoadConfig {
+        /// Base transaction count
+        pub base_count: i32,
+
+        /// Base transaction size
+        pub base_size: i32,
+
+        /// How much the transaction count can vary
+        pub count_variation: std::ops::Range<i32>,
+
+        /// How much the transaction size can vary
+        pub size_variation: std::ops::Range<i32>,
+
+        /// Chance of generating a spike.
+        /// e.g. 0.1 = 10% chance of spike
+        pub spike_probability: f64,
+
+        /// Multiplier for spike transactions
+        /// e.g. 10 = 10x more transactions during spike
+        pub spike_multiplier: usize,
+
+        /// Range of intervals between generating load, in milliseconds
+        pub sleep_interval: std::ops::Range<u64>,
+    }
+
+    impl Default for NonUniformLoadConfig {
+        fn default() -> Self {
+            Self {
+                base_count: 100,
+                base_size: 256,
+                count_variation: -100..200,
+                size_variation: -64..128,
+                spike_probability: 0.10,
+                spike_multiplier: 2,
+                sleep_interval: 1000..5000,
+            }
+        }
+    }
+
+    #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, serde::Deserialize)]
+    pub struct UniformLoadConfig {
+        /// Interval at which to generate load
+        #[serde(with = "humantime_serde")]
+        pub interval: Duration,
+
+        /// Number of transactions to generate
+        pub count: usize,
+
+        /// Size of each generated transaction
+        pub size: usize,
+    }
+
+    impl Default for UniformLoadConfig {
+        fn default() -> Self {
+            Self {
+                interval: Duration::from_secs(1),
+                count: 100,
+                size: 256,
+            }
+        }
+    }
+}
+
+/// Mempool configuration options
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct MempoolLoadConfig {
+    /// Mempool loading type
+    #[serde(flatten)]
+    pub load_type: MempoolLoadType,
+}
+
 /// Mempool configuration options
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct MempoolConfig {
@@ -320,6 +409,9 @@ pub struct MempoolConfig {
 
     /// Maximum number of transactions to gossip at once in a batch
     pub gossip_batch_size: usize,
+
+    /// Mempool load configuration options
+    pub load: MempoolLoadConfig,
 }
 
 /// ValueSync configuration options

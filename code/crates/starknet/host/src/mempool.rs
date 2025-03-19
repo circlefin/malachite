@@ -2,10 +2,9 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytesize::ByteSize;
+use itertools::Itertools;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
-use rand::RngCore;
-use tracing::{debug, info, trace};
+use tracing::{debug, error, info, trace};
 
 use malachitebft_test_mempool::types::MempoolTransactionBatch;
 use malachitebft_test_mempool::{Event as NetworkEvent, NetworkMsg, PeerId};
@@ -23,7 +22,6 @@ pub struct Mempool {
     network: MempoolNetworkRef,
     gossip_batch_size: usize,
     max_tx_count: usize,
-    test_tx_size: ByteSize,
     span: tracing::Span,
 }
 
@@ -46,30 +44,22 @@ impl From<Arc<NetworkEvent>> for Msg {
     }
 }
 
-#[allow(dead_code)]
+#[derive(Default)]
 pub struct State {
-    pub transactions: BTreeMap<Hash, Transaction>,
+    transactions: BTreeMap<Hash, Transaction>,
 }
 
 impl State {
     pub fn new() -> Self {
-        Self {
-            transactions: BTreeMap::new(),
-        }
+        Self::default()
     }
 
-    pub fn add_tx(&mut self, tx: &Transaction) {
-        self.transactions.entry(tx.hash()).or_insert(tx.clone());
+    pub fn add_tx(&mut self, tx: Transaction) {
+        self.transactions.entry(tx.hash()).or_insert(tx);
     }
 
     pub fn remove_tx(&mut self, hash: &Hash) {
-        self.transactions.remove_entry(hash);
-    }
-}
-
-impl Default for State {
-    fn default() -> Self {
-        Self::new()
+        self.transactions.remove(hash);
     }
 }
 
@@ -78,14 +68,12 @@ impl Mempool {
         mempool_network: MempoolNetworkRef,
         gossip_batch_size: usize,
         max_tx_count: usize,
-        test_tx_size: ByteSize,
         span: tracing::Span,
     ) -> Self {
         Self {
             network: mempool_network,
             gossip_batch_size,
             max_tx_count,
-            test_tx_size,
             span,
         }
     }
@@ -94,17 +82,9 @@ impl Mempool {
         mempool_network: MempoolNetworkRef,
         gossip_batch_size: usize,
         max_tx_count: usize,
-        test_tx_size: ByteSize,
         span: tracing::Span,
     ) -> Result<MempoolRef, ractor::SpawnErr> {
-        let node = Self::new(
-            mempool_network,
-            gossip_batch_size,
-            max_tx_count,
-            test_tx_size,
-            span,
-        );
-
+        let node = Self::new(mempool_network, gossip_batch_size, max_tx_count, span);
         let (actor_ref, _) = Actor::spawn(None, node, ()).await?;
         Ok(actor_ref)
     }
@@ -128,9 +108,7 @@ impl Mempool {
             NetworkEvent::Message(_channel, from, _msg_id, msg) => {
                 trace!(%from, size = msg.size_bytes(), "Received message");
 
-                trace!(%from, "Received message");
-                self.handle_network_msg(from, msg.clone(), myself, state) // FIXME: Clone
-                    .await?;
+                self.handle_network_msg(from, msg, myself, state).await?;
             }
         }
 
@@ -140,15 +118,18 @@ impl Mempool {
     pub async fn handle_network_msg(
         &self,
         from: &PeerId,
-        msg: NetworkMsg,
+        msg: &NetworkMsg,
         myself: MempoolRef,
         _state: &mut State,
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
             NetworkMsg::TransactionBatch(batch) => {
-                let Ok(batch) = TransactionBatch::from_any(&batch.transaction_batch) else {
-                    // TODO: Log error
-                    return Ok(());
+                let batch = match TransactionBatch::from_any(&batch.transaction_batch) {
+                    Ok(batch) => batch,
+                    Err(e) => {
+                        error!("Failed to decode transaction batch: {e}");
+                        return Ok(());
+                    }
                 };
 
                 trace!(%from, "Received batch with {} transactions", batch.len());
@@ -156,6 +137,46 @@ impl Mempool {
                 for tx in batch.into_vec() {
                     myself.cast(Msg::Input(tx))?;
                 }
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn handle_msg(
+        &self,
+        myself: MempoolRef,
+        msg: Msg,
+        state: &mut State,
+    ) -> Result<(), ractor::ActorProcessingErr> {
+        match msg {
+            Msg::NetworkEvent(event) => {
+                self.handle_network_event(&event, myself, state).await?;
+            }
+
+            Msg::Input(tx) => {
+                if state.transactions.len() < self.max_tx_count {
+                    state.add_tx(tx);
+                } else {
+                    trace!("Mempool is full, dropping transaction");
+                }
+            }
+
+            Msg::Reap {
+                reply, num_txes, ..
+            } => {
+                let txes = reap_and_broadcast_txes(
+                    num_txes,
+                    self.gossip_batch_size,
+                    state,
+                    &self.network,
+                )?;
+
+                reply.send(txes)?;
+            }
+
+            Msg::Update { tx_hashes } => {
+                tx_hashes.iter().for_each(|hash| state.remove_tx(hash));
             }
         }
 
@@ -169,6 +190,7 @@ impl Actor for Mempool {
     type State = State;
     type Arguments = ();
 
+    #[tracing::instrument("host.mempool", parent = &self.span, skip_all)]
     async fn pre_start(
         &self,
         myself: MempoolRef,
@@ -186,53 +208,20 @@ impl Actor for Mempool {
     async fn handle(
         &self,
         myself: MempoolRef,
-        msg: Msg,
+        msg: MempoolMsg,
         state: &mut State,
     ) -> Result<(), ractor::ActorProcessingErr> {
-        match msg {
-            Msg::NetworkEvent(event) => {
-                self.handle_network_event(&event, myself, state).await?;
-            }
-
-            Msg::Input(tx) => {
-                if state.transactions.len() < self.max_tx_count {
-                    state.add_tx(&tx);
-                } else {
-                    trace!("Mempool is full, dropping transaction");
-                }
-            }
-
-            Msg::Reap {
-                reply, num_txes, ..
-            } => {
-                let txes = generate_and_broadcast_txes(
-                    num_txes,
-                    self.test_tx_size.as_u64() as usize,
-                    self.gossip_batch_size,
-                    state,
-                    &self.network,
-                )?;
-
-                reply.send(txes)?;
-            }
-
-            Msg::Update { .. } => {
-                // Clear all transactions from the mempool, given that we consume
-                // the full mempool when proposing a block.
-                //
-                // This reduces the mempool protocol overhead and allow us to
-                // observe issues strictly related to consensus.
-                // It also bumps performance, as we reduce the mempool's background traffic.
-                state.transactions.clear();
-            }
+        if let Err(e) = self.handle_msg(myself, msg, state).await {
+            error!("Error processing message: {e:?}");
         }
 
         Ok(())
     }
 
+    #[tracing::instrument("host.mempool", parent = &self.span, skip_all)]
     async fn post_stop(
         &self,
-        _myself: ActorRef<Self::Msg>,
+        _myself: MempoolRef,
         _state: &mut State,
     ) -> Result<(), ActorProcessingErr> {
         info!("Stopping...");
@@ -241,44 +230,28 @@ impl Actor for Mempool {
     }
 }
 
-fn generate_and_broadcast_txes(
+fn reap_and_broadcast_txes(
     count: usize,
-    size: usize,
     gossip_batch_size: usize,
     state: &mut State,
     mempool_network: &MempoolNetworkRef,
 ) -> Result<Vec<Transaction>, ActorProcessingErr> {
-    debug!(%count, %size, "Generating transactions");
+    debug!(%count, "Reaping transactions");
 
-    let batch_size = std::cmp::min(gossip_batch_size, count);
     let gossip_enabled = gossip_batch_size > 0;
 
-    // Start with transactions already in the mempool
-    let mut transactions = std::mem::take(&mut state.transactions)
+    // Reap transactions from the mempool
+    let transactions = std::mem::take(&mut state.transactions)
         .into_values()
         .take(count)
         .collect::<Vec<_>>();
 
-    let initial_count = transactions.len();
-
-    let mut tx_batch = TransactionBatch::default();
-    let mut rng = rand::thread_rng();
-
-    for _ in initial_count..count {
-        // Generate transaction
-        let mut tx_bytes = vec![0; size];
-        rng.fill_bytes(&mut tx_bytes);
-        let tx = Transaction::new(tx_bytes);
-
-        if gossip_enabled {
-            tx_batch.push(tx.clone());
-        }
-
-        transactions.push(tx);
-
-        // Gossip tx-es to peers in batches
-        if gossip_enabled && tx_batch.len() >= batch_size {
-            let tx_batch = std::mem::take(&mut tx_batch).to_any().unwrap();
+    // If mempool gossip is enabled, broadcast the transactions to the network
+    if gossip_enabled {
+        // Chunk the transactions in batch of max `gossip_batch_size`
+        for batch in &transactions.iter().chunks(gossip_batch_size) {
+            let tx_batch = TransactionBatch::new(batch.cloned().collect());
+            let tx_batch = tx_batch.to_any().unwrap();
             let mempool_batch = MempoolTransactionBatch::new(tx_batch);
             mempool_network.cast(MempoolNetworkMsg::BroadcastMsg(mempool_batch))?;
         }

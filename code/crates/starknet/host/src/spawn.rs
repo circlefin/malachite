@@ -5,7 +5,8 @@ use tokio::task::JoinHandle;
 use tracing::warn;
 
 use malachitebft_config::{
-    self as config, MempoolConfig, TestConfig, TransportProtocol, ValueSyncConfig, VoteSyncConfig,
+    self as config, MempoolConfig, MempoolLoadConfig, TransportProtocol, ValueSyncConfig,
+    VoteSyncConfig,
 };
 use malachitebft_core_consensus::VoteSyncMode;
 use malachitebft_core_types::ValuePayload;
@@ -28,6 +29,7 @@ use crate::config::Config;
 use crate::host::{StarknetHost, StarknetParams};
 use crate::mempool::network::{MempoolNetwork, MempoolNetworkRef};
 use crate::mempool::{Mempool, MempoolRef};
+use crate::mempool_load::{MempoolLoad, MempoolLoadRef, Params};
 use crate::types::MockContext;
 use crate::types::{Address, Height, PrivateKey, ValidatorSet};
 
@@ -51,8 +53,9 @@ pub async fn spawn_node_actor(
 
     // Spawn mempool and its gossip layer
     let mempool_network = spawn_mempool_network_actor(&cfg, &private_key, &registry, &span).await;
-    let mempool =
-        spawn_mempool_actor(mempool_network.clone(), &cfg.mempool, &cfg.test, &span).await;
+    let mempool = spawn_mempool_actor(mempool_network.clone(), &cfg.mempool, &span).await;
+    let mempool_load =
+        spawn_mempool_load_actor(&cfg.mempool.load, mempool_network.clone(), &span).await;
 
     // Spawn consensus gossip
     let network = spawn_network_actor(&cfg, &private_key, &registry, &span).await;
@@ -65,6 +68,7 @@ pub async fn spawn_node_actor(
         &private_key,
         &initial_validator_set,
         mempool.clone(),
+        mempool_load,
         network.clone(),
         metrics.clone(),
         &span,
@@ -271,14 +275,28 @@ fn make_keypair(pk: &PrivateKey) -> Keypair {
 async fn spawn_mempool_actor(
     mempool_network: MempoolNetworkRef,
     mempool_config: &MempoolConfig,
-    test_config: &TestConfig,
     span: &tracing::Span,
 ) -> MempoolRef {
     Mempool::spawn(
         mempool_network,
         mempool_config.gossip_batch_size,
         mempool_config.max_tx_count,
-        test_config.tx_size,
+        span.clone(),
+    )
+    .await
+    .unwrap()
+}
+
+async fn spawn_mempool_load_actor(
+    mempool_load_config: &MempoolLoadConfig,
+    network: MempoolNetworkRef,
+    span: &tracing::Span,
+) -> MempoolLoadRef {
+    MempoolLoad::spawn(
+        Params {
+            load_type: mempool_load_config.load_type.clone(),
+        },
+        network,
         span.clone(),
     )
     .await
@@ -316,6 +334,7 @@ async fn spawn_host_actor(
     private_key: &PrivateKey,
     initial_validator_set: &ValidatorSet,
     mempool: MempoolRef,
+    mempool_load: MempoolLoadRef,
     network: NetworkRef<MockContext>,
     metrics: Metrics,
     span: &tracing::Span,
@@ -339,6 +358,7 @@ async fn spawn_host_actor(
     let mock_host = StarknetHost::new(
         mock_params,
         mempool.clone(),
+        mempool_load.clone(),
         *address,
         private_key.clone(),
         initial_validator_set.clone(),
@@ -348,6 +368,7 @@ async fn spawn_host_actor(
         home_dir.to_owned(),
         mock_host,
         mempool,
+        mempool_load,
         network,
         metrics,
         span.clone(),
