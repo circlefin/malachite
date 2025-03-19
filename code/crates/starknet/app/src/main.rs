@@ -2,6 +2,7 @@ use color_eyre::eyre::Context;
 
 use malachitebft_app::node::Node;
 use malachitebft_config::{LogFormat, LogLevel};
+use malachitebft_starknet_host::codec::ProtobufCodec;
 use malachitebft_starknet_host::node::{ConfigSource, StarknetNode};
 use malachitebft_test_cli::args::{Args, Commands};
 use malachitebft_test_cli::{logging, runtime};
@@ -78,6 +79,13 @@ pub fn main() -> color_eyre::Result<()> {
 
             cmd.run(node, &home_dir)
                 .wrap_err("Failed to run `distributed-testnet` command")
+        }
+
+        Commands::DumpWal(cmd) => {
+            let _guard = logging::init(LogLevel::Info, LogFormat::Plaintext);
+
+            cmd.run(ProtobufCodec)
+                .wrap_err("Failed to run `dump-wal` command")
         }
     }
 }

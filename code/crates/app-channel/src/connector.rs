@@ -1,9 +1,13 @@
 //! Implementation of a host actor for bridiging consensus and the application via a set of channels.
 
+use derive_where::derive_where;
 use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, SpawnErr};
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
+use tracing::error;
 
+use malachitebft_app::types::core::ValueOrigin;
+use malachitebft_engine::consensus::ConsensusMsg;
 use malachitebft_engine::host::HostMsg;
 
 use crate::app::metrics::Metrics;
@@ -45,6 +49,11 @@ where
     }
 }
 
+#[derive_where(Default)]
+pub struct State<Ctx: Context> {
+    consensus: Option<ActorRef<ConsensusMsg<Ctx>>>,
+}
+
 impl<Ctx> Connector<Ctx>
 where
     Ctx: Context,
@@ -53,15 +62,17 @@ where
         &self,
         _myself: ActorRef<HostMsg<Ctx>>,
         msg: HostMsg<Ctx>,
-        _state: &mut (),
+        state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
         match msg {
             HostMsg::ConsensusReady(consensus_ref) => {
                 let (reply, rx) = oneshot::channel();
-
                 self.sender.send(AppMsg::ConsensusReady { reply }).await?;
 
-                consensus_ref.cast(rx.await?.into())?;
+                let (start_height, validator_set) = rx.await?;
+                consensus_ref.cast(ConsensusMsg::StartHeight(start_height, validator_set))?;
+
+                state.consensus = Some(consensus_ref);
             }
 
             HostMsg::StartedRound {
@@ -69,13 +80,36 @@ where
                 round,
                 proposer,
             } => {
+                let (reply_value, rx_value) = oneshot::channel();
+
                 self.sender
                     .send(AppMsg::StartedRound {
                         height,
                         round,
                         proposer,
+                        reply_value,
                     })
-                    .await?
+                    .await?;
+
+                let Some(consensus) = &state.consensus else {
+                    error!("Consensus actor not set");
+                    return Ok(());
+                };
+
+                // Do not block processing of other messages while waiting for the value
+                tokio::spawn({
+                    let consensus = consensus.clone();
+                    async move {
+                        if let Ok(Some(value)) = rx_value.await {
+                            let msg =
+                                ConsensusMsg::ReceivedProposedValue(value, ValueOrigin::Consensus);
+
+                            if let Err(e) = consensus.cast(msg) {
+                                error!("Failed to send back undecided value to consensus: {e}");
+                            }
+                        }
+                    }
+                });
             }
 
             HostMsg::GetValue {
@@ -263,7 +297,7 @@ where
     Ctx: Context,
 {
     type Msg = HostMsg<Ctx>;
-    type State = ();
+    type State = State<Ctx>;
     type Arguments = ();
 
     async fn pre_start(
@@ -271,7 +305,7 @@ where
         _myself: ActorRef<Self::Msg>,
         _args: Self::Arguments,
     ) -> Result<Self::State, ActorProcessingErr> {
-        Ok(())
+        Ok(State::default())
     }
 
     async fn handle(

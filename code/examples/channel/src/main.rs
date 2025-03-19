@@ -2,6 +2,9 @@
 
 use config::Config;
 use eyre::{eyre, Result};
+use malachitebft_test::codec::proto::ProtobufCodec;
+use malachitebft_test_cli::cmd::dump_wal::DumpWalCmd;
+use malachitebft_test_cli::config::{LogFormat, LogLevel};
 use tracing::info;
 
 use malachitebft_app_channel::app::node::Node;
@@ -41,7 +44,8 @@ fn main() -> Result<()> {
         Commands::Start(cmd) => start(&args, cmd),
         Commands::Init(cmd) => init(&args, cmd),
         Commands::Testnet(cmd) => testnet(&args, cmd),
-        _ => unimplemented!(),
+        Commands::DumpWal(cmd) => dump_wal(&args, cmd),
+        Commands::DistributedTestnet(_) => unimplemented!(),
     }
 }
 
@@ -71,6 +75,10 @@ fn start(args: &Args, cmd: &StartCmd) -> Result<()> {
 }
 
 fn init(args: &Args, cmd: &InitCmd) -> Result<()> {
+    // This is a drop guard responsible for flushing any remaining logs when the program terminates.
+    // It must be assigned to a binding that is not _, as _ will result in the guard being dropped immediately.
+    let _guard = logging::init(LogLevel::Info, LogFormat::Plaintext);
+
     // Setup the application
     let app = App {
         home_dir: args.get_home_dir()?,
@@ -90,6 +98,10 @@ fn init(args: &Args, cmd: &InitCmd) -> Result<()> {
 }
 
 fn testnet(args: &Args, cmd: &TestnetCmd) -> Result<()> {
+    // This is a drop guard responsible for flushing any remaining logs when the program terminates.
+    // It must be assigned to a binding that is not _, as _ will result in the guard being dropped immediately.
+    let _guard = logging::init(LogLevel::Info, LogFormat::Plaintext);
+
     // Setup the application
     let app = App {
         home_dir: args.get_home_dir()?,
@@ -101,4 +113,13 @@ fn testnet(args: &Args, cmd: &TestnetCmd) -> Result<()> {
 
     cmd.run(&app, &args.get_home_dir()?)
         .map_err(|error| eyre!("Failed to run testnet command {:?}", error))
+}
+
+fn dump_wal(_args: &Args, cmd: &DumpWalCmd) -> Result<()> {
+    // This is a drop guard responsible for flushing any remaining logs when the program terminates.
+    // It must be assigned to a binding that is not _, as _ will result in the guard being dropped immediately.
+    let _guard = logging::init(LogLevel::Info, LogFormat::Plaintext);
+
+    cmd.run(ProtobufCodec)
+        .map_err(|error| eyre!("Failed to run dump-wal command {:?}", error))
 }

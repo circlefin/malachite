@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use libp2p::kad::{Addresses, KBucketKey, KBucketRef};
 use libp2p::request_response::{OutboundRequestId, ResponseChannel};
+use libp2p::swarm::behaviour::toggle::Toggle;
 use libp2p::swarm::NetworkBehaviour;
 use libp2p::{gossipsub, identify, ping};
 use libp2p_broadcast as broadcast;
@@ -66,10 +67,10 @@ impl From<discovery::NetworkEvent> for NetworkEvent {
 pub struct Behaviour {
     pub identify: identify::Behaviour,
     pub ping: ping::Behaviour,
-    pub gossipsub: gossipsub::Behaviour,
-    pub broadcast: broadcast::Behaviour,
-    pub sync: sync::Behaviour,
-    pub discovery: discovery::Behaviour,
+    pub gossipsub: Toggle<gossipsub::Behaviour>,
+    pub broadcast: Toggle<broadcast::Behaviour>,
+    pub sync: Toggle<sync::Behaviour>,
+    pub discovery: Toggle<discovery::Behaviour>,
 }
 
 /// Dummy implementation of Debug for Behaviour.
@@ -82,6 +83,8 @@ impl std::fmt::Debug for Behaviour {
 impl discovery::DiscoveryClient for Behaviour {
     fn add_address(&mut self, peer: &PeerId, address: Multiaddr) -> libp2p::kad::RoutingUpdate {
         self.discovery
+            .as_mut()
+            .expect("Discovery behaviour should be available")
             .kademlia
             .as_mut()
             .expect("Kademlia behaviour should be available")
@@ -90,6 +93,8 @@ impl discovery::DiscoveryClient for Behaviour {
 
     fn kbuckets(&mut self) -> impl Iterator<Item = KBucketRef<'_, KBucketKey<PeerId>, Addresses>> {
         self.discovery
+            .as_mut()
+            .expect("Discovery behaviour should be available")
             .kademlia
             .as_mut()
             .expect("Kademlia behaviour should be available")
@@ -97,7 +102,11 @@ impl discovery::DiscoveryClient for Behaviour {
     }
 
     fn send_request(&mut self, peer_id: &PeerId, req: discovery::Request) -> OutboundRequestId {
-        self.discovery.request_response.send_request(peer_id, req)
+        self.discovery
+            .as_mut()
+            .expect("Discovery behaviour should be available")
+            .request_response
+            .send_request(peer_id, req)
     }
 
     fn send_response(
@@ -105,7 +114,11 @@ impl discovery::DiscoveryClient for Behaviour {
         ch: ResponseChannel<discovery::Response>,
         rs: discovery::Response,
     ) -> Result<(), discovery::Response> {
-        self.discovery.request_response.send_response(ch, rs)
+        self.discovery
+            .as_mut()
+            .expect("Discovery behaviour should be available")
+            .request_response
+            .send_response(ch, rs)
     }
 }
 
@@ -144,35 +157,45 @@ impl Behaviour {
 
         let ping = ping::Behaviour::new(ping::Config::new().with_interval(Duration::from_secs(5)));
 
-        let gossipsub = gossipsub::Behaviour::new_with_metrics(
-            gossipsub::MessageAuthenticity::Signed(keypair.clone()),
-            gossipsub_config(config.gossipsub, config.pubsub_max_size),
-            registry.sub_registry_with_prefix("gossipsub"),
-            Default::default(),
-        )
-        .unwrap();
+        let gossipsub = config.pubsub_protocol.is_gossipsub().then(|| {
+            gossipsub::Behaviour::new_with_metrics(
+                gossipsub::MessageAuthenticity::Signed(keypair.clone()),
+                gossipsub_config(config.gossipsub, config.pubsub_max_size),
+                registry.sub_registry_with_prefix("gossipsub"),
+                Default::default(),
+            )
+            .unwrap()
+        });
 
-        let broadcast = broadcast::Behaviour::new_with_metrics(
-            broadcast::Config {
-                max_buf_size: config.pubsub_max_size,
-            },
-            registry.sub_registry_with_prefix("broadcast"),
-        );
+        let enable_broadcast = config.pubsub_protocol.is_broadcast() || config.enable_sync;
+        let broadcast = enable_broadcast.then(|| {
+            broadcast::Behaviour::new_with_metrics(
+                broadcast::Config {
+                    max_buf_size: config.pubsub_max_size,
+                },
+                registry.sub_registry_with_prefix("broadcast"),
+            )
+        });
 
-        let sync = sync::Behaviour::new_with_metrics(
-            sync::Config::default().with_max_response_size(config.rpc_max_size),
-            registry.sub_registry_with_prefix("sync"),
-        );
+        let sync = config.enable_sync.then(|| {
+            sync::Behaviour::new_with_metrics(
+                sync::Config::default().with_max_response_size(config.rpc_max_size),
+                registry.sub_registry_with_prefix("sync"),
+            )
+        });
 
-        let discovery = discovery::Behaviour::new(keypair, config.discovery);
+        let discovery = config
+            .discovery
+            .enabled
+            .then(|| discovery::Behaviour::new(keypair, config.discovery));
 
         Self {
             identify,
             ping,
-            gossipsub,
-            broadcast,
-            sync,
-            discovery,
+            sync: Toggle::from(sync),
+            gossipsub: Toggle::from(gossipsub),
+            broadcast: Toggle::from(broadcast),
+            discovery: Toggle::from(discovery),
         }
     }
 }

@@ -157,6 +157,7 @@ where
         Ctx::Height,
         Round,
         VoteSet<Ctx>,
+        Vec<PolkaCertificate<Ctx>>,
         resume::Continue,
     ),
 

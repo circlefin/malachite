@@ -37,14 +37,14 @@ timeout_propose = "3s"
 # How much timeout_propose increases with each round
 timeout_propose_delta = "500ms"
 
-# How long we wait after receiving +2/3 prevotes for “anything” (ie. not a single block or nil)
+# How long we wait after receiving +2/3 prevotes for "anything" (ie. not a single block or nil)
 # Override with MALACHITE__CONSENSUS__TIMEOUT_PREVOTE env variable
 timeout_prevote = "1s"
 
 # How much the timeout_prevote increases with each round
 timeout_prevote_delta = "500ms"
 
-# How long we wait after receiving +2/3 precommits for “anything” (ie. not a single block or nil)
+# How long we wait after receiving +2/3 precommits for "anything" (ie. not a single block or nil)
 # Override with MALACHITE__CONSENSUS__TIMEOUT_PRECOMMIT env variable
 timeout_precommit = "1s"
 
@@ -182,6 +182,54 @@ rpc_max_size = "10 MiB"
 # Broadcast is an experimental protocol with no additional configuration options.
 type = "gossipsub"
 
+#######################################################
+###       Mempool Load Configuration Options        ###
+#######################################################
+
+[mempool.load]
+# Sets the type of generation for mempool transactions
+# Valid options are "no_load", "uniform_load", "non_uniform_load"
+load_type = "uniform_load"
+
+# Only available when "uniform_load"
+# Sets interval for transaction generation
+interval = "5s"
+
+# Only available when "uniform_load"
+# Sets size of the transactions
+size = 256
+
+# Only available when "uniform_load"
+# Sets size of the transactions
+count = 1000
+
+# Only available when "non_uniform_load"
+# Base number of transactions
+base_count = 1000
+
+# Only available when "non_uniform_load"
+# Base size in bytes
+base_size = 256
+
+# Only available when "non_uniform_load"
+# Variation ranges: Transactions will vary by ±500 from base_count
+count_variation = { start = -500, end = 500 }
+
+# Only available when "non_uniform_load"
+# Variation ranges: Size will vary by -64 to +128 bytes from base_size
+size_variation = { start = -64, end = 128 }
+
+# Only available when "non_uniform_load"
+# Spike configuration: 10% chance of a spike occurring
+spike_probability = 0.1
+
+# Only available when "non_uniform_load"
+# Spike configuration: During spike, multiply transaction count by 5
+spike_multiplier = 5
+
+# Only available when "non_uniform_load"
+# Sleep interval in milliseconds
+sleep_interval = { start = 1000, end = 5000 }  # Random delay between 1-5 seconds
 
 #######################################################
 ###         ValueSync Configuration Options         ###

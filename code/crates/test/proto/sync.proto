@@ -45,6 +45,13 @@ message CommitCertificate {
     AggregatedSignature aggregated_signature = 4;
 }
 
+message PolkaCertificate {
+    uint64 height = 1;
+    uint32 round = 2;
+    ValueId value_id = 3;
+    repeated SignedMessage votes = 4;
+}
+
 message ProposedValue {
     uint64 height = 1;
     uint32 round = 2;
@@ -63,6 +70,7 @@ message VoteSetResponse {
   uint64 height = 1;
   uint32 round = 2;
   VoteSet vote_set = 3;
+  repeated PolkaCertificate polka_certificates = 5;
 }
 
 message VoteSet {

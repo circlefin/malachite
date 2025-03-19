@@ -28,9 +28,9 @@ impl Default for TestParams {
             tx_size: ByteSize::kib(1),
             txs_per_part: 256,
             vote_extensions: None,
-            value_payload: ValuePayload::PartsOnly,
+            value_payload: ValuePayload::ProposalAndParts,
             max_retain_blocks: 50,
-            timeout_step: Duration::from_secs(30),
+            timeout_step: Duration::from_secs(2),
             vote_sync_mode: None,
         }
     }
