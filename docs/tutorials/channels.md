@@ -273,7 +273,7 @@ A brief description of each message can be found below:
 | `Decided`              | Notifies the application that consensus has decided on a value. This message includes a commit certificate containing the ID of the value that was decided on, the height and round at which it was decided, and the aggregated signatures of the validators that committed to it. In response to this message, the application MAY send a `ConsensusMsg::StartHeight` message back to consensus, instructing it to start the next height. |
 | `GetDecidedValue`      | Requests a previously decided value from the application's storage. The application MUST respond with that value if available, or `None` otherwise.                                                                                                                                                                                                                                                                                        |
 | `ProcessSyncedValue`   | Notifies the application that a value has been synced from the network. This may happen when the node is catching up with the network. If a value can be decoded from the bytes provided, then the application MUST reply to this message with the decoded value.                                                                                                                                                                          |
-| `PeerJoined`  | Notifies the application that a peer has joined our local view of the network. In a gossip netowrk, there is no guarantee that we will ever see all peers, as we are typically only connected to a subset of the network (i.e. in our mesh).                                                                                                                                                                                                                                                                                   |
+| `PeerJoined`  | Notifies the application that a peer has joined our local view of the network. In a gossip network, there is no guarantee that we will ever see all peers, as we are typically only connected to a subset of the network (i.e. in our mesh).                                                                                                                                                                                                                                                                                   |
 |`PeerLeft`  | Notifies the application that a peer has left our local view of the network. In a gossip network, there is no guarantee that this means that this peer has left the whole network altogether, just that it is not part of the subset of the network that we are connected to (i.e. our mesh).                                                                                                                                                                                                                                                                                  |
 
 ### Application state
@@ -450,7 +450,7 @@ The `streaming` crate provides a `PartStreamsMap` data structure. This is used t
     ) -> Option<ProposalParts>
 ```
 
-Now, we can go through the implementation of the application state. Let's start with helper methods that will be used by the state implementation. Note that the way a proposal is splitted here is specific to our case (where the value is an integer). In a real application, the value is likely to be more complex and the splitting logic would be different.
+Now, we can go through the implementation of the application state. Let's start with helper methods that will be used by the state implementation. Note that the way a proposal is split here is specific to our case (where the value is an integer). In a real application, the value is likely to be more complex and the splitting logic would be different.
 
 ```rust
 // src/state.rs
@@ -644,7 +644,7 @@ impl State {
 }
 ```
 
-Then, we need to stream this proposal. For that, the proposal need to be splitted into proposal parts. This is the role of the `stream_proposal` method. It leverages the `stream_id` and `value_to_parts` methods to create the final stream message. Note that the last part of the proposal contains the signature of the hash of the proposal parts. Moreover, each part has an associated sequence number; this number is used by the `PartStreamsMap` data structure to re-assemble the full proposal in the correct order.
+Then, we need to stream this proposal. For that, the proposal need to be split into proposal parts. This is the role of the `stream_proposal` method. It leverages the `stream_id` and `value_to_parts` methods to create the final stream message. Note that the last part of the proposal contains the signature of the hash of the proposal parts. Moreover, each part has an associated sequence number; this number is used by the `PartStreamsMap` data structure to re-assemble the full proposal in the correct order.
 
 ```rust
 impl State {
