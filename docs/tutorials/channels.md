@@ -91,17 +91,18 @@ where
     /// The interface provided by the validator set type.
     type ValidatorSet: ValidatorSet<Self>;
 
-    /// The type of values that can be proposed.
+    /// The `Value` type denotes the value `v` carried by the `Proposal`
+    /// consensus message that is gossiped to other nodes by the proposer.
     type Value: Value;
 
     /// The type of votes that can be cast.
     type Vote: Vote<Self>;
 
+    /// The type of vote extensions.
+    type Extension: Extension;
+
     /// The signing scheme used to sign consensus messages.
     type SigningScheme: SigningScheme;
-
-    /// The signing provider used to sign and verify consensus messages.
-    type SigningProvider: SigningProvider<Self>;
 
     // ...
 }
@@ -124,9 +125,6 @@ pub trait Context {
         height: Self::Height,
         round: Round,
     ) -> &'a Self::Validator;
-
-    /// Get the singing provider.
-    fn signing_provider(&self) -> &Self::SigningProvider;
 
     /// Build a new proposal for the given value at the given height, round and POL round.
     fn new_proposal(
@@ -266,20 +264,24 @@ A brief description of each message can be found below:
 | `ConsensusReady`       | Notifies the application that consensus is ready. The application MAY reply with a message to instruct consensus to start at a given height.                                                                                                                                                                                                                                                                                               |
 | `StartedRound`         | Notifies the application that a new consensus round has begun.                                                                                                                                                                                                                                                                                                                                                                             |
 | `GetValue`             | Requests the application to build a value for consensus to run on. The application MUST reply to this message with the requested value within the specified timeout duration.                                                                                                                                                                                                                                                              |
+| `ExtendVote`  | Allows the application to extend the pre-commit vote with arbitrary data. When consensus is preparing to send a pre-commit vote, it first calls `ExtendVote`. The application then returns a blob of data called a vote extension. This data is opaque to the consensus algorithm but can contain application-specific information. The proposer of the next block will receive all vote extensions along with the commit certificate.                                                                                                                                                                                                                                                                                   |
+| `VerifyVoteExtension`  | Requests the application to verify a vote extension. If the vote extension is deemed invalid, the vote it was part of will be discarded altogether.                                                                                                                                                                                                                                                                     |
+| `RestreamProposal`     | Requests the application to re-stream a proposal that it has already seen. The application MUST re-publish again all the proposal parts pertaining to that value by sending `NetworkMsg::PublishProposalPart` messages through the `Channels::network` channel.                                                                                                                                                                            |
 | `GetHistoryMinHeight`  | Requests the earliest height available in the history maintained by the application. The application MUST respond with its earliest available height.                                                                                                                                                                                                                                                                                      |
-| `GetValidatorSet`      | Requests the validator set for a specific height.                                                                                                                                                                                                                                                                                                                                                                                          |
 | `ReceivedProposalPart` | Notifies the application that consensus has received a proposal part over the network. If this part completes the full proposal, the application MUST respond with the complete proposed value. Otherwise, it MUST respond with `None`.                                                                                                                                                                                                    |                                                                                                                                                                                                                    |
+| `GetValidatorSet`      | Requests the validator set for a specific height.                                                                                                                                                                                                                                                                                                                                                                                          |
 | `Decided`              | Notifies the application that consensus has decided on a value. This message includes a commit certificate containing the ID of the value that was decided on, the height and round at which it was decided, and the aggregated signatures of the validators that committed to it. In response to this message, the application MAY send a `ConsensusMsg::StartHeight` message back to consensus, instructing it to start the next height. |
 | `GetDecidedValue`      | Requests a previously decided value from the application's storage. The application MUST respond with that value if available, or `None` otherwise.                                                                                                                                                                                                                                                                                        |
 | `ProcessSyncedValue`   | Notifies the application that a value has been synced from the network. This may happen when the node is catching up with the network. If a value can be decoded from the bytes provided, then the application MUST reply to this message with the decoded value.                                                                                                                                                                          |
-| `RestreamProposal`     | Requests the application to re-stream a proposal that it has already seen. The application MUST re-publish again all the proposal parts pertaining to that value by sending `NetworkMsg::PublishProposalPart` messages through the `Channels::network` channel.                                                                                                                                                                            |
+| `PeerJoined`  | Notifies the application that a peer has joined our local view of the network. In a gossip netowrk, there is no guarantee that we will ever see all peers, as we are typically only connected to a subset of the network (i.e. in our mesh).                                                                                                                                                                                                                                                                                   |
+|`PeerLeft`  | Notifies the application that a peer has left our local view of the network. In a gossip network, there is no guarantee that this means that this peer has left the whole network altogether, just that it is not part of the subset of the network that we are connected to (i.e. our mesh).                                                                                                                                                                                                                                                                                  |
 
 ### Application state
 The application needs to maintain its internal state so it can react to the messages received from consensus.
-Usually, this means implementing mempool, storing the data in a database, running an RPC server for queries and
+Usually, this means implementing mempool, running an RPC server for queries and
 submitting transaction or interacting with other parties off-the-network.
 
-This is out of scope for this tutorial, and we will instead store data in memory and make up random values to propose and decide on.
+This is out of scope for this tutorial, and we make up random values to propose and decide on. Moreover, the application state will be stored in a [redb](https://docs.rs/redb/latest/redb/) database.
 
 ## Putting it all together
 Now that we have all the context necessary to interact with the Malachite consensus engine, we can start building our
@@ -305,34 +307,672 @@ publish = false
 
 [dependencies]
 # General dependencies
-async-trait = "0.1"
-bytes = "1.9"
+async-trait = "0.1.88"
+bytes = { version = "1", default-features = false }
 color-eyre = "0.6"
-derive-where = "1.2"
+config = { version = "0.14", features = ["toml"], default-features = false }
+derive-where = "1.2.7"
 eyre = "0.6"
-libp2p-identity = "0.2"
-rand = "0.8"
+itertools = "0.14"
+prost = "0.13"
+rand = { version = "0.8.5", features = ["std_rng"] }
+redb = "2.4.0"
+serde = "1.0"
 serde_json = "1.0"
 sha3 = "0.10"
-tracing = "0.1"
-tokio = "1.42"
+thiserror = { version = "2.0", default-features = false }
+tokio = "1.44.1"
+toml = "0.8.19"
+tracing = "0.1.41"
 
 [dependencies.malachitebft-app-channel]
 version = "0.0.1"
 # This adds the `informalsystems-malachitebft-app-channel` as a dependency, but exposes it
 # under `malachitebft_app_channel` instead of its full package name.
-git = "ssh://git@github.com/informalsystems/malachite.git"
+git = "https://git@github.com/informalsystems/malachite.git"
 package = "informalsystems-malachitebft-app-channel"
+
+[dependencies.malachitebft-proto]
+version = "0.0.1"
+git = "https://git@github.com/informalsystems/malachite.git"
+package = "informalsystems-malachitebft-proto"
 
 [dependencies.malachitebft-test]
 version = "0.0.1"
-git = "ssh://git@github.com/informalsystems/malachite.git"
+git = "https://git@github.com/informalsystems/malachite.git"
 package = "informalsystems-malachitebft-test"
 
 [dependencies.malachitebft-test-cli]
 version = "0.0.1"
-git = "ssh://git@github.com/informalsystems/malachite.git"
+git = "https://git@github.com/informalsystems/malachite.git"
 package = "informalsystems-malachitebft-test-cli"
+```
+
+### Application state
+
+Before handling consensus messages, let's start by preparing the application state.
+
+```
+// src/main.rs
+
+mod state;
+mod store;
+mod streaming;
+```
+
+```rust
+// src/state.rs
+
+pub struct State {
+    ctx: TestContext,
+    signing_provider: Ed25519Provider,
+    genesis: Genesis,
+    address: Address,
+    vote_extensions: HashMap<Height, VoteExtensions<TestContext>>,
+    streams_map: PartStreamsMap,
+    rng: StdRng,
+
+    pub store: Store,
+    pub current_height: Height,
+    pub current_round: Round,
+    pub current_proposer: Option<Address>,
+    pub peers: HashSet<PeerId>,
+}
+```
+
+We will use two other crates called `store` and `streaming`. The `store` crate provide a database called `Store` which uses [redb](https://docs.rs/redb/latest/redb/) under the hood and offer the following interface:
+
+```rust
+    /// Creates a new store/database
+    pub fn open(path: impl AsRef<Path>, metrics: DbMetrics) -> Result<Self, StoreError>
+
+    /// Get the minimum height of the decided values in the store
+    pub async fn min_decided_value_height(&self) -> Option<Height>
+
+    /// Get the maximum height of the decided values in the store
+    pub async fn max_decided_value_height(&self) -> Option<Height>
+
+    /// Get the decided value at the given height
+    pub async fn get_decided_value(
+        &self,
+        height: Height,
+    ) -> Result<Option<DecidedValue>, StoreError>
+
+    /// Store a decided value
+    pub async fn store_decided_value(
+        &self,
+        certificate: &CommitCertificate<TestContext>,
+        value: Value,
+    ) -> Result<(), StoreError>
+
+    /// Store an undecided proposal
+    pub async fn store_undecided_proposal(
+        &self,
+        value: ProposedValue<TestContext>,
+    ) -> Result<(), StoreError>
+
+    /// Get the undecided proposal at the given height and round
+    pub async fn get_undecided_proposal(
+        &self,
+        height: Height,
+        round: Round,
+    ) -> Result<Option<ProposedValue<TestContext>>, StoreError>
+
+    /// Prune the store, removing all decided values below the given height
+    pub async fn prune(&self, retain_height: Height) -> Result<Vec<Height>, StoreError>
+
+    /// Remove undecided proposals matching the given value id
+    pub async fn remove_undecided_proposals_by_value_id(
+        &self,
+        value_id: ValueId,
+    ) -> Result<(), StoreError>
+
+    /// Get the undecided proposal matching the given value id
+    pub async fn get_undecided_proposal_by_value_id(
+        &self,
+        value_id: ValueId,
+    ) -> Result<Option<ProposedValue<TestContext>>, StoreError>
+```
+
+Note that the implementation of this store is up to the application developer. One could have used a simple in-memory store.
+
+The `streaming` crate provides a `PartStreamsMap` data structure. This is used to keep track of the proposal parts that are being streamed over the network. It is also used to re-assemble the full proposal once all parts have been received. It provides the following interface:
+
+```rust
+    /// Initialize the data structure
+    pub fn new() -> Self
+
+    /// Insert a proposal part into the map, returning the full proposal if all parts have been received
+    pub fn insert(
+        &mut self,
+        peer_id: PeerId,
+        msg: StreamMessage<ProposalPart>,
+    ) -> Option<ProposalParts>
+```
+
+Now, we can go through the implementation of the application state. Let's start with helper methods that will be used by the state implementation. Note that the way a proposal is splitted here is specific to our case (where the value is an integer). In a real application, the value is likely to be more complex and the splitting logic would be different.
+
+```rust
+// src/state.rs
+
+/// Re-assemble a [`ProposedValue`] from its [`ProposalParts`].
+///
+/// This is done by multiplying all the factors in the parts.
+fn assemble_value_from_parts(parts: ProposalParts) -> eyre::Result<ProposedValue<TestContext>> {
+    let init = parts.init().ok_or_else(|| eyre!("Missing Init part"))?;
+
+    let value = parts
+        .parts
+        .iter()
+        .filter_map(|part| part.as_data())
+        .fold(1, |acc, data| acc * data.factor);
+
+    Ok(ProposedValue {
+        height: parts.height,
+        round: parts.round,
+        valid_round: init.pol_round,
+        proposer: parts.proposer,
+        value: Value::new(value),
+        validity: Validity::Valid,
+    })
+}
+
+/// Decodes a Value from its byte representation using ProtobufCodec
+pub fn decode_value(bytes: Bytes) -> Value {
+    ProtobufCodec.decode(bytes).unwrap()
+}
+
+/// Returns the list of prime factors of the given value
+///
+/// In a real application, this would typically split transactions
+/// into chunks ino order to reduce bandwidth requirements due
+/// to duplication of gossip messages.
+fn factor_value(value: Value) -> Vec<u64> {
+    let mut factors = Vec::new();
+    let mut n = value.value;
+
+    let mut i = 2;
+    while i * i <= n {
+        if n % i == 0 {
+            factors.push(i);
+            n /= i;
+        } else {
+            i += 1;
+        }
+    }
+
+    if n > 1 {
+        factors.push(n);
+    }
+
+    factors
+}
+
+```
+
+Then, let's introduce _getter_ methods that are quite self-explanatory:
+
+```rust
+impl State {
+    // ...
+
+    // Returns the earliest height available in the state
+    pub async fn get_earliest_height(&self) -> Height {
+        self.store
+            .min_decided_value_height()
+            .await
+            .unwrap_or_default()
+    }
+
+    // Retrieves a decided block at the given height
+    pub async fn get_decided_value(&self, height: Height) -> Option<DecidedValue> {
+        self.store.get_decided_value(height).await.ok().flatten()
+    }
+
+    // Retrieves a previously built proposal value for the given height
+    pub async fn get_previously_built_value(
+        &self,
+        height: Height,
+        round: Round,
+    ) -> eyre::Result<Option<LocallyProposedValue<TestContext>>> {
+        let Some(proposal) = self.store.get_undecided_proposal(height, round).await? else {
+            return Ok(None);
+        };
+
+        Ok(Some(LocallyProposedValue::new(
+            proposal.height,
+            proposal.round,
+            proposal.value,
+        )))
+    }
+
+    // Returns the set of validators.
+    pub fn get_validator_set(&self) -> &ValidatorSet {
+        &self.genesis.validator_set
+    }
+
+    // ...
+}
+```
+
+Now, let's see how value proposition works in the application state. It exposes the function `propose_value` which creates a new proposal value for the given height and round. In our example, the proposed value is a randomly generated integer.
+
+```rust
+impl State {
+    // ...
+
+    /// Creates a new proposal value for the given height
+    async fn create_proposal(
+        &mut self,
+        height: Height,
+        round: Round,
+    ) -> eyre::Result<ProposedValue<TestContext>> {
+        assert_eq!(height, self.current_height);
+        assert_eq!(round, self.current_round);
+
+        // We create a new value.
+        let value = self.make_value(height, round);
+
+        // Simulate some processing time
+        sleep(Duration::from_millis(500)).await;
+
+        let proposal = ProposedValue {
+            height,
+            round,
+            valid_round: Round::Nil,
+            proposer: self.address, // We are the proposer
+            value,
+            validity: Validity::Valid, // Our proposals are de facto valid
+        };
+
+        // Insert the new proposal into the undecided proposals.
+        self.store
+            .store_undecided_proposal(proposal.clone())
+            .await?;
+
+        Ok(proposal)
+    }
+
+    /// Make up a new value to propose
+    /// A real application would have a more complex logic here,
+    /// typically reaping transactions from a mempool and executing them against its state,
+    /// before computing the merkle root of the new app state.
+    fn make_value(&mut self, height: Height, _round: Round) -> Value {
+        let value = self.rng.gen_range(100..=100000);
+
+        let extensions = self
+            .vote_extensions
+            .remove(&height)
+            .unwrap_or_default()
+            .extensions
+            .into_iter()
+            .map(|(_, e)| e.message)
+            .fold(BytesMut::new(), |mut acc, e| {
+                acc.extend_from_slice(&e);
+                acc
+            })
+            .freeze();
+
+        Value { value, extensions }
+    }
+
+    /// Creates a new proposal value for the given height
+    /// Returns either a previously built proposal or creates a new one
+    pub async fn propose_value(
+        &mut self,
+        height: Height,
+        round: Round,
+    ) -> eyre::Result<LocallyProposedValue<TestContext>> {
+        assert_eq!(height, self.current_height);
+        assert_eq!(round, self.current_round);
+
+        // Check if we have already built a proposal for this height and round
+        if let Some(proposal) = self.get_previously_built_value(height, round).await? {
+            return Ok(proposal);
+        }
+
+        let proposal = self.create_proposal(height, round).await?;
+
+        Ok(LocallyProposedValue::new(
+            proposal.height,
+            proposal.round,
+            proposal.value,
+        ))
+    }
+
+    // ...
+}
+```
+
+Then, we need to stream this proposal. For that, the proposal need to be splitted into proposal parts. This is the role of the `stream_proposal` method. It leverages the `stream_id` and `value_to_parts` methods to create the final stream message. Note that the last part of the proposal contains the signature of the hash of the proposal parts. Moreover, each part has an associated sequence number; this number is used by the `PartStreamsMap` data structure to re-assemble the full proposal in the correct order.
+
+```rust
+impl State {
+    // ...
+
+    /// Returns the stream id for the current height and round
+    fn stream_id(&self) -> StreamId {
+        let mut bytes = Vec::with_capacity(size_of::<u64>() + size_of::<u32>());
+        bytes.extend_from_slice(&self.current_height.as_u64().to_be_bytes());
+        bytes.extend_from_slice(&self.current_round.as_u32().unwrap().to_be_bytes());
+        StreamId::new(bytes.into())
+    }
+
+    /// Converts a locally proposed value into a list of proposal parts
+    fn value_to_parts(
+        &self,
+        value: LocallyProposedValue<TestContext>,
+        pol_round: Round,
+    ) -> Vec<ProposalPart> {
+        let mut hasher = sha3::Keccak256::new();
+        let mut parts = Vec::new();
+
+        // Init
+        // Include metadata about the proposal
+        {
+            parts.push(ProposalPart::Init(ProposalInit::new(
+                value.height,
+                value.round,
+                pol_round,
+                self.address,
+            )));
+
+            hasher.update(value.height.as_u64().to_be_bytes().as_slice());
+            hasher.update(value.round.as_i64().to_be_bytes().as_slice());
+        }
+
+        // Data
+        // Include each prime factor of the value as a separate proposal part
+        {
+            for factor in factor_value(value.value) {
+                parts.push(ProposalPart::Data(ProposalData::new(factor)));
+
+                hasher.update(factor.to_be_bytes().as_slice());
+            }
+        }
+
+        // Fin
+        // Sign the hash of the proposal parts
+        {
+            let hash = hasher.finalize().to_vec();
+            let signature = self.signing_provider.sign(&hash);
+            parts.push(ProposalPart::Fin(ProposalFin::new(signature)));
+        }
+
+        parts
+    }
+
+    /// Creates a stream message containing a proposal part.
+    /// Updates internal sequence number and current proposal.
+    pub fn stream_proposal(
+        &mut self,
+        value: LocallyProposedValue<TestContext>,
+        pol_round: Round,
+    ) -> impl Iterator<Item = StreamMessage<ProposalPart>> {
+        let parts = self.value_to_parts(value, pol_round);
+        let stream_id = self.stream_id();
+
+        let mut msgs = Vec::with_capacity(parts.len() + 1);
+        let mut sequence = 0;
+
+        for part in parts {
+            let msg = StreamMessage::new(stream_id.clone(), sequence, StreamContent::Data(part));
+            sequence += 1;
+            msgs.push(msg);
+        }
+
+        msgs.push(StreamMessage::new(stream_id, sequence, StreamContent::Fin));
+
+        msgs.into_iter()
+    }
+
+    // ...
+}
+```
+
+Then, when receiving the proposal part, the function `received_proposal_part` inserts it into the `PartStreamsMap` and tries to assemble the full proposal. If the proposal is indeed full, we check if it is outdated and then verify its signature. If the signature is valid, we store the proposal in the undecided proposals and return it. Otherwise, we log an error and return `None`.
+
+```rust
+/// Represents errors that can occur during the verification of a proposal's signature.
+#[derive(Debug)]
+enum SignatureVerificationError {
+    /// Indicates that the `Init` part of the proposal is unexpectedly missing.
+    MissingInitPart,
+
+    /// Indicates that the `Fin` part of the proposal is unexpectedly missing.
+    MissingFinPart,
+
+    /// Indicates that the proposer was not found in the validator set.
+    ProposerNotFound,
+
+    /// Indicates that the signature in the `Fin` part is invalid.
+    InvalidSignature,
+}
+
+impl State {
+    // ...
+
+    /// Verifies the signature of the proposal.
+    /// Returns `Ok(())` if the signature is valid, or an appropriate `SignatureVerificationError`.
+    fn verify_proposal_signature(
+        &self,
+        parts: &ProposalParts,
+    ) -> Result<(), SignatureVerificationError> {
+        let mut hasher = sha3::Keccak256::new();
+
+        let init = parts
+            .init()
+            .ok_or(SignatureVerificationError::MissingInitPart)?;
+
+        let fin = parts
+            .fin()
+            .ok_or(SignatureVerificationError::MissingFinPart)?;
+
+        let hash = {
+            hasher.update(init.height.as_u64().to_be_bytes());
+            hasher.update(init.round.as_i64().to_be_bytes());
+
+            // The correctness of the hash computation relies on the parts being ordered by sequence
+            // number, which is guaranteed by the `PartStreamsMap`.
+            for part in parts.parts.iter().filter_map(|part| part.as_data()) {
+                hasher.update(part.factor.to_be_bytes());
+            }
+
+            hasher.finalize()
+        };
+
+        // Retrieve the the proposer
+        let proposer = self
+            .get_validator_set()
+            .get_by_address(&parts.proposer)
+            .ok_or(SignatureVerificationError::ProposerNotFound)?;
+
+        // Verify the signature
+        if !self
+            .signing_provider
+            .verify(&hash, &fin.signature, &proposer.public_key)
+        {
+            return Err(SignatureVerificationError::InvalidSignature);
+        }
+
+        Ok(())
+    }
+
+    /// Processes and adds a new proposal to the state if it's valid
+    /// Returns Some(ProposedValue) if the proposal was accepted, None otherwise
+    pub async fn received_proposal_part(
+        &mut self,
+        from: PeerId,
+        part: StreamMessage<ProposalPart>,
+    ) -> eyre::Result<Option<ProposedValue<TestContext>>> {
+        let sequence = part.sequence;
+
+        // Check if we have a full proposal
+        let Some(parts) = self.streams_map.insert(from, part) else {
+            return Ok(None);
+        };
+
+        // Check if the proposal is outdated
+        if parts.height < self.current_height {
+            debug!(
+                height = %self.current_height,
+                round = %self.current_round,
+                part.height = %parts.height,
+                part.round = %parts.round,
+                part.sequence = %sequence,
+                "Received outdated proposal part, ignoring"
+            );
+
+            return Ok(None);
+        }
+
+        // Verify the proposal signature
+        match self.verify_proposal_signature(&parts) {
+            Ok(()) => {
+                // Signature verified successfully, continue processing
+            }
+            Err(SignatureVerificationError::MissingInitPart) => {
+                return Err(eyre!(
+                    "Expected to have full proposal but `Init` proposal part is missing for proposer: {}",
+                    parts.proposer
+                ));
+            }
+            Err(SignatureVerificationError::MissingFinPart) => {
+                return Err(eyre!(
+                    "Expected to have full proposal but `Fin` proposal part is missing for proposer: {}",
+                    parts.proposer
+                ));
+            }
+            Err(SignatureVerificationError::ProposerNotFound) => {
+                error!(proposer = %parts.proposer, "Proposer not found in validator set");
+                return Ok(None);
+            }
+            Err(SignatureVerificationError::InvalidSignature) => {
+                error!(proposer = %parts.proposer, "Invalid signature in Fin part");
+                return Ok(None);
+            }
+        }
+
+        // Re-assemble the proposal from its parts
+        let value = assemble_value_from_parts(parts)?;
+
+        info!(
+            "Storing undecided proposal {} {}",
+            value.height, value.round
+        );
+
+        self.store.store_undecided_proposal(value.clone()).await?;
+
+        Ok(Some(value))
+    }
+
+    // ...
+}
+```
+
+Finally, the `commit` methods commits a value with the given certificate and moves to the next height by doing a bit of cleanup.
+
+```rust
+/// Number of historical values to keep in the store
+const HISTORY_LENGTH: u64 = 100;
+
+impl State {
+    // ...
+
+    /// Commits a value with the given certificate, updating internal state
+    /// and moving to the next height
+    pub async fn commit(
+        &mut self,
+        certificate: CommitCertificate<TestContext>,
+        extensions: VoteExtensions<TestContext>,
+    ) -> eyre::Result<()> {
+        let (height, round, value_id) =
+            (certificate.height, certificate.round, certificate.value_id);
+
+        // Store extensions for use at next height if we are the proposer
+        self.vote_extensions.insert(height.increment(), extensions);
+
+        // Get the first proposal with the given value id. There may be multiple identical ones
+        // if peers have restreamed at different rounds.
+        let Ok(Some(proposal)) = self
+            .store
+            .get_undecided_proposal_by_value_id(value_id)
+            .await
+        else {
+            return Err(eyre!(
+                "Trying to commit a value with value id {value_id} at height {height} and round {round} for which there is no proposal"
+            ));
+        };
+
+        self.store
+            .store_decided_value(&certificate, proposal.value)
+            .await?;
+
+        // Remove all proposals with the given value id.
+        self.store
+            .remove_undecided_proposals_by_value_id(value_id)
+            .await?;
+
+        // Prune the store, keep the last HISTORY_LENGTH values
+        let retain_height = Height::new(height.as_u64().saturating_sub(HISTORY_LENGTH));
+        self.store.prune(retain_height).await?;
+
+        // Move to next height
+        self.current_height = self.current_height.increment();
+        self.current_round = Round::new(0);
+
+        Ok(())
+    }
+
+    // ...
+}
+```
+
+Finally, let's define the `State` constructor:
+
+```rust
+// Make up a seed for the rng based on our address in
+// order for each node to likely propose different values at
+// each round.
+fn seed_from_address(address: &Address) -> u64 {
+    address.into_inner().chunks(8).fold(0u64, |acc, chunk| {
+        let term = chunk.iter().fold(0u64, |acc, &x| {
+            acc.wrapping_shl(8).wrapping_add(u64::from(x))
+        });
+        acc.wrapping_add(term)
+    })
+}
+
+impl State {
+    // ...
+
+    /// Creates a new State instance with the given validator address and starting height
+    pub fn new(
+        ctx: TestContext,
+        signing_provider: Ed25519Provider,
+        genesis: Genesis,
+        address: Address,
+        height: Height,
+        store: Store,
+    ) -> Self {
+        Self {
+            ctx,
+            signing_provider,
+            genesis,
+            current_height: height,
+            current_round: Round::new(0),
+            current_proposer: None,
+            address,
+            store,
+            vote_extensions: HashMap::new(),
+            streams_map: PartStreamsMap::new(),
+            rng: StdRng::seed_from_u64(seed_from_address(&address)),
+            peers: HashSet::new(),
+        }
+    }
+
+    // ...
+}
 ```
 
 ### Handle consensus messages
@@ -743,6 +1383,7 @@ mod state;
 pub struct State {
     // Application `Context`
     ctx: TestContext,
+    signing_provider: Ed25519Provider,
     address: Address,
 
     pub current_height: Height,
@@ -751,7 +1392,7 @@ pub struct State {
 
     undecided_proposals: HashMap<(Height, Round), ProposedValue<TestContext>>,
     decided_proposals: HashMap<Height, ProposedValue<TestContext>>,
-    decided_values: BTreeMap<Height, DecidedValue<TestContext>>,
+    decided_values: BTreeMap<Height, RawDecidedValue<TestContext>>,
 
     stream_id: u64,
     streams_map: PartStreamsMap,
@@ -778,7 +1419,7 @@ Not much to say here, it simply returns the earliest decided value the applicati
 
 ```rust
     /// Retrieves a decided block at the given height
-    pub fn get_decided_value(&self, height: &Height) -> Option<&DecidedValue<TestContext>> {
+    pub fn get_decided_value(&self, height: &Height) -> Option<&RawDecidedValue<TestContext>> {
         self.decided_values.get(height)
     }
 ```
@@ -797,8 +1438,7 @@ This one returns the value that has been decided at the specified height, if it 
         Some(LocallyProposedValue::new(
             proposal.height,
             proposal.round,
-            proposal.value,
-            proposal.extension.clone(),
+            proposal.value.clone(),
         ))
     }
 ```
@@ -823,7 +1463,6 @@ Once again, this method is quite self-explanatory, so let's move on.
             proposal.height,
             proposal.round,
             proposal.value,
-            proposal.extension,
         )
     }
 
@@ -843,7 +1482,6 @@ Once again, this method is quite self-explanatory, so let's move on.
             proposer: self.address, // We are the proposer
             value,
             validity: Validity::Valid, // Our proposals are de facto valid
-            extension: None,           // Vote extension can be added here
         };
 
         // Insert the new proposal into the undecided proposals.
@@ -884,22 +1522,23 @@ generating a new block to return back to consensus.
     ) -> impl Iterator<Item = StreamMessage<ProposalPart>> {
         let parts = self.value_to_parts(value);
 
-        let stream_id = self.stream_id;
+        let stream_id_bytes = StreamId::new(Bytes::from(self.stream_id.to_be_bytes().to_vec()));
         self.stream_id += 1;
 
         let mut msgs = Vec::with_capacity(parts.len() + 1);
         let mut sequence = 0;
 
         for part in parts {
-            let msg = StreamMessage::new(stream_id, sequence, StreamContent::Data(part));
+            let msg =
+                StreamMessage::new(stream_id_bytes.clone(), sequence, StreamContent::Data(part));
             sequence += 1;
             msgs.push(msg);
         }
 
         msgs.push(StreamMessage::new(
-            stream_id,
+            stream_id_bytes,
             sequence,
-            StreamContent::Fin(true),
+            StreamContent::Fin,
         ));
 
         msgs.into_iter()
@@ -923,15 +1562,12 @@ order for the receiver to not mix them up with parts for another proposal.
             parts.push(ProposalPart::Init(ProposalInit::new(
                 value.height,
                 value.round,
+                Round::Nil,
                 self.address,
             )));
 
             hasher.update(value.height.as_u64().to_be_bytes().as_slice());
             hasher.update(value.round.as_i64().to_be_bytes().as_slice());
-
-            if let Some(ext) = &value.extension {
-                hasher.update(ext.data.as_ref());
-            }
         }
 
         // Data
@@ -948,7 +1584,7 @@ order for the receiver to not mix them up with parts for another proposal.
         // Sign the hash of the proposal parts
         {
             let hash = hasher.finalize().to_vec();
-            let signature = self.ctx.signing_provider.sign(&hash);
+            let signature = self.signing_provider.sign(&hash);
             parts.push(ProposalPart::Fin(ProposalFin::new(signature)));
         }
 
@@ -1054,7 +1690,7 @@ this as an exercise for the reader for now.
 
         self.decided_values.insert(
             self.current_height,
-            DecidedValue::new(value_bytes, certificate),
+            RawDecidedValue::new(value_bytes, certificate),
         );
 
         // Move to next height

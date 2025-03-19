@@ -248,7 +248,6 @@ impl State {
     }
 
     /// Creates a new proposal value for the given height
-    /// Returns either a previously built proposal or creates a new one
     async fn create_proposal(
         &mut self,
         height: Height,
@@ -313,6 +312,11 @@ impl State {
     ) -> eyre::Result<LocallyProposedValue<TestContext>> {
         assert_eq!(height, self.current_height);
         assert_eq!(round, self.current_round);
+
+        // Check if we have already built a proposal for this height and round
+        if let Some(proposal) = self.get_previously_built_value(height, round).await? {
+            return Ok(proposal);
+        }
 
         let proposal = self.create_proposal(height, round).await?;
 
