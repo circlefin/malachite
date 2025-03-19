@@ -196,7 +196,7 @@ impl TestRunner {
     }
 }
 
-use malachitebft_config::TransportProtocol;
+use malachitebft_config::{TransportProtocol, ValuePayload};
 
 fn transport_from_env(default: TransportProtocol) -> TransportProtocol {
     if let Ok(protocol) = std::env::var("MALACHITE_TRANSPORT") {
@@ -229,10 +229,10 @@ fn make_validators<S>(
 }
 
 fn apply_params(config: &mut Config, params: &TestParams) {
+    config.consensus.value_payload = ValuePayload::PartsOnly;
     config.value_sync.enabled = params.enable_value_sync;
     config.consensus.p2p.protocol = params.protocol;
     config.consensus.timeouts.timeout_step = params.timeout_step;
-    config.consensus.value_payload = params.value_payload;
     config.test.max_block_size = params.block_size;
     config.test.tx_size = params.tx_size;
     config.test.txs_per_part = params.txs_per_part;
