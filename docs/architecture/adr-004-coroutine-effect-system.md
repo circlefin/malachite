@@ -46,6 +46,306 @@ We've implemented a **coroutine-based effect system** that allows the consensus 
 4. **`Resumable` trait**: A trait that connects each effect with its corresponding `Resume` type.
 5. **`process!` macro**: A macro that handles starting the coroutine, processing an input, yielding effects, and resuming consensus with appropriate values.
 
+See [Appendix A](#appendix-a-details-of-the-coroutine-based-effect-system) for a detailed explanation of the underlying implementation of coroutine-based effect system using these components.
+
+#### Input
+
+The `Input` enum represents all possible inputs that can be processed by the consensus coroutine.
+
+```rust
+pub enum Input<Ctx>
+where
+    Ctx: Context,
+{
+    /// Start a new height with the given validator set.
+    StartHeight(Ctx::Height, Ctx::ValidatorSet),
+
+    /// Process a vote received over the network.
+    Vote(SignedVote<Ctx>),
+
+    /// Process a Proposal message received over the network
+    ///
+    /// This input MUST only be provided when `ValuePayload` is set to `ProposalOnly` or `ProposalAndParts`,
+    /// i.e. when consensus runs in a mode where the proposer sends a Proposal consensus message over the network.
+    Proposal(SignedProposal<Ctx>),
+
+    /// Propose the given value.
+    ///
+    /// This input MUST only be provided when we are the proposer for the current round.
+    Propose(LocallyProposedValue<Ctx>),
+
+    /// A timeout has elapsed.
+    TimeoutElapsed(Timeout),
+
+    /// We have received the full proposal for the current round.
+    ///
+    /// The origin denotes whether the value was received via consensus gossip or via the sync protocol.
+    ProposedValue(ProposedValue<Ctx>, ValueOrigin),
+
+    /// We have received a commit certificate via the sync protocol.
+    CommitCertificate(CommitCertificate<Ctx>),
+}
+```
+
+#### Effect
+
+The `Effect` enum represents all possible operations that the consensus coroutine might need from the environment.
+
+```rust
+pub enum Effect<Ctx>
+where
+    Ctx: Context,
+{
+    /// Reset all timeouts to their initial values
+    ///
+    /// Resume with: [`resume::Continue`]
+    ResetTimeouts(resume::Continue),
+
+    /// Cancel all outstanding timeouts
+    ///
+    /// Resume with: [`resume::Continue`]
+    CancelAllTimeouts(resume::Continue),
+
+    /// Cancel a given timeout
+    ///
+    /// Resume with: [`resume::Continue`]
+    CancelTimeout(Timeout, resume::Continue),
+
+    /// Schedule a timeout
+    ///
+    /// Resume with: [`resume::Continue`]
+    ScheduleTimeout(Timeout, resume::Continue),
+
+    /// Get the validator set at the given height
+    ///
+    /// Resume with: [`resume::ValidatorSet`]
+    GetValidatorSet(Ctx::Height, resume::ValidatorSet),
+
+    /// Consensus is starting a new round with the given proposer
+    ///
+    /// Resume with: [`resume::Continue`]
+    StartRound(Ctx::Height, Round, Ctx::Address, resume::Continue),
+
+    /// Publish a message to our peers
+    ///
+    /// Resume with: [`resume::Continue`]
+    Publish(SignedConsensusMsg<Ctx>, resume::Continue),
+
+    /// Rebroadcast our previous vote to our peers
+    ///
+    /// Resume with: [`resume::Continue`]
+    Rebroadcast(SignedVote<Ctx>, resume::Continue),
+
+    /// Requests the application to build a value for consensus to run on.
+    ///
+    /// Because this operation may be asynchronous, this effect does not expect a resumption
+    /// with a value, rather the application is expected to propose a value within the timeout duration.
+    ///
+    /// The application SHOULD eventually feed a [`Propose`][Input::Propose]
+    /// input to consensus within the specified timeout duration.
+    ///
+    /// Resume with: [`resume::Continue`]
+    GetValue(Ctx::Height, Round, Timeout, resume::Continue),
+
+    /// Requests the application to re-stream a proposal that it has already seen.
+    ///
+    /// The application MUST re-publish again to its peers all
+    /// the proposal parts pertaining to that value.
+    ///
+    /// Resume with: [`resume::Continue`]
+    RestreamProposal {
+        /// Height of the value
+        height: Ctx::Height,
+        /// Round of the value
+        round: Round,
+        /// Valid round of the value
+        valid_round: Round,
+        /// Address of the proposer for that value
+        proposer: Ctx::Address,
+        /// Value ID of the value to restream
+        value_id: ValueId<Ctx>,
+        /// For resumption
+        resume: resume::Continue,
+    },
+
+    /// Notifies the application that consensus has decided on a value.
+    ///
+    /// This message includes a commit certificate containing the ID of
+    /// the value that was decided on, the height and round at which it was decided,
+    /// and the aggregated signatures of the validators that committed to it.
+    ///
+    /// It also includes the vote extensions that were received for this height.
+    ///
+    /// Resume with: [`resume::Continue`]
+    Decide(CommitCertificate<Ctx>, VoteExtensions<Ctx>, resume::Continue),
+
+    /// Sign a vote with this node's private key
+    ///
+    /// Resume with: [`resume::SignedVote`]
+    SignVote(Ctx::Vote, resume::SignedVote),
+
+    /// Sign a proposal with this node's private key
+    ///
+    /// Resume with: [`resume::SignedProposal`]
+    SignProposal(Ctx::Proposal, resume::SignedProposal),
+
+    /// Verify a signature
+    ///
+    /// Resume with: [`resume::SignatureValidity`]
+    VerifySignature(
+        SignedMessage<Ctx, ConsensusMsg<Ctx>>,
+        PublicKey<Ctx>,
+        resume::SignatureValidity,
+    ),
+
+    /// Verify a commit certificate
+    ///
+    /// Resume with: [`resume::CertificateValidity`]
+    VerifyCertificate(
+        CommitCertificate<Ctx>,
+        Ctx::ValidatorSet,
+        ThresholdParams,
+        resume::CertificateValidity,
+    ),
+
+    /// Allows the application to extend its precommit vote with arbitrary data.
+    ///
+    /// When consensus is preparing to send a pre-commit vote, it first calls `ExtendVote`.
+    /// The application then returns a blob of data called a vote extension.
+    /// This data is opaque to the consensus algorithm but can contain application-specific information.
+    /// The proposer of the next block will receive all vote extensions along with the commit certificate.
+    ///
+    /// Only emitted if vote extensions are enabled.
+    ///
+    /// Resume with: [`resume::VoteExtension`]
+    ExtendVote(Ctx::Height, Round, ValueId<Ctx>, resume::VoteExtension),
+
+    /// Verify a vote extension.
+    ///
+    /// If the vote extension is deemed invalid, the vote it was part of will be discarded altogether.
+    ///
+    /// Only emitted if vote extensions are enabled.
+    ///
+    /// Resume with: [`resume::VoteExtensionValidity`]
+    VerifyVoteExtension(
+        Ctx::Height,
+        Round,
+        ValueId<Ctx>,
+        SignedExtension<Ctx>,
+        PublicKey<Ctx>,
+        resume::VoteExtensionValidity,
+    ),
+
+    /// Consensus has been stuck in Prevote or Precommit step, and needs to ask for vote set from its peers
+    /// in order to make progress. Part of the VoteSync protocol.
+    ///
+    /// Resume with: [`resume::Continue`]
+    RequestVoteSet(Ctx::Height, Round, resume::Continue),
+
+    /// A peer has requested a vote set from us, send them the response.
+    /// Part of the VoteSync protocol.
+    ///
+    /// Resume with: [`resume::Continue`]`
+    SendVoteSetResponse(RequestId, Ctx::Height, Round, VoteSet<Ctx>, Vec<PolkaCertificate<Ctx>>, resume::Continue),
+
+    /// Append a consensus message to the Write-Ahead Log for crash recovery
+    ///
+    /// Resume with: [`resume::Continue`]`
+    WalAppendMessage(SignedConsensusMsg<Ctx>, resume::Continue),
+
+    /// Append a timeout to the Write-Ahead Log for crash recovery
+    ///
+    /// Resume with: [`resume::Continue`]`
+    WalAppendTimeout(Timeout, resume::Continue),
+}
+```
+
+#### Resume
+
+The `Resume` enum represents all possible ways to resume the consensus coroutine after handling an effect.
+
+Values of this type cannot be constructed directly, they can only be created by calling the `resume_with` method on a `Resumable` type.
+
+```rust
+pub enum Resume<Ctx>
+where
+    Ctx: Context,
+{
+    /// Resume execution without a value.
+    Continue,
+
+    /// Resume execution with `Some(Ctx::ValidatorSet)` if a validator set
+    /// was successfully fetched, or `None` otherwise.
+    ValidatorSet(Option<Ctx::ValidatorSet>),
+
+    /// Resume execution with the validity of a signature
+    SignatureValidity(bool),
+
+    /// Resume execution with a signed vote
+    SignedVote(SignedMessage<Ctx, Ctx::Vote>),
+
+    /// Resume execution with a signed proposal
+    SignedProposal(SignedMessage<Ctx, Ctx::Proposal>),
+
+    /// Resume execution with the result of the verification of the [`CommitCertificate`]
+    CertificateValidity(Result<(), CertificateError<Ctx>>),
+
+    /// Resume with an optional vote extension.
+    /// See the [`Effect::ExtendVote`] effect for more information.
+    VoteExtension(Option<SignedExtension<Ctx>>),
+
+    /// Resume execution with the result of the verification of the [`SignedExtension`]
+    VoteExtensionValidity(Result<(), VoteExtensionError>),
+}
+```
+
+#### Resumable
+
+The `Resumable` trait allows creating a `Resume` value after having processed an effect.
+
+```rust
+pub trait Resumable<Ctx>
+  where Ctx: Context
+{
+    /// The value type that will be used to resume execution
+    type Value;
+
+    /// Creates the appropriate [`Resume`] value to resume execution with.
+    fn resume_with(self, value: Self::Value) -> Resume<Ctx>;
+}
+```
+
+#### `process!`
+
+The `process!` macro is the entry point for feeding inputs to consensus.
+We omit its implementation here for brevity, but it handles starting the coroutine, processing an input, yielding effects, and resuming consensus with appropriate values.
+
+One can think of it as a function with the following signature, depending on whether the effect handler is synchronous or asynchronous:
+
+```rust
+// If the effect handler is synchronous
+fn process<Ctx>(
+    input: Input<Ctx>,
+    state: &mut ConsensusState<Ctx>,
+    metrics: &Metrics,
+    with: impl FnMut(Effect<Ctx>) -> Result<Resume<Ctx>, Error>,
+) -> Result<(), ConsensusError<Ctx>>
+where
+    Ctx: Context;
+```
+
+```rust
+// If the effect handler is asynchronous
+async fn process<Ctx>(
+    input: Input<Ctx>,
+    state: &mut ConsensusState<Ctx>,
+    metrics: &Metrics,
+    with: impl AsyncFnMut(Effect<Ctx>) -> Result<Resume<Ctx>, Error>,
+) -> Result<(), ConsensusError<Ctx>>
+where
+    Ctx: Context;
+```
+
 ### Flow
 
 1. The application calls `process!` with an input, consensus state, metrics, and an effect handler.
