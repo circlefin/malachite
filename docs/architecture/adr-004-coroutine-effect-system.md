@@ -65,23 +65,6 @@ We've implemented a **coroutine-based effect system** using the `process!` macro
 2. **Effect handling consistency**: Requires careful documentation and examples to ensure users handle effects correctly.
 3. **Complexity with asynchronous effects**: The pattern for handling asynchronous effects like `GetValue` requires additional understanding.
 
-## Consequences
-
-### Positive
-
-1. **Separation of concerns**: The consensus algorithm code remains focused on the state machine logic without environment dependencies.
-2. **Code readability**: The consensus code retains a linear, procedural flow despite the need for external interactions.
-3. **Flexibility**: The same consensus core can work in different execution environments (async runtimes, actor systems, etc.)
-4. **Testability**: Effects are explicit and can be easily mocked for testing.
-5. **Error handling**: Clear points where environment errors can be handled without complicating the consensus core.
-
-### Negative
-
-1. **Learning curve**: The coroutine-based approach might be unfamiliar to some developers.
-2. **Debugging complexity**: Debugging code that yields and resumes can be more challenging than fully synchronous code.
-3. **Effect handling consistency**: Requires careful documentation and examples to ensure users handle effects correctly.
-4. **Complexity with asynchronous effects**: The pattern for handling asynchronous effects like `GetValue` requires additional understanding.
-
 ## Implementation Notes
 
 1. The coroutine implementation relies on the `genawaiter` crate, which allows defining functions which can yield values and be resumed later.
