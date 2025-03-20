@@ -32,8 +32,6 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
                 sleep(Duration::from_millis(200)).await;
 
-                // We can simply respond by telling the engine to start consensus
-                // at the current height, which is initially 1
                 if reply
                     .send((start_height, state.get_validator_set().clone()))
                     .is_err()

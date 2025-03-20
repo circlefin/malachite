@@ -450,6 +450,8 @@ The `streaming` crate provides a `PartStreamsMap` data structure. This is used t
     ) -> Option<ProposalParts>
 ```
 
+Please refer to the respective crate files for the full implementation of the [`store`](/code/examples/channel/src/store.rs) and [`streaming`](/code/examples/channel/src/streaming.rs) crates.
+
 Now, we can go through the implementation of the application state. Let's start with helper methods that will be used by the state implementation. Note that the way a proposal is split here is specific to our case (where the value is an integer). In a real application, the value is likely to be more complex and the splitting logic would be different.
 
 ```rust
@@ -977,7 +979,8 @@ impl State {
 
 ### Handle consensus messages
 
-We now need a way to process messages sent to the application by consensus, and act on those accordingly.
+Now that we have the application state, we can start handling messages from the consensus, and act on those accordingly.
+
 Let's define a `run` function in a new `app` module in `src/app.rs`, which will wait for messages from consensus
 and handle those by updating its state and sending back the appropriate responses.
 
@@ -990,27 +993,10 @@ mod app;
 ```rust
 // src/app.rs
 
-use std::time::Duration;
-
-use eyre::eyre;
-use tracing::{error, info};
-
-use malachitebft_app_channel::app::streaming::StreamContent;
-use malachitebft_app_channel::app::types::core::{Round, Validity};
-use malachitebft_app_channel::app::types::ProposedValue;
-use malachitebft_app_channel::{AppMsg, Channels, ConsensusMsg, NetworkMsg};
-use malachitebft_test::{Genesis, TestContext};
-
-use crate::state::{decode_value, State};
-
-pub async fn run(
-    genesis: Genesis,
-    state: &mut State,
-    channels: &mut Channels<TestContext>,
-) -> eyre::Result<()> {
+pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyre::Result<()> {
     while let Some(msg) = channels.consensus.recv().await {
         match msg {
-            // We will handle each message here
+            // Handle consensus messages
         }
     }
 }
@@ -1020,17 +1006,23 @@ The first message to handle is the `ConsensusReady` message, signaling to the ap
 that Malachite is ready to start consensus.
 
 We can simply respond by telling the engine to start consensus at the current height,
-which is initially one.
+which is either 1 or the next height after the last decided value in the store (typically when recovering from a crash).
 
 ```rust
-            AppMsg::ConsensusReady { reply } => {
-                info!("Consensus is ready");
+            AppMsg::ConsensusReady { reply, .. } => {
+                let start_height = state
+                    .store
+                    .max_decided_value_height()
+                    .await
+                    .map(|height| height.increment())
+                    .unwrap_or_else(|| Height::INITIAL);
+
+                info!(%start_height, "Consensus is ready");
+
+                sleep(Duration::from_millis(200)).await;
 
                 if reply
-                    .send(ConsensusMsg::StartHeight(
-                        state.current_height,
-                        genesis.validator_set.clone(),
-                    ))
+                    .send((start_height, state.get_validator_set().clone()))
                     .is_err()
                 {
                     error!("Failed to send ConsensusReady reply");
@@ -1041,74 +1033,60 @@ which is initially one.
 The next message to handle is the `StartRound` message, signaling to the app
 that consensus has entered a new round (including the initial round 0).
 
-We can use that opportunity to update our internal state:
+We can use that opportunity to update our internal state. Moreover, if we have already built or seen a value for this height and round, we can send it back to consensus. This may happen when we are restarting after a crash.
 
 ```rust
             AppMsg::StartedRound {
                 height,
                 round,
                 proposer,
+                reply_value,
             } => {
                 info!(%height, %round, %proposer, "Started round");
+
+                reload_log_level(height, round);
 
                 state.current_height = height;
                 state.current_round = round;
                 state.current_proposer = Some(proposer);
+
+                if let Some(proposal) = state.store.get_undecided_proposal(height, round).await? {
+                    info!(%height, %round, "Replaying already known proposed value: {}", proposal.value.id());
+
+                    if reply_value.send(Some(proposal)).is_err() {
+                        error!("Failed to send undecided proposal");
+                    }
+                } else {
+                    let _ = reply_value.send(None);
+                }
             }
+
+// ...
+
+/// Reload the tracing subscriber log level based on the current height and round.
+/// This is useful to increase the log level when debugging a specific height and round.
+fn reload_log_level(_height: Height, round: Round) {
+    use malachitebft_test_cli::logging;
+
+    if round.as_i64() > 0 {
+        logging::reload(logging::LogLevel::Debug);
+    } else {
+        logging::reset();
+    }
+}
 ```
 
 At some point, we may end up being the proposer for that round, and the engine
 will then ask us for a value to propose to the other validators.
 
-```rust
-            AppMsg::GetValue {
-                height,
-                round,
-                timeout: _,
-                reply,
-            } => {
-                info!(%height, %round, "Consensus is requesting a value to propose");
-```
-
+Here, it is important that, if we have previously built a value for this height and round, we send back the very same value. Otherwise, we need to create a new value to propose and send it back to consensus.
 
 > [!NOTE]
 > We can ignore the timeout as we are building the value right away.
 > If we were let's say reaping as many txes from a mempool and executing them,
 > then we would need to respect the timeout and stop at a certain point.
 
-Here it is important that, if we have previously built a value for this height and round,
-we send back the very same value. We will not go into details here but this has to do
-with crash recovery and is not strictly necessary in this tutorial since all our state
-is kept in-memory and therefore is not crash tolerant at all.
-
-```rust
-                // Check if we have a previously built value for that height and round
-                if let Some(proposal) = state.get_previously_built_value(height, round) {
-                    info!(value = %proposal.value.id(), "Re-using previously built value");
-
-                    if reply.send(proposal).is_err() {
-                        error!("Failed to send GetValue reply");
-                    }
-
-                    return Ok(());
-                }
-```
-
-If we have not previously built a value for that very same height and round,
-we need to create a new value to propose and send it back to consensus:
-
-```rust
-                // Otherwise, propose a new value
-                let proposal = state.propose_value(height, round);
-
-                // Send it to consensus
-                if reply.send(proposal.clone()).is_err() {
-                    error!("Failed to send GetValue reply");
-                }
-```
-
-Now what's left to do is to break down the value to propose into parts,
-and send those parts over the network to our peers, for them to re-assemble the full value.
+After proposing the value, we need to break it down into parts and stream them over the network to our peers.
 
 > [!NOTE]
 In this tutorial, the value is simply an integer and therefore results in a very small
@@ -1118,10 +1096,36 @@ carry the block hash and the full block itself would be split into parts in orde
 avoid blowing up the bandwidth requirements by gossiping a single huge message.
 
 ```rust
+            AppMsg::GetValue {
+                height,
+                round,
+                timeout: _,
+                reply,
+            } => {
+                info!(%height, %round, "Consensus is requesting a value to propose");
 
-                // Decompose the proposal into proposal parts and stream them over the network
-                for stream_message in state.stream_proposal(proposal) {
+                let proposal = match state.get_previously_built_value(height, round).await? {
+                    Some(proposal) => {
+                        info!(value = %proposal.value.id(), "Re-using previously built value");
+                        proposal
+                    }
+                    None => {
+                        info!("Building a new value to propose");
+                        state.propose_value(height, round).await?
+                    }
+                };
+
+                if reply.send(proposal.clone()).is_err() {
+                    error!("Failed to send GetValue reply");
+                }
+
+                // The POL round is always nil when we propose a newly built value.
+                // See L15/L18 of the Tendermint algorithm.
+                let pol_round = Round::Nil;
+
+                for stream_message in state.stream_proposal(proposal, pol_round) {
                     info!(%height, %round, "Streaming proposal part: {stream_message:?}");
+
                     channels
                         .network
                         .send(NetworkMsg::PublishProposalPart(stream_message))
@@ -1140,15 +1144,85 @@ consider and vote for or against it (ie. vote `nil`), depending on its validity.
             AppMsg::ReceivedProposalPart { from, part, reply } => {
                 let part_type = match &part.content {
                     StreamContent::Data(part) => part.get_type(),
-                    StreamContent::Fin(_) => "end of stream",
+                    StreamContent::Fin => "end of stream",
                 };
 
                 info!(%from, %part.sequence, part.type = %part_type, "Received proposal part");
 
-                let proposed_value = state.received_proposal_part(from, part);
+                let proposed_value = state.received_proposal_part(from, part).await?;
 
                 if reply.send(proposed_value).is_err() {
                     error!("Failed to send ReceivedProposalPart reply");
+                }
+            }
+```
+
+It is also possible that the application is requested to restream a proposal it has already seen.
+
+```rust
+            AppMsg::RestreamProposal {
+                height,
+                round,
+                valid_round,
+                address: _,
+                value_id: _,
+            } => {
+                info!(%height, %valid_round, "Restreaming existing propos*al...");
+
+                let proposal = state
+                    .store
+                    .get_undecided_proposal(height, valid_round)
+                    .await?;
+
+                if let Some(proposal) = proposal {
+                    let locally_proposed_value = LocallyProposedValue {
+                        height,
+                        round,
+                        value: proposal.value,
+                    };
+
+                    for stream_message in state.stream_proposal(locally_proposed_value, valid_round)
+                    {
+                        info!(%height, %valid_round, "Publishing proposal part: {stream_message:?}");
+
+                        channels
+                            .network
+                            .send(NetworkMsg::PublishProposalPart(stream_message))
+                            .await?;
+                    }
+                }
+            }
+```
+
+When consensus is preparing to send a pre-commit vote, it first calls `ExtendVote`, asking the application to returns a blob of data called a vote extension. This data is opaque to the consensus algorithm but can contain application-specific information. The proposer of the next block will receive all vote extensions along with the commit certificate.
+
+In our case, the vote extension is empty.
+
+```rust
+            AppMsg::ExtendVote {
+                height: _,
+                round: _,
+                value_id: _,
+                reply,
+            } => {
+                if reply.send(None).is_err() {
+                    error!("Failed to send ExtendVote reply");
+                }
+            }
+```
+
+The application is also responsible to verify a given vote extension. In our case, we simply return `OK(())`.
+
+```rust
+            AppMsg::VerifyVoteExtension {
+                height: _,
+                round: _,
+                value_id: _,
+                extension: _,
+                reply,
+            } => {
+                if reply.send(Ok(())).is_err() {
+                    error!("Failed to send VerifyVoteExtension reply");
                 }
             }
 ```
@@ -1162,44 +1236,13 @@ send back the validator set found in our genesis state.
 
 ```rust
             AppMsg::GetValidatorSet { height: _, reply } => {
-                if reply.send(genesis.validator_set.clone()).is_err() {
+                if reply.send(state.get_validator_set().clone()).is_err() {
                     error!("Failed to send GetValidatorSet reply");
                 }
             }
 ```
 
-After some time, consensus will finally reach a decision on the value
-to commit for the current height, and will notify the application,
-providing it with a commit certificate which contains the ID of the value
-that was decided on as well as the set of commits for that value,
-ie. the precommits together with their (aggregated) signatures.
-
-When that happens, we store the decided value in our store,
-and instruct consensus to start the next height.
-
-```rust
-            AppMsg::Decided { certificate, reply } => {
-                info!(
-                    height = %certificate.height, round = %certificate.round,
-                    value = %certificate.value_id,
-                    "Consensus has decided on value"
-                );
-
-                state.commit(certificate);
-
-                if reply
-                    .send(ConsensusMsg::StartHeight(
-                        state.current_height,
-                        genesis.validator_set.clone(),
-                    ))
-                    .is_err()
-                {
-                    error!("Failed to send Decided reply");
-                }
-            }
-```
-
-It may happen that our node is lagging behind its peers. In that case,
+As just mentionned, tt may happen that our node is lagging behind its peers. In that case,
 a synchronization mechanism will automatically kick to try and catch up to
 our peers. When that happens, some of these peers will send us decided values
 for the heights in between the one we are currently at (included) and the one
@@ -1217,20 +1260,58 @@ to decode it from its wire format and send back the decoded value to consensus.
                 info!(%height, %round, "Processing synced value");
 
                 let value = decode_value(value_bytes);
+                let proposed_value = ProposedValue {
+                    height,
+                    round,
+                    valid_round: Round::Nil,
+                    proposer,
+                    value,
+                    validity: Validity::Valid,
+                };
+
+                state
+                    .store
+                    .store_undecided_proposal(proposed_value.clone())
+                    .await?;
+
+                if reply.send(proposed_value).is_err() {
+                    error!("Failed to send ProcessSyncedValue reply");
+                }
+            }
+```
+
+After some time, consensus will finally reach a decision on the value
+to commit for the current height, and will notify the application,
+providing it with a commit certificate which contains the ID of the value
+that was decided on as well as the set of commits for that value,
+ie. the precommits together with their (aggregated) signatures.
+
+When that happens, we store the decided value in our store,
+and instruct consensus to start the next height.
+
+```rust
+            AppMsg::Decided {
+                certificate,
+                extensions,
+                reply,
+            } => {
+                info!(
+                    height = %certificate.height,
+                    round = %certificate.round,
+                    value = %certificate.value_id,
+                    "Consensus has decided on value"
+                );
+
+                state.commit(certificate, extensions).await?;
 
                 if reply
-                    .send(ProposedValue {
-                        height,
-                        round,
-                        valid_round: Round::Nil,
-                        proposer,
-                        value,
-                        validity: Validity::Valid,
-                        extension: None,
-                    })
+                    .send(ConsensusMsg::StartHeight(
+                        state.current_height,
+                        state.get_validator_set().clone(),
+                    ))
                     .is_err()
                 {
-                    error!("Failed to send ProcessSyncedValue reply");
+                    error!("Failed to send Decided reply");
                 }
             }
 ```
@@ -1243,9 +1324,17 @@ and send it to consensus.
 
 ```rust
             AppMsg::GetDecidedValue { height, reply } => {
-                let decided_value = state.get_decided_value(&height).cloned();
+                info!(%height, "Received sync request for decided value");
 
-                if reply.send(decided_value).is_err() {
+                let decided_value = state.get_decided_value(height).await;
+                info!(%height, "Found decided value: {decided_value:?}");
+
+                let raw_decided_value = decided_value.map(|decided_value| RawDecidedValue {
+                    certificate: decided_value.certificate,
+                    value_bytes: ProtobufCodec.encode(&decided_value.value).unwrap(),
+                });
+
+                if reply.send(raw_decided_value).is_err() {
                     error!("Failed to send GetDecidedValue reply");
                 }
             }
@@ -1256,32 +1345,36 @@ the engine may ask us for the height of the earliest available value in our stor
 
 ```rust
             AppMsg::GetHistoryMinHeight { reply } => {
-                if reply.send(state.get_earliest_height()).is_err() {
+                let min_height = state.get_earliest_height().await;
+
+                if reply.send(min_height).is_err() {
                     error!("Failed to send GetHistoryMinHeight reply");
                 }
             }
 ```
 
-
-The last message is left unimplemented for now. To be updated in a later version of this tutorial.
+Finally, the application is informed about other peers joining or leaving the local view of the network.
 
 ```rust
-            AppMsg::RestreamProposal { .. } => {
-                error!("RestreamProposal not implemented");
-            }
-        }
+            AppMsg::PeerJoined { peer_id } => {
+                info!(%peer_id, "Peer joined our local view of network");
 
+                state.peers.insert(peer_id);
+            }
+
+            AppMsg::PeerLeft { peer_id } => {
+                info!(%peer_id, "Peer left our local view of network");
+
+                state.peers.remove(&peer_id);
+            }
 ```
 
-
+Ideally, the consensus actor should never die, but if it does, we can only return an error.
 
 ```rust
-    // End of the match statement
+    // End of while loop
     }
 
-    // If we get there, it can only be because the channel we use to receive message
-    // from consensus has been closed, meaning that the consensus actor has died.
-    // We can do nothing but return an error here.
     Err(eyre!("Consensus channel closed unexpectedly"))
 }
 ```
