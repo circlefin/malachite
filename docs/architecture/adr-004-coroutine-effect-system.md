@@ -14,11 +14,19 @@ The Malachite core consensus implementation needs to interact with its environme
 
 Traditional approaches to handling these interactions include:
 
-1. **Callback-based designs:** Provide callback interfaces that must be implemented by users
-2. **Trait-based polymorphism:** Define traits that users implement to provide required functionality
-3. **Message-passing architectures:** Define protocols for communication between consensus and external components
+1. **Callback-based designs:**
+Define callbacks that the consensus implementation invokes when it needs external resources.
+This model inverts control flow and makes the consensus code harder to follow, it is also not very idiomatic in the Rust community.
 
-We needed a design that would:
+2. **Trait-based polymorphism:**
+Define traits that users implement to provide required functionality, and have the consensus implementation call these methods.
+This model enforces a specific execution model (sync/async) on the environment, which might not be desirable.
+
+3. **Message-passing architectures:**
+Define protocols for message-based communication between consensus and external components.
+This model enforces a message-based architecture on the environment, which might not be desirable.
+
+Instead, we needed a design that would:
 - Maintain a clear separation between the consensus algorithm and its environment
 - Keep the consensus code linear and readable despite external interactions
 - Support both synchronous and asynchronous operations
@@ -28,7 +36,7 @@ We needed a design that would:
 
 ## Decision
 
-We've implemented a **coroutine-based effect system** using the `process!` macro that allows the consensus algorithm to yield control when it needs external resources, and resume when those resources are provided.
+We've implemented a **coroutine-based effect system** that allows the consensus algorithm to yield control when it needs external resources, and resume when those resources are provided.
 
 ### Key Components
 
@@ -55,8 +63,8 @@ We've implemented a **coroutine-based effect system** using the `process!` macro
 
 1. **Separation of concerns**: The consensus algorithm code remains focused on the state machine logic without environment dependencies.
 2. **Code readability**: The consensus code retains a linear, procedural flow despite the need for external interactions.
-3. **Flexibility**: The same consensus core can work in different execution environments (async runtimes, actor systems, etc.)
-4. **Testability**: Effects are explicit and can be easily mocked for testing.
+3. **Flexibility**: The same consensus implementation can work in different execution environments (embedded systems, async runtimes, actor systems, etc.)
+4. **Testability**: Effects are explicit and the effect handler can be easily mocked for testing.
 5. **Error handling**: Clear points where environment errors can be handled without complicating the consensus core.
 
 ### Negative
@@ -122,7 +130,7 @@ The `handle_effect` function demonstrates handling both synchronous and asynchro
    - Resume consensus with the result directly
 
 2. **Asynchronous effects** (`GetValue`):
-   - Resume consensus immediately with `()` to allow it to continue
+   - Resume consensus immediately without a result to allow it to continue
    - Spawn a background task to perform the longer-running operation
    - Queue the result as a new input to be processed by consensus later
 
@@ -160,7 +168,7 @@ async fn main() {
         },
 
         input = rx_queue.recv() => {
-            process_input(input, &mut state, &metrics, &tx_queue)
+            process_input(input, &mut state, &metrics, &network_service, &tx_queue)
         }
     }
 }
@@ -180,13 +188,13 @@ pub async fn process_input(
         input: input,
         state: state,
         metrics: metrics,
-        with: effect => handle_effect(effect, input_queue)
+        with: effect => handle_effect(effect, network_service, input_queue)
     )
 }
 
 // Method for handling effects
 async fn handle_effect(
-    effect: Effect<MyContext>
+    effect: Effect<MyContext>,
     network_service: &NetworkService,
     tx_queue: &Sender<Input<MyContext>>,
 ) -> Result<Resume<MyContext>, Error> {
