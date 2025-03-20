@@ -10,13 +10,13 @@ Accepted
 
 ## Context
 
-The Malachite consensus engine needs to interact with its environment (network, storage, cryptography, application logic) at specific points during execution.
+The Malachite core consensus implementation needs to interact with its environment (network, storage, cryptography, application logic) at specific points during execution.
 
 Traditional approaches to handling these interactions include:
 
-1. **Callback-based designs** - Provide callback interfaces that must be implemented by users
-2. **Trait-based polymorphism** - Define traits that users implement to provide required functionality
-3. **Message-passing architectures** - Define protocols for communication between consensus and external components
+1. **Callback-based designs:** Provide callback interfaces that must be implemented by users
+2. **Trait-based polymorphism:** Define traits that users implement to provide required functionality
+3. **Message-passing architectures:** Define protocols for communication between consensus and external components
 
 We needed a design that would:
 - Maintain a clear separation between the consensus algorithm and its environment
@@ -32,19 +32,22 @@ We've implemented a **coroutine-based effect system** using the `process!` macro
 
 ### Key Components
 
-1. **`Effect` enum**: A type that represents all possible interactions the consensus algorithm might need from its environment.
-2. **`Resume` enum**: A type that represents all possible ways to resume the consensus algorithm after handling an effect.
-3. **`Resumable` trait**: A trait that connects each effect with its corresponding resume type.
-4. **`process!` macro**: A macro that handles starting the coroutine, processing an input, yielding effects, and resuming consensus with appropriate values.
+1. **`Input` enum**: A type that represents all possible inputs that can be processed by the consensus coroutine.
+2. **`Effect` enum**: A type that represents all possible interactions the consensus coroutine might need from its environment.
+3. **`Resume` enum**: A type that represents all possible ways to resume the consensus coroutine after handling an effect.
+4. **`Resumable` trait**: A trait that connects each effect with its corresponding `Resume` type.
+5. **`process!` macro**: A macro that handles starting the coroutine, processing an input, yielding effects, and resuming consensus with appropriate values.
 
 ### Flow
 
 1. The application calls `process!` with an input, consensus state, metrics, and an effect handler.
-2. The consensus algorithm runs until it needs something from the environment.
-3. It yields an `Effect` (like `SignVote` or `GetValue`).
-4. The effect handler performs the requested operation.
-5. For synchronous effects (like `SignVote`), the handler immediately resumes the consensus with the result.
-6. For asynchronous effects (like `GetValue`), the handler resumes consensus immediately, and later provides the result as a new input.
+2. This initializes a coroutine which immediately starts processing the input.
+3. The coroutine runs until it needs something from the environment.
+4. At that point, the coroutine yields an `Effect` (like `SignVote` or `GetValue`).
+5. The effect handler performs the requested operation.
+6. For synchronous effects (like `SignVote`), the handler immediately resumes the coroutine with the result.
+7. For asynchronous effects (like `GetValue`), the handler immediately resumes the coroutine with a `()` (unit) value,
+   and will typically schedule a background task to provide the result later by feeding it as a new input back to consensus via the `process!` macro.
 
 ## Consequences
 
