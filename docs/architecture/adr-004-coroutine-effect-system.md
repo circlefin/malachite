@@ -357,6 +357,56 @@ where
 7. For asynchronous effects (like `GetValue`), the handler immediately resumes the coroutine with a `()` (unit) value,
    and will typically schedule a background task to provide the result later by feeding it as a new input back to consensus via the `process!` macro.
 
+#### Possible effects yielded by an input
+
+Here is a list of all effects that can be yielded when processing an input:
+
+* StartHeight:
+  - CancelAllTimeouts
+  - ResetTimeouts
+  - ScheduleTimeout
+  - GetValue
+  - Effects for any pending inputs
+
+* Vote
+  - WalAppendMessage
+  - VerifyVoteExtension
+  - GetValidatorSet
+  - VerifySignature
+
+* Proposal:
+  - WalAppendMessage
+  - GetValidatorSet
+  - VerifySignature
+  - Publish
+  - Same as *Vote*
+
+* Propose:
+  - RestreamProposal
+  - WalAppendMessage
+  - GetValidatorSet
+  - VerifySignature
+  - Publish
+
+* TimeoutElapsed;
+  - WalAppendTimeout
+  - Decide
+
+* ProposedValue:
+  - CancelTimeout
+  - Same as *Vote*
+
+* CommitCertificate:
+  - GetValidatorSet
+  - VerifyCertificate
+  - Decide
+
+* VoteSetRequest:
+  - SendVoteSetResponse
+
+* VoteSetResponse:
+  - Same as *Vote*
+
 ## Consequences
 
 ### Positive
