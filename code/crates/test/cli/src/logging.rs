@@ -28,8 +28,6 @@ pub fn reload(log_level: LogLevel) {
 }
 
 fn reload_env_filter(env_filter: EnvFilter) {
-    tracing::info!("Reloading log level: {env_filter}");
-
     if let Some(handle) = RELOAD_HANDLE.get() {
         if let Err(e) = handle.reload(env_filter) {
             error!("Failed to reload the log level: {e}");
