@@ -287,3 +287,227 @@ This is achieved without requiring the consensus algorithm itself to be aware of
 
 * {reference link}
 
+## Appendix A: Details of the coroutine-based effect system
+
+Let's pretend that we are writing a program that needs to read a file from disk and then broadcast its contents over the network. We will call these operations _effects_.
+
+If we were expressing this as an interface we might have a `Broadcast` trait:
+
+```rust
+trait Broadcast {
+  async fn broadcast(s: String) -> Result<(), Error>;
+}
+```
+
+and a `FileSystem` trait:
+
+```rust
+enum FileSystem {
+  async fn read_file(path: PathBuf) -> Result<String, Error>;
+}
+```
+
+And our program would look like:
+
+```rust
+async fn program(file: PathBuf, fs: impl FileSystem, b: impl Broadcast) -> Result<(), Error> {
+  println!("Reading file from disk");
+  let contents = fs.read_file(file).await?;
+
+  println!("Broadcasting content");
+  b.broadcast(contents).await?;
+
+  Ok(())
+}
+```
+
+The downside of this approach is that we are enforcing the use of async for all effects, which might not be desirable in all cases.
+Moreover, we are introducing a trait for each effect, which might be cumbersome to maintain.
+Alternatively, we could use a single trait with multiple methods, but this would make the trait less focused and harder to implement and mock, as we would have to implement all methods even if we only need one.
+
+Instead, let's model our effects as data, and define an `Effect` enum with a variant per effect:
+
+```rust
+enum Effect {
+  Broadcast(String),
+  Read(PathBuf),
+}
+```
+
+To model the return value of each effect, we define a `Resume` enum:
+
+```rust
+enum Resume {
+  Broadcast(Result<(), Error>),
+  ReadFile(Result<String, Error>),
+}
+```
+
+Now, by defining an appropriate `perform!` macro, we can write a pure version of our program and choose how we want to interpret each effect later:
+
+```rust
+async fn program(
+  co: Co<Effect, Resume>,
+  file: PathBuf,
+) -> Result<(), Error> {
+  println!("Reading file from disk");
+
+  let contents = perform!(Effect::ReadFile(file),
+    Resume::FileContents(contents) => contents // contents has type `Result<String, Error>`
+  ).await?;
+
+  println!("Broadcasting content");
+
+  perform!(Effect::Broadcast(contents),
+    Resume::Sent(result) => result // `result` has type `Result<(), Error>`
+  ).await?;
+
+  Ok(())
+}
+```
+
+The `perform!(effect, pat => expr)` macro yields an `effect` to be performed by the caller (handler) and eventually resumes the program with the value `expr` extracted by from the `Resume` value by the pattern `pat`.
+
+We can now choose how we want interpret each of these effects when we run our program.
+
+For instance, we could actually perform these effects against the network and the filesystem:
+
+```rust
+async fn perform_real(effect: Effect) -> Resume {
+  match effect {
+    Effect::ReadFile(path) => {
+      let contents = tokio::fs::read_to_string(path).await;
+      Resume::FileContents(contents)
+    }
+    Effect::Broadcast(data) => {
+      let result = broadcast_over_network(data).await;
+      Resume::Sent(result)
+    }
+  }
+}
+
+async fn main() {
+  process!(
+    program(_, "test.txt"),
+    effect => perform_real(effect).await
+  );
+}
+```
+
+Or we can perform these effects against a mock file system and network, and for this we don't need to use async at all:
+
+```rust
+fn perform_mock(effect: Effect) -> Resume {
+  match effect {
+    Effect::ReadFile(path) => {
+      Resume::FileContents("Hello, world")
+    }
+    Effect::Broadcast(data) => {
+      Resume::Sent(Ok(()))
+    }
+  }
+}
+
+fn main() {
+  process!(
+    program(_, "test.txt"),
+    effect => perform_mock(effect)
+  );
+}
+```
+
+Here we see one other advantage of modeling effects this way over using traits: **we can leave it up to the caller to decide whether or not to perform each effect in a sync or async context, instead of enforcing either with a trait (as methods in traits cannot be both sync and async).
+
+The main drawback of this approach is that it is possible to resume the program using the wrong type of data:
+
+```rust
+fn perform_wrong(effect: Effect) -> Resume {
+  match effect {
+    Effect::ReadFile(path) => {
+      Resume::Sent(Ok(())) // This should be `FileContents`, not `Sent`
+    }
+    Effect::Broadcast(data) => {
+      Resume::FileContents(Ok("Hello, world".to_string())) // This should be `Sent`, not `FileContents`
+    }
+  }
+}
+
+fn main() {
+  process!(
+    program("test.txt"),
+    effect => perform_wrong(effect)
+  );
+}
+```
+
+This program will crash at runtime with `UnexpectedResume` error telling us that the `ReadFile` effect expected to be resumed with `FileContents` and not `Sent`.
+
+To mitigate this issue, we can define a `Resumable` trait that connects each effect with its corresponding `Resume` type:
+
+```rust
+trait Resumable {
+    /// The value type that will be used to resume execution
+    type Value;
+
+    /// Creates the appropriate [`Resume`] value to resume execution with.
+    fn resume_with(self, value: Self::Value) -> Resume;
+}
+```
+
+We then define a new type per resume type and implement `Resumable` for each:
+
+```rust
+mod resume_with {
+  struct Sent;
+
+  impl Resumable for Sent {
+      type Value = Result<(), Error>;
+
+      fn resume_with(self, value: Self::Value) -> Resume {
+          Resume::Sent(value)
+      }
+  }
+
+  struct FileContents;
+
+  impl Resumable for FileContents {
+      type Value = Result<String, Error>;
+
+      fn resume_with(self, value: Self::Value) -> Resume {
+          Resume::FileContents(value)
+      }
+  }
+}
+```
+
+We can now embed these types in each variant of the `Effect` enum:
+
+```rust
+enum Effect {
+    Broadcast(String, resume_with::Sent),
+    Read(PathBuf, resume_with::FileContents),
+}
+```
+
+Note that these `resume_with` types are private and cannot be constructed directly, they can only be accessed by extracting them from an `Effect` variant.
+
+In the effect handler, we can now use the `Resumable::resume_with` method to resume the program with the correct type:
+
+```rust
+fn perform_correct(effect: Effect) -> Resume {
+    match effect {
+        Effect::Read(path, r) => { // r is of type `resume_with::FileContents`
+            let contents = tokio::fs::read_to_string(path).await;
+            r.resume_with(contents) // returns a value of type `Resume::FileContents`
+        }
+
+        Effect::Broadcast(data, r) => { // r is of type `resume_with::Sent`
+            let result = broadcast_over_network(data).await;
+            r.resume_with(result) // returns a value of type `Resume::Sent`
+        }
+  }
+}
+```
+
+We can now make the `Resume` type private so that it is impossible to construct it directly, and only the `Resumable` trait can be used to create it, effectively making it impossible to resume the program with the wrong type of data.
+
