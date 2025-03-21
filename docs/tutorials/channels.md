@@ -20,6 +20,7 @@
    * [The consensus dialog](#the-consensus-dialog)
    * [Handle consensus messages](#handle-consensus-messages)
    * [Node](#node)
+   * [Logging](#logging)
    * [Command-line interface](#command-line-interface)
 - [Run a local testnet](#run-a-local-testnet)
 
@@ -1727,6 +1728,12 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
     }
 }
 ```
+
+### Logging
+
+It is up to the application integrator to implement logging. However, given that Malachite uses the [`tracing`](https://crates.io/crates/tracing) library for logging internally, it is natural to use it as well for the application, so we will just do that by using the `logging` module form the `malachitebft-test-cli` crate.
+
+The initialization of the logger is shown in the next section with the main function.
 
 ### Command-line interface
 Most applications will expect to receive arguments over the command-line, eg. to point it at a configuration file.
