@@ -3,55 +3,148 @@
 ## Changelog
 
 * 2025-03-18: Context and description of the problem
+* 2025-03-21: Current design description
 
 ## Context
 
-> This section contains all the context one needs to understand the current state, and why there is a problem. It should be as succinct as possible and introduce the high level idea behind the solution.
+Malachite implements a consensus algorithm, [Tendermint][consensus-spec], 
+which allow processes to agree on a single decided value for each 
+consensus instance or *height*. 
 
-Malachite implements a consensus algorithm, [Tendermint][consensus-spec],
-that receives as input, for each instance or height of consensus,
-a number of proposed values and should output a single decided value,
-among the proposed ones.
+Possible decision values are provided by the software using the consensus 
+mechanism, which we refer to generically as the *application*. There are 
+no assumptions about what a **value** represents—its semantics are defined 
+entirely by the application. For example, in blockchain applications, input 
+values are blocks proposed to be appended to the blockchain.
 
-There is no assumptions regarding what a **value** is or represents:
-its semantics is defined by whatever software uses consensus to propose and
-decide values - which from now it is generically referred to as the *application*.
-For example, blockchain applications provide as input to consensus blocks to be
-appended to the blockchain.
+Similarly, the consensus algorithm makes no assumptions about the **size** 
+of the proposed values; they may be of arbitrary byte size. However, 
+the application is expected to define a maximum size for proposed values 
+and to configure the consensus parameters accordingly—most notably, 
+the durations of timeouts.
 
-There is also no assumption, at consensus level, regarding the **size** of
-proposed values: a priori, they can have an arbitrary byte size.
-The application, however, is expected to define a maximum byte size for
-proposed values and to configure consensus accordingly - of particular
-relevance here is the configured duration for timeouts.
+When value size becomes a relevant factor, it is important to recognize 
+that the consensus process comprises two distinct stages:
 
-In particular when the size of proposed values is a factor,
-it is important to highlight that the implementation of a consensus algorithm
-actually comprises two stages:
+- **Value Propagation**: Proposed values must be transmitted to all consensus participants.
+- **Value Decision**: One of the successfully propagated values is selected and decided.
 
-- **Value Propagation**: proposed values should be transmitted to all consensus
-  processes;
-- **Value Decision**: a single value, among the possibly multiple proposed and
-  successfully propagated values, must be decided.
+The cost of **Value Propagation**, in terms of latency and bandwidth, 
+clearly depends on the size of the proposed values. In contrast, the 
+**Value Decision** stage should be independent of value size and 
+incur a roughly constant cost.
 
-The cost of the **Value Propagation** stage,
-in terms of latency and bandwidth consumption, 
-evidently depends on the size of the proposed values.
-While the cost of the **Value Decision** stage should be independent from the
-size of the proposed values, and essentially constant.
+In Tendermint, **Value Propagation** is performed via the `PROPOSAL` 
+message, which is broadcast by the designated proposer of the round 
+and includes the proposed value `v`.
 
-In Tendermint, the message that plays the role of **Value Propagation** is the
-`PROPOSAL` message.
-It is broadcast by the proposer of a round of consensus and carries the
-proposed value `v`, defined by the proposer process.
+The **Value Decision** phase involves `PREVOTE` and `PRECOMMIT` 
+messages—collectively referred to as *votes*. Each vote includes 
+either an identifier `id(v)` of the proposed value `v` or the 
+special value `nil`. The function `id(v)` provides a compact 
+representation of `v`, typically implemented as a fixed-size hash.
 
-The **Value Decision** role is played by `PREVOTE` and `PRECOMMIT`, generically
-called votes.
-A vote carries either an identifier `id(v)` of a proposed value `v`, or the
-special `nil` value.
-The function `id(v)` should provide a short representation of a value `v`.
-It can be implemented in multiple ways, the most common of which is by
-returning a fixed byte-size hash of `v`.
+From this, we can see that **value propagation** is more challenging, 
+as it involves disseminating potentially large amounts of data through 
+the network. In contrast, the **value decision** phase requires only 
+the transmission of vote messages, which are relatively small and of 
+constant size. As a result, Malachite’s low-level API provides greater 
+flexibility in the value propagation stage to enable more optimized 
+implementations. 
+
+In this document, we focus on the core parts of the consensus 
+implementation responsible for **value propagation**.
+
+## Current design
+
+At the moment, Malachite consensus implementation is supporting three
+different methods to handle value propagation: 
+1) **ProposalOnly**
+2) **PartsOnly**
+3) **ProposalAndParts**
+
+A specific mode can be set as a cosnensus parameter (TODO add a reference to the code here):
+```
+/// Consensus parameters.
+#[derive_where(Clone, Debug)]
+pub struct Params<Ctx: Context> {
+   ...
+
+    /// The messages required to deliver proposals
+    pub value_payload: ValuePayload,
+
+    ...
+}
+
+```
+
+In the following, we examine each approach to understand how the consensus 
+interacts with the environment, depending on the mode of operation adopted. 
+Specifically, we present the inputs related to value propagation that 
+must be provided to the consensus.
+
+| **Input** | **Description** |
+|-----------|-----------------|
+| `Proposal(SignedProposal<Ctx>)` | This input is generated and passed to the consensus when a `PROPOSAL` message is received from the network. |
+| `Propose(LocallyProposedValue<Ctx>)` | This input is produced by the application in response to a consensus request (`getValue`) for a value to propose. |
+| `ProposedValue(ProposedValue<Ctx>, ValueOrigin)` | This input is also generated by the application when the application is responsible for disseminating values through the network. It informs the consensus that a value has been received. |
+
+When processing each of these inputs, the consensus may produce different effects that must be handled by the environment to fully process the input. These interactions, along with the effects associated with each input, are explained in a separate ADR. Here, our goal is to describe how these inputs are used in relation to the chosen mode of value propagation. 
+
+
+**ProposalOnly** – This approach most closely follows the original Tendermint 
+algorithm. In this mode, the consensus generates the `getValue` effect to 
+request a value from the application. The application responds by sending the 
+`Propose(LocallyProposedValue<Ctx>)` input to the consensus, containing the 
+value `v` that should be ordered.
+
+The consensus then generates a `PROPOSAL` message that includes the actual 
+value `v` received via `LocallyProposedValue<Ctx>`, and generate a `Publish` 
+effect. This effect will be handled by the networking module, and the proposal,
+with the full value embedded in it, will be disseminated through the network.
+
+Upon receiving a `PROPOSAL` message from the network, the networking module 
+generates a `Proposal(SignedProposal<Ctx>)` input, which is passed directly to 
+the consensus for processing.
+
+In this setup, the application only needs to provide a value to the consensus through `Propose(LocallyProposedValue<Ctx>)`, and value propagation is entirely handled by the networking module. The consensus only processes `PROPOSAL` messages that already contain the full value. As a result, the `ProposedValue(ProposedValue<Ctx>, ValueOrigin)` input is never generated by the application in this mode.
+
+This setup is the simplest, as the application is only responsible for providing the value to be ordered. However, if the value is large, the resulting `PROPOSAL` messages will also be large and must be propagated as such through the network. Any optimizations for value propagation, such as chunking the value into smaller parts and reassembling it on the receiving side, must be implemented at the networking level. This is because both the consensus and application remain unaware of how the value is transmitted.
+
+The other two modes of operation are designed to support such optimizations at the application level rather than at the network level. We will explore how this is achieved in the following sections.
+
+**ProposalAndParts** – In this mode of operation, the application, as a response to `getValue`, 
+generates `Propose(LocallyProposedValue<Ctx>)` input that does not contain the full value `v`, 
+but instead carries a value identifier. As a result, when processing this input, the consensus generates a 
+`PROPOSAL` message that includes only the value identifier, not the full value.
+
+When a node receives a `PROPOSAL` message in this mode, the networking module generates the `Proposal(SignedProposal<Ctx>)` input and passes it to the consensus. However, in this mode, receiving a `Proposal(SignedProposal<Ctx>)` alone is not sufficient for the consensus to consider the proposal complete. 
+The consensus must also receive confirmation from the application that the full value corresponding 
+to the identifier in the `PROPOSAL` has been obtained.
+
+This confirmation is delivered via the `ProposedValue(ProposedValue<Ctx>, ValueOrigin)` input, which the application generates upon receiving the full value. Only when the consensus has both inputs `Proposal(SignedProposal<Ctx>)` with a value identifier and `ProposedValue(ProposedValue<Ctx>, ValueOrigin)` with the matching full value, it can consider the proposal complete. At that point, it proceeds as it would in the `ProposalOnly` mode upon receiving a `Proposal(SignedProposal<Ctx>)` input.
+
+In this approach, dissemination of the full value is delegated to the application. Specifically, the application is responsible for distributing the full value across the network. One way to implement this is by chunking the value into parts, broadcasting these parts using the networking module, and then informing the consensus once all parts have been received and reassembled. 
+
+PartsOnly -  This mode is very similar to Proposal and Parts but the difference is that when receiving 
+`Propose(LocallyProposedValue<Ctx>)` input from the application the consensus don't do anything. Namely, 
+the `PROPOSAL` message is not sent through the network. Instead, it waits to receive `ProposedValue(ProposedValue<Ctx>, ValueOrigin)` input that is generated when the application
+receive the full value and then it consider the proposal complete and proceed. As a result, in this case
+value propagation is totally delegated to the application. 
+
+To sum up, in different modes, different inputs are required to achieve the same effect as receiving the `PROPOSAL` message in the original Tendermint algorithm. 
+
+- In `ProposalOnly`, a single `Proposal(SignedProposal<Ctx>)` input is sufficient.
+- In `ProposalAndParts`, both `Proposal(SignedProposal<Ctx>)` and `ProposedValue(ProposedValue<Ctx>, ValueOrigin)` are needed.
+- In `PartsOnly`, only `ProposedValue(ProposedValue<Ctx>, ValueOrigin)` is used to trigger the same effect, as no `PROPOSAL` message is sent over the network.
+
+Each mode shifts responsibility for value propagation between the network and the application.
+
+### `TimeoutPropose`
+An important consideration is that, regardless of the mode of operation, all inputs required to complete a 
+proposal must be received by the consensus before `timeoutPropose` expires. This timeout must be configured to accommodate for the time needed for a complete value propagation, especially 
+in cases where the value is large and requires longer to propagate through the network.
+
 
 ## Alternatives
 
@@ -129,34 +222,16 @@ But we probably need to offer an example of this approach, for instance, when
 values/payloads are disseminated independently and consensus is used to order
 the disseminated values, by receiving as `v` identifiers of disseminated values.
 
-## Current Design
-
-**TODO**: the three modes of execution.
-
-The Proposals Streaming protocol.
-
 ## Decision
 
-> This section explains all of the details of the proposed solution, including
-> implementation details.
-It should also describe affects / corollary items that may need to be changed
-as a part of this.  If the proposed change will be large, please also indicate
-a way to do the change to maximize ease of review.  (e.g. the optimal split of
-things to do between separate PR's)
 
 ## Status
-
-> A decision may be "proposed" if it hasn't been agreed upon yet, or "accepted"
-> once it is agreed upon. If a later ADR changes or reverses a decision, it may
-> be marked as "deprecated" or "superseded" with a reference to its
-> replacement.
 
 Proposed
 
 ## Consequences
 
-> This section describes the consequences, after applying the decision. All
-> consequences should be summarized here, not just the "positive" ones.
+
 
 ### Positive
 
@@ -165,9 +240,6 @@ Proposed
 ### Neutral
 
 ## References
-
-> Are there any relevant PR comments, issues that led up to this, or articles
-> referenced for why we made the given design choice? If so link them here!
 
 * [Tendermint consensus specification][consensus-spec]
 
