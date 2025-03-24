@@ -107,20 +107,20 @@ differ depending on the selected mode of operation.
 ```mermaid
 sequenceDiagram
     box Proposer
-      participant C1 as Consensus
       participant A1 as Application
+      participant C1 as Consensus
     end
 
     participant N as Network
     
     box Other nodes
-      participant A2 as Application
       participant C2 as Consensus
+      participant A2 as Application
     end
 
     C1->>A1: getValue
     A1->>C1: Propose(LocallyProposedValue<Ctx>) (full value v)
-    C1->>N: Publish(PROPOSAL with v)
+    C1->>N: Proposal(SignedProposal<Ctx>) (with v)
     N->>C2: Proposal(SignedProposal<Ctx>) (with v)
     Note over C2: Has full value → can proceed
 ```
@@ -151,20 +151,20 @@ The other two modes of operation are designed to support such optimizations at t
 ```mermaid
 sequenceDiagram
     box Proposer
-      participant C1 as Consensus
       participant A1 as Application
+      participant C1 as Consensus
     end
 
     participant N as Network
     
     box Other nodes
-      participant A2 as Application
       participant C2 as Consensus
+      participant A2 as Application
     end
 
     C1->>A1: getValue
     A1->>C1: Propose(LocallyProposedValue<Ctx>) (value ID only)
-    C1->>N: Publish(PROPOSAL with value ID)
+    C1->>N: Proposal(SignedProposal<Ctx>) (ID only)
     N->>C2: Proposal(SignedProposal<Ctx>) (ID only)
 
     A1->>N: Full value v
@@ -202,15 +202,15 @@ once all parts have been received and reassembled.
 ```mermaid
 sequenceDiagram
     box Proposer
-      participant C1 as Consensus
       participant A1 as Application
+      participant C1 as Consensus
     end
 
     participant N as Network
 
     box Other nodes
-      participant A2 as Application
       participant C2 as Consensus
+      participant A2 as Application
     end
 
     C1->>A1: getValue
