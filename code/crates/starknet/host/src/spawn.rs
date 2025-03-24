@@ -232,9 +232,15 @@ async fn spawn_network_actor(
             ..Default::default()
         },
         idle_connection_timeout: Duration::from_secs(15 * 60),
-        transport: match cfg.consensus.p2p.transport {
-            TransportProtocol::Tcp => gossip::TransportProtocol::Tcp,
-            TransportProtocol::Quic => gossip::TransportProtocol::Quic,
+        transport: match TransportProtocol::extract_from(&cfg.consensus.p2p.listen_addr) {
+            Some(TransportProtocol::Tcp) => malachitebft_network::TransportProtocol::Tcp,
+            Some(TransportProtocol::Quic) => malachitebft_network::TransportProtocol::Quic,
+            None => {
+                panic!(
+                    "No valid transport protocol found in listen address: {}",
+                    cfg.consensus.p2p.listen_addr
+                )
+            }
         },
         pubsub_protocol: match cfg.consensus.p2p.protocol {
             config::PubSubProtocol::GossipSub(_) => gossip::PubSubProtocol::GossipSub,
@@ -315,9 +321,15 @@ async fn spawn_mempool_network_actor(
         listen_addr: cfg.mempool.p2p.listen_addr.clone(),
         persistent_peers: cfg.mempool.p2p.persistent_peers.clone(),
         idle_connection_timeout: Duration::from_secs(15 * 60),
-        transport: match cfg.mempool.p2p.transport {
-            TransportProtocol::Tcp => malachitebft_test_mempool::TransportProtocol::Tcp,
-            TransportProtocol::Quic => malachitebft_test_mempool::TransportProtocol::Quic,
+        transport: match TransportProtocol::extract_from(&cfg.mempool.p2p.listen_addr) {
+            Some(TransportProtocol::Tcp) => malachitebft_test_mempool::TransportProtocol::Tcp,
+            Some(TransportProtocol::Quic) => malachitebft_test_mempool::TransportProtocol::Quic,
+            None => {
+                panic!(
+                    "No valid transport protocol found in listen address: {}",
+                    cfg.mempool.p2p.listen_addr
+                )
+            }
         },
     };
 

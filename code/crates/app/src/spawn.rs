@@ -181,9 +181,15 @@ fn make_gossip_config(cfg: &ConsensusConfig) -> NetworkConfig {
             ..Default::default()
         },
         idle_connection_timeout: Duration::from_secs(15 * 60),
-        transport: match cfg.p2p.transport {
-            TransportProtocol::Tcp => malachitebft_network::TransportProtocol::Tcp,
-            TransportProtocol::Quic => malachitebft_network::TransportProtocol::Quic,
+        transport: match TransportProtocol::extract_from(&cfg.p2p.listen_addr) {
+            Some(TransportProtocol::Tcp) => malachitebft_network::TransportProtocol::Tcp,
+            Some(TransportProtocol::Quic) => malachitebft_network::TransportProtocol::Quic,
+            None => {
+                panic!(
+                    "No valid transport protocol found in listen address: {}",
+                    cfg.p2p.listen_addr
+                )
+            }
         },
         pubsub_protocol: match cfg.p2p.protocol {
             PubSubProtocol::GossipSub(_) => malachitebft_network::PubSubProtocol::GossipSub,

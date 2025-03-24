@@ -21,9 +21,6 @@ pub struct P2pConfig {
     #[serde(default)]
     pub discovery: DiscoveryConfig,
 
-    /// Transport protocol to use
-    pub transport: TransportProtocol,
-
     /// The type of pub-sub protocol to use for consensus
     pub protocol: PubSubProtocol,
 
@@ -40,13 +37,13 @@ impl Default for P2pConfig {
             listen_addr: Multiaddr::empty(),
             persistent_peers: vec![],
             discovery: Default::default(),
-            transport: Default::default(),
             protocol: Default::default(),
             rpc_max_size: ByteSize::mib(10),
             pubsub_max_size: ByteSize::mib(4),
         }
     }
 }
+
 /// Peer Discovery configuration options
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DiscoveryConfig {
@@ -151,8 +148,7 @@ impl FromStr for Selector {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 pub enum TransportProtocol {
     #[default]
     Tcp,
@@ -160,6 +156,17 @@ pub enum TransportProtocol {
 }
 
 impl TransportProtocol {
+    pub fn extract_from(multiaddr: &Multiaddr) -> Option<TransportProtocol> {
+        for protocol in multiaddr.protocol_stack() {
+            match protocol {
+                "tcp" => return Some(TransportProtocol::Tcp),
+                "quic" => return Some(TransportProtocol::Quic),
+                _ => {}
+            }
+        }
+        None
+    }
+
     pub fn multiaddr(&self, host: &str, port: usize) -> Multiaddr {
         match self {
             Self::Tcp => format!("/ip4/{host}/tcp/{port}").parse().unwrap(),
