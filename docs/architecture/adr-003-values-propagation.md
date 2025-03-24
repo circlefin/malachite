@@ -273,9 +273,9 @@ If the round of consensus is successful, the value `v` carried by the round's
 `PROPOSAL` message is the value delivered to the application as the decision
 for that height of consensus.
 
-**TODO**: how Malachite supports this approach.
-In particular, how the application can disseminate proposed values in an
-efficient way.
+Malachite, in `ProposalOnly` mode, when the application returns a full value in 
+`Propose(LocallyProposedValue<Ctx>)`, follows this approach.
+
 
 ### Consensus by Reference
 
@@ -318,10 +318,10 @@ referenced value `V` is known by the process.
 Therefore, a process where `v` is decided by the consensus implementation
 should be able to deliver the actual proposed value `V` to the application.
 
-**TODO**: under the hood, Malachite implements this approach.
-But we probably need to offer an example of this approach, for instance, when
-values/payloads are disseminated independently and consensus is used to order
-the disseminated values, by receiving as `v` identifiers of disseminated values.
+Malachite, when used in `ProposalAndParts` and `PartsOnly` modes, represents 
+a variant of this approach in which the dissemination of full values is 
+entirely delegated to the application.
+
 
 ## Decision
 
