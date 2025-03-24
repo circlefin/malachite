@@ -169,7 +169,7 @@ sequenceDiagram
 
     A1->>N: Full value v
     N->>A2: Full value v
-    A2->>C2: ProposedValue(ProposedValue<Ctx>, ValueOrigin)
+    A2->>C2: ProposedValue(ProposedValue<Ctx>, ValueOrigin) (with v)
 
     Note over C2: Has ID + full value → can proceed
 ```
@@ -219,9 +219,9 @@ sequenceDiagram
     A1->>N: Full value v
     N->>A2: Full value v
 
-    A2->>C2: ProposedValue(ProposedValue<Ctx>, ValueOrigin)
+    A2->>C2: ProposedValue(ProposedValue<Ctx>, ValueOrigin) (with v)
 
-    Note over C2: Has ProposedValue → can proceed
+    Note over C2: Has full value → can proceed
 ```
 
 This mode is very similar to `ProposalandParts` but the difference is that when receiving 
