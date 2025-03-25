@@ -286,20 +286,28 @@ where
     ) -> Result<(), ActorProcessingErr> {
         match msg {
             Msg::StartHeight(height, validator_set) => {
-                state
-                    .consensus
-                    .driver
-                    .move_to_height(height, validator_set.clone());
-                if let Err(e) = self.check_and_replay_wal(&myself, state, height).await {
-                    error!(%height, "Error when checking and replaying WAL: {e}");
-                }
-
+                // Prepare the driver state for the new height,
+                // but do not start consensus yet.
                 let result = self
                     .process_input(
                         &myself,
                         state,
-                        ConsensusInput::StartHeight(height, validator_set),
+                        ConsensusInput::PrepareHeight(height, validator_set),
                     )
+                    .await;
+
+                if let Err(e) = result {
+                    error!(%height, "Error when preparing for height: {e}");
+                }
+
+                // Replay the WAL if necessary
+                if let Err(e) = self.check_and_replay_wal(&myself, state, height).await {
+                    error!(%height, "Error when checking and replaying WAL: {e}");
+                }
+
+                // Start consensus
+                let result = self
+                    .process_input(&myself, state, ConsensusInput::StartHeight(height))
                     .await;
 
                 if let Err(e) = result {

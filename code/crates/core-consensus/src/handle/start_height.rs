@@ -3,7 +3,7 @@ use crate::prelude::*;
 use crate::handle::driver::apply_driver_input;
 use crate::handle::handle_input;
 
-pub async fn reset_and_start_height<Ctx>(
+pub async fn on_prepare_height<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
@@ -24,10 +24,10 @@ where
     debug_assert_eq!(state.driver.height(), height);
     debug_assert_eq!(state.driver.round(), Round::Nil);
 
-    start_height(co, state, metrics, height).await
+    Ok(())
 }
 
-pub async fn start_height<Ctx>(
+pub async fn on_start_height<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,

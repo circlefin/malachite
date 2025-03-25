@@ -15,8 +15,11 @@ pub enum Input<Ctx>
 where
     Ctx: Context,
 {
-    /// Start a new height with the given validator set
-    StartHeight(Ctx::Height, Ctx::ValidatorSet),
+    /// Prepare state for starting a new height with the given validator set
+    PrepareHeight(Ctx::Height, Ctx::ValidatorSet),
+
+    /// Start consensus for the given height
+    StartHeight(Ctx::Height),
 
     /// Process a vote
     Vote(SignedVote<Ctx>),
