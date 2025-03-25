@@ -6,7 +6,7 @@ use crate::handle::handle_input;
 pub async fn on_prepare_height<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: &Metrics,
+    #[allow(unused_variables)] metrics: &Metrics,
     height: Ctx::Height,
     validator_set: Ctx::ValidatorSet,
 ) -> Result<(), Error<Ctx>>
@@ -30,7 +30,7 @@ where
 pub async fn on_start_height<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: &Metrics,
+    #[allow(unused_variables)] metrics: &Metrics,
     height: Ctx::Height,
 ) -> Result<(), Error<Ctx>>
 where
