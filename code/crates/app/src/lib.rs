@@ -17,18 +17,9 @@ pub mod events {
     pub use malachitebft_engine::util::events::{RxEvent, TxEvent};
 }
 
-pub mod streaming {
-    pub use malachitebft_engine::util::streaming::*;
-}
-
-pub mod consensus {
-    pub use malachitebft_core_consensus::*;
-}
-
-pub mod metrics {
-    pub use malachitebft_metrics::*;
-}
-
-pub mod config {
-    pub use malachitebft_config::*;
-}
+pub use malachitebft_config as config;
+pub use malachitebft_core_consensus as consensus;
+pub use malachitebft_engine as engine;
+pub use malachitebft_engine::util::streaming;
+pub use malachitebft_metrics as metrics;
+pub use malachitebft_wal as wal;

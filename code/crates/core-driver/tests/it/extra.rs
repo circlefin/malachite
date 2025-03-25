@@ -523,6 +523,321 @@ fn driver_steps_polka_previous_with_locked() {
     run_steps(&mut driver, steps)
 }
 
+#[test]
+fn driver_steps_polka_previous_not_locked_vote_last_l30() {
+    let value = Value::new(9999);
+
+    let [(v1, _sk1), (v2, sk2), (v3, _sk3)] = make_validators([2, 2, 3]);
+    let (_my_sk, my_addr) = (sk2, v2.address);
+
+    let height = Height::new(1);
+    let ctx = TestContext::new();
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
+
+    let steps = vec![
+        TestStep {
+            desc: "Start round 0, we, v2, are not the proposer, start timeout propose",
+            input: new_round_input(Round::new(0), v1.address),
+            expected_outputs: vec![start_propose_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Receive a proposal from v1 - L22 send prevote",
+            input: proposal_input(
+                Round::new(0),
+                value.clone(),
+                Round::Nil,
+                Validity::Valid,
+                v1.address,
+            ),
+            expected_outputs: vec![prevote_output(Round::new(0), value.clone(), &my_addr)],
+            expected_round: Round::new(0),
+            new_state: prevote_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "v2 prevotes the proposal",
+            input: prevote_input(value.clone(), &v2.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: prevote_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "v3 proposes with valid round at round 1",
+            input: proposal_input(
+                Round::new(1),
+                value.clone(),
+                Round::new(0),
+                Validity::Valid,
+                v3.address,
+            ),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: prevote_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Receive f+1 vote for round 1 from v3",
+            input: precommit_input(Round::new(1), Value::new(8888), &v3.address),
+            expected_outputs: vec![new_round_output(Round::new(1))],
+            expected_round: Round::new(1),
+            new_state: new_round(Round::new(1)),
+        },
+        TestStep {
+            desc: "Start round 1",
+            input: new_round_input(Round::new(1), v3.address),
+            expected_outputs: vec![start_propose_timer_output(Round::new(1))],
+            expected_round: Round::new(1),
+            new_state: propose_state(Round::new(1)),
+        },
+        TestStep {
+            desc: "v3 prevotes the proposal at round 0",
+            input: prevote_input(value.clone(), &v3.address),
+            expected_outputs: vec![prevote_output(Round::new(1), value.clone(), &my_addr)],
+            expected_round: Round::new(1),
+            new_state: prevote_state(Round::new(1)),
+        },
+    ];
+
+    run_steps(&mut driver, steps)
+}
+
+#[test]
+fn driver_steps_polka_previous_locked_vote_last_l32() {
+    let value1 = Value::new(9999);
+    let value2 = Value::new(8888);
+    let [(v1, _sk1), (v2, sk2), (v3, _sk3)] = make_validators([2, 2, 3]);
+    let (_my_sk, my_addr) = (sk2, v2.address);
+
+    let height = Height::new(1);
+    let ctx = TestContext::new();
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
+
+    let steps = vec![
+        TestStep {
+            desc: "(v2): Starts round 0 (v1 is proposer), starts timeout propose",
+            input: new_round_input(Round::new(0), v1.address),
+            expected_outputs: vec![start_propose_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "(v2): Timeout propose expires in round 0",
+            input: timeout_propose_input(Round::new(0)),
+            expected_outputs: vec![prevote_nil_output(Round::new(0), &my_addr)],
+            expected_round: Round::new(0),
+            new_state: prevote_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "(v2): Receives a prevote(nil) from v2(itself) in round 0",
+            input: prevote_nil_input(&my_addr),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: prevote_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "(v2): Receives a proposal(value1) from v1 in round 0",
+            input: proposal_input(
+                Round::new(0),
+                value1.clone(),
+                Round::Nil,
+                Validity::Valid,
+                v1.address,
+            ),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: prevote_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "(v2): Receives prevote(value1) from v3 in round 0, starts timeout prevote",
+            input: prevote_input(value1.clone(), &v3.address),
+            expected_outputs: vec![start_prevote_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: prevote_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "(v2): Timeout prevote expires in round 0",
+            input: timeout_prevote_input(Round::new(0)),
+            expected_outputs: vec![precommit_nil_output(Round::new(0), &my_addr)],
+            expected_round: Round::new(0),
+            new_state: precommit_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "(v2): Receives precommit(nil) from v2(itself) in round 0",
+            input: precommit_nil_input(Round::new(0), &my_addr),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: precommit_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "(v2): Receives precommit(nil) from v3 in round 0, starts timeout precommit",
+            input: precommit_nil_input(Round::new(0), &v3.address),
+            expected_outputs: vec![start_precommit_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: precommit_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "(v2): Timeout precommit expires in round 0",
+            input: timeout_precommit_input(Round::new(0)),
+            expected_outputs: vec![new_round_output(Round::new(1))],
+            expected_round: Round::new(1),
+            new_state: new_round(Round::new(1)),
+        },
+        // Round 1
+        TestStep {
+            desc: "(v2): Starts round 1(v3 is proposer), starts timeout propose",
+            input: new_round_input(Round::new(1), v3.address),
+            expected_outputs: vec![start_propose_timer_output(Round::new(1))],
+            expected_round: Round::new(1),
+            new_state: propose_state(Round::new(1)),
+        },
+        TestStep {
+            desc: "(v2): Receives proposal(value2) from v3 in round 1",
+            input: proposal_input(
+                Round::new(1),
+                value2.clone(),
+                Round::Nil,
+                Validity::Valid,
+                v3.address,
+            ),
+            expected_outputs: vec![prevote_output(Round::new(1), value2.clone(), &my_addr)],
+            expected_round: Round::new(1),
+            new_state: prevote_state(Round::new(1)),
+        },
+        TestStep {
+            desc: "(v2): Receives prevote(value2) from v3 in round 1",
+            input: prevote_input_at(Round::new(1), value2.clone(), &v3.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(1),
+            new_state: prevote_state(Round::new(1)),
+        },
+        TestStep {
+            desc: "(v2): Receives prevote(value2) from v2(itself) in round 1, locks value2",
+            input: prevote_input_at(Round::new(1), value2.clone(), &v2.address),
+            expected_outputs: vec![precommit_output(Round::new(1), value2.clone(), &my_addr)],
+            expected_round: Round::new(1),
+            new_state: precommit_state_with_proposal_and_locked_and_valid(
+                Round::new(1),
+                Proposal::new(
+                    Height::new(1),
+                    Round::new(1),
+                    value2.clone(),
+                    Round::Nil,
+                    v3.address,
+                ),
+            ),
+        },
+        TestStep {
+            desc: "(v2): Receives precommit(value2) from v2(itself) in round 1",
+            input: precommit_input_at(Round::new(1), value2.clone(), &my_addr),
+            expected_outputs: vec![],
+            expected_round: Round::new(1),
+            new_state: precommit_state_with_proposal_and_locked_and_valid(
+                Round::new(1),
+                Proposal::new(
+                    Height::new(1),
+                    Round::new(1),
+                    value2.clone(),
+                    Round::Nil,
+                    v3.address,
+                ),
+            ),
+        },
+        TestStep {
+            desc: "(v2): Receives precommit(nil) from v3 in round 1, start timeout precommit",
+            input: precommit_nil_input(Round::new(1), &v3.address),
+            expected_outputs: vec![start_precommit_timer_output(Round::new(1))],
+            expected_round: Round::new(1),
+            new_state: precommit_state_with_proposal_and_locked_and_valid(
+                Round::new(1),
+                Proposal::new(
+                    Height::new(1),
+                    Round::new(1),
+                    value2.clone(),
+                    Round::Nil,
+                    v3.address,
+                ),
+            ),
+        },
+        TestStep {
+            desc: "(v2): Timeout precommit expires in round 1",
+            input: timeout_precommit_input(Round::new(1)),
+            expected_outputs: vec![new_round_output(Round::new(2))],
+            expected_round: Round::new(2),
+            new_state: new_round_with_proposal_and_locked_and_valid(
+                Round::new(2),
+                Proposal::new(
+                    Height::new(1),
+                    Round::new(1),
+                    value2.clone(),
+                    Round::Nil,
+                    v3.address,
+                ),
+            ),
+        },
+        // Round 2
+        TestStep {
+            desc: "(v2): Starts round 2(v1 is proposer), starts timeout propose",
+            input: new_round_input(Round::new(2), v1.address),
+            expected_outputs: vec![start_propose_timer_output(Round::new(2))],
+            expected_round: Round::new(2),
+            new_state: propose_state_with_proposal_and_locked_and_valid(
+                Round::new(2),
+                Proposal::new(
+                    Height::new(1),
+                    Round::new(1),
+                    value2.clone(),
+                    Round::Nil,
+                    v3.address,
+                ),
+            ),
+        },
+        TestStep {
+            desc: "(v2): Receives proposal(value1) from v1 in round 2",
+            input: proposal_input(
+                Round::new(2),
+                value1.clone(),
+                Round::new(0),
+                Validity::Valid,
+                v1.address,
+            ),
+            expected_outputs: vec![],
+            expected_round: Round::new(2),
+            new_state: propose_state_with_proposal_and_locked_and_valid(
+                Round::new(2),
+                Proposal::new(
+                    Height::new(1),
+                    Round::new(1),
+                    value2.clone(),
+                    Round::Nil,
+                    v3.address,
+                ),
+            ),
+        },
+        TestStep {
+            desc: "(v2): Receives prevote(value1) from v1 from round 0",
+            input: prevote_input_at(Round::new(0), value1.clone(), &v1.address),
+            expected_outputs: vec![prevote_nil_output(Round::new(2), &my_addr)],
+            expected_round: Round::new(2),
+            new_state: prevote_state_with_matching_proposal_and_locked_and_valid(
+                Round::new(2),
+                Proposal::new(
+                    Height::new(1),
+                    Round::new(1),
+                    value2.clone(),
+                    Round::Nil,
+                    v3.address,
+                ),
+            ),
+        },
+    ];
+
+    run_steps(&mut driver, steps)
+}
+
 // Arrive at L36 in round 0, with step precommit and then L28 in round 1 with invalid value.
 //
 // Ev:             NewRound(0)           Timeout(propose)        <polka>                <honest precommit(round=1)>

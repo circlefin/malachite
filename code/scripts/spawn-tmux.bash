@@ -105,7 +105,7 @@ build_folder=${build_folder:-"release"}
 no_reset=${no_reset:-false}
 
 echo "Compiling '$app_name'..."
-cargo build -p "$app_name" --profile "$build_profile"
+cargo build --bin "$app_name" --profile "$build_profile"
 
 if [ $? -ne 0 ]; then
     echo "Error: Compilation failed"
@@ -147,7 +147,7 @@ for ((NODE=0; NODE<NODES_COUNT; NODE++)); do
         cmd_prefix="rust-lldb --source =(echo \"$lldb_script\") ./target/$build_folder/$app_name -- "
         tmux send-keys -t "$pane" "$cmd_prefix start --home '$NODE_HOME'" Enter
     elif [ "$profile" = true ] && [ "$NODE" -eq 0 ]; then
-        cmd_prefix="cargo instruments -p $app_name --profile $build_profile --template $profile_template --time-limit 60000 --output '$NODE_HOME/traces/' --"
+        cmd_prefix="cargo instruments --bin $app_name --profile $build_profile --template $profile_template --time-limit 60000 --output '$NODE_HOME/traces/' --"
         tmux send-keys -t "$pane" "sleep $NODE" Enter
         tmux send-keys -t "$pane" "unbuffer $cmd_prefix start --home '$NODE_HOME' 2>&1 | tee '$NODE_HOME/logs/node.log'" Enter
     else

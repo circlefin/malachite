@@ -6,7 +6,7 @@ use async_recursion::async_recursion;
 use async_trait::async_trait;
 use derive_where::derive_where;
 use eyre::eyre;
-use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
+use ractor::{Actor, ActorProcessingErr, ActorRef};
 use tokio::time::Instant;
 use tracing::{debug, error, error_span, info, warn};
 
@@ -25,7 +25,7 @@ use malachitebft_sync::{
 };
 
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
-use crate::network::{NetworkEvent, NetworkMsg, NetworkRef, Status};
+use crate::network::{NetworkEvent, NetworkMsg, NetworkRef};
 use crate::sync::Msg as SyncMsg;
 use crate::sync::SyncRef;
 use crate::util::events::{Event, TxEvent};
@@ -99,9 +99,6 @@ pub enum Msg<Ctx: Context> {
 
     /// Received and assembled the full value proposed by a validator
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
-
-    /// Get the status of the consensus state machine
-    GetStatus(RpcReplyPort<Status<Ctx>>),
 }
 
 impl<Ctx: Context> From<NetworkEvent<Ctx>> for Msg<Ctx> {
@@ -164,6 +161,7 @@ impl Timeouts {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum Phase {
     Unstarted,
+    Ready,
     Running,
     Recovering,
 }
@@ -272,7 +270,7 @@ where
         info!(count = %state.msg_buffer.len(), "Replaying buffered messages");
 
         while let Some(msg) = state.msg_buffer.pop() {
-            info!("Replaying buffered message: {msg:?}");
+            debug!("Replaying buffered message: {msg:?}");
 
             if let Err(e) = self.handle_msg(myself.clone(), state, msg).await {
                 error!("Error when handling buffered message: {e:?}");
@@ -353,7 +351,12 @@ where
                 match event {
                     NetworkEvent::Listening(address) => {
                         info!(%address, "Listening");
-                        self.host.cast(HostMsg::ConsensusReady(myself.clone()))?;
+
+                        if state.phase == Phase::Unstarted {
+                            state.phase = Phase::Ready;
+
+                            self.host.cast(HostMsg::ConsensusReady(myself.clone()))?;
+                        }
                     }
 
                     NetworkEvent::PeerConnected(peer_id) => {
@@ -464,6 +467,7 @@ where
                             height,
                             round,
                             vote_set,
+                            polka_certificates,
                         }),
                     ) => {
                         if vote_set.votes.is_empty() {
@@ -477,7 +481,7 @@ where
                             .process_input(
                                 &myself,
                                 state,
-                                ConsensusInput::VoteSetResponse(vote_set),
+                                ConsensusInput::VoteSetResponse(vote_set, polka_certificates),
                             )
                             .await
                         {
@@ -577,17 +581,6 @@ where
 
                 if let Err(e) = result {
                     error!("Error when processing ReceivedProposedValue message: {e}");
-                }
-
-                Ok(())
-            }
-
-            Msg::GetStatus(reply_to) => {
-                let history_min_height = self.get_history_min_height().await?;
-                let status = Status::new(state.consensus.height(), history_min_height);
-
-                if let Err(e) = reply_to.send(status) {
-                    error!("Error when replying to GetStatus message: {e}");
                 }
 
                 Ok(())
@@ -776,13 +769,6 @@ where
             reply_to
         })
         .map_err(|e| eyre!("Failed to verify vote extension: {e:?}").into())
-    }
-
-    async fn get_history_min_height(&self) -> Result<Ctx::Height, ActorProcessingErr> {
-        ractor::call!(self.host, |reply_to| HostMsg::GetHistoryMinHeight {
-            reply_to
-        })
-        .map_err(|e| eyre!("Failed to get earliest block height: {e:?}").into())
     }
 
     async fn wal_append(
@@ -1028,6 +1014,8 @@ where
             }
 
             Effect::Decide(certificate, extensions, r) => {
+                assert!(!certificate.aggregated_signature.signatures.is_empty());
+
                 self.wal_flush(phase).await?;
 
                 self.tx_event.send(|| Event::Decided(certificate.clone()));
@@ -1064,15 +1052,28 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::SendVoteSetResponse(request_id_str, height, round, vote_set, r) => {
+            Effect::SendVoteSetResponse(
+                request_id_str,
+                height,
+                round,
+                vote_set,
+                polka_certificates,
+                r,
+            ) => {
                 let Some(sync) = self.sync.as_ref() else {
                     warn!("Responding to a vote set request but sync actor is not available");
                     return Ok(r.resume_with(()));
                 };
 
                 let vote_count = vote_set.len();
-                let response =
-                    Response::VoteSetResponse(VoteSetResponse::new(height, round, vote_set));
+                let polka_certificates_count = polka_certificates.len();
+
+                let response = Response::VoteSetResponse(VoteSetResponse::new(
+                    height,
+                    round,
+                    vote_set,
+                    polka_certificates,
+                ));
 
                 let request_id = InboundRequestId::new(request_id_str);
 
@@ -1089,8 +1090,9 @@ where
                         eyre!("Error when notifying Sync about vote set response: {e:?}")
                     })?;
 
-                self.tx_event
-                    .send(|| Event::SentVoteSetResponse(height, round, vote_count));
+                self.tx_event.send(|| {
+                    Event::SentVoteSetResponse(height, round, vote_count, polka_certificates_count)
+                });
 
                 Ok(r.resume_with(()))
             }
@@ -1218,7 +1220,6 @@ fn should_buffer<Ctx: Context>(msg: &Msg<Ctx>) -> bool {
     !matches!(
         msg,
         Msg::StartHeight(..)
-            | Msg::GetStatus(..)
             | Msg::NetworkEvent(NetworkEvent::Listening(..))
             | Msg::NetworkEvent(NetworkEvent::PeerConnected(..))
             | Msg::NetworkEvent(NetworkEvent::PeerDisconnected(..))

@@ -225,7 +225,8 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
     Config {
         moniker: format!("app-{}", index),
         consensus: ConsensusConfig {
-            value_payload: ValuePayload::PartsOnly,
+            // Current channel app does not support proposal-only value payload properly as Init does not include valid_round
+            value_payload: ValuePayload::ProposalAndParts,
             vote_sync: VoteSyncConfig {
                 mode: VoteSyncMode::RequestResponse,
             },
@@ -264,7 +265,6 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
                         .collect()
                 },
                 discovery: settings.discovery,
-                transport: settings.transport,
                 ..Default::default()
             },
         },

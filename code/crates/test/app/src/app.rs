@@ -4,12 +4,12 @@ use eyre::eyre;
 use tokio::time::sleep;
 use tracing::{error, info};
 
-use malachitebft_app_channel::app::config::ValuePayload;
+// use malachitebft_app_channel::app::config::ValuePayload;
 use malachitebft_app_channel::app::streaming::StreamContent;
 use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::{Round, Validity};
 use malachitebft_app_channel::app::types::sync::RawDecidedValue;
-use malachitebft_app_channel::app::types::ProposedValue;
+use malachitebft_app_channel::app::types::{LocallyProposedValue, ProposedValue};
 use malachitebft_app_channel::{AppMsg, Channels, ConsensusMsg, NetworkMsg};
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{Genesis, Height, TestContext};
@@ -40,10 +40,7 @@ pub async fn run(
                 // We can simply respond by telling the engine to start consensus
                 // at the next height, and provide it with the genesis validator set
                 if reply
-                    .send(ConsensusMsg::StartHeight(
-                        start_height,
-                        genesis.validator_set.clone(),
-                    ))
+                    .send((start_height, genesis.validator_set.clone()))
                     .is_err()
                 {
                     error!("Failed to send ConsensusReady reply");
@@ -56,6 +53,7 @@ pub async fn run(
                 height,
                 round,
                 proposer,
+                reply_value,
             } => {
                 info!(%height, %round, %proposer, "Started round");
 
@@ -63,6 +61,18 @@ pub async fn run(
                 state.current_height = height;
                 state.current_round = round;
                 state.current_proposer = Some(proposer);
+
+                // If we have already built or seen a value for this height and round,
+                // send it back to consensus. This may happen when we are restarting after a crash.
+                if let Some(proposal) = state.store.get_undecided_proposal(height, round).await? {
+                    info!(%height, %round, "Replaying already known proposed value: {}", proposal.value.id());
+
+                    if reply_value.send(Some(proposal)).is_err() {
+                        error!("Failed to send undecided proposal");
+                    }
+                } else {
+                    let _ = reply_value.send(None);
+                }
             }
 
             // At some point, we may end up being the proposer for that round, and the engine
@@ -81,16 +91,31 @@ pub async fn run(
 
                 // Here it is important that, if we have previously built a value for this height and round,
                 // we send back the very same value.
+                // However, for testing purposes a node may be configured to be a byzantine proposer.
+                // In that case, we will not send back the previously built value but a new one.
                 let proposal = match state.get_previously_built_value(height, round).await? {
                     Some(proposal) => {
-                        info!(value = %proposal.value.id(), "Re-using previously built value");
-                        proposal
+                        if state.config.test.is_byzantine_proposer {
+                            let new_proposal = state.propose_value(height, round).await?;
+                            error!(
+                                "XXX Not Re-using previously built value {:} but a new one {:}",
+                                proposal.value.id(),
+                                new_proposal.value.id()
+                            );
+                            new_proposal
+                        } else {
+                            proposal
+                        }
                     }
                     None => {
                         // If we have not previously built a value for that very same height and round,
                         // we need to create a new value to propose and send it back to consensus.
-                        info!("Building a new value to propose");
-                        state.propose_value(height, round).await?
+                        let proposal = state.propose_value(height, round).await?;
+                        error!(
+                            "XXX Building a new value to propose {:}",
+                            proposal.value.id()
+                        );
+                        proposal
                     }
                 };
 
@@ -99,15 +124,13 @@ pub async fn run(
                     error!("Failed to send GetValue reply");
                 }
 
-                assert_eq!(
-                    state.config.consensus.value_payload,
-                    ValuePayload::PartsOnly,
-                    "The test application only support parts-only mode for now"
-                );
+                // The POL round is always nil when we propose a newly built value.
+                // See L15/L18 of the Tendermint algorithm.
+                let pol_round = Round::Nil;
 
                 // Now what's left to do is to break down the value to propose into parts,
                 // and send those parts over the network to our peers, for them to re-assemble the full value.
-                for stream_message in state.stream_proposal(proposal) {
+                for stream_message in state.stream_proposal(proposal, pol_round) {
                     info!(%height, %round, "Streaming proposal part: {stream_message:?}");
                     channels
                         .network
@@ -159,7 +182,8 @@ pub async fn run(
                 reply,
             } => {
                 info!(
-                    height = %certificate.height, round = %certificate.round,
+                    height = %certificate.height,
+                    round = %certificate.round,
                     value = %certificate.value_id,
                     "Consensus has decided on value"
                 );
@@ -249,32 +273,37 @@ pub async fn run(
                 height,
                 round,
                 valid_round,
-                address,
+                address: _,
                 value_id,
             } => {
-                assert_eq!(
-                    state.config.consensus.value_payload,
-                    ValuePayload::PartsOnly,
-                    "The test application only support parts-only mode for now"
-                );
+                info!(%height, %valid_round, "Restreaming existing proposal...");
 
-                info!(%height, %round, %value_id, "Restreaming existing proposal...");
+                assert_ne!(valid_round, Round::Nil, "valid_round should not be nil");
 
-                let Some(proposal) = state
-                    .get_proposal(height, round, valid_round, address, value_id)
-                    .await
-                else {
-                    error!(%height, %round, %value_id, "Failed to find proposal to restream");
-                    return Ok(());
-                };
+                //  Look for a proposal at valid_round (should be already stored)
+                let proposal = state
+                    .store
+                    .get_undecided_proposal(height, valid_round)
+                    .await?;
 
-                for stream_message in state.stream_proposal(proposal) {
-                    info!(%height, %round, %value_id, "Publishing proposal part: {stream_message:?}");
+                if let Some(proposal) = proposal {
+                    assert_eq!(proposal.value.id(), value_id);
 
-                    channels
-                        .network
-                        .send(NetworkMsg::PublishProposalPart(stream_message))
-                        .await?;
+                    let locally_proposed_value = LocallyProposedValue {
+                        height,
+                        round,
+                        value: proposal.value,
+                    };
+
+                    for stream_message in state.stream_proposal(locally_proposed_value, valid_round)
+                    {
+                        info!(%height, %valid_round, "Publishing proposal part: {stream_message:?}");
+
+                        channels
+                            .network
+                            .send(NetworkMsg::PublishProposalPart(stream_message))
+                            .await?;
+                    }
                 }
             }
 

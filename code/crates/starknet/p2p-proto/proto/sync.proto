@@ -58,6 +58,14 @@ message CommitCertificate {
     AggregatedSignature aggregated_signature = 5;
 }
 
+message PolkaCertificate {
+    uint64 fork_id = 1;
+    uint64 block_number = 2;
+    uint32 round = 3;
+    Hash block_hash = 4;
+    repeated Vote votes = 5;
+}
+
 message ProposedValue {
     uint64 fork_id = 1;
     uint64 block_number = 2;
@@ -79,6 +87,7 @@ message VoteSetResponse {
   uint64 block_number = 2;
   uint32 round = 3;
   VoteSet vote_set = 4;
+  repeated PolkaCertificate polka_certificates = 5;
 }
 
 message VoteSet {

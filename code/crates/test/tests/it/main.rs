@@ -58,6 +58,7 @@ fn temp_dir(id: NodeId) -> PathBuf {
 pub struct NodeInfo {
     start_height: Height,
     home_dir: PathBuf,
+    is_byzantine_proposer: bool,
 }
 
 #[async_trait]
@@ -78,6 +79,7 @@ impl NodeRunner<TestContext> for TestRunner {
                     NodeInfo {
                         start_height: node.start_height,
                         home_dir: temp_dir(node.id),
+                        is_byzantine_proposer: node.is_byzantine_proposer,
                     },
                 )
             })
@@ -134,13 +136,16 @@ impl TestRunner {
             moniker: format!("node-{}", node),
             logging: LoggingConfig::default(),
             consensus: ConsensusConfig {
-                value_payload: ValuePayload::PartsOnly,
+                // Current test app does not support proposal-only value payload properly as Init does not include valid_round
+                value_payload: ValuePayload::ProposalAndParts,
                 vote_sync: VoteSyncConfig {
                     mode: VoteSyncMode::RequestResponse,
                 },
-                timeouts: TimeoutConfig::default(),
+                timeouts: TimeoutConfig {
+                    timeout_step: Duration::from_secs(2),
+                    ..Default::default()
+                },
                 p2p: P2pConfig {
-                    transport,
                     protocol,
                     discovery: DiscoveryConfig::default(),
                     listen_addr: transport.multiaddr("127.0.0.1", self.consensus_base_port + i),
@@ -163,7 +168,10 @@ impl TestRunner {
                     .unwrap(),
             },
             runtime: RuntimeConfig::single_threaded(),
-            test: TestConfig::default(),
+            test: TestConfig {
+                is_byzantine_proposer: self.nodes_info[&node].is_byzantine_proposer,
+                ..TestConfig::default()
+            },
         }
     }
 }

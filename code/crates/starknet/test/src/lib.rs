@@ -5,10 +5,11 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use malachitebft_starknet_host::config::Config;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
+use malachitebft_config::mempool_load::UniformLoadConfig;
+use malachitebft_starknet_host::config::Config;
 use malachitebft_starknet_host::node::{ConfigSource, Handle, StarknetNode};
 use malachitebft_starknet_host::types::{Height, MockContext, PrivateKey, Validator, ValidatorSet};
 use malachitebft_test_framework::HasTestRunner;
@@ -150,7 +151,6 @@ impl TestRunner {
                 },
                 timeouts: TimeoutConfig::default(),
                 p2p: P2pConfig {
-                    transport,
                     protocol,
                     discovery: DiscoveryConfig::default(),
                     listen_addr: transport.multiaddr("127.0.0.1", self.consensus_base_port + i),
@@ -163,7 +163,6 @@ impl TestRunner {
             },
             mempool: MempoolConfig {
                 p2p: P2pConfig {
-                    transport,
                     protocol,
                     listen_addr: transport.multiaddr("127.0.0.1", self.mempool_base_port + i),
                     persistent_peers: (0..self.nodes_count)
@@ -174,6 +173,9 @@ impl TestRunner {
                 },
                 max_tx_count: 10000,
                 gossip_batch_size: 100,
+                load: MempoolLoadConfig {
+                    load_type: MempoolLoadType::UniformLoad(UniformLoadConfig::default()),
+                },
             },
             value_sync: ValueSyncConfig {
                 enabled: true,
@@ -192,7 +194,7 @@ impl TestRunner {
     }
 }
 
-use malachitebft_config::TransportProtocol;
+use malachitebft_config::{TransportProtocol, ValuePayload};
 
 fn transport_from_env(default: TransportProtocol) -> TransportProtocol {
     if let Ok(protocol) = std::env::var("MALACHITE_TRANSPORT") {
@@ -225,10 +227,10 @@ fn make_validators<S>(
 }
 
 fn apply_params(config: &mut Config, params: &TestParams) {
+    config.consensus.value_payload = ValuePayload::PartsOnly;
     config.value_sync.enabled = params.enable_value_sync;
     config.consensus.p2p.protocol = params.protocol;
     config.consensus.timeouts.timeout_step = params.timeout_step;
-    config.consensus.value_payload = params.value_payload;
     config.test.max_block_size = params.block_size;
     config.test.tx_size = params.tx_size;
     config.test.txs_per_part = params.txs_per_part;

@@ -8,7 +8,7 @@ use malachitebft_app_channel::app::streaming::StreamContent;
 use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::{Height as _, Round, Validity};
 use malachitebft_app_channel::app::types::sync::RawDecidedValue;
-use malachitebft_app_channel::app::types::ProposedValue;
+use malachitebft_app_channel::app::types::{LocallyProposedValue, ProposedValue};
 use malachitebft_app_channel::{AppMsg, Channels, ConsensusMsg, NetworkMsg};
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{Height, TestContext};
@@ -20,7 +20,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
         match msg {
             // The first message to handle is the `ConsensusReady` message, signaling to the app
             // that Malachite is ready to start consensus
-            AppMsg::ConsensusReady { reply } => {
+            AppMsg::ConsensusReady { reply, .. } => {
                 let start_height = state
                     .store
                     .max_decided_value_height()
@@ -35,10 +35,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 // We can simply respond by telling the engine to start consensus
                 // at the current height, which is initially 1
                 if reply
-                    .send(ConsensusMsg::StartHeight(
-                        start_height,
-                        state.get_validator_set().clone(),
-                    ))
+                    .send((start_height, state.get_validator_set().clone()))
                     .is_err()
                 {
                     error!("Failed to send ConsensusReady reply");
@@ -51,13 +48,28 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 height,
                 round,
                 proposer,
+                reply_value,
             } => {
                 info!(%height, %round, %proposer, "Started round");
+
+                reload_log_level(height, round);
 
                 // We can use that opportunity to update our internal state
                 state.current_height = height;
                 state.current_round = round;
                 state.current_proposer = Some(proposer);
+
+                // If we have already built or seen a value for this height and round,
+                // send it back to consensus. This may happen when we are restarting after a crash.
+                if let Some(proposal) = state.store.get_undecided_proposal(height, round).await? {
+                    info!(%height, %round, "Replaying already known proposed value: {}", proposal.value.id());
+
+                    if reply_value.send(Some(proposal)).is_err() {
+                        error!("Failed to send undecided proposal");
+                    }
+                } else {
+                    let _ = reply_value.send(None);
+                }
             }
 
             // At some point, we may end up being the proposer for that round, and the engine
@@ -94,9 +106,13 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     error!("Failed to send GetValue reply");
                 }
 
+                // The POL round is always nil when we propose a newly built value.
+                // See L15/L18 of the Tendermint algorithm.
+                let pol_round = Round::Nil;
+
                 // Now what's left to do is to break down the value to propose into parts,
                 // and send those parts over the network to our peers, for them to re-assemble the full value.
-                for stream_message in state.stream_proposal(proposal) {
+                for stream_message in state.stream_proposal(proposal, pol_round) {
                     info!(%height, %round, "Streaming proposal part: {stream_message:?}");
 
                     channels
@@ -211,18 +227,21 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 info!(%height, %round, "Processing synced value");
 
                 let value = decode_value(value_bytes);
+                let proposed_value = ProposedValue {
+                    height,
+                    round,
+                    valid_round: Round::Nil,
+                    proposer,
+                    value,
+                    validity: Validity::Valid,
+                };
 
-                if reply
-                    .send(ProposedValue {
-                        height,
-                        round,
-                        valid_round: Round::Nil,
-                        proposer,
-                        value,
-                        validity: Validity::Valid,
-                    })
-                    .is_err()
-                {
+                state
+                    .store
+                    .store_undecided_proposal(proposed_value.clone())
+                    .await?;
+
+                if reply.send(proposed_value).is_err() {
                     error!("Failed to send ProcessSyncedValue reply");
                 }
             }
@@ -262,26 +281,33 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 height,
                 round,
                 valid_round,
-                address,
-                value_id,
+                address: _,
+                value_id: _,
             } => {
-                info!(%height, %round, "Restreaming existing proposal...");
+                //  Look for a proposal at valid_round (should be already stored)
+                info!(%height, %valid_round, "Restreaming existing propos*al...");
 
-                let Some(proposal) = state
-                    .get_proposal(height, round, valid_round, address, value_id)
-                    .await
-                else {
-                    error!(%height, %round, "Failed to find proposal to restream");
-                    return Ok(());
-                };
+                let proposal = state
+                    .store
+                    .get_undecided_proposal(height, valid_round)
+                    .await?;
 
-                for stream_message in state.stream_proposal(proposal) {
-                    info!(%height, %round, "Publishing proposal part: {stream_message:?}");
+                if let Some(proposal) = proposal {
+                    let locally_proposed_value = LocallyProposedValue {
+                        height,
+                        round,
+                        value: proposal.value,
+                    };
 
-                    channels
-                        .network
-                        .send(NetworkMsg::PublishProposalPart(stream_message))
-                        .await?;
+                    for stream_message in state.stream_proposal(locally_proposed_value, valid_round)
+                    {
+                        info!(%height, %valid_round, "Publishing proposal part: {stream_message:?}");
+
+                        channels
+                            .network
+                            .send(NetworkMsg::PublishProposalPart(stream_message))
+                            .await?;
+                    }
                 }
             }
 
@@ -305,4 +331,19 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
     // from consensus has been closed, meaning that the consensus actor has died.
     // We can do nothing but return an error here.
     Err(eyre!("Consensus channel closed unexpectedly"))
+}
+
+/// Reload the tracing subscriber log level based on the current height and round.
+/// This is useful to increase the log level when debugging a specific height and round.
+///
+/// If the round is greater than 0, we increase the log level to `Debug`.
+/// If we are back to round 0, we reset the log level to the default one.
+fn reload_log_level(_height: Height, round: Round) {
+    use malachitebft_test_cli::logging;
+
+    if round.as_i64() > 0 {
+        logging::reload(logging::LogLevel::Debug);
+    } else {
+        logging::reset();
+    }
 }

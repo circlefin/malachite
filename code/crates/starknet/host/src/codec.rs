@@ -1,18 +1,17 @@
 use bytes::Bytes;
-use malachitebft_app::streaming::StreamId;
-use malachitebft_starknet_p2p_types::{Felt, FeltExt, Signature};
 use prost::Message;
 
 use malachitebft_codec::Codec;
+use malachitebft_core_consensus::{PeerId, ProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{
-    AggregatedSignature, CommitCertificate, CommitSignature, Round, SignedVote, Validity,
+    AggregatedSignature, CommitCertificate, CommitSignature, PolkaCertificate, Round, SignedVote,
+    Validity,
 };
-use malachitebft_engine::util::streaming::{StreamContent, StreamMessage};
+use malachitebft_engine::util::streaming::{StreamContent, StreamId, StreamMessage};
+use malachitebft_starknet_p2p_types::{Felt, FeltExt, Signature};
 use malachitebft_sync::{
     self as sync, ValueRequest, ValueResponse, VoteSetRequest, VoteSetResponse,
 };
-
-use malachitebft_core_consensus::{PeerId, ProposedValue, SignedConsensusMsg};
 
 use crate::proto::{self as proto, Error as ProtoError, Protobuf};
 use crate::types::{self as p2p, Address, BlockHash, Height, MockContext, ProposalPart, Vote};
@@ -288,11 +287,16 @@ pub fn decode_sync_response(
             let vote_set = vote_set_response
                 .vote_set
                 .ok_or_else(|| ProtoError::missing_field::<proto::sync::VoteSet>("vote_set"))?;
+            let polka_certificates = vote_set_response.polka_certificates;
 
             sync::Response::VoteSetResponse(VoteSetResponse::new(
                 height,
                 round,
                 decode_vote_set(vote_set)?,
+                polka_certificates
+                    .into_iter()
+                    .map(decode_polka_certificate)
+                    .collect::<Result<Vec<_>, _>>()?,
             ))
         }
     };
@@ -326,6 +330,11 @@ pub fn encode_sync_response(
                         .as_u32()
                         .expect("round should not be nil"),
                     vote_set: Some(encode_vote_set(&vote_set_response.vote_set)?),
+                    polka_certificates: vote_set_response
+                        .polka_certificates
+                        .iter()
+                        .map(encode_polka_certificate)
+                        .collect::<Result<Vec<_>, _>>()?,
                 },
             )),
         },
@@ -489,7 +498,7 @@ impl Codec<AggregatedSignature<MockContext>> for ProtobufCodec {
     }
 }
 
-pub fn decode_certificate(
+pub fn decode_commit_certificate(
     certificate: proto::sync::CommitCertificate,
 ) -> Result<CommitCertificate<MockContext>, ProtoError> {
     let value_id = if let Some(block_hash) = certificate.block_hash {
@@ -518,7 +527,7 @@ pub fn decode_certificate(
     Ok(certificate)
 }
 
-pub fn encode_certificate(
+pub fn encode_commit_certificate(
     certificate: &CommitCertificate<MockContext>,
 ) -> Result<proto::sync::CommitCertificate, ProtoError> {
     Ok(proto::sync::CommitCertificate {
@@ -536,13 +545,60 @@ impl Codec<CommitCertificate<MockContext>> for ProtobufCodec {
     type Error = ProtoError;
 
     fn decode(&self, bytes: Bytes) -> Result<CommitCertificate<MockContext>, Self::Error> {
-        decode_certificate(
+        decode_commit_certificate(
             proto::sync::CommitCertificate::decode(bytes).map_err(ProtoError::Decode)?,
         )
     }
 
     fn encode(&self, msg: &CommitCertificate<MockContext>) -> Result<Bytes, Self::Error> {
-        encode_certificate(msg).map(|proto| proto.encode_to_bytes())
+        encode_commit_certificate(msg).map(|proto| proto.encode_to_bytes())
+    }
+}
+
+pub(crate) fn encode_polka_certificate(
+    certificate: &PolkaCertificate<MockContext>,
+) -> Result<proto::sync::PolkaCertificate, ProtoError> {
+    Ok(proto::sync::PolkaCertificate {
+        fork_id: certificate.height.fork_id,
+        block_number: certificate.height.block_number,
+        block_hash: Some(certificate.value_id.to_proto()?),
+        round: certificate.round.as_u32().unwrap(),
+        votes: certificate
+            .votes
+            .iter()
+            .map(encode_vote)
+            .collect::<Result<_, _>>()?,
+    })
+}
+
+pub(crate) fn decode_polka_certificate(
+    certificate: proto::sync::PolkaCertificate,
+) -> Result<PolkaCertificate<MockContext>, ProtoError> {
+    let block_hash = certificate
+        .block_hash
+        .ok_or_else(|| ProtoError::missing_field::<proto::sync::PolkaCertificate>("block_hash"))?;
+
+    Ok(PolkaCertificate {
+        height: Height::new(certificate.block_number, certificate.fork_id),
+        round: Round::new(certificate.round),
+        value_id: BlockHash::from_proto(block_hash)?,
+        votes: certificate
+            .votes
+            .into_iter()
+            .map(decode_vote)
+            .collect::<Result<Vec<_>, _>>()?,
+    })
+}
+
+impl Codec<PolkaCertificate<MockContext>> for ProtobufCodec {
+    type Error = ProtoError;
+
+    fn decode(&self, bytes: Bytes) -> Result<PolkaCertificate<MockContext>, Self::Error> {
+        decode_polka_certificate(proto::sync::PolkaCertificate::decode(bytes)?)
+    }
+
+    fn encode(&self, msg: &PolkaCertificate<MockContext>) -> Result<Bytes, Self::Error> {
+        encode_polka_certificate(msg).map(|proto| proto.encode_to_bytes())
     }
 }
 
@@ -551,7 +607,7 @@ pub fn encode_synced_value(
 ) -> Result<proto::sync::SyncedValue, ProtoError> {
     Ok(proto::sync::SyncedValue {
         value_bytes: synced_value.value_bytes.clone(),
-        certificate: Some(encode_certificate(&synced_value.certificate)?),
+        certificate: Some(encode_commit_certificate(&synced_value.certificate)?),
     })
 }
 
@@ -566,7 +622,7 @@ pub fn decode_synced_value(
 
     Ok(sync::RawDecidedValue {
         value_bytes: proto.value_bytes,
-        certificate: decode_certificate(certificate)?,
+        certificate: decode_commit_certificate(certificate)?,
     })
 }
 
@@ -602,8 +658,8 @@ pub(crate) fn decode_vote_set(
         votes: vote_set
             .signed_votes
             .into_iter()
-            .filter_map(decode_vote)
-            .collect(),
+            .map(decode_vote)
+            .collect::<Result<Vec<_>, _>>()?,
     })
 }
 
@@ -611,8 +667,8 @@ pub(crate) fn encode_vote(vote: &SignedVote<MockContext>) -> Result<proto::Vote,
     vote.message.to_proto()
 }
 
-pub(crate) fn decode_vote(msg: proto::Vote) -> Option<SignedVote<MockContext>> {
+pub(crate) fn decode_vote(msg: proto::Vote) -> Result<SignedVote<MockContext>, ProtoError> {
     let signature = Signature::test();
-    let vote = Vote::from_proto(msg).ok()?;
-    Some(SignedVote::new(vote, signature))
+    let vote = Vote::from_proto(msg)?;
+    Ok(SignedVote::new(vote, signature))
 }

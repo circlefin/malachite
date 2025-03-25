@@ -21,9 +21,6 @@ pub struct P2pConfig {
     #[serde(default)]
     pub discovery: DiscoveryConfig,
 
-    /// Transport protocol to use
-    pub transport: TransportProtocol,
-
     /// The type of pub-sub protocol to use for consensus
     pub protocol: PubSubProtocol,
 
@@ -40,13 +37,13 @@ impl Default for P2pConfig {
             listen_addr: Multiaddr::empty(),
             persistent_peers: vec![],
             discovery: Default::default(),
-            transport: Default::default(),
             protocol: Default::default(),
             rpc_max_size: ByteSize::mib(10),
             pubsub_max_size: ByteSize::mib(4),
         }
     }
 }
+
 /// Peer Discovery configuration options
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DiscoveryConfig {
@@ -151,8 +148,7 @@ impl FromStr for Selector {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 pub enum TransportProtocol {
     #[default]
     Tcp,
@@ -309,6 +305,95 @@ mod gossipsub {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "load_type", rename_all = "snake_case")]
+pub enum MempoolLoadType {
+    NoLoad,
+    UniformLoad(mempool_load::UniformLoadConfig),
+    NonUniformLoad(mempool_load::NonUniformLoadConfig),
+}
+
+impl Default for MempoolLoadType {
+    fn default() -> Self {
+        Self::NoLoad
+    }
+}
+
+pub mod mempool_load {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+    pub struct NonUniformLoadConfig {
+        /// Base transaction count
+        pub base_count: i32,
+
+        /// Base transaction size
+        pub base_size: i32,
+
+        /// How much the transaction count can vary
+        pub count_variation: std::ops::Range<i32>,
+
+        /// How much the transaction size can vary
+        pub size_variation: std::ops::Range<i32>,
+
+        /// Chance of generating a spike.
+        /// e.g. 0.1 = 10% chance of spike
+        pub spike_probability: f64,
+
+        /// Multiplier for spike transactions
+        /// e.g. 10 = 10x more transactions during spike
+        pub spike_multiplier: usize,
+
+        /// Range of intervals between generating load, in milliseconds
+        pub sleep_interval: std::ops::Range<u64>,
+    }
+
+    impl Default for NonUniformLoadConfig {
+        fn default() -> Self {
+            Self {
+                base_count: 100,
+                base_size: 256,
+                count_variation: -100..200,
+                size_variation: -64..128,
+                spike_probability: 0.10,
+                spike_multiplier: 2,
+                sleep_interval: 1000..5000,
+            }
+        }
+    }
+
+    #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, serde::Deserialize)]
+    pub struct UniformLoadConfig {
+        /// Interval at which to generate load
+        #[serde(with = "humantime_serde")]
+        pub interval: Duration,
+
+        /// Number of transactions to generate
+        pub count: usize,
+
+        /// Size of each generated transaction
+        pub size: usize,
+    }
+
+    impl Default for UniformLoadConfig {
+        fn default() -> Self {
+            Self {
+                interval: Duration::from_secs(1),
+                count: 100,
+                size: 256,
+            }
+        }
+    }
+}
+
+/// Mempool configuration options
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct MempoolLoadConfig {
+    /// Mempool loading type
+    #[serde(flatten)]
+    pub load_type: MempoolLoadType,
+}
+
 /// Mempool configuration options
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct MempoolConfig {
@@ -320,6 +405,9 @@ pub struct MempoolConfig {
 
     /// Maximum number of transactions to gossip at once in a batch
     pub gossip_batch_size: usize,
+
+    /// Mempool load configuration options
+    pub load: MempoolLoadConfig,
 }
 
 /// ValueSync configuration options
@@ -379,8 +467,19 @@ pub enum VoteSyncMode {
     /// The lagging node sends a request to a peer for the missing votes
     #[default]
     RequestResponse,
+
     /// Nodes rebroadcast their last vote to all peers
     Rebroadcast,
+}
+
+impl VoteSyncMode {
+    pub fn is_request_response(&self) -> bool {
+        matches!(self, Self::RequestResponse)
+    }
+
+    pub fn is_rebroadcast(&self) -> bool {
+        matches!(self, Self::Rebroadcast)
+    }
 }
 
 /// Message types required by consensus to deliver the value being proposed
@@ -550,6 +649,8 @@ pub struct TestConfig {
     pub max_retain_blocks: usize,
     #[serde(default)]
     pub vote_extensions: VoteExtensionsConfig,
+    #[serde(default)]
+    pub is_byzantine_proposer: bool,
 }
 
 impl Default for TestConfig {
@@ -562,6 +663,7 @@ impl Default for TestConfig {
             exec_time_per_tx: Duration::from_millis(1),
             max_retain_blocks: 1000,
             vote_extensions: VoteExtensionsConfig::default(),
+            is_byzantine_proposer: false,
         }
     }
 }
