@@ -63,7 +63,7 @@ different modes of operation to handle value propagation:
 2) **PartsOnly**
 3) **ProposalAndParts**
 
-A specific mode can be set as a `value_payload` consensus parameter (TODO: not sure if this is right code reference):
+A specific mode can be set as a `value_payload` consensus parameter:
 
 ```rust
 /// Consensus parameters.
