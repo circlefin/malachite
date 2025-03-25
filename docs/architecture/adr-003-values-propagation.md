@@ -61,6 +61,30 @@ Note: Not sure where to mention this but seems relevant. There have been some sl
 
 ## Current design
 
+### Building Blocks
+_(WIP)_
+
+There are a number of entities that are involved in the value propagation process.
+- Application - this is the software that uses the consensus. It is responsible for:
+  - providing the value to be propagated
+  - validating received values
+  - providing data availability for values (both undecided and decided)
+- Consensus Engine - a component that is responsible for managing the interactions between the consensus core and the application, and between the consensus core and the networking layer. For the ones involved in the value propagation process, the consensus engine is responsible for:
+  - propagating values and/or proposals via the networking layer
+  - receiving values and/or proposals from the networking layer
+  - relaying values and/or proposals to the consensus core
+- Consensus Core - this is the component that implements the tendermint consensus protocol.
+- Networking - this is the component that is responsible for transmitting messages between nodes.
+(Currently not shown in the diagrams)
+
+Malachite provides implementations for the consensus core, engine and networking. Applications can integrate with:
+
+- consensus core - see [ADR-004](./adr-004-coroutine-effect-system.md)
+- engine and core integration - farcaster?
+- engine, core, networking integration - channel and starknet test examples?
+
+### Value Payload Modes
+
 At the moment, Malachite consensus implementation is supporting three
 different modes of operation to handle value propagation: 
 1) **ProposalOnly**
@@ -86,7 +110,7 @@ pub struct Params<Ctx: Context> {
 
 In the following, we examine each approach to understand how the consensus 
 interacts with the environment, depending on the mode of operation adopted. 
-Specifically, we focus on the consensus inputs related to value propagation. 
+Specifically, we focus on the core consensus inputs related to value propagation.
 In general consensus inputs are how the consensus reacts to the events from 
 the environment. A complete overview of all inputs processes by the consensus 
 can be found in [ADR-004 Coroutine-Based Effect System for Consensus](./adr-004-coroutine-effect-system.md).
@@ -121,7 +145,7 @@ This approach most closely follows the original Tendermint algorithm.
 
 It is expected to be used by applications that have small values to propose. The maximum value size is defined by the p2p network configuration. For example, if libp2p gossipsub is used, this will be the `max_transmit_size` configured for the gossipsub protocol.
 
-To reduce the size of the vote messages it is recommended that `id(V)` method implementation should return a short representation of the value.
+To reduce the size of the vote messages it is recommended that `id(V)` method implementation returns a short representation of the value.
 
 ```mermaid
 sequenceDiagram
@@ -152,7 +176,7 @@ sequenceDiagram
 
 ```
 
-In this mode, the consensus core generates the `GetValue` effect to request a value from the application. The application responds by sending the `Propose(LocallyProposedValue(V))` input to the consensus core.
+In this mode, the consensus core generates the `GetValue()` effect to request a value from the application. The application responds by sending the `Propose(LocallyProposedValue(V))` input to the consensus core.
 
 The consensus core then generates a `Proposal(SignedProposal(V))` message that includes the actual
 value `V` received via `LocallyProposedValue(V)`, and generates a `Publish`
