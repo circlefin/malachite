@@ -36,6 +36,9 @@ pub async fn on_start_height<Ctx>(
 where
     Ctx: Context,
 {
+    debug_assert_eq!(state.driver.height(), height);
+    debug_assert_eq!(state.driver.round(), Round::Nil);
+
     let round = Round::new(0);
     info!(%height, "Starting new height");
 
