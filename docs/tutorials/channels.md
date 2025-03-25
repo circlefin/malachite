@@ -1032,7 +1032,7 @@ sequenceDiagram
    alt Validator
    Consensus->>Application: ReceivedProposalPart
    activate Application
-   note right of Application: try to compile proposal from parts
+   note right of Application: Try to compile proposal from parts
    Application->>Consensus: ProposedValue
    deactivate Application
    else
