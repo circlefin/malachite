@@ -2647,6 +2647,7 @@ dependencies = [
 name = "informalsystems-malachitebft-test-mempool"
 version = "0.0.1"
 dependencies = [
+ "eyre",
  "futures",
  "informalsystems-malachitebft-metrics",
  "informalsystems-malachitebft-proto",

@@ -5,8 +5,7 @@ use tokio::task::JoinHandle;
 use tracing::warn;
 
 use malachitebft_config::{
-    self as config, MempoolConfig, MempoolLoadConfig, TransportProtocol, ValueSyncConfig,
-    VoteSyncConfig,
+    self as config, MempoolConfig, MempoolLoadConfig, ValueSyncConfig, VoteSyncConfig,
 };
 use malachitebft_core_consensus::VoteSyncMode;
 use malachitebft_core_types::ValuePayload;
@@ -232,16 +231,15 @@ async fn spawn_network_actor(
             ..Default::default()
         },
         idle_connection_timeout: Duration::from_secs(15 * 60),
-        transport: match TransportProtocol::extract_from(&cfg.consensus.p2p.listen_addr) {
-            Some(TransportProtocol::Tcp) => malachitebft_network::TransportProtocol::Tcp,
-            Some(TransportProtocol::Quic) => malachitebft_network::TransportProtocol::Quic,
-            None => {
-                panic!(
-                    "No valid transport protocol found in listen address: {}",
-                    cfg.consensus.p2p.listen_addr
-                )
-            }
-        },
+        transport: malachitebft_network::TransportProtocol::from_multiaddr(
+            &cfg.consensus.p2p.listen_addr,
+        )
+        .unwrap_or_else(|| {
+            panic!(
+                "No valid transport protocol found in listen address: {}",
+                cfg.consensus.p2p.listen_addr
+            )
+        }),
         pubsub_protocol: match cfg.consensus.p2p.protocol {
             config::PubSubProtocol::GossipSub(_) => gossip::PubSubProtocol::GossipSub,
             config::PubSubProtocol::Broadcast => gossip::PubSubProtocol::Broadcast,
@@ -321,16 +319,6 @@ async fn spawn_mempool_network_actor(
         listen_addr: cfg.mempool.p2p.listen_addr.clone(),
         persistent_peers: cfg.mempool.p2p.persistent_peers.clone(),
         idle_connection_timeout: Duration::from_secs(15 * 60),
-        transport: match TransportProtocol::extract_from(&cfg.mempool.p2p.listen_addr) {
-            Some(TransportProtocol::Tcp) => malachitebft_test_mempool::TransportProtocol::Tcp,
-            Some(TransportProtocol::Quic) => malachitebft_test_mempool::TransportProtocol::Quic,
-            None => {
-                panic!(
-                    "No valid transport protocol found in listen address: {}",
-                    cfg.mempool.p2p.listen_addr
-                )
-            }
-        },
     };
 
     MempoolNetwork::spawn(keypair, config, registry.clone(), span.clone())

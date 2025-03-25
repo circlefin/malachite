@@ -156,17 +156,6 @@ pub enum TransportProtocol {
 }
 
 impl TransportProtocol {
-    pub fn extract_from(multiaddr: &Multiaddr) -> Option<TransportProtocol> {
-        for protocol in multiaddr.protocol_stack() {
-            match protocol {
-                "tcp" => return Some(TransportProtocol::Tcp),
-                "quic" => return Some(TransportProtocol::Quic),
-                _ => {}
-            }
-        }
-        None
-    }
-
     pub fn multiaddr(&self, host: &str, port: usize) -> Multiaddr {
         match self {
             Self::Tcp => format!("/ip4/{host}/tcp/{port}").parse().unwrap(),
