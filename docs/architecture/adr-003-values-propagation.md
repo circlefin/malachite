@@ -58,7 +58,7 @@ implementation responsible for **Value Propagation**.
 TODO: Not sure where to mention this but seems relevant. There have been some slight changes to the Tendermint consensus:
 - `getValue()` is asynchronous and the propose timeout is passed as a parameter in order to let the builder know how long it has to build a value.
 - `valid(v)` is checked when a `PROPOSAL` is available but before the algorithm runs. This is equivalent in a way with `PROPOSAL(h, r, v, vr, valid)` where valid = {Valid | Invalid}.
-
+- `upon ⟨PROPOSAL, h, r, v, vr⟩ from proposer(h, r)` represents the receiving of a `PROPOSAL` message for a round `r` of height `h` for vale `v`. This is a necessary condition for the success of round `v` with the decision of the proposed value `v`.
 ## Current design
 
 ### Building Blocks
@@ -85,7 +85,7 @@ Malachite provides implementations for the consensus core, engine and networking
 
 ### Value Payload Modes
 
-At the moment, Malachite consensus implementation is supporting three
+At the moment, Malachite supports three
 different modes of operation to handle value propagation: 
 1) **ProposalOnly**
 2) **PartsOnly**
@@ -324,7 +324,7 @@ If the round of consensus is successful, the value `v` carried by the round's
 `PROPOSAL` message is the value delivered to the application as the decision
 for that height of consensus.
 
-Malachite, in `ProposalOnly` mode, when the application returns a full value in 
+Malachite, in [`ProposalOnly` mode](#proposalonly), when the application returns a full value in 
 `Propose(LocallyProposedValue<Ctx>)`, follows this approach.
 > [!WARNING]
 > As mentioned in the [ProposalOnly](#proposalonly) section, this mode is under development and not yet fully supported in Malachite.
