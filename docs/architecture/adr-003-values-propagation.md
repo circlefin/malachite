@@ -128,22 +128,24 @@ To reduce the size of the vote messages it is recommended that `id(V)` method im
 sequenceDiagram
     box Proposer
       participant A1 as Application
-      participant C1 as Consensus
+      participant C1 as Consensus Core
+      participant E1 as Consensus Engine
     end
 
-    participant N as Network
-    
     box Other nodes
-      participant C2 as Consensus
+      participant E2 as Consensus Engine
+      participant C2 as Consensus Core
       participant A2 as Application
     end
 
     C1->>A1: getValue()
     A1->>C1: Propose(LocallyProposedValue(V))
-    C1->>N: Proposal(SignedProposal(V))
-    N->>C2: Proposal(SignedProposal(V))
+    C1->>E1: Effect::Publish(SignedProposal(V))
+    E1->>E2: Proposal(SignedProposal(V))
+
+    E2->>C2: Proposal(SignedProposal(V))
     C2-->>A2: Proposal(V)
-    A2-->>C2: ProposedValue(V, validity)
+    A2-->>C2: ProposedValue(ProposedValue(V, validity))
 
     Note over C2: Has V _and its validity_ → can proceed
 
@@ -179,23 +181,24 @@ In order to handle restarts the application should persist the undecided values 
 sequenceDiagram
     box Proposer
       participant A1 as Application
-      participant C1 as Consensus
+      participant C1 as Consensus Core
+      participant E1 as Consensus Engine
     end
-
-    participant N as Network
     
     box Other nodes
-      participant C2 as Consensus
+      participant E2 as Consensus Engine
+      participant C2 as Consensus Core
       participant A2 as Application
     end
 
     C1->>A1: getValue()
     A1->>C1: Propose(LocallyProposedValue(v))
-    C1->>N: Proposal(SignedProposal(v))
-    N->>C2: Proposal(SignedProposal(v))
+    C1->>E1: Effect::Publish(SignedProposal(v))
+    E1->>E2: Proposal(SignedProposal(v))
 
-    A1->>N: Full value V
-    N->>A2: Full value V
+    E2->>C2: Proposal(SignedProposal(v))
+    A1->>E2: Full value V
+    E2->>A2: Full value V
     A2->>C2: ProposedValue(ProposedValue(v, validity))
 
     Note over C2: Has v and its validity → can proceed
@@ -218,30 +221,30 @@ In addition the application doesn't need to define a `Proposal` protocol message
 sequenceDiagram
     box Proposer
       participant A1 as Application
-      participant C1 as Consensus
+      participant C1 as Consensus Core
+      participant E1 as Consensus Engine
     end
 
-    participant N as Network
-
     box Other nodes
-      participant C2 as Consensus
+      participant E2 as Consensus Engine
+      participant C2 as Consensus Core
       participant A2 as Application
     end
 
-    C1->>A1: getValue
+    C1->>A1: getValue()
     A1->>C1: Propose(LocallyProposedValue(v))
-    
-    A1->>N: Full value v
-    N->>A2: Full value v
+    C1--xE1: Effect::Publish(SignedProposal(v))
 
-    A2->>C2: ProposedValue(ProposedValue<Ctx>, ValueOrigin) (with v)
+    A1->>E2: Full value V
+    E2->>A2: Full value V
+    A2->>C2: ProposedValue(ProposedValue(v, validity))
 
     Note over C2: Has v and its validity → can proceed
 ```
 
 This mode is very similar to `ProposalandParts` but the difference is that when receiving 
 `Propose(LocallyProposedValue(v))` , and after processed by the consensus state machine,
-the `Publish` effect is not created and a proposal message is not sent through the network.
+the `Publish` effect is not emitted and a proposal message is not sent through the network.
 
 At the receiving side, consensus waits to receive `ProposedValue(ProposedValue(v, validity))` input from the application and when this happens the consensus considers the proposal as complete and proceeds. The application generates this input upon receiving the full value `V` from the network. As a result, in this case value propagation is totally delegated to the application.
 
