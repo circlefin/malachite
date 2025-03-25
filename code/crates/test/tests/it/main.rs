@@ -146,7 +146,6 @@ impl TestRunner {
                     ..Default::default()
                 },
                 p2p: P2pConfig {
-                    transport,
                     protocol,
                     discovery: DiscoveryConfig::default(),
                     listen_addr: transport.multiaddr("127.0.0.1", self.consensus_base_port + i),

@@ -289,7 +289,6 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
                         .collect()
                 },
                 discovery: settings.discovery,
-                transport: settings.transport,
                 ..Default::default()
             },
         },
@@ -309,7 +308,6 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
                     enabled: false,
                     ..settings.discovery
                 },
-                transport: settings.transport,
                 ..Default::default()
             },
             max_tx_count: 10000,
@@ -388,7 +386,6 @@ fn make_distributed_config(
                         .collect()
                 },
                 discovery: settings.discovery,
-                transport: settings.transport,
                 ..Default::default()
             },
         },
@@ -401,7 +398,6 @@ fn make_distributed_config(
                     enabled: false,
                     ..DiscoveryConfig::default()
                 },
-                transport: settings.transport,
                 ..Default::default()
             },
             max_tx_count: 10000,

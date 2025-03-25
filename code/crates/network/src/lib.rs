@@ -118,6 +118,19 @@ pub enum TransportProtocol {
     Quic,
 }
 
+impl TransportProtocol {
+    pub fn from_multiaddr(multiaddr: &Multiaddr) -> Option<TransportProtocol> {
+        for protocol in multiaddr.protocol_stack() {
+            match protocol {
+                "tcp" => return Some(TransportProtocol::Tcp),
+                "quic" => return Some(TransportProtocol::Quic),
+                _ => {}
+            }
+        }
+        None
+    }
+}
+
 /// sync event details:
 ///
 /// peer1: sync               peer2: network       peer2: sync           peer1: network
