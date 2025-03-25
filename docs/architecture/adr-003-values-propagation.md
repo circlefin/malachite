@@ -55,7 +55,7 @@ implementations.
 In this document, we focus on the core parts of the consensus 
 implementation responsible for **Value Propagation**.
 
-Note: Not sure where to mention this but seems relevant. There have been some slight changes to the Tendermint consensus:
+TODO: Not sure where to mention this but seems relevant. There have been some slight changes to the Tendermint consensus:
 - `getValue()` is asynchronous and the propose timeout is passed as a parameter in order to let the builder know how long it has to build a value.
 - `valid(v)` is checked when a `PROPOSAL` is available but before the algorithm runs. This is equivalent in a way with `PROPOSAL(h, r, v, vr, valid)` where valid = {Valid | Invalid}.
 
@@ -139,7 +139,8 @@ The following notations are used in the following sections:
 - `v` is a short representation of the value `V`, it may be for example the hash of the value.
 
 ### ProposalOnly
-Note: This mode is under development and not yet fully supported in Malachite (see the dotted lines in the diagram).
+>[!WARNING]
+> This mode is under development and not yet fully supported in Malachite (see the dotted lines in the diagram).
 
 This approach most closely follows the original Tendermint algorithm.
 
@@ -325,6 +326,8 @@ for that height of consensus.
 
 Malachite, in `ProposalOnly` mode, when the application returns a full value in 
 `Propose(LocallyProposedValue<Ctx>)`, follows this approach.
+> [!WARNING]
+> As mentioned in the [ProposalOnly](#proposalonly) section, this mode is under development and not yet fully supported in Malachite.
 
 
 ### Consensus by Reference
