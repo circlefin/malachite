@@ -231,15 +231,13 @@ async fn spawn_network_actor(
             ..Default::default()
         },
         idle_connection_timeout: Duration::from_secs(15 * 60),
-        transport: malachitebft_network::TransportProtocol::from_multiaddr(
-            &cfg.consensus.p2p.listen_addr,
-        )
-        .unwrap_or_else(|| {
-            panic!(
-                "No valid transport protocol found in listen address: {}",
-                cfg.consensus.p2p.listen_addr
-            )
-        }),
+        transport: gossip::TransportProtocol::from_multiaddr(&cfg.consensus.p2p.listen_addr)
+            .unwrap_or_else(|| {
+                panic!(
+                    "No valid transport protocol found in listen address: {}",
+                    cfg.consensus.p2p.listen_addr
+                )
+            }),
         pubsub_protocol: match cfg.consensus.p2p.protocol {
             config::PubSubProtocol::GossipSub(_) => gossip::PubSubProtocol::GossipSub,
             config::PubSubProtocol::Broadcast => gossip::PubSubProtocol::Broadcast,
