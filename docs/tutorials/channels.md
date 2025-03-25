@@ -351,7 +351,7 @@ package = "informalsystems-malachitebft-test-cli"
 
 Before handling consensus messages, let's start by preparing the application state.
 
-```
+```rust
 // src/main.rs
 
 mod state;
@@ -379,7 +379,7 @@ pub struct State {
 }
 ```
 
-We will use two other crates called `store` and `streaming`. The `store` crate provide a database called `Store` which uses [redb](https://docs.rs/redb/latest/redb/) under the hood and offer the following interface:
+We will use two other modules called `store` and `streaming`. The `store` crate provide a database called `Store` which uses [redb](https://docs.rs/redb/latest/redb/) under the hood and offer the following interface:
 
 ```rust
     /// Creates a new store/database
@@ -433,9 +433,9 @@ We will use two other crates called `store` and `streaming`. The `store` crate p
     ) -> Result<Option<ProposedValue<TestContext>>, StoreError>
 ```
 
-Note that the implementation of this store is up to the application developer. One could have used a simple in-memory store.
+Note that the implementation of this store is up to the application developer, who may choose a different underlying database such as RocksDB, LevelDB, or [Fjall](https://github.com/fjall-rs/fjall).
 
-The `streaming` crate provides a `PartStreamsMap` data structure. This is used to keep track of the proposal parts that are being streamed over the network. It is also used to re-assemble the full proposal once all parts have been received. It provides the following interface:
+The `streaming` module provides a `PartStreamsMap` data structure. This is used to keep track of the proposal parts that are being streamed over the network. It is also used to re-assemble the full proposal once all parts have been received. It provides the following interface:
 
 ```rust
     /// Initialize the data structure
@@ -449,9 +449,9 @@ The `streaming` crate provides a `PartStreamsMap` data structure. This is used t
     ) -> Option<ProposalParts>
 ```
 
-Please refer to the respective crate files for the full implementation of the [`store`](/code/examples/channel/src/store.rs) and [`streaming`](/code/examples/channel/src/streaming.rs) crates.
+Please refer to [`store`](/code/examples/channel/src/store.rs) and [`streaming`](/code/examples/channel/src/streaming.rs) modules for their full implementation.
 
-Now, we can go through the implementation of the application state. Let's start with helper methods that will be used by the state implementation. Note that the way a proposal is split here is specific to our case (where the value is an integer). In a real application, the value is likely to be more complex and the splitting logic would be different.
+Now, we can go through the implementation of the application state. Let's start with helper methods that will be used by the state implementation. Note that the way a proposal is split here is specific to our case (where the value is a natural number and we split it by factoring it into its prime factors). In a real application, the value is likely to be more complex and the splitting logic would be different.
 
 ```rust
 // src/state.rs
