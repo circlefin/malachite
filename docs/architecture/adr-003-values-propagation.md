@@ -80,7 +80,7 @@ There are a number of entities that are involved in the value propagation proces
   * Relaying proposals to the consensus core
   * Relaying values to the application
 * **Consensus Core:** The component in Malachite that implements the Tendermint consensus protocol.
-* **Networking:** The component responsible for transmitting messages between nodes (currently not shown in the diagrams).
+* **Networking:** The component responsible for transmitting messages between nodes (not shown in the diagrams below).
 
 Malachite provides implementations for the consensus core, engine and networking. Applications can integrate with Malachite via various interfaces:
 
