@@ -6,6 +6,7 @@ use std::error::Error;
 use std::ops::ControlFlow;
 use std::time::Duration;
 
+use eyre::eyre;
 use futures::StreamExt;
 use libp2p::metrics::{Metrics, Recorder};
 use libp2p::swarm::{self, SwarmEvent};
@@ -86,7 +87,6 @@ pub struct Config {
     pub listen_addr: Multiaddr,
     pub persistent_peers: Vec<Multiaddr>,
     pub idle_connection_timeout: Duration,
-    pub transport: TransportProtocol,
 }
 
 impl Config {
@@ -99,6 +99,19 @@ impl Config {
 pub enum TransportProtocol {
     Tcp,
     Quic,
+}
+
+impl TransportProtocol {
+    pub fn from_multiaddr(multiaddr: &Multiaddr) -> Option<TransportProtocol> {
+        for protocol in multiaddr.protocol_stack() {
+            match protocol {
+                "tcp" => return Some(TransportProtocol::Tcp),
+                "quic" => return Some(TransportProtocol::Quic),
+                _ => {}
+            }
+        }
+        None
+    }
 }
 
 /// An event that can be emitted by the gossip layer
@@ -128,8 +141,8 @@ pub async fn spawn(
 ) -> Result<Handle, BoxError> {
     let mut swarm = registry.with_prefix(METRICS_PREFIX, |registry| -> Result<_, BoxError> {
         let builder = SwarmBuilder::with_existing_identity(keypair).with_tokio();
-        match config.transport {
-            TransportProtocol::Tcp => Ok(builder
+        match TransportProtocol::from_multiaddr(&config.listen_addr) {
+            Some(TransportProtocol::Tcp) => Ok(builder
                 .with_tcp(
                     libp2p::tcp::Config::new().nodelay(true), // Disable Nagle's algorithm
                     libp2p::noise::Config::new,
@@ -140,13 +153,19 @@ pub async fn spawn(
                 .with_behaviour(|kp| Behaviour::new_with_metrics(kp, registry))?
                 .with_swarm_config(|cfg| config.apply(cfg))
                 .build()),
-            TransportProtocol::Quic => Ok(builder
+            Some(TransportProtocol::Quic) => Ok(builder
                 .with_quic()
                 .with_dns()?
                 .with_bandwidth_metrics(registry)
                 .with_behaviour(|kp| Behaviour::new_with_metrics(kp, registry))?
                 .with_swarm_config(|cfg| config.apply(cfg))
                 .build()),
+
+            None => Err(eyre!(
+                "No valid transport protocol found in listen address: {}",
+                config.listen_addr
+            )
+            .into()),
         }
     })?;
 
