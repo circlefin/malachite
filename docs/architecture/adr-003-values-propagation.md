@@ -181,9 +181,9 @@ sequenceDiagram
     C1->>E1: Effect::Publish(SignedProposal(V))
     E1->>E2: Proposal(SignedProposal(V))
 
-    E2-->>A2: Proposal(V)
-    A2-->>C2: ProposedValue(ProposedValue(V, validity))
     E2->>C2: Proposal(SignedProposal(V))
+    C2-->>A2: Proposal(V)
+    A2-->>C2: ProposedValue(ProposedValue(V, validity))
 
     Note over C2: Has V _and its validity_ → can proceed
 
