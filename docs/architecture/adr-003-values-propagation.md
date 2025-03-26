@@ -4,7 +4,7 @@
 
 * 2025-03-18: Context and description of the problem
 * 2025-03-21: Current design description
-* 2025-03-25: Diagrams and more detailed description of the three operation options
+* 2025-03-25: Diagrams and more detailed description of the three modes of operation
 * 2025-03-26: Reviewed & accepted
 
 ## Overview
