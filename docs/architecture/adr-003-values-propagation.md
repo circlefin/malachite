@@ -203,7 +203,7 @@ Consensus core verifies the proposal is properly signed by the Proposer for the 
 
 In this setup, the application only needs to provide a value to the consensus core through `Propose(LocallyProposedValue(V))`, and value propagation is entirely handled by the networking module. The consensus core only processes proposal messages that already contain the full value.
 
-This setup is the simplest, as the application is only responsible for providing the value to be ordered. However, if the value is large, the resulting proposal messages will also be large and must be propagated as such through the network. Any optimizations for value propagation, such as chunking the value into smaller parts and reassembling it on the receiving side, must be implemented at the networking level. This is because both the consensus and application remain unaware of how the value is transmitted.
+This setup is the simplest, as the application is only responsible for providing the value to be ordered. However, if the value is large, the resulting proposal messages will also be large and must be propagated as such through the network. Any optimizations for value propagation, such as chunking the value into smaller parts and reassembling it on the receiving side, must be implemented outside the consensus core. This is because both the consensus and application remain unaware of how the value is transmitted.
 
 The other two modes of operation are designed to support such optimizations at the application level rather than at the network level. We will explore how this is achieved in the following sections.
 
