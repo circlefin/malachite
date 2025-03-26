@@ -92,8 +92,8 @@ Malachite provides implementations for the consensus core, engine and networking
 
 Malachite deviates from the vanilla Tendermint consensus in these two key methods:
 
-* `getValue()` is asynchronous and the propose timeout is passed as a parameter in order to let the value (`V`) builder know how long it has to create it.
-* `valid(v)` is checked when a `PROPOSAL` is available but before the algorithm runs. This is equivalent in a way with `PROPOSAL(h, r, v, vr, valid)` where `valid = {true | false}` with `valid(v)` already checked.
+* `getValue()` is asynchronous and the propose timeout is passed as a parameter in order to let the value (`V`) builder know how long it has to create it. See [Malachite Async GetValue][getvalue-changes] for more details.
+* `valid(v)` is checked when a `PROPOSAL` is available but before the algorithm runs. This is equivalent in a way with `PROPOSAL(h, r, v, vr, valid)` where `valid = {true | false}` with `valid(v)` already checked. See [Malachite Validity Checks][validity-changes] for more details.
 
 ### Value Payload Modes
 
@@ -404,9 +404,13 @@ Accepted and implemented as of `ec9c421` (March 2025).
 ## References
 
 * [Tendermint consensus specification][consensus-spec]
+* [Malachite Async GetValue][getvalue-changes]
+* [Malachite Validity Checks][validity-changes]
 * [ADR 001 - Architecture][adr-001]
 * [ADR 004 - Coroutine-Based Effect System for Consensus][adr-004]
 
 [consensus-spec]: ../../specs/consensus/README.md
+[getvalue-changes]: ../../specs/consensus/design.md#asynchronous-getvalue-and-proposevaluev
+[validity-changes]: ../../specs/consensus/design.md#validity-checks
 [adr-001]: ./adr-001-architecture.md
 [adr-004]: ./adr-004-coroutine-effect-system.md
