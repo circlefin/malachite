@@ -77,7 +77,8 @@ There are a number of entities that are involved in the value propagation proces
 * **Consensus Engine:** The component responsible for managing the interactions between the consensus core and the application, and between the consensus core and the networking layer. For the ones involved in the value propagation process, the consensus engine is responsible for:
   * Propagating values and/or proposals via the networking layer
   * Receiving values and/or proposals from the networking layer
-  * Relaying values and/or proposals to the consensus core (pending redesign in #943)
+  * Relaying proposals to the consensus core
+  * Relaying values to the application
 * **Consensus Core:** The component in Malachite that implements the Tendermint consensus protocol.
 * **Networking:** The component responsible for transmitting messages between nodes (currently not shown in the diagrams).
 
