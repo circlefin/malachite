@@ -186,7 +186,7 @@ value `V` received via `LocallyProposedValue(V)`, and generates a `Publish`
 effect. This effect is handled by the consensus engine, and the proposal,
 with the full value embedded in it, is disseminated through the network.
 
-Upon receiving a `Proposal(SignedProposal(V))` message from the network, the engine  passes it directly to the consensus core for processing.
+Upon receiving a `Proposal(SignedProposal(V))` message from the network, the engine passes it directly to the consensus core for processing.
 Consensus core verifies the proposal is properly signed by the Proposer for the current height and round.
 
 _(Implementation in progress) The consensus engine (or core?) will also pass the unsigned `Proposal(V)` message to the application for validation. Once validation is performed the application generates the `ProposedValue(V, validity)` input and pass it to the consensus core._
