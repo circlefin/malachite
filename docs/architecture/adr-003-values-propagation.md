@@ -167,6 +167,7 @@ sequenceDiagram
     E1->>A1: GetValue()
     A1->>E1: Propose(LocallyProposedValue(V))
     E1->>C1: Propose(LocallyProposedValue(V))
+    C1->>C1: Proposal(SignedProposal(V))
     C1->>E1: Effect::Publish(SignedProposal(V))
     E1->>E2: Proposal(SignedProposal(V))
 
@@ -221,16 +222,19 @@ sequenceDiagram
     C1->>E1: Effect::GetValue()
     E1->>A1: GetValue()
 
+    A1->>E2: Full value V
+    E2->>A2: Full value V
+
     A1->>E1: Propose(LocallyProposedValue(v))
     E1->>C1: Propose(LocallyProposedValue(v))
+    C1->>C1: Proposal(SignedProposal(V))
     C1->>E1: Effect::Publish(SignedProposal(v))
+
+    A2->>E2: ProposedValue(ProposedValue(v, validity))
+    E2->>C2: ProposedValue(ProposedValue(v, validity))
     E1->>E2: Proposal(SignedProposal(v))
 
     E2->>C2: Proposal(SignedProposal(v))
-    A1->>E2: Full value V
-    E2->>A2: Full value V
-    A2->>E2: ProposedValue(ProposedValue(v, validity))
-    E2->>C2: ProposedValue(ProposedValue(v, validity))
 
     Note over C2: Has v and its validity → can proceed
 ```
@@ -264,14 +268,18 @@ sequenceDiagram
 
     C1->>E1: Effect::GetValue()
     E1->>A1: GetValue()
-    A1->>E1: Propose(LocallyProposedValue(v))
-    E1->>C1: Propose(LocallyProposedValue(v))
-    C1--xE1: Effect::Publish(SignedProposal(v))
 
     A1->>E2: Full value V
     E2->>A2: Full value V
+
+    A1->>E1: Propose(LocallyProposedValue(v))
+    E1->>C1: Propose(LocallyProposedValue(v))
+    C1->>C1: Proposal(SignedProposal(V))
+    C1--xE1: Effect::Publish(SignedProposal(v))
+
     A2->>E2: ProposedValue(ProposedValue(v, validity))
     E2->>C2: ProposedValue(ProposedValue(v, validity))
+    C2->>C2: Proposal(SignedProposal(v))
 
     Note over C2: Has v and its validity → can proceed
 ```
