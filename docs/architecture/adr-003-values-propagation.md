@@ -257,7 +257,9 @@ This confirmation is delivered via the `ProposedValue(ProposedValue(v, validity)
 
 ### PartsOnly
 
-The same requirements as for `ProposalAndParts` apply. The only difference is that the application must also include `valid_round` in the dissemination protocol so that consensus core can distinguish between L22 and L28 in the consensus algorithm.
+In this mode of operation, the application is responsible to define and implement the dissemination protocol for the full value `V` and its metadata (`height`, `round` and possibly `valid_round`). It is expected that the application splits the value `V` into parts, signs each part individually, and disseminates them throughout the network. At the receiving end, the application should verify that the parts are properly signed by the Proposer for the `height` and `round` as derived from the parts and reassemble the full value `V`.
+The application communicates to consensus that a value is available using a reference `v` to `V`. `v` is expected to be short representation of `V` and a possible (but not mandatory) implementation for `id` is `id(v) = v`.
+The application must also include `valid_round` in the dissemination protocol so that consensus core can distinguish between L22 and L28 in the consensus algorithm.
 
 In addition the application doesn't need to define a `Proposal` protocol message as one is not used. The reason is that all the information that would be carried in such a message can be derived from `V` and its metadata.
 
