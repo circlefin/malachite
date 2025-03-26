@@ -411,6 +411,7 @@ Accepted and implemented as of `ec9c421` (March 2025).
 * [ADR 004 - Coroutine-Based Effect System for Consensus][adr-004]
 
 [consensus-spec]: ../../specs/consensus/README.md
+[tendermint-code]: ../../specs/consensus/pseudo-code.md
 [getvalue-changes]: ../../specs/consensus/design.md#asynchronous-getvalue-and-proposevaluev
 [validity-changes]: ../../specs/consensus/design.md#validity-checks
 [adr-001]: ./adr-001-architecture.md
