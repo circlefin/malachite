@@ -158,9 +158,9 @@ sequenceDiagram
     end
 
     box Other nodes
-      participant C2 as Consensus Core
-      participant E2 as Consensus Engine
       participant A2 as Application
+      participant E2 as Consensus Engine
+      participant C2 as Consensus Core
     end
 
     C1->>E1: Effect::GetValue()
@@ -171,9 +171,9 @@ sequenceDiagram
     C1->>E1: Effect::Publish(SignedProposal(V))
     E1->>E2: Proposal(SignedProposal(V))
 
-    E2->>C2: Proposal(SignedProposal(V))
     E2-->>A2: Proposal(V)
     A2-->>C2: ProposedValue(ProposedValue(V, validity))
+    E2->>C2: Proposal(SignedProposal(V))
 
     Note over C2: Has V _and its validity_ → can proceed
 
@@ -214,9 +214,9 @@ sequenceDiagram
     end
 
     box Other nodes
-      participant C2 as Consensus Core
-      participant E2 as Consensus Engine
       participant A2 as Application
+      participant E2 as Consensus Engine
+      participant C2 as Consensus Core
     end
 
     C1->>E1: Effect::GetValue()
@@ -261,9 +261,9 @@ sequenceDiagram
     end
 
     box Other nodes
-      participant C2 as Consensus Core
-      participant E2 as Consensus Engine
       participant A2 as Application
+      participant E2 as Consensus Engine
+      participant C2 as Consensus Core
     end
 
     C1->>E1: Effect::GetValue()
