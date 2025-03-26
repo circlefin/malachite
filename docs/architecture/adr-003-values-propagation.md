@@ -357,7 +357,7 @@ the actual full value `V`, but a *reference* to it—such as a hash or identifie
 The responsibility of propagating the full value `V` is delegated to the application 
 or an external component.
 
-Here, the `PROPOSAL(h, r, v, vr)` message carries only the identifier `v`, 
+Here, the `PROPOSAL(h, r, v, vr)` message carries only the reference `v`,
 not the full value `V`. To propose a value, a process must:
 1. Disseminate `V` to other nodes through a separate mechanism (e.g., application layer), and
 2. Provide the reference `v` to the consensus protocol for inclusion in the `PROPOSAL`.
@@ -366,7 +366,7 @@ On the receiving side, a process that gets a `PROPOSAL` carrying reference `v`
 must *ensure* that the corresponding value `V` is available before voting for
 the proposal. Importantly, consensus does *not* need to have 
 the full value `V` locally in order to proceed—only assurance that the full value 
-is available or will be available is required. 
+is available or will be available when required. 
 
 Since consensus proceeds on references rather than values, the benefit of encoding 
 votes with `id(v)` becomes less significant, as `v` is already a compact identifier.
