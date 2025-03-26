@@ -315,75 +315,63 @@ Tendermint in particular, discussing the pros and cons of each of them.
 
 ### Consensus by Value
 
-In this approach, the consensus implementation plays both the
-**Value Propagation** and **Value Decision** roles.
+In this approach, the actual value that will eventually be delivered to 
+the application is disseminated *through the consensus protocol itself*. 
 
-This means that a `PROPOSAL(h, r, v, vr)` consensus message broadcast by a
-process carries its proposed value `v`.
-Other processes learn the proposed value `v` when they receive the associated
-`PROPOSAL` message.
+Specifically, the `PROPOSAL(h, r, v, vr)` message broadcast by a process 
+carries the full value `v` being proposed. Other processes learn `v` by 
+receiving this message. Since vote messages (`PREVOTE`, `PRECOMMIT`) only 
+include a compact identifier `id(v)`, a process cannot vote for a value 
+unless it has first received the full value `v` via the `PROPOSAL` message.
 
-As previously discussed, the vote messages (`PREVOTE` and `PRECOMMIT`) do not
-carry the proposed value `v`, but a short representation `id(v)` of it.
-A process cannot sign a vote for `id(v)` if it does not know the value `v`.
-So receiving `PROPOSAL` message carrying the value `v` is a requirement for
-signing a vote for `id(v)`.
+If the consensus round is successful, the value `v` carried in the round’s 
+`PROPOSAL` message is delivered to the application as the decided value for 
+that height.
 
-If the round of consensus is successful, the value `v` carried by the round's
-`PROPOSAL` message is the value delivered to the application as the decision
-for that height of consensus.
+This mode ensures that value dissemination and consensus are tightly coupled: 
+consensus only progresses on values that are known to all participants, as 
+`v` must be received to vote.
 
-Malachite, in [`ProposalOnly` mode](#proposalonly), when the application returns a full value in
-`Propose(LocallyProposedValue<Ctx>)`, follows this approach.
+Malachite follows this approach in [`ProposalOnly` mode](#proposalonly), 
+when the application returns the full value directly in `Propose(LocallyProposedValue<Ctx>)`.
 
 > [!WARNING]
 > As mentioned in the [ProposalOnly](#proposalonly) section, this mode is under development and not yet fully supported in Malachite.
 
-
 ### Consensus by Reference
 
-In this approach, the application is responsible for implementing the
-**Value Propagation** stage,
-while the consensus algorithm implements **Value Decision** stage.
+In this approach, the value disseminated by the consensus protocol is not 
+the actual full value `V`, but a *reference* to it—such as a hash or identifier `v`. 
+The responsibility of propagating the full value `V` is delegated to the application 
+or an external component.
 
-This means that a `PROPOSAL(h, r, v, vr)` consensus message broadcast by a
-process does not carry the value proposed by this process.
-The value `v` ordered by the consensus algorithm is instead a reference, a
-description, or an identifier of the value actually proposed by the process,
-whose propagation is a responsibility of the application.
+Here, the `PROPOSAL(h, r, v, vr)` message carries only the identifier `v`, 
+not the full value `V`. To propose a value, a process must:
+1. Disseminate `V` to other nodes through a separate mechanism (e.g., application layer), and
+2. Provide the reference `v` to the consensus protocol for inclusion in the `PROPOSAL`.
 
-So if a process wants to propose a value `V` using this approach, it has:
-(i) to propagate `V` to all processes, then (ii) produce a reference `v` of the
-proposed value `V` and provide `v` to the consensus implementation.
-On the receive side, a process that receives a `PROPOSAL` carrying `v` should
-ensure that the referenced value `V` has been received as well.
-Only in this case, the process can deliver the `PROPOSAL` for `v` to the
-consensus implementation.
+On the receiving side, a process that gets a `PROPOSAL` carrying reference `v` 
+must *ensure* that the corresponding value `V` is available before voting for
+the proposal. Importantly, consensus does *not* need to have 
+the full value `V` locally in order to proceed—only assurance that the full value 
+is available or will be available is required. 
 
-Since the values that are proposed and decided by consensus are references to
-actually proposed values, `v` is expected to be a short representation of `V`.
-For this reason, the optimization of having vote messages carrying `id(v)`
-instead of `v` becomes pretty much irrelevant.
+Since consensus proceeds on references rather than values, the benefit of encoding 
+votes with `id(v)` becomes less significant, as `v` is already a compact identifier.
 
-If the round of consensus is successful, the reference `v` carried by the
-round's `PROPOSAL` message is the value delivered by the consensus
-implementation as the decision for that height.
-But the actual decision value for that height of consensus is `V`, the value
-referenced by `v`.
-It is `V` and not `v` that should be delivered to the application.
+If the consensus round succeeds, the value `v` is what is decided at the consensus layer. 
+However, the actual value delivered to the application is the corresponding full 
+value `V` that `v` refers to.
 
-Notice, however, that a value can only be decided by the consensus
-implementation if a `PROPOSAL` message carrying that value was previously
-decided.
-As already mentioned, in this approach, a `PROPOSAL` message carrying a
-reference `v` can only be delivered to the consensus implementation if the
-referenced value `V` is known by the process.
-Therefore, a process where `v` is decided by the consensus implementation
-should be able to deliver the actual proposed value `V` to the application.
+Malachite, in `ProposalAndParts` and `PartsOnly` modes, represent a variant of this approach. 
+In these modes, the responsibility for disseminating full values is entirely delegated to 
+the application. When the application provides a `ProposedValue(v)`, it signals to the 
+consensus layer that it possesses the full value `V` corresponding to the identifier `v`, 
+allowing the consensus logic to proceed safely.
 
-Malachite, when used in `ProposalAndParts` and `PartsOnly` modes, represents
-a variant of this approach in which the dissemination of full values is
-entirely delegated to the application.
+Since value dissemination is not handled by the consensus protocol but explicitly by the application, 
+the consensus module only decides on the identifier `v` and informs the application of this decision. 
+It is then the application's responsibility to match `v` to the full value `V` and deliver `V` accordingly.
 
 
 ## Decision
