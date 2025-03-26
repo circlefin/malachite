@@ -5,8 +5,23 @@
 * 2025-03-18: Context and description of the problem
 * 2025-03-21: Current design description
 * 2025-03-25: Diagrams and more detailed description of the three operation options
+* 2025-03-26: Reviewed & accepted
 
-## Summary
+## Overview
+
+This ADR documents the current architecture that we adopted in Malachite
+for handling the propagation of proposed values.
+The main goal of this architecture is to
+enable flexibility for application developers.
+The architectural choice applies both to the core libraries
+as well as to the engine.
+
+Propagation of proposed values among system nodes is often critical for
+system performance. Hence, allowing different optimizations and modes of
+propagation is an important architectural requirement for Malachite.
+We discuss the three existing modes:
+ProposalOnly, PartsOnly, and ProposalAndParts, documenting their
+respective use-case and design.
 
 ## Context
 
@@ -37,9 +52,10 @@ clearly depends on the size of the proposed values. In contrast, the
 **Value Decision** stage is in principle independent of value size and
 incurs roughly a constant cost from the perspective of values.
 
-In Tendermint, **Value Propagation** is performed by default via the
-`PROPOSAL` message. The proposer node broadcasts this message, which
-includes the proposed value `v`.
+In the original, abstract Tendermint algorithm, the `PROPOSAL` message performs
+the task of **Value Propagation**. The proposer node broadcasts this message, which
+includes the proposed value `v`. As the present ADR will show, different implementations
+can achieve this abstract task.
 
 The **Value Decision** phase involves `PREVOTE` and `PRECOMMIT`
 messages—collectively referred to as *votes*. Each vote includes
@@ -99,7 +115,7 @@ Malachite deviates from the [vanilla Tendermint consensus][tendermint-code] in t
 
 ### Value Payload Modes
 
-At the moment, Malachite supports three
+At the moment, the Malachite core consensus library supports three
 different modes of operation to handle value propagation:
 
 1) **ProposalOnly**
@@ -141,7 +157,7 @@ differ depending on the selected mode of operation. Towards this goal, in the fo
 
 ### Possible value types for Consensus Core?
 
-The concrete value type is defined by the context `Ctx` and is passed to consensus as a type parameter. Each application using the consensus will define its own concrete value type.
+The concrete value type is defined by the context `Ctx` and is passed to consensus as a type parameter. Each application using Malachite will define its own concrete value type.
 The value type must implement the `Value` trait, including the `id()` method. Consensus core uses the `id()` when generating the votes.
 
 The following notations are used in the following sections:
@@ -203,9 +219,9 @@ Consensus core verifies the proposal is properly signed by the Proposer for the 
 *(Implementation in progress) The consensus engine implementation should also pass the unsigned `Proposal(V)` message to the application for validation.
 Once validation is performed the application generates the `ProposedValue(V, valid(V))` input and provide it as input to consensus.*
 
-In this setup, the application only needs to provide a value to the consensus core through `Propose(LocallyProposedValue(V))`, and value propagation is entirely handled by the networking module. The consensus core processes proposal messages that already contain the proposed value `V`.
+In this mode, the application only needs to provide a value to the consensus core through `Propose(LocallyProposedValue(V))`, and value propagation is entirely handled by the networking module. The consensus core processes proposal messages that already contain the proposed value `V`.
 
-This setup is the simplest, as the application is only responsible for providing the value to be ordered. However, if the value is large, the resulting proposal messages will also be large and must be propagated as such through the network. Any optimizations for value propagation, such as chunking the value into smaller parts and reassembling it on the receiving side, must be implemented outside the consensus core. This is because both the consensus and application remain unaware of how the value is transmitted.
+This mode is the simplest, as the application is only responsible for providing the value to be ordered. However, if the value is large, the resulting proposal messages will also be large and must be propagated as such through the network. Any optimizations for value propagation, such as chunking the value into smaller parts and reassembling it on the receiving side, must be implemented outside the consensus core. This is because both the consensus and application remain unaware of how the value is transmitted.
 
 The other two modes of operation are designed to support such optimizations at the application level rather than at the network level. 
 We will explore how this is achieved in the following sections.
@@ -309,8 +325,8 @@ At the receiving side, consensus core waits to receive `ProposedValue(ProposedVa
 
 ### Summary
 
-To sum up, in different modes, different inputs are required to achieve the same effect as receiving
-the `PROPOSAL` message in the original Tendermint algorithm.
+To sum up, different modes rely on different inputs to achieve the same effect as
+the original Tendermint algorithm achieve via the `PROPOSAL` message.
 
 * In `ProposalOnly` and `ProposalAndParts`, both `Proposal(SignedProposal(x))` and `ProposedValue(ProposedValue(x, validity))` inputs are needed, with `x == V` for the former and `x == v` for the latter.
 * In `PartsOnly`, only `ProposedValue(ProposedValue(v, validity))` input is enough, as no explicit proposal message is sent over the network.
@@ -326,7 +342,7 @@ proposal must be received by the consensus before `timeoutPropose` expires. This
 to accommodate for the time needed for a complete value production and propagation. This is especially important
 in cases where the value is large and requires longer to be propagated through the network.
 
-## Value Propagation Considerations
+## Additional considerations about value propagation
 
 This section presents a (possibly not comprehensive) list of approaches to
 handle **Value Propagation** for consensus protocols in general, and for
@@ -350,6 +366,8 @@ that height.
 This mode ensures that value dissemination and consensus are tightly coupled: 
 consensus only progresses on values that are known to all participants, as 
 `v` must be received as a condition for a process to vote (on `id(v)`).
+
+#### Relevance to present ADR
 
 Malachite follows this approach in [`ProposalOnly` mode](#proposalonly), 
 when the application returns the full value directly in `Propose(LocallyProposedValue<Ctx>)`.
@@ -382,6 +400,8 @@ If the consensus round succeeds, the value `v` is what is decided at the consens
 However, the actual value delivered to the application is the corresponding full 
 value `V` that `v` refers to.
 
+#### Relevance to present ADR
+
 Malachite, in `ProposalAndParts` and `PartsOnly` modes, represent a variant of this approach. 
 In these modes, the responsibility for disseminating full values is entirely delegated to 
 the application. When the application provides a `ProposedValue(v)`, it signals to the 
@@ -404,7 +424,7 @@ Accepted and implemented as of `ec9c421` (March 2025).
 
 ### Negative
 
-* Codebase and interactions may be unnecessarily complex or difficult to understand.
+* Codebase and interactions may be complex or difficult to understand.
 
 ### Neutral
 

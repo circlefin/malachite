@@ -28,5 +28,5 @@ To suggest an ADR, please make use of the [ADR template](./adr-template.md) prov
 | ADR \#                                 | Description                             | Status   |
 |----------------------------------------|-----------------------------------------|----------|
 | [001](./adr-001-architecture.md)       | High Level Architecture                 | Accepted |
-| [002](./adr-002-node-actor.md)         | Node Architecture using the Actor Model | Proposed |
-| [003](./adr-003-values-propagation.md) | Propagation of Proposed Values          | Proposed |
+| [002](./adr-002-node-actor.md)         | Node Architecture using the Actor Model | Accepted |
+| [003](./adr-003-values-propagation.md) | Propagation of Proposed Values          | Accepted |
