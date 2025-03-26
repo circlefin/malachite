@@ -7,86 +7,88 @@
 
 ## Context
 
-Malachite implements a consensus algorithm, [Tendermint][consensus-spec], 
-which allow processes to agree on a single decided value for each 
-consensus instance or *height*. 
+Malachite implements a consensus algorithm, [Tendermint][consensus-spec],
+which allow processes to agree on a single decided value for each
+consensus instance or *height*.
 
-Possible decision values are provided by the software that uses the consensus, 
-which we refer to generically as the *application*. There are 
-no assumptions about what a **value** represents—its semantics are defined 
-entirely by the application. For example, in blockchain applications, input 
+Possible decision values are provided by the software that uses the consensus,
+which we refer to generically as the *application*. There are
+no assumptions about what a **value** represents—its semantics are defined
+entirely by the application. For example, in blockchain applications, input
 values are blocks proposed to be appended to the blockchain.
 
-Similarly, the consensus algorithm makes no assumptions about the **size** 
-of the proposed values; they may be of arbitrary byte size. However, 
-the application is expected to define a maximum size for proposed values 
-and to configure the consensus parameters accordingly—most notably, 
+Similarly, the consensus algorithm makes no assumptions about the **size**
+of the proposed values; they may be of arbitrary byte size. However,
+the application is expected to define a maximum size for proposed values
+and to configure the consensus parameters accordingly—most notably,
 the durations of timeouts.
 
-When value size becomes a relevant factor, it is important to recognize 
+When value size becomes a relevant factor, it is important to recognize
 that the consensus process comprises two distinct stages:
 
 - **Value Propagation**: Proposed values must be transmitted to all consensus participants.
 - **Value Decision**: One of the successfully propagated values is selected and decided.
 
-The cost of **Value Propagation**, in terms of latency and bandwidth, 
-clearly depends on the size of the proposed values. In contrast, the 
-**Value Decision** stage should be independent of value size and 
+The cost of **Value Propagation**, in terms of latency and bandwidth,
+clearly depends on the size of the proposed values. In contrast, the
+**Value Decision** stage should be independent of value size and
 incur a roughly constant cost.
 
-In Tendermint, **Value Propagation** is performed via the `PROPOSAL` 
-message, which is broadcast by the designated proposer of the round 
+In Tendermint, **Value Propagation** is performed via the `PROPOSAL`
+message, which is broadcast by the designated proposer of the round
 and includes the proposed value `v`.
 
-The **Value Decision** phase involves `PREVOTE` and `PRECOMMIT` 
-messages—collectively referred to as *votes*. Each vote includes 
-either an identifier `id(v)` of the proposed value `v` or the 
-special value `nil`. The function `id(v)` provides a compact 
+The **Value Decision** phase involves `PREVOTE` and `PRECOMMIT`
+messages—collectively referred to as *votes*. Each vote includes
+either an identifier `id(v)` of the proposed value `v` or the
+special value `nil`. The function `id(v)` provides a compact
 representation of `v`, typically implemented as a fixed-size hash.
 
-From this, we can see that **Value Propagation** is more challenging, 
-as it involves disseminating potentially large amounts of data through 
-the network. In contrast, the **Value Decision** phase requires only 
-the transmission of vote messages, which are relatively small and of 
-constant size. As a result, Malachite’s low-level API provides greater 
-flexibility in the value propagation stage to enable more optimized 
-implementations. 
+From this, we can see that **Value Propagation** is more challenging,
+as it involves disseminating potentially large amounts of data through
+the network. In contrast, the **Value Decision** phase requires only
+the transmission of vote messages, which are relatively small and of
+constant size. As a result, Malachite’s low-level API provides greater
+flexibility in the value propagation stage to enable more optimized
+implementations.
 
-In this document, we focus on the core parts of the consensus 
+In this document, we focus on the core parts of the consensus
 implementation responsible for **Value Propagation**.
 
 TODO: Not sure where to mention this but seems relevant. There have been some slight changes to the Tendermint consensus:
 - `getValue()` is asynchronous and the propose timeout is passed as a parameter in order to let the builder know how long it has to build a value.
 - `valid(v)` is checked when a `PROPOSAL` is available but before the algorithm runs. This is equivalent in a way with `PROPOSAL(h, r, v, vr, valid)` where valid = {Valid | Invalid}.
 - `upon ⟨PROPOSAL, h, r, v, vr⟩ from proposer(h, r)` represents the receiving of a `PROPOSAL` message for a round `r` of height `h` for vale `v`. This is a necessary condition for the success of round `v` with the decision of the proposed value `v`.
+
 ## Current design
 
 ### Building Blocks
-_(WIP)_
 
-There are a number of entities that are involved in the value propagation process.
-- Application - this is the software that uses the consensus. It is responsible for:
-  - providing the value to be propagated
-  - validating received values
-  - providing data availability for values (both undecided and decided)
-- Consensus Engine - a component that is responsible for managing the interactions between the consensus core and the application, and between the consensus core and the networking layer. For the ones involved in the value propagation process, the consensus engine is responsible for:
-  - propagating values and/or proposals via the networking layer
-  - receiving values and/or proposals from the networking layer
-  - relaying values and/or proposals to the consensus core
-- Consensus Core - this is the component that implements the tendermint consensus protocol.
-- Networking - this is the component that is responsible for transmitting messages between nodes.
-(Currently not shown in the diagrams)
+There are a number of entities that are involved in the value propagation process:
+
+- **Application:** The software that uses the consensus engine. It is responsible for:
+  - Providing the value to be propagated
+  - Validating received values
+  - Providing data availability for values (both undecided and decided)
+- **Consensus Engine:** The component responsible for managing the interactions between the consensus core and the application, and between the consensus core and the networking layer. For the ones involved in the value propagation process, the consensus engine is responsible for:
+  - Propagating values and/or proposals via the networking layer
+  - Receiving values and/or proposals from the networking layer
+  - Relaying values and/or proposals to the consensus core
+- **Consensus Core:** The component that implements the tendermint consensus protocol.
+- **Networking:** The component responsible for transmitting messages between nodes (currently not shown in the diagrams).
 
 Malachite provides implementations for the consensus core, engine and networking. Applications can integrate with:
 
-- consensus core - see [ADR-004](./adr-004-coroutine-effect-system.md)
-- engine and core integration - farcaster?
-- engine, core, networking integration - channel and starknet test examples?
+- Consensus core - See [ADR-004][adr-004]
+- Engine without networking - [Snapchain](https://github.com/farcasterxyz/snapchain)
+- Engine with networking (channel-based) - [Example application](https://github.com/informalsystems/malachite/tree/main/code/examples/channel)
+- Engine with networking (actor-based) - [Starknet test application](https://github.com/informalsystems/malachite/tree/main/code/crates/starknet)
 
 ### Value Payload Modes
 
 At the moment, Malachite supports three
-different modes of operation to handle value propagation: 
+different modes of operation to handle value propagation:
+
 1) **ProposalOnly**
 2) **PartsOnly**
 3) **ProposalAndParts**
@@ -107,14 +109,12 @@ pub struct Params<Ctx: Context> {
 
 ```
 
-
-In the following, we examine each approach to understand how the consensus 
-interacts with the environment, depending on the mode of operation adopted. 
+In the following, we examine each approach to understand how the consensus
+interacts with the environment, depending on the mode of operation adopted.
 Specifically, we focus on the core consensus inputs related to value propagation.
-In general consensus inputs are how the consensus reacts to the events from 
-the environment. A complete overview of all inputs processes by the consensus 
-can be found in [ADR-004 Coroutine-Based Effect System for Consensus](./adr-004-coroutine-effect-system.md).
-
+In general consensus inputs are how the consensus reacts to the events from
+the environment. A complete overview of all inputs processes by the consensus
+can be found in [ADR-004 Coroutine-Based Effect System for Consensus][adr-004].
 
 
 | **Input** | **Fields** | **Description** |
@@ -124,9 +124,9 @@ can be found in [ADR-004 Coroutine-Based Effect System for Consensus](./adr-004-
 | `ProposedValue (ProposedValue<Ctx>, ValueOrigin)` | `height`, `round`, `valid_round`, `proposer`, `value`, `validity` | This input is also generated by the application when the application is responsible for disseminating values through the network. It informs the consensus that a proposedvalue has been received and validated. |
 
 
-When processing each of these inputs, the consensus core may produce various effects that must be handled by the "environment" to fully process the input. All the effects produced by the consensus core are described in more detail in [ADR-004](./adr-004-coroutine-effect-system.md). These are especially relevant if the application integrates directly with the consensus core. Malachite offers a "Consensus Engine" crate that can be used as an integration point. Regardless the of the type of integration, the "Consensus Engine" is shown in this document as the part of the "environment" that handles the effects, relays messages between consensus core and the application, etc.
+When processing each of these inputs, the consensus core may produce various effects that must be handled by the "environment" to fully process the input. All the effects produced by the consensus core are described in more detail in [ADR-004][adr-004]. These are especially relevant if the application integrates directly with the consensus core. Malachite offers a "Consensus Engine" crate that can be used as an integration point. Regardless the of the type of integration, the "Consensus Engine" is shown in this document as the part of the "environment" that handles the effects, relays messages between consensus core and the application, etc.
 
-Here, our focus is limited to interactions related to value propagation and how they 
+Here, our focus is limited to interactions related to value propagation and how they
 differ depending on the selected mode of operation. Towards this goal, in the following sections, the `height` , `round`, `valid_round`, and `value_origin` fields are omitted from the inputs.
 
 ### Possible value types for Consensus Core?
@@ -139,7 +139,8 @@ The following notations are used in the following sections:
 - `v` is a short representation of the value `V`, it may be for example the hash of the value.
 
 ### ProposalOnly
->[!WARNING]
+
+> [!WARNING]
 > This mode is under development and not yet fully supported in Malachite (see the dotted lines in the diagram).
 
 This approach most closely follows the original Tendermint algorithm.
@@ -210,7 +211,7 @@ sequenceDiagram
       participant E1 as Consensus Engine
       participant C1 as Consensus Core
     end
-    
+
     box Other nodes
       participant C2 as Consensus Core
       participant E2 as Consensus Engine
@@ -275,15 +276,15 @@ sequenceDiagram
     Note over C2: Has v and its validity → can proceed
 ```
 
-This mode is very similar to `ProposalandParts` but the difference is that when receiving 
+This mode is very similar to `ProposalandParts` but the difference is that when receiving
 `Propose(LocallyProposedValue(v))` , and after processed by the consensus core state machine,
 the `Publish` effect is not emitted and a proposal message is not sent through the network.
 
 At the receiving side, consensus core waits to receive `ProposedValue(ProposedValue(v, validity))` input and when this happens it considers the proposal as complete and proceeds. The application generates this input upon receiving the full value `V` from the network. As a result, in this case value propagation is totally delegated to the application.
 
 ### Summary
-To sum up, in different modes, different inputs are required to achieve the same effect as receiving 
-the `PROPOSAL` message in the original Tendermint algorithm. 
+To sum up, in different modes, different inputs are required to achieve the same effect as receiving
+the `PROPOSAL` message in the original Tendermint algorithm.
 
 - In `ProposalOnly` and `ProposalAndParts`, both `Proposal(SignedProposal(x))` and `ProposedValue(ProposedValue(x, validity))` inputs are needed, with `x == V` for the former and `x == v` for the latter.
 - In `PartsOnly`, only `ProposedValue(ProposedValue(v, validity))` input is enough, as no explicit proposal message is sent over the network.
@@ -292,8 +293,8 @@ Regardless of the mode of operation, the value that consensus operates at the pr
 The mode of operation is used outside the consensus driver and state machine in order to decide whether to send or accept explicit `Proposal` messages to the caller (via `Effect`).
 
 ### `TimeoutPropose`
-An important consideration is that, regardless of the mode of operation, all inputs required to complete a 
-proposal must be received by the consensus before `timeoutPropose` expires. This timeout must be configured 
+An important consideration is that, regardless of the mode of operation, all inputs required to complete a
+proposal must be received by the consensus before `timeoutPropose` expires. This timeout must be configured
 to accommodate for the time needed for a complete value propagation. This is especially important
 in cases where the value is large and requires longer to be propagated through the network.
 
@@ -324,8 +325,9 @@ If the round of consensus is successful, the value `v` carried by the round's
 `PROPOSAL` message is the value delivered to the application as the decision
 for that height of consensus.
 
-Malachite, in [`ProposalOnly` mode](#proposalonly), when the application returns a full value in 
+Malachite, in [`ProposalOnly` mode](#proposalonly), when the application returns a full value in
 `Propose(LocallyProposedValue<Ctx>)`, follows this approach.
+
 > [!WARNING]
 > As mentioned in the [ProposalOnly](#proposalonly) section, this mode is under development and not yet fully supported in Malachite.
 
@@ -371,21 +373,20 @@ referenced value `V` is known by the process.
 Therefore, a process where `v` is decided by the consensus implementation
 should be able to deliver the actual proposed value `V` to the application.
 
-Malachite, when used in `ProposalAndParts` and `PartsOnly` modes, represents 
-a variant of this approach in which the dissemination of full values is 
+Malachite, when used in `ProposalAndParts` and `PartsOnly` modes, represents
+a variant of this approach in which the dissemination of full values is
 entirely delegated to the application.
 
 
 ## Decision
 
+No decision to be taken
 
 ## Status
 
-Proposed
+Accepted
 
 ## Consequences
-
-
 
 ### Positive
 
@@ -396,9 +397,12 @@ Proposed
 ## References
 
 * [Tendermint consensus specification][consensus-spec]
+* [ADR 001 - Architecture][adr-001]
+* [ADR 004 - Coroutine-Based Effect System for Consensus][adr-004]
 
 [consensus-spec]: ../../specs/consensus/README.md
 [consensus-code]: ../../specs/consensus/pseudo-code.md
 [consensus-proposals]: ../../specs/consensus/overview.md#proposals
 [consensus-votes]: ../../specs/consensus/overview.md#votes
-[adr001]: ./adr-001-architecture.md
+[adr-001]: ./adr-001-architecture.md
+[adr-004]: ./adr-004-coroutine-effect-system.md
