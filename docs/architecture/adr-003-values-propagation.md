@@ -55,10 +55,10 @@ implementations.
 In this document, we focus on the core parts of the consensus
 implementation responsible for **Value Propagation**.
 
-TODO: Not sure where to mention this but seems relevant. There have been some slight changes to the Tendermint consensus:
-- `getValue()` is asynchronous and the propose timeout is passed as a parameter in order to let the builder know how long it has to build a value.
-- `valid(v)` is checked when a `PROPOSAL` is available but before the algorithm runs. This is equivalent in a way with `PROPOSAL(h, r, v, vr, valid)` where valid = {Valid | Invalid}.
-- `upon ⟨PROPOSAL, h, r, v, vr⟩ from proposer(h, r)` represents the receiving of a `PROPOSAL` message for a round `r` of height `h` for vale `v`. This is a necessary condition for the success of round `v` with the decision of the proposed value `v`.
+Malachite includes the following changes to the Tendermint consensus:
+- `getValue()` is asynchronous and the propose timeout is passed as a parameter in order to let the value (`V`) builder know how long it has to create it.
+- `valid(v)` is checked when a `PROPOSAL` is available but before the algorithm runs. This is equivalent in a way with `PROPOSAL(h, r, v, vr, valid)` where `valid = {true | false}` with `valid(v)` already checked.
+
 
 ## Current design
 
