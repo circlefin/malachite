@@ -397,7 +397,7 @@ Accepted and implemented as of `ec9c421` (March 2025).
 
 ### Negative
 
-* Codebase and interactions may be unnecessarily complex or difficult to udnerstand.
+* Codebase and interactions may be unnecessarily complex or difficult to understand.
 
 ### Neutral
 
