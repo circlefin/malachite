@@ -324,6 +324,25 @@ the `Publish` effect is not emitted and a `Proposal` message is not sent through
 
 At the receiving side, consensus core waits to receive `ProposedValue(ProposedValue(v, validity))` input and when this happens it considers the proposal as complete and proceeds. The application generates this input upon receiving the full value `V` from the network. As a result, in this case value propagation is totally delegated to the application.
 
+### Value Restreaming
+
+When operating in either `ProposalAndParts` or `PartsOnly` modes, there are cases where a proposer needs to re-propose a value that was previously seen in an earlier round. This occurs when implementing L16 of the Tendermint algorithm, where a proposer enters a new round with a valid value from a previous round.
+
+The restreaming flow follows a similar pattern to the initial proposal flow, but with these key differences:
+
+1. **Effect Generation**:
+   - Instead of `GetValue`, the consensus core generates a `RestreamProposal` effect
+   - This signals to the application that it should re-disseminate an existing value rather than generate a new one
+
+2. **Proposer Behavior**:
+   - The consensus core already has the valid value from the previous round
+   - Unlike the initial proposal flow, it does not need to wait for a `LocallyProposedValue` input
+   - The application only needs to handle re-dissemination of the value parts through the network
+
+3. **Non-Proposer Behavior**:
+   - If a non-proposer node has already validated this value in a previous round, it can skip waiting for the `ProposedValue` input
+   - This optimization helps reduce unnecessary validation work and speeds up consensus
+
 ### Summary
 
 To sum up, different modes rely on different inputs to achieve the same effect as
