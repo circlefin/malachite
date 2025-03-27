@@ -18,7 +18,7 @@
    * [Create a new Rust project](#create-a-new-rust-project)
    * [Application state](#application-state-1)
    * [The consensus dialog](#the-consensus-dialog)
-   * [Handle consensus messages](#handle-consensus-messages)
+   * [Handle application messages](#handle-application-messages)
    * [Node](#node)
    * [Logging](#logging)
    * [Command-line interface](#command-line-interface)
@@ -1050,9 +1050,9 @@ sequenceDiagram
    end
 ```
 
-### Handle consensus messages
+### Handle application messages
 
-Now that we have the application state, we can start handling messages from the consensus, and act on those accordingly.
+Now that we have the application state, we can start handling messages from the consensus (referred to as application messages), and act on those accordingly.
 
 Let's define a `run` function in a new `app` module in `src/app.rs`, which will wait for messages from consensus
 and handle those by updating its state and sending back the appropriate responses.
@@ -1069,7 +1069,7 @@ mod app;
 pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyre::Result<()> {
     while let Some(msg) = channels.consensus.recv().await {
         match msg {
-            // Handle consensus messages
+            // Handle application messages
         }
     }
 }
