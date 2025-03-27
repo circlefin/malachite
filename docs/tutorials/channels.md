@@ -703,7 +703,7 @@ impl State {
         parts
     }
 
-    /// Creates a stream message containing a proposal part.
+    /// Creates a stream of messages containing a proposal parts.
     /// Updates internal sequence number and current proposal.
     pub fn stream_proposal(
         &mut self,
@@ -1315,7 +1315,7 @@ send back the validator set found in our genesis state.
             }
 ```
 
-As just mentioned, tt may happen that our node is lagging behind its peers. In that case,
+As just mentioned, it may happen that our node is lagging behind its peers. In that case,
 a synchronization mechanism will automatically kick to try and catch up to
 our peers. When that happens, some of these peers will send us decided values
 for the heights in between the one we are currently at (included) and the one
