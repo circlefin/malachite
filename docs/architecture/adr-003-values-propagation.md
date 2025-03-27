@@ -340,8 +340,7 @@ The restreaming flow follows a similar pattern to the initial proposal flow, but
    - The application only needs to handle re-dissemination of the value parts through the network
 
 3. **Non-Proposer Behavior**:
-   - If a non-proposer node has already validated this value in a previous round, it can skip waiting for the `ProposedValue` input
-   - This optimization helps reduce unnecessary validation work and speeds up consensus
+   - In `ProposalAndParts` mode, if a non-proposer node has already validated this value in a previous round, it can skip waiting for the `ProposedValue` input and proceed when the `Proposal` message is received.
 
 ### Summary
 
