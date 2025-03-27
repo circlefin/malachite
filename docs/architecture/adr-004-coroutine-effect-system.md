@@ -2,7 +2,8 @@
 
 ## Changelog
 
-* 18-03-2025: Initial version
+* 2025-03-18: Initial version
+* 2025-03-27: Reviewed & accepted
 
 ## Status
 
@@ -11,6 +12,9 @@ Accepted
 ## Context
 
 The Malachite core consensus implementation needs to interact with its environment (network, storage, cryptography, application logic) at specific points during execution.
+
+> [!TIP]
+> To understand the distinction between *core* and *non-core*, please see [ARCHITECTURE.md](../../ARCHITECTURE.md).
 
 Traditional approaches to handling these interactions include:
 
@@ -26,17 +30,20 @@ This model enforces a specific execution model (sync/async) on the environment, 
 Define protocols for message-based communication between consensus and external components.
 This model enforces a message-based architecture on the environment, which might not be desirable.
 
-Instead, we needed a design that would:
+### Requirements
+
+Instead of the above traditional approaches, we needed a design that would:
+
 - Maintain a clear separation between the consensus algorithm and its environment
 - Keep the consensus code linear and readable despite external interactions
-- Support both synchronous and asynchronous operations
+- Support both synchronous and asynchronous operations (i.e., effects)
 - Facilitate testing by making effects explicit and mockable
 - Allow different execution environments (sync/async runtimes, actor systems, etc.)
 - Handle errors gracefully without complicating the consensus core
 
 ## Decision
 
-We've implemented a **coroutine-based effect system** that allows the consensus algorithm to yield control when it needs external resources, and resume when those resources are provided.
+We've implemented a **coroutine-based effect system** that allows the core consensus algorithm to yield control when it needs external resources, and resume when the environment is ready to provide those resources. This design is different from the three traditional approaches we enumerated above.
 
 ### Key Components
 
@@ -443,7 +450,7 @@ The coroutine-based approach offers the best balance of separation of concerns, 
 
 ## Example
 
-This example demonstrates a comprehensive integration of MalachiteBFT within an asynchronous application architecture using Tokio.
+This example demonstrates a comprehensive integration of Malachite within an asynchronous application architecture using Tokio.
 It showcases how to handle both synchronous and asynchronous effects while maintaining a clean separation between the consensus algorithm and its environment.
 
 The example implements a consensus node that:
@@ -641,9 +648,8 @@ This is achieved without requiring the consensus algorithm itself to be aware of
 
 ## References
 
-> Are there any relevant PR comments, issues that led up to this, or articles referenced for why we made the given design choice? If so link them here!
-
-* {reference link}
+* See [Architecture.md](../../ARCHITECTURE.md) for an earlier and more naive introduction to the effect system design of the core consensus library.
+* See [ADR 003](./adr-003-values-propagation.md) for more details on inputs `Proposal`, `Propose` and `ProposedValue`.
 
 ## Appendix A: Details of the coroutine-based effect system
 
