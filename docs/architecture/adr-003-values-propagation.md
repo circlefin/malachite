@@ -326,19 +326,20 @@ At the receiving side, consensus core waits to receive `ProposedValue(ProposedVa
 
 ### Value Restreaming
 
-When operating in either `ProposalAndParts` or `PartsOnly` modes, there are cases where a proposer needs to re-propose a value that was previously seen in an earlier round. This occurs when implementing L16 of the Tendermint algorithm, where a proposer enters a new round with a valid value from a previous round.
+When operating in either `ProposalAndParts` or `PartsOnly` mode, there are situations where the proposer must re-propose a value observed in a previous round. This scenario arises when implementing line 16 of the Tendermint algorithm, where the proposer enters a new round already holding a valid value from an earlier round. 
 
-The restreaming flow follows a similar pattern to the initial proposal flow, but with these key differences:
+> **Note:** The application is responsible for storing all previously received propagated values from earlier rounds to support such re-proposals.
+
+The restreaming flow mirrors the initial proposal flow, with the following key differences:
 
 1. **Proposer Node Behavior**:
-   - Instead of `GetValue`, the consensus core generates a `RestreamProposal` effect
-   - This signals to the application that it should re-disseminate an existing value rather than generate a new one
-   - The consensus core already has the valid value from the previous round
-   - Unlike the initial proposal flow, it does not need to wait for a `LocallyProposedValue` input
-   - The application only needs to handle re-dissemination of the value parts through the network
+   - Instead of invoking `GetValue()`, the consensus core emits a `RestreamProposal()` effect, signaling the application to re-disseminate an existing value rather than generating a new one.
+   - The application is responsible for re-disseminating the parts of the value across the network.
+   - The consensus core does not wait for a `Propose(LocallyProposedValue(v))` input, as it already holds a valid value from the previous round.
 
 2. **Other Node Behavior**:
-   - In `ProposalAndParts` mode, if a non-proposer node has already validated this value in a previous round, it can skip waiting for the `ProposedValue` input and proceed when the `Proposal` message is received.
+   - In `ProposalAndParts` mode, if a non-proposer node has already validated the value in a previous round, it can skip waiting for the `ProposedValue(ProposedValue(v, validity))` input, and proceed as soon as it receives the `Proposal(SignedProposal(v))` message.
+
 
 ### Summary
 
