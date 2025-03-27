@@ -127,7 +127,7 @@ impl Node for App {
         let codec = ProtobufCodec;
 
         let (mut channels, engine_handle) = malachitebft_app_channel::start_engine(
-            ctx,
+            ctx.clone(),
             codec,
             self.clone(),
             config.clone(),

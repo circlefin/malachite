@@ -1,42 +1,25 @@
-use std::sync::{LazyLock, Mutex};
+use core::fmt;
 
 use malachitebft_core_types::{NilOrVal, Round};
 
-use crate::{Address, Height, ValueId, Vote};
+use crate::{Address, Height, Proposal, TestContext, Value, ValueId, Vote};
 
-static MIDDLEWARE: LazyLock<Mutex<Box<dyn Middleware>>> =
-    LazyLock::new(|| Mutex::new(Box::new(DefaultMiddleware)));
+pub trait Middleware: fmt::Debug + Send + Sync {
+    fn new_proposal(
+        &self,
+        _ctx: &TestContext,
+        height: Height,
+        round: Round,
+        value: Value,
+        pol_round: Round,
+        address: Address,
+    ) -> Proposal {
+        Proposal::new(height, round, value, pol_round, address)
+    }
 
-fn set(middleware: impl Middleware + 'static) {
-    *MIDDLEWARE.lock().unwrap() = Box::new(middleware);
-}
-
-fn reset() {
-    *MIDDLEWARE.lock().unwrap() = Box::new(DefaultMiddleware);
-}
-
-pub async fn scoped<F, R>(middleware: impl Middleware + 'static, f: F) -> R
-where
-    F: AsyncFnOnce() -> R,
-{
-    set(middleware);
-    let result = f().await;
-    reset();
-    result
-}
-
-pub fn with<F, R>(f: F) -> R
-where
-    F: FnOnce(&dyn Middleware) -> R,
-{
-    let middleware = MIDDLEWARE.lock().unwrap();
-    let middleware = middleware.as_ref();
-    f(middleware)
-}
-
-pub trait Middleware: Send + Sync {
     fn new_prevote(
         &self,
+        _ctx: &TestContext,
         height: Height,
         round: Round,
         value_id: NilOrVal<ValueId>,
@@ -47,6 +30,7 @@ pub trait Middleware: Send + Sync {
 
     fn new_precommit(
         &self,
+        _ctx: &TestContext,
         height: Height,
         round: Round,
         value_id: NilOrVal<ValueId>,
@@ -56,6 +40,7 @@ pub trait Middleware: Send + Sync {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
 pub struct DefaultMiddleware;
 
 impl Middleware for DefaultMiddleware {}

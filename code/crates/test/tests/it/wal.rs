@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use eyre::bail;
-use informalsystems_malachitebft_test::middleware::{self, Middleware};
 use tracing::info;
 
 use informalsystems_malachitebft_test::{
@@ -12,6 +11,7 @@ use malachitebft_config::{ValuePayload, VoteSyncMode};
 use malachitebft_core_consensus::LocallyProposedValue;
 use malachitebft_core_types::{NilOrVal, Round, SignedVote};
 use malachitebft_engine::util::events::Event;
+use malachitebft_test::middleware::Middleware;
 use malachitebft_test::TestContext;
 
 use crate::{HandlerResult, TestBuilder, TestParams};
@@ -459,29 +459,44 @@ async fn multi_rounds() {
     wal_multi_rounds(TestParams::default()).await
 }
 
+#[derive(Copy, Clone, Debug)]
+struct PrevoteNil;
+
+impl Middleware for PrevoteNil {
+    fn new_prevote(
+        &self,
+        _ctx: &TestContext,
+        height: Height,
+        round: Round,
+        value_id: NilOrVal<ValueId>,
+        address: Address,
+    ) -> Vote {
+        if round.as_i64() <= 3 {
+            Vote::new_prevote(height, round, NilOrVal::Nil, address)
+        } else {
+            Vote::new_prevote(height, round, value_id, address)
+        }
+    }
+}
+
 async fn wal_multi_rounds(params: TestParams) {
     const CRASH_HEIGHT: u64 = 1;
 
     let mut test = TestBuilder::<()>::new();
 
     test.add_node()
+        .with_middleware(PrevoteNil)
         .start()
         .wait_until(CRASH_HEIGHT)
         .wait_until_round(3)
-        // Crash right after
         .crash()
-        // Restart after 10 seconds
         .restart_after(Duration::from_secs(10))
-        // Check that we replay messages from the WAL
         .expect_wal_replay(CRASH_HEIGHT)
         .wait_until(CRASH_HEIGHT + 2)
         .success();
 
     test.add_node()
         .start()
-        // .wait_until(CRASH_HEIGHT)
-        // .crash()
-        // .restart_after(Duration::from_secs(5))
         .wait_until(CRASH_HEIGHT + 2)
         .success();
 
@@ -490,34 +505,13 @@ async fn wal_multi_rounds(params: TestParams) {
         .wait_until(CRASH_HEIGHT + 2)
         .success();
 
-    struct PrevoteNil;
-
-    impl Middleware for PrevoteNil {
-        fn new_prevote(
-            &self,
-            height: Height,
-            round: Round,
-            value_id: NilOrVal<ValueId>,
-            address: Address,
-        ) -> Vote {
-            if round.as_i64() <= 3 {
-                Vote::new_prevote(height, round, NilOrVal::Nil, address)
-            } else {
-                Vote::new_prevote(height, round, value_id, address)
-            }
-        }
-    }
-
-    middleware::scoped(PrevoteNil, async || {
-        test.build()
-            .run_with_params(
-                Duration::from_secs(60),
-                TestParams {
-                    enable_value_sync: false,
-                    ..params
-                },
-            )
-            .await
-    })
-    .await
+    test.build()
+        .run_with_params(
+            Duration::from_secs(60),
+            TestParams {
+                enable_value_sync: false,
+                ..params
+            },
+        )
+        .await
 }

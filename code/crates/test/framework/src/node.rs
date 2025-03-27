@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::Duration;
 
 use eyre::bail;
@@ -6,6 +7,7 @@ use tracing::info;
 use malachitebft_core_consensus::{LocallyProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{Context, Height, SignedVote, Vote, VotingPower};
 use malachitebft_engine::util::events::Event;
+use malachitebft_test::middleware::{DefaultMiddleware, Middleware};
 
 use crate::Expected;
 
@@ -46,6 +48,7 @@ where
     pub is_byzantine_proposer: bool,
     pub steps: Vec<Step<Ctx, State>>,
     pub state: State,
+    pub middleware: Arc<dyn Middleware>,
 }
 
 impl<Ctx, State> TestNode<Ctx, State>
@@ -68,7 +71,13 @@ where
             is_byzantine_proposer: false,
             steps: vec![],
             state,
+            middleware: Arc::new(DefaultMiddleware),
         }
+    }
+
+    pub fn with_middleware(&mut self, middleware: impl Middleware + 'static) -> &mut Self {
+        self.middleware = Arc::new(middleware);
+        self
     }
 
     pub fn with_state(&mut self, state: State) -> &mut Self {
