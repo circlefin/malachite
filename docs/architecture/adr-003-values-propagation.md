@@ -9,7 +9,7 @@
 
 ## Overview
 
-This ADR documents the current architecture that we adopted in Malachite
+This ADR documents the current architecture adopted in Malachite
 for handling the propagation of proposed values.
 The main goal of this architecture is to
 enable flexibility for application developers.
@@ -19,9 +19,13 @@ as well as to the engine.
 Propagation of proposed values among system nodes is often critical for
 system performance. Hence, allowing different optimizations and modes of
 propagation is an important architectural requirement for Malachite.
-We discuss the three existing modes:
-ProposalOnly, PartsOnly, and ProposalAndParts, documenting their
-respective use-case and design.
+
+Malachite supports three modes for value propagation:
+* `ProposalOnly`
+* `PartsOnly`
+* `ProposalAndParts`
+
+Their respective use-case and design are documented in the following sections.
 
 ## Context
 
@@ -30,10 +34,9 @@ which allows nodes to agree on a single *decision value* for each
 consensus instance or *height*.
 
 The software on top of Malachite provides the possible decision values;
-we call this the *application*. There are
-no assumptions about what a **value** represents—the application provides the semantics.
-For example, in blockchain applications, input
-values are blocks proposed to be appended to a blockchain.
+in this document, this is referred to as the *application*.
+There are no assumptions in the consensus algorithm about what a **value** represents, the application provides the semantics.
+For example, in blockchain applications, input values are blocks proposed to be appended to a blockchain.
 
 Similarly, the consensus algorithm makes no assumptions about the **size**
 of proposed values; they may be of arbitrary byte size. However,
@@ -65,14 +68,13 @@ representation of `v`, typically implemented as a fixed-size hash.
 
 ### Problem statement
 
-From the above, we can observe that **Value Propagation** is more challenging,
+From the above, it can be observed that **Value Propagation** is more challenging,
 as it involves disseminating potentially large amounts of data in
 the network of system nodes. In contrast, the **Value Decision** phase requires only
 the transmission of vote messages, which are relatively small and of
 constant size.
 
-Because value propagation can be a bottleneck, Malachite’s consensus API has to provide
-enough flexibility so that applications can optimize the value propagation stage.
+Because value propagation can be a bottleneck, Malachite's consensus API has to provide enough flexibility so that applications can optimize the value propagation stage.
 
 ### ADR scope
 
@@ -137,12 +139,11 @@ pub struct Params<Ctx: Context> {
 }
 ```
 
-In the following, we examine each approach to understand how consensus core
-interacts with the environment, depending on the mode of operation adopted.
-Specifically, we focus on the core consensus inputs related to value propagation.
-In general consensus inputs are how the core reacts to the events from
-the environment. A complete overview of all inputs processes by consensus core
-can be found in [ADR-004 Coroutine-Based Effect System for Consensus][adr-004].
+In the following sections, for each of the three modes of operation, the consensus core interactions with the environment are described.
+
+In general, events from the environment may trigger different inputs to the consensus core, and a complete overview of all inputs can be found in [ADR-004 Coroutine-Based Effect System for Consensus][adr-004].
+
+This documents focuses on the core consensus inputs related to value propagation.
 
 | **Input** | **Fields** | **Description** |
 |-----------|------------|-----------------|
@@ -152,7 +153,7 @@ can be found in [ADR-004 Coroutine-Based Effect System for Consensus][adr-004].
 
 When processing each of these inputs, the consensus core may produce various effects that must be handled by the "environment" to fully process the input. All the effects produced by the consensus core are described in more detail in [ADR-004][adr-004]. These are especially relevant if the application integrates directly with the consensus core. Malachite offers a "Consensus Engine" crate that can be used as an integration point. Regardless the of the type of integration, the "Consensus Engine" is shown in this document as the part of the "environment" that handles the effects, relays messages between consensus core and the application, etc.
 
-Here, our focus is limited to interactions related to value propagation and how they
+Here, the focus is limited to interactions related to value propagation and how they
 differ depending on the selected mode of operation. Towards this goal, in the following sections, the `height` , `round`, `valid_round`, and `value_origin` fields are omitted from the inputs.
 
 ### Possible value types for Consensus Core?
@@ -224,7 +225,7 @@ In this mode, the application only needs to provide a value to the consensus cor
 This mode is the simplest, as the application is only responsible for providing the value to be ordered. However, if the value is large, the resulting proposal messages will also be large and must be propagated as such through the network. Any optimizations for value propagation, such as chunking the value into smaller parts and reassembling it on the receiving side, must be implemented outside the consensus core. This is because both the consensus and application remain unaware of how the value is transmitted.
 
 The other two modes of operation are designed to support such optimizations at the application level rather than at the network level. 
-We will explore how this is achieved in the following sections.
+The following sections describe how this is achieved.
 
 ### ProposalAndParts
 
@@ -317,7 +318,7 @@ sequenceDiagram
     Note over C2: Has v and its validity → can proceed
 ```
 
-This mode is very similar to `ProposalandParts` but the difference is that when receiving
+This mode is very similar to `ProposalAndParts` but the difference is that when receiving
 `Propose(LocallyProposedValue(v))` , and after processed by the consensus core state machine,
 the `Publish` effect is not emitted and a `Proposal` message is not sent through the network.
 
@@ -359,7 +360,7 @@ receiving this message. Since vote messages (`PREVOTE`, `PRECOMMIT`) only
 include a compact identifier `id(v)`, a process cannot vote for a value 
 unless it has first received the full value `v` via the `PROPOSAL` message.
 
-If the consensus round is successful, the value `v` carried in the round’s 
+If the consensus round is successful, the value `v` carried in the round's
 `PROPOSAL` message is delivered to the application as the decided value for 
 that height.
 
