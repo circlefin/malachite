@@ -19,6 +19,7 @@ where
     ResetDb,
     Restart(Duration),
     WaitUntil(u64),
+    WaitUntilRound(u32),
     OnEvent(EventHandler<Ctx, S>),
     Expect(Expected),
     Success,
@@ -122,6 +123,11 @@ where
 
     pub fn wait_until(&mut self, height: u64) -> &mut Self {
         self.steps.push(Step::WaitUntil(height));
+        self
+    }
+
+    pub fn wait_until_round(&mut self, round: u32) -> &mut Self {
+        self.steps.push(Step::WaitUntilRound(round));
         self
     }
 

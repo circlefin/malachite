@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use eyre::eyre;
 use tokio::time::sleep;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use malachitebft_app_channel::app::streaming::StreamContent;
 use malachitebft_app_channel::app::types::codec::Codec;
@@ -113,7 +113,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 // Now what's left to do is to break down the value to propose into parts,
                 // and send those parts over the network to our peers, for them to re-assemble the full value.
                 for stream_message in state.stream_proposal(proposal, pol_round) {
-                    info!(%height, %round, "Streaming proposal part: {stream_message:?}");
+                    debug!(%height, %round, "Streaming proposal part: {stream_message:?}");
 
                     channels
                         .network
@@ -158,7 +158,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     StreamContent::Fin => "end of stream",
                 };
 
-                info!(%from, %part.sequence, part.type = %part_type, "Received proposal part");
+                debug!(%from, %part.sequence, part.type = %part_type, "Received proposal part");
 
                 let proposed_value = state.received_proposal_part(from, part).await?;
 
@@ -301,7 +301,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
                     for stream_message in state.stream_proposal(locally_proposed_value, valid_round)
                     {
-                        info!(%height, %valid_round, "Publishing proposal part: {stream_message:?}");
+                        debug!(%height, %valid_round, "Publishing proposal part: {stream_message:?}");
 
                         channels
                             .network

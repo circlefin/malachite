@@ -497,8 +497,8 @@ where
 
         let previous_step = round_state.step;
 
-        let proposer = self.get_proposer()?;
-        let info = Info::new(input_round, &self.address, proposer.address());
+        let proposer = self.get_proposer().ok();
+        let info = Info::new(input_round, &self.address, proposer.map(|p| p.address()));
 
         // Apply the input to the round state machine
         let transition = round_state.apply(&info, input);

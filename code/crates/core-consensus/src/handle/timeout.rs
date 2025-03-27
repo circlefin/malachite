@@ -16,8 +16,10 @@ where
     let height = state.driver.height();
     let round = state.driver.round();
 
-    if timeout.round != round && timeout.kind != TimeoutKind::Commit {
-        debug!(
+    if timeout.round != round
+        && !matches!(timeout.kind, TimeoutKind::Precommit | TimeoutKind::Commit)
+    {
+        warn!(
             %height,
             %round,
             timeout.round = %timeout.round,

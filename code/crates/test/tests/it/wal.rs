@@ -451,3 +451,50 @@ async fn byzantine_proposer_crashes_after_proposing_2(params: TestParams) {
         )
         .await
 }
+
+#[tokio::test]
+async fn multi_rounds() {
+    wal_multi_rounds(TestParams::default()).await
+}
+
+async fn wal_multi_rounds(params: TestParams) {
+    const CRASH_HEIGHT: u64 = 1;
+
+    let mut test = TestBuilder::<()>::new();
+
+    test.add_node()
+        .start()
+        .wait_until(CRASH_HEIGHT)
+        .wait_until_round(3)
+        // Crash right after
+        .crash()
+        // Restart after 10 seconds
+        .restart_after(Duration::from_secs(10))
+        // Check that we replay messages from the WAL
+        .expect_wal_replay(CRASH_HEIGHT)
+        .wait_until(CRASH_HEIGHT + 2)
+        .success();
+
+    test.add_node()
+        .start()
+        // .wait_until(CRASH_HEIGHT)
+        // .crash()
+        // .restart_after(Duration::from_secs(5))
+        .wait_until(CRASH_HEIGHT + 2)
+        .success();
+
+    test.add_node()
+        .start()
+        .wait_until(CRASH_HEIGHT + 2)
+        .success();
+
+    test.build()
+        .run_with_params(
+            Duration::from_secs(60),
+            TestParams {
+                enable_value_sync: false,
+                ..params
+            },
+        )
+        .await
+}

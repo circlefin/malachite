@@ -296,6 +296,8 @@ where
                     )
                     .await;
 
+                self.tx_event.send(|| Event::StartedHeight(height));
+
                 if let Err(e) = result {
                     error!(%height, "Error when preparing for height: {e}");
                 }
@@ -320,8 +322,6 @@ where
                         error!(%height, "Error when notifying sync of started height: {e}")
                     }
                 }
-
-                self.tx_event.send(|| Event::StartedHeight(height));
 
                 self.process_buffered_msgs(&myself, state).await;
 
@@ -1246,10 +1246,11 @@ fn span_height<Ctx: Context>(height: Ctx::Height, msg: &Msg<Ctx>) -> Ctx::Height
 
 /// Use round 0 instead of the consensus state round for the tracing span of
 /// the Consensus actor when starting a new height.
-fn span_round<Ctx: Context>(round: Round, msg: &Msg<Ctx>) -> Round {
-    if let Msg::StartHeight(_, _) = msg {
-        Round::new(0)
-    } else {
-        round
-    }
+fn span_round<Ctx: Context>(round: Round, _msg: &Msg<Ctx>) -> Round {
+    round
+    // if let Msg::StartHeight(_, _) = msg {
+    //     Round::new(0)
+    // } else {
+    //     round
+    // }
 }

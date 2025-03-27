@@ -21,7 +21,7 @@ where
     /// Address of our node
     pub address: &'a Ctx::Address,
     /// Proposer for the round we are at
-    pub proposer: &'a Ctx::Address,
+    pub proposer: Option<&'a Ctx::Address>,
 }
 
 impl<'a, Ctx> Info<'a, Ctx>
@@ -29,7 +29,11 @@ where
     Ctx: Context,
 {
     /// Create a new `Info` instance.
-    pub fn new(input_round: Round, address: &'a Ctx::Address, proposer: &'a Ctx::Address) -> Self {
+    pub fn new(
+        input_round: Round,
+        address: &'a Ctx::Address,
+        proposer: Option<&'a Ctx::Address>,
+    ) -> Self {
         Self {
             input_round,
             address,
@@ -42,13 +46,15 @@ where
         Self {
             input_round,
             address,
-            proposer: address,
+            proposer: Some(address),
         }
     }
 
     /// Check if we are the proposer for the round we are at.
     pub fn is_proposer(&self) -> bool {
-        self.address == self.proposer
+        self.proposer
+            .map(|proposer| self.address == proposer)
+            .expect("no proposer")
     }
 }
 
@@ -74,7 +80,7 @@ where
 {
     let this_round = state.round == info.input_round;
 
-    match (state.step, input) {
+    match dbg!((state.step, input)) {
         //
         // From NewRound.
         //

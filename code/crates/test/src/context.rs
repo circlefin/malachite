@@ -78,6 +78,10 @@ impl Context for TestContext {
         value_id: NilOrVal<ValueId>,
         address: Address,
     ) -> Vote {
+        if round < Round::new(4) {
+            return Vote::new_prevote(height, round, NilOrVal::Nil, address);
+        }
+
         Vote::new_prevote(height, round, value_id, address)
     }
 
