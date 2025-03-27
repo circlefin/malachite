@@ -130,8 +130,8 @@ where
     }
 
     /// Apply the given input to the current state, triggering a transition.
-    pub fn apply(self, data: &Info<Ctx>, input: Input<Ctx>) -> Transition<Ctx> {
-        crate::state_machine::apply(self, data, input)
+    pub fn apply(self, ctx: &Ctx, data: &Info<Ctx>, input: Input<Ctx>) -> Transition<Ctx> {
+        crate::state_machine::apply(ctx, self, data, input)
     }
 
     /// Return the traces logged during execution.

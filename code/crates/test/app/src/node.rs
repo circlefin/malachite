@@ -1,8 +1,10 @@
 #![allow(clippy::too_many_arguments)]
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use async_trait::async_trait;
+use malachitebft_test::middleware::{DefaultMiddleware, Middleware};
 use rand::{CryptoRng, RngCore};
 use tokio::task::JoinHandle;
 use tracing::Instrument;
@@ -56,6 +58,7 @@ pub struct App {
     pub validator_set: ValidatorSet,
     pub private_key: PrivateKey,
     pub start_height: Option<Height>,
+    pub middleware: Option<Arc<dyn Middleware>>,
 }
 
 #[async_trait]
@@ -116,7 +119,12 @@ impl Node for App {
         let span = tracing::error_span!("node", moniker = %config.moniker);
         let _guard = span.enter();
 
-        let ctx = TestContext::new();
+        let middleware = self
+            .middleware
+            .clone()
+            .unwrap_or_else(|| Arc::new(DefaultMiddleware));
+
+        let ctx = TestContext::with_middleware(middleware);
         let codec = ProtobufCodec;
 
         let public_key = self.get_public_key(&self.private_key);
@@ -125,7 +133,7 @@ impl Node for App {
         let genesis = self.load_genesis()?;
 
         let (mut channels, engine_handle) = malachitebft_app_channel::start_engine(
-            ctx,
+            ctx.clone(),
             codec,
             self.clone(),
             config.clone(),

@@ -110,12 +110,7 @@ pub async fn run(
                     None => {
                         // If we have not previously built a value for that very same height and round,
                         // we need to create a new value to propose and send it back to consensus.
-                        let proposal = state.propose_value(height, round).await?;
-                        error!(
-                            "XXX Building a new value to propose {:}",
-                            proposal.value.id()
-                        );
-                        proposal
+                        state.propose_value(height, round).await?
                     }
                 };
 
