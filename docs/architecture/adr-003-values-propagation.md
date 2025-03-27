@@ -330,16 +330,14 @@ When operating in either `ProposalAndParts` or `PartsOnly` modes, there are case
 
 The restreaming flow follows a similar pattern to the initial proposal flow, but with these key differences:
 
-1. **Effect Generation**:
+1. **Proposer Node Behavior**:
    - Instead of `GetValue`, the consensus core generates a `RestreamProposal` effect
    - This signals to the application that it should re-disseminate an existing value rather than generate a new one
-
-2. **Proposer Behavior**:
    - The consensus core already has the valid value from the previous round
    - Unlike the initial proposal flow, it does not need to wait for a `LocallyProposedValue` input
    - The application only needs to handle re-dissemination of the value parts through the network
 
-3. **Non-Proposer Behavior**:
+2. **Other Node Behavior**:
    - In `ProposalAndParts` mode, if a non-proposer node has already validated this value in a previous round, it can skip waiting for the `ProposedValue` input and proceed when the `Proposal` message is received.
 
 ### Summary
