@@ -368,22 +368,21 @@ Tendermint in particular, discussing the pros and cons of each of them.
 
 ### Consensus by Value
 
-In this approach, the actual value that will eventually be delivered to 
-the application is disseminated *through the consensus protocol itself*. 
+In this approach, the consensus protocol itself handles the dissemination 
+of the actual full value `V` that will eventually be delivered by the application.
 
-Specifically, the `PROPOSAL(h, r, v, vr)` message broadcast by a process 
-carries the full value `v` being proposed. Other processes learn `v` by 
-receiving this message. Since vote messages (`PREVOTE`, `PRECOMMIT`) only 
-include a compact identifier `id(v)`, a process cannot vote for a value 
-unless it has first received the full value `v` via the `PROPOSAL` message.
+The proposer broadcasts a `PROPOSAL(h, r, v, vr)` message, where the field `v` contains 
+the full value `V`. Other processes learn the full value by receiving this `PROPOSAL` message. 
+Since subsequent vote messages (`PREVOTE`, `PRECOMMIT`) include only a compact identifier `id(v)`, 
+a process must first receive the full value `v` through the `PROPOSAL` before it can cast a vote.
 
-If the consensus round is successful, the value `v` carried in the round's
-`PROPOSAL` message is delivered to the application as the decided value for 
-that height.
+When the consensus round succeeds, the protocol delivers the value `v` from the `PROPOSAL` message 
+to the application as the decided value for that height.
 
-This mode ensures that value dissemination and consensus are tightly coupled: 
-consensus only progresses on values that are known to all participants, as 
-`v` must be received as a condition for a process to vote (on `id(v)`).
+This mode tightly couples value dissemination with consensus: the protocol allows progress only on 
+values that all participants have received, since each process must obtain the full value `v` before 
+voting on `id(v)`.
+
 
 #### Relevance to present ADR
 
