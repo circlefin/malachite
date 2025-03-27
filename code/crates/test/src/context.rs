@@ -64,6 +64,7 @@ impl Context for TestContext {
     }
 
     fn new_proposal(
+        &self,
         height: Height,
         round: Round,
         value: Value,
@@ -74,6 +75,7 @@ impl Context for TestContext {
     }
 
     fn new_prevote(
+        &self,
         height: Height,
         round: Round,
         value_id: NilOrVal<ValueId>,
@@ -83,6 +85,7 @@ impl Context for TestContext {
     }
 
     fn new_precommit(
+        &self,
         height: Height,
         round: Round,
         value_id: NilOrVal<ValueId>,

@@ -501,7 +501,7 @@ where
         let info = Info::new(input_round, &self.address, proposer.address());
 
         // Apply the input to the round state machine
-        let transition = round_state.apply(&info, input);
+        let transition = round_state.apply(&self.ctx, &info, input);
 
         // Update state
         self.round_state = transition.next_state;

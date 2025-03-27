@@ -39,6 +39,7 @@ where
     // b) In any mode if the proposed value was provided by Sync, where we do net get a Proposal message but only the full value and the certificate
     if state.params.value_payload.parts_only() || origin == ValueOrigin::Sync {
         let proposal = Ctx::new_proposal(
+            &state.ctx,
             proposed_value.height,
             proposed_value.round,
             proposed_value.value.clone(),

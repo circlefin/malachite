@@ -18,6 +18,7 @@ use super::utils::{
 };
 
 pub struct ConsensusRunner {
+    pub ctx: TestContext,
     pub address_map: BTreeMap<String, Address>,
     pub last_state: Option<State>,
     pub skip_step: bool,
@@ -26,6 +27,7 @@ pub struct ConsensusRunner {
 impl ConsensusRunner {
     pub fn new(address_map: BTreeMap<String, Address>) -> Self {
         Self {
+            ctx: TestContext::new(),
             address_map,
             last_state: None,
             skip_step: false,
@@ -99,7 +101,7 @@ impl ItfRunner for ConsensusRunner {
             ModelInput::Proposal(round, value) => {
                 let input_round = Round::from(*round);
                 let data = Info::new(input_round, address, some_other_node);
-                let proposal = TestContext::new_proposal(
+                let proposal = self.ctx.new_proposal(
                     actual.height,
                     input_round,
                     value_from_model(value).unwrap(),
@@ -111,7 +113,7 @@ impl ItfRunner for ConsensusRunner {
 
             ModelInput::ProposalAndPolkaPreviousAndValid(value, valid_round) => {
                 let data = Info::new(actual.round, address, some_other_node);
-                let proposal = TestContext::new_proposal(
+                let proposal = self.ctx.new_proposal(
                     actual.height,
                     actual.round,
                     value_from_model(value).unwrap(),
@@ -123,7 +125,7 @@ impl ItfRunner for ConsensusRunner {
 
             ModelInput::ProposalAndPolkaAndValid(value) => {
                 let data = Info::new(actual.round, address, some_other_node);
-                let proposal = TestContext::new_proposal(
+                let proposal = self.ctx.new_proposal(
                     actual.height,
                     actual.round,
                     value_from_model(value).unwrap(),
@@ -135,7 +137,7 @@ impl ItfRunner for ConsensusRunner {
 
             ModelInput::ProposalAndPolkaAndInvalid(value) => {
                 let data = Info::new(actual.round, address, some_other_node);
-                let proposal = TestContext::new_proposal(
+                let proposal = self.ctx.new_proposal(
                     actual.height,
                     actual.round,
                     value_from_model(value).unwrap(),
@@ -148,7 +150,7 @@ impl ItfRunner for ConsensusRunner {
             ModelInput::ProposalAndCommitAndValid(round, value) => {
                 let input_round = Round::from(*round);
                 let data = Info::new(input_round, address, some_other_node);
-                let proposal = TestContext::new_proposal(
+                let proposal = self.ctx.new_proposal(
                     actual.height,
                     input_round,
                     value_from_string(value).unwrap(),
@@ -203,7 +205,7 @@ impl ItfRunner for ConsensusRunner {
         };
 
         let round_state = core::mem::take(actual);
-        let transition = round_state.apply(&data, input);
+        let transition = round_state.apply(&self.ctx, &data, input);
 
         println!("🔹 transition: next state={:?}", transition.next_state);
         println!("🔹 transition: output={:?}", transition.output);
