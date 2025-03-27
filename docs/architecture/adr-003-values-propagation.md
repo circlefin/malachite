@@ -112,7 +112,7 @@ Malachite provides implementations for the consensus core, engine and networking
 
 Malachite deviates from the [vanilla Tendermint consensus][tendermint-code] in these two key methods, relate to proposal propagation and validation:
 
-* `getValue()` is asynchronous and the propose timeout is passed as a parameter in order to let the value (`V`) builder know how long it has to create it. See [Malachite async GetValue][getvalue-changes] for more details.
+* `getValue()` is asynchronous and the propose timeout is passed as a parameter in order to let the value (`v`) builder know how long it has to create it. See [Malachite async GetValue][getvalue-changes] for more details.
 * `valid(v)` is checked when a `PROPOSAL` is available but before the algorithm runs. This is equivalent in a way with `PROPOSAL(h, r, v, vr, valid)` where `valid = {true | false}` with `valid(v)` already checked. See [Malachite validity checks][validity-changes] for more details.
 
 ### Value Payload Modes
