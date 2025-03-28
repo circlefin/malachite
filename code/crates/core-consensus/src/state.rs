@@ -1,5 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
-use tracing::{debug, warn};
+use tracing::warn;
 
 use malachitebft_core_driver::Driver;
 use malachitebft_core_types::*;
@@ -37,8 +37,10 @@ where
     /// Last precommit broadcasted by this node
     pub last_precommit: Option<SignedVote<Ctx>>,
 
-    /// The height has been decided and the effect has been sent to the host
-    /// TODO - move to state machine? It's the only place that keeps the height.
+    /// The height has been decided and the effect has been sent to the host.
+    /// Used as a guard to ensure `decide` is only called once
+    /// TODO - the consensus <-> driver need to be redesigned to avoid this.
+    ///
     pub decided: bool,
 }
 
@@ -191,14 +193,20 @@ where
         self.full_proposal_keeper.store_value(new_value);
     }
 
-    pub fn remove_full_proposals(&mut self, height: Ctx::Height) {
-        debug!(%height, "Pruning full proposals");
-        self.full_proposal_keeper.remove_full_proposals(height)
-    }
+    pub fn reset_and_start_height(
+        &mut self,
+        height: Ctx::Height,
+        validator_set: Ctx::ValidatorSet,
+    ) {
+        self.full_proposal_keeper
+            .remove_full_proposals(self.driver.height());
 
-    /// Remove the proposal for the given round.
-    pub fn remove_proposal(&mut self, round: Round) {
-        self.driver.remove_proposal(round);
+        self.signed_precommits.clear();
+        self.last_prevote = None;
+        self.last_precommit = None;
+        self.decided = false;
+
+        self.driver.move_to_height(height, validator_set);
     }
 
     /// Return the round and value id of the decided value.

@@ -542,12 +542,11 @@ where
     Ctx: Context,
 {
     match &state.decision {
-        // We already decided this value
+        // We already decided the same value
         Some(decision) if decision.value.id() == proposal.value().id() => Transition::to(state),
         // We decided a different value
-        // TODO: Should we panic here?
         Some(_) => Transition::invalid(state),
-        // We haven't decided anything yet
+        // First time we see a decision
         None => {
             let new_state = state
                 .set_decision(proposal.round(), proposal.value().clone())

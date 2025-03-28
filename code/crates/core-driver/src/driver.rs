@@ -236,11 +236,6 @@ where
             .get_proposal_and_validity_for_round(round)
     }
 
-    /// Remove the proposal for the given round.
-    pub fn remove_proposal(&mut self, round: Round) {
-        self.proposal_keeper.remove_proposal(round);
-    }
-
     /// Store the last vote that we have cast
     fn set_last_vote_cast(&mut self, vote: &Ctx::Vote) {
         assert_eq!(vote.height(), self.height());

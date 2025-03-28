@@ -11,10 +11,6 @@ where
 {
     assert!(state.driver.step_is_commit());
 
-    if state.decided {
-        return Ok(());
-    };
-
     let height = state.driver.height();
     let consensus_round = state.driver.round();
 
@@ -70,28 +66,36 @@ where
             (certificate, extensions)
         });
 
-    let Some((proposal, validity)) = state.driver.proposal_and_validity_for_round(proposal_round)
+    let Some((proposal, _)) = state.driver.proposal_and_validity_for_round(proposal_round) else {
+        return Err(Error::DecidedValueNotFound(height, proposal_round));
+    };
+
+    let Some(full_proposal) =
+        state.full_proposal_at_round_and_value(&height, proposal_round, &decided_value)
     else {
         return Err(Error::DecidedValueNotFound(height, proposal_round));
     };
 
-    assert_eq!(*validity, Validity::Valid);
-    assert_eq!(proposal.value().id(), decided_id);
+    // TODO: Remove before merge
+    if proposal.value().id() != decided_id {
+        info!(
+            "Decide: driver proposal value id {} does not match the decided value id {}, this may happen if consensus and value sync run in parallel",
+            proposal.value().id(),
+            decided_id
+        );
+    }
+    assert_eq!(full_proposal.builder_value.id(), decided_id);
+    assert_eq!(full_proposal.validity, Validity::Valid);
+    assert_eq!(full_proposal.proposal.value().id(), decided_id);
 
-    // Remove the proposal and full proposals for this round
-    state.remove_full_proposals(height);
-    state.remove_proposal(proposal_round);
+    if !state.decided {
+        state.decided = true;
 
-    state.decided = true;
-
-    perform!(
-        co,
-        Effect::Decide(certificate, extensions, Default::default())
-    );
-
-    // Reinitialize to remove any previous round or equivocating precommits.
-    // TODO: Revise when evidence module is added.
-    state.signed_precommits.clear();
+        perform!(
+            co,
+            Effect::Decide(certificate, extensions, Default::default())
+        );
+    }
 
     Ok(())
 }
