@@ -69,6 +69,11 @@ where
     /// Resume with: [`resume::Continue`]
     ScheduleTimeout(Timeout, resume::Continue),
 
+    /// Get the validator set at the given height
+    ///
+    /// Resume with: [`resume::ValidatorSet`]
+    GetValidatorSet(Ctx::Height, resume::ValidatorSet),
+
     /// Consensus is starting a new round with the given proposer
     ///
     /// Resume with: [`resume::Continue`]
@@ -89,19 +94,11 @@ where
     /// Because this operation may be asynchronous, this effect does not expect a resumption
     /// with a value, rather the application is expected to propose a value within the timeout duration.
     ///
-    /// The application MUST eventually feed a [`ProposeValue`][crate::input::Input::ProposeValue]
+    /// The application MUST eventually feed a [`Propose`][crate::input::Input::Propose]
     /// input to consensus within the specified timeout duration.
     ///
     /// Resume with: [`resume::Continue`]
     GetValue(Ctx::Height, Round, Timeout, resume::Continue),
-
-    /// ExtendVote allows the application to extend the pre-commit vote with arbitrary data.
-    ///
-    /// When consensus is preparing to send a pre-commit vote, it first calls `ExtendVote`.
-    /// The application then returns a blob of data called a vote extension.
-    /// This data is opaque to the consensus algorithm but can contain application-specific information.
-    /// The proposer of the next block will receive all vote extensions along with the commit certificate.
-    ExtendVote(Ctx::Height, Round, ValueId<Ctx>, resume::VoteExtension),
 
     /// Requests the application to re-stream a proposal that it has already seen.
     ///
@@ -124,11 +121,6 @@ where
         resume::Continue,
     ),
 
-    /// Get the validator set at the given height
-    ///
-    /// Resume with: [`resume::ValidatorSet`]
-    GetValidatorSet(Ctx::Height, resume::ValidatorSet),
-
     /// Notifies the application that consensus has decided on a value.
     ///
     /// This message includes a commit certificate containing the ID of
@@ -143,28 +135,6 @@ where
         VoteExtensions<Ctx>,
         resume::Continue,
     ),
-
-    /// Consensus has been stuck in Prevote or Precommit step, ask for vote sets from peers
-    ///
-    /// Resume with: [`resume::Continue`]
-    RequestVoteSet(Ctx::Height, Round, resume::Continue),
-
-    /// A peer has required our vote set, send the response
-    ///
-    /// Resume with: [`resume::Continue`]`
-    SendVoteSetResponse(
-        RequestId,
-        Ctx::Height,
-        Round,
-        VoteSet<Ctx>,
-        Vec<PolkaCertificate<Ctx>>,
-        resume::Continue,
-    ),
-
-    /// Append an entry to the Write-Ahead Log for crash recovery
-    ///
-    /// Resume with: [`resume::Continue`]`
-    WalAppend(WalEntry<Ctx>, resume::Continue),
 
     /// Sign a vote with this node's private key
     ///
@@ -195,10 +165,45 @@ where
         resume::CertificateValidity,
     ),
 
+    /// Consensus has been stuck in Prevote or Precommit step, ask for vote sets from peers
+    ///
+    /// Resume with: [`resume::Continue`]
+    RequestVoteSet(Ctx::Height, Round, resume::Continue),
+
+    /// A peer has required our vote set, send the response
+    ///
+    /// Resume with: [`resume::Continue`]`
+    SendVoteSetResponse(
+        RequestId,
+        Ctx::Height,
+        Round,
+        VoteSet<Ctx>,
+        Vec<PolkaCertificate<Ctx>>,
+        resume::Continue,
+    ),
+
+    /// Append an entry to the Write-Ahead Log for crash recovery
+    ///
+    /// Resume with: [`resume::Continue`]`
+    WalAppend(WalEntry<Ctx>, resume::Continue),
+
+    /// Allows the application to extend the pre-commit vote with arbitrary data.
+    ///
+    /// When consensus is preparing to send a pre-commit vote, it first calls `ExtendVote`.
+    /// The application then returns a blob of data called a vote extension.
+    /// This data is opaque to the consensus algorithm but can contain application-specific information.
+    /// The proposer of the next block will receive all vote extensions along with the commit certificate.
+    ///
+    /// Only emitted if vote extensions are enabled.
+    ExtendVote(Ctx::Height, Round, ValueId<Ctx>, resume::VoteExtension),
+
     /// Verify a vote extension
     ///
     /// If the vote extension is deemed invalid, the vote it was part of
     /// will be discarded altogether.
+    ///
+    ///
+    /// Only emitted if vote extensions are enabled.
     ///
     /// Resume with: [`resume::VoteExtensionValidity`]
     VerifyVoteExtension(

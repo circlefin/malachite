@@ -15,31 +15,37 @@ pub enum Input<Ctx>
 where
     Ctx: Context,
 {
-    /// Start a new height with the given validator set
+    /// Start a new height with the given validator set.
     StartHeight(Ctx::Height, Ctx::ValidatorSet),
 
-    /// Process a vote
+    /// Process a vote received over the network.
     Vote(SignedVote<Ctx>),
 
-    /// Process a proposal
+    /// Process a Proposal message received over the network
+    ///
+    /// This input MUST only be provided when `ValuePayload` is set to `ProposalOnly` or `ProposalAndParts`,
+    /// i.e. when consensus runs in a mode where the proposer sends a Proposal consensus message over the network.
     Proposal(SignedProposal<Ctx>),
 
-    /// Propose a value
+    /// Propose the given value.
+    ///
+    /// This input MUST only be provided when we are the proposer for the current round.
     Propose(LocallyProposedValue<Ctx>),
 
-    /// A timeout has elapsed
+    /// A timeout has elapsed.
     TimeoutElapsed(Timeout),
 
-    /// Received the full proposed value corresponding to a proposal.
-    /// The origin denotes whether the value was received via consensus or Sync.
+    /// We have received the full proposal for the current round.
+    ///
+    /// The origin denotes whether the value was received via consensus gossip or via the sync protocol.
     ProposedValue(ProposedValue<Ctx>, ValueOrigin),
 
-    /// Received a commit certificate from Sync
+    /// We have received a commit certificate via the sync protocol.
     CommitCertificate(CommitCertificate<Ctx>),
 
-    /// Peer needs vote set
+    /// A peer has requested a vote set for the given height and round
     VoteSetRequest(RequestId, Ctx::Height, Round),
 
-    /// Vote set response to be sent to peer
+    /// Received a vote set from a peer via Sync
     VoteSetResponse(VoteSet<Ctx>, Vec<PolkaCertificate<Ctx>>),
 }
