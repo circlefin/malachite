@@ -35,6 +35,10 @@ impl TestContext {
         Self { middleware }
     }
 
+    pub fn middleware(&self) -> &Arc<dyn Middleware> {
+        &self.middleware
+    }
+
     pub fn select_proposer<'a>(
         &self,
         validator_set: &'a ValidatorSet,
