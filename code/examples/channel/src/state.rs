@@ -29,7 +29,7 @@ use crate::store::{DecidedValue, Store};
 use crate::streaming::{PartStreamsMap, ProposalParts};
 
 /// Number of historical values to keep in the store
-const HISTORY_LENGTH: u64 = 100;
+const HISTORY_LENGTH: u64 = 100000;
 
 /// Represents the internal state of the application node
 /// Contains information about current height, round, proposals and blocks
