@@ -5,7 +5,8 @@ use malachitebft_config::ValuePayload;
 use crate::{TestBuilder, TestParams};
 
 pub async fn crash_restart_from_start(params: TestParams) {
-    const HEIGHT: u64 = 10;
+    const HEIGHT: u64 = 6;
+    const CRASH_HEIGHT: u64 = 4;
 
     let mut test = TestBuilder::<()>::new();
 
@@ -30,7 +31,7 @@ pub async fn crash_restart_from_start(params: TestParams) {
         .with_voting_power(5)
         .start()
         // Wait until the node reaches height 2...
-        .wait_until(2)
+        .wait_until(CRASH_HEIGHT)
         // ...and then kills it
         .crash()
         // Reset the database so that the node has to do Sync from height 1
