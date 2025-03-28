@@ -162,6 +162,7 @@ impl<const N: usize> Test<N> {
             pubsub_protocol: malachitebft_network::PubSubProtocol::default(),
             rpc_max_size: 10 * 1024 * 1024,   // 10 MiB
             pubsub_max_size: 4 * 1024 * 1024, // 4 MiB
+            enable_sync: false,
         })
     }
 

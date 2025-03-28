@@ -1,9 +1,41 @@
-use tracing_appender::non_blocking::WorkerGuard;
-use tracing_subscriber::filter::EnvFilter;
-use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::FmtSubscriber;
+use std::sync::OnceLock;
 
-use malachitebft_config::{LogFormat, LogLevel};
+use tracing::error;
+use tracing_appender::non_blocking::WorkerGuard;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::{fmt, reload, Registry};
+
+use malachitebft_config::LogFormat;
+
+pub use malachitebft_config::LogLevel;
+pub use tracing_subscriber::filter::EnvFilter;
+
+static RELOAD_HANDLE: OnceLock<reload::Handle<EnvFilter, Registry>> = OnceLock::new();
+static DEFAULT_LOG_LEVEL: OnceLock<String> = OnceLock::new();
+
+pub fn reset() {
+    let log_level = DEFAULT_LOG_LEVEL
+        .get()
+        .expect("failed to get the default log level");
+
+    reload_env_filter(build_tracing_filter(log_level));
+}
+
+pub fn reload(log_level: LogLevel) {
+    let env_filter = build_tracing_filter(&log_level.to_string());
+    reload_env_filter(env_filter);
+}
+
+fn reload_env_filter(env_filter: EnvFilter) {
+    if let Some(handle) = RELOAD_HANDLE.get() {
+        if let Err(e) = handle.reload(env_filter) {
+            error!("Failed to reload the log level: {e}");
+        }
+    } else {
+        error!("ERROR: Failed to get the reload handle");
+    }
+}
 
 /// Initialize logging.
 ///
@@ -16,14 +48,22 @@ pub fn init(log_level: LogLevel, log_format: LogFormat) -> WorkerGuard {
         log_level.to_string()
     };
 
-    let filter = build_tracing_filter(&log_level);
+    DEFAULT_LOG_LEVEL
+        .set(log_level.clone())
+        .expect("failed to set the default log level");
+
+    let env_filter = build_tracing_filter(&log_level);
+
+    let (reload_filter, reload_handle) = reload::Layer::new(env_filter);
+    RELOAD_HANDLE
+        .set(reload_handle)
+        .expect("failed to set the reload handle");
 
     let (non_blocking, guard) = tracing_appender::non_blocking(std::io::stdout());
 
     // Construct a tracing subscriber with the supplied filter and enable reloading.
-    let builder = FmtSubscriber::builder()
+    let fmt_layer = fmt::Layer::default()
         .with_target(false)
-        .with_env_filter(filter)
         .with_writer(non_blocking)
         .with_ansi(enable_ansi())
         .with_thread_ids(false);
@@ -31,12 +71,16 @@ pub fn init(log_level: LogLevel, log_format: LogFormat) -> WorkerGuard {
     // There must be a better way to use conditionals in the builder pattern.
     match log_format {
         LogFormat::Plaintext => {
-            let subscriber = builder.finish();
-            subscriber.init();
+            tracing_subscriber::registry()
+                .with(reload_filter)
+                .with(fmt_layer)
+                .init();
         }
         LogFormat::Json => {
-            let subscriber = builder.json().finish();
-            subscriber.init();
+            tracing_subscriber::registry()
+                .with(reload_filter)
+                .with(fmt_layer.json())
+                .init();
         }
     };
 

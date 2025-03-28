@@ -16,9 +16,7 @@ use malachitebft_engine::util::events::TxEvent;
 use malachitebft_engine::wal::{Wal, WalCodec, WalRef};
 use malachitebft_network::{Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, Keypair};
 
-use crate::config::{
-    self, ConsensusConfig, PubSubProtocol, TransportProtocol, ValueSyncConfig, VoteSyncConfig,
-};
+use crate::config::{self, ConsensusConfig, PubSubProtocol, ValueSyncConfig, VoteSyncConfig};
 use crate::metrics::{Metrics, SharedRegistry};
 use crate::types::core::{Context, SigningProvider};
 use crate::types::sync;
@@ -181,10 +179,13 @@ fn make_gossip_config(cfg: &ConsensusConfig) -> NetworkConfig {
             ..Default::default()
         },
         idle_connection_timeout: Duration::from_secs(15 * 60),
-        transport: match cfg.p2p.transport {
-            TransportProtocol::Tcp => malachitebft_network::TransportProtocol::Tcp,
-            TransportProtocol::Quic => malachitebft_network::TransportProtocol::Quic,
-        },
+        transport: malachitebft_network::TransportProtocol::from_multiaddr(&cfg.p2p.listen_addr)
+            .unwrap_or_else(|| {
+                panic!(
+                    "No valid transport protocol found in listen address: {}",
+                    cfg.p2p.listen_addr
+                )
+            }),
         pubsub_protocol: match cfg.p2p.protocol {
             PubSubProtocol::GossipSub(_) => malachitebft_network::PubSubProtocol::GossipSub,
             PubSubProtocol::Broadcast => malachitebft_network::PubSubProtocol::Broadcast,
@@ -200,5 +201,6 @@ fn make_gossip_config(cfg: &ConsensusConfig) -> NetworkConfig {
         },
         rpc_max_size: cfg.p2p.rpc_max_size.as_u64() as usize,
         pubsub_max_size: cfg.p2p.pubsub_max_size.as_u64() as usize,
+        enable_sync: true,
     }
 }

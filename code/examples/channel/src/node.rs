@@ -265,7 +265,6 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
                         .collect()
                 },
                 discovery: settings.discovery,
-                transport: settings.transport,
                 ..Default::default()
             },
         },

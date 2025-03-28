@@ -58,6 +58,7 @@ async fn run_build_proposal_task(
 ) -> Result<(), Box<dyn core::error::Error>> {
     let start = Instant::now();
     let build_duration = (deadline - start).mul_f32(params.time_allowance_factor);
+    let build_deadline = start + build_duration;
 
     let mut sequence = 0;
     let mut block_tx_count = 0;
@@ -115,6 +116,11 @@ async fn run_build_proposal_task(
         trace!("Reaped {} transactions from the mempool", reaped_txes.len());
 
         if reaped_txes.is_empty() {
+            trace!("No more transactions to reap, stopping tx generation");
+
+            // Sleep for the remaining time, in order to not break tests
+            // by producing blocks too quickly
+            tokio::time::sleep(build_deadline - Instant::now()).await;
             break 'reap;
         }
 

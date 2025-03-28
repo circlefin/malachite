@@ -32,8 +32,6 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
                 sleep(Duration::from_millis(200)).await;
 
-                // We can simply respond by telling the engine to start consensus
-                // at the current height, which is initially 1
                 if reply
                     .send((start_height, state.get_validator_set().clone()))
                     .is_err()
@@ -51,6 +49,8 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 reply_value,
             } => {
                 info!(%height, %round, %proposer, "Started round");
+
+                reload_log_level(height, round);
 
                 // We can use that opportunity to update our internal state
                 state.current_height = height;
@@ -329,4 +329,19 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
     // from consensus has been closed, meaning that the consensus actor has died.
     // We can do nothing but return an error here.
     Err(eyre!("Consensus channel closed unexpectedly"))
+}
+
+/// Reload the tracing subscriber log level based on the current height and round.
+/// This is useful to increase the log level when debugging a specific height and round.
+///
+/// If the round is greater than 0, we increase the log level to `Debug`.
+/// If we are back to round 0, we reset the log level to the default one.
+fn reload_log_level(_height: Height, round: Round) {
+    use malachitebft_test_cli::logging;
+
+    if round.as_i64() > 0 {
+        logging::reload(logging::LogLevel::Debug);
+    } else {
+        logging::reset();
+    }
 }

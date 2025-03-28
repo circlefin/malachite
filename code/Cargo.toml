@@ -106,7 +106,7 @@ starknet-crypto = "0.7.3"
 
 advisory-lock      = "0.3.0"
 async-recursion    = "1.1"
-async-trait        = "0.1.85"
+async-trait        = "0.1.88"
 axum               = "0.7"
 base64             = "0.22.0"
 bs58               = { version = "0.5.1", default-features = false }
@@ -129,9 +129,9 @@ futures            = "0.3"
 genawaiter         = { version = "0.99.1", default-features = false }
 glob               = "0.3.0"
 hex                = { version = "0.4.3", features = ["serde"] }
-humantime          = "2.1.0"
+humantime          = "2.2.0"
 humantime-serde    = "1.1.1"
-itertools          = "0.13"
+itertools          = "0.14"
 itf                = "0.2.3"
 libp2p             = { version = "0.55.0", features = ["macros", "identify", "tokio", "ed25519", "ecdsa", "tcp", "quic", "noise", "yamux", "gossipsub", "dns", "ping", "metrics", "request-response", "cbor", "serde", "kad"] }
 libp2p-identity    = "0.2.10"
@@ -147,7 +147,7 @@ prost              = "0.13"
 prost-build        = "0.13"
 prost-types        = "0.13"
 ractor             = { version = "0.14.6", default-features = false, features = ["async-trait", "tokio_runtime"] }
-rand               = { version = "0.8.5", features = ["std_rng"] }
+rand               = { version = "0.8.5", features = ["std_rng", "small_rng"] }
 rand_chacha        = "0.3.1"
 redb               = "2.4.0"
 seahash            = "4.1"
@@ -156,12 +156,12 @@ serde_json         = "1.0"
 serde_with         = "3.9"
 sha3               = "0.10"
 signature          = "2.2.0"
-tempfile           = "3.15.0"
+tempfile           = "3.19.1"
 testdir            = "0.9.1"
 thiserror          = { version = "2.0", default-features = false }
 tikv-jemallocator  = "0.6.0"
 time               = "0.3"
-tokio              = "1.43.0"
+tokio              = "1.44.1"
 tokio-stream       = "0.1"
 toml               = "0.8.19"
 tracing            = "0.1.41"
