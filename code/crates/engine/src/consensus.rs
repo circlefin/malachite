@@ -392,26 +392,11 @@ where
                             return Ok(());
                         };
 
-                        self.host.call_and_forward(
-                            |reply_to| HostMsg::ProcessSyncedValue {
-                                height: value.certificate.height,
-                                round: value.certificate.round,
-                                validator_address: state.consensus.address().clone(),
-                                value_bytes: value.value_bytes.clone(),
-                                reply_to,
-                            },
-                            &myself,
-                            |proposed| {
-                                Msg::<Ctx>::ReceivedProposedValue(proposed, ValueOrigin::Sync)
-                            },
-                            None,
-                        )?;
-
                         if let Err(e) = self
                             .process_input(
                                 &myself,
                                 state,
-                                ConsensusInput::CommitCertificate(value.certificate),
+                                ConsensusInput::CommitCertificate(value.certificate.clone()),
                             )
                             .await
                         {
@@ -431,6 +416,21 @@ where
                                     })?;
                             }
                         }
+
+                        self.host.call_and_forward(
+                            |reply_to| HostMsg::ProcessSyncedValue {
+                                height: value.certificate.height,
+                                round: value.certificate.round,
+                                validator_address: state.consensus.address().clone(),
+                                value_bytes: value.value_bytes.clone(),
+                                reply_to,
+                            },
+                            &myself,
+                            |proposed| {
+                                Msg::<Ctx>::ReceivedProposedValue(proposed, ValueOrigin::Sync)
+                            },
+                            None,
+                        )?;
                     }
 
                     NetworkEvent::Request(
