@@ -66,16 +66,16 @@ enum SignatureVerificationError {
     InvalidSignature,
 }
 
-// Make up a seed for the rng based on our address in
-// order for each node to likely propose different values at
-// each round.
-fn seed_from_address(address: &Address) -> u64 {
-    address.into_inner().chunks(8).fold(0u64, |acc, chunk| {
+/// Make up a seed for the rng based on our address and instance id
+fn seed_from_address(address: &Address, instance_id: u64) -> u64 {
+    let addr_seed = address.into_inner().chunks(8).fold(0u64, |acc, chunk| {
         let term = chunk.iter().fold(0u64, |acc, &x| {
             acc.wrapping_shl(8).wrapping_add(u64::from(x))
         });
         acc.wrapping_add(term)
-    })
+    });
+    // Combine address seed with instance id
+    addr_seed.wrapping_add(instance_id)
 }
 
 impl State {
@@ -99,7 +99,7 @@ impl State {
             store,
             vote_extensions: HashMap::new(),
             streams_map: PartStreamsMap::new(),
-            rng: StdRng::seed_from_u64(seed_from_address(&address)),
+            rng: StdRng::seed_from_u64(seed_from_address(&address, std::process::id() as u64)),
             peers: HashSet::new(),
         }
     }
