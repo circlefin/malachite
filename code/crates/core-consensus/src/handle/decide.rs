@@ -88,8 +88,8 @@ where
     assert_eq!(full_proposal.validity, Validity::Valid);
     assert_eq!(full_proposal.proposal.value().id(), decided_id);
 
-    if !state.decided {
-        state.decided = true;
+    if !state.decided_sent {
+        state.decided_sent = true;
 
         perform!(
             co,

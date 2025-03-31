@@ -37,11 +37,12 @@ where
     /// Last precommit broadcasted by this node
     pub last_precommit: Option<SignedVote<Ctx>>,
 
-    /// The height has been decided and the effect has been sent to the host.
-    /// Used as a guard to ensure `decide` is only called once
-    /// TODO - the consensus <-> driver need to be redesigned to avoid this.
-    ///
-    pub decided: bool,
+    /// The consensus round state machine returns `Decision` output only once.
+    /// When the decision is reached via consensus, `Effect::Decide` is sent to the host
+    /// when the timeout commit elapses. If the node gets the value with the decision
+    /// via sync, while the commit timer is running, it must send the `Effect::Decide` effect immediately.
+    /// Because of this, a guard is needed to ensure the `Effect::Decide` is sent at most once.
+    pub decided_sent: bool,
 }
 
 impl<Ctx> State<Ctx>
@@ -66,7 +67,7 @@ where
             signed_precommits: Default::default(),
             last_prevote: None,
             last_precommit: None,
-            decided: false,
+            decided_sent: false,
         }
     }
 
@@ -204,7 +205,7 @@ where
         self.signed_precommits.clear();
         self.last_prevote = None;
         self.last_precommit = None;
-        self.decided = false;
+        self.decided_sent = false;
 
         self.driver.move_to_height(height, validator_set);
     }
