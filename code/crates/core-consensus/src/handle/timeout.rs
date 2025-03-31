@@ -53,7 +53,12 @@ where
         TimeoutKind::PrevoteTimeLimit | TimeoutKind::PrecommitTimeLimit => {
             on_step_limit_timeout(co, state, metrics, timeout.round).await
         }
-        TimeoutKind::Commit => decide(co, state, metrics).await,
+        // Decide if the timeout is a commit timeout and the step is commit.
+        // The step check is necessary because the timeout can be triggered by WAL replay before
+        // the step is committed, e.g. when the node hasn't replayed the full value and the step
+        // is still `Propose`.
+        // For the Propose, Prevote and Precommit timeouts, the step is checked in the state machine.
+        TimeoutKind::Commit if state.driver.step_is_commit() => decide(co, state, metrics).await,
         _ => Ok(()),
     }
 }
