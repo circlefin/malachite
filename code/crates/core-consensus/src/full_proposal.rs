@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 
 use derive_where::derive_where;
-use tracing::debug;
 
 use malachitebft_core_types::{Context, Height, Proposal, Round, SignedProposal, Validity, Value};
 
