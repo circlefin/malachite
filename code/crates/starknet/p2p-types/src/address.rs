@@ -1,5 +1,6 @@
 use bytes::Bytes;
 use core::fmt;
+use malachitebft_signing_ed25519::PublicKey;
 use serde::{Deserialize, Serialize};
 
 use malachitebft_proto::{Error as ProtoError, Protobuf};
@@ -23,17 +24,35 @@ impl From<u64> for Address {
     }
 }
 
+impl From<[u8; 32]> for Address {
+    fn from(bytes: [u8; 32]) -> Self {
+        Self(Felt::from_bytes_be(&bytes))
+    }
+}
+
+impl From<PublicKey> for Address {
+    fn from(public_key: PublicKey) -> Self {
+        Self::from(*public_key.as_bytes())
+    }
+}
+
+impl From<&PublicKey> for Address {
+    fn from(public_key: &PublicKey) -> Self {
+        Self::from(*public_key.as_bytes())
+    }
+}
+
 impl fmt::Display for Address {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
+        write!(f, "{:#x}", self.0)
     }
 }
 
 impl fmt::Debug for Address {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Address({})", self.0)
+        write!(f, "Address({:#x})", self.0)
     }
 }
 

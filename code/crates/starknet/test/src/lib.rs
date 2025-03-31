@@ -214,7 +214,7 @@ fn make_validators<S>(
 
     for (i, node) in nodes.iter().enumerate() {
         let sk = PrivateKey::generate(&mut rng);
-        let address = Address::from(0x64 + i as u64);
+        let address = Address::from(sk.public_key());
         let val = Validator::new(address, sk.public_key(), node.voting_power);
 
         private_keys.insert(node.id, sk);

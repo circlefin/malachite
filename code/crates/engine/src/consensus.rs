@@ -1152,7 +1152,8 @@ where
         skip_all,
         fields(
             height = %state.consensus.height(),
-            round = %state.consensus.round()
+            round = %state.consensus.round(),
+            address = %state.consensus.address()
         )
     )]
     async fn post_start(

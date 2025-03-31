@@ -118,12 +118,7 @@ impl Node for StarknetNode {
     }
 
     fn get_address(&self, pk: &PublicKey) -> Address {
-        if let Ok(genesis) = self.load_genesis() {
-            genesis.validator_set.get_by_public_key(pk).unwrap().address
-        } else {
-            // FIXME: Figure out a way to specify the address for a public key.
-            Address::from(0x65)
-        }
+        Address::from(pk)
     }
 
     fn get_public_key(&self, pk: &PrivateKey) -> PublicKey {
@@ -210,10 +205,9 @@ impl CanMakePrivateKeyFile for StarknetNode {
 
 impl CanMakeGenesis for StarknetNode {
     fn make_genesis(&self, validators: Vec<(PublicKey, VotingPower)>) -> Self::Genesis {
-        let validators = validators.into_iter().enumerate().map(|(i, (pk, vp))| {
-            let address = Address::from(0x64 + i as u64);
-            Validator::new(address, pk, vp)
-        });
+        let validators = validators
+            .into_iter()
+            .map(|(pk, vp)| Validator::new(self.get_address(&pk), pk, vp));
 
         let validator_set = ValidatorSet::new(validators);
 
@@ -462,9 +456,13 @@ fn test_starknet_node() {
     use malachitebft_test_cli::*;
 
     let priv_keys = new::generate_private_keys(&node, 1, true);
-    let pub_keys = priv_keys.iter().map(|pk| node.get_public_key(pk)).collect();
+    let pub_keys = priv_keys
+        .iter()
+        .map(|pk| node.get_public_key(pk))
+        .collect::<Vec<_>>();
+
+    let address = node.get_address(&pub_keys[0]);
     let genesis = new::generate_genesis(&node, pub_keys, true);
-    let address = Address::from(0x64);
 
     file::save_priv_validator_key(
         &node,
