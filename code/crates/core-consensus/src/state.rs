@@ -199,9 +199,7 @@ where
         height: Ctx::Height,
         validator_set: Ctx::ValidatorSet,
     ) {
-        self.full_proposal_keeper
-            .remove_full_proposals(self.driver.height());
-
+        self.full_proposal_keeper.clear();
         self.signed_precommits.clear();
         self.last_prevote = None;
         self.last_precommit = None;

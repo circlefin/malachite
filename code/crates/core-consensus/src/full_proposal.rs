@@ -352,10 +352,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         }
     }
 
-    pub fn remove_full_proposals(&mut self, last_height: Ctx::Height) {
-        // Keep last two decided heights
-        debug!(%last_height, "Removing proposals, keep the last two");
-        self.keeper
-            .retain(|(height, _), _| height.increment() >= last_height);
+    pub fn clear(&mut self) {
+        self.keeper.clear();
     }
 }
