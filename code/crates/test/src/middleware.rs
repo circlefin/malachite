@@ -1,5 +1,6 @@
 use core::fmt;
 
+use malachitebft_core_consensus::LocallyProposedValue;
 use malachitebft_core_types::{NilOrVal, Round};
 
 use crate::{Address, Height, Proposal, TestContext, Value, ValueId, Vote};
@@ -37,6 +38,14 @@ pub trait Middleware: fmt::Debug + Send + Sync {
         address: Address,
     ) -> Vote {
         Vote::new_precommit(height, round, value_id, address)
+    }
+
+    fn on_propose_value(
+        &self,
+        _ctx: &TestContext,
+        _proposed_value: &mut LocallyProposedValue<TestContext>,
+        _reproposal: bool,
+    ) {
     }
 }
 

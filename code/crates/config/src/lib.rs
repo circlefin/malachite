@@ -649,8 +649,6 @@ pub struct TestConfig {
     pub max_retain_blocks: usize,
     #[serde(default)]
     pub vote_extensions: VoteExtensionsConfig,
-    #[serde(default)]
-    pub is_byzantine_proposer: bool,
 }
 
 impl Default for TestConfig {
@@ -663,7 +661,6 @@ impl Default for TestConfig {
             exec_time_per_tx: Duration::from_millis(1),
             max_retain_blocks: 1000,
             vote_extensions: VoteExtensionsConfig::default(),
-            is_byzantine_proposer: false,
         }
     }
 }

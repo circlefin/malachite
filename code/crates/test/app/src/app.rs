@@ -89,28 +89,32 @@ pub async fn run(
 
                 info!(%height, %round, "Consensus is requesting a value to propose");
 
+                dbg!(state.ctx.middleware());
+
                 // Here it is important that, if we have previously built a value for this height and round,
                 // we send back the very same value.
                 // However, for testing purposes a node may be configured to be a byzantine proposer.
                 // In that case, we will not send back the previously built value but a new one.
                 let proposal = match state.get_previously_built_value(height, round).await? {
-                    Some(proposal) => {
-                        if state.config.test.is_byzantine_proposer {
-                            let new_proposal = state.propose_value(height, round).await?;
-                            error!(
-                                "XXX Not Re-using previously built value {:} but a new one {:}",
-                                proposal.value.id(),
-                                new_proposal.value.id()
-                            );
-                            new_proposal
-                        } else {
-                            proposal
-                        }
+                    Some(mut proposal) => {
+                        state
+                            .ctx
+                            .middleware()
+                            .on_propose_value(&state.ctx, &mut proposal, true);
+
+                        proposal
                     }
                     None => {
                         // If we have not previously built a value for that very same height and round,
                         // we need to create a new value to propose and send it back to consensus.
-                        state.propose_value(height, round).await?
+                        let mut proposal = state.propose_value(height, round).await?;
+
+                        state
+                            .ctx
+                            .middleware()
+                            .on_propose_value(&state.ctx, &mut proposal, false);
+
+                        proposal
                     }
                 };
 

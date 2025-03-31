@@ -61,7 +61,6 @@ pub struct NodeInfo {
     start_height: Height,
     home_dir: PathBuf,
     middleware: Arc<dyn Middleware>,
-    is_byzantine_proposer: bool,
 }
 
 #[async_trait]
@@ -83,7 +82,6 @@ impl NodeRunner<TestContext> for TestRunner {
                         start_height: node.start_height,
                         home_dir: temp_dir(node.id),
                         middleware: Arc::clone(&node.middleware),
-                        is_byzantine_proposer: node.is_byzantine_proposer,
                     },
                 )
             })
@@ -173,10 +171,7 @@ impl TestRunner {
                     .unwrap(),
             },
             runtime: RuntimeConfig::single_threaded(),
-            test: TestConfig {
-                is_byzantine_proposer: self.nodes_info[&node].is_byzantine_proposer,
-                ..TestConfig::default()
-            },
+            test: TestConfig::default(),
         }
     }
 }
