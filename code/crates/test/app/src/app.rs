@@ -88,8 +88,7 @@ pub async fn run(
                 // then we would need to respect the timeout and stop at a certain point.
 
                 info!(%height, %round, "Consensus is requesting a value to propose");
-
-                dbg!(state.ctx.middleware());
+                tracing::debug!(%height, %round, "Middleware: {:?}", state.ctx.middleware());
 
                 // Here it is important that, if we have previously built a value for this height and round,
                 // we send back the very same value.

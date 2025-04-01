@@ -462,13 +462,18 @@ impl Middleware for ByzantineProposer {
         proposal: &mut LocallyProposedValue<TestContext>,
         reproposal: bool,
     ) {
+        use informalsystems_malachitebft_test::Value;
+        use rand::Rng;
+
         if !reproposal {
+            tracing::warn!(
+                "ByzantineProposer: First time proposing value {:}",
+                proposal.value.id()
+            );
+
             // Do not change the value if it is the first time we propose it
             return;
         }
-
-        use informalsystems_malachitebft_test::Value;
-        use rand::Rng;
 
         // Make up a new value that is different from the one we are supposed to propose
         let new_value = loop {
@@ -478,8 +483,8 @@ impl Middleware for ByzantineProposer {
             }
         };
 
-        tracing::error!(
-            "XXX Not re-using previously built value {:} but a new one {:}",
+        tracing::warn!(
+            "ByzantineProposer: Not re-using previously built value {:} but a new one {:}",
             proposal.value.id(),
             new_value.id()
         );
