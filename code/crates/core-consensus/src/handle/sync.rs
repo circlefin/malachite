@@ -1,4 +1,4 @@
-use crate::handle::decide::decide_current_no_timeout;
+use crate::handle::decide::try_decide;
 use crate::handle::driver::apply_driver_input;
 use crate::handle::signature::verify_certificate;
 use crate::handle::validator_set::get_validator_set;
@@ -42,9 +42,9 @@ where
     )
     .await?;
 
-    if state.driver.step_is_commit() {
-        decide_current_no_timeout(co, state, metrics).await?;
-    }
+    // The CommitCertificate is provided by Value Sync, try to decide immediately, without waiting for the Commit timeout.
+    // `try_decide` will check that we are in the commit step after applying the certificate to the state machine.
+    try_decide(co, state, metrics).await?;
 
     Ok(())
 }

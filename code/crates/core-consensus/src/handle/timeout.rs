@@ -1,4 +1,4 @@
-use crate::handle::decide::decide;
+use crate::handle::decide::try_decide;
 use crate::handle::driver::apply_driver_input;
 use crate::handle::rebroadcast_timeout::on_rebroadcast_timeout;
 use crate::handle::step_timeout::on_step_limit_timeout;
@@ -54,11 +54,11 @@ where
             on_step_limit_timeout(co, state, metrics, timeout.round).await
         }
         // Decide if the timeout is a commit timeout and the step is commit.
-        // The step check is necessary because the timeout can be triggered by WAL replay before
-        // the step is committed, e.g. when the node hasn't replayed the full value and the step
-        // is still `Propose`.
+        // `try_decide` will check that we are in the commit step. This is necessary because the timeout can be triggered
+        // by WAL replay before the step is `Commit`, e.g. when the node hasn't replayed the full value and
+        // the step is still `Propose`.
         // For the Propose, Prevote and Precommit timeouts, the step is checked in the state machine.
-        TimeoutKind::Commit if state.driver.step_is_commit() => decide(co, state, metrics).await,
+        TimeoutKind::Commit => try_decide(co, state, metrics).await,
         _ => Ok(()),
     }
 }

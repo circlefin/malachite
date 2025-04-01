@@ -3,7 +3,7 @@ use crate::prelude::*;
 use crate::handle::driver::apply_driver_input;
 use crate::types::ProposedValue;
 
-use super::decide::decide_current_no_timeout;
+use super::decide::try_decide;
 use super::signature::sign_proposal;
 
 pub async fn on_proposed_value<Ctx>(
@@ -70,8 +70,10 @@ where
         .await?;
     }
 
-    if origin == ValueOrigin::Sync && state.driver.step_is_commit() {
-        decide_current_no_timeout(co, state, metrics).await?;
+    if origin == ValueOrigin::Sync {
+        // The proposed value was provided by Sync, try to decide immediately, without waiting for the Commit timeout.
+        // `try_decide` will check that we are in the commit step after applying the proposed value to the state machine.
+        try_decide(co, state, metrics).await?;
     }
 
     Ok(())

@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use derive_where::derive_where;
 
-use malachitebft_core_types::{Context, Height, Proposal, Round, SignedProposal, Validity, Value};
+use malachitebft_core_types::{Context, Proposal, Round, SignedProposal, Validity, Value};
 
 use crate::ProposedValue;
 
