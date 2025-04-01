@@ -198,6 +198,13 @@ where
     pub fn height(&self) -> Ctx::Height {
         self.consensus.height()
     }
+
+    fn set_phase(&mut self, phase: Phase) {
+        if self.phase != phase {
+            info!(prev = ?self.phase, new = ?phase, "Phase transition");
+            self.phase = phase;
+        }
+    }
 }
 
 impl<Ctx> Consensus<Ctx>
@@ -311,9 +318,9 @@ where
                     error!(%height, "Error when checking and replaying WAL: {e}");
                 }
 
-                self.process_buffered_msgs(&myself, state).await;
+                state.set_phase(Phase::Running);
 
-                state.phase = Phase::Running;
+                self.process_buffered_msgs(&myself, state).await;
 
                 Ok(())
             }
@@ -349,7 +356,7 @@ where
                         info!(%address, "Listening");
 
                         if state.phase == Phase::Unstarted {
-                            state.phase = Phase::Ready;
+                            state.set_phase(Phase::Ready);
 
                             self.host.cast(HostMsg::ConsensusReady(myself.clone()))?;
                         }
@@ -625,7 +632,7 @@ where
             Ok(Some(entries)) => {
                 info!("Found {} WAL entries to replay", entries.len());
 
-                state.phase = Phase::Recovering;
+                state.set_phase(Phase::Recovering);
 
                 if let Err(e) = self.replay_wal_entries(myself, state, entries).await {
                     error!(%height, "Failed to replay WAL entries: {e}");

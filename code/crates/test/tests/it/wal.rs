@@ -1,9 +1,10 @@
 use std::time::Duration;
 
 use eyre::bail;
+use informalsystems_malachitebft_test::middleware::Middleware;
 use tracing::info;
 
-use informalsystems_malachitebft_test as malachitebft_test;
+use informalsystems_malachitebft_test::{self as malachitebft_test};
 
 use malachitebft_config::{ValuePayload, VoteSyncMode};
 use malachitebft_core_consensus::LocallyProposedValue;
@@ -268,7 +269,7 @@ async fn byzantine_proposer_crashes_after_proposing_1(params: TestParams) {
 
     test.add_node()
         .with_voting_power(10)
-        .byzantine_proposer()
+        .with_middleware(ByzantineProposer)
         .start()
         .wait_until(CRASH_HEIGHT)
         // Wait until this node proposes a value
@@ -397,7 +398,7 @@ async fn byzantine_proposer_crashes_after_proposing_2(params: TestParams) {
 
     test.add_node()
         .with_voting_power(10)
-        .byzantine_proposer()
+        .with_middleware(ByzantineProposer)
         .start()
         .wait_until(CRASH_HEIGHT)
         // Wait until this node proposes a value
@@ -449,4 +450,45 @@ async fn byzantine_proposer_crashes_after_proposing_2(params: TestParams) {
             },
         )
         .await
+}
+
+#[derive(Copy, Clone, Debug)]
+struct ByzantineProposer;
+
+impl Middleware for ByzantineProposer {
+    fn on_propose_value(
+        &self,
+        _ctx: &TestContext,
+        proposal: &mut LocallyProposedValue<TestContext>,
+        reproposal: bool,
+    ) {
+        use informalsystems_malachitebft_test::Value;
+        use rand::Rng;
+
+        if !reproposal {
+            tracing::warn!(
+                "ByzantineProposer: First time proposing value {:}",
+                proposal.value.id()
+            );
+
+            // Do not change the value if it is the first time we propose it
+            return;
+        }
+
+        // Make up a new value that is different from the one we are supposed to propose
+        let new_value = loop {
+            let new_value = Value::new(rand::thread_rng().gen_range(100..=100000));
+            if new_value != proposal.value {
+                break new_value;
+            }
+        };
+
+        tracing::warn!(
+            "ByzantineProposer: Not re-using previously built value {:} but a new one {:}",
+            proposal.value.id(),
+            new_value.id()
+        );
+
+        proposal.value = new_value;
+    }
 }

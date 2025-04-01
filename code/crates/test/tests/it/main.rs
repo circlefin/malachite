@@ -11,9 +11,11 @@ mod wal;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use informalsystems_malachitebft_test::middleware::Middleware;
 use malachitebft_test_app::config::Config;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
@@ -58,7 +60,7 @@ fn temp_dir(id: NodeId) -> PathBuf {
 pub struct NodeInfo {
     start_height: Height,
     home_dir: PathBuf,
-    is_byzantine_proposer: bool,
+    middleware: Arc<dyn Middleware>,
 }
 
 #[async_trait]
@@ -79,7 +81,7 @@ impl NodeRunner<TestContext> for TestRunner {
                     NodeInfo {
                         start_height: node.start_height,
                         home_dir: temp_dir(node.id),
-                        is_byzantine_proposer: node.is_byzantine_proposer,
+                        middleware: Arc::clone(&node.middleware),
                     },
                 )
             })
@@ -104,6 +106,7 @@ impl NodeRunner<TestContext> for TestRunner {
             validator_set: self.validator_set.clone(),
             private_key: self.private_keys[&id].clone(),
             start_height: Some(self.nodes_info[&id].start_height),
+            middleware: Some(Arc::clone(&self.nodes_info[&id].middleware)),
         };
 
         app.start().await
@@ -168,10 +171,7 @@ impl TestRunner {
                     .unwrap(),
             },
             runtime: RuntimeConfig::single_threaded(),
-            test: TestConfig {
-                is_byzantine_proposer: self.nodes_info[&node].is_byzantine_proposer,
-                ..TestConfig::default()
-            },
+            test: TestConfig::default(),
         }
     }
 }

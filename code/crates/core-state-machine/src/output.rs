@@ -33,33 +33,36 @@ where
 impl<Ctx: Context> Output<Ctx> {
     /// Build a `Proposal` output.
     pub fn proposal(
+        ctx: &Ctx,
         height: Ctx::Height,
         round: Round,
         value: Ctx::Value,
         pol_round: Round,
         address: Ctx::Address,
     ) -> Self {
-        Output::Proposal(Ctx::new_proposal(height, round, value, pol_round, address))
+        Output::Proposal(ctx.new_proposal(height, round, value, pol_round, address))
     }
 
     /// Build a `Vote` output for a prevote.
     pub fn prevote(
+        ctx: &Ctx,
         height: Ctx::Height,
         round: Round,
         value_id: NilOrVal<ValueId<Ctx>>,
         address: Ctx::Address,
     ) -> Self {
-        Output::Vote(Ctx::new_prevote(height, round, value_id, address))
+        Output::Vote(ctx.new_prevote(height, round, value_id, address))
     }
 
     /// Build a `Vote` output for a precommit.
     pub fn precommit(
+        ctx: &Ctx,
         height: Ctx::Height,
         round: Round,
         value_id: NilOrVal<ValueId<Ctx>>,
         address: Ctx::Address,
     ) -> Self {
-        Output::Vote(Ctx::new_precommit(height, round, value_id, address))
+        Output::Vote(ctx.new_precommit(height, round, value_id, address))
     }
 
     /// Build a `ScheduleTimeout` output.
