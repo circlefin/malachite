@@ -170,11 +170,9 @@ impl State {
             .get_undecided_proposal_by_value_id(value_id)
             .await
         else {
-            // TODO: Undo before merge
-            panic!("Trying to commit a value with value id {value_id} at height {height} and round {round} for which there is no proposal");
-            // return Err(eyre!(
-            //     "Trying to commit a value with value id {value_id} at height {height} and round {round} for which there is no proposal"
-            // ));
+            return Err(eyre!(
+                "Trying to commit a value with value id {value_id} at height {height} and round {round} for which there is no proposal"
+            ));
         };
         self.store
             .store_decided_value(&certificate, proposal.value)

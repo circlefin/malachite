@@ -98,7 +98,7 @@ pub async fn run(
                         if state.config.test.is_byzantine_proposer {
                             let new_proposal = state.propose_value(height, round).await?;
                             error!(
-                                "XXX Not Re-using previously built value {:} but a new one {:}",
+                                "Byzantine proposer: not Re-using previously built value {:} but a new one {:}",
                                 proposal.value.id(),
                                 new_proposal.value.id()
                             );
@@ -109,8 +109,10 @@ pub async fn run(
                     }
                     None => {
                         // If we have not previously built a value for that very same height and round,
-                        // we need to create a new value to propose and send it back to consensus.
-                        state.propose_value(height, round).await?
+                        // create a new value to propose and send it back to consensus.
+                        let proposal = state.propose_value(height, round).await?;
+                        info!("Building a new value to propose {:}", proposal.value.id());
+                        proposal
                     }
                 };
 
