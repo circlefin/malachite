@@ -32,10 +32,10 @@ where
     pub signed_precommits: BTreeMap<(Ctx::Height, Round), BTreeSet<SignedVote<Ctx>>>,
 
     /// Last prevote broadcasted by this node
-    pub last_prevote: Option<SignedVote<Ctx>>,
+    pub last_signed_prevote: Option<SignedVote<Ctx>>,
 
     /// Last precommit broadcasted by this node
-    pub last_precommit: Option<SignedVote<Ctx>>,
+    pub last_signed_precommit: Option<SignedVote<Ctx>>,
 
     /// The consensus round state machine returns `Decision` output only once.
     /// When the decision is reached via consensus, `Effect::Decide` is sent to the host
@@ -65,8 +65,8 @@ where
             input_queue: Default::default(),
             full_proposal_keeper: Default::default(),
             signed_precommits: Default::default(),
-            last_prevote: None,
-            last_precommit: None,
+            last_signed_prevote: None,
+            last_signed_precommit: None,
             decided_sent: false,
         }
     }
@@ -95,8 +95,8 @@ where
 
     pub fn set_last_vote(&mut self, vote: SignedVote<Ctx>) {
         match vote.vote_type() {
-            VoteType::Prevote => self.last_prevote = Some(vote),
-            VoteType::Precommit => self.last_precommit = Some(vote),
+            VoteType::Prevote => self.last_signed_prevote = Some(vote),
+            VoteType::Precommit => self.last_signed_precommit = Some(vote),
         }
     }
 
@@ -201,8 +201,8 @@ where
     ) {
         self.full_proposal_keeper.clear();
         self.signed_precommits.clear();
-        self.last_prevote = None;
-        self.last_precommit = None;
+        self.last_signed_prevote = None;
+        self.last_signed_precommit = None;
         self.decided_sent = false;
 
         self.driver.move_to_height(height, validator_set);
