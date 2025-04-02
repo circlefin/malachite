@@ -53,6 +53,7 @@ pub type WalReply<T> = RpcReplyPort<eyre::Result<T>>;
 
 pub enum Msg<Ctx: Context> {
     StartedHeight(Ctx::Height, WalReply<Option<Vec<WalEntry<Ctx>>>>),
+    Reset(Ctx::Height, WalReply<()>),
     Append(Ctx::Height, WalEntry<Ctx>, WalReply<()>),
     Flush(WalReply<()>),
     Dump,
@@ -92,6 +93,10 @@ where
                 self.started_height(state, height, reply_to).await?;
             }
 
+            Msg::Reset(height, reply_to) => {
+                self.reset(state, height, reply_to).await?;
+            }
+
             Msg::Append(height, entry, reply_to) => {
                 if height != state.height {
                     debug!("Ignoring append at height {} != {}", height, state.height);
@@ -109,6 +114,28 @@ where
                 state.wal_sender.send(self::thread::WalMsg::Dump).await?;
             }
         }
+
+        Ok(())
+    }
+
+    async fn reset(
+        &self,
+        state: &mut State<Ctx>,
+        height: Ctx::Height,
+        reply_to: WalReply<()>,
+    ) -> Result<(), ActorProcessingErr> {
+        let (tx, rx) = oneshot::channel();
+
+        state
+            .wal_sender
+            .send(self::thread::WalMsg::Reset(height, tx))
+            .await?;
+
+        let result = rx.await?;
+
+        reply_to
+            .send(result)
+            .map_err(|e| eyre!("Failed to send reply: {e}"))?;
 
         Ok(())
     }

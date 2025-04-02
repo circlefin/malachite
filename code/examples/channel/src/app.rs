@@ -191,22 +191,38 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     height = %certificate.height,
                     round = %certificate.round,
                     value = %certificate.value_id,
-                    "Consensus has decided on value"
+                    "Consensus has decided on value, committing..."
                 );
 
                 // When that happens, we store the decided value in our store
-                state.commit(certificate, extensions).await?;
-
-                // And then we instruct consensus to start the next height
-                if reply
-                    .send(ConsensusMsg::StartHeight(
-                        state.current_height,
-                        state.get_validator_set().clone(),
-                    ))
-                    .is_err()
-                {
-                    error!("Failed to send Decided reply");
+                match state.commit(certificate, extensions).await {
+                    Ok(_) => {
+                        // And then we instruct consensus to start the next height
+                        if reply
+                            .send(ConsensusMsg::StartHeight(
+                                state.current_height,
+                                state.get_validator_set().clone(),
+                            ))
+                            .is_err()
+                        {
+                            error!("Failed to send StartHeight reply");
+                        }
+                    }
+                    Err(_) => {
+                        // Commit failed, restart the height
+                        error!("Commit failed, restarting height {}", state.current_height);
+                        if reply
+                            .send(ConsensusMsg::RestartHeight(
+                                state.current_height,
+                                state.get_validator_set().clone(),
+                            ))
+                            .is_err()
+                        {
+                            error!("Failed to send RestartHeight reply");
+                        }
+                    }
                 }
+                sleep(Duration::from_millis(500)).await;
             }
 
             // It may happen that our node is lagging behind its peers. In that case,

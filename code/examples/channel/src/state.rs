@@ -211,25 +211,36 @@ impl State {
                 "Trying to commit a value with value id {value_id} at height {height} and round {round} for which there is no proposal"
             ));
         };
-
-        self.store
-            .store_decided_value(&certificate, proposal.value)
-            .await?;
-
-        // Remove all proposals with the given value id.
         self.store
             .remove_undecided_proposals_by_value_id(value_id)
             .await?;
 
-        // Prune the store, keep the last HISTORY_LENGTH values
-        let retain_height = Height::new(height.as_u64().saturating_sub(HISTORY_LENGTH));
-        self.store.prune(retain_height).await?;
+        // TODO - undo before merge
+        // Create a random reset height
+        let reset_height = 10 + self.rng.gen_range(0..50); // Spreads resets between height 10-59
+        let reset = height.as_u64() == reset_height;
 
-        // Move to next height
-        self.current_height = self.current_height.increment();
+        if !reset {
+            self.store
+                .store_decided_value(&certificate, proposal.value)
+                .await?;
+
+            // Prune the store, keep the last HISTORY_LENGTH values
+            let retain_height = Height::new(height.as_u64().saturating_sub(HISTORY_LENGTH));
+            self.store.prune(retain_height).await?;
+
+            // Move to next height
+            self.current_height = self.current_height.increment();
+        }
+
         self.current_round = Round::new(0);
 
-        Ok(())
+        if reset {
+            error!("Resetting at height {reset_height}");
+            Err(eyre!("Resetting at height {reset_height}"))
+        } else {
+            Ok(())
+        }
     }
 
     /// Retrieves a previously built proposal value for the given height

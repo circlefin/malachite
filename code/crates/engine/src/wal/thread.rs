@@ -16,6 +16,7 @@ pub type ReplyTo<T> = oneshot::Sender<Result<T>>;
 
 pub enum WalMsg<Ctx: Context> {
     StartedHeight(Ctx::Height, ReplyTo<Vec<WalEntry<Ctx>>>),
+    Reset(Ctx::Height, ReplyTo<()>),
     Append(WalEntry<Ctx>, ReplyTo<()>),
     Flush(ReplyTo<()>),
     Shutdown,
@@ -88,6 +89,18 @@ where
                 if reply.send(result).is_err() {
                     error!("Failed to send WAL reset reply");
                 }
+            }
+        }
+
+        WalMsg::Reset(height, reply) => {
+            let sequence = height.as_u64();
+
+            let result = log.restart(sequence).map_err(Into::into);
+
+            debug!(%height, "Reset WAL");
+
+            if reply.send(result).is_err() {
+                error!("Failed to send WAL reset reply");
             }
         }
 

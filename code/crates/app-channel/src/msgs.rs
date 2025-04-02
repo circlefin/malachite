@@ -213,6 +213,9 @@ pub enum ConsensusMsg<Ctx: Context> {
 
     /// Previousuly received value proposed by a validator
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
+
+    /// Instructs consensus to restart at a given height with the given validator set.
+    RestartHeight(Ctx::Height, Ctx::ValidatorSet),
 }
 
 impl<Ctx: Context> From<ConsensusMsg<Ctx>> for ConsensusActorMsg<Ctx> {
@@ -223,6 +226,9 @@ impl<Ctx: Context> From<ConsensusMsg<Ctx>> for ConsensusActorMsg<Ctx> {
             }
             ConsensusMsg::ReceivedProposedValue(value, origin) => {
                 ConsensusActorMsg::ReceivedProposedValue(value, origin)
+            }
+            ConsensusMsg::RestartHeight(height, validator_set) => {
+                ConsensusActorMsg::RestartHeight(height, validator_set)
             }
         }
     }

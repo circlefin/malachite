@@ -99,6 +99,9 @@ pub enum Msg<Ctx: Context> {
 
     /// Received and assembled the full value proposed by a validator
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
+
+    /// Instructs consensus to restart at a given height with the given validator set.
+    RestartHeight(Ctx::Height, Ctx::ValidatorSet),
 }
 
 impl<Ctx: Context> From<NetworkEvent<Ctx>> for Msg<Ctx> {
@@ -291,8 +294,10 @@ where
         state: &mut State<Ctx>,
         msg: Msg<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
+        let is_restart = matches!(msg, Msg::RestartHeight(_, _));
+
         match msg {
-            Msg::StartHeight(height, validator_set) => {
+            Msg::StartHeight(height, validator_set) | Msg::RestartHeight(height, validator_set) => {
                 let result = self
                     .process_input(
                         &myself,
@@ -314,8 +319,15 @@ where
 
                 self.tx_event.send(|| Event::StartedHeight(height));
 
-                if let Err(e) = self.check_and_replay_wal(&myself, state, height).await {
-                    error!(%height, "Error when checking and replaying WAL: {e}");
+                let wal_result = if is_restart {
+                    self.reset_wal(height).await
+                } else {
+                    self.check_and_replay_wal(&myself, state, height).await
+                };
+
+                if let Err(e) = wal_result {
+                    error!(%height, action = if is_restart { "resetting" } else { "replaying" }, 
+                           "WAL operation failed: {e}");
                 }
 
                 state.set_phase(Phase::Running);
@@ -612,6 +624,24 @@ where
         // Process the timeout event
         self.process_input(myself, state, ConsensusInput::TimeoutElapsed(timeout))
             .await?;
+
+        Ok(())
+    }
+
+    async fn reset_wal(&self, height: Ctx::Height) -> Result<(), ActorProcessingErr> {
+        let result = ractor::call!(self.wal, WalMsg::Reset, height);
+
+        match result {
+            Ok(Ok(())) => {
+                // Success
+            }
+            Ok(Err(e)) => {
+                error!("Resetting the WAL failed: {e}");
+            }
+            Err(e) => {
+                error!("Failed to send Reset command to WAL actor: {e}");
+            }
+        }
 
         Ok(())
     }
