@@ -16,7 +16,7 @@ mod vote_set;
 use proposal::on_proposal;
 use propose::on_propose;
 use proposed_value::on_proposed_value;
-use start_height::{on_prepare_height, on_start_height};
+use start_height::on_start_height;
 use sync::on_commit_certificate;
 use timeout::on_timeout_elapsed;
 use vote::on_vote;
@@ -48,10 +48,9 @@ where
     Ctx: Context,
 {
     match input {
-        Input::PrepareHeight(height, validator_set) => {
-            on_prepare_height(co, state, metrics, height, validator_set).await
+        Input::StartHeight(height, validator_set) => {
+            on_start_height(co, state, metrics, height, validator_set).await
         }
-        Input::StartHeight(height) => on_start_height(co, state, metrics, height).await,
         Input::Vote(vote) => on_vote(co, state, metrics, vote).await,
         Input::Proposal(proposal) => on_proposal(co, state, metrics, proposal).await,
         Input::Propose(value) => on_propose(co, state, metrics, value).await,

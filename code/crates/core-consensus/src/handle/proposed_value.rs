@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::{prelude::*, WalEntry};
 
 use crate::handle::driver::apply_driver_input;
 use crate::types::ProposedValue;
@@ -54,7 +54,15 @@ where
         state.store_proposal(signed_proposal);
     }
 
+    let validity = proposed_value.validity;
     let proposals = state.proposals_for_value(&proposed_value);
+
+    // Append the proposed value to the WAL, so it can be used for recovery.
+    perform!(
+        co,
+        Effect::WalAppend(WalEntry::ProposedValue(proposed_value), Default::default())
+    );
+
     for signed_proposal in proposals {
         debug!(
             proposal.height = %signed_proposal.height(),
@@ -66,7 +74,7 @@ where
             co,
             state,
             metrics,
-            DriverInput::Proposal(signed_proposal, proposed_value.validity),
+            DriverInput::Proposal(signed_proposal, validity),
         )
         .await?;
     }

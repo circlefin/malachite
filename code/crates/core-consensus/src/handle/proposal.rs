@@ -2,10 +2,9 @@ use crate::handle::driver::apply_driver_input;
 use crate::handle::signature::verify_signature;
 use crate::handle::validator_set::get_validator_set;
 use crate::input::Input;
-use crate::types::ConsensusMsg;
+use crate::prelude::*;
+use crate::types::{ConsensusMsg, ProposedValue, SignedConsensusMsg, WalEntry};
 use crate::util::pretty::PrettyProposal;
-use crate::{prelude::*, WalEntry};
-use crate::{ProposedValue, SignedConsensusMsg};
 
 pub async fn on_proposal<Ctx>(
     co: &Co<Ctx>,

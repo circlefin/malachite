@@ -81,7 +81,7 @@ pub struct ProposedValue<Ctx: Context> {
 pub enum WalEntry<Ctx: Context> {
     ConsensusMsg(SignedConsensusMsg<Ctx>),
     Timeout(Timeout),
-    LocallyProposedValue(LocallyProposedValue<Ctx>),
+    ProposedValue(ProposedValue<Ctx>),
 }
 
 impl<Ctx: Context> WalEntry<Ctx> {
@@ -99,9 +99,9 @@ impl<Ctx: Context> WalEntry<Ctx> {
         }
     }
 
-    pub fn as_proposed_value(&self) -> Option<&LocallyProposedValue<Ctx>> {
+    pub fn as_proposed_value(&self) -> Option<&ProposedValue<Ctx>> {
         match self {
-            WalEntry::LocallyProposedValue(value) => Some(value),
+            WalEntry::ProposedValue(value) => Some(value),
             _ => None,
         }
     }

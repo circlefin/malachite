@@ -2,7 +2,8 @@ use crate::handle::decide::try_decide;
 use crate::handle::driver::apply_driver_input;
 use crate::handle::rebroadcast_timeout::on_rebroadcast_timeout;
 use crate::handle::step_timeout::on_step_limit_timeout;
-use crate::{prelude::*, WalEntry};
+use crate::prelude::*;
+use crate::types::WalEntry;
 
 pub async fn on_timeout_elapsed<Ctx>(
     co: &Co<Ctx>,

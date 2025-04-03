@@ -2,9 +2,7 @@ use bytes::Bytes;
 use prost::Message;
 
 use malachitebft_codec::Codec;
-use malachitebft_core_consensus::{
-    LocallyProposedValue, PeerId, ProposedValue, SignedConsensusMsg,
-};
+use malachitebft_core_consensus::{PeerId, ProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{
     AggregatedSignature, CommitCertificate, CommitSignature, PolkaCertificate, Round, SignedVote,
     Validity,
@@ -141,31 +139,6 @@ impl Codec<ProposedValue<MockContext>> for ProtobufCodec {
 
     fn encode(&self, msg: &ProposedValue<MockContext>) -> Result<Bytes, Self::Error> {
         encode_proposed_value(msg).map(|proto| proto.encode_to_bytes())
-    }
-}
-
-impl Codec<LocallyProposedValue<MockContext>> for ProtobufCodec {
-    type Error = ProtoError;
-
-    fn decode(&self, bytes: Bytes) -> Result<LocallyProposedValue<MockContext>, Self::Error> {
-        let proto = proto::sync::LocallyProposedValue::decode(bytes)?;
-
-        Ok(LocallyProposedValue {
-            height: Height::new(proto.block_number, proto.fork_id),
-            round: Round::from(proto.round),
-            value: BlockHash::from_bytes(&proto.value)?,
-        })
-    }
-
-    fn encode(&self, msg: &LocallyProposedValue<MockContext>) -> Result<Bytes, Self::Error> {
-        let proto = proto::sync::LocallyProposedValue {
-            fork_id: msg.height.fork_id,
-            block_number: msg.height.block_number,
-            round: msg.round.as_u32().expect("round should not be nil"),
-            value: msg.value.to_bytes()?,
-        };
-
-        Ok(proto.encode_to_bytes())
     }
 }
 

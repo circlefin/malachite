@@ -54,7 +54,7 @@ pub enum Event<Ctx: Context> {
     WalReplayBegin(Ctx::Height, usize),
     WalReplayConsensus(SignedConsensusMsg<Ctx>),
     WalReplayTimeout(Timeout),
-    WalReplayProposedValue(LocallyProposedValue<Ctx>),
+    WalReplayProposedValue(ProposedValue<Ctx>),
     WalReplayDone(Ctx::Height),
     WalReplayError(Arc<ActorProcessingErr>),
 }

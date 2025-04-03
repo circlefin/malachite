@@ -238,7 +238,7 @@ fn wal_entry_type<Ctx: Context>(entry: &WalEntry<Ctx>) -> &'static str {
             SignedConsensusMsg::Vote(_) => "Consensus(Vote)",
             SignedConsensusMsg::Proposal(_) => "Consensus(Proposal)",
         },
-        WalEntry::LocallyProposedValue(_) => "LocallyProposedValue",
+        WalEntry::ProposedValue(_) => "LocallyProposedValue",
         WalEntry::Timeout(_) => "Timeout",
     }
 }

@@ -302,7 +302,11 @@ where
             Msg::StartHeight(height, validator_set) => {
                 self.tx_event.send(|| Event::StartedHeight(height));
 
-                let (wal_before, wal_after) = self.start_wal(height).await?;
+                let wal_entries = self.wal_fetch(height).await?;
+
+                if !wal_entries.is_empty() {
+                    state.set_phase(Phase::Recovering);
+                }
 
                 // Prepare the driver state for the new height,
                 // but do not start consensus yet.
@@ -310,28 +314,18 @@ where
                     .process_input(
                         &myself,
                         state,
-                        ConsensusInput::PrepareHeight(height, validator_set),
+                        ConsensusInput::StartHeight(height, validator_set),
                     )
-                    .await;
-
-                if let Err(e) = result {
-                    error!(%height, "Error when preparing for height: {e}");
-                }
-
-                // Replay the proposed values from the WAL before starting the new height
-                self.replay_wal(&myself, state, height, wal_before).await;
-
-                // Start consensus
-                let result = self
-                    .process_input(&myself, state, ConsensusInput::StartHeight(height))
                     .await;
 
                 if let Err(e) = result {
                     error!(%height, "Error when starting height: {e}");
                 }
 
-                // Replay the rest of the WAL after starting the new height
-                self.replay_wal(&myself, state, height, wal_after).await;
+                if !wal_entries.is_empty() {
+                    // Replay the entries from the WAL before starting the new height
+                    self.replay_wal(&myself, state, height, wal_entries).await;
+                }
 
                 // Set the phase to `Running` after starting the new height
                 state.set_phase(Phase::Running);
@@ -620,10 +614,10 @@ where
         Ok(())
     }
 
-    async fn start_wal(
+    async fn wal_fetch(
         &self,
         height: Ctx::Height,
-    ) -> Result<(Vec<WalEntry<Ctx>>, Vec<WalEntry<Ctx>>), ActorProcessingErr> {
+    ) -> Result<Vec<WalEntry<Ctx>>, ActorProcessingErr> {
         let result = ractor::call!(self.wal, WalMsg::StartedHeight, height)?;
 
         match result {
@@ -636,21 +630,7 @@ where
             Ok(Some(entries)) => {
                 info!("Found {} WAL entries", entries.len());
 
-                let (proposals, other): (Vec<_>, Vec<_>) = entries.into_iter().partition(|entry| {
-                    matches!(
-                        entry,
-                        WalEntry::ConsensusMsg(SignedConsensusMsg::Proposal(_))
-                            | WalEntry::LocallyProposedValue(_)
-                    )
-                });
-
-                info!(
-                    "Found {} proposals/values in WAL and {} other entries",
-                    proposals.len(),
-                    other.len()
-                );
-
-                Ok((proposals, other))
+                Ok(entries)
             }
 
             Err(e) => {
@@ -671,9 +651,9 @@ where
     ) {
         use SignedConsensusMsg::*;
 
-        info!("Replaying {} WAL entries", entries.len());
+        assert_eq!(state.phase, Phase::Recovering);
 
-        state.phase = Phase::Recovering;
+        info!("Replaying {} WAL entries", entries.len());
 
         if entries.is_empty() {
             return;
@@ -730,8 +710,8 @@ where
                     }
                 }
 
-                WalEntry::LocallyProposedValue(value) => {
-                    info!("Replaying locally proposed value: {value:?}");
+                WalEntry::ProposedValue(value) => {
+                    info!("Replaying proposed value: {value:?}");
 
                     self.tx_event
                         .send(|| Event::WalReplayProposedValue(value.clone()));
@@ -1012,7 +992,7 @@ where
 
             Effect::Publish(msg, r) => {
                 // Sync the WAL to disk before we broadcast the message
-                // NOTE: The message has already been append to the WAL by the `WalAppendMessage` effect.
+                // NOTE: The message has already been append to the WAL by the `WalAppend` effect.
                 self.wal_flush(state.phase).await?;
 
                 // Notify any subscribers that we are about to publish a message

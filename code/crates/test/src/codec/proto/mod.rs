@@ -3,7 +3,7 @@ use prost::Message;
 
 use malachitebft_app::engine::util::streaming::{StreamContent, StreamId, StreamMessage};
 use malachitebft_codec::Codec;
-use malachitebft_core_consensus::{LocallyProposedValue, ProposedValue, SignedConsensusMsg};
+use malachitebft_core_consensus::{ProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{
     AggregatedSignature, CommitCertificate, CommitSignature, PolkaCertificate, Round,
     SignedExtension, SignedProposal, SignedVote, Validity, VoteSet,
@@ -185,34 +185,6 @@ impl Codec<ProposedValue<TestContext>> for ProtobufCodec {
             proposer: Some(msg.proposer.to_proto()?),
             value: Some(msg.value.to_proto()?),
             validity: msg.validity.to_bool(),
-        };
-
-        Ok(Bytes::from(proto.encode_to_vec()))
-    }
-}
-
-impl Codec<LocallyProposedValue<TestContext>> for ProtobufCodec {
-    type Error = ProtoError;
-
-    fn decode(&self, bytes: Bytes) -> Result<LocallyProposedValue<TestContext>, Self::Error> {
-        let proto = proto::LocallyProposedValue::decode(bytes.as_ref())?;
-
-        let value = proto
-            .value
-            .ok_or_else(|| ProtoError::missing_field::<proto::LocallyProposedValue>("value"))?;
-
-        Ok(LocallyProposedValue {
-            height: Height::new(proto.height),
-            round: Round::new(proto.round),
-            value: Value::from_proto(value)?,
-        })
-    }
-
-    fn encode(&self, msg: &LocallyProposedValue<TestContext>) -> Result<Bytes, Self::Error> {
-        let proto = proto::LocallyProposedValue {
-            height: msg.height.as_u64(),
-            round: msg.round.as_u32().unwrap(),
-            value: Some(msg.value.to_proto()?),
         };
 
         Ok(Bytes::from(proto.encode_to_vec()))

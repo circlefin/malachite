@@ -3,7 +3,7 @@ use std::io::{self, Read, Write};
 use byteorder::{ReadBytesExt, WriteBytesExt, BE};
 
 use malachitebft_codec::Codec;
-use malachitebft_core_consensus::{LocallyProposedValue, SignedConsensusMsg};
+use malachitebft_core_consensus::{ProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{Context, Round, Timeout};
 
 /// Codec for encoding and decoding WAL entries.
@@ -14,7 +14,7 @@ pub trait WalCodec<Ctx>
 where
     Ctx: Context,
     Self: Codec<SignedConsensusMsg<Ctx>>,
-    Self: Codec<LocallyProposedValue<Ctx>>,
+    Self: Codec<ProposedValue<Ctx>>,
 {
 }
 
@@ -22,7 +22,7 @@ impl<Ctx, C> WalCodec<Ctx> for C
 where
     Ctx: Context,
     C: Codec<SignedConsensusMsg<Ctx>>,
-    C: Codec<LocallyProposedValue<Ctx>>,
+    C: Codec<ProposedValue<Ctx>>,
 {
 }
 
@@ -66,7 +66,7 @@ where
             Ok(())
         }
 
-        WalEntry::LocallyProposedValue(value) => {
+        WalEntry::ProposedValue(value) => {
             let bytes = codec.encode(value).map_err(|e| {
                 io::Error::new(
                     io::ErrorKind::InvalidData,
@@ -129,7 +129,7 @@ where
                 )
             })?;
 
-            Ok(WalEntry::LocallyProposedValue(value))
+            Ok(WalEntry::ProposedValue(value))
         }
 
         _ => Err(io::Error::new(io::ErrorKind::InvalidData, "invalid tag")),
