@@ -1,7 +1,7 @@
-use crate::{prelude::*, WalEntry};
+use crate::prelude::*;
 
 use crate::handle::driver::apply_driver_input;
-use crate::types::ProposedValue;
+use crate::types::{ProposedValue, WalEntry};
 
 use super::decide::try_decide;
 use super::signature::sign_proposal;

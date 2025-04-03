@@ -3,7 +3,7 @@ use crate::prelude::*;
 use crate::handle::driver::apply_driver_input;
 use crate::handle::handle_input;
 
-pub async fn on_start_height<Ctx>(
+pub async fn reset_and_start_height<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
@@ -21,6 +21,21 @@ where
 
     state.reset_and_start_height(height, validator_set);
 
+    debug_assert_eq!(state.height(), height);
+    debug_assert_eq!(state.round(), Round::Nil);
+
+    on_start_height(co, state, metrics, height).await
+}
+
+async fn on_start_height<Ctx>(
+    co: &Co<Ctx>,
+    state: &mut State<Ctx>,
+    metrics: &Metrics,
+    height: Ctx::Height,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
     debug_assert_eq!(state.height(), height);
     debug_assert_eq!(state.round(), Round::Nil);
 
