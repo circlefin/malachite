@@ -18,11 +18,11 @@ where
 
     let (maybe_vote, timeout) = match timeout.kind {
         TimeoutKind::PrevoteRebroadcast => (
-            state.last_prevote.as_ref(),
+            state.last_signed_prevote.as_ref(),
             Timeout::prevote_rebroadcast(round),
         ),
         TimeoutKind::PrecommitRebroadcast => (
-            state.last_precommit.as_ref(),
+            state.last_signed_precommit.as_ref(),
             Timeout::precommit_rebroadcast(round),
         ),
         _ => return Ok(()),

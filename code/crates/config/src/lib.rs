@@ -585,7 +585,7 @@ impl Default for TimeoutConfig {
             timeout_precommit: Duration::from_secs(1),
             timeout_precommit_delta: Duration::from_millis(500),
             timeout_commit: Duration::from_secs(0),
-            timeout_step: Duration::from_secs(30),
+            timeout_step: Duration::from_secs(2),
         }
     }
 }
