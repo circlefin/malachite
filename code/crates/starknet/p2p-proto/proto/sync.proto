@@ -76,14 +76,6 @@ message ProposedValue {
     bool validity = 7;
 }
 
-message LocallyProposedValue {
-    uint64 fork_id = 1;
-    uint64 block_number = 2;
-    uint32 round = 3;
-    bytes value = 6;
-}
-
-
 message VoteSetRequest {
   uint64 fork_id = 1;
   uint64 block_number = 2;

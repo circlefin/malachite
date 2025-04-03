@@ -61,12 +61,6 @@ message ProposedValue {
     bool validity = 6;
 }
 
-message LocallyProposedValue {
-    uint64 height = 1;
-    uint32 round = 2;
-    Value value = 5;
-}
-
 message VoteSetRequest {
   uint64 height = 1;
   uint32 round = 2;
