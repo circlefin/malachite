@@ -46,25 +46,22 @@ async fn proposer_crashes_after_proposing() {
         .expect_wal_replay(CRASH_HEIGHT)
         // Wait until it proposes a value again, while replaying WAL
         // Check that it is the same value as the first time
-        //
-        // XXX: This check does not work anymore, because we do not ask the application for
-        //      a value anymore, and just re-use what we have in the WAL.
-        // .on_proposed_value(|value, state| {
-        //     let Some(first_value) = state.first_proposed_value.as_ref() else {
-        //         bail!("Proposer did not propose a block");
-        //     };
-        //
-        //     if first_value.value == value.value {
-        //         info!("Proposer re-proposed the same block: {:?}", value.value);
-        //         Ok(HandlerResult::ContinueTest)
-        //     } else {
-        //         bail!(
-        //             "Proposer just equivocated: expected {:?}, got {:?}",
-        //             first_value.value,
-        //             value.value
-        //         )
-        //     }
-        // })
+        .on_proposed_value(|value, state| {
+            let Some(first_value) = state.first_proposed_value.as_ref() else {
+                bail!("Proposer did not propose a block");
+            };
+
+            if first_value.value == value.value {
+                info!("Proposer re-proposed the same block: {:?}", value.value);
+                Ok(HandlerResult::ContinueTest)
+            } else {
+                bail!(
+                    "Proposer just equivocated: expected {:?}, got {:?}",
+                    first_value.value,
+                    value.value
+                )
+            }
+        })
         .success();
 
     test.build()
