@@ -52,9 +52,6 @@ where
         state.store_proposal(signed_proposal);
     }
 
-    let validity = proposed_value.validity;
-    let proposals = state.proposals_for_value(&proposed_value);
-
     // If this is the first time we see this value, append it to the WAL, so it can be used for recovery.
     if !state.value_exists(&proposed_value) {
         perform!(
@@ -67,6 +64,9 @@ where
     }
 
     state.store_value(&proposed_value);
+
+    let validity = proposed_value.validity;
+    let proposals = state.proposals_for_value(&proposed_value);
 
     for signed_proposal in proposals {
         debug!(
