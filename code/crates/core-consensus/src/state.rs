@@ -196,6 +196,10 @@ where
         self.full_proposal_keeper.store_proposal(new_proposal)
     }
 
+    pub fn value_exists(&mut self, new_value: &ProposedValue<Ctx>) -> bool {
+        self.full_proposal_keeper.value_exists(new_value)
+    }
+
     pub fn store_value(&mut self, new_value: &ProposedValue<Ctx>) {
         // Values for higher height should have been cached for future processing
         assert_eq!(new_value.height, self.driver.height());

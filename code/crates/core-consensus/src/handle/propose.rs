@@ -41,15 +41,21 @@ where
         validity: Validity::Valid,
     };
 
-    state.store_value(&proposed_value);
-
     #[cfg(feature = "metrics")]
     metrics.consensus_start();
 
-    perform!(
-        co,
-        Effect::WalAppend(WalEntry::ProposedValue(proposed_value), Default::default())
-    );
+    // If this is the first time we see this value, append it to the WAL
+    if !state.value_exists(&proposed_value) {
+        perform!(
+            co,
+            Effect::WalAppend(
+                WalEntry::ProposedValue(proposed_value.clone()),
+                Default::default()
+            )
+        );
+    }
+
+    state.store_value(&proposed_value);
 
     apply_driver_input(
         co,

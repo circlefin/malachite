@@ -54,6 +54,15 @@ impl<Ctx: Context> Entry<Ctx> {
     fn full(value: Ctx::Value, validity: Validity, proposal: SignedProposal<Ctx>) -> Self {
         Entry::Full(FullProposal::new(value, validity, proposal))
     }
+
+    fn id(&self) -> Option<<Ctx::Value as Value>::Id> {
+        match self {
+            Entry::Full(p) => Some(p.builder_value.id()),
+            Entry::ProposalOnly(p) => Some(p.value().id()),
+            Entry::ValueOnly(v, _) => Some(v.id()),
+            Entry::Empty => None,
+        }
+    }
 }
 
 #[allow(clippy::derivable_impls)]
@@ -287,6 +296,15 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
     pub fn store_value(&mut self, new_value: &ProposedValue<Ctx>) {
         self.store_value_at_value_round(new_value);
         self.store_value_at_pol_round(new_value);
+    }
+
+    pub fn value_exists(&self, value: &ProposedValue<Ctx>) -> bool {
+        match self.keeper.get(&(value.height, value.round)) {
+            None => false,
+            Some(entries) => entries
+                .iter()
+                .any(|entry| entry.id() == Some(value.value.id())),
+        }
     }
 
     fn store_value_at_value_round(&mut self, new_value: &ProposedValue<Ctx>) {
