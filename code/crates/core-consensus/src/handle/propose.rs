@@ -44,7 +44,7 @@ where
     #[cfg(feature = "metrics")]
     metrics.consensus_start();
 
-    // If this is the first time we see this value, append it to the WAL
+    // If this is the first time we see this value in the current round, append it to the WAL
     if !state.value_exists(&proposed_value) {
         perform!(
             co,
