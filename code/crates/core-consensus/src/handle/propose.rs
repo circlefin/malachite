@@ -14,7 +14,7 @@ where
 {
     if state.driver.height() != local_value.height {
         warn!(
-            "Ignoring proposal for height {}, current height: {}",
+            "Ignoring value for height {}, current height: {}",
             local_value.height,
             state.driver.height()
         );
@@ -24,7 +24,7 @@ where
 
     if state.driver.round() != local_value.round {
         warn!(
-            "Ignoring proposal for round {}, current round: {}",
+            "Ignoring value for round {}, current round: {}",
             local_value.round,
             state.driver.round()
         );
