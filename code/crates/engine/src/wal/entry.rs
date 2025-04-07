@@ -145,7 +145,7 @@ fn encode_timeout(tag: u8, timeout: &Timeout, mut buf: impl Write) -> io::Result
         TimeoutKind::Precommit => 3,
         TimeoutKind::Commit => 4,
 
-        // Consensus will typically not want to store these two timeouts in the WAL,
+        // Consensus will typically not want to store these timeouts in the WAL,
         // but we still need to handle them here.
         TimeoutKind::PrevoteTimeLimit => 5,
         TimeoutKind::PrecommitTimeLimit => 6,
@@ -168,8 +168,13 @@ fn decode_timeout(mut buf: impl Read) -> io::Result<Timeout> {
         2 => TimeoutKind::Prevote,
         3 => TimeoutKind::Precommit,
         4 => TimeoutKind::Commit,
+
+        // Consensus will typically not want to store these timeouts in the WAL,
+        // but we still need to handle them here.
         5 => TimeoutKind::PrevoteTimeLimit,
         6 => TimeoutKind::PrecommitTimeLimit,
+        7 => TimeoutKind::PrevoteRebroadcast,
+        8 => TimeoutKind::PrecommitRebroadcast,
         _ => {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
