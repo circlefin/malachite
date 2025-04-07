@@ -121,10 +121,11 @@ where
                 // Retry dialing after a delay
                 connection_data.retry.inc_count();
 
-                self.controller.dial.add_to_queue(
-                    connection_data.clone(),
-                    Some(connection_data.retry.next_delay()),
-                );
+                let next_delay = connection_data.retry.next_delay();
+
+                self.controller
+                    .dial
+                    .add_to_queue(connection_data.clone(), Some(next_delay));
             } else {
                 // No more trials left
                 error!(
