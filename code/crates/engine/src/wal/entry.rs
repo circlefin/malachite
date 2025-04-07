@@ -32,58 +32,17 @@ const TAG_CONSENSUS: u8 = 0x01;
 const TAG_TIMEOUT: u8 = 0x02;
 const TAG_PROPOSED_VALUE: u8 = 0x04;
 
-pub fn encode_entry<Ctx, C, W>(entry: &WalEntry<Ctx>, codec: &C, mut buf: W) -> io::Result<()>
+pub fn encode_entry<Ctx, C, W>(entry: &WalEntry<Ctx>, codec: &C, buf: W) -> io::Result<()>
 where
     Ctx: Context,
     C: WalCodec<Ctx>,
     W: Write,
 {
     match entry {
-        WalEntry::ConsensusMsg(msg) => {
-            let bytes = codec.encode(msg).map_err(|e| {
-                io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!("failed to encode consensus message: {e}"),
-                )
-            })?;
-
-            // Write tag
-            buf.write_u8(TAG_CONSENSUS)?;
-
-            // Write encoded length
-            buf.write_u64::<BE>(bytes.len() as u64)?;
-
-            // Write encoded bytes
-            buf.write_all(&bytes)?;
-
-            Ok(())
-        }
-
-        WalEntry::Timeout(timeout) => {
-            // Write tag and timeout if applicable
-            encode_timeout(TAG_TIMEOUT, timeout, &mut buf)?;
-
-            Ok(())
-        }
-
+        WalEntry::ConsensusMsg(msg) => encode_consensus_msg(TAG_CONSENSUS, msg, codec, buf),
+        WalEntry::Timeout(timeout) => encode_timeout(TAG_TIMEOUT, timeout, buf),
         WalEntry::ProposedValue(value) => {
-            let bytes = codec.encode(value).map_err(|e| {
-                io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!("failed to encode consensus message: {e}"),
-                )
-            })?;
-
-            // Write tag
-            buf.write_u8(TAG_PROPOSED_VALUE)?;
-
-            // Write encoded length
-            buf.write_u64::<BE>(bytes.len() as u64)?;
-
-            // Write encoded bytes
-            buf.write_all(&bytes)?;
-
-            Ok(())
+            encode_proposed_value(TAG_PROPOSED_VALUE, value, codec, buf)
         }
     }
 }
@@ -97,45 +56,63 @@ where
     let tag = buf.read_u8()?;
 
     match tag {
-        TAG_CONSENSUS => {
-            let len = buf.read_u64::<BE>()?;
-            let mut bytes = vec![0; len as usize];
-            buf.read_exact(&mut bytes)?;
-
-            let msg = codec.decode(bytes.into()).map_err(|e| {
-                io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!("failed to decode consensus msg: {e}"),
-                )
-            })?;
-
-            Ok(WalEntry::ConsensusMsg(msg))
-        }
-
-        TAG_TIMEOUT => {
-            let timeout = decode_timeout(&mut buf)?;
-            Ok(WalEntry::Timeout(timeout))
-        }
-
-        TAG_PROPOSED_VALUE => {
-            let len = buf.read_u64::<BE>()?;
-            let mut bytes = vec![0; len as usize];
-            buf.read_exact(&mut bytes)?;
-
-            let value = codec.decode(bytes.into()).map_err(|e| {
-                io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!("failed to decode proposed value: {e}"),
-                )
-            })?;
-
-            Ok(WalEntry::ProposedValue(value))
-        }
-
+        TAG_CONSENSUS => decode_consensus_msg(codec, buf).map(WalEntry::ConsensusMsg),
+        TAG_TIMEOUT => decode_timeout(buf).map(WalEntry::Timeout),
+        TAG_PROPOSED_VALUE => decode_proposed_value(codec, buf).map(WalEntry::ProposedValue),
         _ => Err(io::Error::new(io::ErrorKind::InvalidData, "invalid tag")),
     }
 }
 
+// Consensus message helpers
+fn encode_consensus_msg<Ctx, C, W>(
+    tag: u8,
+    msg: &SignedConsensusMsg<Ctx>,
+    codec: &C,
+    mut buf: W,
+) -> io::Result<()>
+where
+    Ctx: Context,
+    C: WalCodec<Ctx>,
+    W: Write,
+{
+    let bytes = codec.encode(msg).map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("failed to encode consensus message: {e}"),
+        )
+    })?;
+
+    // Write tag
+    buf.write_u8(tag)?;
+
+    // Write encoded length
+    buf.write_u64::<BE>(bytes.len() as u64)?;
+
+    // Write encoded bytes
+    buf.write_all(&bytes)?;
+
+    Ok(())
+}
+
+fn decode_consensus_msg<Ctx, C, R>(codec: &C, mut buf: R) -> io::Result<SignedConsensusMsg<Ctx>>
+where
+    Ctx: Context,
+    C: WalCodec<Ctx>,
+    R: Read,
+{
+    let len = buf.read_u64::<BE>()?;
+    let mut bytes = vec![0; len as usize];
+    buf.read_exact(&mut bytes)?;
+
+    codec.decode(bytes.into()).map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("failed to decode consensus msg: {e}"),
+        )
+    })
+}
+
+// Timeout helpers
 fn encode_timeout(tag: u8, timeout: &Timeout, mut buf: impl Write) -> io::Result<()> {
     use malachitebft_core_types::TimeoutKind;
 
@@ -186,4 +163,53 @@ fn decode_timeout(mut buf: impl Read) -> io::Result<Timeout> {
     let round = Round::from(buf.read_i64::<BE>()?);
 
     Ok(Timeout::new(round, step))
+}
+
+// Proposed value helpers
+fn encode_proposed_value<Ctx, C, W>(
+    tag: u8,
+    value: &ProposedValue<Ctx>,
+    codec: &C,
+    mut buf: W,
+) -> io::Result<()>
+where
+    Ctx: Context,
+    C: WalCodec<Ctx>,
+    W: Write,
+{
+    let bytes = codec.encode(value).map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("failed to encode consensus message: {e}"),
+        )
+    })?;
+
+    // Write tag
+    buf.write_u8(tag)?;
+
+    // Write encoded length
+    buf.write_u64::<BE>(bytes.len() as u64)?;
+
+    // Write encoded bytes
+    buf.write_all(&bytes)?;
+
+    Ok(())
+}
+
+fn decode_proposed_value<Ctx, C, R>(codec: &C, mut buf: R) -> io::Result<ProposedValue<Ctx>>
+where
+    Ctx: Context,
+    C: WalCodec<Ctx>,
+    R: Read,
+{
+    let len = buf.read_u64::<BE>()?;
+    let mut bytes = vec![0; len as usize];
+    buf.read_exact(&mut bytes)?;
+
+    codec.decode(bytes.into()).map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("failed to decode proposed value: {e}"),
+        )
+    })
 }
