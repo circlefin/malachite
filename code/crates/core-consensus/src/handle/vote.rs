@@ -87,11 +87,6 @@ where
                 Default::default()
             )
         );
-
-        // Store the non-nil Precommit
-        if signed_vote.vote_type() == VoteType::Precommit && signed_vote.value().is_val() {
-            state.store_signed_precommit(signed_vote.clone());
-        }
     }
 
     apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote)).await?;

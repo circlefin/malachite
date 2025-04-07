@@ -1,4 +1,3 @@
-use std::collections::{BTreeMap, BTreeSet};
 use tracing::warn;
 
 use malachitebft_core_driver::Driver;
@@ -27,9 +26,6 @@ where
 
     /// The proposals to decide on.
     pub full_proposal_keeper: FullProposalKeeper<Ctx>,
-
-    /// Store Precommit votes to be sent along the decision to the host
-    pub signed_precommits: BTreeMap<(Ctx::Height, Round), BTreeSet<SignedVote<Ctx>>>,
 
     /// Last prevote broadcasted by this node
     pub last_signed_prevote: Option<SignedVote<Ctx>>,
@@ -64,7 +60,6 @@ where
             params,
             input_queue: Default::default(),
             full_proposal_keeper: Default::default(),
-            signed_precommits: Default::default(),
             last_signed_prevote: None,
             last_signed_precommit: None,
             decided_sent: false,
@@ -100,36 +95,29 @@ where
         }
     }
 
-    pub fn store_signed_precommit(&mut self, precommit: SignedVote<Ctx>) {
-        assert_eq!(precommit.vote_type(), VoteType::Precommit);
-
-        let height = precommit.height();
-        let round = precommit.round();
-
-        self.signed_precommits
-            .entry((height, round))
-            .or_default()
-            .insert(precommit);
-    }
-
     pub fn restore_precommits(
         &mut self,
         height: Ctx::Height,
         round: Round,
         value: &Ctx::Value,
     ) -> Vec<SignedVote<Ctx>> {
+        if height != self.driver.height() {
+            return Vec::new();
+        }
         // Get the commits for the height and round.
-        let commits_for_height_and_round = self
-            .signed_precommits
-            .remove(&(height, round))
-            .unwrap_or_default();
-
-        // Keep the commits for the specified value.
-        // For now, we ignore equivocating votes if present.
-        commits_for_height_and_round
-            .into_iter()
-            .filter(|c| c.value() == &NilOrVal::Val(value.id()))
-            .collect()
+        if let Some(per_round) = self.driver.votes().per_round(round) {
+            per_round
+                .received_votes()
+                .iter()
+                .filter(|vote| {
+                    vote.vote_type() == VoteType::Precommit
+                        && vote.value() == &NilOrVal::Val(value.id())
+                })
+                .cloned()
+                .collect()
+        } else {
+            Vec::new()
+        }
     }
 
     #[allow(clippy::type_complexity)]
@@ -200,7 +188,6 @@ where
         validator_set: Ctx::ValidatorSet,
     ) {
         self.full_proposal_keeper.clear();
-        self.signed_precommits.clear();
         self.last_signed_prevote = None;
         self.last_signed_precommit = None;
         self.decided_sent = false;
