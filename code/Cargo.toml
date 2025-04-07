@@ -64,6 +64,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage_nightly)'] }
 
 [workspace.lints.clippy]
 disallowed_types = "deny"
+doc_overindented_list_items = "allow"
 
 [workspace.dependencies]
 malachitebft-engine             = { version = "0.0.1", package = "informalsystems-malachitebft-engine", path = "crates/engine" }

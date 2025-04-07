@@ -5,10 +5,10 @@ use derive_where::derive_where;
 use ractor::ActorProcessingErr;
 use tokio::sync::broadcast;
 
-use malachitebft_core_consensus::{LocallyProposedValue, ProposedValue, SignedConsensusMsg};
-use malachitebft_core_types::{
-    CommitCertificate, Context, Round, SignedVote, Timeout, ValueOrigin,
+use malachitebft_core_consensus::{
+    LocallyProposedValue, ProposedValue, SignedConsensusMsg, WalEntry,
 };
+use malachitebft_core_types::{CommitCertificate, Context, Round, SignedVote, ValueOrigin};
 
 pub type RxEvent<Ctx> = broadcast::Receiver<Event<Ctx>>;
 
@@ -52,9 +52,7 @@ pub enum Event<Ctx: Context> {
     RequestedVoteSet(Ctx::Height, Round),
     SentVoteSetResponse(Ctx::Height, Round, usize, usize),
     WalReplayBegin(Ctx::Height, usize),
-    WalReplayConsensus(SignedConsensusMsg<Ctx>),
-    WalReplayTimeout(Timeout),
-    WalReplayProposedValue(ProposedValue<Ctx>),
+    WalReplayEntry(WalEntry<Ctx>),
     WalReplayDone(Ctx::Height),
     WalReplayError(Arc<ActorProcessingErr>),
 }
@@ -88,11 +86,7 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
             Event::WalReplayBegin(height, count) => {
                 write!(f, "WalReplayBegin(height: {height}, count: {count})")
             }
-            Event::WalReplayConsensus(msg) => write!(f, "WalReplayConsensus(msg: {msg:?})"),
-            Event::WalReplayTimeout(timeout) => write!(f, "WalReplayTimeout(timeout: {timeout:?})"),
-            Event::WalReplayProposedValue(value) => {
-                write!(f, "WalReplayProposedValue(value: {value:?})")
-            }
+            Event::WalReplayEntry(entry) => write!(f, "WalReplayEntry(entry: {entry:?})"),
             Event::WalReplayDone(height) => write!(f, "WalReplayDone(height: {height})"),
             Event::WalReplayError(error) => write!(f, "WalReplayError({error})"),
         }

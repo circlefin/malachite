@@ -77,7 +77,7 @@ pub struct ProposedValue<Ctx: Context> {
     pub validity: Validity,
 }
 
-#[derive_where(Debug)]
+#[derive_where(Clone, Debug)]
 pub enum WalEntry<Ctx: Context> {
     ConsensusMsg(SignedConsensusMsg<Ctx>),
     Timeout(Timeout),
