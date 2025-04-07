@@ -45,9 +45,19 @@ where
         "Received proposal"
     );
 
+    // Queue messages if driver is not initialized, or if they are for higher height.
+    // Process messages received for the current height.
+    // Drop all others.
+    if state.driver.round() == Round::Nil {
+        debug!("Received proposal at round -1, queuing for later");
+        state.buffer_input(proposal_height, Input::Proposal(signed_proposal));
+
+        return Ok(());
+    }
+
     if proposal_height > consensus_height {
-        debug!("Received proposal for higher height, queuing for later");
-        state.buffer_input(signed_proposal.height(), Input::Proposal(signed_proposal));
+        debug!("Received proposal for higher height {proposal_height}, queuing for later",);
+        state.buffer_input(proposal_height, Input::Proposal(signed_proposal));
 
         return Ok(());
     }
