@@ -6,6 +6,30 @@ use crate::types::{ProposedValue, WalEntry};
 use super::decide::try_decide;
 use super::signature::sign_proposal;
 
+/// Handles a proposed value that can originate from multiple sources:
+/// 1. Application layer:
+///    - In 'parts-only' mode
+///    - In 'proposal-and-parts' mode
+/// 2. WAL (Write-Ahead Log) during node restart recovery
+/// 3. Sync service during state synchronization
+///
+/// This function processes proposed values based on their height and origin:
+/// - Drops values from lower heights
+/// - Queues values from higher heights for later processing
+/// - For parts-only mode or values from Sync, generates and signs internal Proposal messages
+/// - Stores the value and appends it to the WAL if new
+/// - Applies any associated proposals to the driver
+/// - Attempts immediate decision for values from Sync
+///
+/// # Arguments
+/// * `co` - Coordination object for async operations
+/// * `state` - Current consensus state
+/// * `metrics` - Metrics collection
+/// * `proposed_value` - The proposed value to process
+/// * `origin` - Origin of the proposed value (e.g., Sync, Network)
+///
+/// # Returns
+/// Result indicating success or failure of processing the proposed value
 pub async fn on_proposed_value<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,

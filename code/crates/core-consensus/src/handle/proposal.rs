@@ -6,6 +6,27 @@ use crate::prelude::*;
 use crate::types::{ConsensusMsg, ProposedValue, SignedConsensusMsg, WalEntry};
 use crate::util::pretty::PrettyProposal;
 
+/// Handles an incoming proposal message.
+///
+/// This handler processes proposals that can arrive from three sources:
+/// 1. Network messages from other nodes
+/// 2. Local proposals when this node is the proposer
+/// 3. WAL replay during node restart
+///
+/// When acting as proposer (2), consensus core interacts with the application to get a proposed value for the current height and round.
+/// In this case the proposal message is sent out to the network but also back to the consensus core.
+///
+/// # Arguments
+/// * `co` - The context object containing configuration and external dependencies
+/// * `state` - The current consensus state
+/// * `metrics` - Metrics collection for monitoring
+/// * `signed_proposal` - The signed proposal message to process
+///
+/// # Flow
+/// 1. Validates proposal height and signature
+/// 2. Queues messages if not ready to process (wrong height/round)
+/// 3. Stores valid proposals and updates WAL if needed
+/// 4. Processes the proposal through the driver if a full proposal is available
 pub async fn on_proposal<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
