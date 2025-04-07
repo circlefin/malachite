@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use derive_where::derive_where;
 
-use malachitebft_core_types::{Context, Proposal, Round, SignedProposal, Validity, Value};
+use malachitebft_core_types::{Context, Proposal, Round, SignedProposal, Validity, Value, ValueId};
 
 use crate::ProposedValue;
 
@@ -55,7 +55,7 @@ impl<Ctx: Context> Entry<Ctx> {
         Entry::Full(FullProposal::new(value, validity, proposal))
     }
 
-    fn id(&self) -> Option<<Ctx::Value as Value>::Id> {
+    fn id(&self) -> Option<ValueId<Ctx>> {
         match self {
             Entry::Full(p) => Some(p.builder_value.id()),
             Entry::ProposalOnly(p) => Some(p.value().id()),
