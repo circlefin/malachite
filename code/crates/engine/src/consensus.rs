@@ -302,14 +302,15 @@ where
             Msg::StartHeight(height, validator_set) => {
                 self.tx_event.send(|| Event::StartedHeight(height));
 
+                // Fetch entries from the WAL
                 let wal_entries = self.wal_fetch(height).await?;
 
                 if !wal_entries.is_empty() {
+                    // Set the phase to `Recovering` while we replay the WAL
                     state.set_phase(Phase::Recovering);
                 }
 
-                // Prepare the driver state for the new height,
-                // but do not start consensus yet.
+                // Start consensus for the given height
                 let result = self
                     .process_input(
                         &myself,
@@ -323,11 +324,11 @@ where
                 }
 
                 if !wal_entries.is_empty() {
-                    // Replay the entries from the WAL before starting the new height
+                    // Replay the entries from the WAL
                     self.replay_wal(&myself, state, height, wal_entries).await;
                 }
 
-                // Set the phase to `Running` after starting the new height
+                // Set the phase to `Running` now that we have replayed the WAL
                 state.set_phase(Phase::Running);
 
                 // Process any buffered messages, now that we are in the `Running` phase
