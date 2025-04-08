@@ -6,7 +6,7 @@ use crate::prelude::*;
 use crate::types::{ConsensusMsg, ProposedValue, SignedConsensusMsg, WalEntry};
 use crate::util::pretty::PrettyProposal;
 
-/// Handles an incoming proposal message.
+/// Handles an incoming consensus proposal message.
 ///
 /// This handler processes proposals that can arrive from three sources:
 /// 1. Network messages from other nodes
