@@ -6,6 +6,7 @@ use malachitebft_wal as wal;
 
 use eyre::Result;
 
+use super::entry::decode_entry;
 use super::{WalCodec, WalEntry};
 
 pub fn log_entries<'a, Ctx, Codec>(
@@ -41,7 +42,7 @@ where
         match entry {
             Ok(bytes) => {
                 let buf = io::Cursor::new(bytes);
-                let entry = WalEntry::decode(self.codec, buf);
+                let entry = decode_entry(self.codec, buf);
                 Some(entry.map_err(Into::into))
             }
             Err(e) => Some(Err(e.into())),

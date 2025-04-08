@@ -3,6 +3,7 @@ use crate::handle::driver::apply_driver_input;
 use crate::handle::rebroadcast_timeout::on_rebroadcast_timeout;
 use crate::handle::step_timeout::on_step_limit_timeout;
 use crate::prelude::*;
+use crate::types::WalEntry;
 
 pub async fn on_timeout_elapsed<Ctx>(
     co: &Co<Ctx>,
@@ -41,7 +42,10 @@ where
     ) {
         // Persist the timeout in the Write-ahead Log.
         // Time-limit and rebroadcast timeouts are not persisted because they only occur when consensus is stuck.
-        perform!(co, Effect::WalAppendTimeout(timeout, Default::default()));
+        perform!(
+            co,
+            Effect::WalAppend(WalEntry::Timeout(timeout), Default::default())
+        );
     }
 
     apply_driver_input(co, state, metrics, DriverInput::TimeoutElapsed(timeout)).await?;

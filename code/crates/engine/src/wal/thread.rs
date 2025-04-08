@@ -9,7 +9,7 @@ use tracing::{debug, error, info};
 use malachitebft_core_types::{Context, Height};
 use malachitebft_wal as wal;
 
-use super::entry::{WalCodec, WalEntry};
+use super::entry::{decode_entry, encode_entry, WalCodec, WalEntry};
 use super::iter::log_entries;
 
 pub type ReplyTo<T> = oneshot::Sender<Result<T>>;
@@ -105,10 +105,10 @@ where
         }
 
         WalMsg::Append(entry, reply) => {
-            let tpe = entry.tpe();
+            let tpe = wal_entry_type(&entry);
 
             let mut buf = Vec::new();
-            entry.encode(codec, &mut buf)?;
+            encode_entry(&entry, codec, &mut buf)?;
 
             if !buf.is_empty() {
                 let result = log.append(&buf).map_err(Into::into);
@@ -181,7 +181,7 @@ where
             }
         })
         .filter_map(
-            |(idx, bytes)| match WalEntry::decode(codec, io::Cursor::new(bytes.clone())) {
+            |(idx, bytes)| match decode_entry(codec, io::Cursor::new(bytes.clone())) {
                 Ok(entry) => Some(entry),
                 Err(e) => {
                     error!("Failed to decode WAL entry {idx}: {e} {:?}", bytes);
@@ -240,5 +240,18 @@ fn span_sequence(sequence: u64, msg: &WalMsg<impl Context>) -> u64 {
         height.as_u64()
     } else {
         sequence
+    }
+}
+
+fn wal_entry_type<Ctx: Context>(entry: &WalEntry<Ctx>) -> &'static str {
+    use malachitebft_core_consensus::SignedConsensusMsg;
+
+    match entry {
+        WalEntry::ConsensusMsg(msg) => match msg {
+            SignedConsensusMsg::Vote(_) => "Consensus(Vote)",
+            SignedConsensusMsg::Proposal(_) => "Consensus(Proposal)",
+        },
+        WalEntry::ProposedValue(_) => "LocallyProposedValue",
+        WalEntry::Timeout(_) => "Timeout",
     }
 }

@@ -284,6 +284,26 @@ where
                 }
             }
 
+            Step::WaitUntilRound(target_round) => {
+                info!("Waiting until node reaches round {target_round}");
+
+                'inner: while let Ok(event) = rx_event.recv().await {
+                    if let Some(failure) = failure.lock().await.take() {
+                        return TestResult::Failure(failure);
+                    }
+
+                    let Event::StartedRound(_, round) = event else {
+                        continue 'inner;
+                    };
+
+                    info!("Node started round {round}");
+
+                    if round.as_u32() == Some(target_round) {
+                        break 'inner;
+                    }
+                }
+            }
+
             Step::Crash(after) => {
                 let height = current_height.load(Ordering::SeqCst);
 

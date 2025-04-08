@@ -88,7 +88,7 @@ fn props_for_value(
     k: &FullProposalKeeper<TestContext>,
     v: &ProposedValue<TestContext>,
 ) -> Vec<SignedProposal<TestContext>> {
-    k.full_proposals_for_value(v)
+    k.proposals_for_value(v)
 }
 
 // Used for full proposer keeper testing:

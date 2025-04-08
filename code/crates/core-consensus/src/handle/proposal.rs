@@ -3,10 +3,30 @@ use crate::handle::signature::verify_signature;
 use crate::handle::validator_set::get_validator_set;
 use crate::input::Input;
 use crate::prelude::*;
-use crate::types::ConsensusMsg;
+use crate::types::{ConsensusMsg, ProposedValue, SignedConsensusMsg, WalEntry};
 use crate::util::pretty::PrettyProposal;
-use crate::{ProposedValue, SignedConsensusMsg};
 
+/// Handles an incoming consensus proposal message.
+///
+/// This handler processes proposals that can arrive from three sources:
+/// 1. Network messages from other nodes
+/// 2. Local proposals when this node is the proposer
+/// 3. WAL replay during node restart
+///
+/// When acting as proposer (2), consensus core interacts with the application to get a proposed value for the current height and round.
+/// In this case the proposal message is sent out to the network but also back to the consensus core.
+///
+/// # Arguments
+/// * `co` - The context object containing configuration and external dependencies
+/// * `state` - The current consensus state
+/// * `metrics` - Metrics collection for monitoring
+/// * `signed_proposal` - The signed proposal message to process
+///
+/// # Flow
+/// 1. Validates proposal height and signature
+/// 2. Queues messages if not ready to process (wrong height/round)
+/// 3. Stores valid proposals and updates WAL if needed
+/// 4. Processes the proposal through the driver if a full proposal is available
 pub async fn on_proposal<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
@@ -38,9 +58,10 @@ where
     }
 
     info!(
-        height = %consensus_height,
-        %proposal_height,
-        address = %proposer_address,
+        consensus.height = %consensus_height,
+        proposal.height = %proposal_height,
+        proposal.round = %proposal_round,
+        proposer = %proposer_address,
         message = %PrettyProposal::<Ctx>(&signed_proposal.message),
         "Received proposal"
     );
@@ -50,14 +71,14 @@ where
     // Drop all others.
     if state.driver.round() == Round::Nil {
         debug!("Received proposal at round -1, queuing for later");
-        state.buffer_input(signed_proposal.height(), Input::Proposal(signed_proposal));
+        state.buffer_input(proposal_height, Input::Proposal(signed_proposal));
 
         return Ok(());
     }
 
     if proposal_height > consensus_height {
-        debug!("Received proposal for higher height, queuing for later");
-        state.buffer_input(signed_proposal.height(), Input::Proposal(signed_proposal));
+        debug!("Received proposal for higher height {proposal_height}, queuing for later",);
+        state.buffer_input(proposal_height, Input::Proposal(signed_proposal));
 
         return Ok(());
     }
@@ -72,8 +93,8 @@ where
     if state.params.value_payload.include_proposal() {
         perform!(
             co,
-            Effect::WalAppendMessage(
-                SignedConsensusMsg::Proposal(signed_proposal.clone()),
+            Effect::WalAppend(
+                WalEntry::ConsensusMsg(SignedConsensusMsg::Proposal(signed_proposal.clone())),
                 Default::default()
             )
         );

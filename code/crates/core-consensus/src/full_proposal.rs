@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use derive_where::derive_where;
 
-use malachitebft_core_types::{Context, Proposal, Round, SignedProposal, Validity, Value};
+use malachitebft_core_types::{Context, Proposal, Round, SignedProposal, Validity, Value, ValueId};
 
 use crate::ProposedValue;
 
@@ -53,6 +53,15 @@ enum Entry<Ctx: Context> {
 impl<Ctx: Context> Entry<Ctx> {
     fn full(value: Ctx::Value, validity: Validity, proposal: SignedProposal<Ctx>) -> Self {
         Entry::Full(FullProposal::new(value, validity, proposal))
+    }
+
+    fn id(&self) -> Option<ValueId<Ctx>> {
+        match self {
+            Entry::Full(p) => Some(p.builder_value.id()),
+            Entry::ProposalOnly(p) => Some(p.value().id()),
+            Entry::ValueOnly(v, _) => Some(v.id()),
+            Entry::Empty => None,
+        }
     }
 }
 
@@ -113,7 +122,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         Self::default()
     }
 
-    pub fn full_proposals_for_value(
+    pub fn proposals_for_value(
         &self,
         proposed_value: &ProposedValue<Ctx>,
     ) -> Vec<SignedProposal<Ctx>> {
@@ -157,7 +166,28 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         None
     }
 
-    #[allow(clippy::type_complexity)]
+    pub fn full_proposal_at_round_and_proposer(
+        &self,
+        height: &Ctx::Height,
+        round: Round,
+        proposer: &Ctx::Address,
+    ) -> Option<&FullProposal<Ctx>> {
+        let entries = self
+            .keeper
+            .get(&(*height, round))
+            .filter(|entries| !entries.is_empty())?;
+
+        for entry in entries {
+            if let Entry::Full(p) = entry {
+                if p.proposal.validator_address() == proposer {
+                    return Some(p);
+                }
+            }
+        }
+
+        None
+    }
+
     pub fn get_value<'a>(
         &self,
         height: &Ctx::Height,
@@ -266,6 +296,15 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
     pub fn store_value(&mut self, new_value: &ProposedValue<Ctx>) {
         self.store_value_at_value_round(new_value);
         self.store_value_at_pol_round(new_value);
+    }
+
+    pub fn value_exists(&self, value: &ProposedValue<Ctx>) -> bool {
+        match self.keeper.get(&(value.height, value.round)) {
+            None => false,
+            Some(entries) => entries
+                .iter()
+                .any(|entry| entry.id() == Some(value.value.id())),
+        }
     }
 
     fn store_value_at_value_round(&mut self, new_value: &ProposedValue<Ctx>) {

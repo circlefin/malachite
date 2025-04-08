@@ -64,6 +64,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage_nightly)'] }
 
 [workspace.lints.clippy]
 disallowed_types = "deny"
+doc_overindented_list_items = "allow"
 
 [workspace.dependencies]
 malachitebft-engine             = { version = "0.0.1", package = "informalsystems-malachitebft-engine", path = "crates/engine" }
@@ -161,7 +162,7 @@ testdir            = "0.9.1"
 thiserror          = { version = "2.0", default-features = false }
 tikv-jemallocator  = "0.6.0"
 time               = "0.3"
-tokio              = "1.44.1"
+tokio              = "1.44.2"
 tokio-stream       = "0.1"
 toml               = "0.8.19"
 tracing            = "0.1.41"
