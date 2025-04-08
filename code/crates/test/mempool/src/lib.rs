@@ -106,7 +106,7 @@ impl TransportProtocol {
         for protocol in multiaddr.protocol_stack() {
             match protocol {
                 "tcp" => return Some(TransportProtocol::Tcp),
-                "quic" => return Some(TransportProtocol::Quic),
+                "quic" | "quic-v1" => return Some(TransportProtocol::Quic),
                 _ => {}
             }
         }
