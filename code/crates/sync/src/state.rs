@@ -54,7 +54,7 @@ where
         self.peers.insert(status.peer_id, status);
     }
 
-    /// Select at random a peer that that we know is at our tip height and therefore might have votes.
+    /// Select a random peer that is at our tip height and therefore might have votes.
     pub fn random_peer_with_votes(&mut self, height: Ctx::Height) -> Option<PeerId> {
         self.peers
             .iter()
@@ -62,7 +62,7 @@ where
             .choose_stable(&mut self.rng)
     }
 
-    /// Select at random a peer that is currently running consensus at `height` and round >= `round`
+    /// Select a random a peer that is currently running consensus at `height` and round >= `round`
     /// TODO - currently this is inferred from the fact that status was sent with height - 1
     /// Potentially extend Status to include consensus height and round.
     pub fn random_peer_for_votes(&mut self, height: Ctx::Height, _round: Round) -> Option<PeerId> {
@@ -74,7 +74,7 @@ where
         self.random_peer_with_votes(tip_height)
     }
 
-    /// Select at random a peer that that we know is at or above the given height.
+    /// Select a random a peer that that we know is at or above the given height.
     pub fn random_peer_with_value(&mut self, height: Ctx::Height) -> Option<PeerId> {
         self.peers
             .iter()
@@ -82,7 +82,7 @@ where
             .choose_stable(&mut self.rng)
     }
 
-    /// Select at random a peer that that we know is at or above the given height,
+    /// Select a random a peer that that we know is at or above the given height,
     /// except the given one.
     pub fn random_peer_with_value_except(
         &mut self,
