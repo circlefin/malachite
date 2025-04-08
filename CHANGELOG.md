@@ -4,6 +4,9 @@
 
 *April 8, 2025*
 
+### ⚠️ Breaking changes
+See [`BREAKING_CHANGES.md`](./BREAKING_CHANGES.md) for the list of breaking changes.
+
 ### 🧪 Specifications
 
 - *(spec)* New height logic / fast track ([#591](https://github.com/informalsystems/malachite/pull/591))
@@ -77,6 +80,9 @@
 ## 0.0.1
 
 *December 19, 2024*
+
+### ⚠️ Breaking changes
+See [`BREAKING_CHANGES.md`](./BREAKING_CHANGES.md) for the list of breaking changes.
 
 ### 🧪 Specifications
 

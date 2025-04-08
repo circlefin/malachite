@@ -17,9 +17,13 @@ body = """
     ## {{ version | trim_start_matches(pat="v") }}
 
     *{{ timestamp | date(format="%B %-d, %Y") }}*
+
+    ### ⚠️ Breaking changes
+    See [`BREAKING_CHANGES.md`](./BREAKING_CHANGES.md) for the list of breaking changes.
 {% else %}\
     ## Unreleased
 {% endif %}\
+
 {% for group, commits in commits | group_by(attribute="group") %}
     ### {{ group | striptags | trim | upper_first }}
     {% for commit in commits %}
