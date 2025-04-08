@@ -74,7 +74,7 @@ where
         self.random_peer_with_votes(tip_height)
     }
 
-    /// Select a random a peer that that we know is at or above the given height.
+    /// Select a random peer that that we know is at or above the given height.
     pub fn random_peer_with_value(&mut self, height: Ctx::Height) -> Option<PeerId> {
         self.peers
             .iter()
@@ -82,7 +82,7 @@ where
             .choose_stable(&mut self.rng)
     }
 
-    /// Select a random a peer that that we know is at or above the given height,
+    /// Select a random peer that that we know is at or above the given height,
     /// except the given one.
     pub fn random_peer_with_value_except(
         &mut self,
