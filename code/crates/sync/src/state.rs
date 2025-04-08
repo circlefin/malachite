@@ -62,7 +62,7 @@ where
             .choose_stable(&mut self.rng)
     }
 
-    /// Select a random a peer that is currently running consensus at `height` and round >= `round`
+    /// Select a random peer that is currently running consensus at `height` and round >= `round`
     /// TODO - currently this is inferred from the fact that status was sent with height - 1
     /// Potentially extend Status to include consensus height and round.
     pub fn random_peer_for_votes(&mut self, height: Ctx::Height, _round: Round) -> Option<PeerId> {
