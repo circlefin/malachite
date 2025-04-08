@@ -101,9 +101,8 @@ where
         round: Round,
         value: &Ctx::Value,
     ) -> Vec<SignedVote<Ctx>> {
-        if height != self.driver.height() {
-            return Vec::new();
-        }
+        assert_eq!(height, self.driver.height());
+
         // Get the commits for the height and round.
         if let Some(per_round) = self.driver.votes().per_round(round) {
             per_round
