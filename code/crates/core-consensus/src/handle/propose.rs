@@ -31,7 +31,7 @@ pub async fn on_propose<Ctx>(
 where
     Ctx: Context,
 {
-    if !verify_propose_value(state, &local_value).await? {
+    if !verify_propose_value(state, &local_value)? {
         return Ok(());
     }
 
@@ -82,7 +82,7 @@ where
 ///   - The proposed round matches the current round
 ///   - The local node is the expected proposer for this round
 /// * Ok(false) if any of these conditions are not met
-async fn verify_propose_value<Ctx>(
+fn verify_propose_value<Ctx>(
     state: &State<Ctx>,
     local_value: &LocallyProposedValue<Ctx>,
 ) -> Result<bool, Error<Ctx>>
