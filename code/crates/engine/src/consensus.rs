@@ -305,7 +305,8 @@ where
 
         match msg {
             Msg::StartHeight(height, validator_set) | Msg::RestartHeight(height, validator_set) => {
-                self.tx_event.send(|| Event::StartedHeight(height));
+                self.tx_event
+                    .send(|| Event::StartedHeight(height, is_restart));
 
                 // Fetch entries from the WAL or reset the WAL if this is a restart
                 let wal_entries = if is_restart {

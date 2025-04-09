@@ -228,7 +228,7 @@ where
             async move {
                 while let Ok(event) = rx.recv().await {
                     match &event {
-                        Event::StartedHeight(height) => {
+                        Event::StartedHeight(height, _is_restart) => {
                             current_height.store(height.as_u64() as usize, Ordering::SeqCst);
                         }
                         Event::Decided(_) => {
@@ -270,7 +270,7 @@ where
                         return TestResult::Failure(failure);
                     }
 
-                    let Event::StartedHeight(height) = event else {
+                    let Event::StartedHeight(height, _is_restart) = event else {
                         continue 'inner;
                     };
 

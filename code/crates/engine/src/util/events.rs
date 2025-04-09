@@ -42,7 +42,7 @@ impl<Ctx: Context> Default for TxEvent<Ctx> {
 
 #[derive_where(Clone, Debug)]
 pub enum Event<Ctx: Context> {
-    StartedHeight(Ctx::Height),
+    StartedHeight(Ctx::Height, bool),
     StartedRound(Ctx::Height, Round),
     Published(SignedConsensusMsg<Ctx>),
     ProposedValue(LocallyProposedValue<Ctx>),
@@ -60,7 +60,9 @@ pub enum Event<Ctx: Context> {
 impl<Ctx: Context> fmt::Display for Event<Ctx> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Event::StartedHeight(height) => write!(f, "StartedHeight(height: {height})"),
+            Event::StartedHeight(height, restart) => {
+                write!(f, "StartedHeight(height: {height}, restart: {restart})")
+            }
             Event::StartedRound(height, round) => {
                 write!(f, "StartedRound(height: {height}, round: {round})")
             }
