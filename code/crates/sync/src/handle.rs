@@ -58,11 +58,12 @@ pub enum Input<Ctx: Context> {
     /// A status update has been received from a peer
     Status(Status<Ctx>),
 
-    /// Consensus just started a new height
-    UpdateTipHeight(Ctx::Height),
+    /// Consensus just started a new height.
+    /// The boolean indicates whether this was a restart or a new start.
+    StartedHeight(Ctx::Height, bool),
 
     /// Consensus just decided on a new value
-    UpdateSyncHeight(Ctx::Height),
+    Decided(Ctx::Height),
 
     /// A ValueSync request has been received from a peer
     ValueRequest(InboundRequestId, PeerId, ValueRequest<Ctx>),
@@ -106,28 +107,36 @@ where
 
         Input::Status(status) => on_status(co, state, metrics, status).await,
 
-        Input::UpdateTipHeight(height) => on_update_tip_height(co, state, metrics, height).await,
+        Input::StartedHeight(height, restart) => {
+            on_started_height(co, state, metrics, height, restart).await
+        }
 
-        Input::UpdateSyncHeight(height) => on_update_sync_height(co, state, metrics, height).await,
+        Input::Decided(height) => on_decided(co, state, metrics, height).await,
 
         Input::ValueRequest(request_id, peer_id, request) => {
             on_value_request(co, state, metrics, request_id, peer_id, request).await
         }
+
         Input::ValueResponse(request_id, peer_id, response) => {
             on_value_response(co, state, metrics, request_id, peer_id, response).await
         }
+
         Input::GotDecidedValue(request_id, height, value) => {
             on_value(co, state, metrics, request_id, height, value).await
         }
+
         Input::SyncRequestTimedOut(peer_id, request) => {
             on_sync_request_timed_out(co, state, metrics, peer_id, request).await
         }
+
         Input::InvalidCertificate(peer, certificate, error) => {
             on_invalid_certificate(co, state, metrics, peer, certificate, error).await
         }
+
         Input::GetVoteSet(height, round) => {
             on_get_vote_set(co, state, metrics, height, round).await
         }
+
         Input::VoteSetRequest(request_id, peer_id, request) => {
             on_vote_set_request(co, state, metrics, request_id, peer_id, request).await
         }
@@ -142,7 +151,6 @@ where
     }
 }
 
-#[tracing::instrument(skip_all)]
 pub async fn on_tick<Ctx>(
     co: Co<Ctx>,
     state: &mut State<Ctx>,
@@ -158,13 +166,6 @@ where
     Ok(())
 }
 
-#[tracing::instrument(
-    skip_all,
-    fields(
-        height.sync = %state.sync_height,
-        height.tip = %state.tip_height
-    )
-)]
 pub async fn on_status<Ctx>(
     co: Co<Ctx>,
     state: &mut State<Ctx>,
@@ -201,7 +202,50 @@ where
     Ok(())
 }
 
-#[tracing::instrument(skip_all)]
+pub async fn on_started_height<Ctx>(
+    co: Co<Ctx>,
+    state: &mut State<Ctx>,
+    metrics: &Metrics,
+    height: Ctx::Height,
+    restart: bool,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    debug!(height.sync = %height, %restart, "Starting new height");
+
+    state.started = true;
+    state.sync_height = height;
+
+    if restart {
+        // This height was restarted, so we need to reset the tip height to the previous height.
+        state.tip_height = height.decrement().unwrap_or(height);
+    }
+
+    // Check if there is any peer already at or above the height we just started,
+    // and request sync from that peer in order to catch up.
+    request_value(co, state, metrics).await?;
+
+    Ok(())
+}
+
+pub async fn on_decided<Ctx>(
+    _co: Co<Ctx>,
+    state: &mut State<Ctx>,
+    _metrics: &Metrics,
+    height: Ctx::Height,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    debug!(height.tip = %height, "Updating tip height");
+
+    state.tip_height = height;
+    state.remove_pending_decided_value_request(height);
+
+    Ok(())
+}
+
 pub async fn on_value_request<Ctx>(
     co: Co<Ctx>,
     _state: &mut State<Ctx>,
@@ -222,7 +266,6 @@ where
     Ok(())
 }
 
-#[tracing::instrument(skip_all)]
 pub async fn on_value_response<Ctx>(
     _co: Co<Ctx>,
     state: &mut State<Ctx>,
@@ -239,44 +282,6 @@ where
     state.remove_pending_decided_value_request(response.height);
 
     metrics.decided_value_response_received(response.height.as_u64());
-
-    Ok(())
-}
-
-pub async fn on_update_sync_height<Ctx>(
-    co: Co<Ctx>,
-    state: &mut State<Ctx>,
-    metrics: &Metrics,
-    sync_height: Ctx::Height,
-) -> Result<(), Error<Ctx>>
-where
-    Ctx: Context,
-{
-    debug!(height.sync = %sync_height, "Starting new height");
-
-    state.started = true;
-    state.sync_height = sync_height;
-
-    // Check if there is any peer already at or above the height we just started,
-    // and request sync from that peer in order to catch up.
-    request_value(co, state, metrics).await?;
-
-    Ok(())
-}
-
-pub async fn on_update_tip_height<Ctx>(
-    _co: Co<Ctx>,
-    state: &mut State<Ctx>,
-    _metrics: &Metrics,
-    tip_height: Ctx::Height,
-) -> Result<(), Error<Ctx>>
-where
-    Ctx: Context,
-{
-    debug!(height.tip = %tip_height, "Updating tip height");
-
-    state.tip_height = tip_height;
-    state.remove_pending_decided_value_request(tip_height);
 
     Ok(())
 }
@@ -474,7 +479,6 @@ where
     Ok(())
 }
 
-#[tracing::instrument(skip_all)]
 pub async fn on_vote_set_request<Ctx>(
     _co: Co<Ctx>,
     _state: &mut State<Ctx>,
@@ -514,7 +518,6 @@ where
     Ok(())
 }
 
-#[tracing::instrument(skip_all)]
 pub async fn on_vote_set_response<Ctx>(
     _co: Co<Ctx>,
     state: &mut State<Ctx>,

@@ -379,6 +379,7 @@ async fn byzantine_proposer_crashes_after_proposing_2(params: TestParams) {
         .wait_until(CRASH_HEIGHT)
         .crash()
         .restart_after(Duration::from_secs(6))
+        .wait_until(CRASH_HEIGHT + 2)
         .success();
 
     test.add_node()
@@ -394,6 +395,7 @@ async fn byzantine_proposer_crashes_after_proposing_2(params: TestParams) {
         // Crash right after
         .crash()
         .restart_after(Duration::from_secs(5))
+        .wait_until(CRASH_HEIGHT + 2)
         .success();
 
     test.add_node()

@@ -13,7 +13,7 @@ use tracing::{debug, error, info, warn, Instrument};
 
 use malachitebft_codec as codec;
 use malachitebft_core_consensus::PeerId;
-use malachitebft_core_types::{CertificateError, CommitCertificate, Context, Height, Round};
+use malachitebft_core_types::{CertificateError, CommitCertificate, Context, Round};
 use malachitebft_sync::{self as sync, InboundRequestId, OutboundRequestId, Response};
 use malachitebft_sync::{RawDecidedValue, Request};
 
@@ -409,27 +409,15 @@ where
                 // Ignore other gossip events
             }
 
-            // Started a new height
-            Msg::StartedHeight(sync_height, false) => {
-                self.process_input(&myself, state, sync::Input::UpdateSyncHeight(sync_height))
+            // (Re)Started a new height
+            Msg::StartedHeight(height, restart) => {
+                self.process_input(&myself, state, sync::Input::StartedHeight(height, restart))
                     .await?
             }
 
-            // Restarted the last height
-            Msg::StartedHeight(sync_height, true) => {
-                let tip_height = sync_height.decrement().unwrap_or(sync_height);
-
-                // Reset the tip height to height before the restart
-                self.process_input(&myself, state, sync::Input::UpdateTipHeight(tip_height))
-                    .await?;
-
-                // Reset the sync height to the height of the restart
-                self.process_input(&myself, state, sync::Input::UpdateSyncHeight(sync_height))
-                    .await?;
-            }
-
+            // Decided on a value
             Msg::Decided(height) => {
-                self.process_input(&myself, state, sync::Input::UpdateTipHeight(height))
+                self.process_input(&myself, state, sync::Input::Decided(height))
                     .await?;
             }
 
