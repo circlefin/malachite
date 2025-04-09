@@ -1,0 +1,28 @@
+name: Publish
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - v[0-9]+.*
+
+jobs:
+  publish:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          cache-workspaces: "code"
+      - name: Publish crates
+        uses: katyo/publish-crates@v2
+        with:
+          registry-token: ${{ secrets.CRATES_TOKEN }}
+          path: code
