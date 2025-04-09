@@ -309,7 +309,7 @@ where
 
                 // Fetch entries from the WAL or reset the WAL if this is a restart
                 let wal_entries = if is_restart {
-                    self.reset_wal(height).await?;
+                    self.wal_reset(height).await?;
                     vec![]
                 } else {
                     self.wal_fetch(height).await?
@@ -334,7 +334,7 @@ where
                 }
 
                 if !wal_entries.is_empty() {
-                    self.replay_wal(&myself, state, height, wal_entries).await;
+                    self.wal_replay(&myself, state, height, wal_entries).await;
                 }
 
                 // Set the phase to `Running` now that we have replayed the WAL
@@ -624,7 +624,7 @@ where
         Ok(())
     }
 
-    async fn reset_wal(&self, height: Ctx::Height) -> Result<(), ActorProcessingErr> {
+    async fn wal_reset(&self, height: Ctx::Height) -> Result<(), ActorProcessingErr> {
         let result = ractor::call!(self.wal, WalMsg::Reset, height);
 
         match result {
@@ -670,7 +670,7 @@ where
         }
     }
 
-    async fn replay_wal(
+    async fn wal_replay(
         &self,
         myself: &ActorRef<Msg<Ctx>>,
         state: &mut State<Ctx>,
