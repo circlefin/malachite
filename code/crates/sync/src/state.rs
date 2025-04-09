@@ -50,7 +50,7 @@ where
         }
     }
 
-    pub fn update_status(&mut self, status: Status<Ctx>) {
+    pub fn update_peer_status(&mut self, status: Status<Ctx>) {
         self.peers.insert(status.peer_id, status);
     }
 
@@ -70,7 +70,7 @@ where
     pub fn random_peer_with_value(&mut self, height: Ctx::Height) -> Option<PeerId> {
         self.peers
             .iter()
-            .filter_map(move |(&peer, status)| (status.height >= height).then_some(peer))
+            .filter_map(move |(&peer, status)| (status.sync_height > height).then_some(peer))
             .choose_stable(&mut self.rng)
     }
 
@@ -83,7 +83,7 @@ where
     ) -> Option<PeerId> {
         self.peers
             .iter()
-            .filter_map(move |(&peer, status)| (status.height >= height).then_some(peer))
+            .filter_map(move |(&peer, status)| (status.sync_height > height).then_some(peer))
             .filter(|&peer| peer != except)
             .choose_stable(&mut self.rng)
     }

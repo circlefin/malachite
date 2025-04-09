@@ -10,8 +10,9 @@ message PeerId {
 
 message Status {
     PeerId peer_id = 1;
-    uint64 height = 2;
-    uint64 earliest_height = 3;
+    uint64 tip_height = 2;
+    uint64 sync_height = 3;
+    uint64 earliest_height = 4;
 }
 
 message ValueRequest {

@@ -35,7 +35,12 @@ impl<Ctx: Context> Default for Resume<Ctx> {
 #[derive_where(Debug)]
 pub enum Effect<Ctx: Context> {
     /// Broadcast our status to our direct peers
-    BroadcastStatus(Ctx::Height),
+    BroadcastStatus {
+        // The height of the last value we decided on
+        tip_height: Ctx::Height,
+        // The height we are currently syncing at
+        sync_height: Ctx::Height,
+    },
 
     /// Send a ValueSync request to a peer
     SendValueRequest(PeerId, ValueRequest<Ctx>),
@@ -142,7 +147,6 @@ where
     }
 }
 
-#[tracing::instrument(skip_all)]
 pub async fn on_tick<Ctx>(
     co: Co<Ctx>,
     state: &mut State<Ctx>,
@@ -153,18 +157,17 @@ where
 {
     debug!(height.tip = %state.tip_height, "Broadcasting status");
 
-    perform!(co, Effect::BroadcastStatus(state.tip_height));
+    perform!(
+        co,
+        Effect::BroadcastStatus {
+            tip_height: state.tip_height,
+            sync_height: state.sync_height
+        }
+    );
 
     Ok(())
 }
 
-#[tracing::instrument(
-    skip_all,
-    fields(
-        height.sync = %state.sync_height,
-        height.tip = %state.tip_height
-    )
-)]
 pub async fn on_status<Ctx>(
     co: Co<Ctx>,
     state: &mut State<Ctx>,
@@ -174,22 +177,21 @@ pub async fn on_status<Ctx>(
 where
     Ctx: Context,
 {
-    debug!(%status.peer_id, %status.height, "Received peer status");
+    debug!(%status.peer_id, %status.tip_height, %status.sync_height, "Received peer status");
 
-    let peer_height = status.height;
-
-    state.update_status(status);
+    state.update_peer_status(status.clone());
 
     if !state.started {
         // Consensus has not started yet, no need to sync (yet).
         return Ok(());
     }
 
-    if peer_height > state.tip_height {
+    if status.sync_height > state.sync_height && status.sync_height > state.tip_height {
         warn!(
             height.tip = %state.tip_height,
             height.sync = %state.sync_height,
-            height.peer = %peer_height,
+            height.peer.tip = %status.tip_height,
+            height.peer.sync = %status.sync_height,
             "SYNC REQUIRED: Falling behind"
         );
 
@@ -201,7 +203,6 @@ where
     Ok(())
 }
 
-#[tracing::instrument(skip_all)]
 pub async fn on_value_request<Ctx>(
     co: Co<Ctx>,
     _state: &mut State<Ctx>,
@@ -222,7 +223,6 @@ where
     Ok(())
 }
 
-#[tracing::instrument(skip_all)]
 pub async fn on_value_response<Ctx>(
     _co: Co<Ctx>,
     state: &mut State<Ctx>,
@@ -476,7 +476,6 @@ where
     Ok(())
 }
 
-#[tracing::instrument(skip_all)]
 pub async fn on_vote_set_request<Ctx>(
     _co: Co<Ctx>,
     _state: &mut State<Ctx>,
@@ -516,7 +515,6 @@ where
     Ok(())
 }
 
-#[tracing::instrument(skip_all)]
 pub async fn on_vote_set_response<Ctx>(
     _co: Co<Ctx>,
     state: &mut State<Ctx>,

@@ -203,7 +203,8 @@ impl Codec<sync::Status<TestContext>> for ProtobufCodec {
 
         Ok(sync::Status {
             peer_id: PeerId::from_bytes(proto_peer_id.id.as_ref()).unwrap(),
-            height: Height::new(proto.height),
+            tip_height: Height::new(proto.tip_height),
+            sync_height: Height::new(proto.sync_height),
             history_min_height: Height::new(proto.earliest_height),
         })
     }
@@ -213,7 +214,8 @@ impl Codec<sync::Status<TestContext>> for ProtobufCodec {
             peer_id: Some(proto::PeerId {
                 id: Bytes::from(msg.peer_id.to_bytes()),
             }),
-            height: msg.height.as_u64(),
+            tip_height: msg.tip_height.as_u64(),
+            sync_height: msg.sync_height.as_u64(),
             earliest_height: msg.history_min_height.as_u64(),
         };
 

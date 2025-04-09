@@ -220,11 +220,15 @@ where
         use sync::Effect;
 
         match effect {
-            Effect::BroadcastStatus(height) => {
+            Effect::BroadcastStatus {
+                tip_height,
+                sync_height,
+            } => {
                 let history_min_height = self.get_history_min_height().await?;
 
                 self.gossip.cast(NetworkMsg::BroadcastStatus(Status::new(
-                    height,
+                    tip_height,
+                    sync_height,
                     history_min_height,
                 )))?;
             }
@@ -351,7 +355,8 @@ where
             Msg::NetworkEvent(NetworkEvent::Status(peer_id, status)) => {
                 let status = sync::Status {
                     peer_id,
-                    height: status.height,
+                    tip_height: status.tip_height,
+                    sync_height: status.sync_height,
                     history_min_height: status.history_min_height,
                 };
 
