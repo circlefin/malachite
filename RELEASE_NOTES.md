@@ -1,5 +1,9 @@
 # Release Notes
 
+## Unreleased
+
+- Add the capability to re-run consensus for a given height ([#893](https://github.com/informalsystems/malachite/issues/893))
+
 ## 0.1.0
 
 *April 9th, 2025*
