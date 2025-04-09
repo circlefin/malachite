@@ -4,8 +4,11 @@
 
 *April 9, 2025*
 
+## Release notes
+See [`RELEASE_NOTES.md`](./RELEASE_NOTES.md#0.1.0) for the release notes.
+
 ### ⚠️ Breaking changes
-See [`BREAKING_CHANGES.md`](./BREAKING_CHANGES.md) for the list of breaking changes.
+See [`BREAKING_CHANGES.md`](./BREAKING_CHANGES.md#0.1.0) for the list of breaking changes.
 
 ### 🧪 Specifications
 
@@ -81,8 +84,11 @@ See [`BREAKING_CHANGES.md`](./BREAKING_CHANGES.md) for the list of breaking chan
 
 *December 19, 2024*
 
+## Release notes
+See [`RELEASE_NOTES.md`](./RELEASE_NOTES.md#0.0.1) for the release notes.
+
 ### ⚠️ Breaking changes
-See [`BREAKING_CHANGES.md`](./BREAKING_CHANGES.md) for the list of breaking changes.
+See [`BREAKING_CHANGES.md`](./BREAKING_CHANGES.md#0.0.1) for the list of breaking changes.
 
 ### 🧪 Specifications
 
