@@ -174,21 +174,35 @@ impl State {
                 "Trying to commit a value with value id {value_id} at height {height} and round {round} for which there is no proposal"
             ));
         };
-        self.store
-            .store_decided_value(&certificate, proposal.value)
-            .await?;
 
         self.store.remove_undecided_proposal(height, round).await?;
 
-        // Prune the store, keep the last HISTORY_LENGTH values
-        let retain_height = Height::new(height.as_u64().saturating_sub(HISTORY_LENGTH));
-        self.store.prune(retain_height).await?;
+        let middleware = self.ctx.middleware();
+        debug!(%height, %round, "Middleware: {middleware:?}");
 
-        // Move to next height
-        self.current_height = self.current_height.increment();
-        self.current_round = Round::new(0);
+        match middleware.on_commit(&self.ctx, &certificate, &proposal) {
+            // Commit was successful, move to next height
+            Ok(()) => {
+                self.store
+                    .store_decided_value(&certificate, proposal.value)
+                    .await?;
 
-        Ok(())
+                // Prune the store, keep the last HISTORY_LENGTH values
+                let retain_height = Height::new(height.as_u64().saturating_sub(HISTORY_LENGTH));
+                self.store.prune(retain_height).await?;
+
+                // Move to next height
+                self.current_height = self.current_height.increment();
+                self.current_round = Round::Nil;
+
+                Ok(())
+            }
+            // Commit failed, reset height
+            Err(e) => {
+                error!("Middleware commit failed: {e}");
+                Err(eyre!("Resetting at height {height}"))
+            }
+        }
     }
 
     pub async fn store_synced_value(

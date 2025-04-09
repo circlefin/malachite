@@ -202,9 +202,11 @@ pub async fn run(
                             error!("Failed to send StartHeight reply");
                         }
                     }
-                    Err(_) => {
+                    Err(e) => {
                         // Commit failed, restart the height
-                        error!("Commit failed, restarting height {}", state.current_height);
+                        error!("Commit failed: {e}");
+                        error!("Restarting height {}", state.current_height);
+
                         if reply
                             .send(ConsensusMsg::RestartHeight(
                                 state.current_height,

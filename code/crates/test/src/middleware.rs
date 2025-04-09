@@ -1,7 +1,7 @@
 use core::fmt;
 
-use malachitebft_core_consensus::LocallyProposedValue;
-use malachitebft_core_types::{NilOrVal, Round};
+use malachitebft_core_consensus::{LocallyProposedValue, ProposedValue};
+use malachitebft_core_types::{CommitCertificate, NilOrVal, Round};
 
 use crate::{Address, Height, Proposal, TestContext, Value, ValueId, Vote};
 
@@ -46,6 +46,15 @@ pub trait Middleware: fmt::Debug + Send + Sync {
         _proposed_value: &mut LocallyProposedValue<TestContext>,
         _reproposal: bool,
     ) {
+    }
+
+    fn on_commit(
+        &self,
+        _ctx: &TestContext,
+        _certificate: &CommitCertificate<TestContext>,
+        _proposal: &ProposedValue<TestContext>,
+    ) -> Result<(), eyre::Report> {
+        Ok(())
     }
 }
 
