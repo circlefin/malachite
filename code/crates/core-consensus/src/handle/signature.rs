@@ -1,23 +1,5 @@
 use crate::prelude::*;
 
-use crate::types::ConsensusMsg;
-
-pub async fn verify_signature<Ctx>(
-    co: &Co<Ctx>,
-    signed_msg: SignedMessage<Ctx, ConsensusMsg<Ctx>>,
-    validator: &Ctx::Validator,
-) -> Result<bool, Error<Ctx>>
-where
-    Ctx: Context,
-{
-    let valid = perform!(co,
-        Effect::VerifySignature(signed_msg, validator.public_key().clone(), Default::default()),
-        Resume::SignatureValidity(valid) => valid
-    );
-
-    Ok(valid)
-}
-
 pub async fn sign_vote<Ctx>(co: &Co<Ctx>, vote: Ctx::Vote) -> Result<SignedVote<Ctx>, Error<Ctx>>
 where
     Ctx: Context,

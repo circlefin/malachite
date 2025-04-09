@@ -1,9 +1,7 @@
 use crate::handle::driver::apply_driver_input;
-use crate::handle::signature::verify_signature;
-use crate::handle::validator_set::get_validator_set;
 use crate::input::Input;
 use crate::prelude::*;
-use crate::types::{ConsensusMsg, ProposedValue, SignedConsensusMsg, WalEntry};
+use crate::types::{ProposedValue, SignedConsensusMsg, WalEntry};
 use crate::util::pretty::PrettyProposal;
 
 /// Handles an incoming consensus proposal message.
@@ -50,10 +48,6 @@ where
             "Received proposal for lower height, dropping"
         );
 
-        return Ok(());
-    }
-
-    if !verify_signed_proposal(co, state, &signed_proposal).await? {
         return Ok(());
     }
 
@@ -132,69 +126,4 @@ where
     }
 
     Ok(())
-}
-
-pub async fn verify_signed_proposal<Ctx>(
-    co: &Co<Ctx>,
-    state: &State<Ctx>,
-    signed_proposal: &SignedProposal<Ctx>,
-) -> Result<bool, Error<Ctx>>
-where
-    Ctx: Context,
-{
-    let consensus_height = state.driver.height();
-    let proposal_height = signed_proposal.height();
-    let proposal_round = signed_proposal.round();
-    let proposer_address = signed_proposal.validator_address();
-
-    let Some(validator_set) = get_validator_set(co, state, proposal_height).await? else {
-        debug!(
-            consensus.height = %consensus_height,
-            proposal.height = %proposal_height,
-            proposer = %proposer_address,
-            "Received proposal for height without known validator set, dropping"
-        );
-
-        return Ok(false);
-    };
-
-    let Some(proposer) = validator_set.get_by_address(proposer_address) else {
-        warn!(
-            consensus.height = %consensus_height,
-            proposal.height = %proposal_height,
-            proposer = %proposer_address,
-            "Received proposal from unknown validator"
-        );
-
-        return Ok(false);
-    };
-
-    let expected_proposer = state.get_proposer(proposal_height, proposal_round);
-
-    if expected_proposer != proposer_address {
-        warn!(
-            consensus.height = %consensus_height,
-            proposal.height = %proposal_height,
-            proposer = %proposer_address,
-            expected = %expected_proposer,
-            "Received proposal from a non-proposer"
-        );
-
-        return Ok(false);
-    };
-
-    let signed_msg = signed_proposal.clone().map(ConsensusMsg::Proposal);
-    if !verify_signature(co, signed_msg, proposer).await? {
-        warn!(
-            consensus.height = %consensus_height,
-            proposal.height = %proposal_height,
-            proposer = %proposer_address,
-            "Received invalid signature for proposal: {}",
-            PrettyProposal::<Ctx>(&signed_proposal.message)
-        );
-
-        return Ok(false);
-    }
-
-    Ok(true)
 }

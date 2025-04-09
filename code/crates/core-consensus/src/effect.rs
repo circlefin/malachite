@@ -4,7 +4,7 @@ use malachitebft_core_types::*;
 
 use crate::input::RequestId;
 use crate::types::SignedConsensusMsg;
-use crate::{ConsensusMsg, VoteExtensionError, WalEntry};
+use crate::{VoteExtensionError, WalEntry};
 
 /// Provides a way to construct the appropriate [`Resume`] value to
 /// resume execution after handling an [`Effect`].
@@ -146,15 +146,6 @@ where
     /// Resume with: [`resume::SignedProposal`]
     SignProposal(Ctx::Proposal, resume::SignedProposal),
 
-    /// Verify a signature
-    ///
-    /// Resume with: [`resume::SignatureValidity`]
-    VerifySignature(
-        SignedMessage<Ctx, ConsensusMsg<Ctx>>,
-        PublicKey<Ctx>,
-        resume::SignatureValidity,
-    ),
-
     /// Verify a commit certificate
     ///
     /// Resume with: [`resume::CertificateValidity`]
@@ -196,24 +187,6 @@ where
     ///
     /// Only emitted if vote extensions are enabled.
     ExtendVote(Ctx::Height, Round, ValueId<Ctx>, resume::VoteExtension),
-
-    /// Verify a vote extension
-    ///
-    /// If the vote extension is deemed invalid, the vote it was part of
-    /// will be discarded altogether.
-    ///
-    ///
-    /// Only emitted if vote extensions are enabled.
-    ///
-    /// Resume with: [`resume::VoteExtensionValidity`]
-    VerifyVoteExtension(
-        Ctx::Height,
-        Round,
-        ValueId<Ctx>,
-        SignedExtension<Ctx>,
-        PublicKey<Ctx>,
-        resume::VoteExtensionValidity,
-    ),
 }
 
 /// A value with which the consensus process can be resumed after yielding an [`Effect`].
