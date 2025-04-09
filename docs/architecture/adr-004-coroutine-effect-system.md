@@ -123,11 +123,6 @@ where
     /// Resume with: [`resume::Continue`]
     ScheduleTimeout(Timeout, resume::Continue),
 
-    /// Get the validator set at the given height
-    ///
-    /// Resume with: [`resume::ValidatorSet`]
-    GetValidatorSet(Ctx::Height, resume::ValidatorSet),
-
     /// Consensus is starting a new round with the given proposer
     ///
     /// Resume with: [`resume::Continue`]
@@ -200,16 +195,6 @@ where
     /// Resume with: [`resume::SignedProposal`]
     SignProposal(Ctx::Proposal, resume::SignedProposal),
 
-    /// Verify a commit certificate
-    ///
-    /// Resume with: [`resume::CertificateValidity`]
-    VerifyCertificate(
-        CommitCertificate<Ctx>,
-        Ctx::ValidatorSet,
-        ThresholdParams,
-        resume::CertificateValidity,
-    ),
-
     /// Consensus has been stuck in Prevote or Precommit step, ask for vote sets from peers
     ///
     /// Resume with: [`resume::Continue`]
@@ -274,9 +259,6 @@ where
     /// Resume with an optional vote extension.
     /// See the [`Effect::ExtendVote`] effect for more information.
     VoteExtension(Option<SignedExtension<Ctx>>),
-
-    /// Resume execution with the result of the verification of the [`CommitCertificate`]
-    CertificateValidity(Result<(), CertificateError<Ctx>>),
 }
 ```
 
@@ -351,22 +333,15 @@ Here is a list of all effects that can be yielded when processing an input:
 
 * Vote
   - WalAppendMessage
-  - VerifyVoteExtension
-  - GetValidatorSet
-  - VerifySignature
 
 * Proposal:
   - WalAppendMessage
-  - GetValidatorSet
-  - VerifySignature
   - Publish
   - Same as *Vote*
 
 * Propose:
   - RestreamProposal
   - WalAppendMessage
-  - GetValidatorSet
-  - VerifySignature
   - Publish
 
 * TimeoutElapsed;
@@ -378,8 +353,6 @@ Here is a list of all effects that can be yielded when processing an input:
   - Same as *Vote*
 
 * CommitCertificate:
-  - GetValidatorSet
-  - VerifyCertificate
   - Decide
 
 * VoteSetRequest:
@@ -456,7 +429,7 @@ The `process_input` function serves as the entry point for all consensus inputs,
 
 The `handle_effect` function demonstrates handling both synchronous and asynchronous effects:
 
-1. **Synchronous effects** (`SignVote`, `VerifySignature`):
+1. **Synchronous effects** (`SignVote`):
    - Perform the operation immediately
    - Resume consensus with the result directly
 
@@ -535,13 +508,6 @@ async fn handle_effect(
             let signed_vote = sign_vote(vote);
 
             Ok(r.resume_with(signed_vote))
-        },
-
-        Effect::VerifySignature(msg, pk, r) => {
-            // Logic to verify a signature
-            let is_valid = verify_signature(&msg, &pk);
-
-            Ok(r.resume_with(is_valid))
         },
 
         Effect::Publish(msg, r) => {

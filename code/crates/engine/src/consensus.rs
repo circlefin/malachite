@@ -16,9 +16,9 @@ use malachitebft_core_consensus::{
     Effect, PeerId, Resumable, Resume, SignedConsensusMsg, VoteExtensionError, VoteSyncMode,
 };
 use malachitebft_core_types::{
-    Context, NilOrVal, Proposal, Round, SignedProposal, SignedVote, SigningProvider,
-    SigningProviderExt, Timeout, TimeoutKind, Validator, ValidatorSet, ValueId, ValueOrigin,
-    ValuePayload, Vote, VoteType,
+    CertificateError, CommitCertificate, Context, NilOrVal, Proposal, Round, SignedProposal,
+    SignedVote, SigningProvider, SigningProviderExt, ThresholdParams, Timeout, TimeoutKind,
+    Validator, ValidatorSet, ValueId, ValueOrigin, ValuePayload, Vote, VoteType,
 };
 use malachitebft_metrics::Metrics;
 use malachitebft_sync::{
@@ -415,44 +415,73 @@ where
                         };
 
                         if let Err(e) = self
+                            .verify_signed_certificate(
+                                state.consensus.params.threshold_params,
+                                &value.certificate,
+                            )
+                            .await
+                        {
+                            error!(%height, %request_id, "Error when verifying synced block certificate: {e}");
+                            if let Some(sync) = self.sync.as_ref() {
+                                sync.cast(SyncMsg::InvalidCertificate(
+                                    peer,
+                                    value.certificate.clone(),
+                                    e,
+                                ))
+                                .map_err(|e| {
+                                    eyre!("Error when notifying sync of invalid certificate: {e}")
+                                })?;
+                            }
+
+                            return Ok(());
+                        }
+
+                        let result = self
                             .process_input(
                                 &myself,
                                 state,
                                 ConsensusInput::CommitCertificate(value.certificate.clone()),
                             )
                             .await
-                        {
-                            error!(%height, %request_id, "Error when processing received synced block: {e}");
+                            .map_err(|e| eyre!("Error processing certificate: {e}"))
+                            .and_then(|_| {
+                                self.host
+                                    .call_and_forward(
+                                        |reply_to| HostMsg::ProcessSyncedValue {
+                                            height: value.certificate.height,
+                                            round: value.certificate.round,
+                                            validator_address: state.consensus.address().clone(),
+                                            value_bytes: value.value_bytes.clone(),
+                                            reply_to,
+                                        },
+                                        &myself,
+                                        |proposed| {
+                                            Msg::<Ctx>::ReceivedProposedValue(
+                                                proposed,
+                                                ValueOrigin::Sync,
+                                            )
+                                        },
+                                        None,
+                                    )
+                                    .map_err(|e| eyre!("Error forwarding to host: {e}"))
+                            });
 
-                            let Some(sync) = self.sync.as_ref() else {
-                                warn!("Received sync response but sync actor is not available");
-                                return Ok(());
-                            };
+                        if let Err(e) = result {
+                            error!(%height, %request_id, "Error when processing synced block: {e}");
 
-                            if let ConsensusError::InvalidCertificate(certificate, e) = e {
-                                sync.cast(SyncMsg::InvalidCertificate(peer, certificate, e))
-                                    .map_err(|e| {
-                                        eyre!(
-                                            "Error when notifying sync of invalid certificate: {e}"
-                                        )
-                                    })?;
+                            if let Some(sync) = self.sync.as_ref() {
+                                let error_str = format!("{:?}", e);
+                                sync.cast(SyncMsg::InvalidCertificate(
+                                    peer,
+                                    value.certificate.clone(),
+                                    CertificateError::ProcessingError(error_str),
+                                ))
+                                .map_err(|e| {
+                                    eyre!("Error when notifying sync of invalid certificate: {e}")
+                                })?;
                             }
+                            return Ok(());
                         }
-
-                        self.host.call_and_forward(
-                            |reply_to| HostMsg::ProcessSyncedValue {
-                                height: value.certificate.height,
-                                round: value.certificate.round,
-                                validator_address: state.consensus.address().clone(),
-                                value_bytes: value.value_bytes.clone(),
-                                reply_to,
-                            },
-                            &myself,
-                            |proposed| {
-                                Msg::<Ctx>::ReceivedProposedValue(proposed, ValueOrigin::Sync)
-                            },
-                            None,
-                        )?;
                     }
 
                     NetworkEvent::Request(
@@ -945,6 +974,29 @@ where
         .map_err(|e| eyre!("Failed to verify vote extension: {e:?}").into())
     }
 
+    async fn verify_signed_certificate(
+        &self,
+        threshold_params: ThresholdParams,
+        certificate: &CommitCertificate<Ctx>,
+    ) -> Result<(), CertificateError<Ctx>> {
+        let Some(validator_set) = self
+            .get_validator_set(certificate.height)
+            .await
+            .map_err(|e| {
+                warn!(
+                    "No validator set found for height {}: {:?}",
+                    certificate.height, e
+                )
+            })
+            .ok()
+        else {
+            return Err(CertificateError::ValidatorSetNotFound(certificate.height));
+        };
+
+        self.signing_provider
+            .verify_certificate(certificate, &validator_set, threshold_params)
+    }
+
     async fn wal_append(
         &self,
         height: Ctx::Height,
@@ -1069,16 +1121,6 @@ where
                 Ok(r.resume_with(signed_vote))
             }
 
-            Effect::VerifyCertificate(certificate, validator_set, thresholds, r) => {
-                let valid = self.signing_provider.verify_certificate(
-                    &certificate,
-                    &validator_set,
-                    thresholds,
-                );
-
-                Ok(r.resume_with(valid))
-            }
-
             Effect::ExtendVote(height, round, value_id, r) => {
                 if let Some(extension) = self.extend_vote(height, round, value_id).await? {
                     let signed_extension = self.signing_provider.sign_vote_extension(extension);
@@ -1132,16 +1174,6 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::GetValidatorSet(height, r) => {
-                let validator_set = self
-                    .get_validator_set(height)
-                    .await
-                    .map_err(|e| warn!("No validator set found for height {height}: {e:?}"))
-                    .ok();
-
-                Ok(r.resume_with(validator_set))
-            }
-
             Effect::RestreamProposal(height, round, valid_round, address, value_id, r) => {
                 self.host
                     .cast(HostMsg::RestreamValue {
@@ -1158,6 +1190,10 @@ where
 
             Effect::Decide(certificate, extensions, r) => {
                 assert!(!certificate.aggregated_signature.signatures.is_empty());
+                assert!(self
+                    .verify_signed_certificate(self.params.threshold_params, &certificate,)
+                    .await
+                    .is_ok());
 
                 self.wal_flush(state.phase).await?;
 

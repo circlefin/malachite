@@ -21,10 +21,6 @@ use crate::WalEntry;
 ///      reset_timeouts();
 ///      Ok(r.resume_with(()))
 ///    }
-///    Effect::GetValidatorSet(height, r) => {)
-///        let validator_set = get_validator_set(height);
-///        Ok(r.resume_with(validator_set))
-///    }
 ///    // ...
 /// }
 /// ```
@@ -68,11 +64,6 @@ where
     ///
     /// Resume with: [`resume::Continue`]
     ScheduleTimeout(Timeout, resume::Continue),
-
-    /// Get the validator set at the given height
-    ///
-    /// Resume with: [`resume::ValidatorSet`]
-    GetValidatorSet(Ctx::Height, resume::ValidatorSet),
 
     /// Consensus is starting a new round with the given proposer
     ///
@@ -146,16 +137,6 @@ where
     /// Resume with: [`resume::SignedProposal`]
     SignProposal(Ctx::Proposal, resume::SignedProposal),
 
-    /// Verify a commit certificate
-    ///
-    /// Resume with: [`resume::CertificateValidity`]
-    VerifyCertificate(
-        CommitCertificate<Ctx>,
-        Ctx::ValidatorSet,
-        ThresholdParams,
-        resume::CertificateValidity,
-    ),
-
     /// Consensus has been stuck in Prevote or Precommit step, ask for vote sets from peers
     ///
     /// Resume with: [`resume::Continue`]
@@ -217,9 +198,6 @@ where
     /// Resume with an optional vote extension.
     /// See the [`Effect::ExtendVote`] effect for more information.
     VoteExtension(Option<SignedExtension<Ctx>>),
-
-    /// Resume execution with the result of the verification of the [`CommitCertificate`]
-    CertificateValidity(Result<(), CertificateError<Ctx>>),
 }
 
 pub mod resume {
@@ -278,17 +256,6 @@ pub mod resume {
 
         fn resume_with(self, value: Self::Value) -> Resume<Ctx> {
             Resume::VoteExtension(value)
-        }
-    }
-
-    #[derive(Debug, Default)]
-    pub struct CertificateValidity;
-
-    impl<Ctx: Context> Resumable<Ctx> for CertificateValidity {
-        type Value = Result<(), CertificateError<Ctx>>;
-
-        fn resume_with(self, value: Self::Value) -> Resume<Ctx> {
-            Resume::CertificateValidity(value)
         }
     }
 }

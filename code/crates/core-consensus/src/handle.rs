@@ -9,7 +9,6 @@ mod start_height;
 mod step_timeout;
 mod sync;
 mod timeout;
-mod validator_set;
 mod vote;
 mod vote_set;
 

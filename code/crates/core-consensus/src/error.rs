@@ -1,7 +1,7 @@
 use derive_where::derive_where;
 
 use malachitebft_core_driver::Error as DriverError;
-use malachitebft_core_types::{CertificateError, CommitCertificate, Context, Round};
+use malachitebft_core_types::{Context, Round};
 
 use crate::effect::Resume;
 
@@ -38,12 +38,4 @@ where
     /// The driver failed to process an input.
     #[error("Driver failed to process input, reason: {0}")]
     DriverProcess(DriverError<Ctx>),
-
-    /// The validator set was not found at the given height.
-    #[error("Validator set not found at height {0}")]
-    ValidatorSetNotFound(Ctx::Height),
-
-    /// The certificate is invalid.
-    #[error("Invalid certificate: {1}")]
-    InvalidCertificate(CommitCertificate<Ctx>, CertificateError<Ctx>),
 }
