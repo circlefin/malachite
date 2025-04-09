@@ -4,7 +4,7 @@ use malachitebft_core_types::*;
 
 use crate::input::RequestId;
 use crate::types::SignedConsensusMsg;
-use crate::{VoteExtensionError, WalEntry};
+use crate::WalEntry;
 
 /// Provides a way to construct the appropriate [`Resume`] value to
 /// resume execution after handling an [`Effect`].
@@ -208,9 +208,6 @@ where
     /// was successfully fetched, or `None` otherwise.
     ValidatorSet(Option<Ctx::ValidatorSet>),
 
-    /// Resume execution with the validity of the signature
-    SignatureValidity(bool),
-
     /// Resume execution with the signed vote
     SignedVote(SignedMessage<Ctx, Ctx::Vote>),
 
@@ -221,15 +218,11 @@ where
     /// See the [`Effect::ExtendVote`] effect for more information.
     VoteExtension(Option<SignedExtension<Ctx>>),
 
-    /// Resume execution with the result of the verification of the [`SignedExtension`]
-    VoteExtensionValidity(Result<(), VoteExtensionError>),
-
     /// Resume execution with the result of the verification of the [`CommitCertificate`]
     CertificateValidity(Result<(), CertificateError<Ctx>>),
 }
 
 pub mod resume {
-    use crate::VoteExtensionError;
 
     use super::*;
 
@@ -252,17 +245,6 @@ pub mod resume {
 
         fn resume_with(self, value: Self::Value) -> Resume<Ctx> {
             Resume::ValidatorSet(value)
-        }
-    }
-
-    #[derive(Debug, Default)]
-    pub struct SignatureValidity;
-
-    impl<Ctx: Context> Resumable<Ctx> for SignatureValidity {
-        type Value = bool;
-
-        fn resume_with(self, value: Self::Value) -> Resume<Ctx> {
-            Resume::SignatureValidity(value)
         }
     }
 
@@ -307,17 +289,6 @@ pub mod resume {
 
         fn resume_with(self, value: Self::Value) -> Resume<Ctx> {
             Resume::CertificateValidity(value)
-        }
-    }
-
-    #[derive(Debug, Default)]
-    pub struct VoteExtensionValidity;
-
-    impl<Ctx: Context> Resumable<Ctx> for VoteExtensionValidity {
-        type Value = Result<(), VoteExtensionError>;
-
-        fn resume_with(self, value: Self::Value) -> Resume<Ctx> {
-            Resume::VoteExtensionValidity(value)
         }
     }
 }

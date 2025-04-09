@@ -133,12 +133,12 @@ where
     /// Resume with: [`resume::Continue`]
     StartRound(Ctx::Height, Round, Ctx::Address, resume::Continue),
 
-    /// Publish a message to our peers
+    /// Publish a message to peers
     ///
     /// Resume with: [`resume::Continue`]
     Publish(SignedConsensusMsg<Ctx>, resume::Continue),
 
-    /// Rebroadcast our previous vote to our peers
+    /// Rebroadcast a vote to peers
     ///
     /// Resume with: [`resume::Continue`]
     Rebroadcast(SignedVote<Ctx>, resume::Continue),
@@ -148,7 +148,7 @@ where
     /// Because this operation may be asynchronous, this effect does not expect a resumption
     /// with a value, rather the application is expected to propose a value within the timeout duration.
     ///
-    /// The application SHOULD eventually feed a [`Propose`][Input::Propose]
+    /// The application MUST eventually feed a [`Propose`][crate::input::Input::Propose]
     /// input to consensus within the specified timeout duration.
     ///
     /// Resume with: [`resume::Continue`]
@@ -160,20 +160,20 @@ where
     /// the proposal parts pertaining to that value.
     ///
     /// Resume with: [`resume::Continue`]
-    RestreamProposal {
+    RestreamProposal(
         /// Height of the value
-        height: Ctx::Height,
+        Ctx::Height,
         /// Round of the value
-        round: Round,
+        Round,
         /// Valid round of the value
-        valid_round: Round,
+        Round,
         /// Address of the proposer for that value
-        proposer: Ctx::Address,
+        Ctx::Address,
         /// Value ID of the value to restream
-        value_id: ValueId<Ctx>,
+        ValueId<Ctx>,
         /// For resumption
-        resume: resume::Continue,
-    },
+        resume::Continue,
+    ),
 
     /// Notifies the application that consensus has decided on a value.
     ///
@@ -184,7 +184,11 @@ where
     /// It also includes the vote extensions that were received for this height.
     ///
     /// Resume with: [`resume::Continue`]
-    Decide(CommitCertificate<Ctx>, VoteExtensions<Ctx>, resume::Continue),
+    Decide(
+        CommitCertificate<Ctx>,
+        VoteExtensions<Ctx>,
+        resume::Continue,
+    ),
 
     /// Sign a vote with this node's private key
     ///
@@ -196,15 +200,6 @@ where
     /// Resume with: [`resume::SignedProposal`]
     SignProposal(Ctx::Proposal, resume::SignedProposal),
 
-    /// Verify a signature
-    ///
-    /// Resume with: [`resume::SignatureValidity`]
-    VerifySignature(
-        SignedMessage<Ctx, ConsensusMsg<Ctx>>,
-        PublicKey<Ctx>,
-        resume::SignatureValidity,
-    ),
-
     /// Verify a commit certificate
     ///
     /// Resume with: [`resume::CertificateValidity`]
@@ -215,7 +210,29 @@ where
         resume::CertificateValidity,
     ),
 
-    /// Allows the application to extend its precommit vote with arbitrary data.
+    /// Consensus has been stuck in Prevote or Precommit step, ask for vote sets from peers
+    ///
+    /// Resume with: [`resume::Continue`]
+    RequestVoteSet(Ctx::Height, Round, resume::Continue),
+
+    /// A peer has required our vote set, send the response
+    ///
+    /// Resume with: [`resume::Continue`]`
+    SendVoteSetResponse(
+        RequestId,
+        Ctx::Height,
+        Round,
+        VoteSet<Ctx>,
+        Vec<PolkaCertificate<Ctx>>,
+        resume::Continue,
+    ),
+
+    /// Append an entry to the Write-Ahead Log for crash recovery
+    ///
+    /// Resume with: [`resume::Continue`]`
+    WalAppend(WalEntry<Ctx>, resume::Continue),
+
+    /// Allows the application to extend the pre-commit vote with arbitrary data.
     ///
     /// When consensus is preparing to send a pre-commit vote, it first calls `ExtendVote`.
     /// The application then returns a blob of data called a vote extension.
@@ -223,47 +240,7 @@ where
     /// The proposer of the next block will receive all vote extensions along with the commit certificate.
     ///
     /// Only emitted if vote extensions are enabled.
-    ///
-    /// Resume with: [`resume::VoteExtension`]
     ExtendVote(Ctx::Height, Round, ValueId<Ctx>, resume::VoteExtension),
-
-    /// Verify a vote extension.
-    ///
-    /// If the vote extension is deemed invalid, the vote it was part of will be discarded altogether.
-    ///
-    /// Only emitted if vote extensions are enabled.
-    ///
-    /// Resume with: [`resume::VoteExtensionValidity`]
-    VerifyVoteExtension(
-        Ctx::Height,
-        Round,
-        ValueId<Ctx>,
-        SignedExtension<Ctx>,
-        PublicKey<Ctx>,
-        resume::VoteExtensionValidity,
-    ),
-
-    /// Consensus has been stuck in Prevote or Precommit step, and needs to ask for vote set from its peers
-    /// in order to make progress. Part of the VoteSync protocol.
-    ///
-    /// Resume with: [`resume::Continue`]
-    RequestVoteSet(Ctx::Height, Round, resume::Continue),
-
-    /// A peer has requested a vote set from us, send them the response.
-    /// Part of the VoteSync protocol.
-    ///
-    /// Resume with: [`resume::Continue`]`
-    SendVoteSetResponse(RequestId, Ctx::Height, Round, VoteSet<Ctx>, Vec<PolkaCertificate<Ctx>>, resume::Continue),
-
-    /// Append a consensus message to the Write-Ahead Log for crash recovery
-    ///
-    /// Resume with: [`resume::Continue`]`
-    WalAppendMessage(SignedConsensusMsg<Ctx>, resume::Continue),
-
-    /// Append a timeout to the Write-Ahead Log for crash recovery
-    ///
-    /// Resume with: [`resume::Continue`]`
-    WalAppendTimeout(Timeout, resume::Continue),
 }
 ```
 
@@ -278,31 +255,28 @@ pub enum Resume<Ctx>
 where
     Ctx: Context,
 {
-    /// Resume execution without a value.
+    /// Internal effect to start the coroutine.
+    Start,
+
+    /// Resume execution
     Continue,
 
     /// Resume execution with `Some(Ctx::ValidatorSet)` if a validator set
     /// was successfully fetched, or `None` otherwise.
     ValidatorSet(Option<Ctx::ValidatorSet>),
 
-    /// Resume execution with the validity of a signature
-    SignatureValidity(bool),
-
-    /// Resume execution with a signed vote
+    /// Resume execution with the signed vote
     SignedVote(SignedMessage<Ctx, Ctx::Vote>),
 
-    /// Resume execution with a signed proposal
+    /// Resume execution with the signed proposal
     SignedProposal(SignedMessage<Ctx, Ctx::Proposal>),
-
-    /// Resume execution with the result of the verification of the [`CommitCertificate`]
-    CertificateValidity(Result<(), CertificateError<Ctx>>),
 
     /// Resume with an optional vote extension.
     /// See the [`Effect::ExtendVote`] effect for more information.
     VoteExtension(Option<SignedExtension<Ctx>>),
 
-    /// Resume execution with the result of the verification of the [`SignedExtension`]
-    VoteExtensionValidity(Result<(), VoteExtensionError>),
+    /// Resume execution with the result of the verification of the [`CommitCertificate`]
+    CertificateValidity(Result<(), CertificateError<Ctx>>),
 }
 ```
 
