@@ -175,9 +175,9 @@ pub async fn on_status<Ctx>(
 where
     Ctx: Context,
 {
-    debug!(%status.peer_id, %status.height, "Received peer status");
+    debug!(%status.peer_id, %status.tip_height, "Received peer status");
 
-    let peer_height = status.height;
+    let peer_height = status.tip_height;
 
     state.update_status(status);
 
@@ -212,15 +212,13 @@ pub async fn on_started_height<Ctx>(
 where
     Ctx: Context,
 {
-    debug!(height.sync = %height, %restart, "Starting new height");
+    let tip_height = height.decrement().unwrap_or(height);
+
+    debug!(height.tip = %tip_height, height.sync = %height, %restart, "Starting new height");
 
     state.started = true;
     state.sync_height = height;
-
-    if restart {
-        // This height was restarted, so we need to reset the tip height to the previous height.
-        state.tip_height = height.decrement().unwrap_or(height);
-    }
+    state.tip_height = tip_height;
 
     // Check if there is any peer already at or above the height we just started,
     // and request sync from that peer in order to catch up.
@@ -372,7 +370,7 @@ where
         return Ok(());
     }
 
-    if let Some(peer) = state.random_peer_with_value(sync_height) {
+    if let Some(peer) = state.random_peer_with_tip_at_or_above(sync_height) {
         request_value_from_peer(co, state, metrics, sync_height, peer).await?;
     } else {
         debug!(height.sync = %sync_height, "No peer to request sync from");
@@ -421,7 +419,7 @@ where
     info!(height.sync = %certificate.height, "Requesting sync from another peer");
     state.remove_pending_decided_value_request(certificate.height);
 
-    let Some(peer) = state.random_peer_with_value_except(certificate.height, from) else {
+    let Some(peer) = state.random_peer_with_tip_at_or_above_except(certificate.height, from) else {
         error!(height.sync = %certificate.height, "No other peer to request sync from");
         return Ok(());
     };
@@ -444,7 +442,7 @@ where
         return Ok(());
     }
 
-    let Some(peer) = state.random_peer_for_votes(height, round) else {
+    let Some(peer) = state.random_peer_with_sync_at(height, round) else {
         warn!(%height, %round, "No peer to request vote set from");
         return Ok(());
     };

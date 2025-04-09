@@ -126,14 +126,14 @@ pub enum State<Ctx: Context> {
 
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct Status<Ctx: Context> {
-    pub height: Ctx::Height,
+    pub tip_height: Ctx::Height,
     pub history_min_height: Ctx::Height,
 }
 
 impl<Ctx: Context> Status<Ctx> {
-    pub fn new(height: Ctx::Height, history_min_height: Ctx::Height) -> Self {
+    pub fn new(tip_height: Ctx::Height, history_min_height: Ctx::Height) -> Self {
         Self {
-            height,
+            tip_height,
             history_min_height,
         }
     }
@@ -272,7 +272,7 @@ where
             Msg::BroadcastStatus(status) => {
                 let status = sync::Status {
                     peer_id: ctrl_handle.peer_id(),
-                    height: status.height,
+                    tip_height: status.tip_height,
                     history_min_height: status.history_min_height,
                 };
 
@@ -380,11 +380,11 @@ where
                     return Ok(());
                 }
 
-                trace!(%from, height = %status.height, "Received status");
+                trace!(%from, tip_height = %status.tip_height, "Received status");
 
                 output_port.send(NetworkEvent::Status(
                     status.peer_id,
-                    Status::new(status.height, status.history_min_height),
+                    Status::new(status.tip_height, status.history_min_height),
                 ));
             }
 

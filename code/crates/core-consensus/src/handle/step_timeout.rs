@@ -12,12 +12,11 @@ where
 {
     warn!(
         height = %state.driver.height(), %round,
-        "Consensus is halted in {:?} step", state.driver.step());
+        "Consensus is halted in {:?} step", state.driver.step()
+    );
 
     if state.params.vote_sync_mode == VoteSyncMode::RequestResponse {
-        warn!(
-            height = %state.driver.height(), %round,
-            "Requesting vote set");
+        warn!(height = %state.driver.height(), %round, "Requesting vote set");
 
         perform!(
             co,

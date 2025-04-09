@@ -173,7 +173,7 @@ pub fn decode_sync_status(
 
     Ok(sync::Status {
         peer_id: decode_peer_id(peer_id)?,
-        height: Height::new(status.block_number, status.fork_id),
+        tip_height: Height::new(status.block_number, status.fork_id),
         history_min_height: Height::new(status.earliest_block_number, status.earliest_fork_id),
     })
 }
@@ -183,8 +183,8 @@ pub fn encode_sync_status(
 ) -> Result<proto::sync::Status, ProtoError> {
     Ok(proto::sync::Status {
         peer_id: Some(encode_peer_id(&status.peer_id)?),
-        block_number: status.height.block_number,
-        fork_id: status.height.fork_id,
+        block_number: status.tip_height.block_number,
+        fork_id: status.tip_height.fork_id,
         earliest_block_number: status.history_min_height.block_number,
         earliest_fork_id: status.history_min_height.fork_id,
     })

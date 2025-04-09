@@ -29,12 +29,10 @@ impl OutboundRequestId {
 
 pub type ResponseChannel = request_response::ResponseChannel<RawResponse>;
 
-#[derive(Display)]
-#[displaydoc("Status {{ peer_id: {peer_id}, height: {height} }}")]
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct Status<Ctx: Context> {
     pub peer_id: PeerId,
-    pub height: Ctx::Height,
+    pub tip_height: Ctx::Height,
     pub history_min_height: Ctx::Height,
 }
 

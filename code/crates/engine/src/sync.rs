@@ -352,7 +352,7 @@ where
             Msg::NetworkEvent(NetworkEvent::Status(peer_id, status)) => {
                 let status = sync::Status {
                     peer_id,
-                    height: status.height,
+                    tip_height: status.tip_height,
                     history_min_height: status.history_min_height,
                 };
 
