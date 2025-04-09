@@ -2,7 +2,7 @@
 
 ## 0.1.0
 
-*April 8, 2025*
+*April 9, 2025*
 
 ### ⚠️ Breaking changes
 See [`BREAKING_CHANGES.md`](./BREAKING_CHANGES.md) for the list of breaking changes.

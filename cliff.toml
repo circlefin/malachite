@@ -18,8 +18,11 @@ body = """
 
     *{{ timestamp | date(format="%B %-d, %Y") }}*
 
+    ## Release notes
+    See [`RELEASE_NOTES.md`](./RELEASE_NOTES.md#{{ version | trim_start_matches(pat="v") }}) for the release notes.
+
     ### ⚠️ Breaking changes
-    See [`BREAKING_CHANGES.md`](./BREAKING_CHANGES.md) for the list of breaking changes.
+    See [`BREAKING_CHANGES.md`](./BREAKING_CHANGES.md#{{ version | trim_start_matches(pat="v") }}) for the list of breaking changes.
 {% else %}\
     ## Unreleased
 {% endif %}\
