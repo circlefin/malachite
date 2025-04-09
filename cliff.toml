@@ -18,7 +18,7 @@ body = """
 
     *{{ timestamp | date(format="%B %-d, %Y") }}*
 
-    ## Release notes
+    ## 📖 Release notes
     See [`RELEASE_NOTES.md`](./RELEASE_NOTES.md#{{ version | trim_start_matches(pat="v") }}) for the release notes.
 
     ### ⚠️ Breaking changes

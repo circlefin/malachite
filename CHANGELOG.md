@@ -4,7 +4,7 @@
 
 *April 9, 2025*
 
-## Release notes
+## 📖 Release notes
 See [`RELEASE_NOTES.md`](./RELEASE_NOTES.md#0.1.0) for the release notes.
 
 ### ⚠️ Breaking changes
@@ -84,7 +84,7 @@ See [`BREAKING_CHANGES.md`](./BREAKING_CHANGES.md#0.1.0) for the list of breakin
 
 *December 19, 2024*
 
-## Release notes
+## 📖 Release notes
 See [`RELEASE_NOTES.md`](./RELEASE_NOTES.md#0.0.1) for the release notes.
 
 ### ⚠️ Breaking changes
