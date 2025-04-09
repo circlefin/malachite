@@ -59,10 +59,10 @@ pub enum Input<Ctx: Context> {
     Status(Status<Ctx>),
 
     /// Consensus just started a new height
-    StartHeight(Ctx::Height),
+    UpdateTipHeight(Ctx::Height),
 
     /// Consensus just decided on a new value
-    UpdateHeight(Ctx::Height),
+    UpdateSyncHeight(Ctx::Height),
 
     /// A ValueSync request has been received from a peer
     ValueRequest(InboundRequestId, PeerId, ValueRequest<Ctx>),
@@ -106,9 +106,9 @@ where
 
         Input::Status(status) => on_status(co, state, metrics, status).await,
 
-        Input::StartHeight(height) => on_start_height(co, state, metrics, height).await,
+        Input::UpdateTipHeight(height) => on_update_tip_height(co, state, metrics, height).await,
 
-        Input::UpdateHeight(height) => on_update_height(co, state, metrics, height).await,
+        Input::UpdateSyncHeight(height) => on_update_sync_height(co, state, metrics, height).await,
 
         Input::ValueRequest(request_id, peer_id, request) => {
             on_value_request(co, state, metrics, request_id, peer_id, request).await
@@ -243,19 +243,19 @@ where
     Ok(())
 }
 
-pub async fn on_start_height<Ctx>(
+pub async fn on_update_sync_height<Ctx>(
     co: Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    height: Ctx::Height,
+    sync_height: Ctx::Height,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
-    debug!(height.sync = %height, "Starting new height");
+    debug!(height.sync = %sync_height, "Starting new height");
 
     state.started = true;
-    state.sync_height = height;
+    state.sync_height = sync_height;
 
     // Check if there is any peer already at or above the height we just started,
     // and request sync from that peer in order to catch up.
@@ -264,21 +264,19 @@ where
     Ok(())
 }
 
-pub async fn on_update_height<Ctx>(
+pub async fn on_update_tip_height<Ctx>(
     _co: Co<Ctx>,
     state: &mut State<Ctx>,
     _metrics: &Metrics,
-    height: Ctx::Height,
+    tip_height: Ctx::Height,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
-    if state.tip_height < height {
-        debug!(height.tip = %height, "Updating tip height");
+    debug!(height.tip = %tip_height, "Updating tip height");
 
-        state.tip_height = height;
-        state.remove_pending_decided_value_request(height);
-    }
+    state.tip_height = tip_height;
+    state.remove_pending_decided_value_request(tip_height);
 
     Ok(())
 }
@@ -372,7 +370,7 @@ where
     if let Some(peer) = state.random_peer_with_value(sync_height) {
         request_value_from_peer(co, state, metrics, sync_height, peer).await?;
     } else {
-        warn!(height.sync = %sync_height, "No peer to request sync from");
+        debug!(height.sync = %sync_height, "No peer to request sync from");
     }
 
     Ok(())

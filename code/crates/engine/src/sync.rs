@@ -82,8 +82,9 @@ pub enum Msg<Ctx: Context> {
     /// Consensus has decided on a value at the given height
     Decided(Ctx::Height),
 
-    /// Consensus has started a new height
-    StartedHeight(Ctx::Height),
+    /// Consensus has (re)started a new height.
+    /// The boolean indicates whether this is a restart or not.
+    StartedHeight(Ctx::Height, bool),
 
     /// Host has a response for the blocks request
     GotDecidedBlock(InboundRequestId, Ctx::Height, Option<RawDecidedValue<Ctx>>),
@@ -408,18 +409,27 @@ where
                 // Ignore other gossip events
             }
 
-            Msg::Decided(height) => {
-                self.process_input(&myself, state, sync::Input::UpdateHeight(height))
+            // Started a new height
+            Msg::StartedHeight(sync_height, false) => {
+                self.process_input(&myself, state, sync::Input::UpdateSyncHeight(sync_height))
+                    .await?
+            }
+
+            // Restarted the last height
+            Msg::StartedHeight(sync_height, true) => {
+                let tip_height = sync_height.decrement().unwrap_or(sync_height);
+
+                // Reset the tip height to height before the restart
+                self.process_input(&myself, state, sync::Input::UpdateTipHeight(tip_height))
+                    .await?;
+
+                // Reset the sync height to the height of the restart
+                self.process_input(&myself, state, sync::Input::UpdateSyncHeight(sync_height))
                     .await?;
             }
 
-            Msg::StartedHeight(height) => {
-                if let Some(height) = height.decrement() {
-                    self.process_input(&myself, state, sync::Input::UpdateHeight(height))
-                        .await?;
-                }
-
-                self.process_input(&myself, state, sync::Input::StartHeight(height))
+            Msg::Decided(height) => {
+                self.process_input(&myself, state, sync::Input::UpdateTipHeight(height))
                     .await?;
             }
 

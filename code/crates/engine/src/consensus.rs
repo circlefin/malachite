@@ -346,7 +346,7 @@ where
 
                 // Notify the sync actor that we have started a new height
                 if let Some(sync) = &self.sync {
-                    if let Err(e) = sync.cast(SyncMsg::StartedHeight(height)) {
+                    if let Err(e) = sync.cast(SyncMsg::StartedHeight(height, is_restart)) {
                         error!(%height, "Error when notifying sync of started height: {e}")
                     }
                 }
