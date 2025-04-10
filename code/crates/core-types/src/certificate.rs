@@ -109,7 +109,7 @@ pub enum CertificateError<Ctx: Context> {
 
     /// A validator in the certificate is not in the validator set.
     #[error("A validator in the certificate is not in the validator set: {0:?}")]
-    UnknownValidator(CommitSignature<Ctx>),
+    UnknownValidator(Ctx::Address),
 
     /// Not enough voting power has signed the certificate.
     #[error(

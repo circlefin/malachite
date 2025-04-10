@@ -214,7 +214,7 @@ where
     Ctx: Context,
     P: SigningProvider<Ctx>,
 {
-    /// Verify the certificate against the given validator set.
+    /// Verify the commit certificate against the given validator set.
     ///
     /// - For each commit signature in the certificate:
     ///   - Reconstruct the signed precommit and verify its signature
@@ -235,9 +235,9 @@ where
         // For each commit signature, reconstruct the signed precommit and verify the signature
         for commit_sig in &certificate.aggregated_signature.signatures {
             // Abort if validator not in validator set
-            let Some(validator) = validator_set.get_by_address(&commit_sig.address) else {
-                return Err(CertificateError::UnknownValidator(commit_sig.clone()));
-            };
+            let validator = validator_set
+                .get_by_address(&commit_sig.address)
+                .ok_or_else(|| CertificateError::UnknownValidator(commit_sig.address.clone()))?;
 
             let voting_power = self.verify_commit_signature(certificate, commit_sig, validator)?;
             signed_voting_power += voting_power;

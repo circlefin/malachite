@@ -972,13 +972,13 @@ where
             }
 
             Effect::VerifyCommitCertificate(certificate, validator_set, thresholds, r) => {
-                let valid = self.signing_provider.verify_commit_certificate(
+                let result = self.signing_provider.verify_commit_certificate(
                     &certificate,
                     &validator_set,
                     thresholds,
                 );
 
-                Ok(r.resume_with(valid))
+                Ok(r.resume_with(result))
             }
 
             Effect::ExtendVote(height, round, value_id, r) => {
