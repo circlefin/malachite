@@ -3,26 +3,28 @@
 <!-- TOC start (generated with https://github.com/derlin/bitdowntoc) -->
 
 ## Table of contents
-- [Introduction](#introduction)
-- [Naming](#naming)
-- [Prerequisites](#prerequisites)
-- [Concepts](#concepts)
-   * [The `malachitebft-app-channel` crate](#the-malachitebft-app-channel-crate)
-   * [The `Context` trait](#the-context-trait)
-   * [Consensus types](#consensus-types)
-   * [The `Codec` trait](#the-codec-trait)
-   * [The `Node` trait](#the-node-trait)
-   * [Messages from consensus to the application](#messages-from-consensus-to-the-application)
-   * [Application state](#application-state)
-- [Putting it all together](#putting-it-all-together)
-   * [Create a new Rust project](#create-a-new-rust-project)
-   * [Application state](#application-state-1)
-   * [The consensus dialog](#the-consensus-dialog)
-   * [Handle application messages](#handle-application-messages)
-   * [Node](#node)
-   * [Logging](#logging)
-   * [Command-line interface](#command-line-interface)
-- [Run a local testnet](#run-a-local-testnet)
+- [Write an in-process Malachite application](#write-an-in-process-malachite-application)
+  - [Table of contents](#table-of-contents)
+  - [Introduction](#introduction)
+  - [Naming](#naming)
+  - [Prerequisites](#prerequisites)
+  - [Concepts](#concepts)
+    - [The `malachitebft-app-channel` crate](#the-malachitebft-app-channel-crate)
+    - [The `Context` trait](#the-context-trait)
+    - [Consensus types](#consensus-types)
+    - [The `Codec` trait](#the-codec-trait)
+    - [The `Node` trait](#the-node-trait)
+    - [Messages from consensus to the application](#messages-from-consensus-to-the-application)
+    - [Application state](#application-state)
+  - [Putting it all together](#putting-it-all-together)
+    - [Create a new Rust project](#create-a-new-rust-project)
+    - [Application state](#application-state-1)
+    - [The consensus dialog](#the-consensus-dialog)
+    - [Handle application messages](#handle-application-messages)
+    - [Node](#node)
+    - [Logging](#logging)
+    - [Command-line interface](#command-line-interface)
+  - [Run a local testnet](#run-a-local-testnet)
 
 <!-- TOC end -->
 
@@ -269,7 +271,7 @@ A brief description of each message can be found below:
 | `GetHistoryMinHeight`  | Requests the earliest height available in the history maintained by the application. The application MUST respond with its earliest available height.                                                                                                                                                                                                                                                                                      |
 | `ReceivedProposalPart` | Notifies the application that consensus has received a proposal part over the network. If this part completes the full proposal, the application MUST respond with the complete proposed value. Otherwise, it MUST respond with `None`.                                                                                                                                                                                                    |                                                                                                                                                                                                                    |
 | `GetValidatorSet`      | Requests the validator set for a specific height.                                                                                                                                                                                                                                                                                                                                                                                          |
-| `Decided`              | Notifies the application that consensus has decided on a value. This message includes a commit certificate containing the ID of the value that was decided on, the height and round at which it was decided, and the aggregated signatures of the validators that committed to it. In response to this message, the application MAY send a `ConsensusMsg::StartHeight` message back to consensus, instructing it to start the next height. |
+| `Decided`              | Notifies the application that consensus has decided on a value. This message includes a commit certificate containing the ID of the value that was decided on, the height and round at which it was decided, and the aggregated signatures of the validators that committed to it. In response to this message, the application MAY send a `ConsensusMsg::StartHeight` or `ConsensusMsg::RestartHeight` message back to consensus, instructing it to start another heigth. |
 | `GetDecidedValue`      | Requests a previously decided value from the application's storage. The application MUST respond with that value if available, or `None` otherwise.                                                                                                                                                                                                                                                                                        |
 | `ProcessSyncedValue`   | Notifies the application that a value has been synced from the network. This may happen when the node is catching up with the network. If a value can be decoded from the bytes provided, then the application MUST reply to this message with the decoded value.                                                                                                                                                                          |
 | `PeerJoined`  | Notifies the application that a peer has joined our local view of the network. In a gossip network, there is no guarantee that we will ever see all peers, as we are typically only connected to a subset of the network (i.e. in our mesh).                                                                                                                                                                                                                                                                                   |
@@ -990,7 +992,7 @@ sequenceDiagram
    Consensus->>Application: ConsensusReady
    activate Application
    note right of Application: Find start height
-   Application-->>Consensus: StartHeight
+   Application-->>Consensus: (Re)StartHeight
    deactivate Application
    end
 
@@ -1039,7 +1041,7 @@ sequenceDiagram
    Consensus->>Application: Decided
    activate Application
    note right of Application: Store certificate in state<br>Start next height
-   Application->>Consensus: StartHeight
+   Application->>Consensus: (Re)StartHeight
    deactivate Application
    else
    Consensus->>Application: ProcessSyncedValue
@@ -1359,24 +1361,33 @@ providing it with a commit certificate which contains the ID of the value
 that was decided on as well as the set of commits for that value,
 ie. the precommits together with their (aggregated) signatures.
 
-When that happens, we store the decided value in our store,
-and instruct consensus to start the next height.
+When that happens, we try to "commit" the value. This may involve further processing the decided value and storing it.
+If `commit` is succesful we instruct consensus to start the next height.
+If `commit` fails we can re-run consensus for the same height.
+
+> **Warning**
+> This operation should be used with extreme caution as it can lead to safety violations:
+> 1. The application must clean all state associated with the height for which commit has failed
+> 2. Since consensus resets its WriteAahead Log, the node may equivocate on proposals and votes
+>    for the restarted height, potentially violating protocol safety
 
 ```rust
-            AppMsg::Decided {
-                certificate,
-                extensions,
-                reply,
-            } => {
-                info!(
-                    height = %certificate.height,
-                    round = %certificate.round,
-                    value = %certificate.value_id,
-                    "Consensus has decided on value"
-                );
+    AppMsg::Decided {
+        certificate,
+        extensions,
+        reply,
+    } => {
+        info!(
+            height = %certificate.height,
+            round = %certificate.round,
+            value = %certificate.value_id,
+            "Consensus has decided on value, committing..."
+        );
 
-                state.commit(certificate, extensions).await?;
-
+        // When that happens, we store the decided value in our store
+        match state.commit(certificate, extensions).await {
+            Ok(_) => {
+                // And then we instruct consensus to start the next height
                 if reply
                     .send(ConsensusMsg::StartHeight(
                         state.current_height,
@@ -1384,9 +1395,25 @@ and instruct consensus to start the next height.
                     ))
                     .is_err()
                 {
-                    error!("Failed to send Decided reply");
+                    error!("Failed to send StartHeight reply");
                 }
             }
+            Err(_) => {
+                // Commit failed, restart the height
+                error!("Commit failed, restarting height {}", state.current_height);
+                if reply
+                    .send(ConsensusMsg::RestartHeight(
+                        state.current_height,
+                        state.get_validator_set().clone(),
+                    ))
+                    .is_err()
+                {
+                    error!("Failed to send RestartHeight reply");
+                }
+            }
+        }
+        sleep(Duration::from_millis(500)).await;
+    }
 ```
 
 If, on the other hand, we are not lagging behind but are instead asked by one of

@@ -91,6 +91,15 @@ where
 
     /// We have received a commit certificate via the sync protocol.
     CommitCertificate(CommitCertificate<Ctx>),
+
+    /// Instructs consensus to restart at a given height with the given validator set.
+    ///
+    /// On this input consensus resets the Write-Ahead Log.
+    /// This operation should be used with extreme caution as it can lead to safety violations:
+    /// 1. The application must clean all state associated with the height for which commit has failed
+    /// 2. Since consensus resets its write-ahead log, the node may equivocate on proposals and votes
+    ///    for the restarted height, potentially violating protocol safety
+    RestartHeight(Ctx::Height, Ctx::ValidatorSet),
 }
 ```
 
@@ -368,7 +377,7 @@ where
 
 Here is a list of all effects that can be yielded when processing an input:
 
-* StartHeight:
+* StartHeight and RestartHeight:
   - CancelAllTimeouts
   - ResetTimeouts
   - ScheduleTimeout

@@ -101,6 +101,13 @@ pub enum Msg<Ctx: Context> {
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
 
     /// Instructs consensus to restart at a given height with the given validator set.
+    ///
+    /// On this input consensus resets the Write-Ahead Log.
+    /// # Warning
+    /// This operation should be used with extreme caution as it can lead to safety violations:
+    /// 1. The application must clean all state associated with the height for which commit has failed
+    /// 2. Since consensus resets its write-ahead log, the node may equivocate on proposals and votes
+    ///    for the restarted height, potentially violating protocol safety
     RestartHeight(Ctx::Height, Ctx::ValidatorSet),
 }
 
