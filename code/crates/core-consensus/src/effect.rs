@@ -165,6 +165,16 @@ where
         resume::CertificateValidity,
     ),
 
+    /// Verify a polka certificate
+    ///
+    /// Resume with: [`resume::CertificateValidity`]
+    VerifyPolkaCertificate(
+        PolkaCertificate<Ctx>,
+        Ctx::ValidatorSet,
+        ThresholdParams,
+        resume::CertificateValidity,
+    ),
+
     /// Consensus has been stuck in Prevote or Precommit step, ask for vote sets from peers
     ///
     /// Resume with: [`resume::Continue`]

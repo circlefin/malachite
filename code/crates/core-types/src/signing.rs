@@ -3,8 +3,8 @@ use alloc::vec::Vec;
 use core::fmt::{Debug, Display};
 
 use crate::{
-    CertificateError, CommitCertificate, CommitSignature, Context, PublicKey, Signature,
-    SignedMessage, ThresholdParams, VotingPower,
+    CertificateError, CommitCertificate, CommitSignature, Context, NilOrVal, PolkaCertificate,
+    PublicKey, Signature, SignedMessage, ThresholdParams, Validator, Vote, VotingPower,
 };
 
 /// A signing scheme that can be used to sign votes and verify such signatures.
@@ -207,6 +207,20 @@ where
         validator_set: &Ctx::ValidatorSet,
         thresholds: ThresholdParams,
     ) -> Result<(), CertificateError<Ctx>>;
+
+    /// Verify the polka certificate against the given validator set.
+    ///
+    /// - For each signature in the certificate:
+    ///   - Reconstruct the signed prevote and verify its signature
+    /// - Check that we have 2/3+ of voting power has signed the certificate
+    ///
+    /// If any of those steps fail, return a [`CertificateError`].
+    fn verify_polka_certificate(
+        &self,
+        certificate: &PolkaCertificate<Ctx>,
+        validator_set: &Ctx::ValidatorSet,
+        thresholds: ThresholdParams,
+    ) -> Result<(), CertificateError<Ctx>>;
 }
 
 impl<Ctx, P> SigningProviderExt<Ctx> for P
@@ -229,8 +243,9 @@ where
     ) -> Result<(), CertificateError<Ctx>> {
         use crate::ValidatorSet;
 
-        let total_voting_power = validator_set.total_voting_power();
         let mut signed_voting_power = 0;
+
+        // FIXME: Check that each validator only voted once
 
         // For each commit signature, reconstruct the signed precommit and verify the signature
         for commit_sig in &certificate.aggregated_signature.signatures {
@@ -242,6 +257,63 @@ where
             let voting_power = self.verify_commit_signature(certificate, commit_sig, validator)?;
             signed_voting_power += voting_power;
         }
+
+        let total_voting_power = validator_set.total_voting_power();
+
+        // Check if we have 2/3+ voting power
+        if thresholds
+            .quorum
+            .is_met(signed_voting_power, total_voting_power)
+        {
+            Ok(())
+        } else {
+            Err(CertificateError::NotEnoughVotingPower {
+                signed: signed_voting_power,
+                total: total_voting_power,
+                expected: thresholds.quorum.min_expected(total_voting_power),
+            })
+        }
+    }
+
+    /// Verify the polka certificate against the given validator set.
+    ///
+    /// - For each signed prevote in the certificate:
+    ///   - Reconstruct the signed prevote and verify its signature
+    /// - Check that we have 2/3+ of voting power has signed the certificate
+    ///
+    /// If any of those steps fail, return a [`CertificateError`].
+    ///
+    fn verify_polka_certificate(
+        &self,
+        certificate: &PolkaCertificate<Ctx>,
+        validator_set: &Ctx::ValidatorSet,
+        thresholds: ThresholdParams,
+    ) -> Result<(), CertificateError<Ctx>> {
+        use crate::ValidatorSet;
+
+        let mut signed_voting_power = 0;
+
+        // FIXME: Check that each validator only voted once
+
+        // For each commit signature, reconstruct the signed precommit and verify the signature
+        for vote in &certificate.votes {
+            // Abort if validator not in validator set
+            let validator = validator_set
+                .get_by_address(vote.validator_address())
+                .ok_or_else(|| {
+                    CertificateError::UnknownValidator(vote.validator_address().clone())
+                })?;
+
+            let valid_vote =
+                self.verify_signed_vote(&vote.message, &vote.signature, validator.public_key());
+
+            // Only tally valid votes for a value that matches the certificate
+            if valid_vote && vote.value().as_ref() == NilOrVal::Val(&certificate.value_id) {
+                signed_voting_power += validator.voting_power();
+            }
+        }
+
+        let total_voting_power = validator_set.total_voting_power();
 
         // Check if we have 2/3+ voting power
         if thresholds

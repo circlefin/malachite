@@ -981,6 +981,16 @@ where
                 Ok(r.resume_with(result))
             }
 
+            Effect::VerifyPolkaCertificate(certificate, validator_set, thresholds, r) => {
+                let result = self.signing_provider.verify_polka_certificate(
+                    &certificate,
+                    &validator_set,
+                    thresholds,
+                );
+
+                Ok(r.resume_with(result))
+            }
+
             Effect::ExtendVote(height, round, value_id, r) => {
                 if let Some(extension) = self.extend_vote(height, round, value_id).await? {
                     let signed_extension = self.signing_provider.sign_vote_extension(extension);
