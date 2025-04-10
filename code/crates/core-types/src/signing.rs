@@ -201,7 +201,7 @@ where
     /// - Check that we have 2/3+ of voting power has signed the certificate
     ///
     /// If any of those steps fail, return a [`CertificateError`].
-    fn verify_certificate(
+    fn verify_commit_certificate(
         &self,
         certificate: &CommitCertificate<Ctx>,
         validator_set: &Ctx::ValidatorSet,
@@ -221,7 +221,7 @@ where
     /// - Check that we have 2/3+ of voting power has signed the certificate
     ///
     /// If any of those steps fail, return a [`CertificateError`].
-    fn verify_certificate(
+    fn verify_commit_certificate(
         &self,
         certificate: &CommitCertificate<Ctx>,
         validator_set: &Ctx::ValidatorSet,

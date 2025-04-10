@@ -45,7 +45,7 @@ where
     Ok(signed_proposal)
 }
 
-pub async fn verify_certificate<Ctx>(
+pub async fn verify_commit_certificate<Ctx>(
     co: &Co<Ctx>,
     certificate: CommitCertificate<Ctx>,
     validator_set: Ctx::ValidatorSet,
@@ -55,7 +55,7 @@ where
     Ctx: Context,
 {
     let result = perform!(co,
-        Effect::VerifyCertificate(certificate, validator_set, threshold_params, Default::default()),
+        Effect::VerifyCommitCertificate(certificate, validator_set, threshold_params, Default::default()),
         Resume::CertificateValidity(result) => result
     );
 

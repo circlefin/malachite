@@ -442,8 +442,8 @@ where
                                 return Ok(());
                             };
 
-                            if let ConsensusError::InvalidCertificate(certificate, e) = e {
-                                sync.cast(SyncMsg::InvalidCertificate(peer, certificate, e))
+                            if let ConsensusError::InvalidCommitCertificate(certificate, e) = e {
+                                sync.cast(SyncMsg::InvalidCommitCertificate(peer, certificate, e))
                                     .map_err(|e| {
                                         eyre!(
                                             "Error when notifying sync of invalid certificate: {e}"
@@ -971,8 +971,8 @@ where
                 Ok(r.resume_with(valid))
             }
 
-            Effect::VerifyCertificate(certificate, validator_set, thresholds, r) => {
-                let valid = self.signing_provider.verify_certificate(
+            Effect::VerifyCommitCertificate(certificate, validator_set, thresholds, r) => {
+                let valid = self.signing_provider.verify_commit_certificate(
                     &certificate,
                     &validator_set,
                     thresholds,

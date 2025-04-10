@@ -1,4 +1,4 @@
-use crate::{handle::signature::verify_certificate, prelude::*};
+use crate::{handle::signature::verify_commit_certificate, prelude::*};
 
 #[cfg_attr(not(feature = "metrics"), allow(unused_variables))]
 pub async fn try_decide<Ctx>(
@@ -63,7 +63,7 @@ where
     assert_eq!(full_proposal.validity, Validity::Valid);
 
     // The certificate must be valid if state is Commit
-    assert!(verify_certificate(
+    assert!(verify_commit_certificate(
         co,
         certificate.clone(),
         state.driver.validator_set().clone(),

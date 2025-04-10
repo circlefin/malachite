@@ -1,6 +1,6 @@
 use crate::handle::decide::try_decide;
 use crate::handle::driver::apply_driver_input;
-use crate::handle::signature::verify_certificate;
+use crate::handle::signature::verify_commit_certificate;
 use crate::handle::validator_set::get_validator_set;
 use crate::prelude::*;
 
@@ -23,7 +23,7 @@ where
         return Err(Error::ValidatorSetNotFound(certificate.height));
     };
 
-    if let Err(e) = verify_certificate(
+    if let Err(e) = verify_commit_certificate(
         co,
         certificate.clone(),
         validator_set.as_ref().clone(),
@@ -31,7 +31,7 @@ where
     )
     .await?
     {
-        return Err(Error::InvalidCertificate(certificate, e));
+        return Err(Error::InvalidCommitCertificate(certificate, e));
     }
 
     apply_driver_input(
