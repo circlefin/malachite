@@ -244,18 +244,30 @@ where
         use crate::ValidatorSet;
 
         let mut signed_voting_power = 0;
-
-        // FIXME: Check that each validator only voted once
+        let mut seen_validators = Vec::new();
 
         // For each commit signature, reconstruct the signed precommit and verify the signature
         for commit_sig in &certificate.aggregated_signature.signatures {
+            let validator_address = &commit_sig.address;
+
+            if seen_validators.contains(&validator_address) {
+                return Err(CertificateError::DuplicateVote {
+                    address: validator_address.clone(),
+                });
+            }
+
+            seen_validators.push(validator_address);
+
             // Abort if validator not in validator set
             let validator = validator_set
-                .get_by_address(&commit_sig.address)
-                .ok_or_else(|| CertificateError::UnknownValidator(commit_sig.address.clone()))?;
+                .get_by_address(validator_address)
+                .ok_or_else(|| CertificateError::UnknownValidator(validator_address.clone()))?;
 
-            let voting_power = self.verify_commit_signature(certificate, commit_sig, validator)?;
-            signed_voting_power += voting_power;
+            if let Ok(voting_power) =
+                self.verify_commit_signature(certificate, commit_sig, validator)
+            {
+                signed_voting_power += voting_power;
+            }
         }
 
         let total_voting_power = validator_set.total_voting_power();
@@ -292,17 +304,24 @@ where
         use crate::ValidatorSet;
 
         let mut signed_voting_power = 0;
+        let mut seen_validators = Vec::new();
 
-        // FIXME: Check that each validator only voted once
-
-        // For each commit signature, reconstruct the signed precommit and verify the signature
+        // For each vote, check that the validator has not already vote and verify the signature
         for vote in &certificate.votes {
+            let validator_address = vote.validator_address();
+
+            if seen_validators.contains(&validator_address) {
+                return Err(CertificateError::DuplicateVote {
+                    address: validator_address.clone(),
+                });
+            }
+
+            seen_validators.push(validator_address);
+
             // Abort if validator not in validator set
             let validator = validator_set
-                .get_by_address(vote.validator_address())
-                .ok_or_else(|| {
-                    CertificateError::UnknownValidator(vote.validator_address().clone())
-                })?;
+                .get_by_address(validator_address)
+                .ok_or_else(|| CertificateError::UnknownValidator(validator_address.clone()))?;
 
             let valid_vote =
                 self.verify_signed_vote(&vote.message, &vote.signature, validator.public_key());

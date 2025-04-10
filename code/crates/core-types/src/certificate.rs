@@ -124,4 +124,11 @@ pub enum CertificateError<Ctx: Context> {
         /// Expected voting power
         expected: VotingPower,
     },
+
+    /// Multiple votes from the same validator.
+    #[error("Multiple votes from the same validator: {address}")]
+    DuplicateVote {
+        /// The address of the validator that voted multiple times
+        address: Ctx::Address
+    },
 }
