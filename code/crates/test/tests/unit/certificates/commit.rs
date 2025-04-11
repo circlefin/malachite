@@ -1,12 +1,6 @@
-use informalsystems_malachitebft_test::{
-    Address, Ed25519Provider, Height, TestContext, ValidatorSet, ValueId, Vote,
-};
-use malachitebft_core_types::{
-    CertificateError, CommitCertificate, Context, NilOrVal, Round, SignedVote, SigningProviderExt,
-    ThresholdParams,
-};
+use malachitebft_core_types::CommitCertificate;
 
-use super::{make_validators, CertificateBuilder, CertificateTest, DEFAULT_SEED};
+use super::{make_validators, types::*, CertificateBuilder, CertificateTest, DEFAULT_SEED};
 
 pub struct Commit;
 

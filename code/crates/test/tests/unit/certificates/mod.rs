@@ -5,13 +5,19 @@ mod polka;
 
 use std::marker::PhantomData;
 
-use informalsystems_malachitebft_test::{
-    utils, Address, Ed25519Provider, Height, TestContext, Validator, ValidatorSet, ValueId, Vote,
-};
-use malachitebft_core_types::{
-    CertificateError, NilOrVal, Round, SignedVote, SigningProvider, ThresholdParams, VotingPower,
-};
-use malachitebft_signing_ed25519::Signature;
+pub mod types {
+    pub use informalsystems_malachitebft_test::{
+        utils, Address, Ed25519Provider, Height, TestContext, Validator, ValidatorSet, ValueId,
+        Vote,
+    };
+    pub use malachitebft_core_types::{
+        CertificateError, Context, NilOrVal, Round, SignedVote, SigningProvider,
+        SigningProviderExt, ThresholdParams, VotingPower,
+    };
+    pub use malachitebft_signing_ed25519::Signature;
+}
+
+use types::*;
 
 const DEFAULT_SEED: u64 = 0xfeedbeef;
 
