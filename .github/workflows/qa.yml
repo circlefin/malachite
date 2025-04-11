@@ -74,8 +74,9 @@ jobs:
         working-directory: qa/terraform
         run: |
           ls 
-          DATE=$(date +%F)
-          aws s3 cp *.csv s3://malachite-performance-site/$DATE/
+          TIMESTAMP=$(date +%F-%H-%M)
+          aws s3 cp latency.csv s3://malachite-performance-site/$TIMESTAMP/
+          aws s3 cp throughput.csv s3://malachite-performance-site/$TIMESTAMP/
 
       - name: Terraform Destroy (Cleanup Nodes)
         if: always()
