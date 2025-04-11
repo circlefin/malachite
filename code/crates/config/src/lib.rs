@@ -641,7 +641,6 @@ pub struct VoteExtensionsConfig {
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TestConfig {
     pub max_block_size: ByteSize,
-    pub tx_size: ByteSize,
     pub txs_per_part: usize,
     pub time_allowance_factor: f32,
     #[serde(with = "humantime_serde")]
@@ -655,7 +654,6 @@ impl Default for TestConfig {
     fn default() -> Self {
         Self {
             max_block_size: ByteSize::mib(1),
-            tx_size: ByteSize::kib(1),
             txs_per_part: 256,
             time_allowance_factor: 0.5,
             exec_time_per_tx: Duration::from_millis(1),
