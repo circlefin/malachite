@@ -100,8 +100,8 @@ pub struct PolkaCertificate<Ctx: Context> {
 }
 
 /// Represents an error that can occur when verifying a certificate.
-#[derive_where(Clone, Debug)]
 #[derive(Error)]
+#[derive_where(Clone, Debug, PartialEq, Eq)]
 pub enum CertificateError<Ctx: Context> {
     /// One of the commit signature is invalid.
     #[error("Invalid commit signature: {0:?}")]
@@ -129,6 +129,6 @@ pub enum CertificateError<Ctx: Context> {
     #[error("Multiple votes from the same validator: {address}")]
     DuplicateVote {
         /// The address of the validator that voted multiple times
-        address: Ctx::Address
+        address: Ctx::Address,
     },
 }

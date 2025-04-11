@@ -74,6 +74,11 @@ impl ValidatorSet {
         self.validators.iter().map(|v| v.voting_power).sum()
     }
 
+    /// Get a validator by its index
+    pub fn get_by_index(&self, index: usize) -> Option<&Validator> {
+        self.validators.get(index)
+    }
+
     /// Get a validator by its address
     pub fn get_by_address(&self, address: &Address) -> Option<&Validator> {
         self.validators.iter().find(|v| &v.address == address)
