@@ -18,11 +18,50 @@ jobs:
       TF_VAR_tor1: 1
       TF_VAR_fra1: 1
       TF_VAR_lon1: 1
-      EXPR_DURATION: "600"
+      EXPR_DURATION: "900"
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set up SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DO_SSH_KEY }}
+
+      - name: Install parallel-ssh and create symlink
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y pssh
+          sudo ln -sf /usr/bin/parallel-ssh /usr/bin/pssh
+          pssh --version
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.10.5
+
+      - name: Terraform Init
+        working-directory: qa/terraform
+        run: terraform init
+
+      - name: Terraform Apply (Provision Nodes)
+        working-directory: qa/terraform
+        run: |
+          terraform apply -auto-approve
+
+      - name: Deploy application and run it
+        working-directory: qa/terraform
+        run: |
+          shopt -s expand_aliases
+          source commands.sh
+          mkdir -p "$HOME/.ssh"
+          touch "$HOME/.ssh/known_hosts"
+          deploy_cc 
+          setup_config
+          d_pull all
+          d_run all
+          sleep "$EXPR_DURATION"
+          _export_prometheus_performance_csv
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -32,7 +71,13 @@ jobs:
           aws-region: us-east-1
 
       - name: Copy files to S3
+        working-directory: qa/terraform
         run: |
-          touch temp.txt
           DATE=$(date +%F)
-          aws s3 cp temp.txt s3://malachite-performance-site/$DATE/
+          aws s3 cp *.csv s3://malachite-performance-site/$DATE/
+
+      - name: Terraform Destroy (Cleanup Nodes)
+        if: always()
+        working-directory: qa/terraform
+        run: |
+          terraform destroy -auto-approve
