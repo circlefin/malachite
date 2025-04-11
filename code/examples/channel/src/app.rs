@@ -60,7 +60,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 // If we have already built or seen values for this height and round,
                 // send them all back to consensus. This may happen when we are restarting after a crash.
                 let proposals = state.store.get_undecided_proposals(height, round).await?;
-                if reply_value.send(proposals).await.is_err() {
+                if reply_value.send(proposals).is_err() {
                     error!("Failed to send undecided proposals");
                 }
             }
@@ -79,7 +79,20 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
                 info!(%height, %round, "Consensus is requesting a value to propose");
 
-                let proposal = state.propose_value(height, round).await?;
+                // Here it is important that, if we have previously built a value for this height and round,
+                // we send back the very same value.
+                let proposal = match state.get_previously_built_value(height, round).await? {
+                    Some(proposal) => {
+                        info!(value = %proposal.value.id(), "Re-using previously built value");
+                        proposal
+                    }
+                    None => {
+                        // If we have not previously built a value for that very same height and round,
+                        // we need to create a new value to propose and send it back to consensus.
+                        info!("Building a new value to propose");
+                        state.propose_value(height, round).await?
+                    }
+                };
 
                 // Send it to consensus
                 if reply.send(proposal.clone()).is_err() {

@@ -65,14 +65,9 @@ pub async fn run(
                 // If we have already built or seen a value for this height and round,
                 // send it back to consensus. This may happen when we are restarting after a crash.
                 // TODO: send all proposals
-                if let Some(proposal) = state.store.get_undecided_proposal(height, round).await? {
-                    info!(%height, %round, "Replaying already known proposed value: {}", proposal.value.id());
-
-                    if reply_value.send(vec![proposal]).await.is_err() {
-                        error!("Failed to send undecided proposal");
-                    }
-                } else {
-                    let _ = reply_value.send(vec![]).await;
+                let proposals = state.store.get_undecided_proposals(height, round).await?;
+                if reply_value.send(proposals).is_err() {
+                    error!("Failed to send undecided proposals");
                 }
             }
 
@@ -300,7 +295,7 @@ pub async fn run(
                 //  Look for a proposal at valid_round (should be already stored)
                 let proposal = state
                     .store
-                    .get_undecided_proposal(height, valid_round)
+                    .get_undecided_proposal(height, valid_round, value_id)
                     .await?;
 
                 if let Some(proposal) = proposal {

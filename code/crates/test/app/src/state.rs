@@ -175,7 +175,9 @@ impl State {
             ));
         };
 
-        self.store.remove_undecided_proposal(height, round).await?;
+        self.store
+            .remove_undecided_proposals_by_value_id(value_id)
+            .await?;
 
         let middleware = self.ctx.middleware();
         debug!(%height, %round, "Middleware: {middleware:?}");
@@ -213,25 +215,31 @@ impl State {
         Ok(())
     }
 
-    /// Retrieves a previously built proposal value for the given height
+    /// Retrieves a previously built proposal value for the given height and round.
+    /// Called by the consensus engine to re-use a previously built value.
+    /// There should be at most one proposal for a given height and round when the proposer is not byzantine.
+    /// We assume this implementation is not byzantine and we are the proposer for the given height and round.
+    /// Therefore there must be a single proposal for the rounds where we are the proposer, with the proposer address matching our own.
     pub async fn get_previously_built_value(
         &self,
         height: Height,
         round: Round,
     ) -> eyre::Result<Option<LocallyProposedValue<TestContext>>> {
-        let Some(proposal) = self.store.get_undecided_proposal(height, round).await? else {
-            return Ok(None);
-        };
+        let proposals = self
+            .store
+            .get_our_undecided_proposals(height, round, self.address)
+            .await?;
+        assert!(proposals.len() <= 1);
 
-        Ok(Some(LocallyProposedValue::new(
-            proposal.height,
-            proposal.round,
-            proposal.value,
-        )))
+        proposals
+            .first()
+            .map(|p| LocallyProposedValue::new(p.height, p.round, p.value.clone()))
+            .map(Some)
+            .map(Ok)
+            .unwrap_or_else(|| Ok(None))
     }
 
-    /// Creates a new proposal value for the given height
-    /// Returns either a previously built proposal or creates a new one
+    /// Creates a new proposal value for the given height and round
     async fn create_proposal(
         &mut self,
         height: Height,
@@ -240,7 +248,7 @@ impl State {
         assert_eq!(height, self.current_height);
         assert_eq!(round, self.current_round);
 
-        // We create a new value.
+        // Create a new value
         let value = self.make_value();
 
         let proposal = ProposedValue {
@@ -252,7 +260,7 @@ impl State {
             validity: Validity::Valid, // Our proposals are de facto valid
         };
 
-        // Insert the new proposal into the undecided proposals.
+        // Insert the new proposal into the undecided proposals
         self.store
             .store_undecided_proposal(proposal.clone())
             .await?;
@@ -285,7 +293,6 @@ impl State {
     }
 
     /// Creates a new proposal value for the given height
-    /// Returns either a previously built proposal or creates a new one
     pub async fn propose_value(
         &mut self,
         height: Height,

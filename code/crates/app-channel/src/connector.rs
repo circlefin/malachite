@@ -80,7 +80,7 @@ where
                 round,
                 proposer,
             } => {
-                let (reply_value, mut rx_value) = mpsc::channel(1);
+                let (reply_value, rx_value) = oneshot::channel();
 
                 self.sender
                     .send(AppMsg::StartedRound {
@@ -100,7 +100,7 @@ where
                 tokio::spawn({
                     let consensus = consensus.clone();
                     async move {
-                        while let Some(values) = rx_value.recv().await {
+                        if let Ok(values) = rx_value.await {
                             for value in values {
                                 let msg = ConsensusMsg::ReceivedProposedValue(
                                     value,
