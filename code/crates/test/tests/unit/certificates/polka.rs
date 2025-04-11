@@ -133,7 +133,7 @@ fn invalid_polka_certificate_unknown_validator() {
 
 /// Tests the verification of a certificate containing a vote with an invalid signature.
 #[test]
-fn invalid_polka_certificate_invalid_signature_1() {
+fn invalid_polka_certificate_invalid_signature() {
     CertificateTest::<Polka>::new()
         .with_validators([10, 10, 10])
         .with_signatures(0..3)
@@ -147,11 +147,21 @@ fn invalid_polka_certificate_invalid_signature_1() {
 
 /// Tests the verification of a certificate containing a vote with an invalid signature.
 #[test]
-fn invalid_polka_certificate_invalid_signature_2() {
+fn invalid_polka_certificate_wrong_vote_height_round() {
     CertificateTest::<Polka>::new()
         .with_validators([10, 10, 10])
-        .with_signatures(0..3)
-        .with_invalid_signature(0) // Replace signature for validator 0
+        .with_signatures(0..2)
+        .with_invalid_vote_height(2) // Validator 2 has invalid vote height
+        .expect_error(CertificateError::NotEnoughVotingPower {
+            signed: 20,
+            total: 30,
+            expected: 21,
+        });
+
+    CertificateTest::<Polka>::new()
+        .with_validators([10, 10, 10])
+        .with_signatures(0..2)
+        .with_invalid_vote_round(2) // Validator 2 has invalid vote round
         .expect_error(CertificateError::NotEnoughVotingPower {
             signed: 20,
             total: 30,

@@ -42,6 +42,8 @@ pub enum VoteSpec {
         validator_idx: usize,
         is_nil: bool,
         invalid_signature: bool,
+        invalid_height: bool,
+        invalid_round: bool,
     },
     Duplicate {
         validator_idx: usize,
@@ -149,8 +151,36 @@ where
                     validator_idx: idx,
                     is_nil: false,
                     invalid_signature: false,
+                    invalid_height: false,
+                    invalid_round: false,
                 });
             }
+        }
+        self
+    }
+
+    pub fn with_invalid_vote_height(mut self, index: usize) -> Self {
+        if index < self.validators.len() {
+            self.vote_specs.push(VoteSpec::Normal {
+                validator_idx: index,
+                is_nil: false,
+                invalid_signature: false,
+                invalid_height: true,
+                invalid_round: false,
+            });
+        }
+        self
+    }
+
+    pub fn with_invalid_vote_round(mut self, index: usize) -> Self {
+        if index < self.validators.len() {
+            self.vote_specs.push(VoteSpec::Normal {
+                validator_idx: index,
+                is_nil: false,
+                invalid_signature: false,
+                invalid_height: false,
+                invalid_round: true,
+            });
         }
         self
     }
@@ -219,6 +249,8 @@ where
                     validator_idx,
                     is_nil,
                     invalid_signature,
+                    invalid_height,
+                    invalid_round,
                 } => {
                     let value = if *is_nil {
                         NilOrVal::Nil
@@ -226,10 +258,22 @@ where
                         NilOrVal::Val(self.value_id)
                     };
 
+                    let height = if *invalid_height {
+                        self.height.increment()
+                    } else {
+                        self.height
+                    };
+
+                    let round = if *invalid_round {
+                        self.round.increment()
+                    } else {
+                        self.round
+                    };
+
                     let mut vote = self.signers[*validator_idx].sign_vote(C::make_vote(
                         &self.ctx,
-                        self.height,
-                        self.round,
+                        height,
+                        round,
                         value,
                         self.validators[*validator_idx].address,
                     ));

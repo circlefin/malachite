@@ -304,14 +304,15 @@ where
         let mut signed_voting_power = 0;
         let mut seen_validators = Vec::new();
 
-        // For each vote, check that the validator has not already vote and verify the signature
         for vote in &certificate.votes {
             let validator_address = vote.validator_address();
 
+            // Abort if validator already voted
             if seen_validators.contains(&validator_address) {
                 return Err(CertificateError::DuplicateVote(validator_address.clone()));
             }
 
+            // Add the validator to the list of seenv validators
             seen_validators.push(validator_address);
 
             // Abort if validator not in validator set
@@ -319,11 +320,19 @@ where
                 .get_by_address(validator_address)
                 .ok_or_else(|| CertificateError::UnknownValidator(validator_address.clone()))?;
 
-            let valid_vote =
-                self.verify_signed_vote(&vote.message, &vote.signature, validator.public_key());
+            // Check that the vote is for the same height and round as the certificate
+            let valid_height = vote.height() == certificate.height;
+            let valid_round = vote.round() == certificate.round;
 
-            // Only tally valid votes for a value that matches the certificate
-            if valid_vote && vote.value().as_ref() == NilOrVal::Val(&certificate.value_id) {
+            // Check that the vote is for the same value as the certificate
+            let valid_value = vote.value().as_ref() == NilOrVal::Val(&certificate.value_id);
+
+            // Check that the vote signature is valid. Do this last and lazily as it is expensive.
+            let valid_signature =
+                || self.verify_signed_vote(&vote.message, &vote.signature, validator.public_key());
+
+            // Only tally valid votes
+            if valid_height && valid_round && valid_value && valid_signature() {
                 signed_voting_power += validator.voting_power();
             }
         }
