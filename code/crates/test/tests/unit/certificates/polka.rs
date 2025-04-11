@@ -116,9 +116,7 @@ fn invalid_polka_certificate_duplicate_validator_vote() {
         .with_validators([10, 10, 10, 10])
         .with_signatures(0..4)
         .with_duplicate_vote(0) // Add duplicate vote from validator 0
-        .expect_error(CertificateError::DuplicateVote {
-            address: validator_addr,
-        });
+        .expect_error(CertificateError::DuplicateVote(validator_addr));
 }
 
 /// Tests the verification of a certificate containing a vote from a validator not in the validator set.

@@ -143,9 +143,6 @@ pub enum CertificateError<Ctx: Context> {
     },
 
     /// Multiple votes from the same validator.
-    #[error("Multiple votes from the same validator: {address}")]
-    DuplicateVote {
-        /// The address of the validator that voted multiple times
-        address: Ctx::Address,
-    },
+    #[error("Multiple votes from the same validator: {0}")]
+    DuplicateVote(Ctx::Address),
 }

@@ -251,9 +251,7 @@ where
             let validator_address = &commit_sig.address;
 
             if seen_validators.contains(&validator_address) {
-                return Err(CertificateError::DuplicateVote {
-                    address: validator_address.clone(),
-                });
+                return Err(CertificateError::DuplicateVote(validator_address.clone()));
             }
 
             seen_validators.push(validator_address);
@@ -311,9 +309,7 @@ where
             let validator_address = vote.validator_address();
 
             if seen_validators.contains(&validator_address) {
-                return Err(CertificateError::DuplicateVote {
-                    address: validator_address.clone(),
-                });
+                return Err(CertificateError::DuplicateVote(validator_address.clone()));
             }
 
             seen_validators.push(validator_address);
