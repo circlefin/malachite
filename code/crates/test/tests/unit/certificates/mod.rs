@@ -1,3 +1,4 @@
+mod commit;
 mod polka;
 
 use std::marker::PhantomData;
