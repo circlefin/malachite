@@ -34,22 +34,24 @@ message CommitSignature {
     Signature signature = 2;
 }
 
-message AggregatedSignature {
-    repeated CommitSignature signatures = 1;
-}
-
 message CommitCertificate {
     uint64 height = 1;
     uint32 round = 2;
     ValueId value_id = 3;
-    AggregatedSignature aggregated_signature = 4;
+    repeated CommitSignature signatures = 4;
+}
+
+message PolkaSignature {
+    // TODO: Add flag (no vote, nil, value?)
+    Address validator_address = 1;
+    Signature signature = 2;
 }
 
 message PolkaCertificate {
     uint64 height = 1;
     uint32 round = 2;
     ValueId value_id = 3;
-    repeated SignedMessage votes = 4;
+    repeated PolkaSignature signatures = 4;
 }
 
 message ProposedValue {

@@ -46,16 +46,18 @@ message CommitSignature {
     ConsensusSignature signature = 2;
 }
 
-message AggregatedSignature {
-    repeated CommitSignature signatures = 1;
-}
-
 message CommitCertificate {
     uint64 fork_id = 1;
     uint64 block_number = 2;
     uint32 round = 3;
     Hash block_hash = 4;
-    AggregatedSignature aggregated_signature = 5;
+    repeated CommitSignature signatures = 5;
+}
+
+message PolkaSignature {
+    // TODO - add flag (no vote, nil, value?)
+    Address validator_address    = 1;
+    ConsensusSignature signature = 2;
 }
 
 message PolkaCertificate {
@@ -63,7 +65,7 @@ message PolkaCertificate {
     uint64 block_number = 2;
     uint32 round = 3;
     Hash block_hash = 4;
-    repeated Vote votes = 5;
+    repeated PolkaSignature signatures = 5;
 }
 
 message ProposedValue {

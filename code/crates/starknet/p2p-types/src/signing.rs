@@ -1,7 +1,8 @@
 use bytes::Bytes;
 use malachitebft_core_types::{
-    CertificateError, CommitCertificate, CommitSignature, NilOrVal, SignedExtension,
-    SignedProposal, SignedProposalPart, SignedVote, SigningProvider, VotingPower,
+    CertificateError, CommitCertificate, CommitSignature, NilOrVal, PolkaCertificate,
+    PolkaSignature, SignedExtension, SignedProposal, SignedProposalPart, SignedVote,
+    SigningProvider, VotingPower,
 };
 
 pub use malachitebft_signing_ed25519::{Ed25519, PrivateKey, PublicKey, Signature};
@@ -98,21 +99,41 @@ impl SigningProvider<MockContext> for Ed25519Provider {
         commit_sig: &CommitSignature<MockContext>,
         validator: &Validator,
     ) -> Result<VotingPower, CertificateError<MockContext>> {
-        use malachitebft_core_types::Validator;
-
         // Reconstruct the vote that was signed
         let vote = Vote::new_precommit(
             certificate.height,
             certificate.round,
             NilOrVal::Val(certificate.value_id),
-            *validator.address(),
+            validator.address,
         );
 
         // Verify signature
-        if !self.verify_signed_vote(&vote, &commit_sig.signature, validator.public_key()) {
-            return Err(CertificateError::InvalidSignature(commit_sig.clone()));
+        if !self.verify_signed_vote(&vote, &commit_sig.signature, &validator.public_key) {
+            return Err(CertificateError::InvalidCommitSignature(commit_sig.clone()));
         }
 
-        Ok(validator.voting_power())
+        Ok(validator.voting_power)
+    }
+
+    fn verify_polka_signature(
+        &self,
+        certificate: &PolkaCertificate<MockContext>,
+        signature: &PolkaSignature<MockContext>,
+        validator: &Validator,
+    ) -> Result<VotingPower, CertificateError<MockContext>> {
+        // Reconstruct the vote that was signed
+        let vote = Vote::new_prevote(
+            certificate.height,
+            certificate.round,
+            NilOrVal::Val(certificate.value_id),
+            validator.address,
+        );
+
+        // Verify signature
+        if !self.verify_signed_vote(&vote, &signature.signature, &validator.public_key) {
+            return Err(CertificateError::InvalidPolkaSignature(signature.clone()));
+        }
+
+        Ok(validator.voting_power)
     }
 }

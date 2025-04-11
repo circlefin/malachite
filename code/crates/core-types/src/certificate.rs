@@ -69,6 +69,22 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
     }
 }
 
+/// Represents a signature for a polka certificate, with the address of the validator that produced it.
+#[derive_where(Clone, Debug, PartialEq, Eq)]
+pub struct PolkaSignature<Ctx: Context> {
+    /// The address associated with the signature.
+    pub address: Ctx::Address,
+    /// The signature itself.
+    pub signature: Signature<Ctx>,
+}
+
+impl<Ctx: Context> PolkaSignature<Ctx> {
+    /// Create a new `CommitSignature` from an address and a signature.
+    pub fn new(address: Ctx::Address, signature: Signature<Ctx>) -> Self {
+        Self { address, signature }
+    }
+}
+
 /// Represents a certificate witnessing a Polka at a given height and round.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct PolkaCertificate<Ctx: Context> {
@@ -78,8 +94,8 @@ pub struct PolkaCertificate<Ctx: Context> {
     pub round: Round,
     /// The value that the Polka is for
     pub value_id: ValueId<Ctx>,
-    /// The votes that make up the Polka
-    pub votes: Vec<SignedVote<Ctx>>,
+    /// The signatures for the votes that make up the Polka
+    pub polka_signatures: Vec<PolkaSignature<Ctx>>,
 }
 
 impl<Ctx: Context> PolkaCertificate<Ctx> {
@@ -90,11 +106,28 @@ impl<Ctx: Context> PolkaCertificate<Ctx> {
         value_id: ValueId<Ctx>,
         votes: Vec<SignedVote<Ctx>>,
     ) -> Self {
+        // Collect all polka signatures from the signed votes
+        let polka_signatures = votes
+            .into_iter()
+            .filter(|vote| {
+                matches!(vote.value(), NilOrVal::Val(id) if id == &value_id)
+                    && vote.vote_type() == VoteType::Prevote
+                    && vote.round() == round
+                    && vote.height() == height
+            })
+            .map(|signed_vote| {
+                PolkaSignature::new(
+                    signed_vote.validator_address().clone(),
+                    signed_vote.signature,
+                )
+            })
+            .collect();
+
         Self {
             height,
             round,
             value_id,
-            votes,
+            polka_signatures,
         }
     }
 }
@@ -105,7 +138,11 @@ impl<Ctx: Context> PolkaCertificate<Ctx> {
 pub enum CertificateError<Ctx: Context> {
     /// One of the commit signature is invalid.
     #[error("Invalid commit signature: {0:?}")]
-    InvalidSignature(CommitSignature<Ctx>),
+    InvalidCommitSignature(CommitSignature<Ctx>),
+
+    /// One of the commit signature is invalid.
+    #[error("Invalid polka signature: {0:?}")]
+    InvalidPolkaSignature(PolkaSignature<Ctx>),
 
     /// A validator in the certificate is not in the validator set.
     #[error("A validator in the certificate is not in the validator set: {0:?}")]
