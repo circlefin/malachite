@@ -230,23 +230,6 @@ impl State {
         Ok(())
     }
 
-    /// Retrieves a previously built proposal value for the given height
-    pub async fn get_previously_built_value(
-        &self,
-        height: Height,
-        round: Round,
-    ) -> eyre::Result<Option<LocallyProposedValue<TestContext>>> {
-        let Some(proposal) = self.store.get_undecided_proposal(height, round).await? else {
-            return Ok(None);
-        };
-
-        Ok(Some(LocallyProposedValue::new(
-            proposal.height,
-            proposal.round,
-            proposal.value,
-        )))
-    }
-
     /// Creates a new proposal value for the given height
     async fn create_proposal(
         &mut self,
@@ -312,11 +295,6 @@ impl State {
     ) -> eyre::Result<LocallyProposedValue<TestContext>> {
         assert_eq!(height, self.current_height);
         assert_eq!(round, self.current_round);
-
-        // Check if we have already built a proposal for this height and round
-        if let Some(proposal) = self.get_previously_built_value(height, round).await? {
-            return Ok(proposal);
-        }
 
         let proposal = self.create_proposal(height, round).await?;
 

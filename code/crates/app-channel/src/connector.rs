@@ -80,7 +80,7 @@ where
                 round,
                 proposer,
             } => {
-                let (reply_value, rx_value) = oneshot::channel();
+                let (reply_value, mut rx_value) = mpsc::channel(1);
 
                 self.sender
                     .send(AppMsg::StartedRound {
@@ -96,16 +96,19 @@ where
                     return Ok(());
                 };
 
-                // Do not block processing of other messages while waiting for the value
+                // Do not block processing of other messages while waiting for the values
                 tokio::spawn({
                     let consensus = consensus.clone();
                     async move {
-                        if let Ok(Some(value)) = rx_value.await {
-                            let msg =
-                                ConsensusMsg::ReceivedProposedValue(value, ValueOrigin::Consensus);
-
-                            if let Err(e) = consensus.cast(msg) {
-                                error!("Failed to send back undecided value to consensus: {e}");
+                        while let Some(values) = rx_value.recv().await {
+                            for value in values {
+                                let msg = ConsensusMsg::ReceivedProposedValue(
+                                    value,
+                                    ValueOrigin::Consensus,
+                                );
+                                if let Err(e) = consensus.cast(msg) {
+                                    error!("Failed to send back undecided value to consensus: {e}");
+                                }
                             }
                         }
                     }
