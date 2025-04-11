@@ -18,7 +18,7 @@ jobs:
       TF_VAR_tor1: 1
       TF_VAR_fra1: 1
       TF_VAR_lon1: 1
-      EXPR_DURATION: "900"
+      EXPR_DURATION: "60"
 
     steps:
       - name: Checkout code
@@ -73,6 +73,7 @@ jobs:
       - name: Copy files to S3
         working-directory: qa/terraform
         run: |
+          ls 
           DATE=$(date +%F)
           aws s3 cp *.csv s3://malachite-performance-site/$DATE/
 
