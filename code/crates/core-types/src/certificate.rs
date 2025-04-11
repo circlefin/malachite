@@ -22,20 +22,6 @@ impl<Ctx: Context> CommitSignature<Ctx> {
     }
 }
 
-/// Aggregated signature.
-#[derive_where(Clone, Debug, PartialEq, Eq)]
-pub struct AggregatedSignature<Ctx: Context> {
-    /// A collection of commit signatures.
-    pub signatures: Vec<CommitSignature<Ctx>>,
-}
-
-impl<Ctx: Context> AggregatedSignature<Ctx> {
-    /// Create a new `AggregatedSignature` from a vector of commit signatures.
-    pub fn new(signatures: Vec<CommitSignature<Ctx>>) -> Self {
-        Self { signatures }
-    }
-}
-
 /// Represents a certificate containing the message (height, round, value_id) and an aggregated signature.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct CommitCertificate<Ctx: Context> {
@@ -46,7 +32,7 @@ pub struct CommitCertificate<Ctx: Context> {
     /// The identifier for the value being certified.
     pub value_id: ValueId<Ctx>,
     /// A vector of signatures that make up the certificate.
-    pub aggregated_signature: AggregatedSignature<Ctx>, // TODO - type in context
+    pub aggregated_signature: Vec<CommitSignature<Ctx>>,
 }
 
 impl<Ctx: Context> CommitCertificate<Ctx> {
@@ -58,7 +44,7 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
         commits: Vec<SignedVote<Ctx>>,
     ) -> Self {
         // Collect all commit signatures from the signed votes
-        let commit_signatures = commits
+        let aggregated_signature = commits
             .into_iter()
             .filter(|vote| {
                 matches!(vote.value(), NilOrVal::Val(id) if id == &value_id)
@@ -73,9 +59,6 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
                 )
             })
             .collect();
-
-        // Create the aggregated signature
-        let aggregated_signature = AggregatedSignature::new(commit_signatures);
 
         Self {
             height,

@@ -53,9 +53,7 @@ pub type SignedProposalPart<Ctx> = SignedMessage<Ctx, <Ctx as Context>::Proposal
 /// A signed vote extension
 pub type SignedExtension<Ctx> = SignedMessage<Ctx, <Ctx as Context>::Extension>;
 
-pub use certificate::{
-    AggregatedSignature, CertificateError, CommitCertificate, CommitSignature, PolkaCertificate,
-};
+pub use certificate::{CertificateError, CommitCertificate, CommitSignature, PolkaCertificate};
 pub use context::Context;
 pub use height::Height;
 pub use proposal::{Proposal, Validity};
