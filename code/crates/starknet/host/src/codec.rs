@@ -521,7 +521,7 @@ pub fn decode_commit_certificate(
         height: Height::new(certificate.block_number, certificate.fork_id),
         round: Round::new(certificate.round),
         value_id,
-        aggregated_signature,
+        commit_signatures: aggregated_signature,
     };
 
     Ok(certificate)
@@ -535,9 +535,7 @@ pub fn encode_commit_certificate(
         block_number: certificate.height.block_number,
         round: certificate.round.as_u32().expect("round should not be nil"),
         block_hash: Some(certificate.value_id.to_proto()?),
-        aggregated_signature: Some(encode_aggregate_signature(
-            &certificate.aggregated_signature,
-        )?),
+        aggregated_signature: Some(encode_aggregate_signature(&certificate.commit_signatures)?),
     })
 }
 

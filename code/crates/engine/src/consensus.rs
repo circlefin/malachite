@@ -1084,7 +1084,7 @@ where
             }
 
             Effect::Decide(certificate, extensions, r) => {
-                assert!(!certificate.aggregated_signature.signatures.is_empty());
+                assert!(!certificate.commit_signatures.signatures.is_empty());
 
                 self.wal_flush(state.phase).await?;
 

@@ -6,7 +6,7 @@ use crate::{
     Context, NilOrVal, Round, Signature, SignedVote, ValueId, Vote, VoteType, VotingPower,
 };
 
-/// Represents a signature for a certificate, including the address and the signature itself.
+/// Represents a signature for a commit certificate, with the address of the validator that produced it.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct CommitSignature<Ctx: Context> {
     /// The address associated with the signature.
@@ -16,13 +16,13 @@ pub struct CommitSignature<Ctx: Context> {
 }
 
 impl<Ctx: Context> CommitSignature<Ctx> {
-    /// Create a new `CommitSignature` from an address and a signature, with an optional extension.
+    /// Create a new `CommitSignature` from an address and a signature.
     pub fn new(address: Ctx::Address, signature: Signature<Ctx>) -> Self {
         Self { address, signature }
     }
 }
 
-/// Represents a certificate containing the message (height, round, value_id) and an aggregated signature.
+/// Represents a certificate containing the message (height, round, value_id) and the commit signatures.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct CommitCertificate<Ctx: Context> {
     /// The height of the certificate.
@@ -32,7 +32,7 @@ pub struct CommitCertificate<Ctx: Context> {
     /// The identifier for the value being certified.
     pub value_id: ValueId<Ctx>,
     /// A vector of signatures that make up the certificate.
-    pub aggregated_signature: Vec<CommitSignature<Ctx>>,
+    pub commit_signatures: Vec<CommitSignature<Ctx>>,
 }
 
 impl<Ctx: Context> CommitCertificate<Ctx> {
@@ -44,7 +44,7 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
         commits: Vec<SignedVote<Ctx>>,
     ) -> Self {
         // Collect all commit signatures from the signed votes
-        let aggregated_signature = commits
+        let commit_signatures = commits
             .into_iter()
             .filter(|vote| {
                 matches!(vote.value(), NilOrVal::Val(id) if id == &value_id)
@@ -64,7 +64,7 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
             height,
             round,
             value_id,
-            aggregated_signature,
+            commit_signatures,
         }
     }
 }

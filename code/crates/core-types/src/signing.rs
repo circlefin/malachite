@@ -247,7 +247,7 @@ where
         let mut seen_validators = Vec::new();
 
         // For each commit signature, reconstruct the signed precommit and verify the signature
-        for commit_sig in &certificate.aggregated_signature {
+        for commit_sig in &certificate.commit_signatures {
             let validator_address = &commit_sig.address;
 
             if seen_validators.contains(&validator_address) {

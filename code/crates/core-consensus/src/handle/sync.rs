@@ -15,7 +15,7 @@ where
 {
     debug!(
         certificate.height = %certificate.height,
-        signatures = certificate.aggregated_signature.signatures.len(),
+        signatures = certificate.commit_signatures.len(),
         "Processing certificate"
     );
 
