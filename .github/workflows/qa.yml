@@ -24,46 +24,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up SSH agent
-        uses: webfactory/ssh-agent@v0.9.0
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
         with:
-          ssh-private-key: ${{ secrets.DO_SSH_KEY }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
 
-      - name: Install parallel-ssh and create symlink
+      - name: Copy files to S3
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y pssh
-          sudo ln -sf /usr/bin/parallel-ssh /usr/bin/pssh
-          pssh --version
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: 1.10.5
-
-      - name: Terraform Init
-        working-directory: qa/terraform
-        run: terraform init
-
-      - name: Terraform Apply (Provision Nodes)
-        working-directory: qa/terraform
-        run: |
-          terraform apply -auto-approve
-
-      - name: Deploy application and run it
-        working-directory: qa/terraform
-        run: |
-          shopt -s expand_aliases
-          source commands.sh
-          mkdir -p "$HOME/.ssh"
-          touch "$HOME/.ssh/known_hosts"
-          deploy_cc 
-          setup_config
-          d_pull all
-          d_run all
-          sleep "$EXPR_DURATION"
-
-      - name: Terraform Destroy (Cleanup Nodes)
-        if: always()
-        working-directory: qa/terraform
-        run: |
-          terraform destroy -auto-approve
+          touch temp.txt
+          aws s3 cp temp.txt s3://malachite-performance-site/ --recursive

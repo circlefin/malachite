@@ -375,7 +375,7 @@ _export_prometheus_csv() {
 
   local END=$(date +%s)
   local START=$((END - LAST_MINUTES * 60))
-  local STEP=1
+  local STEP=5
 
   local PROM_HOST
   if _is_cc; then
@@ -392,7 +392,7 @@ _export_prometheus_csv() {
     --data-urlencode "end=$END" \
     --data-urlencode "step=$STEP" | jq -r '
       .data.result[]? | .metric as $m | .values[] |
-      [$m.instance, $m.job, .[0], .[1]] | @csv
+      [$m.instance, .[0], .[1]] | @csv
     ' > "$OUTPUT"
 
   echo "Exported to $OUTPUT"
@@ -402,7 +402,7 @@ _export_prometheus_csv() {
 _export_prometheus_performance_csv() {
 
   _export_prometheus_csv \
-  'increase(malachitebft_core_consensus_finalized_txes_total[1m])' \
+  'rate(malachitebft_core_consensus_finalized_txes_total[15s])' \
   throughput.csv \
   10
 
