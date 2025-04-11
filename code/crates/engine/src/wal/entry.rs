@@ -144,12 +144,22 @@ fn decode_timeout(mut buf: impl Read) -> io::Result<Timeout> {
         2 => TimeoutKind::Prevote,
         3 => TimeoutKind::Precommit,
 
+        // Commit timeouts have been removed in <https://github.com/informalsystems/malachite/pull/976>,
+        // but we still need to handle them here in order to decode old WAL entries.
+        4 => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "commit timeouts are no longer supported, ignoring",
+            ))
+        }
+
         // Consensus will typically not want to store these timeouts in the WAL,
         // but we still need to handle them here.
         5 => TimeoutKind::PrevoteTimeLimit,
         6 => TimeoutKind::PrecommitTimeLimit,
         7 => TimeoutKind::PrevoteRebroadcast,
         8 => TimeoutKind::PrecommitRebroadcast,
+
         _ => {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
