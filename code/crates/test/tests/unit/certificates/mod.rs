@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 mod commit;
 mod polka;
 
@@ -7,8 +9,7 @@ use informalsystems_malachitebft_test::{
     utils, Address, Ed25519Provider, Height, TestContext, Validator, ValidatorSet, ValueId, Vote,
 };
 use malachitebft_core_types::{
-    CertificateError, CommitCertificate, Context, NilOrVal, Round, SignedVote, SigningProvider,
-    SigningProviderExt, ThresholdParams, VotingPower,
+    CertificateError, NilOrVal, Round, SignedVote, SigningProvider, ThresholdParams, VotingPower,
 };
 use malachitebft_signing_ed25519::Signature;
 
