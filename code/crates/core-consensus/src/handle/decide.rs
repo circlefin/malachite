@@ -99,11 +99,6 @@ where
         }
     }
 
-    perform!(
-        co,
-        Effect::CancelTimeout(Timeout::commit(state.driver.round()), Default::default())
-    );
-
     if !state.decided_sent {
         state.decided_sent = true;
 
