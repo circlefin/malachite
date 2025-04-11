@@ -372,7 +372,7 @@ pub mod mempool_load {
         pub count: usize,
 
         /// Size of each generated transaction
-        pub size: usize,
+        pub size: ByteSize,
     }
 
     impl Default for UniformLoadConfig {
@@ -380,7 +380,7 @@ pub mod mempool_load {
             Self {
                 interval: Duration::from_secs(1),
                 count: 100,
-                size: 256,
+                size: ByteSize::b(256),
             }
         }
     }
