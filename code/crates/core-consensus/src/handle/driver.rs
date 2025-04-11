@@ -1,7 +1,7 @@
 use malachitebft_core_driver::Input as DriverInput;
 use malachitebft_core_driver::Output as DriverOutput;
 
-use crate::handle::decide::try_decide;
+use crate::handle::decide::decide;
 use crate::handle::on_proposal;
 use crate::handle::signature::sign_proposal;
 use crate::handle::signature::sign_vote;
@@ -309,7 +309,7 @@ where
                 "Decided",
             );
 
-            try_decide(co, state, metrics).await?;
+            decide(co, state, metrics).await?;
 
             Ok(())
         }

@@ -39,7 +39,5 @@ where
         metrics,
         DriverInput::CommitCertificate(certificate),
     )
-    .await?;
-
-    Ok(())
+    .await
 }

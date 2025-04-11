@@ -1,7 +1,7 @@
 use crate::{handle::signature::verify_certificate, prelude::*};
 
 #[cfg_attr(not(feature = "metrics"), allow(unused_variables))]
-pub async fn try_decide<Ctx>(
+pub async fn decide<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
@@ -9,9 +9,7 @@ pub async fn try_decide<Ctx>(
 where
     Ctx: Context,
 {
-    if !state.driver.step_is_commit() {
-        return Ok(());
-    }
+    assert!(state.driver.step_is_commit());
 
     let height = state.driver.height();
     let consensus_round = state.driver.round();
@@ -62,7 +60,7 @@ where
     assert_eq!(full_proposal.proposal.value().id(), decided_id);
     assert_eq!(full_proposal.validity, Validity::Valid);
 
-    // The certificate must be valid if state is Commit
+    // The certificate must be valid in Commit step
     assert!(verify_certificate(
         co,
         certificate.clone(),
