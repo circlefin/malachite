@@ -34,4 +34,4 @@ jobs:
       - name: Copy files to S3
         run: |
           touch temp.txt
-          aws s3 cp temp.txt s3://malachite-performance-site/ --recursive
+          aws s3 cp temp.txt s3://malachite-performance-site/
