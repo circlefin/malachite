@@ -99,6 +99,23 @@ pub struct PolkaCertificate<Ctx: Context> {
     pub votes: Vec<SignedVote<Ctx>>,
 }
 
+impl<Ctx: Context> PolkaCertificate<Ctx> {
+    /// Creates a new `PolkaCertificate` from signed prevotes.
+    pub fn new(
+        height: Ctx::Height,
+        round: Round,
+        value_id: ValueId<Ctx>,
+        votes: Vec<SignedVote<Ctx>>,
+    ) -> Self {
+        Self {
+            height,
+            round,
+            value_id,
+            votes,
+        }
+    }
+}
+
 /// Represents an error that can occur when verifying a certificate.
 #[derive(Error)]
 #[derive_where(Clone, Debug, PartialEq, Eq)]
