@@ -61,6 +61,7 @@ pub trait CertificateBuilder {
     ) -> Self::Certificate;
 
     fn verify_certificate(
+        ctx: &TestContext,
         signer: &Ed25519Provider,
         certificate: &Self::Certificate,
         validator_set: &ValidatorSet,
@@ -312,6 +313,7 @@ where
 
         for signer in &self.signers {
             let result = C::verify_certificate(
+                &self.ctx,
                 signer,
                 &certificate,
                 &validator_set,
@@ -332,6 +334,7 @@ where
 
         for signer in &self.signers {
             let result = C::verify_certificate(
+                &self.ctx,
                 signer,
                 &certificate,
                 &validator_set,

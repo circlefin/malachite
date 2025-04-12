@@ -17,12 +17,13 @@ impl CertificateBuilder for Polka {
     }
 
     fn verify_certificate(
+        ctx: &TestContext,
         signer: &Ed25519Provider,
         certificate: &Self::Certificate,
         validator_set: &ValidatorSet,
         threshold_params: ThresholdParams,
     ) -> Result<(), CertificateError<TestContext>> {
-        signer.verify_polka_certificate(certificate, validator_set, threshold_params)
+        signer.verify_polka_certificate(ctx, certificate, validator_set, threshold_params)
     }
 
     fn make_vote(

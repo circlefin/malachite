@@ -973,6 +973,7 @@ where
 
             Effect::VerifyCommitCertificate(certificate, validator_set, thresholds, r) => {
                 let result = self.signing_provider.verify_commit_certificate(
+                    &self.ctx,
                     &certificate,
                     &validator_set,
                     thresholds,
@@ -983,6 +984,7 @@ where
 
             Effect::VerifyPolkaCertificate(certificate, validator_set, thresholds, r) => {
                 let result = self.signing_provider.verify_polka_certificate(
+                    &self.ctx,
                     &certificate,
                     &validator_set,
                     thresholds,
