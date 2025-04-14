@@ -50,7 +50,6 @@ jobs:
         with:
           rust-toolchain: manual
           manifest-path: code/Cargo.toml
-          release-type: patch
           package: >-
             informalsystems-malachitebft-core-types,
             informalsystems-malachitebft-core-consensus,
