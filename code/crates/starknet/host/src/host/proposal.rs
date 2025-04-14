@@ -100,8 +100,6 @@ async fn run_build_proposal_task(
 
     let max_block_size = params.max_block_size.as_u64() as usize;
 
-    let mut first = true;
-
     'reap: loop {
         let reaped_txes = mempool
             .call(
@@ -119,17 +117,8 @@ async fn run_build_proposal_task(
 
         if reaped_txes.is_empty() {
             debug!("No more transactions to reap");
-
-            if first {
-                // Sleep for the remaining time, in order to not break tests
-                // by producing blocks too quickly
-                tokio::time::sleep(build_deadline - Instant::now()).await;
-            }
-
             break 'reap;
         }
-
-        first = false;
 
         let mut txes = Vec::new();
         let mut full_block = false;
@@ -171,6 +160,12 @@ async fn run_build_proposal_task(
             debug!("Time allowance exceeded, stopping tx generation");
             break 'reap;
         }
+    }
+
+    if params.stable_block_times {
+        // Sleep for the remaining time, in order to not break tests
+        // by producing blocks too quickly
+        tokio::time::sleep(build_deadline - Instant::now()).await;
     }
 
     // Proposal Commitment

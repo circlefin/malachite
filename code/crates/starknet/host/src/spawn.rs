@@ -349,6 +349,7 @@ async fn spawn_host_actor(
         time_allowance_factor: cfg.test.time_allowance_factor,
         exec_time_per_tx: cfg.test.exec_time_per_tx,
         max_retain_blocks: cfg.test.max_retain_blocks,
+        stable_block_times: cfg.test.stable_block_times,
     };
 
     let mock_host = StarknetHost::new(

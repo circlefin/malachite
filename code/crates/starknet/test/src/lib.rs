@@ -189,7 +189,10 @@ impl TestRunner {
                     .unwrap(),
             },
             runtime: RuntimeConfig::single_threaded(),
-            test: TestConfig::default(),
+            test: TestConfig {
+                stable_block_times: true,
+                ..TestConfig::default()
+            },
         }
     }
 }
