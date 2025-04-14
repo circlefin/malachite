@@ -52,9 +52,8 @@ pub async fn spawn_node_actor(
 
     // Spawn mempool and its gossip layer
     let mempool_network = spawn_mempool_network_actor(&cfg, &private_key, &registry, &span).await;
-    let mempool = spawn_mempool_actor(mempool_network.clone(), &cfg.mempool, &span).await;
-    let mempool_load =
-        spawn_mempool_load_actor(&cfg.mempool.load, mempool_network.clone(), &span).await;
+    let mempool = spawn_mempool_actor(mempool_network, &cfg.mempool, &span).await;
+    let mempool_load = spawn_mempool_load_actor(&cfg.mempool.load, mempool.clone(), &span).await;
 
     // Spawn consensus gossip
     let network = spawn_network_actor(&cfg, &private_key, &registry, &span).await;
@@ -66,7 +65,7 @@ pub async fn spawn_node_actor(
         &address,
         &private_key,
         &initial_validator_set,
-        mempool.clone(),
+        mempool,
         mempool_load,
         network.clone(),
         metrics.clone(),
@@ -291,14 +290,14 @@ async fn spawn_mempool_actor(
 
 async fn spawn_mempool_load_actor(
     mempool_load_config: &MempoolLoadConfig,
-    network: MempoolNetworkRef,
+    mempool: MempoolRef,
     span: &tracing::Span,
 ) -> MempoolLoadRef {
     MempoolLoad::spawn(
         Params {
             load_type: mempool_load_config.load_type.clone(),
         },
-        network,
+        mempool,
         span.clone(),
     )
     .await
