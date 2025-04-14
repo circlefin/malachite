@@ -362,7 +362,7 @@ pub mod mempool_load {
         }
     }
 
-    #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, serde::Deserialize)]
+    #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
     pub struct UniformLoadConfig {
         /// Interval at which to generate load
         #[serde(with = "humantime_serde")]
@@ -379,7 +379,7 @@ pub mod mempool_load {
         fn default() -> Self {
             Self {
                 interval: Duration::from_secs(1),
-                count: 100,
+                count: 1000,
                 size: ByteSize::b(256),
             }
         }
