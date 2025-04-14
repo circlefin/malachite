@@ -172,7 +172,7 @@ impl TestRunner {
                     ..Default::default()
                 },
                 max_tx_count: 10000,
-                gossip_batch_size: 100,
+                gossip_batch_size: 0,
                 load: MempoolLoadConfig {
                     load_type: MempoolLoadType::UniformLoad(UniformLoadConfig::default()),
                 },
