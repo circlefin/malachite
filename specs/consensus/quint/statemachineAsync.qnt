@@ -178,11 +178,11 @@ action doStep(v, next_action) = {
 
 
 action valTimeout(v: Address) : bool = {
-    if (not(system.get(v).existsTimeout()))
-        unchangedAll
-    else
+    if (system.get(v).existsTimeout())
         val next_action = system.get(v).pickTimeout()
         doStep(v, next_action)
+    else
+       unchangedAll 
 }
 
 action valStep(v: Address) : bool = {
