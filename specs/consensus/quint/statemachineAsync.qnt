@@ -186,7 +186,7 @@ action valTimeout(v: Address) : bool = {
 }
 
 action valStep(v: Address) : bool = {
-    // pick action
+    // Pick next action to execute, excluding timeouts
     val next_action = system.get(v).nextAction() 
     doStep(v, next_action)
 }
