@@ -100,6 +100,8 @@ async fn run_build_proposal_task(
 
     let max_block_size = params.max_block_size.as_u64() as usize;
 
+    let mut first = true;
+
     'reap: loop {
         let reaped_txes = mempool
             .call(
@@ -113,39 +115,44 @@ async fn run_build_proposal_task(
             .await?
             .success_or(eyre!("Failed to reap transactions from the mempool"))?;
 
-        trace!("Reaped {} transactions from the mempool", reaped_txes.len());
+        debug!("Reaped {} transactions from the mempool", reaped_txes.len());
 
         if reaped_txes.is_empty() {
-            trace!("No more transactions to reap, stopping tx generation");
+            debug!("No more transactions to reap");
 
-            // Sleep for the remaining time, in order to not break tests
-            // by producing blocks too quickly
-            tokio::time::sleep(build_deadline - Instant::now()).await;
+            if first {
+                // Sleep for the remaining time, in order to not break tests
+                // by producing blocks too quickly
+                tokio::time::sleep(build_deadline - Instant::now()).await;
+            }
+
             break 'reap;
         }
 
+        first = false;
+
         let mut txes = Vec::new();
-        let mut tx_count = 0;
+        let mut full_block = false;
 
         'txes: for tx in reaped_txes {
             if block_size + tx.size_bytes() > max_block_size {
-                continue 'txes;
+                full_block = true;
+                break 'txes;
             }
 
             block_size += tx.size_bytes();
-            tx_count += 1;
+            block_tx_count += 1;
 
             txes.push(tx);
         }
 
-        block_tx_count += tx_count;
-
-        let exec_time = params.exec_time_per_tx * tx_count as u32;
+        let exec_time = params.exec_time_per_tx * txes.len() as u32;
         tokio::time::sleep(exec_time).await;
 
         trace!(
             %sequence,
-            "Created a tx batch with {tx_count} tx-es of size {} in {:?}",
+            "Created a tx batch with {} tx-es of size {} in {:?}",
+            txes.len(),
             ByteSize::b(block_size as u64),
             start.elapsed()
         );
@@ -157,10 +164,10 @@ async fn run_build_proposal_task(
             sequence += 1;
         }
 
-        if block_size > max_block_size {
+        if full_block {
             debug!("Max block size reached, stopping tx generation");
             break 'reap;
-        } else if start.elapsed() > build_duration {
+        } else if start.elapsed() >= build_duration {
             debug!("Time allowance exceeded, stopping tx generation");
             break 'reap;
         }
