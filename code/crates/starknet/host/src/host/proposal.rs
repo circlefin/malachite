@@ -7,7 +7,7 @@ use bytesize::ByteSize;
 use eyre::eyre;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
-use tracing::{error, trace};
+use tracing::{debug, error, trace};
 
 use malachitebft_core_types::Round;
 
@@ -158,10 +158,10 @@ async fn run_build_proposal_task(
         }
 
         if block_size > max_block_size {
-            trace!("Max block size reached, stopping tx generation");
+            debug!("Max block size reached, stopping tx generation");
             break 'reap;
         } else if start.elapsed() > build_duration {
-            trace!("Time allowance exceeded, stopping tx generation");
+            debug!("Time allowance exceeded, stopping tx generation");
             break 'reap;
         }
     }
@@ -208,7 +208,7 @@ async fn run_build_proposal_task(
 
     let block_size = ByteSize::b(block_size as u64);
 
-    trace!(
+    debug!(
         tx_count = %block_tx_count, size = %block_size, %proposal_commitment_hash, parts = %sequence,
         "Built block in {:?}", start.elapsed()
     );
