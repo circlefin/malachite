@@ -31,6 +31,8 @@
 
 Malachite is a Byzantine-fault tolerant (BFT) consensus engine implemented in Rust.
 
+Malachite `/ˈmæl.ə.kaɪt/` is pronounced as follows: __"Mala"__ (like in Malaysia) + __"kite"__ (like the flying toy).
+
 > [!IMPORTANT]
 > Malachite is pre-alpha software and still under heavy development.
 > At this stage, it is not meant for use in production.

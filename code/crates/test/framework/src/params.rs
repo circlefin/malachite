@@ -43,7 +43,6 @@ impl TestParams {
         config.consensus.timeouts.timeout_step = self.timeout_step;
         config.consensus.value_payload = self.value_payload;
         config.test.max_block_size = self.block_size;
-        config.test.tx_size = self.tx_size;
         config.test.txs_per_part = self.txs_per_part;
         config.test.vote_extensions.enabled = self.vote_extensions.is_some();
         config.test.vote_extensions.size = self.vote_extensions.unwrap_or_default();

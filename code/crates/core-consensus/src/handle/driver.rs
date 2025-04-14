@@ -1,6 +1,7 @@
 use malachitebft_core_driver::Input as DriverInput;
 use malachitebft_core_driver::Output as DriverOutput;
 
+use crate::handle::decide::decide;
 use crate::handle::on_proposal;
 use crate::handle::signature::sign_proposal;
 use crate::handle::signature::sign_vote;
@@ -308,10 +309,7 @@ where
                 "Decided",
             );
 
-            perform!(
-                co,
-                Effect::ScheduleTimeout(Timeout::commit(consensus_round), Default::default())
-            );
+            decide(co, state, metrics).await?;
 
             Ok(())
         }

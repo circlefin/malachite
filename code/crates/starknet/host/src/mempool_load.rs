@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
+use bytesize::ByteSize;
 use malachitebft_config::mempool_load::{NonUniformLoadConfig, UniformLoadConfig};
 use ractor::{concurrency::JoinHandle, Actor, ActorProcessingErr, ActorRef};
 use rand::rngs::SmallRng;
@@ -20,7 +21,7 @@ pub type MempoolLoadMsg = Msg;
 pub type MempoolLoadRef = ActorRef<Msg>;
 
 pub enum Msg {
-    GenerateTransactions { count: usize, size: usize },
+    GenerateTransactions { count: usize, size: ByteSize },
 }
 
 #[derive(Debug)]
@@ -58,12 +59,12 @@ impl MempoolLoad {
         Ok(actor_ref)
     }
 
-    pub fn generate_transactions(count: usize, size: usize) -> Vec<Transaction> {
+    pub fn generate_transactions(count: usize, size: ByteSize) -> Vec<Transaction> {
         let mut transactions: Vec<Transaction> = Vec::with_capacity(count);
         let mut rng = SmallRng::from_entropy();
 
         for _ in 0..count {
-            let mut tx_bytes = vec![0; size];
+            let mut tx_bytes = vec![0; size.as_u64() as usize];
             rng.fill_bytes(&mut tx_bytes);
             let tx = Transaction::new(tx_bytes);
             transactions.push(tx);
@@ -71,7 +72,9 @@ impl MempoolLoad {
         transactions
     }
 
-    fn generate_non_uniform_load_params(params: &NonUniformLoadConfig) -> (usize, usize, Duration) {
+    fn generate_non_uniform_load_params(
+        params: &NonUniformLoadConfig,
+    ) -> (usize, ByteSize, Duration) {
         let mut rng = SmallRng::from_entropy();
 
         // Determine if this iteration should generate a spike
@@ -86,13 +89,13 @@ impl MempoolLoad {
         } else {
             (params.base_count + count_variation) as usize
         };
-        let size = (params.base_size + size_variation) as usize;
+        let size = (params.base_size + size_variation) as u64;
 
         // Get sleep duration
         let sleep_duration =
             Duration::from_millis(params.sleep_interval.clone().choose(&mut rng).unwrap());
 
-        (count.max(1), size.max(1), sleep_duration)
+        (count.max(1), ByteSize::b(size.max(1)), sleep_duration)
     }
 
     async fn run_uniform_load(params: UniformLoadConfig, myself: MempoolLoadRef) {

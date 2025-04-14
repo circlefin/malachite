@@ -1,7 +1,7 @@
 use crate::{handle::signature::verify_commit_certificate, prelude::*};
 
 #[cfg_attr(not(feature = "metrics"), allow(unused_variables))]
-pub async fn try_decide<Ctx>(
+pub async fn decide<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
@@ -9,9 +9,7 @@ pub async fn try_decide<Ctx>(
 where
     Ctx: Context,
 {
-    if !state.driver.step_is_commit() {
-        return Ok(());
-    }
+    assert!(state.driver.step_is_commit());
 
     let height = state.driver.height();
     let consensus_round = state.driver.round();
@@ -62,15 +60,18 @@ where
     assert_eq!(full_proposal.proposal.value().id(), decided_id);
     assert_eq!(full_proposal.validity, Validity::Valid);
 
-    // The certificate must be valid if state is Commit
-    assert!(verify_commit_certificate(
-        co,
-        certificate.clone(),
-        state.driver.validator_set().clone(),
-        state.params.threshold_params,
-    )
-    .await
-    .is_ok());
+    // The certificate must be valid in Commit step
+    assert_eq!(
+        verify_commit_certificate(
+            co,
+            certificate.clone(),
+            state.driver.validator_set().clone(),
+            state.params.threshold_params,
+        )
+        .await?,
+        Ok(()),
+        "Commit certificate is not valid"
+    );
 
     // Update metrics
     #[cfg(feature = "metrics")]
@@ -98,11 +99,6 @@ where
             debug!(%trace, "Consensus trace");
         }
     }
-
-    perform!(
-        co,
-        Effect::CancelTimeout(Timeout::commit(state.driver.round()), Default::default())
-    );
 
     if !state.decided_sent {
         state.decided_sent = true;
