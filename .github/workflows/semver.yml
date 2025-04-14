@@ -1,0 +1,63 @@
+name: Semver
+
+on:
+  pull_request:
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+  CARGO_PROFILE_DEV_DEBUG: 1
+  CARGO_PROFILE_RELEASE_DEBUG: 1
+  RUST_BACKTRACE: short
+  CARGO_NET_RETRY: 10
+  RUSTUP_MAX_RETRIES: 10
+
+jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - 'code/**'
+
+  semver-checks:
+    name: Detect semver violations
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          cache-workspaces: "code"
+      - name: Check semver
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          rust-toolchain: manual
+          manifest-path: code/Cargo.toml
+          release-type: patch
+          package: >-
+            informalsystems-malachitebft-core-types,
+            informalsystems-malachitebft-core-consensus,
+            informalsystems-malachitebft-engine,
+            informalsystems-malachitebft-app,
+            informalsystems-malachitebft-app-channel,
+            informalsystems-malachitebft-codec,
+            informalsystems-malachitebft-sync,
+            informalsystems-malachitebft-wal,
+            informalsystems-malachitebft-metrics
