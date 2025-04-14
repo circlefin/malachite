@@ -39,6 +39,7 @@ run runToLine26 = {
     // correct processes receive prevotes from correct processes -> send precommit    
     .then(fromPrevoteToPrecommit(correctList, correctList, validatorList, validatorSet, 0, 0, Val(value)))
     // TODO assertion: valid and locked is set.
+    .expect(Correct.forall(p => system.get(p).es.cs.lockedValue == Val(value)))
     // now the faulty nodes precommit nil
     .then(ListDeliverAllVotes(Precommit, faultyList, correctList, validatorSet, 0, 0, Nil))
     // correct processes receive faulty precommit nil

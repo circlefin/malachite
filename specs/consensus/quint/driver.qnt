@@ -653,9 +653,6 @@ module driver {
             val newstate = { ...state, incomingVotes: state.incomingVotes.exclude(Set(vote))}
             (newstate, VoteDInput(vote))
 
-        else if (state.existsTimeout())
-            state.pickTimeout()
-
         else
             (state, NoDInput)
 
@@ -710,9 +707,6 @@ module driver {
             val cert = certificatesForCurrentHeight.fold (Set(), (sum, y) => y)
             val newstate = { ...state, incomingCertificates: state.incomingCertificates.exclude(Set(cert))}
             (newstate, CertificateDInput(cert))
-            
-        else if (command == TimeoutCmd and state.existsTimeout())
-            state.pickTimeout()
 
         else
             (state, NoDInput)

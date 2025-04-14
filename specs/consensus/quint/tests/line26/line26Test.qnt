@@ -10,10 +10,10 @@ import line26run(
     Rounds = Set(0, 1, 2, 3),
     Heights = Set(0), // , 1, 2, 3)
     otherSet = Set("v2", "v4")
-) as N4F1 from "./line26run"
+).* from "./line26run"
 
 run line26Test = {
-    N4F1::runToLine26
+    runToLine26
 }
 
 
