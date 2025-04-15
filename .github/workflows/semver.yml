@@ -76,12 +76,6 @@ jobs:
             echo "has_violations=true" >> $GITHUB_OUTPUT
             cat "$output_file"
           fi
-        continue-on-error: true
-      - name: Extract semver violation details
-        if: steps.semver-check.outputs.has_violations == 'true'
-        id: extract-semver-violations
-        run: |
-          output_file="semver_check_output.txt"
 
           # Extract package name and required version bump from output
           if grep -q "semver requires new major version" "$output_file"; then
@@ -97,8 +91,9 @@ jobs:
             echo "version_bump=unknown" >> $GITHUB_OUTPUT
             echo "affected_packages=unknown" >> $GITHUB_OUTPUT
           fi
+        continue-on-error: true
       - name: Post comment on PR
-        if: steps.semver-check.outcome == 'failure' && github.event_name == 'pull_request'
+        if: steps.semver-check.outputs.has_violations == 'true'
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
