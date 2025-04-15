@@ -118,8 +118,8 @@ impl Mempool {
         &self,
         from: &PeerId,
         msg: &NetworkMsg,
-        myself: MempoolRef,
-        _state: &mut State,
+        _myself: MempoolRef,
+        state: &mut State,
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
             NetworkMsg::TransactionBatch(batch) => {
@@ -133,11 +133,41 @@ impl Mempool {
 
                 trace!(%from, "Received batch from network with {} transactions", batch.len());
 
-                myself.cast(Msg::AddBatch(batch))?;
+                self.add_batch(batch, state);
             }
         }
 
         Ok(())
+    }
+
+    fn add_batch(&self, batch: TransactionBatch, state: &mut State) {
+        for tx in batch.into_vec() {
+            if state.transactions.len() < self.max_tx_count {
+                state.add_tx(tx);
+            } else {
+                trace!("Mempool is full, dropping transaction batch");
+                break;
+            }
+        }
+    }
+
+    fn gossip_batch(&self, batch: &TransactionBatch) -> Result<(), ActorProcessingErr> {
+        assert!(self.gossip_batch_size > 0, "Gossip must be enabled");
+
+        trace!("Broadcasting transaction batch to network");
+
+        for batch in batch.as_slice().chunks(self.gossip_batch_size) {
+            let tx_batch = TransactionBatch::new(batch.to_vec()).to_any().unwrap();
+            let mempool_batch = MempoolTransactionBatch::new(tx_batch);
+            self.network
+                .cast(MempoolNetworkMsg::BroadcastMsg(mempool_batch))?;
+        }
+
+        Ok(())
+    }
+
+    fn gossip_enabled(&self) -> bool {
+        self.gossip_batch_size > 0
     }
 
     async fn handle_msg(
@@ -155,25 +185,11 @@ impl Mempool {
                 trace!("Received batch of {} transactions", batch.len());
 
                 // If mempool gossip is enabled, broadcast the transactions to the network
-                if self.gossip_batch_size > 0 {
-                    trace!("Broadcasting transaction batch to network");
-                    // Chunk the transactions in batch of max `gossip_batch_size`
-                    for batch in batch.as_slice().chunks(self.gossip_batch_size) {
-                        let tx_batch = TransactionBatch::new(batch.to_vec()).to_any().unwrap();
-                        let mempool_batch = MempoolTransactionBatch::new(tx_batch);
-                        self.network
-                            .cast(MempoolNetworkMsg::BroadcastMsg(mempool_batch))?;
-                    }
+                if self.gossip_enabled() {
+                    self.gossip_batch(&batch)?;
                 }
 
-                for tx in batch.into_vec() {
-                    if state.transactions.len() < self.max_tx_count {
-                        state.add_tx(tx);
-                    } else {
-                        trace!("Mempool is full, dropping transaction batch");
-                        break;
-                    }
-                }
+                self.add_batch(batch, state);
             }
 
             Msg::Reap {
