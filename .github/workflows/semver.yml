@@ -52,9 +52,9 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-semver-checks
-      - name: Setup Rustdoc cache
-        id: cache-rustdoc
-        uses: actions/cache@v4
+      - name: Restore Rustdoc cache
+        id: restore-cache-rustdoc
+        uses: actions/cache/restore@v4
         with:
           path: code/target/semver-checks/cache
           key: ${{ runner.os }}-semver-${{ hashFiles('**/Cargo.lock') }}
@@ -92,6 +92,12 @@ jobs:
             echo "version_bump=unknown" >> $GITHUB_OUTPUT
           fi
         continue-on-error: true
+      - name: Save Rustdoc cache
+        id: save-cache-rustdoc
+        uses: actions/cache/save@v4
+        with:
+          path: code/target/semver-checks/cache
+          key: ${{ runner.os }}-semver-${{ hashFiles('**/Cargo.lock') }}
       - name: Post comment on PR
         if: steps.semver-check.outputs.has_violations == 'true'
         uses: actions/github-script@v6
