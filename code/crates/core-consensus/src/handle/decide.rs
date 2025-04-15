@@ -100,14 +100,10 @@ where
         }
     }
 
-    if !state.decided_sent {
-        state.decided_sent = true;
-
-        perform!(
-            co,
-            Effect::Decide(certificate, extensions, Default::default())
-        );
-    }
+    perform!(
+        co,
+        Effect::Decide(certificate, extensions, Default::default())
+    );
 
     Ok(())
 }
