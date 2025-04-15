@@ -20,9 +20,6 @@ pub enum TimeoutKind {
     /// Timeout for detecting consensus being in the precommit step for too long.
     PrecommitTimeLimit,
 
-    /// Timeout for the commit step.
-    Commit,
-
     /// Timeout to rebroadcast the last prevote
     PrevoteRebroadcast,
 
@@ -68,11 +65,6 @@ impl Timeout {
     /// Create a new timeout for the precommit step of the given round.
     pub const fn precommit_time_limit(round: Round) -> Self {
         Self::new(round, TimeoutKind::PrecommitTimeLimit)
-    }
-
-    /// Create a new timeout for the commit step of the given round.
-    pub const fn commit(round: Round) -> Self {
-        Self::new(round, TimeoutKind::Commit)
     }
 
     /// Create a new timeout for rebroadcasting the last prevote.

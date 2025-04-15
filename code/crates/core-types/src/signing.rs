@@ -2,9 +2,10 @@ use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::fmt::{Debug, Display};
 
+use crate::certificate::PolkaSignature;
 use crate::{
-    CertificateError, CommitCertificate, CommitSignature, Context, PublicKey, Signature,
-    SignedMessage, ThresholdParams, VotingPower,
+    CertificateError, CommitCertificate, CommitSignature, Context, NilOrVal, PolkaCertificate,
+    PublicKey, Signature, SignedMessage, ThresholdParams, Validator, VotingPower,
 };
 
 /// A signing scheme that can be used to sign votes and verify such signatures.
@@ -98,17 +99,6 @@ where
         signature: &Signature<Ctx>,
         public_key: &PublicKey<Ctx>,
     ) -> bool;
-
-    /// Verify a commit signature in a certificate against the public key of its validator.
-    ///
-    /// ## Return
-    /// Return the voting power of that validator if the signature is valid.
-    fn verify_commit_signature(
-        &self,
-        certificate: &CommitCertificate<Ctx>,
-        commit_sig: &CommitSignature<Ctx>,
-        validator: &Ctx::Validator,
-    ) -> Result<VotingPower, CertificateError<Ctx>>;
 }
 
 impl<Ctx> SigningProvider<Ctx> for Box<dyn SigningProvider<Ctx> + '_>
@@ -160,16 +150,6 @@ where
             .verify_signed_proposal_part(proposal_part, signature, public_key)
     }
 
-    fn verify_commit_signature(
-        &self,
-        certificate: &CommitCertificate<Ctx>,
-        commit_sig: &CommitSignature<Ctx>,
-        validator: &Ctx::Validator,
-    ) -> Result<VotingPower, CertificateError<Ctx>> {
-        self.as_ref()
-            .verify_commit_signature(certificate, commit_sig, validator)
-    }
-
     fn sign_vote_extension(&self, extension: Ctx::Extension) -> SignedMessage<Ctx, Ctx::Extension> {
         self.as_ref().sign_vote_extension(extension)
     }
@@ -194,6 +174,30 @@ pub trait SigningProviderExt<Ctx>
 where
     Ctx: Context,
 {
+    /// Verify a commit signature in a commit certificate against the public key of its validator.
+    ///
+    /// ## Return
+    /// Return the voting power of that validator if the signature is valid.
+    fn verify_commit_signature(
+        &self,
+        ctx: &Ctx,
+        certificate: &CommitCertificate<Ctx>,
+        commit_sig: &CommitSignature<Ctx>,
+        validator: &Ctx::Validator,
+    ) -> Result<VotingPower, CertificateError<Ctx>>;
+
+    /// Verify a polka signature in a polka certificate against the public key of its validator.
+    ///
+    /// ## Return
+    /// Return the voting power of that validator if the signature is valid.
+    fn verify_polka_signature(
+        &self,
+        ctx: &Ctx,
+        certificate: &PolkaCertificate<Ctx>,
+        signature: &PolkaSignature<Ctx>,
+        validator: &Ctx::Validator,
+    ) -> Result<VotingPower, CertificateError<Ctx>>;
+
     /// Verify the given certificate against the given validator set.
     ///
     /// - For each commit signature in the certificate:
@@ -201,9 +205,25 @@ where
     /// - Check that we have 2/3+ of voting power has signed the certificate
     ///
     /// If any of those steps fail, return a [`CertificateError`].
-    fn verify_certificate(
+    fn verify_commit_certificate(
         &self,
+        ctx: &Ctx,
         certificate: &CommitCertificate<Ctx>,
+        validator_set: &Ctx::ValidatorSet,
+        thresholds: ThresholdParams,
+    ) -> Result<(), CertificateError<Ctx>>;
+
+    /// Verify the polka certificate against the given validator set.
+    ///
+    /// - For each signature in the certificate:
+    ///   - Reconstruct the signed prevote and verify its signature
+    /// - Check that we have 2/3+ of voting power has signed the certificate
+    ///
+    /// If any of those steps fail, return a [`CertificateError`].
+    fn verify_polka_certificate(
+        &self,
+        ctx: &Ctx,
+        certificate: &PolkaCertificate<Ctx>,
         validator_set: &Ctx::ValidatorSet,
         thresholds: ThresholdParams,
     ) -> Result<(), CertificateError<Ctx>>;
@@ -214,34 +234,163 @@ where
     Ctx: Context,
     P: SigningProvider<Ctx>,
 {
-    /// Verify the certificate against the given validator set.
+    /// Verify a commit signature in a commit certificate against the public key of its validator.
+    ///
+    /// ## Return
+    /// Return the voting power of that validator if the signature is valid.
+    fn verify_commit_signature(
+        &self,
+        ctx: &Ctx,
+        certificate: &CommitCertificate<Ctx>,
+        commit_sig: &CommitSignature<Ctx>,
+        validator: &Ctx::Validator,
+    ) -> Result<VotingPower, CertificateError<Ctx>> {
+        // Reconstruct the vote that was signed
+        let vote = ctx.new_precommit(
+            certificate.height,
+            certificate.round,
+            NilOrVal::Val(certificate.value_id.clone()),
+            validator.address().clone(),
+        );
+
+        // Verify signature
+        if !self.verify_signed_vote(&vote, &commit_sig.signature, validator.public_key()) {
+            return Err(CertificateError::InvalidCommitSignature(commit_sig.clone()));
+        }
+
+        Ok(validator.voting_power())
+    }
+
+    /// Verify a polka signature in a polka certificate against the public key of its validator.
+    ///
+    /// ## Return
+    /// Return the voting power of that validator if the signature is valid.
+    fn verify_polka_signature(
+        &self,
+        ctx: &Ctx,
+        certificate: &PolkaCertificate<Ctx>,
+        signature: &PolkaSignature<Ctx>,
+        validator: &Ctx::Validator,
+    ) -> Result<VotingPower, CertificateError<Ctx>> {
+        // Reconstruct the vote that was signed
+        let vote = ctx.new_prevote(
+            certificate.height,
+            certificate.round,
+            NilOrVal::Val(certificate.value_id.clone()),
+            validator.address().clone(),
+        );
+
+        // Verify signature
+        if !self.verify_signed_vote(&vote, &signature.signature, validator.public_key()) {
+            return Err(CertificateError::InvalidPolkaSignature(signature.clone()));
+        }
+
+        Ok(validator.voting_power())
+    }
+
+    /// Verify the commit certificate against the given validator set.
     ///
     /// - For each commit signature in the certificate:
     ///   - Reconstruct the signed precommit and verify its signature
     /// - Check that we have 2/3+ of voting power has signed the certificate
     ///
     /// If any of those steps fail, return a [`CertificateError`].
-    fn verify_certificate(
+    fn verify_commit_certificate(
         &self,
+        ctx: &Ctx,
         certificate: &CommitCertificate<Ctx>,
         validator_set: &Ctx::ValidatorSet,
         thresholds: ThresholdParams,
     ) -> Result<(), CertificateError<Ctx>> {
         use crate::ValidatorSet;
 
-        let total_voting_power = validator_set.total_voting_power();
         let mut signed_voting_power = 0;
+        let mut seen_validators = Vec::new();
 
         // For each commit signature, reconstruct the signed precommit and verify the signature
-        for commit_sig in &certificate.aggregated_signature.signatures {
-            // Abort if validator not in validator set
-            let Some(validator) = validator_set.get_by_address(&commit_sig.address) else {
-                return Err(CertificateError::UnknownValidator(commit_sig.clone()));
-            };
+        for commit_sig in &certificate.commit_signatures {
+            let validator_address = &commit_sig.address;
 
-            let voting_power = self.verify_commit_signature(certificate, commit_sig, validator)?;
-            signed_voting_power += voting_power;
+            if seen_validators.contains(&validator_address) {
+                return Err(CertificateError::DuplicateVote(validator_address.clone()));
+            }
+
+            seen_validators.push(validator_address);
+
+            // Abort if validator not in validator set
+            let validator = validator_set
+                .get_by_address(validator_address)
+                .ok_or_else(|| CertificateError::UnknownValidator(validator_address.clone()))?;
+
+            if let Ok(voting_power) =
+                self.verify_commit_signature(ctx, certificate, commit_sig, validator)
+            {
+                signed_voting_power += voting_power;
+            }
         }
+
+        let total_voting_power = validator_set.total_voting_power();
+
+        // Check if we have 2/3+ voting power
+        if thresholds
+            .quorum
+            .is_met(signed_voting_power, total_voting_power)
+        {
+            Ok(())
+        } else {
+            Err(CertificateError::NotEnoughVotingPower {
+                signed: signed_voting_power,
+                total: total_voting_power,
+                expected: thresholds.quorum.min_expected(total_voting_power),
+            })
+        }
+    }
+
+    /// Verify the polka certificate against the given validator set.
+    ///
+    /// - For each signed prevote in the certificate:
+    ///   - Reconstruct the signed prevote and verify its signature
+    /// - Check that we have 2/3+ of voting power has signed the certificate
+    ///
+    /// If any of those steps fail, return a [`CertificateError`].
+    ///
+    fn verify_polka_certificate(
+        &self,
+        ctx: &Ctx,
+        certificate: &PolkaCertificate<Ctx>,
+        validator_set: &Ctx::ValidatorSet,
+        thresholds: ThresholdParams,
+    ) -> Result<(), CertificateError<Ctx>> {
+        use crate::ValidatorSet;
+
+        let mut signed_voting_power = 0;
+        let mut seen_validators = Vec::new();
+
+        for signature in &certificate.polka_signatures {
+            let validator_address = &signature.address;
+
+            // Abort if validator already voted
+            if seen_validators.contains(&validator_address) {
+                return Err(CertificateError::DuplicateVote(validator_address.clone()));
+            }
+
+            // Add the validator to the list of seenv validators
+            seen_validators.push(validator_address);
+
+            // Abort if validator not in validator set
+            let validator = validator_set
+                .get_by_address(validator_address)
+                .ok_or_else(|| CertificateError::UnknownValidator(validator_address.clone()))?;
+
+            // Check that the vote signature is valid. Do this last and lazily as it is expensive.
+            if let Ok(voting_power) =
+                self.verify_polka_signature(ctx, certificate, signature, validator)
+            {
+                signed_voting_power += voting_power;
+            }
+        }
+
+        let total_voting_power = validator_set.total_voting_power();
 
         // Check if we have 2/3+ voting power
         if thresholds

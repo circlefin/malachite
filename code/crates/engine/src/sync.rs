@@ -93,7 +93,7 @@ pub enum Msg<Ctx: Context> {
     TimeoutElapsed(TimeoutElapsed<Timeout>),
 
     /// We received an invalid [`CommitCertificate`] from a peer
-    InvalidCertificate(PeerId, CommitCertificate<Ctx>, CertificateError<Ctx>),
+    InvalidCommitCertificate(PeerId, CommitCertificate<Ctx>, CertificateError<Ctx>),
 
     /// Consensus needs vote set from peers
     RequestVoteSet(Ctx::Height, Round),
@@ -430,7 +430,7 @@ where
                 .await?;
             }
 
-            Msg::InvalidCertificate(peer, certificate, error) => {
+            Msg::InvalidCommitCertificate(peer, certificate, error) => {
                 self.process_input(
                     &myself,
                     state,

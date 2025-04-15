@@ -1,6 +1,5 @@
-use crate::handle::decide::try_decide;
 use crate::handle::driver::apply_driver_input;
-use crate::handle::signature::verify_certificate;
+use crate::handle::signature::verify_commit_certificate;
 use crate::handle::validator_set::get_validator_set;
 use crate::prelude::*;
 
@@ -15,7 +14,7 @@ where
 {
     debug!(
         certificate.height = %certificate.height,
-        signatures = certificate.aggregated_signature.signatures.len(),
+        signatures = certificate.commit_signatures.len(),
         "Processing certificate"
     );
 
@@ -23,7 +22,7 @@ where
         return Err(Error::ValidatorSetNotFound(certificate.height));
     };
 
-    if let Err(e) = verify_certificate(
+    if let Err(e) = verify_commit_certificate(
         co,
         certificate.clone(),
         validator_set.as_ref().clone(),
@@ -31,7 +30,7 @@ where
     )
     .await?
     {
-        return Err(Error::InvalidCertificate(certificate, e));
+        return Err(Error::InvalidCommitCertificate(certificate, e));
     }
 
     apply_driver_input(
@@ -40,11 +39,5 @@ where
         metrics,
         DriverInput::CommitCertificate(certificate),
     )
-    .await?;
-
-    // The CommitCertificate is provided by Value Sync, try to decide immediately, without waiting for the Commit timeout.
-    // `try_decide` will check that we are in the commit step after applying the certificate to the state machine.
-    try_decide(co, state, metrics).await?;
-
-    Ok(())
+    .await
 }

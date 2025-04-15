@@ -6,7 +6,7 @@ use crate::{
     Context, NilOrVal, Round, Signature, SignedVote, ValueId, Vote, VoteType, VotingPower,
 };
 
-/// Represents a signature for a certificate, including the address and the signature itself.
+/// Represents a signature for a commit certificate, with the address of the validator that produced it.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct CommitSignature<Ctx: Context> {
     /// The address associated with the signature.
@@ -16,27 +16,13 @@ pub struct CommitSignature<Ctx: Context> {
 }
 
 impl<Ctx: Context> CommitSignature<Ctx> {
-    /// Create a new `CommitSignature` from an address and a signature, with an optional extension.
+    /// Create a new `CommitSignature` from an address and a signature.
     pub fn new(address: Ctx::Address, signature: Signature<Ctx>) -> Self {
         Self { address, signature }
     }
 }
 
-/// Aggregated signature.
-#[derive_where(Clone, Debug, PartialEq, Eq)]
-pub struct AggregatedSignature<Ctx: Context> {
-    /// A collection of commit signatures.
-    pub signatures: Vec<CommitSignature<Ctx>>,
-}
-
-impl<Ctx: Context> AggregatedSignature<Ctx> {
-    /// Create a new `AggregatedSignature` from a vector of commit signatures.
-    pub fn new(signatures: Vec<CommitSignature<Ctx>>) -> Self {
-        Self { signatures }
-    }
-}
-
-/// Represents a certificate containing the message (height, round, value_id) and an aggregated signature.
+/// Represents a certificate containing the message (height, round, value_id) and the commit signatures.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct CommitCertificate<Ctx: Context> {
     /// The height of the certificate.
@@ -46,7 +32,7 @@ pub struct CommitCertificate<Ctx: Context> {
     /// The identifier for the value being certified.
     pub value_id: ValueId<Ctx>,
     /// A vector of signatures that make up the certificate.
-    pub aggregated_signature: AggregatedSignature<Ctx>, // TODO - type in context
+    pub commit_signatures: Vec<CommitSignature<Ctx>>,
 }
 
 impl<Ctx: Context> CommitCertificate<Ctx> {
@@ -74,15 +60,28 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
             })
             .collect();
 
-        // Create the aggregated signature
-        let aggregated_signature = AggregatedSignature::new(commit_signatures);
-
         Self {
             height,
             round,
             value_id,
-            aggregated_signature,
+            commit_signatures,
         }
+    }
+}
+
+/// Represents a signature for a polka certificate, with the address of the validator that produced it.
+#[derive_where(Clone, Debug, PartialEq, Eq)]
+pub struct PolkaSignature<Ctx: Context> {
+    /// The address associated with the signature.
+    pub address: Ctx::Address,
+    /// The signature itself.
+    pub signature: Signature<Ctx>,
+}
+
+impl<Ctx: Context> PolkaSignature<Ctx> {
+    /// Create a new `CommitSignature` from an address and a signature.
+    pub fn new(address: Ctx::Address, signature: Signature<Ctx>) -> Self {
+        Self { address, signature }
     }
 }
 
@@ -95,21 +94,59 @@ pub struct PolkaCertificate<Ctx: Context> {
     pub round: Round,
     /// The value that the Polka is for
     pub value_id: ValueId<Ctx>,
-    /// The votes that make up the Polka
-    pub votes: Vec<SignedVote<Ctx>>,
+    /// The signatures for the votes that make up the Polka
+    pub polka_signatures: Vec<PolkaSignature<Ctx>>,
+}
+
+impl<Ctx: Context> PolkaCertificate<Ctx> {
+    /// Creates a new `PolkaCertificate` from signed prevotes.
+    pub fn new(
+        height: Ctx::Height,
+        round: Round,
+        value_id: ValueId<Ctx>,
+        votes: Vec<SignedVote<Ctx>>,
+    ) -> Self {
+        // Collect all polka signatures from the signed votes
+        let polka_signatures = votes
+            .into_iter()
+            .filter(|vote| {
+                matches!(vote.value(), NilOrVal::Val(id) if id == &value_id)
+                    && vote.vote_type() == VoteType::Prevote
+                    && vote.round() == round
+                    && vote.height() == height
+            })
+            .map(|signed_vote| {
+                PolkaSignature::new(
+                    signed_vote.validator_address().clone(),
+                    signed_vote.signature,
+                )
+            })
+            .collect();
+
+        Self {
+            height,
+            round,
+            value_id,
+            polka_signatures,
+        }
+    }
 }
 
 /// Represents an error that can occur when verifying a certificate.
-#[derive_where(Clone, Debug)]
 #[derive(Error)]
+#[derive_where(Clone, Debug, PartialEq, Eq)]
 pub enum CertificateError<Ctx: Context> {
     /// One of the commit signature is invalid.
     #[error("Invalid commit signature: {0:?}")]
-    InvalidSignature(CommitSignature<Ctx>),
+    InvalidCommitSignature(CommitSignature<Ctx>),
+
+    /// One of the commit signature is invalid.
+    #[error("Invalid polka signature: {0:?}")]
+    InvalidPolkaSignature(PolkaSignature<Ctx>),
 
     /// A validator in the certificate is not in the validator set.
     #[error("A validator in the certificate is not in the validator set: {0:?}")]
-    UnknownValidator(CommitSignature<Ctx>),
+    UnknownValidator(Ctx::Address),
 
     /// Not enough voting power has signed the certificate.
     #[error(
@@ -124,4 +161,8 @@ pub enum CertificateError<Ctx: Context> {
         /// Expected voting power
         expected: VotingPower,
     },
+
+    /// Multiple votes from the same validator.
+    #[error("Multiple votes from the same validator: {0}")]
+    DuplicateVote(Ctx::Address),
 }

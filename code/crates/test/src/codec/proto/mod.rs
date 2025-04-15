@@ -5,8 +5,8 @@ use malachitebft_app::engine::util::streaming::{StreamContent, StreamId, StreamM
 use malachitebft_codec::Codec;
 use malachitebft_core_consensus::{ProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{
-    AggregatedSignature, CommitCertificate, CommitSignature, PolkaCertificate, Round,
-    SignedExtension, SignedProposal, SignedVote, Validity, VoteSet,
+    CommitCertificate, CommitSignature, PolkaCertificate, PolkaSignature, Round, SignedExtension,
+    SignedProposal, SignedVote, Validity, VoteSet,
 };
 use malachitebft_proto::{Error as ProtoError, Protobuf};
 use malachitebft_signing_ed25519::Signature;
@@ -381,10 +381,17 @@ pub(crate) fn encode_polka_certificate(
             .as_u32()
             .expect("round should not be nil"),
         value_id: Some(polka_certificate.value_id.to_proto()?),
-        votes: polka_certificate
-            .votes
+        signatures: polka_certificate
+            .polka_signatures
             .iter()
-            .map(encode_vote)
+            .map(|sig| -> Result<proto::PolkaSignature, ProtoError> {
+                let address = sig.address.to_proto()?;
+                let signature = encode_signature(&sig.signature);
+                Ok(proto::PolkaSignature {
+                    validator_address: Some(address),
+                    signature: Some(signature),
+                })
+            })
             .collect::<Result<Vec<_>, _>>()?,
     })
 }
@@ -401,10 +408,20 @@ pub(crate) fn decode_polka_certificate(
         height: Height::new(certificate.height),
         round: Round::new(certificate.round),
         value_id,
-        votes: certificate
-            .votes
+        polka_signatures: certificate
+            .signatures
             .into_iter()
-            .map(decode_vote)
+            .map(|sig| -> Result<PolkaSignature<TestContext>, ProtoError> {
+                let address = sig.validator_address.ok_or_else(|| {
+                    ProtoError::missing_field::<proto::PolkaCertificate>("validator_address")
+                })?;
+                let signature = sig.signature.ok_or_else(|| {
+                    ProtoError::missing_field::<proto::PolkaCertificate>("signature")
+                })?;
+                let signature = decode_signature(signature)?;
+                let address = Address::from_proto(address)?;
+                Ok(PolkaSignature::new(address, signature))
+            })
             .collect::<Result<Vec<_>, _>>()?,
     })
 }
@@ -417,18 +434,27 @@ pub fn decode_commit_certificate(
         .ok_or_else(|| ProtoError::missing_field::<proto::CommitCertificate>("value_id"))
         .and_then(ValueId::from_proto)?;
 
-    let aggregated_signature = certificate
-        .aggregated_signature
-        .ok_or_else(|| {
-            ProtoError::missing_field::<proto::CommitCertificate>("aggregated_signature")
+    let commit_signatures = certificate
+        .signatures
+        .into_iter()
+        .map(|sig| -> Result<CommitSignature<TestContext>, ProtoError> {
+            let address = sig.validator_address.ok_or_else(|| {
+                ProtoError::missing_field::<proto::CommitCertificate>("validator_address")
+            })?;
+            let signature = sig.signature.ok_or_else(|| {
+                ProtoError::missing_field::<proto::CommitCertificate>("signature")
+            })?;
+            let signature = decode_signature(signature)?;
+            let address = Address::from_proto(address)?;
+            Ok(CommitSignature::new(address, signature))
         })
-        .and_then(decode_aggregated_signature)?;
+        .collect::<Result<Vec<_>, _>>()?;
 
     let certificate = CommitCertificate {
         height: Height::new(certificate.height),
         round: Round::new(certificate.round),
         value_id,
-        aggregated_signature,
+        commit_signatures,
     };
 
     Ok(certificate)
@@ -441,53 +467,19 @@ pub fn encode_commit_certificate(
         height: certificate.height.as_u64(),
         round: certificate.round.as_u32().expect("round should not be nil"),
         value_id: Some(certificate.value_id.to_proto()?),
-        aggregated_signature: Some(encode_aggregate_signature(
-            &certificate.aggregated_signature,
-        )?),
-    })
-}
-
-pub fn decode_aggregated_signature(
-    signature: proto::AggregatedSignature,
-) -> Result<AggregatedSignature<TestContext>, ProtoError> {
-    let signatures = signature
-        .signatures
-        .into_iter()
-        .map(|s| {
-            let signature = s
-                .signature
-                .ok_or_else(|| ProtoError::missing_field::<proto::CommitSignature>("signature"))
-                .and_then(decode_signature)?;
-
-            let address = s
-                .validator_address
-                .ok_or_else(|| {
-                    ProtoError::missing_field::<proto::CommitSignature>("validator_address")
+        signatures: certificate
+            .commit_signatures
+            .iter()
+            .map(|sig| -> Result<proto::CommitSignature, ProtoError> {
+                let address = sig.address.to_proto()?;
+                let signature = encode_signature(&sig.signature);
+                Ok(proto::CommitSignature {
+                    validator_address: Some(address),
+                    signature: Some(signature),
                 })
-                .and_then(Address::from_proto)?;
-
-            Ok(CommitSignature { address, signature })
-        })
-        .collect::<Result<Vec<_>, ProtoError>>()?;
-
-    Ok(AggregatedSignature { signatures })
-}
-
-pub fn encode_aggregate_signature(
-    aggregated_signature: &AggregatedSignature<TestContext>,
-) -> Result<proto::AggregatedSignature, ProtoError> {
-    let signatures = aggregated_signature
-        .signatures
-        .iter()
-        .map(|s| {
-            Ok(proto::CommitSignature {
-                validator_address: Some(s.address.to_proto()?),
-                signature: Some(encode_signature(&s.signature)),
             })
-        })
-        .collect::<Result<_, ProtoError>>()?;
-
-    Ok(proto::AggregatedSignature { signatures })
+            .collect::<Result<Vec<_>, _>>()?,
+    })
 }
 
 pub fn decode_extension(ext: proto::Extension) -> Result<SignedExtension<TestContext>, ProtoError> {

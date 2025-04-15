@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
 
 use rand::RngCore;
 use tracing::{debug, error, trace};
@@ -185,14 +186,17 @@ impl HostState {
             .store(stream_id, height, round, part.clone());
 
         if let ProposalPart::Transactions(txes) = &part {
-            debug!("Simulating tx execution and proof verification");
-            // Simulate Tx execution and proof verification (assumes success)
-            // TODO: Add config knob for invalid blocks
-            let num_txes = txes.len() as u32;
-            let exec_time = self.host.params.exec_time_per_tx * num_txes;
-            tokio::time::sleep(exec_time).await;
+            if self.host.params.exec_time_per_tx > Duration::from_secs(0) {
+                debug!("Simulating tx execution and proof verification");
 
-            trace!("Simulation took {exec_time:?} to execute {num_txes} txes");
+                // Simulate Tx execution and proof verification (assumes success)
+                // TODO: Add config knob for invalid blocks
+                let num_txes = txes.len() as u32;
+                let exec_time = self.host.params.exec_time_per_tx * num_txes;
+                tokio::time::sleep(exec_time).await;
+
+                trace!("Simulation took {exec_time:?} to execute {num_txes} txes");
+            }
         }
 
         let parts = self

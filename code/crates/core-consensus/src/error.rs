@@ -45,5 +45,5 @@ where
 
     /// The certificate is invalid.
     #[error("Invalid certificate: {1}")]
-    InvalidCertificate(CommitCertificate<Ctx>, CertificateError<Ctx>),
+    InvalidCommitCertificate(CommitCertificate<Ctx>, CertificateError<Ctx>),
 }
