@@ -125,6 +125,29 @@ run everyoneReceivesProposal (active, valList, valset, h, r, value) = {
     })        
 }
 
+run everyoneReceivesProposalTO (active, valList, valset, h, r, value) = {
+    val p = proposer(valset, h, r)
+    val propMsg = mkProposal(p, h, r, value, -1)
+    all{
+        setNextValueToPropose(p, value),
+        assert(ListContains(active, p)) // proposer must be in active list for this run
+    }
+    .then(ListTimesOut(active))
+    .then(all{ // after new round an empty step to clean step "propose"
+        assert(SetFromList(active).forall(proc => system.get(proc).es.pendingStepChange == ProposeStep)),
+        ListTakeAStep(active)
+    })
+    .then(all {
+        assert(true),
+        ListDeliverProposal(active, propMsg)
+    })
+    .then(ListTakeAStep(active))
+    .then(all{ 
+        assert(SetFromList(active).forall(proc => system.get(proc).es.pendingStepChange == PrevoteStep)),
+        ListTakeAStep(active)
+    })        
+}
+
 run fromPrevoteToPrecommit(prevoteSenders, prevoteReceivers, valList, valset, h, r, value) = {
     ListDeliverAllVotes(Prevote, prevoteSenders, prevoteReceivers, valset, h, r, value)
     .then(prevoteSenders.length().reps(_ => ListTakeAStep(prevoteReceivers)))

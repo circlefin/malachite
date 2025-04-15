@@ -67,6 +67,7 @@ run runToLine32locked =
     .then(ListTakeAStep(correctList.select(x => x != thirdProposer)))
     .then(ListDeliverAllVotes(Prevote, correctList.select(x => x != thirdProposer), correctList.select(x => x != thirdProposer), validatorSet, 0, 0, Val(value)))
     .then(correctList.length().reps(_ => ListTakeAStep(correctList.select(x => x != thirdProposer)))) // process 2f correct and 1 faulty prevotes processed
+    .then(ListTimesOut(correctList.select(x => x != thirdProposer))) // process timeout
     .then(ListTakeAStep(correctList.select(x => x != thirdProposer))) // consume step change
     .then(ListDeliverVote(correctList, mkVote(Precommit, thirdProposer, 0, 0, Val(value))))
     .then(ListDeliverAllVotes(Precommit, correctList.select(x => x != thirdProposer), correctList, validatorSet, 0, 0, Nil))
@@ -74,8 +75,9 @@ run runToLine32locked =
     // here all correct have precommit timeout started
     // thirdproposer has locked value
     // we go to the next round
+    
     .then(all {
-        everyoneReceivesProposal(correctList, validatorList, validatorSet, 0, 1, nextValue)
+        everyoneReceivesProposalTO(correctList, validatorList, validatorSet, 0, 1, nextValue)
     })
     .then(ListDeliverVote(correctList.select(x => x != thirdProposer), mkVote(Prevote, slowByz, 0, 1, Val(nextValue))))
     .then(ListDeliverAllVotes(Prevote, correctList.select(x => x != thirdProposer), correctList.select(x => x != thirdProposer), validatorSet, 0, 1, Val(nextValue)))
