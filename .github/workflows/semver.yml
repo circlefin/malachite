@@ -156,7 +156,7 @@ jobs:
             // Look for an existing semver violation comment from this workflow
             const botComment = comments.find(comment =>
               comment.user.login === 'github-actions[bot]' &&
-              comment.body.includes('Semver Violation Detected')
+              comment.body.includes('Semver')
             );
 
             if (botComment) {
@@ -194,7 +194,7 @@ jobs:
             // Look for an existing semver violation comment from this workflow
             const botComment = comments.find(comment =>
               comment.user.login === 'github-actions[bot]' &&
-              comment.body.includes('Semver Violation Detected')
+              comment.body.includes('Semver')
             );
 
             if (botComment) {
