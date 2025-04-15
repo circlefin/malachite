@@ -124,7 +124,7 @@ jobs:
             message += '- Include information about how users should migrate their code\n';
             message += '- Specify which version introduces these changes\n\n';
 
-            message += 'For more information on semantic versioning in Rust, please consult the [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/necessities) and [Cargo's SemVer compatibility rules](https://doc.rust-lang.org/cargo/reference/semver.html).';
+            message += 'For more information on semantic versioning in Rust, please consult the [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/necessities) and [Cargo\'s SemVer compatibility rules](https://doc.rust-lang.org/cargo/reference/semver.html).';
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
