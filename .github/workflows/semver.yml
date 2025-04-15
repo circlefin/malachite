@@ -34,6 +34,9 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write # Necessary to post comments on PRs
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -60,3 +63,61 @@ jobs:
             informalsystems-malachitebft-sync,
             informalsystems-malachitebft-wal,
             informalsystems-malachitebft-metrics
+        continue-on-error: true
+      - name: Extract semver violation details
+        if: steps.semver-check.outcome == 'failure'
+        id: extract-semver-violations
+        run: |
+          # Extract package name and required version bump from output
+          if grep -q "semver requires new major version" "${{ steps.semver-check.outputs.command-output }}"; then
+            echo "version_bump=major" >> $GITHUB_OUTPUT
+            # Try to extract the affected package(s)
+            affected_packages=$(grep -o "Checking [^ ]* " "${{ steps.semver-check.outputs.command-output }}" | grep -v "no semver update required" | sed 's/Checking //g' | tr '\n' ',' | sed 's/,$//')
+            echo "affected_packages=$affected_packages" >> $GITHUB_OUTPUT
+          elif grep -q "semver requires new minor version" "${{ steps.semver-check.outputs.command-output }}"; then
+            echo "version_bump=minor" >> $GITHUB_OUTPUT
+            affected_packages=$(grep -o "Checking [^ ]* " "${{ steps.semver-check.outputs.command-output }}" | grep -v "no semver update required" | sed 's/Checking //g' | tr '\n' ',' | sed 's/,$//')
+            echo "affected_packages=$affected_packages" >> $GITHUB_OUTPUT
+          else
+            echo "version_bump=unknown" >> $GITHUB_OUTPUT
+            echo "affected_packages=unknown" >> $GITHUB_OUTPUT
+          fi
+      - name: Post comment on PR
+        if: steps.semver-check.outcome == 'failure' && github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const versionBump = '${{ steps.extract-semver-violations.outputs.version_bump }}';
+            const affectedPackages = '${{ steps.extract-semver-violations.outputs.affected_packages }}';
+
+            let message = '## ⚠️ Semver Violation Detected ⚠️\n\n';
+            message += 'This PR introduces breaking changes that violate semantic versioning rules.\n\n';
+
+            if (versionBump === 'major') {
+              message += '### Required Action\n\n';
+              message += 'You need to either:\n';
+              message += '1. **Revert the breaking changes** to maintain backward compatibility, OR\n';
+              message += '2. **Update the version in Cargo.toml** to a new major version (e.g., from `1.2.3` to `2.0.0`)\n\n';
+              message += '### Affected Package(s)\n\n';
+              message += affectedPackages !== 'unknown' ? `- ${affectedPackages.replace(/,/g, '\n- ')}\n\n` : 'Could not determine specific packages.\n\n';
+            } else if (versionBump === 'minor') {
+              message += '### Required Action\n\n';
+              message += 'You need to either:\n';
+              message += '1. **Revert the changes** if they were not intended, OR\n';
+              message += '2. **Update the version in Cargo.toml** to a new minor version (e.g., from `1.2.3` to `1.3.0`)\n\n';
+              message += '### Affected Package(s)\n\n';
+              message += affectedPackages !== 'unknown' ? `- ${affectedPackages.replace(/,/g, '\n- ')}\n\n` : 'Could not determine specific packages.\n\n';
+            } else {
+              message += '### Required Action\n\n';
+              message += 'Please review the cargo-semver-checks output for details on the specific violations and update your code accordingly.\n\n';
+            }
+
+            message += 'For more information on semantic versioning in Rust, please consult the [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/necessities.html#cargotoml-contains-all-common-metadata-c-metadata) and [Cargo's SemVer compatibility rules](https://doc.rust-lang.org/cargo/reference/semver.html).';
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: message
+            });
