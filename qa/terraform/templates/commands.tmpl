@@ -312,9 +312,12 @@ _change_config() {
       "consensus.p2p.persistent_peers=$(_compose_persistent_peers $i 27000 tcp)" \
       "mempool.p2p.persistent_peers=$(_compose_persistent_peers $i 28000 tcp)" && \
     sconfig "$file" -t int \
-      "runtime.worker_threads=0"
+      "runtime.worker_threads=0" \
+      "mempool.load.count=1000"
     sconfig "$file" \
-      "test.exec_time_per_tx=0ms"
+      "test.exec_time_per_tx=0ms" \
+      "mempool.load.interval=100ms" \
+      "mempool.load.size=1 KB"
   done
 }
 
@@ -373,7 +376,8 @@ fetch_dashboard() {
 _export_prometheus_csv() {
   local METRIC_QUERY="$1"         # PromQL expression
   local OUTPUT="$2"               # output file name, e.g., "throughput.csv"
-  local LAST_MINUTES="$${3:-10}"  # default to last 10 minutes if not provided
+  local STEP="$${3:-5}"
+  local LAST_MINUTES="$${4:-10}"  # default to last 10 minutes if not provided
 
   local END=$(date +%s)
   local START=$((END - LAST_MINUTES * 60))
@@ -404,12 +408,14 @@ _export_prometheus_csv() {
 _export_prometheus_performance_csv() {
 
   _export_prometheus_csv \
-  'rate(malachitebft_core_consensus_finalized_txes_total[15s])' \
+  'rate(malachitebft_core_consensus_finalized_txes_total[30s])' \
   throughput.csv \
+  30 \
   10
 
   _export_prometheus_csv \
   'malachitebft_core_consensus_consensus_time_sum / malachitebft_core_consensus_consensus_time_count' \
   latency.csv \
+  30 \
   10
 }
