@@ -3,7 +3,7 @@ codecov:
 
 # Map path on GitHub runner to repository
 fixes:
-  - "/home/runner/work/malachite/::"
+  - "/home/runner/work/malachite/malachite/::"
 
 comment:
   layout: "header, diff, flags, components"

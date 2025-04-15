@@ -172,7 +172,7 @@ impl TestRunner {
                     ..Default::default()
                 },
                 max_tx_count: 10000,
-                gossip_batch_size: 100,
+                gossip_batch_size: 0,
                 load: MempoolLoadConfig {
                     load_type: MempoolLoadType::UniformLoad(UniformLoadConfig::default()),
                 },
@@ -189,7 +189,10 @@ impl TestRunner {
                     .unwrap(),
             },
             runtime: RuntimeConfig::single_threaded(),
-            test: TestConfig::default(),
+            test: TestConfig {
+                stable_block_times: true,
+                ..TestConfig::default()
+            },
         }
     }
 }
