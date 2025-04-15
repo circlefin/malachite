@@ -175,10 +175,6 @@ impl State {
             ));
         };
 
-        self.store
-            .remove_undecided_proposals_by_value_id(value_id)
-            .await?;
-
         let middleware = self.ctx.middleware();
         debug!(%height, %round, "Middleware: {middleware:?}");
 
@@ -189,7 +185,7 @@ impl State {
                     .store_decided_value(&certificate, proposal.value)
                     .await?;
 
-                // Prune the store, keep the last HISTORY_LENGTH values
+                // Prune the store, keep the last HISTORY_LENGTH decided values, remove all undecided proposals for the decided height
                 let retain_height = Height::new(height.as_u64().saturating_sub(HISTORY_LENGTH));
                 self.store.prune(retain_height).await?;
 

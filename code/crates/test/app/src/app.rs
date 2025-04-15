@@ -62,9 +62,8 @@ pub async fn run(
                 state.current_round = round;
                 state.current_proposer = Some(proposer);
 
-                // If we have already built or seen a value for this height and round,
-                // send it back to consensus. This may happen when we are restarting after a crash.
-                // TODO: send all proposals
+                // If we have already built or seen values for this height and round,
+                // send them back to consensus. This may happen when we are restarting after a crash.
                 let proposals = state.store.get_undecided_proposals(height, round).await?;
                 if reply_value.send(proposals).is_err() {
                     error!("Failed to send undecided proposals");
@@ -292,7 +291,7 @@ pub async fn run(
 
                 assert_ne!(valid_round, Round::Nil, "valid_round should not be nil");
 
-                //  Look for a proposal at valid_round (should be already stored)
+                //  Look for a proposal for the given value_id at valid_round (should be already stored)
                 let proposal = state
                     .store
                     .get_undecided_proposal(height, valid_round, value_id)

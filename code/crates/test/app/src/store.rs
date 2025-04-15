@@ -1,4 +1,3 @@
-use std::ops::RangeBounds;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -211,48 +210,25 @@ impl Db {
         Ok(())
     }
 
-    fn height_range<Table>(
-        &self,
-        table: &Table,
-        range: impl RangeBounds<Height>,
-    ) -> Result<Vec<Height>, StoreError>
-    where
-        Table: redb::ReadableTable<HeightKey, Vec<u8>>,
-    {
-        Ok(table
-            .range(range)?
-            .flatten()
-            .map(|(key, _)| key.value())
-            .collect::<Vec<_>>())
-    }
-
-    fn prune(&self, retain_height: Height) -> Result<Vec<Height>, StoreError> {
+    fn prune(&self, retain_height: Height) -> Result<(), StoreError> {
         let tx = self.db.begin_write().unwrap();
-        let pruned = {
+        {
             // Remove all undecided proposals
             let mut undecided = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
-            let keys: Vec<_> = undecided
-                .iter()?
-                .filter_map(|result| result.ok().map(|(key, _)| key.value()))
-                .collect();
-            for key in keys {
-                undecided.remove(key)?;
-            }
+            undecided.retain(|_, _| false)?;
 
             // Prune decided values and certificates up to the retain height
             let mut decided = tx.open_table(DECIDED_VALUES_TABLE)?;
             let mut certificates = tx.open_table(CERTIFICATES_TABLE)?;
 
-            let keys = self.height_range(&decided, ..retain_height)?;
-            for key in &keys {
-                decided.remove(key)?;
-                certificates.remove(key)?;
-            }
-            keys
-        };
+            // Keep only decided values with height >= retain_height
+            decided.retain(|k, _| k >= retain_height)?;
+            // Keep only certificates with height >= retain_height
+            certificates.retain(|k, _| k >= retain_height)?;
+        }
         tx.commit()?;
 
-        Ok(pruned)
+        Ok(())
     }
 
     fn min_decided_value_height(&self) -> Option<Height> {
@@ -276,32 +252,6 @@ impl Db {
         let _ = tx.open_table(CERTIFICATES_TABLE)?;
         let _ = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
         tx.commit()?;
-        Ok(())
-    }
-
-    fn remove_undecided_proposals_by_value_id(&self, value_id: ValueId) -> Result<(), StoreError> {
-        let tx = self.db.begin_write()?;
-
-        {
-            let mut table = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
-            let keys: Vec<(Height, Round, ValueId)> = table
-                .iter()?
-                .filter_map(|result| {
-                    let (key, _) = result.ok()?;
-                    if key.value().2 == value_id {
-                        Some(key.value())
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-
-            for key in keys {
-                table.remove(key)?;
-            }
-        }
-        tx.commit()?;
-
         Ok(())
     }
 
@@ -417,18 +367,9 @@ impl Store {
             .await?
     }
 
-    pub async fn prune(&self, retain_height: Height) -> Result<Vec<Height>, StoreError> {
+    pub async fn prune(&self, retain_height: Height) -> Result<(), StoreError> {
         let db = Arc::clone(&self.db);
         tokio::task::spawn_blocking(move || db.prune(retain_height)).await?
-    }
-
-    pub async fn remove_undecided_proposals_by_value_id(
-        &self,
-        value_id: ValueId,
-    ) -> Result<(), StoreError> {
-        let db = Arc::clone(&self.db);
-        tokio::task::spawn_blocking(move || db.remove_undecided_proposals_by_value_id(value_id))
-            .await?
     }
 
     pub async fn get_undecided_proposal_by_value_id(

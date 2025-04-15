@@ -211,15 +211,12 @@ impl State {
                 "Trying to commit a value with value id {value_id} at height {height} and round {round} for which there is no proposal"
             ));
         };
-        self.store
-            .remove_undecided_proposals_by_value_id(value_id)
-            .await?;
 
         self.store
             .store_decided_value(&certificate, proposal.value)
             .await?;
 
-        // Prune the store, keep the last HISTORY_LENGTH values
+        // Prune the store, keep the last HISTORY_LENGTH decided values, remove all undecided proposals for the decided height
         let retain_height = Height::new(height.as_u64().saturating_sub(HISTORY_LENGTH));
         self.store.prune(retain_height).await?;
 
@@ -254,7 +251,7 @@ impl State {
             .unwrap_or_else(|| Ok(None))
     }
 
-    /// Creates a new proposal value for the given height
+    /// Creates a new proposal value for the given height and round
     async fn create_proposal(
         &mut self,
         height: Height,
