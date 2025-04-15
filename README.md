@@ -31,6 +31,8 @@
 
 Malachite is a Byzantine-fault tolerant (BFT) consensus engine implemented in Rust.
 
+Malachite `/ˈmæl.ə.kaɪt/` is pronounced as follows: __"Mala"__ (like in Malaysia) + __"kite"__ (like the flying toy).
+
 > [!IMPORTANT]
 > Malachite is pre-alpha software and still under heavy development.
 > At this stage, it is not meant for use in production.
@@ -68,11 +70,11 @@ Please reach-out if interested, we would love to speak with more teams.
 
 ### Repository
 
-The repository is split in three areas, each covering one of the important areas of this project:
+The repository is split into three areas, each covering one of the important aspects of this project:
 
-1. [code](./code): Comprises the Rust implementation of the Tendermint consensus algorithm, split across multiple Rust crates.
-2. [docs](./docs): Comprises Architectural Decision Records (ADRs) and other documentation, such as the 2018 paper describing the core consensus algorithm.
-3. [specs](./specs): English and [Quint][quint-repo] specifications.
+1. [code](./code): Contains the Rust implementation of the Tendermint consensus algorithm, split across multiple Rust crates.
+2. [docs](./docs): Contains Architectural Decision Records (ADRs) and other documentation, such as the 2018 paper describing the core consensus algorithm.
+3. [specs](./specs): Contains English and [Quint][quint-repo] specifications.
 
 ### Crates and Status
 
@@ -123,7 +125,7 @@ We invite all contributors.
 
 - Rust v1.82+ ([rustup.rs](https://rustup.rs))
 - Quint v0.22+ ([github.com](https://github.com/informalsystems/quint))
-
+- Protobuf v29.0+ ([protobuf.dev](https://protobuf.dev/))
 
 ## Join Us
 

@@ -5,10 +5,12 @@ use std::time::Duration;
 
 use clap::Parser;
 use color_eyre::eyre::{eyre, Result};
-use itertools::Itertools;
 use tracing::info;
 
-use malachitebft_app::Node;
+use malachitebft_app::node::{
+    CanGeneratePrivateKey, CanMakeDistributedConfig, CanMakeGenesis, CanMakePrivateKeyFile,
+    MakeConfigSettings, Node,
+};
 use malachitebft_config::*;
 
 use crate::args::Args;
@@ -86,31 +88,42 @@ pub struct DistributedTestnetCmd {
 
 impl DistributedTestnetCmd {
     /// Execute the testnet command
-    pub fn run<N>(&self, node: &N, home_dir: &Path, logging: LoggingConfig) -> Result<()>
+    pub fn run<N>(&self, node: &N, home_dir: &Path) -> Result<()>
     where
-        N: Node,
+        N: Node
+            + CanGeneratePrivateKey
+            + CanMakeDistributedConfig
+            + CanMakeGenesis
+            + CanMakePrivateKeyFile,
     {
         let runtime = match self.runtime {
             RuntimeFlavour::SingleThreaded => RuntimeConfig::SingleThreaded,
             RuntimeFlavour::MultiThreaded(n) => RuntimeConfig::MultiThreaded { worker_threads: n },
         };
 
+        let settings = MakeConfigSettings {
+            runtime,
+            transport: self.transport,
+            discovery: DiscoveryConfig {
+                enabled: self.enable_discovery,
+                bootstrap_protocol: self.bootstrap_protocol,
+                selector: self.selector,
+                num_outbound_peers: self.num_outbound_peers,
+                num_inbound_peers: self.num_inbound_peers,
+                ephemeral_connection_timeout: Duration::from_millis(
+                    self.ephemeral_connection_timeout_ms,
+                ),
+            },
+        };
+
         distributed_testnet(
             node,
             self.nodes,
             home_dir,
-            runtime,
             self.machines.clone(),
-            self.enable_discovery,
-            self.bootstrap_protocol,
-            self.selector,
-            self.num_outbound_peers,
-            self.num_inbound_peers,
-            self.ephemeral_connection_timeout_ms,
             self.bootstrap_set_size,
-            self.transport,
-            logging,
             self.deterministic,
+            settings,
         )
         .map_err(|e| {
             eyre!(
@@ -121,26 +134,21 @@ impl DistributedTestnetCmd {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn distributed_testnet<N>(
     node: &N,
     nodes: usize,
     home_dir: &Path,
-    runtime: RuntimeConfig,
     machines: Vec<String>,
-    enable_discovery: bool,
-    bootstrap_protocol: BootstrapProtocol,
-    selector: Selector,
-    num_outbound_peers: usize,
-    num_inbound_peers: usize,
-    ephemeral_connection_timeout_ms: u64,
     bootstrap_set_size: usize,
-    transport: TransportProtocol,
-    logging: LoggingConfig,
     deterministic: bool,
+    settings: MakeConfigSettings,
 ) -> Result<()>
 where
-    N: Node,
+    N: Node
+        + CanGeneratePrivateKey
+        + CanMakeDistributedConfig
+        + CanMakeGenesis
+        + CanMakePrivateKeyFile,
 {
     let private_keys = crate::new::generate_private_keys(node, nodes, deterministic);
     let public_keys = private_keys
@@ -165,23 +173,9 @@ where
             ..Args::default()
         };
 
-        save_config(
+        save_config::<N>(
             &args.get_config_file_path()?,
-            &generate_distributed_config(
-                i,
-                nodes,
-                runtime,
-                machines.clone(),
-                enable_discovery,
-                bootstrap_protocol,
-                selector,
-                num_outbound_peers,
-                num_inbound_peers,
-                ephemeral_connection_timeout_ms,
-                bootstrap_set_size,
-                transport,
-                logging,
-            ),
+            &N::make_distributed_config(i, nodes, machines.clone(), bootstrap_set_size, settings),
         )?;
 
         let priv_validator_key = node.make_private_key_file((*private_key).clone());
@@ -195,115 +189,4 @@ where
     }
 
     Ok(())
-}
-
-const CONSENSUS_BASE_PORT: usize = 27000;
-const MEMPOOL_BASE_PORT: usize = 28000;
-const METRICS_BASE_PORT: usize = 29000;
-
-/// Generate configuration for node "index" out of "total" number of nodes.
-#[allow(clippy::too_many_arguments)]
-fn generate_distributed_config(
-    index: usize,
-    _total: usize,
-    runtime: RuntimeConfig,
-    machines: Vec<String>,
-    enable_discovery: bool,
-    bootstrap_protocol: BootstrapProtocol,
-    selector: Selector,
-    num_outbound_peers: usize,
-    num_inbound_peers: usize,
-    ephemeral_connection_timeout_ms: u64,
-    bootstrap_set_size: usize,
-    transport: TransportProtocol,
-    logging: LoggingConfig,
-) -> Config {
-    let machine = machines[index % machines.len()].clone();
-    let consensus_port = CONSENSUS_BASE_PORT + (index / machines.len());
-    let mempool_port = MEMPOOL_BASE_PORT + (index / machines.len());
-    let metrics_port = METRICS_BASE_PORT + (index / machines.len());
-
-    Config {
-        moniker: format!("test-{}", index),
-        consensus: ConsensusConfig {
-            vote_sync: VoteSyncConfig {
-                mode: VoteSyncMode::RequestResponse,
-            },
-            timeouts: TimeoutConfig::default(),
-            p2p: P2pConfig {
-                protocol: PubSubProtocol::default(),
-                listen_addr: transport.multiaddr(&machine, consensus_port),
-                persistent_peers: if enable_discovery {
-                    let peers =
-                        ((index.saturating_sub(bootstrap_set_size))..index).collect::<Vec<_>>();
-
-                    peers
-                        .iter()
-                        .unique()
-                        .map(|j| {
-                            transport.multiaddr(
-                                &machines[j % machines.len()].clone(),
-                                CONSENSUS_BASE_PORT + (j / machines.len()),
-                            )
-                        })
-                        .collect()
-                } else {
-                    let peers = (0..index).collect::<Vec<_>>();
-
-                    peers
-                        .iter()
-                        .map(|j| {
-                            transport.multiaddr(
-                                &machines[*j % machines.len()],
-                                CONSENSUS_BASE_PORT + (*j / machines.len()),
-                            )
-                        })
-                        .collect()
-                },
-                discovery: DiscoveryConfig {
-                    enabled: enable_discovery,
-                    bootstrap_protocol,
-                    selector,
-                    num_outbound_peers,
-                    num_inbound_peers,
-                    ephemeral_connection_timeout: Duration::from_millis(
-                        ephemeral_connection_timeout_ms,
-                    ),
-                },
-                transport,
-                ..Default::default()
-            },
-        },
-        mempool: MempoolConfig {
-            p2p: P2pConfig {
-                protocol: PubSubProtocol::default(),
-                listen_addr: transport.multiaddr(&machine, mempool_port),
-                persistent_peers: vec![],
-                discovery: DiscoveryConfig {
-                    enabled: false,
-                    bootstrap_protocol,
-                    selector,
-                    num_outbound_peers: 0,
-                    num_inbound_peers: 0,
-                    ephemeral_connection_timeout: Duration::from_secs(0),
-                },
-                transport,
-                ..Default::default()
-            },
-            max_tx_count: 10000,
-            gossip_batch_size: 0,
-        },
-        value_sync: ValueSyncConfig {
-            enabled: false,
-            status_update_interval: Duration::from_secs(0),
-            request_timeout: Duration::from_secs(0),
-        },
-        metrics: MetricsConfig {
-            enabled: true,
-            listen_addr: format!("{machine}:{metrics_port}").parse().unwrap(),
-        },
-        logging,
-        runtime,
-        test: TestConfig::default(),
-    }
 }

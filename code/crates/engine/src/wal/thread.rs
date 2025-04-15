@@ -9,15 +9,18 @@ use tracing::{debug, error, info};
 use malachitebft_core_types::{Context, Height};
 use malachitebft_wal as wal;
 
-use super::entry::{WalCodec, WalEntry};
+use super::entry::{decode_entry, encode_entry, WalCodec, WalEntry};
+use super::iter::log_entries;
 
 pub type ReplyTo<T> = oneshot::Sender<Result<T>>;
 
 pub enum WalMsg<Ctx: Context> {
     StartedHeight(Ctx::Height, ReplyTo<Vec<WalEntry<Ctx>>>),
+    Reset(Ctx::Height, ReplyTo<()>),
     Append(WalEntry<Ctx>, ReplyTo<()>),
     Flush(ReplyTo<()>),
     Shutdown,
+    Dump,
 }
 
 pub fn spawn<Ctx, Codec>(
@@ -44,7 +47,12 @@ where
     })
 }
 
-#[tracing::instrument(name = "wal", parent = span, skip_all, fields(height = log.sequence()))]
+#[tracing::instrument(
+    name = "wal",
+    parent = span,
+    skip_all,
+    fields(height = span_sequence(log.sequence(), &msg))
+)]
 fn process_msg<Ctx, Codec>(
     msg: WalMsg<Ctx>,
     span: &tracing::Span,
@@ -84,11 +92,23 @@ where
             }
         }
 
+        WalMsg::Reset(height, reply) => {
+            let sequence = height.as_u64();
+
+            let result = log.restart(sequence).map_err(Into::into);
+
+            debug!(%height, "Reset WAL");
+
+            if reply.send(result).is_err() {
+                error!("Failed to send WAL reset reply");
+            }
+        }
+
         WalMsg::Append(entry, reply) => {
-            let tpe = entry.tpe();
+            let tpe = wal_entry_type(&entry);
 
             let mut buf = Vec::new();
-            entry.encode(codec, &mut buf)?;
+            encode_entry(&entry, codec, &mut buf)?;
 
             if !buf.is_empty() {
                 let result = log.append(&buf).map_err(Into::into);
@@ -126,6 +146,12 @@ where
             }
         }
 
+        WalMsg::Dump => {
+            if let Err(e) = dump_entries(log, codec) {
+                error!("Failed to dump WAL: {e}");
+            }
+        }
+
         WalMsg::Shutdown => {
             info!("Shutting down WAL thread");
             return Ok(ControlFlow::Break(()));
@@ -155,7 +181,7 @@ where
             }
         })
         .filter_map(
-            |(idx, bytes)| match WalEntry::decode(codec, io::Cursor::new(bytes.clone())) {
+            |(idx, bytes)| match decode_entry(codec, io::Cursor::new(bytes.clone())) {
                 Ok(entry) => Some(entry),
                 Err(e) => {
                     error!("Failed to decode WAL entry {idx}: {e} {:?}", bytes);
@@ -173,5 +199,59 @@ where
         ))
     } else {
         Ok(entries)
+    }
+}
+
+fn dump_entries<'a, Ctx, Codec>(log: &'a mut wal::Log, codec: &'a Codec) -> Result<()>
+where
+    Ctx: Context,
+    Codec: WalCodec<Ctx>,
+{
+    let len = log.len();
+    let mut count = 0;
+
+    info!("WAL Dump");
+    info!("- Entries: {len}");
+    info!("- Size:    {} bytes", log.size_bytes().unwrap_or(0));
+    info!("Entries:");
+
+    for (idx, entry) in log_entries(log, codec)?.enumerate() {
+        count += 1;
+
+        match entry {
+            Ok(entry) => {
+                info!("- #{idx}: {entry:?}");
+            }
+            Err(e) => {
+                error!("- #{idx}: Error decoding WAL entry: {e}");
+            }
+        }
+    }
+
+    if count != len {
+        error!("Expected {len} entries, but found {count} entries");
+    }
+
+    Ok(())
+}
+
+fn span_sequence(sequence: u64, msg: &WalMsg<impl Context>) -> u64 {
+    if let WalMsg::StartedHeight(height, _) = msg {
+        height.as_u64()
+    } else {
+        sequence
+    }
+}
+
+fn wal_entry_type<Ctx: Context>(entry: &WalEntry<Ctx>) -> &'static str {
+    use malachitebft_core_consensus::SignedConsensusMsg;
+
+    match entry {
+        WalEntry::ConsensusMsg(msg) => match msg {
+            SignedConsensusMsg::Vote(_) => "Consensus(Vote)",
+            SignedConsensusMsg::Proposal(_) => "Consensus(Proposal)",
+        },
+        WalEntry::ProposedValue(_) => "LocallyProposedValue",
+        WalEntry::Timeout(_) => "Timeout",
     }
 }

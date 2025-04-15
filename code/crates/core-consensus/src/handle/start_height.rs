@@ -19,15 +19,15 @@ where
     #[cfg(feature = "metrics")]
     metrics.step_end(state.driver.step());
 
-    state.driver.move_to_height(height, validator_set);
+    state.reset_and_start_height(height, validator_set);
 
-    debug_assert_eq!(state.driver.height(), height);
-    debug_assert_eq!(state.driver.round(), Round::Nil);
+    debug_assert_eq!(state.height(), height);
+    debug_assert_eq!(state.round(), Round::Nil);
 
-    start_height(co, state, metrics, height).await
+    on_start_height(co, state, metrics, height).await
 }
 
-pub async fn start_height<Ctx>(
+async fn on_start_height<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
@@ -36,6 +36,9 @@ pub async fn start_height<Ctx>(
 where
     Ctx: Context,
 {
+    debug_assert_eq!(state.height(), height);
+    debug_assert_eq!(state.round(), Round::Nil);
+
     let round = Round::new(0);
     info!(%height, "Starting new height");
 

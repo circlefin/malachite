@@ -1,9 +1,8 @@
 use std::collections::BTreeMap;
 
 use derive_where::derive_where;
-use tracing::debug;
 
-use malachitebft_core_types::{Context, Height, Proposal, Round, SignedProposal, Validity, Value};
+use malachitebft_core_types::{Context, Proposal, Round, SignedProposal, Validity, Value, ValueId};
 
 use crate::ProposedValue;
 
@@ -55,6 +54,15 @@ impl<Ctx: Context> Entry<Ctx> {
     fn full(value: Ctx::Value, validity: Validity, proposal: SignedProposal<Ctx>) -> Self {
         Entry::Full(FullProposal::new(value, validity, proposal))
     }
+
+    fn id(&self) -> Option<ValueId<Ctx>> {
+        match self {
+            Entry::Full(p) => Some(p.builder_value.id()),
+            Entry::ProposalOnly(p) => Some(p.value().id()),
+            Entry::ValueOnly(v, _) => Some(v.id()),
+            Entry::Empty => None,
+        }
+    }
 }
 
 #[allow(clippy::derivable_impls)]
@@ -64,7 +72,7 @@ impl<Ctx: Context> Default for Entry<Ctx> {
     }
 }
 
-/// Keeper for collecting proposed values and consensus proposal messages for a given height and round.
+/// Keeper for collecting proposed values and consensus proposals for a given height and round.
 ///
 /// When a new_value is received from the value builder the following entry is stored:
 /// `Entry::ValueOnly(new_value.value, new_value.validity)`
@@ -77,7 +85,7 @@ impl<Ctx: Context> Default for Entry<Ctx> {
 ///
 /// It is possible that a proposer sends two (builder_value, proposal) pairs for same `(height, round)`.
 /// In this case both are stored, and we consider that the proposer is equivocating.
-/// Currently, the actual equivocation is caught deeper in the consensus crate, through consensus actor
+/// Currently, the actual equivocation is caught in the driver, through consensus actor
 /// propagating both proposals.
 ///
 /// When a new_proposal is received at most one complete proposal can be created. If a value at
@@ -88,9 +96,8 @@ impl<Ctx: Context> Default for Entry<Ctx> {
 /// at higher round with pol_round equal to the value round (L28). Therefore when a value is added
 /// multiple complete proposals may form.
 ///
-/// Note: In the future when we support implicit proposal message:
-/// - [`FullProposalKeeper::store_proposal()`] will never be called
-/// - [`FullProposalKeeper::full_proposal_at_round_and_value()`] should only check the presence of `builder_value`
+/// Note: For `parts_only` mode there is no explicit proposal wire message, instead
+/// one is synthesized by the caller (`on_proposed_value` handler) before it invokes the `store_proposal` method.
 #[derive_where(Clone, Debug, Default)]
 pub struct FullProposalKeeper<Ctx: Context> {
     keeper: BTreeMap<(Ctx::Height, Round), Vec<Entry<Ctx>>>,
@@ -115,7 +122,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         Self::default()
     }
 
-    pub fn full_proposals_for_value(
+    pub fn proposals_for_value(
         &self,
         proposed_value: &ProposedValue<Ctx>,
     ) -> Vec<SignedProposal<Ctx>> {
@@ -159,7 +166,28 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         None
     }
 
-    #[allow(clippy::type_complexity)]
+    pub fn full_proposal_at_round_and_proposer(
+        &self,
+        height: &Ctx::Height,
+        round: Round,
+        proposer: &Ctx::Address,
+    ) -> Option<&FullProposal<Ctx>> {
+        let entries = self
+            .keeper
+            .get(&(*height, round))
+            .filter(|entries| !entries.is_empty())?;
+
+        for entry in entries {
+            if let Entry::Full(p) = entry {
+                if p.proposal.validator_address() == proposer {
+                    return Some(p);
+                }
+            }
+        }
+
+        None
+    }
+
     pub fn get_value<'a>(
         &self,
         height: &Ctx::Height,
@@ -270,6 +298,15 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         self.store_value_at_pol_round(new_value);
     }
 
+    pub fn value_exists(&self, value: &ProposedValue<Ctx>) -> bool {
+        match self.keeper.get(&(value.height, value.round)) {
+            None => false,
+            Some(entries) => entries
+                .iter()
+                .any(|entry| entry.id() == Some(value.value.id())),
+        }
+    }
+
     fn store_value_at_value_round(&mut self, new_value: &ProposedValue<Ctx>) {
         let key = (new_value.height, new_value.round);
         let entries = self.keeper.get_mut(&key);
@@ -352,10 +389,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         }
     }
 
-    pub fn remove_full_proposals(&mut self, last_height: Ctx::Height) {
-        // Keep last two decided heights
-        debug!(%last_height, "Removing proposals, keep the last two");
-        self.keeper
-            .retain(|(height, _), _| height.increment() >= last_height);
+    pub fn clear(&mut self) {
+        self.keeper.clear();
     }
 }

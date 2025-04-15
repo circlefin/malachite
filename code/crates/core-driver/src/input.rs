@@ -1,5 +1,6 @@
 use malachitebft_core_types::{
-    CommitCertificate, Context, Round, SignedProposal, SignedVote, Timeout, Validity,
+    CommitCertificate, Context, PolkaCertificate, Round, SignedProposal, SignedVote, Timeout,
+    Validity,
 };
 
 use derive_where::derive_where;
@@ -24,6 +25,9 @@ where
 
     /// Received a commit certificate
     CommitCertificate(CommitCertificate<Ctx>),
+
+    /// Received a polka certificate
+    PolkaCertificate(PolkaCertificate<Ctx>),
 
     /// Receive a timeout
     TimeoutElapsed(Timeout),

@@ -13,6 +13,7 @@ workspace = true
 malachitebft-metrics = { workspace = true }
 malachitebft-proto = { workspace = true }
 
+eyre = { workspace = true }
 futures = { workspace = true }
 libp2p = { workspace = true }
 prost = { workspace = true }

@@ -38,9 +38,8 @@ pub async fn proposal_and_parts() {
     run_test(params).await
 }
 
-// This functionality is not fully implemented yet
 #[tokio::test]
-#[ignore]
+#[ignore] // Test app does not support proposal-only mode
 pub async fn proposal_only() {
     let params = TestParams {
         value_payload: ValuePayload::ProposalOnly,

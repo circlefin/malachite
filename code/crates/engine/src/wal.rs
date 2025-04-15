@@ -11,10 +11,12 @@ use malachitebft_metrics::SharedRegistry;
 use malachitebft_wal as wal;
 
 mod entry;
+mod iter;
 mod thread;
 
 pub use entry::WalCodec;
 pub use entry::WalEntry;
+pub use iter::log_entries;
 
 pub type WalRef<Ctx> = ActorRef<Msg<Ctx>>;
 
@@ -51,8 +53,10 @@ pub type WalReply<T> = RpcReplyPort<eyre::Result<T>>;
 
 pub enum Msg<Ctx: Context> {
     StartedHeight(Ctx::Height, WalReply<Option<Vec<WalEntry<Ctx>>>>),
+    Reset(Ctx::Height, WalReply<()>),
     Append(Ctx::Height, WalEntry<Ctx>, WalReply<()>),
     Flush(WalReply<()>),
+    Dump,
 }
 
 pub struct Args<Codec> {
@@ -89,6 +93,10 @@ where
                 self.started_height(state, height, reply_to).await?;
             }
 
+            Msg::Reset(height, reply_to) => {
+                self.reset(state, height, reply_to).await?;
+            }
+
             Msg::Append(height, entry, reply_to) => {
                 if height != state.height {
                     debug!("Ignoring append at height {} != {}", height, state.height);
@@ -101,7 +109,33 @@ where
             Msg::Flush(reply_to) => {
                 self.flush_log(state, reply_to).await?;
             }
+
+            Msg::Dump => {
+                state.wal_sender.send(self::thread::WalMsg::Dump).await?;
+            }
         }
+
+        Ok(())
+    }
+
+    async fn reset(
+        &self,
+        state: &mut State<Ctx>,
+        height: Ctx::Height,
+        reply_to: WalReply<()>,
+    ) -> Result<(), ActorProcessingErr> {
+        let (tx, rx) = oneshot::channel();
+
+        state
+            .wal_sender
+            .send(self::thread::WalMsg::Reset(height, tx))
+            .await?;
+
+        let result = rx.await?;
+
+        reply_to
+            .send(result)
+            .map_err(|e| eyre!("Failed to send reply: {e}"))?;
 
         Ok(())
     }
@@ -214,7 +248,7 @@ where
         name = "wal",
         parent = &self.span,
         skip_all,
-        fields(height = %state.height),
+        fields(height = %span_height(state.height, &msg)),
     )]
     async fn handle(
         &self,
@@ -245,5 +279,15 @@ where
         let _ = state.wal_sender.send(self::thread::WalMsg::Shutdown).await;
 
         Ok(())
+    }
+}
+
+/// Use the height we are about to start instead of the current height
+/// for the tracing span of the WAL actor when starting a new height.
+fn span_height<Ctx: Context>(height: Ctx::Height, msg: &Msg<Ctx>) -> Ctx::Height {
+    if let Msg::StartedHeight(h, _) = msg {
+        *h
+    } else {
+        height
     }
 }

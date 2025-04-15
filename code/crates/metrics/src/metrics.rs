@@ -321,7 +321,7 @@ impl AtomicInstant {
     }
 
     pub fn elapsed(&self) -> Duration {
-        Duration::from_millis(Self::now_millis() - self.as_millis())
+        Duration::from_millis(Self::now_millis().saturating_sub(self.as_millis()))
     }
 
     pub fn as_millis(&self) -> u64 {

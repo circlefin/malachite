@@ -8,14 +8,18 @@ use async_trait::async_trait;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use malachitebft_config::Config;
-use malachitebft_starknet_host::node::{Handle, StarknetNode};
+use malachitebft_config::mempool_load::UniformLoadConfig;
+use malachitebft_starknet_host::config::Config;
+use malachitebft_starknet_host::node::{ConfigSource, Handle, StarknetNode};
 use malachitebft_starknet_host::types::{Height, MockContext, PrivateKey, Validator, ValidatorSet};
 use malachitebft_test_framework::HasTestRunner;
 use malachitebft_test_framework::{NodeRunner, TestNode};
 
 pub use malachitebft_test_framework::TestBuilder as GenTestBuilder;
-pub use malachitebft_test_framework::{EngineHandle, HandlerResult, Node, NodeId, TestParams};
+pub use malachitebft_test_framework::{
+    CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, EngineHandle, HandlerResult, Node,
+    NodeId, TestParams,
+};
 
 use tempfile::TempDir;
 
@@ -87,8 +91,8 @@ impl NodeRunner<MockContext> for TestRunner {
         let home_dir = &self.home_dir[&id].clone();
 
         let app = StarknetNode {
-            config: self.generate_config(id),
             home_dir: home_dir.clone(),
+            config_source: ConfigSource::Value(Box::new(self.generate_config(id))),
             start_height: Some(self.start_height[&id].as_u64()),
         };
 
@@ -126,7 +130,7 @@ impl NodeRunner<MockContext> for TestRunner {
 impl TestRunner {
     fn generate_config(&self, node: NodeId) -> Config {
         let mut config = self.generate_default_config(node);
-        self.params.apply_to_config(&mut config);
+        apply_params(&mut config, &self.params);
         config
     }
 
@@ -141,12 +145,12 @@ impl TestRunner {
             moniker: format!("node-{}", node),
             logging: LoggingConfig::default(),
             consensus: ConsensusConfig {
+                value_payload: ValuePayload::PartsOnly,
                 vote_sync: VoteSyncConfig {
                     mode: VoteSyncMode::Rebroadcast,
                 },
                 timeouts: TimeoutConfig::default(),
                 p2p: P2pConfig {
-                    transport,
                     protocol,
                     discovery: DiscoveryConfig::default(),
                     listen_addr: transport.multiaddr("127.0.0.1", self.consensus_base_port + i),
@@ -159,7 +163,6 @@ impl TestRunner {
             },
             mempool: MempoolConfig {
                 p2p: P2pConfig {
-                    transport,
                     protocol,
                     listen_addr: transport.multiaddr("127.0.0.1", self.mempool_base_port + i),
                     persistent_peers: (0..self.nodes_count)
@@ -169,7 +172,10 @@ impl TestRunner {
                     ..Default::default()
                 },
                 max_tx_count: 10000,
-                gossip_batch_size: 100,
+                gossip_batch_size: 0,
+                load: MempoolLoadConfig {
+                    load_type: MempoolLoadType::UniformLoad(UniformLoadConfig::default()),
+                },
             },
             value_sync: ValueSyncConfig {
                 enabled: true,
@@ -184,14 +190,14 @@ impl TestRunner {
             },
             runtime: RuntimeConfig::single_threaded(),
             test: TestConfig {
-                value_payload: ValuePayload::PartsOnly,
+                stable_block_times: true,
                 ..TestConfig::default()
             },
         }
     }
 }
 
-use malachitebft_config::TransportProtocol;
+use malachitebft_config::{TransportProtocol, ValuePayload};
 
 fn transport_from_env(default: TransportProtocol) -> TransportProtocol {
     if let Ok(protocol) = std::env::var("MALACHITE_TRANSPORT") {
@@ -221,4 +227,20 @@ fn make_validators<S>(
     }
 
     (validators, private_keys)
+}
+
+fn apply_params(config: &mut Config, params: &TestParams) {
+    config.consensus.value_payload = ValuePayload::PartsOnly;
+    config.value_sync.enabled = params.enable_value_sync;
+    config.consensus.p2p.protocol = params.protocol;
+    config.consensus.timeouts.timeout_step = params.timeout_step;
+    config.test.max_block_size = params.block_size;
+    config.test.txs_per_part = params.txs_per_part;
+    config.test.vote_extensions.enabled = params.vote_extensions.is_some();
+    config.test.vote_extensions.size = params.vote_extensions.unwrap_or_default();
+    config.test.max_retain_blocks = params.max_retain_blocks;
+
+    if let Some(vote_sync_mode) = params.vote_sync_mode {
+        config.consensus.vote_sync.mode = vote_sync_mode;
+    }
 }

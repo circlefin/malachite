@@ -1,1 +1,7 @@
 msrv = "1.83.0"
+disallowed-types = [
+  "ractor::port::OutputPort",
+  "ractor::port::OutputPortSubscriber",
+  "ractor::port::OutputPortSubscriber",
+  ".."
+]

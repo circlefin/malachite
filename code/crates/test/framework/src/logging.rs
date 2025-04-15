@@ -2,16 +2,29 @@ pub fn init_logging() {
     use tracing_subscriber::util::SubscriberInitExt;
     use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
-    let crate_name = env!("CARGO_CRATE_NAME");
     let debug_vars = &[("ACTIONS_RUNNER_DEBUG", "true"), ("MALACHITE_DEBUG", "1")];
     let enable_debug = debug_vars
         .iter()
         .any(|(k, v)| std::env::var(k).as_deref() == Ok(v));
 
-    let trace_level = if enable_debug { "trace" } else { "info" };
-    let directive = format!(
-        "{crate_name}=debug,informalsystems_malachitebft={trace_level},informalsystems_malachitebft_discovery=error,libp2p=warn,ractor=warn"
-    );
+    let trace_level = if enable_debug { "debug" } else { "info" };
+
+    let directives = &[
+        ("informalsystems_malachitebft", trace_level),
+        (env!("CARGO_CRATE_NAME"), "debug"),
+        ("it", "debug"), // Name of the integration test crate
+        ("informalsystems_malachitebft_test", "debug"),
+        ("informalsystems_malachitebft_test_app", "debug"),
+        ("informalsystems_malachitebft_discovery", "error"),
+        ("libp2p", "warn"),
+        ("ractor", "warn"),
+    ];
+
+    let directive = directives
+        .iter()
+        .map(|(target, level)| format!("{target}={level}"))
+        .collect::<Vec<_>>()
+        .join(",");
 
     let filter = EnvFilter::builder().parse(directive).unwrap();
 

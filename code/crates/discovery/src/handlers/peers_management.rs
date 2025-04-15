@@ -1,5 +1,5 @@
 use libp2p::{swarm::ConnectionId, PeerId, Swarm};
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 
 use crate::{request::RequestData, Discovery, DiscoveryClient, OutboundConnection};
 
@@ -22,7 +22,7 @@ where
             n,
         ) {
             Selection::Exactly(peers) => {
-                info!("Selected exactly {} outbound candidates", peers.len());
+                debug!("Selected exactly {} outbound candidates", peers.len());
                 peers
             }
             Selection::Only(peers) => {
@@ -62,7 +62,7 @@ where
             return;
         }
 
-        info!("Adjusting connections");
+        debug!("Adjusting connections");
 
         self.select_outbound_connections(swarm);
 
@@ -88,15 +88,9 @@ where
             })
             .collect();
 
-        info!(
+        debug!(
             "Connections adjusted by disconnecting {} peers",
             connections_to_close.len(),
-        );
-
-        debug!(
-            "Keeping outbound connections: {:?}, and inbound connections: {:?}",
-            self.outbound_connections.keys(),
-            self.inbound_connections.keys(),
         );
 
         for (peer_id, connection_id) in connections_to_close {
@@ -112,7 +106,7 @@ where
             return;
         }
 
-        info!("Repairing an outbound connection");
+        debug!("Repairing an outbound connection");
 
         // Upgrade any inbound connection to outbound if any is available
         if let Some((peer_id, connection_id)) = self
@@ -123,7 +117,7 @@ where
             .find(|(peer_id, _)| !self.outbound_connections.contains_key(peer_id))
             .map(|(peer_id, connection_id)| (*peer_id, *connection_id))
         {
-            info!("Upgrading connection {connection_id} of peer {peer_id} to outbound connection");
+            debug!("Upgrading connection {connection_id} of peer {peer_id} to outbound connection");
 
             self.inbound_connections.remove(&peer_id);
             self.outbound_connections.insert(
@@ -151,7 +145,7 @@ where
         ) {
             Selection::Exactly(peers) => {
                 if let Some(peer_id) = peers.first() {
-                    info!("Trying to connect to peer {peer_id} to repair outbound connections");
+                    debug!("Trying to connect to peer {peer_id} to repair outbound connections");
                     self.outbound_connections.insert(
                         *peer_id,
                         OutboundConnection {

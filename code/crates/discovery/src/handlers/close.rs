@@ -1,5 +1,5 @@
 use libp2p::{swarm::ConnectionId, PeerId, Swarm};
-use tracing::{error, info, warn};
+use tracing::{debug, error, warn};
 
 use crate::{Discovery, DiscoveryClient, State};
 
@@ -35,7 +35,7 @@ where
             .is_some_and(|connections| connections.contains(&connection_id))
         {
             if swarm.close_connection(connection_id) {
-                info!("Closing connection {connection_id} to peer {peer_id}");
+                debug!("Closing connection {connection_id} to peer {peer_id}");
             } else {
                 error!("Error closing connection {connection_id} to peer {peer_id}");
             }

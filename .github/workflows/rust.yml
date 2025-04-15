@@ -103,15 +103,18 @@ jobs:
       - name: Disable apparmor container restrictions
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Run integration tests (discovery)
+        if: always()
         run: |
           cargo maelstrom --slots 8 \
             --include 'package.equals(informalsystems-malachitebft-discovery-test)'
       - name: Run integration tests (Starknet app)
+        if: always()
         run: |
           cargo maelstrom --slots 8 \
             --include 'package.equals(informalsystems-malachitebft-starknet-test)' \
             --exclude 'package.match(informalsystems-malachitebft-starknet-test-mbt)'
       - name: Run integration tests (Test app)
+        if: always()
         run: |
           cargo maelstrom --slots 8 \
             --include 'package.equals(informalsystems-malachitebft-test)' \

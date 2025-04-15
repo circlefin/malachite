@@ -10,6 +10,7 @@ numer = "numer"
 ser = "ser"
 shs = "shs"
 widder = "widder"
+typ = "typ"
 
 [files]
 extend-exclude = ["code/crates/starknet/p2p-proto/proto/*"]

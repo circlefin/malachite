@@ -10,7 +10,7 @@ use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, quic, SwarmBuilder};
 use libp2p_broadcast as broadcast;
 use tokio::sync::{mpsc, oneshot};
-use tracing::{debug, error, error_span, trace, warn, Instrument};
+use tracing::{debug, error, error_span, info, trace, warn, Instrument};
 
 use malachitebft_discovery::{self as discovery};
 use malachitebft_metrics::SharedRegistry;
@@ -94,6 +94,7 @@ pub struct Config {
     pub pubsub_protocol: PubSubProtocol,
     pub rpc_max_size: usize,
     pub pubsub_max_size: usize,
+    pub enable_sync: bool,
 }
 
 impl Config {
@@ -115,6 +116,19 @@ impl Config {
 pub enum TransportProtocol {
     Tcp,
     Quic,
+}
+
+impl TransportProtocol {
+    pub fn from_multiaddr(multiaddr: &Multiaddr) -> Option<TransportProtocol> {
+        for protocol in multiaddr.protocol_stack() {
+            match protocol {
+                "tcp" => return Some(TransportProtocol::Tcp),
+                "quic" | "quic-v1" => return Some(TransportProtocol::Quic),
+                _ => {}
+            }
+        }
+        None
+    }
 }
 
 /// sync event details:
@@ -202,7 +216,10 @@ pub async fn spawn(
     let state = State::new(discovery);
 
     let peer_id = PeerId::from_libp2p(swarm.local_peer_id());
-    let span = error_span!("network", peer = %peer_id);
+    let span = error_span!("network");
+
+    info!(parent: span.clone(), %peer_id, "Starting network service");
+
     let task_handle =
         tokio::task::spawn(run(config, metrics, state, swarm, rx_ctrl, tx_event).instrument(span));
 
@@ -229,10 +246,12 @@ async fn run(
         return;
     };
 
-    if let Err(e) = pubsub::subscribe(&mut swarm, PubSubProtocol::Broadcast, &[Channel::Sync]) {
-        error!("Error subscribing to Sync channel: {e}");
-        return;
-    };
+    if config.enable_sync {
+        if let Err(e) = pubsub::subscribe(&mut swarm, PubSubProtocol::Broadcast, &[Channel::Sync]) {
+            error!("Error subscribing to Sync channel: {e}");
+            return;
+        };
+    }
 
     loop {
         let result = tokio::select! {
@@ -292,6 +311,11 @@ async fn handle_ctrl_msg(
         }
 
         CtrlMsg::Broadcast(channel, data) => {
+            if channel == Channel::Sync && !config.enable_sync {
+                trace!("Ignoring broadcast message to Sync channel: Sync not enabled");
+                return ControlFlow::Continue(());
+            }
+
             let msg_size = data.len();
             let result = pubsub::publish(swarm, PubSubProtocol::Broadcast, channel, data);
 
@@ -304,10 +328,12 @@ async fn handle_ctrl_msg(
         }
 
         CtrlMsg::SyncRequest(peer_id, request, reply_to) => {
-            let request_id = swarm
-                .behaviour_mut()
-                .sync
-                .send_request(peer_id.to_libp2p(), request);
+            let Some(sync) = swarm.behaviour_mut().sync.as_mut() else {
+                error!("Cannot request Sync from peer: Sync not enabled");
+                return ControlFlow::Continue(());
+            };
+
+            let request_id = sync.send_request(peer_id.to_libp2p(), request);
 
             if let Err(e) = reply_to.send(request_id) {
                 error!(%peer_id, "Error sending Sync request: {e}");
@@ -317,12 +343,17 @@ async fn handle_ctrl_msg(
         }
 
         CtrlMsg::SyncReply(request_id, data) => {
+            let Some(sync) = swarm.behaviour_mut().sync.as_mut() else {
+                error!("Cannot send Sync response to peer: Sync not enabled");
+                return ControlFlow::Continue(());
+            };
+
             let Some(channel) = state.sync_channels.remove(&request_id) else {
                 error!(%request_id, "Received Sync reply for unknown request ID");
                 return ControlFlow::Continue(());
             };
 
-            let result = swarm.behaviour_mut().sync.send_response(channel, data);
+            let result = sync.send_response(channel, data);
 
             match result {
                 Ok(()) => debug!(%request_id, "Replied to Sync request"),

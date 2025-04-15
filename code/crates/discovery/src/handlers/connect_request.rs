@@ -3,7 +3,7 @@ use libp2p::{
     swarm::ConnectionId,
     PeerId, Swarm,
 };
-use tracing::{error, info, trace};
+use tracing::{debug, error, trace};
 
 use crate::{
     behaviour::{self, Response},
@@ -42,7 +42,7 @@ where
             self.metrics.increment_total_connect_requests();
         }
 
-        info!(
+        debug!(
             "Requesting persistent connection to peer {}, retry #{}",
             request_data.peer_id(),
             request_data.retry.count()
@@ -67,16 +67,20 @@ where
         let mut accepted: bool = false;
 
         if self.outbound_connections.contains_key(&peer) {
-            info!("Peer {peer} is already an outbound connection");
+            debug!("Peer {peer} is already an outbound connection");
+
+            accepted = true;
+        } else if self.inbound_connections.contains_key(&peer) {
+            debug!("Peer {peer} is already an inbound connection");
 
             accepted = true;
         } else if self.inbound_connections.len() < self.config.num_inbound_peers {
-            info!("Upgrading connection {connection_id} of peer {peer} to inbound connection");
+            debug!("Upgrading connection {connection_id} of peer {peer} to inbound connection");
 
             self.inbound_connections.insert(peer, connection_id);
             accepted = true;
         } else {
-            info!("Rejecting connection upgrade of peer {peer} to inbound connection as the limit is reached");
+            debug!("Rejecting connection upgrade of peer {peer} to inbound connection as the limit is reached");
         }
 
         self.update_connections_metrics();
@@ -105,7 +109,7 @@ where
             .remove_in_progress(&request_id);
 
         if accepted {
-            info!("Successfully upgraded connection {connection_id} of peer {peer} to outbound connection");
+            debug!("Successfully upgraded connection {connection_id} of peer {peer} to outbound connection");
 
             if let Some(out_conn) = self.outbound_connections.get_mut(&peer) {
                 out_conn.is_persistent = true;
@@ -119,12 +123,12 @@ where
                 .values()
                 .all(|out_conn| out_conn.is_persistent)
             {
-                info!("All outbound connections are persistent");
+                debug!("All outbound connections are persistent");
                 self.metrics.initial_discovery_finished();
                 self.update_connections_metrics();
             }
         } else {
-            info!("Peer {peer} rejected connection upgrade to outbound connection");
+            debug!("Peer {peer} rejected connection upgrade to outbound connection");
 
             self.metrics.increment_total_rejected_connect_requests();
 

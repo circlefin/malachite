@@ -22,4 +22,4 @@ bytes = { workspace = true }
 
 
 [dev-dependencies]
-tempfile = { version = "3.15.0" }
+tempfile = { version = "3.19.1" }

@@ -6,8 +6,7 @@ use derive_where::derive_where;
 use eyre::eyre;
 use libp2p::identity::Keypair;
 use libp2p::request_response;
-use ractor::port::OutputPortSubscriberTrait;
-use ractor::{Actor, ActorProcessingErr, ActorRef, OutputPort, RpcReplyPort};
+use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
 use tracing::{error, trace};
 
@@ -24,6 +23,7 @@ use malachitebft_network::{Channel, Config, Event, Multiaddr, PeerId};
 
 use crate::consensus::ConsensusCodec;
 use crate::sync::SyncCodec;
+use crate::util::output_port::{OutputPort, OutputPortSubscriberTrait};
 use crate::util::streaming::StreamMessage;
 
 pub type NetworkRef<Ctx> = ActorRef<Msg<Ctx>>;
@@ -126,14 +126,14 @@ pub enum State<Ctx: Context> {
 
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct Status<Ctx: Context> {
-    pub height: Ctx::Height,
+    pub tip_height: Ctx::Height,
     pub history_min_height: Ctx::Height,
 }
 
 impl<Ctx: Context> Status<Ctx> {
-    pub fn new(height: Ctx::Height, history_min_height: Ctx::Height) -> Self {
+    pub fn new(tip_height: Ctx::Height, history_min_height: Ctx::Height) -> Self {
         Self {
-            height,
+            tip_height,
             history_min_height,
         }
     }
@@ -203,7 +203,7 @@ where
         Ok(State::Running {
             listen_addrs: Vec::new(),
             peers: BTreeSet::new(),
-            output_port: OutputPort::default(),
+            output_port: OutputPort::with_capacity(128),
             ctrl_handle,
             recv_task,
             inbound_requests: HashMap::new(),
@@ -272,7 +272,7 @@ where
             Msg::BroadcastStatus(status) => {
                 let status = sync::Status {
                     peer_id: ctrl_handle.peer_id(),
-                    height: status.height,
+                    tip_height: status.tip_height,
                     history_min_height: status.history_min_height,
                 };
 
@@ -380,11 +380,11 @@ where
                     return Ok(());
                 }
 
-                trace!(%from, height = %status.height, "Received status");
+                trace!(%from, tip_height = %status.tip_height, "Received status");
 
                 output_port.send(NetworkEvent::Status(
                     status.peer_id,
-                    Status::new(status.height, status.history_min_height),
+                    Status::new(status.tip_height, status.history_min_height),
                 ));
             }
 

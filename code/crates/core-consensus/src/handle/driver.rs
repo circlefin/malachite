@@ -1,6 +1,7 @@
 use malachitebft_core_driver::Input as DriverInput;
 use malachitebft_core_driver::Output as DriverOutput;
 
+use crate::handle::decide::decide;
 use crate::handle::on_proposal;
 use crate::handle::signature::sign_proposal;
 use crate::handle::signature::sign_vote;
@@ -8,7 +9,10 @@ use crate::handle::vote::on_vote;
 use crate::prelude::*;
 use crate::types::SignedConsensusMsg;
 use crate::util::pretty::PrettyVal;
+use crate::LocallyProposedValue;
 use crate::VoteSyncMode;
+
+use super::propose::on_propose;
 
 #[async_recursion]
 pub async fn apply_driver_input<Ctx>(
@@ -68,7 +72,19 @@ where
         DriverInput::CommitCertificate(certificate) => {
             if certificate.height != state.driver.height() {
                 warn!(
-                    "Ignoring certificate for height {}, current height: {}",
+                    "Ignoring commit certificate for height {}, current height: {}",
+                    certificate.height,
+                    state.driver.height()
+                );
+
+                return Ok(());
+            }
+        }
+
+        DriverInput::PolkaCertificate(certificate) => {
+            if certificate.height != state.driver.height() {
+                warn!(
+                    "Ignoring polka certificate for height {}, current height: {}",
                     certificate.height,
                     state.driver.height()
                 );
@@ -118,18 +134,21 @@ where
                 co,
                 Effect::CancelTimeout(Timeout::propose(state.driver.round()), Default::default())
             );
-
-            // Schedule the Prevote time limit timeout
-            perform!(
-                co,
-                Effect::ScheduleTimeout(
-                    Timeout::prevote_time_limit(state.driver.round()),
-                    Default::default()
-                )
-            );
+            if state.params.vote_sync_mode == VoteSyncMode::RequestResponse {
+                // Schedule the Prevote time limit timeout
+                perform!(
+                    co,
+                    Effect::ScheduleTimeout(
+                        Timeout::prevote_time_limit(state.driver.round()),
+                        Default::default()
+                    )
+                );
+            }
         }
 
-        if state.driver.step_is_precommit() {
+        if state.driver.step_is_precommit()
+            && state.params.vote_sync_mode == VoteSyncMode::RequestResponse
+        {
             perform!(
                 co,
                 Effect::CancelTimeout(
@@ -250,9 +269,9 @@ where
                 "Voting",
             );
 
-            // Only sign and publish if we're in the validator set
             if state.is_validator() {
                 let vote_type = vote.vote_type();
+
                 let extended_vote = extend_vote(co, vote).await?;
                 let signed_vote = sign_vote(co, extended_vote).await?;
 
@@ -290,13 +309,7 @@ where
                 "Decided",
             );
 
-            // Store value decided on for retrieval when timeout commit elapses
-            state.store_decision(state.driver.height(), consensus_round, proposal.clone());
-
-            perform!(
-                co,
-                Effect::ScheduleTimeout(Timeout::commit(consensus_round), Default::default())
-            );
+            decide(co, state, metrics).await?;
 
             Ok(())
         }
@@ -310,12 +323,26 @@ where
         }
 
         DriverOutput::GetValue(height, round, timeout) => {
-            info!(%height, %round, "Requesting value");
+            if let Some(full_proposal) =
+                state.full_proposal_at_round_and_proposer(&height, round, state.address())
+            {
+                info!(%height, %round, "Using already existing value");
 
-            perform!(
-                co,
-                Effect::GetValue(height, round, timeout, Default::default())
-            );
+                let local_value = LocallyProposedValue {
+                    height: full_proposal.proposal.height(),
+                    round: full_proposal.proposal.round(),
+                    value: full_proposal.builder_value.clone(),
+                };
+
+                on_propose(co, state, metrics, local_value).await?;
+            } else {
+                info!(%height, %round, "Requesting value from application");
+
+                perform!(
+                    co,
+                    Effect::GetValue(height, round, timeout, Default::default())
+                );
+            }
 
             Ok(())
         }

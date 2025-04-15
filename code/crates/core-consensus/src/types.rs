@@ -2,7 +2,7 @@ use derive_where::derive_where;
 use thiserror::Error;
 
 use malachitebft_core_types::{
-    Context, Proposal, Round, Signature, SignedProposal, SignedVote, Validity, Vote,
+    Context, Proposal, Round, Signature, SignedProposal, SignedVote, Timeout, Validity, Vote,
 };
 
 pub use malachitebft_core_types::ValuePayload;
@@ -75,6 +75,36 @@ pub struct ProposedValue<Ctx: Context> {
     pub proposer: Ctx::Address,
     pub value: Ctx::Value,
     pub validity: Validity,
+}
+
+#[derive_where(Clone, Debug)]
+pub enum WalEntry<Ctx: Context> {
+    ConsensusMsg(SignedConsensusMsg<Ctx>),
+    Timeout(Timeout),
+    ProposedValue(ProposedValue<Ctx>),
+}
+
+impl<Ctx: Context> WalEntry<Ctx> {
+    pub fn as_consensus_msg(&self) -> Option<&SignedConsensusMsg<Ctx>> {
+        match self {
+            WalEntry::ConsensusMsg(msg) => Some(msg),
+            _ => None,
+        }
+    }
+
+    pub fn as_timeout(&self) -> Option<&Timeout> {
+        match self {
+            WalEntry::Timeout(timeout) => Some(timeout),
+            _ => None,
+        }
+    }
+
+    pub fn as_proposed_value(&self) -> Option<&ProposedValue<Ctx>> {
+        match self {
+            WalEntry::ProposedValue(value) => Some(value),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Error)]

@@ -22,6 +22,7 @@ malachitebft-metrics.workspace = true
 malachitebft-network.workspace = true
 malachitebft-peer.workspace = true
 malachitebft-sync.workspace = true
+malachitebft-wal.workspace = true
 
 async-trait = { workspace = true }
 derive-where = { workspace = true }

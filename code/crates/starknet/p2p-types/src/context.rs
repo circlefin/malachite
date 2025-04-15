@@ -51,6 +51,7 @@ impl Context for MockContext {
     }
 
     fn new_proposal(
+        &self,
         height: Height,
         round: Round,
         value_id: Hash,
@@ -61,6 +62,7 @@ impl Context for MockContext {
     }
 
     fn new_prevote(
+        &self,
         height: Height,
         round: Round,
         value_id: NilOrVal<Hash>,
@@ -70,6 +72,7 @@ impl Context for MockContext {
     }
 
     fn new_precommit(
+        &self,
         height: Height,
         round: Round,
         value_id: NilOrVal<Hash>,

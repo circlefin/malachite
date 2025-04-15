@@ -1,5 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
-use tracing::{debug, warn};
+use tracing::warn;
 
 use malachitebft_core_driver::Driver;
 use malachitebft_core_types::*;
@@ -28,17 +27,11 @@ where
     /// The proposals to decide on.
     pub full_proposal_keeper: FullProposalKeeper<Ctx>,
 
-    /// Store Precommit votes to be sent along the decision to the host
-    pub signed_precommits: BTreeMap<(Ctx::Height, Round), BTreeSet<SignedVote<Ctx>>>,
-
-    /// Decision per height
-    pub decision: BTreeMap<(Ctx::Height, Round), SignedProposal<Ctx>>,
-
     /// Last prevote broadcasted by this node
-    pub last_prevote: Option<SignedVote<Ctx>>,
+    pub last_signed_prevote: Option<SignedVote<Ctx>>,
 
     /// Last precommit broadcasted by this node
-    pub last_precommit: Option<SignedVote<Ctx>>,
+    pub last_signed_precommit: Option<SignedVote<Ctx>>,
 }
 
 impl<Ctx> State<Ctx>
@@ -60,10 +53,8 @@ where
             params,
             input_queue: Default::default(),
             full_proposal_keeper: Default::default(),
-            signed_precommits: Default::default(),
-            decision: Default::default(),
-            last_prevote: None,
-            last_precommit: None,
+            last_signed_prevote: None,
+            last_signed_precommit: None,
         }
     }
 
@@ -91,33 +82,8 @@ where
 
     pub fn set_last_vote(&mut self, vote: SignedVote<Ctx>) {
         match vote.vote_type() {
-            VoteType::Prevote => self.last_prevote = Some(vote),
-            VoteType::Precommit => self.last_precommit = Some(vote),
-        }
-    }
-
-    pub fn store_signed_precommit(&mut self, precommit: SignedVote<Ctx>) {
-        assert_eq!(precommit.vote_type(), VoteType::Precommit);
-
-        let height = precommit.height();
-        let round = precommit.round();
-
-        self.signed_precommits
-            .entry((height, round))
-            .or_default()
-            .insert(precommit);
-    }
-
-    pub fn store_decision(&mut self, height: Ctx::Height, round: Round, proposal: Ctx::Proposal) {
-        if let Some(full_proposal) = self.full_proposal_keeper.full_proposal_at_round_and_value(
-            &height,
-            proposal.round(),
-            &proposal.value().id(),
-        ) {
-            self.decision.insert(
-                (self.driver.height(), round),
-                full_proposal.proposal.clone(),
-            );
+            VoteType::Prevote => self.last_signed_prevote = Some(vote),
+            VoteType::Precommit => self.last_signed_precommit = Some(vote),
         }
     }
 
@@ -127,31 +93,54 @@ where
         round: Round,
         value: &Ctx::Value,
     ) -> Vec<SignedVote<Ctx>> {
-        // Get the commits for the height and round.
-        let commits_for_height_and_round = self
-            .signed_precommits
-            .remove(&(height, round))
-            .unwrap_or_default();
+        assert_eq!(height, self.driver.height());
 
-        // Keep the commits for the specified value.
-        // For now, we ignore equivocating votes if present.
-        commits_for_height_and_round
-            .into_iter()
-            .filter(|c| c.value() == &NilOrVal::Val(value.id()))
-            .collect()
+        // Get the commits for the height and round.
+        if let Some(per_round) = self.driver.votes().per_round(round) {
+            per_round
+                .received_votes()
+                .iter()
+                .filter(|vote| {
+                    vote.vote_type() == VoteType::Precommit
+                        && vote.value() == &NilOrVal::Val(value.id())
+                })
+                .cloned()
+                .collect()
+        } else {
+            Vec::new()
+        }
     }
 
-    pub fn restore_votes(&mut self, height: Ctx::Height, round: Round) -> Vec<SignedVote<Ctx>> {
-        // TODO optimization - get votes for all rounds higher than or equal to `round`
+    #[allow(clippy::type_complexity)]
+    pub fn restore_votes(
+        &mut self,
+        height: Ctx::Height,
+        round: Round,
+    ) -> Option<(Vec<SignedVote<Ctx>>, Vec<PolkaCertificate<Ctx>>)> {
+        assert!(round.is_defined());
+
         if height != self.driver.height() {
-            return vec![];
+            return None;
         }
 
-        if let Some(per_round) = self.driver.votes().per_round(round) {
-            per_round.received_votes().iter().cloned().collect()
-        } else {
-            vec![]
+        let mut votes = Vec::new();
+
+        let upper_round = self.driver.votes().max_round();
+        for r in round_range_inclusive(round, upper_round) {
+            let per_round = self.driver.votes().per_round(r)?;
+            votes.extend(per_round.received_votes().iter().cloned());
         }
+
+        // Gather polka certificates for all rounds up to `round` included
+        let certificates = self
+            .driver
+            .polka_certificates()
+            .iter()
+            .filter(|c| c.round <= round && c.height == height)
+            .cloned()
+            .collect::<Vec<_>>();
+
+        Some((votes, certificates))
     }
 
     pub fn full_proposal_at_round_and_value(
@@ -164,16 +153,30 @@ where
             .full_proposal_at_round_and_value(height, round, &value.id())
     }
 
-    pub fn full_proposals_for_value(
+    pub fn full_proposal_at_round_and_proposer(
+        &self,
+        height: &Ctx::Height,
+        round: Round,
+        address: &Ctx::Address,
+    ) -> Option<&FullProposal<Ctx>> {
+        self.full_proposal_keeper
+            .full_proposal_at_round_and_proposer(height, round, address)
+    }
+
+    pub fn proposals_for_value(
         &self,
         proposed_value: &ProposedValue<Ctx>,
     ) -> Vec<SignedProposal<Ctx>> {
         self.full_proposal_keeper
-            .full_proposals_for_value(proposed_value)
+            .proposals_for_value(proposed_value)
     }
 
     pub fn store_proposal(&mut self, new_proposal: SignedProposal<Ctx>) {
         self.full_proposal_keeper.store_proposal(new_proposal)
+    }
+
+    pub fn value_exists(&mut self, new_value: &ProposedValue<Ctx>) -> bool {
+        self.full_proposal_keeper.value_exists(new_value)
     }
 
     pub fn store_value(&mut self, new_value: &ProposedValue<Ctx>) {
@@ -184,9 +187,21 @@ where
         self.full_proposal_keeper.store_value(new_value);
     }
 
-    pub fn remove_full_proposals(&mut self, height: Ctx::Height) {
-        debug!(%height, "Pruning full proposals");
-        self.full_proposal_keeper.remove_full_proposals(height)
+    pub fn reset_and_start_height(
+        &mut self,
+        height: Ctx::Height,
+        validator_set: Ctx::ValidatorSet,
+    ) {
+        self.full_proposal_keeper.clear();
+        self.last_signed_prevote = None;
+        self.last_signed_precommit = None;
+
+        self.driver.move_to_height(height, validator_set);
+    }
+
+    /// Return the round and value id of the decided value.
+    pub fn decided_value(&self) -> Option<(Round, Ctx::Value)> {
+        self.driver.decided_value()
     }
 
     /// Queue an input for later processing, only keep inputs for the highest height seen so far.
@@ -207,7 +222,10 @@ where
             );
             warn!(
                 "Voting power required: {}",
-                self.driver.validator_set().total_voting_power() * 2 / 3
+                self.params
+                    .threshold_params
+                    .quorum
+                    .min_expected(self.driver.validator_set().total_voting_power())
             );
             warn!(
                 "Total voting power of validators having voted: {}",
@@ -242,4 +260,16 @@ where
             .get_by_address(self.address())
             .is_some()
     }
+}
+
+fn round_range_inclusive(from: Round, to: Round) -> Box<dyn Iterator<Item = Round>> {
+    if !from.is_defined() || !to.is_defined() || from > to {
+        return Box::new(std::iter::empty());
+    }
+
+    if from == to {
+        return Box::new(std::iter::once(from));
+    }
+
+    Box::new((from.as_u32().unwrap_or(0)..=to.as_u32().unwrap_or(0)).map(Round::new))
 }

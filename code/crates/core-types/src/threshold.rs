@@ -79,7 +79,7 @@ impl ThresholdParam {
 
     /// Return the minimum expected weight to meet the threshold when applied to the given total.
     pub fn min_expected(&self, total: VotingPower) -> VotingPower {
-        total
+        1 + total
             .checked_mul(self.numerator)
             .expect("attempt to multiply with overflow")
             .checked_div(self.denominator)
@@ -93,10 +93,14 @@ mod tests {
 
     #[test]
     fn threshold_param_is_met() {
-        assert!(ThresholdParam::TWO_F_PLUS_ONE.is_met(7, 10));
-        assert!(!ThresholdParam::TWO_F_PLUS_ONE.is_met(6, 10));
-        assert!(ThresholdParam::F_PLUS_ONE.is_met(4, 10));
+        assert!(!ThresholdParam::TWO_F_PLUS_ONE.is_met(1, 3));
+        assert!(!ThresholdParam::TWO_F_PLUS_ONE.is_met(2, 3));
+        assert!(ThresholdParam::TWO_F_PLUS_ONE.is_met(3, 3));
+
         assert!(!ThresholdParam::F_PLUS_ONE.is_met(3, 10));
+        assert!(ThresholdParam::F_PLUS_ONE.is_met(4, 10));
+        assert!(!ThresholdParam::TWO_F_PLUS_ONE.is_met(6, 10));
+        assert!(ThresholdParam::TWO_F_PLUS_ONE.is_met(7, 10));
     }
 
     #[test]

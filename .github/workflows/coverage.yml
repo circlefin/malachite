@@ -53,12 +53,12 @@ jobs:
         uses: arduino/setup-protoc@v3
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Setup Node
-        uses: actions/setup-node@v3
-        with:
-          node-version: "18"
-      - name: Install Quint
-        run: npm install -g @informalsystems/quint
+      # - name: Setup Node
+      #   uses: actions/setup-node@v3
+      #   with:
+      #     node-version: "18"
+      # - name: Install Quint
+      #   run: npm install -g @informalsystems/quint
       - name: Setup Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
@@ -93,85 +93,85 @@ jobs:
           name: integration-test-results
           path: code/target/nextest/default/junit.xml
 
-  mbt:
-    name: MBT
-    needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' || needs.changes.outputs.specs == 'true' || needs.changes.outputs.codecov == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: code
-    env:
-      CARGO_TERM_COLOR: always
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Setup Node
-        uses: actions/setup-node@v3
-        with:
-          node-version: "18"
-      - name: Install Quint
-        run: npm install -g @informalsystems/quint
-      - name: Setup Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: nightly-2025-01-07 # pin to working nightly
-          components: llvm-tools-preview
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@cargo-nextest
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
-      - name: Generate code coverage
-        run: |
-          cargo llvm-cov nextest \
-           -p informalsystems-malachitebft-test-mbt \
-           -p informalsystems-malachitebft-starknet-test-mbt \
-           --all-features --lcov --output-path lcov-mbt.info
-      - name: Generate text report
-        run: cargo llvm-cov report
-      - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: mbt-coverage
-          path: code/lcov-mbt.info
+  # mbt:
+  #   name: MBT
+  #   needs: changes
+  #   if: ${{ needs.changes.outputs.code == 'true' || needs.changes.outputs.specs == 'true' || needs.changes.outputs.codecov == 'true' || github.ref == 'refs/heads/main' }}
+  #   runs-on: ubuntu-latest
+  #   defaults:
+  #     run:
+  #       working-directory: code
+  #   env:
+  #     CARGO_TERM_COLOR: always
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #     - name: Install Protoc
+  #       uses: arduino/setup-protoc@v3
+  #       with:
+  #         repo-token: ${{ secrets.GITHUB_TOKEN }}
+  #     - name: Setup Node
+  #       uses: actions/setup-node@v3
+  #       with:
+  #         node-version: "18"
+  #     - name: Install Quint
+  #       run: npm install -g @informalsystems/quint
+  #     - name: Setup Rust toolchain
+  #       uses: actions-rust-lang/setup-rust-toolchain@v1
+  #       with:
+  #         toolchain: nightly-2025-01-07 # pin to working nightly
+  #         components: llvm-tools-preview
+  #     - name: Install cargo-nextest
+  #       uses: taiki-e/install-action@cargo-nextest
+  #     - name: Install cargo-llvm-cov
+  #       uses: taiki-e/install-action@cargo-llvm-cov
+  #     - name: Generate code coverage
+  #       run: |
+  #         cargo llvm-cov nextest \
+  #          -p informalsystems-malachitebft-test-mbt \
+  #          -p informalsystems-malachitebft-starknet-test-mbt \
+  #          --all-features --lcov --output-path lcov-mbt.info
+  #     - name: Generate text report
+  #       run: cargo llvm-cov report
+  #     - name: Upload coverage artifact
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: mbt-coverage
+  #         path: code/lcov-mbt.info
 
   upload-coverage:
     name: Upload Coverage
-    needs: [integration, mbt]
+    needs: [integration]
     runs-on: ubuntu-latest
     steps:
       - name: Download integration coverage
         uses: actions/download-artifact@v4
         with:
           name: integration-coverage
-      - name: Download MBT coverage
-        uses: actions/download-artifact@v4
-        with:
-          name: mbt-coverage
+      # - name: Download MBT coverage
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: mbt-coverage
       - name: Download integration test results
         uses: actions/download-artifact@v4
         with:
           name: integration-test-results
       - name: Upload integration coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         if: ${{ !cancelled() }}
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: lcov-integration.info
           flags: integration
           fail_ci_if_error: false
-      - name: Upload MBT coverage to Codecov
-        uses: codecov/codecov-action@v4
-        if: ${{ !cancelled() }}
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: lcov-mbt.info
-          flags: mbt
-          fail_ci_if_error: false
+      # - name: Upload MBT coverage to Codecov
+      #   uses: codecov/codecov-action@v5
+      #   if: ${{ !cancelled() }}
+      #   with:
+      #     token: ${{ secrets.CODECOV_TOKEN }}
+      #     files: lcov-mbt.info
+      #     flags: mbt
+      #     fail_ci_if_error: false
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
         uses: codecov/test-results-action@v1

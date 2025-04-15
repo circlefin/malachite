@@ -1,5 +1,5 @@
 use libp2p::{PeerId, Swarm};
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use crate::{request::RequestData, Discovery, DiscoveryClient, State};
 
@@ -16,7 +16,7 @@ where
 
     pub(crate) fn initiate_extension_with_target(&mut self, swarm: &mut Swarm<C>, target: usize) {
         if let State::Extending(curr_target) = self.state {
-            info!(
+            debug!(
                 "Updating extension target from {} to {}",
                 curr_target,
                 curr_target + target
@@ -26,7 +26,7 @@ where
             return;
         }
 
-        info!(
+        debug!(
             "Initiating discovery extension with a target of {} peers",
             target
         );
@@ -63,7 +63,7 @@ where
                 < target
             {
                 if let Some(peer_id) = self.get_next_peer_to_peers_request() {
-                    info!(
+                    debug!(
                         "Discovery extension in progress ({}ms), requesting peers from peer {}",
                         self.metrics.elapsed().as_millis(),
                         peer_id
@@ -91,7 +91,7 @@ where
 
             self.state = State::Idle;
         } else {
-            info!("Discovery extension in progress ({}ms), {} pending connections ({} in queue), {} pending requests ({} in queue)",
+            debug!("Discovery extension in progress ({}ms), {} pending connections ({} in queue), {} pending requests ({} in queue)",
                 self.metrics.elapsed().as_millis(),
                 pending_connections_len,
                 rx_dial_len,

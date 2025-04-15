@@ -11,6 +11,7 @@ use malachitebft_core_types::{CommitCertificate, Round, SignedVote};
 
 use crate::host::Host;
 use crate::mempool::MempoolRef;
+use crate::mempool_load::MempoolLoadRef;
 use crate::part_store::PartStore;
 use crate::types::*;
 
@@ -19,16 +20,17 @@ use super::proposal::{build_proposal_task, repropose_task};
 #[derive(Copy, Clone, Debug)]
 pub struct StarknetParams {
     pub max_block_size: ByteSize,
-    pub tx_size: ByteSize,
     pub txs_per_part: usize,
     pub time_allowance_factor: f32,
     pub exec_time_per_tx: Duration,
     pub max_retain_blocks: usize,
+    pub stable_block_times: bool,
 }
 
 pub struct StarknetHost {
     pub params: StarknetParams,
     pub mempool: MempoolRef,
+    pub mempool_load: MempoolLoadRef,
     pub address: Address,
     pub private_key: PrivateKey,
     pub validator_set: ValidatorSet,
@@ -39,6 +41,7 @@ impl StarknetHost {
     pub fn new(
         params: StarknetParams,
         mempool: MempoolRef,
+        mempool_load: MempoolLoadRef,
         address: Address,
         private_key: PrivateKey,
         validator_set: ValidatorSet,
@@ -46,6 +49,7 @@ impl StarknetHost {
         Self {
             params,
             mempool,
+            mempool_load,
             address,
             private_key,
             validator_set,

@@ -15,6 +15,9 @@ pub enum Round {
 }
 
 impl Round {
+    /// The zero-th or initial round.
+    pub const ZERO: Self = Self::Some(0);
+
     /// Create a new non-nil round.
     pub const fn new(round: u32) -> Self {
         Self::Some(round)

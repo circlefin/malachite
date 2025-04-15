@@ -25,6 +25,7 @@ malachitebft-test-mempool = { workspace = true }
 async-trait = { workspace = true }
 bytes = { workspace = true, features = ["serde"] }
 bytesize = { workspace = true }
+config = { workspace = true }
 derive-where = { workspace = true }
 eyre = { workspace = true }
 itertools = { workspace = true }
@@ -36,6 +37,7 @@ redb = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha3 = { workspace = true }
+toml = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

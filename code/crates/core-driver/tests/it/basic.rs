@@ -278,7 +278,10 @@ fn driver_steps_proposer() {
                     value: value.clone(),
                     round: Round::new(0),
                 }),
-                decision: Some(value),
+                decision: Some(RoundValue {
+                    value: value.clone(),
+                    round: Round::new(0),
+                }),
                 ..Default::default()
             },
         },
@@ -525,7 +528,10 @@ fn driver_steps_not_proposer_valid() {
                     value: value.clone(),
                     round: Round::new(0),
                 }),
-                decision: Some(value),
+                decision: Some(RoundValue {
+                    value: value.clone(),
+                    round: Round::new(0),
+                }),
                 ..Default::default()
             },
         },

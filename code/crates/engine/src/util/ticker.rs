@@ -11,7 +11,7 @@ where
         tokio::time::sleep(interval).await;
 
         if let Err(e) = target.cast(msg()) {
-            tracing::error!(?e, ?target, "Failed to send tick message");
+            tracing::error!(target = %target.get_id(), "Failed to send tick message: {e}");
             break;
         }
     }

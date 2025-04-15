@@ -1,5 +1,5 @@
 use libp2p::{identify, swarm::ConnectionId, PeerId, Swarm};
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use crate::config::BootstrapProtocol;
 use crate::{request::RequestData, Discovery, DiscoveryClient, OutboundConnection, State};
@@ -8,12 +8,6 @@ impl<C> Discovery<C>
 where
     C: DiscoveryClient,
 {
-    fn is_bootstrap_node(&self, peer_id: &PeerId) -> bool {
-        self.bootstrap_nodes
-            .iter()
-            .any(|(id, _)| id.as_ref() == Some(peer_id))
-    }
-
     pub fn handle_new_peer(
         &mut self,
         swarm: &mut Swarm<C>,
@@ -43,10 +37,10 @@ where
 
         match self.discovered_peers.insert(peer_id, info.clone()) {
             Some(_) => {
-                info!("New connection from known peer {peer_id}");
+                info!(peer = %peer_id, "New connection from known peer");
             }
             None => {
-                info!("Discovered peer {peer_id}");
+                info!(peer = %peer_id, "Discovered peer");
 
                 self.metrics.increment_total_discovered();
 
@@ -62,7 +56,7 @@ where
         }
 
         if let Some(connection_ids) = self.active_connections.get_mut(&peer_id) {
-            warn!(
+            debug!(
                 "Additional connection {connection_id} to peer {peer_id}, total connections: {}",
                 connection_ids.len() + 1
             );
@@ -81,7 +75,10 @@ where
                 // This case happens when the peer was selected to be part of the outbound connections
                 // but no connection was established yet. No need to trigger a connect request, it
                 // was already done during the selection process.
-                info!("Connection {connection_id} from peer {peer_id} is outbound (pending connect request)");
+                debug!(
+                    peer = %peer_id, %connection_id,
+                    "Connection is outbound (pending connect request)"
+                );
 
                 if let Some(out_conn) = self.outbound_connections.get_mut(&peer_id) {
                     out_conn.connection_id = Some(connection_id);
@@ -94,7 +91,10 @@ where
                 // If the initial discovery process is done and did not find enough peers,
                 // the connection is outbound, otherwise it is ephemeral, except if later
                 // the connection is requested to be persistent (inbound).
-                info!("Connection {connection_id} from peer {peer_id} is outbound (incomplete initial discovery)");
+                debug!(
+                    peer = %peer_id, %connection_id,
+                    "Connection is outbound (incomplete initial discovery)"
+                );
 
                 self.outbound_connections.insert(
                     peer_id,
@@ -109,10 +109,13 @@ where
                     .add_to_queue(RequestData::new(peer_id), None);
 
                 if self.outbound_connections.len() >= self.config.num_outbound_peers {
-                    info!("Minimum number of peers reached");
+                    debug!(
+                        count = self.outbound_connections.len(),
+                        "Minimum number of peers reached"
+                    );
                 }
             } else {
-                info!("Connection {connection_id} from peer {peer_id} is ephemeral");
+                debug!(peer = %peer_id, %connection_id, "Connection is ephemeral");
 
                 self.controller.close.add_to_queue(
                     (peer_id, connection_id),
@@ -131,30 +134,19 @@ where
                     .add_address(&peer_id, info.listen_addrs.first().unwrap().clone());
             }
         } else {
-            // If discovery is disabled, connections to bootstrap nodes are outbound,
-            // and all other connections are ephemeral, except if later the connections
-            // are requested to be persistent (inbound).
-            if self.is_bootstrap_node(&peer_id) {
-                info!("Connection {connection_id} from bootstrap node {peer_id} is outbound, requesting persistent connection");
+            // If discovery is disabled, all connections are inbound. The
+            // maximum number of inbound connections is enforced by the
+            // corresponding parameter in the configuration.
+            if self.inbound_connections.len() < self.config.num_inbound_peers {
+                debug!(peer = %peer_id, %connection_id, "Connection is inbound");
 
-                self.outbound_connections.insert(
-                    peer_id,
-                    OutboundConnection {
-                        connection_id: None, // Will be set once the response is received
-                        is_persistent: false,
-                    },
-                );
+                self.inbound_connections.insert(peer_id, connection_id);
+            } else {
+                warn!(peer = %peer_id, %connection_id, "Connections limit reached, refusing connection");
 
                 self.controller
-                    .connect_request
-                    .add_to_queue(RequestData::new(peer_id), None);
-            } else {
-                info!("Connection {connection_id} from peer {peer_id} is ephemeral");
-
-                self.controller.close.add_to_queue(
-                    (peer_id, connection_id),
-                    Some(self.config.ephemeral_connection_timeout),
-                );
+                    .close
+                    .add_to_queue((peer_id, connection_id), None);
             }
         }
 

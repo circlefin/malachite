@@ -3,14 +3,13 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use libp2p_identity::Keypair;
-use ractor::port::OutputPortSubscriber;
 use ractor::ActorProcessingErr;
 use ractor::ActorRef;
-use ractor::OutputPort;
 use ractor::{Actor, RpcReplyPort};
 use tokio::task::JoinHandle;
 use tracing::error;
 
+use malachitebft_engine::util::output_port::{OutputPort, OutputPortSubscriber};
 use malachitebft_metrics::SharedRegistry;
 use malachitebft_test_mempool::handle::CtrlHandle;
 use malachitebft_test_mempool::types::MempoolTransactionBatch;

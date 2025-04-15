@@ -2,12 +2,16 @@
 
 use std::path::Path;
 use std::str::FromStr;
+use std::time::Duration;
 
 use clap::Parser;
 use color_eyre::eyre::{eyre, Result};
 use tracing::info;
 
-use malachitebft_app::Node;
+use malachitebft_app::node::{
+    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile,
+    MakeConfigSettings, Node,
+};
 use malachitebft_config::*;
 
 use crate::args::Args;
@@ -105,58 +109,51 @@ pub struct TestnetCmd {
 
 impl TestnetCmd {
     /// Execute the testnet command
-    pub fn run<N>(&self, node: &N, home_dir: &Path, logging: LoggingConfig) -> Result<()>
+    pub fn run<N>(&self, node: &N, home_dir: &Path) -> Result<()>
     where
-        N: Node,
+        N: Node + CanMakeConfig + CanMakePrivateKeyFile + CanGeneratePrivateKey + CanMakeGenesis,
     {
         let runtime = match self.runtime {
             RuntimeFlavour::SingleThreaded => RuntimeConfig::SingleThreaded,
             RuntimeFlavour::MultiThreaded(n) => RuntimeConfig::MultiThreaded { worker_threads: n },
         };
 
-        testnet(
-            node,
-            self.nodes,
-            home_dir,
+        let settings = MakeConfigSettings {
             runtime,
-            self.enable_discovery,
-            self.bootstrap_protocol,
-            self.selector,
-            self.num_outbound_peers,
-            self.num_inbound_peers,
-            self.ephemeral_connection_timeout_ms,
-            self.transport,
-            logging,
-            self.deterministic,
-        )
-        .map_err(|e| eyre!("Failed to generate testnet configuration: {:?}", e))
+            transport: self.transport,
+            discovery: DiscoveryConfig {
+                enabled: self.enable_discovery,
+                bootstrap_protocol: self.bootstrap_protocol,
+                selector: self.selector,
+                num_outbound_peers: self.num_outbound_peers,
+                num_inbound_peers: self.num_inbound_peers,
+                ephemeral_connection_timeout: Duration::from_millis(
+                    self.ephemeral_connection_timeout_ms,
+                ),
+            },
+        };
+
+        testnet(node, self.nodes, home_dir, self.deterministic, settings)
+            .map_err(|e| eyre!("Failed to generate testnet configuration: {:?}", e))
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn testnet<N>(
     node: &N,
     nodes: usize,
     home_dir: &Path,
-    runtime: RuntimeConfig,
-    enable_discovery: bool,
-    bootstrap_protocol: BootstrapProtocol,
-    selector: Selector,
-    num_outbound_peers: usize,
-    num_inbound_peers: usize,
-    ephemeral_connection_timeout_ms: u64,
-    transport: TransportProtocol,
-    logging: LoggingConfig,
     deterministic: bool,
+    settings: MakeConfigSettings,
 ) -> std::result::Result<(), Error>
 where
-    N: Node,
+    N: Node + CanMakeConfig + CanMakePrivateKeyFile + CanGeneratePrivateKey + CanMakeGenesis,
 {
     let private_keys = crate::new::generate_private_keys(node, nodes, deterministic);
     let public_keys = private_keys
         .iter()
         .map(|pk| node.get_public_key(pk))
         .collect();
+
     let genesis = crate::new::generate_genesis(node, public_keys, deterministic);
 
     for (i, private_key) in private_keys.iter().enumerate().take(nodes) {
@@ -176,21 +173,9 @@ where
         };
 
         // Save config
-        save_config(
+        save_config::<N>(
             &args.get_config_file_path()?,
-            &crate::new::generate_config(
-                i,
-                nodes,
-                runtime,
-                enable_discovery,
-                bootstrap_protocol,
-                selector,
-                num_outbound_peers,
-                num_inbound_peers,
-                ephemeral_connection_timeout_ms,
-                transport,
-                logging,
-            ),
+            &N::make_config(i, nodes, settings),
         )?;
 
         // Save private key

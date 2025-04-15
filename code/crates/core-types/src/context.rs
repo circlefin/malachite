@@ -50,6 +50,7 @@ where
 
     /// Build a new proposal for the given value at the given height, round and POL round.
     fn new_proposal(
+        &self,
         height: Self::Height,
         round: Round,
         value: Self::Value,
@@ -60,6 +61,7 @@ where
     /// Build a new prevote vote by the validator with the given address,
     /// for the value identified by the given value id, at the given round.
     fn new_prevote(
+        &self,
         height: Self::Height,
         round: Round,
         value_id: NilOrVal<ValueId<Self>>,
@@ -69,6 +71,7 @@ where
     /// Build a new precommit vote by the validator with the given address,
     /// for the value identified by the given value id, at the given round.
     fn new_precommit(
+        &self,
         height: Self::Height,
         round: Round,
         value_id: NilOrVal<ValueId<Self>>,

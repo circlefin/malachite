@@ -23,6 +23,3 @@ config = { workspace = true }
 humantime-serde = { workspace = true }
 multiaddr = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-
-[dev-dependencies]
-toml.workspace = true

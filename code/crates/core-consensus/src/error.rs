@@ -23,9 +23,17 @@ where
     #[error("Proposer not found at height {0} and round {1}")]
     ProposerNotFound(Ctx::Height, Round),
 
-    /// Decided value not found after commit timeout.
-    #[error("Decided value not found after commit timeout")]
-    DecidedValueNotFound(Ctx::Height, Round),
+    /// State machine has no decision in commit step.
+    #[error("State machine has no decision in commit step")]
+    DecisionNotFound(Ctx::Height, Round),
+
+    /// Driver proposal not found in commit step.
+    #[error("Driver proposal not found in commit step")]
+    DriverProposalNotFound(Ctx::Height, Round),
+
+    /// Full proposal not found in commit step.
+    #[error("Full proposal not found in commit step")]
+    FullProposalNotFound(Ctx::Height, Round),
 
     /// The driver failed to process an input.
     #[error("Driver failed to process input, reason: {0}")]
@@ -37,5 +45,5 @@ where
 
     /// The certificate is invalid.
     #[error("Invalid certificate: {1}")]
-    InvalidCertificate(CommitCertificate<Ctx>, CertificateError<Ctx>),
+    InvalidCommitCertificate(CommitCertificate<Ctx>, CertificateError<Ctx>),
 }

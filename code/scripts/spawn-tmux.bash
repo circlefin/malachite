@@ -5,21 +5,24 @@ export MALACHITE__CONSENSUS__TIMEOUT_PROPOSE="5s"
 export MALACHITE__CONSENSUS__TIMEOUT_PREVOTE="3s"
 export MALACHITE__CONSENSUS__TIMEOUT_PRECOMMIT="3s"
 export MALACHITE__CONSENSUS__TIMEOUT_COMMIT="0s"
-export MALACHITE__CONSENSUS__TIMEOUT_STEP="30s"
+export MALACHITE__CONSENSUS__TIMEOUT_STEP="2s"
 export MALACHITE__CONSENSUS__VOTE_SYNC__MODE="request-response"
 
 export MALACHITE__SYNC__ENABLED=true
 export MALACHITE__SYNC__REQUEST_TIMEOUT="30s"
 
-export MALACHITE__MEMPOOL__MAX_TX_COUNT=1000
+export MALACHITE__MEMPOOL__MAX_TX_COUNT=10000
 export MALACHITE__MEMPOOL__GOSSIP_BATCH_SIZE=0
+export MALACHITE__MEMPOOL__LOAD__LOAD_TYPE="uniform_load"
+export MALACHITE__MEMPOOL__LOAD__INTERVAL="1ms"
+# export MALACHITE__MEMPOOL__LOAD__COUNT=1000 # For some reason this fails to parse?
+export MALACHITE__MEMPOOL__LOAD__SIZE="1 KiB"
 
-export MALACHITE__TEST__MAX_BLOCK_SIZE="2MiB"
-export MALACHITE__TEST__TX_SIZE="1 KiB"
+export MALACHITE__TEST__MAX_BLOCK_SIZE="5 MiB"
 export MALACHITE__TEST__TXS_PER_PART=1024
 export MALACHITE__TEST__TIME_ALLOWANCE_FACTOR=0.5
-export MALACHITE__TEST__EXEC_TIME_PER_TX="1ms"
-export MALACHITE__TEST__MAX_RETAIN_BLOCKS=50
+export MALACHITE__TEST__EXEC_TIME_PER_TX="0ms"
+export MALACHITE__TEST__MAX_RETAIN_BLOCKS=100
 export MALACHITE__TEST__VOTE_EXTENSIONS__ENABLED=false
 export MALACHITE__TEST__VOTE_EXTENSIONS__SIZE="1KiB"
 
@@ -105,7 +108,7 @@ build_folder=${build_folder:-"release"}
 no_reset=${no_reset:-false}
 
 echo "Compiling '$app_name'..."
-cargo build -p "$app_name" --profile "$build_profile"
+cargo build --bin "$app_name" --profile "$build_profile"
 
 if [ $? -ne 0 ]; then
     echo "Error: Compilation failed"
@@ -147,7 +150,7 @@ for ((NODE=0; NODE<NODES_COUNT; NODE++)); do
         cmd_prefix="rust-lldb --source =(echo \"$lldb_script\") ./target/$build_folder/$app_name -- "
         tmux send-keys -t "$pane" "$cmd_prefix start --home '$NODE_HOME'" Enter
     elif [ "$profile" = true ] && [ "$NODE" -eq 0 ]; then
-        cmd_prefix="cargo instruments -p $app_name --profile $build_profile --template $profile_template --time-limit 60000 --output '$NODE_HOME/traces/' --"
+        cmd_prefix="cargo instruments --bin $app_name --profile $build_profile --template $profile_template --time-limit 60000 --output '$NODE_HOME/traces/' --"
         tmux send-keys -t "$pane" "sleep $NODE" Enter
         tmux send-keys -t "$pane" "unbuffer $cmd_prefix start --home '$NODE_HOME' 2>&1 | tee '$NODE_HOME/logs/node.log'" Enter
     else

@@ -6,8 +6,10 @@ Closes: #XXX
 
 #### For all contributors
 
-- [ ] Reference GitHub issue
-- [ ] Ensure PR title follows the [conventional commits][conv-commits] spec
+- [ ] Reference a GitHub issue
+- [ ] Ensure the PR title follows the [conventional commits][conv-commits] spec
+- [ ] Add a release note in [`RELEASE_NOTES.md`](/RELEASE_NOTES.md) if the change warrants it
+- [ ] Add an entry in [`BREAKING_CHANGES.md`](/BREAKING_CHANGES.md) if the change warrants it
 
 #### For external contributors
 

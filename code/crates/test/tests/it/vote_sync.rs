@@ -37,9 +37,7 @@ pub async fn crash_restart_from_start(params: TestParams) {
         .run_with_params(
             Duration::from_secs(60), // Timeout for the whole test
             TestParams {
-                enable_value_sync: true, // Enable Sync
                 vote_sync_mode: Some(VoteSyncMode::RequestResponse),
-                timeout_step: Duration::from_secs(5),
                 ..params
             },
         )
@@ -57,7 +55,7 @@ pub async fn crash_restart_from_start_parts_only() {
 }
 
 #[tokio::test]
-#[ignore] // Test app only supports parts-only mode
+#[ignore] // Test app does not support proposal-only mode
 pub async fn crash_restart_from_start_proposal_only() {
     let params = TestParams {
         value_payload: ValuePayload::ProposalOnly,
@@ -68,7 +66,6 @@ pub async fn crash_restart_from_start_proposal_only() {
 }
 
 #[tokio::test]
-#[ignore] // Test app only supports parts-only mode
 pub async fn crash_restart_from_start_proposal_and_parts() {
     let params = TestParams {
         value_payload: ValuePayload::ProposalAndParts,
@@ -111,9 +108,7 @@ pub async fn crash_restart_from_latest() {
         .run_with_params(
             Duration::from_secs(60),
             TestParams {
-                enable_value_sync: true,
                 vote_sync_mode: Some(VoteSyncMode::RequestResponse),
-                timeout_step: Duration::from_secs(5),
                 ..Default::default()
             },
         )
@@ -127,7 +122,6 @@ pub async fn start_late() {
     let mut test = TestBuilder::<()>::new();
 
     test.add_node().start().wait_until(HEIGHT).success();
-
     test.add_node().start().wait_until(HEIGHT).success();
 
     test.add_node()
@@ -140,9 +134,8 @@ pub async fn start_late() {
         .run_with_params(
             Duration::from_secs(60),
             TestParams {
-                enable_value_sync: true,
+                enable_value_sync: true, // Enable ValueSync to allow node to catch up to latest height
                 vote_sync_mode: Some(VoteSyncMode::RequestResponse),
-                timeout_step: Duration::from_secs(5),
                 ..Default::default()
             },
         )

@@ -3,6 +3,7 @@ mod n3f0;
 mod n3f0_consensus_mode;
 mod n3f0_pubsub_protocol;
 mod n3f1;
+mod reset;
 mod value_sync;
 mod vote_sync;
 mod vote_sync_bcast;
@@ -11,15 +12,17 @@ mod wal;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use informalsystems_malachitebft_test::middleware::Middleware;
+use malachitebft_test_app::config::Config;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tempfile::TempDir;
 
-use malachitebft_app::Node;
-use malachitebft_config::Config;
+use malachitebft_app::node::Node;
 use malachitebft_signing_ed25519::PrivateKey;
 use malachitebft_test_app::node::{App, Handle};
 use malachitebft_test_framework::HasTestRunner;
@@ -58,6 +61,7 @@ fn temp_dir(id: NodeId) -> PathBuf {
 pub struct NodeInfo {
     start_height: Height,
     home_dir: PathBuf,
+    middleware: Arc<dyn Middleware>,
 }
 
 #[async_trait]
@@ -78,6 +82,7 @@ impl NodeRunner<TestContext> for TestRunner {
                     NodeInfo {
                         start_height: node.start_height,
                         home_dir: temp_dir(node.id),
+                        middleware: Arc::clone(&node.middleware),
                     },
                 )
             })
@@ -102,6 +107,7 @@ impl NodeRunner<TestContext> for TestRunner {
             validator_set: self.validator_set.clone(),
             private_key: self.private_keys[&id].clone(),
             start_height: Some(self.nodes_info[&id].start_height),
+            middleware: Some(Arc::clone(&self.nodes_info[&id].middleware)),
         };
 
         app.start().await
@@ -134,12 +140,16 @@ impl TestRunner {
             moniker: format!("node-{}", node),
             logging: LoggingConfig::default(),
             consensus: ConsensusConfig {
+                // Current test app does not support proposal-only value payload properly as Init does not include valid_round
+                value_payload: ValuePayload::ProposalAndParts,
                 vote_sync: VoteSyncConfig {
                     mode: VoteSyncMode::RequestResponse,
                 },
-                timeouts: TimeoutConfig::default(),
+                timeouts: TimeoutConfig {
+                    timeout_step: Duration::from_secs(2),
+                    ..Default::default()
+                },
                 p2p: P2pConfig {
-                    transport,
                     protocol,
                     discovery: DiscoveryConfig::default(),
                     listen_addr: transport.multiaddr("127.0.0.1", self.consensus_base_port + i),
@@ -149,20 +159,6 @@ impl TestRunner {
                         .collect(),
                     ..Default::default()
                 },
-            },
-            mempool: MempoolConfig {
-                p2p: P2pConfig {
-                    transport,
-                    protocol,
-                    listen_addr: transport.multiaddr("127.0.0.1", self.mempool_base_port + i),
-                    persistent_peers: (0..self.nodes_info.len())
-                        .filter(|j| i != *j)
-                        .map(|j| transport.multiaddr("127.0.0.1", self.mempool_base_port + j))
-                        .collect(),
-                    ..Default::default()
-                },
-                max_tx_count: 10000,
-                gossip_batch_size: 100,
             },
             value_sync: ValueSyncConfig {
                 enabled: true,

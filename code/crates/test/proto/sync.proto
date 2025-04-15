@@ -34,15 +34,24 @@ message CommitSignature {
     Signature signature = 2;
 }
 
-message AggregatedSignature {
-    repeated CommitSignature signatures = 1;
-}
-
 message CommitCertificate {
     uint64 height = 1;
     uint32 round = 2;
     ValueId value_id = 3;
-    AggregatedSignature aggregated_signature = 4;
+    repeated CommitSignature signatures = 4;
+}
+
+message PolkaSignature {
+    // TODO: Add flag (no vote, nil, value?)
+    Address validator_address = 1;
+    Signature signature = 2;
+}
+
+message PolkaCertificate {
+    uint64 height = 1;
+    uint32 round = 2;
+    ValueId value_id = 3;
+    repeated PolkaSignature signatures = 4;
 }
 
 message ProposedValue {
@@ -63,6 +72,7 @@ message VoteSetResponse {
   uint64 height = 1;
   uint32 round = 2;
   VoteSet vote_set = 3;
+  repeated PolkaCertificate polka_certificates = 5;
 }
 
 message VoteSet {

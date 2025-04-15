@@ -1,11 +1,12 @@
+use tracing::trace;
+
 use crate::handle::driver::apply_driver_input;
 use crate::handle::signature::verify_signature;
 use crate::handle::validator_set::get_validator_set;
 use crate::input::Input;
 use crate::prelude::*;
-use crate::types::ConsensusMsg;
+use crate::types::{ConsensusMsg, SignedConsensusMsg, WalEntry};
 use crate::util::pretty::PrettyVote;
-use crate::SignedConsensusMsg;
 
 pub async fn on_vote<Ctx>(
     co: &Co<Ctx>,
@@ -48,7 +49,7 @@ where
     // Process messages received for the current height.
     // Drop all others.
     if consensus_round == Round::Nil {
-        debug!(
+        trace!(
             consensus.height = %consensus_height,
             vote.height = %vote_height,
             validator = %validator_address,
@@ -61,7 +62,7 @@ where
     }
 
     if consensus_height < vote_height {
-        debug!(
+        trace!(
             consensus.height = %consensus_height,
             vote.height = %vote_height,
             validator = %validator_address,
@@ -75,21 +76,16 @@ where
 
     debug_assert_eq!(consensus_height, vote_height);
 
-    // Only append to WAL and store precommits if we're in the validator set
-    if state.is_validator() {
+    // Only append to WAL and store the non-nil precommit if we have not yet seen this vote.
+    if !state.driver.votes().has_vote(&signed_vote) {
         // Append the vote to the Write-ahead Log
         perform!(
             co,
-            Effect::WalAppendMessage(
-                SignedConsensusMsg::Vote(signed_vote.clone()),
+            Effect::WalAppend(
+                WalEntry::ConsensusMsg(SignedConsensusMsg::Vote(signed_vote.clone())),
                 Default::default()
             )
         );
-
-        // Store the non-nil Precommits.
-        if signed_vote.vote_type() == VoteType::Precommit && signed_vote.value().is_val() {
-            state.store_signed_precommit(signed_vote.clone());
-        }
     }
 
     apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote)).await?;

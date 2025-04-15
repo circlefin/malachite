@@ -1,25 +1,77 @@
-use crate::prelude::*;
+use crate::{handle::signature::verify_commit_certificate, prelude::*};
 
 #[cfg_attr(not(feature = "metrics"), allow(unused_variables))]
 pub async fn decide<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    consensus_round: Round,
-    proposal: SignedProposal<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
-    let height = proposal.height();
-    let proposal_round = proposal.round();
-    let value = proposal.value();
+    assert!(state.driver.step_is_commit());
 
-    // We only decide proposals for the current height
-    assert_eq!(height, state.driver.height());
+    let height = state.driver.height();
+    let consensus_round = state.driver.round();
 
-    // Clean proposals and values
-    state.remove_full_proposals(height);
+    let Some((proposal_round, decided_value)) = state.decided_value() else {
+        return Err(Error::DecisionNotFound(height, consensus_round));
+    };
+
+    let decided_id = decided_value.id();
+
+    // Look for an existing certificate
+    let (certificate, extensions) = state
+        .driver
+        .commit_certificate(proposal_round, decided_id.clone())
+        .cloned()
+        .map(|certificate| (certificate, VoteExtensions::default()))
+        .unwrap_or_else(|| {
+            // Restore the commits. Note that they will be removed from `state`
+            let mut commits = state.restore_precommits(height, proposal_round, &decided_value);
+
+            let extensions = extract_vote_extensions(&mut commits);
+
+            let certificate =
+                CommitCertificate::new(height, proposal_round, decided_id.clone(), commits);
+
+            (certificate, extensions)
+        });
+
+    let Some((proposal, _)) = state.driver.proposal_and_validity_for_round(proposal_round) else {
+        return Err(Error::DriverProposalNotFound(height, proposal_round));
+    };
+
+    let Some(full_proposal) =
+        state.full_proposal_at_round_and_value(&height, proposal_round, &decided_value)
+    else {
+        return Err(Error::FullProposalNotFound(height, proposal_round));
+    };
+
+    if proposal.value().id() != decided_id {
+        info!(
+            "Decide: driver proposal value id {} does not match the decided value id {}, this may happen if consensus and value sync run in parallel",
+            proposal.value().id(),
+            decided_id
+        );
+    }
+
+    assert_eq!(full_proposal.builder_value.id(), decided_id);
+    assert_eq!(full_proposal.proposal.value().id(), decided_id);
+    assert_eq!(full_proposal.validity, Validity::Valid);
+
+    // The certificate must be valid in Commit step
+    assert_eq!(
+        verify_commit_certificate(
+            co,
+            certificate.clone(),
+            state.driver.validator_set().clone(),
+            state.params.threshold_params,
+        )
+        .await?,
+        Ok(()),
+        "Commit certificate is not valid"
+    );
 
     // Update metrics
     #[cfg(feature = "metrics")]
@@ -48,32 +100,10 @@ where
         }
     }
 
-    // Look for an existing certificate
-    let (certificate, extensions) = state
-        .driver
-        .get_certificate(proposal_round, value.id())
-        .cloned()
-        .map(|certificate| (certificate, VoteExtensions::default()))
-        .unwrap_or_else(|| {
-            // Restore the commits. Note that they will be removed from `state`
-            let mut commits = state.restore_precommits(height, proposal_round, value);
-
-            let extensions = extract_vote_extensions(&mut commits);
-
-            // TODO: Should we verify we have 2/3rd commits?
-            let certificate = CommitCertificate::new(height, proposal_round, value.id(), commits);
-
-            (certificate, extensions)
-        });
-
     perform!(
         co,
         Effect::Decide(certificate, extensions, Default::default())
     );
-
-    // Reinitialize to remove any previous round or equivocating precommits.
-    // TODO: Revise when evidence module is added.
-    state.signed_precommits.clear();
 
     Ok(())
 }
@@ -91,29 +121,4 @@ pub fn extract_vote_extensions<Ctx: Context>(votes: &mut [SignedVote<Ctx>]) -> V
         .collect();
 
     VoteExtensions::new(extensions)
-}
-
-/// Decide on the current proposal without waiting for Commit timeout.
-pub async fn decide_current_no_timeout<Ctx>(
-    co: &Co<Ctx>,
-    state: &mut State<Ctx>,
-    metrics: &Metrics,
-) -> Result<(), Error<Ctx>>
-where
-    Ctx: Context,
-{
-    let height = state.driver.height();
-    let round = state.driver.round();
-
-    perform!(
-        co,
-        Effect::CancelTimeout(Timeout::commit(round), Default::default())
-    );
-
-    let proposal = state
-        .decision
-        .remove(&(height, round))
-        .ok_or_else(|| Error::DecidedValueNotFound(height, round))?;
-
-    decide(co, state, metrics, round, proposal).await
 }

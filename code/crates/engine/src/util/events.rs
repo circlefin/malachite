@@ -5,10 +5,10 @@ use derive_where::derive_where;
 use ractor::ActorProcessingErr;
 use tokio::sync::broadcast;
 
-use malachitebft_core_consensus::{LocallyProposedValue, ProposedValue, SignedConsensusMsg};
-use malachitebft_core_types::{
-    CommitCertificate, Context, Round, SignedVote, Timeout, ValueOrigin,
+use malachitebft_core_consensus::{
+    LocallyProposedValue, ProposedValue, SignedConsensusMsg, WalEntry,
 };
+use malachitebft_core_types::{CommitCertificate, Context, Round, SignedVote, ValueOrigin};
 
 pub type RxEvent<Ctx> = broadcast::Receiver<Event<Ctx>>;
 
@@ -42,7 +42,7 @@ impl<Ctx: Context> Default for TxEvent<Ctx> {
 
 #[derive_where(Clone, Debug)]
 pub enum Event<Ctx: Context> {
-    StartedHeight(Ctx::Height),
+    StartedHeight(Ctx::Height, bool),
     StartedRound(Ctx::Height, Round),
     Published(SignedConsensusMsg<Ctx>),
     ProposedValue(LocallyProposedValue<Ctx>),
@@ -50,10 +50,9 @@ pub enum Event<Ctx: Context> {
     Decided(CommitCertificate<Ctx>),
     Rebroadcast(SignedVote<Ctx>),
     RequestedVoteSet(Ctx::Height, Round),
-    SentVoteSetResponse(Ctx::Height, Round, usize),
+    SentVoteSetResponse(Ctx::Height, Round, usize, usize),
     WalReplayBegin(Ctx::Height, usize),
-    WalReplayConsensus(SignedConsensusMsg<Ctx>),
-    WalReplayTimeout(Timeout),
+    WalReplayEntry(WalEntry<Ctx>),
     WalReplayDone(Ctx::Height),
     WalReplayError(Arc<ActorProcessingErr>),
 }
@@ -61,7 +60,9 @@ pub enum Event<Ctx: Context> {
 impl<Ctx: Context> fmt::Display for Event<Ctx> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Event::StartedHeight(height) => write!(f, "StartedHeight(height: {height})"),
+            Event::StartedHeight(height, restart) => {
+                write!(f, "StartedHeight(height: {height}, restart: {restart})")
+            }
             Event::StartedRound(height, round) => {
                 write!(f, "StartedRound(height: {height}, round: {round})")
             }
@@ -78,17 +79,16 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
             Event::RequestedVoteSet(height, round) => {
                 write!(f, "RequestedVoteSet(height: {height}, round: {round})")
             }
-            Event::SentVoteSetResponse(height, round, count) => {
+            Event::SentVoteSetResponse(height, round, vote_count, polka_count) => {
                 write!(
                     f,
-                    "SentVoteSetResponse(height: {height}, round: {round}, count: {count})"
+                    "SentVoteSetResponse(height: {height}, round: {round}, count: {vote_count}, polka_certificates: {polka_count})"
                 )
             }
             Event::WalReplayBegin(height, count) => {
                 write!(f, "WalReplayBegin(height: {height}, count: {count})")
             }
-            Event::WalReplayConsensus(msg) => write!(f, "WalReplayConsensus(msg: {msg:?})"),
-            Event::WalReplayTimeout(timeout) => write!(f, "WalReplayTimeout(timeout: {timeout:?})"),
+            Event::WalReplayEntry(entry) => write!(f, "WalReplayEntry(entry: {entry:?})"),
             Event::WalReplayDone(height) => write!(f, "WalReplayDone(height: {height})"),
             Event::WalReplayError(error) => write!(f, "WalReplayError({error})"),
         }

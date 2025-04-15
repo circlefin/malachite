@@ -11,7 +11,10 @@ use tracing::{debug, error, error_span, info, Instrument};
 
 use malachitebft_core_types::{Context, Height};
 
-pub use malachitebft_app::{EngineHandle, Node, NodeHandle};
+pub use malachitebft_app::node::{
+    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, EngineHandle,
+    Node, NodeHandle,
+};
 pub use malachitebft_engine::util::events::{Event, RxEvent, TxEvent};
 
 mod logging;
@@ -225,7 +228,7 @@ where
             async move {
                 while let Ok(event) = rx.recv().await {
                     match &event {
-                        Event::StartedHeight(height) => {
+                        Event::StartedHeight(height, _is_restart) => {
                             current_height.store(height.as_u64() as usize, Ordering::SeqCst);
                         }
                         Event::Decided(_) => {
@@ -267,7 +270,7 @@ where
                         return TestResult::Failure(failure);
                     }
 
-                    let Event::StartedHeight(height) = event else {
+                    let Event::StartedHeight(height, _is_restart) = event else {
                         continue 'inner;
                     };
 
@@ -276,6 +279,26 @@ where
                     current_height.store(height.as_u64() as usize, Ordering::SeqCst);
 
                     if height.as_u64() == target_height {
+                        break 'inner;
+                    }
+                }
+            }
+
+            Step::WaitUntilRound(target_round) => {
+                info!("Waiting until node reaches round {target_round}");
+
+                'inner: while let Ok(event) = rx_event.recv().await {
+                    if let Some(failure) = failure.lock().await.take() {
+                        return TestResult::Failure(failure);
+                    }
+
+                    let Event::StartedRound(_, round) = event else {
+                        continue 'inner;
+                    };
+
+                    info!("Node started round {round}");
+
+                    if round.as_u32() == Some(target_round) {
                         break 'inner;
                     }
                 }
