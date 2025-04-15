@@ -42,7 +42,7 @@ pub fn spec_to_impl_buffer(spec_buffer: &Buffer, stream_id: StreamId) -> MinHeap
             crate::streaming::MessageType::Init => {
                 let proposal_init = generate_dummy_proposal_init();
                 StreamMessage::<ProposalPart>::new(
-                    stream_id.clone(),
+                    &stream_id,
                     rec.0 as u64,
                     StreamContent::Data(ProposalPart::Init(proposal_init)),
                 )
@@ -50,16 +50,14 @@ pub fn spec_to_impl_buffer(spec_buffer: &Buffer, stream_id: StreamId) -> MinHeap
             crate::streaming::MessageType::Data => {
                 let transactions = generate_dummy_transactions();
                 StreamMessage::<ProposalPart>::new(
-                    stream_id.clone(),
+                    &stream_id,
                     rec.0 as u64,
                     StreamContent::Data(ProposalPart::Transactions(transactions)),
                 )
             }
-            crate::streaming::MessageType::Fin => StreamMessage::<ProposalPart>::new(
-                stream_id.clone(),
-                rec.0 as u64,
-                StreamContent::Fin,
-            ),
+            crate::streaming::MessageType::Fin => {
+                StreamMessage::<ProposalPart>::new(&stream_id, rec.0 as u64, StreamContent::Fin)
+            }
         };
         impl_buffer.push(message);
     }

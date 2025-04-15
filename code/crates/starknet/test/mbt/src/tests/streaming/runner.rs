@@ -105,7 +105,7 @@ impl ItfRunner for StreamingRunner {
                         MessageType::Init => {
                             let proposal_init = utils::generate_dummy_proposal_init();
                             StreamMessage::<ProposalPart>::new(
-                                self.stream_id.clone(),
+                                &self.stream_id,
                                 msg.sequence as u64,
                                 StreamContent::Data(ProposalPart::Init(proposal_init)),
                             )
@@ -113,13 +113,13 @@ impl ItfRunner for StreamingRunner {
                         MessageType::Data => {
                             let transactions = utils::generate_dummy_transactions();
                             StreamMessage::<ProposalPart>::new(
-                                self.stream_id.clone(),
+                                &self.stream_id,
                                 msg.sequence as u64,
                                 StreamContent::Data(ProposalPart::Transactions(transactions)),
                             )
                         }
                         MessageType::Fin => StreamMessage::<ProposalPart>::new(
-                            self.stream_id.clone(),
+                            &self.stream_id,
                             msg.sequence as u64,
                             StreamContent::Fin,
                         ),

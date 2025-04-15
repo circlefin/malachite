@@ -175,11 +175,14 @@ impl HostState {
     ))]
     pub async fn build_value_from_part(
         &mut self,
+        stream_id: &StreamId,
         height: Height,
         round: Round,
         part: ProposalPart,
     ) -> Option<ProposedValue<MockContext>> {
-        self.host.part_store.store(height, round, part.clone());
+        self.host
+            .part_store
+            .store(stream_id, height, round, part.clone());
 
         if let ProposalPart::Transactions(txes) = &part {
             debug!("Simulating tx execution and proof verification");
@@ -192,7 +195,10 @@ impl HostState {
             trace!("Simulation took {exec_time:?} to execute {num_txes} txes");
         }
 
-        let parts = self.host.part_store.all_parts(height, round);
+        let parts = self
+            .host
+            .part_store
+            .all_parts_by_stream_id(stream_id.clone(), height, round);
 
         trace!(
             count = self.host.part_store.blocks_count(),
@@ -229,7 +235,7 @@ impl HostState {
         if let Some(ref proposed_value) = result {
             self.host
                 .part_store
-                .store_value_id(height, round, proposed_value.value);
+                .store_value_id(stream_id, height, round, proposed_value.value);
         }
 
         result

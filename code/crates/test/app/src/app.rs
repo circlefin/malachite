@@ -87,8 +87,6 @@ pub async fn run(
 
                 // Here it is important that, if we have previously built a value for this height and round,
                 // we send back the very same value.
-                // However, for testing purposes a node may be configured to be a byzantine proposer.
-                // In that case, we will not send back the previously built value but a new one.
                 let proposal = match state.get_previously_built_value(height, round).await? {
                     Some(mut proposal) => {
                         state

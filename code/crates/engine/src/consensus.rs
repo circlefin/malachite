@@ -1046,6 +1046,11 @@ where
                         eyre!("Error when asking application for value to propose: {e:?}")
                     })?;
 
+                self.get_value(myself, height, round, timeout_duration)
+                .map_err(|e| {
+                    eyre!("Error when asking application for value to propose: {e:?}")
+                })?;
+
                 Ok(r.resume_with(()))
             }
 

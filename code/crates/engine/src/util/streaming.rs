@@ -41,9 +41,9 @@ pub struct StreamMessage<T> {
 }
 
 impl<T> StreamMessage<T> {
-    pub fn new(stream_id: StreamId, sequence: Sequence, content: StreamContent<T>) -> Self {
+    pub fn new(stream_id: &StreamId, sequence: Sequence, content: StreamContent<T>) -> Self {
         Self {
-            stream_id,
+            stream_id: stream_id.clone(),
             sequence,
             content,
         }

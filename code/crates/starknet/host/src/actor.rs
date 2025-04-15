@@ -333,21 +333,20 @@ async fn on_get_value(
     let mut sequence = 0;
 
     while let Some(part) = rx_part.recv().await {
-        state.host.part_store.store(height, round, part.clone());
+        state
+            .host
+            .part_store
+            .store(&stream_id, height, round, part.clone());
 
         debug!(%stream_id, %sequence, "Broadcasting proposal part");
 
-        let msg = StreamMessage::new(
-            stream_id.clone(),
-            sequence,
-            StreamContent::Data(part.clone()),
-        );
+        let msg = StreamMessage::new(&stream_id, sequence, StreamContent::Data(part.clone()));
         network.cast(NetworkMsg::PublishProposalPart(msg))?;
 
         sequence += 1;
     }
 
-    let msg = StreamMessage::new(stream_id, sequence, StreamContent::Fin);
+    let msg = StreamMessage::new(&stream_id, sequence, StreamContent::Fin);
     network.cast(NetworkMsg::PublishProposalPart(msg))?;
 
     let block_hash = rx_hash.await?;
@@ -356,9 +355,12 @@ async fn on_get_value(
     state
         .host
         .part_store
-        .store_value_id(height, round, block_hash);
+        .store_value_id(&stream_id, height, round, block_hash);
 
-    let parts = state.host.part_store.all_parts(height, round);
+    let parts = state
+        .host
+        .part_store
+        .all_parts_by_stream_id(stream_id, height, round);
 
     let Some(value) = state.build_value_from_parts(&parts, height, round).await else {
         error!(%height, %round, "Failed to build block from parts");
@@ -466,11 +468,14 @@ async fn on_restream_proposal(
             PartType::Fin => fin_part.clone(),
         };
 
-        state.host.part_store.store(height, round, new_part.clone());
+        state
+            .host
+            .part_store
+            .store(&stream_id, height, round, new_part.clone());
 
         debug!(%stream_id, %sequence, "Broadcasting proposal part");
 
-        let msg = StreamMessage::new(stream_id.clone(), sequence, StreamContent::Data(new_part));
+        let msg = StreamMessage::new(&stream_id, sequence, StreamContent::Data(new_part));
 
         network.cast(NetworkMsg::PublishProposalPart(msg))?;
 
@@ -550,10 +555,6 @@ async fn on_received_proposal_part(
     from: PeerId,
     reply_to: RpcReplyPort<ProposedValue<MockContext>>,
 ) -> Result<(), ActorProcessingErr> {
-    // TODO: Use state.host.receive_proposal() and move some of the logic below there
-
-    let sequence = part.sequence;
-
     // When inserting part in a map, stream tries to connect all received parts in the right order,
     // starting from beginning and emits parts sequence chunks  when it succeeds
     // If it can't connect part, it buffers it
@@ -563,9 +564,13 @@ async fn on_received_proposal_part(
     // 2 arrives -> 2, 3 and 4 are emitted
 
     // `insert` returns connected sequence of parts if any is emitted
-    let Some(parts) = state.part_streams_map.insert(from, part) else {
+    // If all parts have been received the stream is removed from the map streams
+    let Some(parts) = state.part_streams_map.insert(from, part.clone()) else {
         return Ok(());
     };
+
+    let sequence = part.sequence;
+    let stream_id = part.stream_id;
 
     if parts.height < state.height {
         trace!(
@@ -592,7 +597,7 @@ async fn on_received_proposal_part(
         );
 
         if let Some(value) = state
-            .build_value_from_part(parts.height, parts.round, part)
+            .build_value_from_part(&stream_id, parts.height, parts.round, part)
             .await
         {
             debug!(
@@ -625,7 +630,10 @@ async fn on_decided(
 ) -> Result<(), ActorProcessingErr> {
     let (height, round) = (certificate.height, certificate.round);
 
-    let mut all_parts = state.host.part_store.all_parts(height, round);
+    let mut all_parts = state
+        .host
+        .part_store
+        .all_parts_by_value_id(&certificate.value_id);
 
     let mut all_txes = vec![];
     for part in all_parts.iter_mut() {
@@ -664,7 +672,7 @@ async fn on_decided(
     // Prune the PartStore of all parts for heights lower than `state.height`
     state.host.part_store.prune(state.height);
 
-    // Store the block
+    // Prune the block store, keeping only the last `max_retain_blocks` blocks
     prune_block_store(state).await;
 
     // Notify the mempool to remove corresponding txs
