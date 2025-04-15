@@ -50,6 +50,7 @@ run runToLine26 = {
     .then(others.length().reps(_ => ListTakeAStep(correctList)))
     // now fire precommit timeout:
     .then(ListTakeAStep(correctList))
+    .then(ListTimesOut(correctList))
     // correct process deliver proposal
     .then(ListDeliverProposal(correctList, mkProposal(nextProposer, 0, 1, otherValue, -1)))
     // proper consume round switch + process proposal (2 steps)
