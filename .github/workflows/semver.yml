@@ -48,36 +48,50 @@ jobs:
         with:
           toolchain: stable
           cache-workspaces: "code"
+      - name: Install cargo-semver-checks
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-semver-checks
       - name: Check semver
         id: semver-check
-        uses: obi1kenobi/cargo-semver-checks-action@v2
-        with:
-          rust-toolchain: manual
-          manifest-path: code/Cargo.toml
-          package: >-
-            informalsystems-malachitebft-core-types,
-            informalsystems-malachitebft-core-consensus,
-            informalsystems-malachitebft-engine,
-            informalsystems-malachitebft-app,
-            informalsystems-malachitebft-app-channel,
-            informalsystems-malachitebft-codec,
-            informalsystems-malachitebft-sync,
-            informalsystems-malachitebft-wal,
-            informalsystems-malachitebft-metrics
+        run: |
+          # Run the checks and capture output
+          output_file="semver_check_output.txt"
+          if cargo semver-checks \
+            --package informalsystems-malachitebft-core-types \
+            --package informalsystems-malachitebft-core-consensus \
+            --package informalsystems-malachitebft-engine \
+            --package informalsystems-malachitebft-app \
+            --package informalsystems-malachitebft-app-channel \
+            --package informalsystems-malachitebft-codec \
+            --package informalsystems-malachitebft-sync \
+            --package informalsystems-malachitebft-wal \
+            --package informalsystems-malachitebft-metrics \
+            --manifest-path code/Cargo.toml \
+            > "$output_file" 2>&1; then
+            echo "Semver check passed"
+            echo "has_violations=false" >> $GITHUB_OUTPUT
+          else
+            echo "Semver check failed"
+            echo "has_violations=true" >> $GITHUB_OUTPUT
+            cat "$output_file"
+          fi
         continue-on-error: true
       - name: Extract semver violation details
-        if: steps.semver-check.outcome == 'failure'
+        if: steps.semver-check.outputs.has_violations == 'true'
         id: extract-semver-violations
         run: |
+          output_file="semver_check_output.txt"
+
           # Extract package name and required version bump from output
-          if grep -q "semver requires new major version" "${{ steps.semver-check.outputs.command-output }}"; then
+          if grep -q "semver requires new major version" "$output_file"; then
             echo "version_bump=major" >> $GITHUB_OUTPUT
             # Try to extract the affected package(s)
-            affected_packages=$(grep -o "Checking [^ ]* " "${{ steps.semver-check.outputs.command-output }}" | grep -v "no semver update required" | sed 's/Checking //g' | tr '\n' ',' | sed 's/,$//')
+            affected_packages=$(grep -o "Checking [^ ]* " "$output_file" | grep -v "no semver update required" | sed 's/Checking //g' | tr '\n' ',' | sed 's/,$//')
             echo "affected_packages=$affected_packages" >> $GITHUB_OUTPUT
-          elif grep -q "semver requires new minor version" "${{ steps.semver-check.outputs.command-output }}"; then
+          elif grep -q "semver requires new minor version" "$output_file"; then
             echo "version_bump=minor" >> $GITHUB_OUTPUT
-            affected_packages=$(grep -o "Checking [^ ]* " "${{ steps.semver-check.outputs.command-output }}" | grep -v "no semver update required" | sed 's/Checking //g' | tr '\n' ',' | sed 's/,$//')
+            affected_packages=$(grep -o "Checking [^ ]* " "$output_file" | grep -v "no semver update required" | sed 's/Checking //g' | tr '\n' ',' | sed 's/,$//')
             echo "affected_packages=$affected_packages" >> $GITHUB_OUTPUT
           else
             echo "version_bump=unknown" >> $GITHUB_OUTPUT
