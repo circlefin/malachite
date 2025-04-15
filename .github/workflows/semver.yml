@@ -115,7 +115,11 @@ jobs:
               message += affectedPackages !== 'unknown' ? `- ${affectedPackages.replace(/,/g, '\n- ')}\n\n` : 'Could not determine specific packages.\n\n';
             } else {
               message += '### Required Action\n\n';
-              message += 'Please review the cargo-semver-checks output for details on the specific violations and update your code accordingly.\n\n';
+              message += 'You need to either:\n';
+              message += '1. **Revert the changes** if they were not intended, OR\n';
+              message += '2. Take all of the following steps:\n';
+              message += '   - **Update the version in Cargo.toml** to a new version, depending on the type of semver violation\n';
+              message += '   - **Document the breaking changes** in `BREAKING_CHANGES.md` with details about what changed and how users should adapt\n\n';
             }
 
             message += '### Breaking Changes Documentation\n\n';
