@@ -1,5 +1,8 @@
 use std::time::Duration;
 
+use informalsystems_malachitebft_test::middleware::{
+    DefaultMiddleware, Middleware, RotateValidators,
+};
 use malachitebft_config::ValuePayload;
 
 use crate::{TestBuilder, TestParams};
@@ -163,26 +166,28 @@ pub async fn aggressive_pruning() {
         .await
 }
 
-#[tokio::test]
-pub async fn start_late() {
+async fn start_late_with_middleware(middleware: impl Middleware + Copy + 'static) {
     const HEIGHT: u64 = 5;
 
     let mut test = TestBuilder::<()>::new();
 
     test.add_node()
         .with_voting_power(10)
+        .with_middleware(middleware)
         .start()
         .wait_until(HEIGHT * 2)
         .success();
 
     test.add_node()
         .with_voting_power(10)
+        .with_middleware(middleware)
         .start()
         .wait_until(HEIGHT * 2)
         .success();
 
     test.add_node()
         .with_voting_power(5)
+        .with_middleware(middleware)
         .start_after(1, Duration::from_secs(10))
         .wait_until(HEIGHT)
         .success();
@@ -196,4 +201,14 @@ pub async fn start_late() {
             },
         )
         .await
+}
+
+#[tokio::test]
+pub async fn start_late() {
+    start_late_with_middleware(DefaultMiddleware).await
+}
+
+#[tokio::test]
+pub async fn start_late_rotate_validator_set() {
+    start_late_with_middleware(RotateValidators { selection_size: 2 }).await
 }

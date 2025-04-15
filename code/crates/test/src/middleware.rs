@@ -73,6 +73,25 @@ pub struct DefaultMiddleware;
 
 impl Middleware for DefaultMiddleware {}
 
+fn select_validators(genesis: &Genesis, height: Height, selection_size: usize) -> ValidatorSet {
+    let num_validators = genesis.validator_set.len();
+
+    if num_validators <= selection_size {
+        return genesis.validator_set.clone();
+    }
+
+    ValidatorSet::new(
+        genesis
+            .validator_set
+            .iter()
+            .cycle()
+            .skip(height.as_u64() as usize % num_validators)
+            .take(selection_size)
+            .cloned()
+            .collect::<Vec<_>>(),
+    )
+}
+
 #[derive(Copy, Clone, Debug)]
 pub struct RotateValidators {
     pub selection_size: usize,
@@ -96,19 +115,7 @@ impl Middleware for RotateValidators {
             return Some(genesis.validator_set.clone());
         }
 
-        let start_index = height.as_u64() as usize % num_validators;
-        let end_index = start_index + self.selection_size;
-
-        let selected = genesis
-            .validator_set
-            .get_all()
-            .into_iter()
-            .cycle()
-            .skip(start_index)
-            .take(end_index - start_index)
-            .collect::<Vec<_>>();
-
-        Some(ValidatorSet::new(selected))
+        Some(select_validators(genesis, height, self.selection_size))
     }
 }
 
@@ -157,18 +164,6 @@ impl Middleware for RotateEpochValidators {
             return Some(genesis.validator_set.clone());
         }
 
-        let start_index = height.as_u64() as usize % num_validators;
-        let end_index = start_index + self.selection_size;
-
-        let selected = genesis
-            .validator_set
-            .get_all()
-            .into_iter()
-            .cycle()
-            .skip(start_index)
-            .take(end_index - start_index)
-            .collect::<Vec<_>>();
-
-        Some(ValidatorSet::new(selected))
+        Some(select_validators(genesis, height, self.selection_size))
     }
 }

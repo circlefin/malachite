@@ -6,9 +6,9 @@ use crate::TestBuilder;
 
 #[tokio::test]
 async fn rotate_validator_set() {
-    const HEIGHT: u64 = 3;
-    const NUM_NODES: usize = 3;
-    const NUM_VALIDATORS_PER_HEIGHT: usize = 2;
+    const HEIGHT: u64 = 20;
+    const NUM_NODES: usize = 5;
+    const NUM_VALIDATORS_PER_HEIGHT: usize = 3;
 
     let mut test = TestBuilder::<()>::new();
 
