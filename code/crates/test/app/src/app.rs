@@ -40,7 +40,14 @@ pub async fn run(
                 // We can simply respond by telling the engine to start consensus
                 // at the next height, and provide it with the genesis validator set
                 if reply
-                    .send((start_height, genesis.validator_set.clone()))
+                    .send((
+                        start_height,
+                        state
+                            .ctx
+                            .middleware()
+                            .get_validator_set(&state.ctx, start_height, start_height, &genesis)
+                            .expect("Validator set should be available"),
+                    ))
                     .is_err()
                 {
                     error!("Failed to send ConsensusReady reply");
@@ -164,8 +171,17 @@ pub async fn run(
             //
             // In our case, our validator set stays constant between heights so we can
             // send back the validator set found in our genesis state.
-            AppMsg::GetValidatorSet { height: _, reply } => {
-                if reply.send(genesis.validator_set.clone()).is_err() {
+            AppMsg::GetValidatorSet { height, reply } => {
+                if reply
+                    .send(
+                        state
+                            .ctx
+                            .middleware()
+                            .get_validator_set(&state.ctx, state.current_height, height, &genesis)
+                            .expect("Validator set should be available"),
+                    )
+                    .is_err()
+                {
                     error!("Failed to send GetValidatorSet reply");
                 }
             }
@@ -195,7 +211,16 @@ pub async fn run(
                         if reply
                             .send(ConsensusMsg::StartHeight(
                                 state.current_height,
-                                genesis.validator_set.clone(),
+                                state
+                                    .ctx
+                                    .middleware()
+                                    .get_validator_set(
+                                        &state.ctx,
+                                        state.current_height,
+                                        state.current_height,
+                                        &genesis,
+                                    )
+                                    .expect("Validator set should be available"),
                             ))
                             .is_err()
                         {
@@ -210,7 +235,16 @@ pub async fn run(
                         if reply
                             .send(ConsensusMsg::RestartHeight(
                                 state.current_height,
-                                genesis.validator_set.clone(),
+                                state
+                                    .ctx
+                                    .middleware()
+                                    .get_validator_set(
+                                        &state.ctx,
+                                        state.current_height,
+                                        state.current_height,
+                                        &genesis,
+                                    )
+                                    .expect("Validator set should be available"),
                             ))
                             .is_err()
                         {

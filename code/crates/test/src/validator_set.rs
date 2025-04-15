@@ -69,6 +69,16 @@ impl ValidatorSet {
         }
     }
 
+    /// Get the number of validators in the set
+    pub fn len(&self) -> usize {
+        self.validators.len()
+    }
+
+    /// Get the validators in the set
+    pub fn get_all(&self) -> Vec<Validator> {
+        self.validators.iter().cloned().collect()
+    }
+
     /// The total voting power of the validator set
     pub fn total_voting_power(&self) -> VotingPower {
         self.validators.iter().map(|v| v.voting_power).sum()
