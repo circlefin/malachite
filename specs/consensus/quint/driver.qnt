@@ -576,9 +576,9 @@ module driver {
     pure def existsTimeout(state: NodeState): bool =
         state.timeouts.exists(x => x._2 == state.es.cs.height and x._3 == state.es.cs.round)
 
-    // Pick an outstanding timeout and remove it from the incoming list.
-    // Assumes that state.timeouts is not empty for current height and round, that is, that
-    // existsTimeout has been called.
+    /// Pick an outstanding timeout and remove it from the incoming list.
+    /// Assumes that state.timeouts is not empty for current height and round, that is, that
+    /// existsTimeout has been called.
     pure def pickTimeout(state: NodeState): (NodeState, DriverInput) =
         val timeouts = state.timeouts.filter(x => x._2 == state.es.cs.height and x._3 == state.es.cs.round)
         // Potential improvement: We could check that timeouts is not empty

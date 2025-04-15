@@ -19,6 +19,10 @@ run ListTakeAStep (active) = {
     active.length().reps(i => valStep(active[i]))
 }
 
+run ListTimesOut (active) = {
+    active.length().reps(i => valTimeout(active[i]))
+}
+
 run ListDeliverProposal (active, propMsg) = {
     all{
         assert( Faulty.contains(propMsg.srcAddress) or 
@@ -82,7 +86,7 @@ run everyoneReceivesProposalVR (active, valList, valset, h, r, value, vr) = {
         setNextValueToPropose(p, value),
         assert(ListContains(active, p)) // proposer must be in active list for this run
     }
-    .then(ListTakeAStep(active))
+    .then(ListTimesOut(active))
     .then(all{ // after new round an empty step to clean step "propose"
         assert(SetFromList(active).forall(proc => system.get(proc).es.pendingStepChange == ProposeStep)),
         ListTakeAStep(active)
