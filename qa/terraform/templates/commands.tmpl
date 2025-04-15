@@ -312,8 +312,9 @@ _change_config() {
       "consensus.p2p.persistent_peers=$(_compose_persistent_peers $i 27000 tcp)" \
       "mempool.p2p.persistent_peers=$(_compose_persistent_peers $i 28000 tcp)" && \
     sconfig "$file" -t int \
-      "runtime.worker_threads=0" \
-      "test.exec_time_per_tx=0s"
+      "runtime.worker_threads=0"
+    sconfig "$file" \
+      "test.exec_time_per_tx=0ms"
   done
 }
 
