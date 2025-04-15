@@ -98,7 +98,7 @@ jobs:
         with:
           path: code/target/semver-checks/cache
           key: ${{ runner.os }}-semver-${{ hashFiles('**/Cargo.lock') }}
-      - name: Post comment on PR
+      - name: Post comment on PR if violation found
         if: steps.semver-check.outputs.has_violations == 'true'
         uses: actions/github-script@v6
         with:
@@ -164,6 +164,41 @@ jobs:
                 body: message
               });
               console.log('Created new comment');
+            }
+      - name: Update PR comment when violations are fixed
+        if: steps.semver-check.outputs.has_violations == 'false'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // Get all comments for the PR
+            const { data: comments } = await github.rest.issues.listComments({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+
+            // Look for an existing semver violation comment from this workflow
+            const botComment = comments.find(comment =>
+              comment.user.login === 'github-actions[bot]' &&
+              comment.body.includes('Semver Violation Detected')
+            );
+
+            if (botComment) {
+              // Either update the comment to indicate all issues are fixed
+              const successMessage = '## ✅ Semver Check Passed\n\n' +
+                'Great job! All semver violations have been resolved. This PR now complies with semantic versioning rules.\n\n' +
+                'If you made version updates, please ensure that:\n' +
+                '- The version in Cargo.toml accurately reflects the nature of your changes\n' +
+                '- Any breaking changes are properly documented in BREAKING_CHANGES.md';
+
+              await github.rest.issues.updateComment({
+                comment_id: botComment.id,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: successMessage
+              });
+              console.log(`Updated comment ID ${botComment.id} to show issues are fixed`);
             }
       - name: Fail workflow if semver check failed
         if: steps.semver-check.outputs.has_violations == 'true'
