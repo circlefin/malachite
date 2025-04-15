@@ -32,7 +32,7 @@ jobs:
   semver-checks:
     name: Detect semver violations
     needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write # Necessary to post comments on PRs
@@ -118,7 +118,13 @@ jobs:
               message += 'Please review the cargo-semver-checks output for details on the specific violations and update your code accordingly.\n\n';
             }
 
-            message += 'For more information on semantic versioning in Rust, please consult the [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/necessities.html#cargotoml-contains-all-common-metadata-c-metadata) and [Cargo's SemVer compatibility rules](https://doc.rust-lang.org/cargo/reference/semver.html).';
+            message += '### Breaking Changes Documentation\n\n';
+            message += 'If you decide to keep the breaking changes, please make sure to:\n';
+            message += '- Update BREAKING_CHANGES.md with a detailed explanation of the changes\n';
+            message += '- Include information about how users should migrate their code\n';
+            message += '- Specify which version introduces these changes\n\n';
+
+            message += 'For more information on semantic versioning in Rust, please consult the [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/necessities) and [Cargo's SemVer compatibility rules](https://doc.rust-lang.org/cargo/reference/semver.html).';
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -126,3 +132,8 @@ jobs:
               repo: context.repo.repo,
               body: message
             });
+      - name: Fail workflow if semver check failed
+        if: steps.semver-check.outcome == 'failure'
+        run: |
+          echo "::error::Semver check failed. Please see PR comments for details on how to fix this issue."
+          exit 1
