@@ -37,6 +37,7 @@ jobs:
     permissions:
       pull-requests: write # Necessary to post comments on PRs
       contents: read
+      actions: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -61,7 +62,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: code/target/semver-checks/cache
-          key: ${{ runner.os }}-semver-${{ steps.extract_branch.outputs.branch }}
+          key: ${{ runner.os }}-semver-${{ steps.extract_branch.outputs.branch }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-semver-${{ steps.extract_branch.outputs.branch }}
       - name: Check semver
         id: semver-check
         run: |
@@ -105,7 +108,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: code/target/semver-checks/cache
-          key: ${{ runner.os }}-semver-${{ steps.extract_branch.outputs.branch }}
+          key: ${{ runner.os }}-semver-${{ steps.extract_branch.outputs.branch }}-${{ hashFiles('**/Cargo.lock') }}
       - name: Post comment on PR if violation found
         if: steps.semver-check.outputs.has_violations == 'true'
         uses: actions/github-script@v6
