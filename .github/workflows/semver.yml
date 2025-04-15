@@ -69,10 +69,10 @@ jobs:
             --package informalsystems-malachitebft-metrics \
             --manifest-path code/Cargo.toml \
             > "$output_file" 2>&1; then
-            echo "Semver check passed"
+            echo "::success::Semver check passed"
             echo "has_violations=false" >> $GITHUB_OUTPUT
           else
-            echo "Semver check failed"
+            echo "::error::Semver check failed"
             echo "has_violations=true" >> $GITHUB_OUTPUT
             cat "$output_file"
           fi
@@ -80,16 +80,10 @@ jobs:
           # Extract package name and required version bump from output
           if grep -q "semver requires new major version" "$output_file"; then
             echo "version_bump=major" >> $GITHUB_OUTPUT
-            # Try to extract the affected package(s)
-            affected_packages=$(grep -o "Checking [^ ]* " "$output_file" | grep -v "no semver update required" | sed 's/Checking //g' | tr '\n' ',' | sed 's/,$//')
-            echo "affected_packages=$affected_packages" >> $GITHUB_OUTPUT
           elif grep -q "semver requires new minor version" "$output_file"; then
             echo "version_bump=minor" >> $GITHUB_OUTPUT
-            affected_packages=$(grep -o "Checking [^ ]* " "$output_file" | grep -v "no semver update required" | sed 's/Checking //g' | tr '\n' ',' | sed 's/,$//')
-            echo "affected_packages=$affected_packages" >> $GITHUB_OUTPUT
           else
             echo "version_bump=unknown" >> $GITHUB_OUTPUT
-            echo "affected_packages=unknown" >> $GITHUB_OUTPUT
           fi
         continue-on-error: true
       - name: Post comment on PR
@@ -99,37 +93,25 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const versionBump = '${{ steps.semver-check.outputs.version_bump }}';
-            const affectedPackages = '${{ steps.semver-check.outputs.affected_packages }}';
 
             let message = '## ⚠️ Semver Violation Detected ⚠️\n\n';
             message += 'This PR introduces breaking changes that violate semantic versioning rules.\n\n';
+            message += '**Violation type:** `' + versionBump + '`\n\n';
+
+            message += '### Required Action\n\n';
+            message += 'You need to either:\n';
+            message += '1. Revert the breaking changes to maintain backward compatibility, OR\n';
+            message += '2. Take all of the following steps:\n';
 
             if (versionBump === 'major') {
-              message += '### Required Action\n\n';
-              message += 'You need to either:\n';
-              message += '1. **Revert the breaking changes** to maintain backward compatibility, OR\n';
-              message += '2. Take all of the following steps:\n';
-              message += '   - **Update the version in Cargo.toml** to a new major version (e.g., from `1.2.3-pre` to `2.0.0-pre`)\n';
-              message += '   - **Document the breaking changes** in `BREAKING_CHANGES.md` with details about what changed and how users should adapt\n\n';
-              message += '### Affected Package(s)\n\n';
-              message += affectedPackages !== 'unknown' ? `- ${affectedPackages.replace(/,/g, '\n- ')}\n\n` : 'Could not determine specific packages.\n\n';
+              message += '   - Update the version in Cargo.toml to a new **major** version (e.g., from `1.2.3-pre` to `2.0.0-pre`)\n';
             } else if (versionBump === 'minor') {
-              message += '### Required Action\n\n';
-              message += 'You need to either:\n';
-              message += '1. **Revert the changes** if they were not intended, OR\n';
-              message += '2. Take all of the following steps:\n';
-              message += '   - **Update the version in Cargo.toml** to a new major version (e.g., from `0.2.3-pre` to `0.3.0-pre`)\n';
-              message += '   - **Document the breaking changes** in `BREAKING_CHANGES.md` with details about what changed and how users should adapt\n\n';
-              message += '### Affected Package(s)\n\n';
-              message += affectedPackages !== 'unknown' ? `- ${affectedPackages.replace(/,/g, '\n- ')}\n\n` : 'Could not determine specific packages.\n\n';
+              message += '   - Update the version in Cargo.toml** to a new **minor** version (e.g., from `0.2.3-pre` to `0.3.0-pre`)\n';
             } else {
-              message += '### Required Action\n\n';
-              message += 'You need to either:\n';
-              message += '1. **Revert the changes** if they were not intended, OR\n';
-              message += '2. Take all of the following steps:\n';
               message += '   - **Update the version in Cargo.toml** to a new version, depending on the type of semver violation\n';
-              message += '   - **Document the breaking changes** in `BREAKING_CHANGES.md` with details about what changed and how users should adapt\n\n';
             }
+
+            message += '   - Document the breaking changes in `BREAKING_CHANGES.md` with details about what changed and how users should adapt\n\n';
 
             message += '### Breaking Changes Documentation\n\n';
             message += 'If you decide to keep the breaking changes, please make sure to:\n';
