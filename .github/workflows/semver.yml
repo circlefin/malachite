@@ -61,6 +61,10 @@ jobs:
       - name: Check semver
         id: semver-check
         run: |
+          # Capture current version
+          current_version=$(grep -m 1 "version" code/Cargo.toml | cut -d'"' -f2)
+          echo "current_version=$current_version" >> $GITHUB_OUTPUT
+
           # Run the checks and capture output
           output_file="semver_check_output.txt"
           if cargo semver-checks \
@@ -105,10 +109,12 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const versionBump = '${{ steps.semver-check.outputs.version_bump }}';
+            const currentVersion = '${{ steps.semver-check.outputs.current_version }}';
 
             let message = '## ⚠️ Semver Violation Detected ⚠️\n\n';
             message += 'This PR introduces breaking changes that violate semantic versioning rules.\n\n';
-            message += '**Violation type:** `' + versionBump + '`\n\n';
+            message += '**Violation type:** `' + versionBump + '`\n';
+            message += '**Current version:** `' + currentVersion + '`\n\n';
 
             message += '### Required Action\n\n';
             message += 'You need to either:\n';
