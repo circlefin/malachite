@@ -158,8 +158,18 @@ where
     /// Verify a commit certificate
     ///
     /// Resume with: [`resume::CertificateValidity`]
-    VerifyCertificate(
+    VerifyCommitCertificate(
         CommitCertificate<Ctx>,
+        Ctx::ValidatorSet,
+        ThresholdParams,
+        resume::CertificateValidity,
+    ),
+
+    /// Verify a polka certificate
+    ///
+    /// Resume with: [`resume::CertificateValidity`]
+    VerifyPolkaCertificate(
+        PolkaCertificate<Ctx>,
         Ctx::ValidatorSet,
         ThresholdParams,
         resume::CertificateValidity,

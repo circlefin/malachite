@@ -20,11 +20,11 @@ use super::proposal::{build_proposal_task, repropose_task};
 #[derive(Copy, Clone, Debug)]
 pub struct StarknetParams {
     pub max_block_size: ByteSize,
-    pub tx_size: ByteSize,
     pub txs_per_part: usize,
     pub time_allowance_factor: f32,
     pub exec_time_per_tx: Duration,
     pub max_retain_blocks: usize,
+    pub stable_block_times: bool,
 }
 
 pub struct StarknetHost {

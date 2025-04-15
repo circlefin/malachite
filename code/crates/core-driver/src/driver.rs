@@ -7,9 +7,9 @@ use malachitebft_core_state_machine::output::Output as RoundOutput;
 use malachitebft_core_state_machine::state::{RoundValue, State as RoundState, Step};
 use malachitebft_core_state_machine::state_machine::Info;
 use malachitebft_core_types::{
-    CommitCertificate, Context, NilOrVal, PolkaCertificate, Proposal, Round, SignedProposal,
-    SignedVote, Timeout, TimeoutKind, Validator, ValidatorSet, Validity, Value, ValueId, Vote,
-    VoteType,
+    CommitCertificate, Context, NilOrVal, PolkaCertificate, PolkaSignature, Proposal, Round,
+    SignedProposal, SignedVote, Timeout, TimeoutKind, Validator, ValidatorSet, Validity, Value,
+    ValueId, Vote, VoteType,
 };
 use malachitebft_core_votekeeper::keeper::Output as VKOutput;
 use malachitebft_core_votekeeper::keeper::VoteKeeper;
@@ -475,14 +475,14 @@ where
             height: self.height(),
             round: vote_round,
             value_id: value_id.clone(),
-            votes: per_round
+            polka_signatures: per_round
                 .received_votes()
                 .iter()
                 .filter(|v| {
                     v.vote_type() == VoteType::Prevote
                         && v.value().as_ref() == NilOrVal::Val(value_id)
                 })
-                .cloned()
+                .map(|v| PolkaSignature::new(v.validator_address().clone(), v.signature.clone()))
                 .collect(),
         })
     }
@@ -494,7 +494,6 @@ where
             TimeoutKind::Precommit => RoundInput::TimeoutPrecommit,
 
             // The driver never receives these events, so we can just ignore them.
-            TimeoutKind::Commit => return Ok(None),
             TimeoutKind::PrevoteTimeLimit => return Ok(None),
             TimeoutKind::PrecommitTimeLimit => return Ok(None),
             TimeoutKind::PrevoteRebroadcast => return Ok(None),

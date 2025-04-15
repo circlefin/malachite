@@ -1,10 +1,10 @@
 use bytes::Bytes;
+
 use malachitebft_core_types::{
-    CertificateError, CommitCertificate, CommitSignature, NilOrVal, SignedExtension,
-    SignedProposal, SignedProposalPart, SignedVote, SigningProvider, VotingPower,
+    SignedExtension, SignedProposal, SignedProposalPart, SignedVote, SigningProvider,
 };
 
-use crate::{Proposal, ProposalPart, TestContext, Validator, Vote};
+use crate::{Proposal, ProposalPart, TestContext, Vote};
 
 pub use malachitebft_signing_ed25519::*;
 
@@ -106,29 +106,5 @@ impl SigningProvider<TestContext> for Ed25519Provider {
         public_key: &PublicKey,
     ) -> bool {
         public_key.verify(extension.as_ref(), signature).is_ok()
-    }
-
-    fn verify_commit_signature(
-        &self,
-        certificate: &CommitCertificate<TestContext>,
-        commit_sig: &CommitSignature<TestContext>,
-        validator: &Validator,
-    ) -> Result<VotingPower, CertificateError<TestContext>> {
-        use malachitebft_core_types::Validator;
-
-        // Reconstruct the vote that was signed
-        let vote = Vote::new_precommit(
-            certificate.height,
-            certificate.round,
-            NilOrVal::Val(certificate.value_id),
-            *validator.address(),
-        );
-
-        // Verify signature
-        if !self.verify_signed_vote(&vote, &commit_sig.signature, validator.public_key()) {
-            return Err(CertificateError::InvalidSignature(commit_sig.clone()));
-        }
-
-        Ok(validator.voting_power())
     }
 }

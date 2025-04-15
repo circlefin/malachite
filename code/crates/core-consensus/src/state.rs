@@ -32,13 +32,6 @@ where
 
     /// Last precommit broadcasted by this node
     pub last_signed_precommit: Option<SignedVote<Ctx>>,
-
-    /// The consensus round state machine returns `Decision` output only once.
-    /// When the decision is reached via consensus, `Effect::Decide` is sent to the host
-    /// when the timeout commit elapses. If the node gets the value with the decision
-    /// via sync, while the commit timer is running, it must send the `Effect::Decide` effect immediately.
-    /// Because of this, a guard is needed to ensure the `Effect::Decide` is sent at most once.
-    pub decided_sent: bool,
 }
 
 impl<Ctx> State<Ctx>
@@ -62,7 +55,6 @@ where
             full_proposal_keeper: Default::default(),
             last_signed_prevote: None,
             last_signed_precommit: None,
-            decided_sent: false,
         }
     }
 
@@ -203,7 +195,6 @@ where
         self.full_proposal_keeper.clear();
         self.last_signed_prevote = None;
         self.last_signed_precommit = None;
-        self.decided_sent = false;
 
         self.driver.move_to_height(height, validator_set);
     }
@@ -231,7 +222,10 @@ where
             );
             warn!(
                 "Voting power required: {}",
-                self.driver.validator_set().total_voting_power() * 2 / 3
+                self.params
+                    .threshold_params
+                    .quorum
+                    .min_expected(self.driver.validator_set().total_voting_power())
             );
             warn!(
                 "Total voting power of validators having voted: {}",

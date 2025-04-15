@@ -3,7 +3,6 @@ use crate::prelude::*;
 use crate::handle::driver::apply_driver_input;
 use crate::types::{ProposedValue, WalEntry};
 
-use super::decide::try_decide;
 use super::signature::sign_proposal;
 
 /// Handles a proposed value that can originate from multiple sources:
@@ -106,12 +105,6 @@ where
             DriverInput::Proposal(signed_proposal, validity),
         )
         .await?;
-    }
-
-    if origin == ValueOrigin::Sync {
-        // The proposed value was provided by Sync, try to decide immediately, without waiting for the Commit timeout.
-        // `try_decide` will check that we are in the commit step after applying the proposed value to the state machine.
-        try_decide(co, state, metrics).await?;
     }
 
     Ok(())

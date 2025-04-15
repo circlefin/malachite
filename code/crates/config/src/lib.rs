@@ -362,7 +362,7 @@ pub mod mempool_load {
         }
     }
 
-    #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, serde::Deserialize)]
+    #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
     pub struct UniformLoadConfig {
         /// Interval at which to generate load
         #[serde(with = "humantime_serde")]
@@ -372,15 +372,15 @@ pub mod mempool_load {
         pub count: usize,
 
         /// Size of each generated transaction
-        pub size: usize,
+        pub size: ByteSize,
     }
 
     impl Default for UniformLoadConfig {
         fn default() -> Self {
             Self {
                 interval: Duration::from_secs(1),
-                count: 100,
-                size: 256,
+                count: 1000,
+                size: ByteSize::b(256),
             }
         }
     }
@@ -535,12 +535,6 @@ pub struct TimeoutConfig {
     #[serde(with = "humantime_serde")]
     pub timeout_precommit_delta: Duration,
 
-    /// How long we wait after committing a block, before starting on the new
-    /// height (this gives us a chance to receive some more precommits, even
-    /// though we already have +2/3).
-    #[serde(with = "humantime_serde")]
-    pub timeout_commit: Duration,
-
     /// How long we stay in preovte or precommit steps before starting
     /// the vote synchronization protocol.
     #[serde(with = "humantime_serde")]
@@ -553,7 +547,6 @@ impl TimeoutConfig {
             TimeoutKind::Propose => self.timeout_propose,
             TimeoutKind::Prevote => self.timeout_prevote,
             TimeoutKind::Precommit => self.timeout_precommit,
-            TimeoutKind::Commit => self.timeout_commit,
             TimeoutKind::PrevoteTimeLimit => self.timeout_step,
             TimeoutKind::PrecommitTimeLimit => self.timeout_step,
             TimeoutKind::PrevoteRebroadcast => self.timeout_prevote,
@@ -566,7 +559,6 @@ impl TimeoutConfig {
             TimeoutKind::Propose => Some(self.timeout_propose_delta),
             TimeoutKind::Prevote => Some(self.timeout_prevote_delta),
             TimeoutKind::Precommit => Some(self.timeout_precommit_delta),
-            TimeoutKind::Commit => None,
             TimeoutKind::PrevoteTimeLimit => None,
             TimeoutKind::PrecommitTimeLimit => None,
             TimeoutKind::PrevoteRebroadcast => None,
@@ -584,7 +576,6 @@ impl Default for TimeoutConfig {
             timeout_prevote_delta: Duration::from_millis(500),
             timeout_precommit: Duration::from_secs(1),
             timeout_precommit_delta: Duration::from_millis(500),
-            timeout_commit: Duration::from_secs(0),
             timeout_step: Duration::from_secs(2),
         }
     }
@@ -641,7 +632,6 @@ pub struct VoteExtensionsConfig {
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TestConfig {
     pub max_block_size: ByteSize,
-    pub tx_size: ByteSize,
     pub txs_per_part: usize,
     pub time_allowance_factor: f32,
     #[serde(with = "humantime_serde")]
@@ -649,18 +639,20 @@ pub struct TestConfig {
     pub max_retain_blocks: usize,
     #[serde(default)]
     pub vote_extensions: VoteExtensionsConfig,
+    #[serde(default)]
+    pub stable_block_times: bool,
 }
 
 impl Default for TestConfig {
     fn default() -> Self {
         Self {
             max_block_size: ByteSize::mib(1),
-            tx_size: ByteSize::kib(1),
             txs_per_part: 256,
             time_allowance_factor: 0.5,
             exec_time_per_tx: Duration::from_millis(1),
             max_retain_blocks: 1000,
             vote_extensions: VoteExtensionsConfig::default(),
+            stable_block_times: false,
         }
     }
 }
@@ -759,7 +751,6 @@ mod tests {
             t.timeout_duration(TimeoutKind::Precommit),
             t.timeout_precommit
         );
-        assert_eq!(t.timeout_duration(TimeoutKind::Commit), t.timeout_commit);
     }
 
     #[test]

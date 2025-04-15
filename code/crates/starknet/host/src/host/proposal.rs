@@ -7,7 +7,7 @@ use bytesize::ByteSize;
 use eyre::eyre;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
-use tracing::{error, trace};
+use tracing::{debug, error, trace};
 
 use malachitebft_core_types::Round;
 
@@ -113,39 +113,35 @@ async fn run_build_proposal_task(
             .await?
             .success_or(eyre!("Failed to reap transactions from the mempool"))?;
 
-        trace!("Reaped {} transactions from the mempool", reaped_txes.len());
+        debug!("Reaped {} transactions from the mempool", reaped_txes.len());
 
         if reaped_txes.is_empty() {
-            trace!("No more transactions to reap, stopping tx generation");
-
-            // Sleep for the remaining time, in order to not break tests
-            // by producing blocks too quickly
-            tokio::time::sleep(build_deadline - Instant::now()).await;
+            debug!("No more transactions to reap");
             break 'reap;
         }
 
         let mut txes = Vec::new();
-        let mut tx_count = 0;
+        let mut full_block = false;
 
         'txes: for tx in reaped_txes {
             if block_size + tx.size_bytes() > max_block_size {
-                continue 'txes;
+                full_block = true;
+                break 'txes;
             }
 
             block_size += tx.size_bytes();
-            tx_count += 1;
+            block_tx_count += 1;
 
             txes.push(tx);
         }
 
-        block_tx_count += tx_count;
-
-        let exec_time = params.exec_time_per_tx * tx_count as u32;
+        let exec_time = params.exec_time_per_tx * txes.len() as u32;
         tokio::time::sleep(exec_time).await;
 
         trace!(
             %sequence,
-            "Created a tx batch with {tx_count} tx-es of size {} in {:?}",
+            "Created a tx batch with {} tx-es of size {} in {:?}",
+            txes.len(),
             ByteSize::b(block_size as u64),
             start.elapsed()
         );
@@ -157,13 +153,19 @@ async fn run_build_proposal_task(
             sequence += 1;
         }
 
-        if block_size > max_block_size {
-            trace!("Max block size reached, stopping tx generation");
+        if full_block {
+            debug!("Max block size reached, stopping tx generation");
             break 'reap;
-        } else if start.elapsed() > build_duration {
-            trace!("Time allowance exceeded, stopping tx generation");
+        } else if start.elapsed() >= build_duration {
+            debug!("Time allowance exceeded, stopping tx generation");
             break 'reap;
         }
+    }
+
+    if params.stable_block_times {
+        // Sleep for the remaining time, in order to not break tests
+        // by producing blocks too quickly
+        tokio::time::sleep(build_deadline - Instant::now()).await;
     }
 
     // Proposal Commitment
@@ -208,7 +210,7 @@ async fn run_build_proposal_task(
 
     let block_size = ByteSize::b(block_size as u64);
 
-    trace!(
+    debug!(
         tx_count = %block_tx_count, size = %block_size, %proposal_commitment_hash, parts = %sequence,
         "Built block in {:?}", start.elapsed()
     );
