@@ -98,8 +98,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const versionBump = '${{ steps.extract-semver-violations.outputs.version_bump }}';
-            const affectedPackages = '${{ steps.extract-semver-violations.outputs.affected_packages }}';
+            const versionBump = '${{ steps.semver-check.outputs.version_bump }}';
+            const affectedPackages = '${{ steps.semver-check.outputs.affected_packages }}';
 
             let message = '## ⚠️ Semver Violation Detected ⚠️\n\n';
             message += 'This PR introduces breaking changes that violate semantic versioning rules.\n\n';
@@ -139,14 +139,40 @@ jobs:
 
             message += 'For more information on semantic versioning in Rust, please consult the [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/necessities) and [Cargo\'s SemVer compatibility rules](https://doc.rust-lang.org/cargo/reference/semver.html).';
 
-            github.rest.issues.createComment({
+            // Get all comments for the PR
+            const { data: comments } = await github.rest.issues.listComments({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: message
             });
+
+            // Look for an existing semver violation comment from this workflow
+            const botComment = comments.find(comment =>
+              comment.user.login === 'github-actions[bot]' &&
+              comment.body.includes('Semver Violation Detected')
+            );
+
+            if (botComment) {
+              // Update the existing comment
+              await github.rest.issues.updateComment({
+                comment_id: botComment.id,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: message
+              });
+              console.log(`Updated existing comment ID ${botComment.id}`);
+            } else {
+              // Create a new comment
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: message
+              });
+              console.log('Created new comment');
+            }
       - name: Fail workflow if semver check failed
-        if: steps.semver-check.outcome == 'failure'
+        if: steps.semver-check.outputs.has_violations == 'true'
         run: |
           echo "::error::Semver check failed. Please see PR comments for details on how to fix this issue."
           exit 1
