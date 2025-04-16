@@ -381,7 +381,6 @@ _export_prometheus_csv() {
 
   local END=$(date +%s)
   local START=$((END - LAST_MINUTES * 60))
-  local STEP=5
 
   local PROM_HOST
   if _is_cc; then
