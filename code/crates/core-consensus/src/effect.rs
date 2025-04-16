@@ -69,7 +69,7 @@ where
     /// Resume with: [`resume::Continue`]
     ScheduleTimeout(Timeout, resume::Continue),
 
-    /// Get the validator set at the given height
+    /// Get the validator set at the given height, if known.
     ///
     /// Resume with: [`resume::ValidatorSet`]
     GetValidatorSet(Ctx::Height, resume::ValidatorSet),
