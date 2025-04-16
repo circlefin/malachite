@@ -417,4 +417,11 @@ _export_prometheus_performance_csv() {
   latency.csv \
   30 \
   10
+
+  _export_prometheus_csv \
+  'malachitebft_core_consensus_time_per_block_sum / malachitebft_core_consensus_time_per_block_count' \
+  block-time.csv \
+  30 \
+  10
+
 }
