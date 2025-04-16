@@ -2,18 +2,22 @@
 
 ## Unreleased
 
+> Nothing yet.
+
+## 0.2.0
+
 ### `malachitebft-core-types`
-- Remove `AggregatedSignature<Ctx>` type
+- Remove `AggregatedSignature` type
 - Rename field `aggregated_signature` of `CommitCertificate` to `commit_signatures`
 - Remove field `votes` of `PolkaCertificate`
 - Add field `polka_signatures` to `PolkaCertificate`
-- Rename `CertificateError::InvalidSignature` to `CertificateError::InvalidCommitSignature`
-- Add `CertificateError::InvalidPolkaSignature` and `CertificateError::DuplicateVote`
+- Rename `InvalidSignature` variant of `CertificateError` to `InvalidCommitSignature`
+- Add `InvalidPolkaSignature` and `DuplicateVote` variants to `CertificateError`
 - Remove `verify_commit_signature` from `SigningProvider`
 
 ### `malachitebft-core-consensus`
-- Rename `Effect::VerifyCertificate` to `Effect::VerifyCommitCertificate`
 - Add `VerifyPolkaCertificate` effect
+- Rename `Effect::VerifyCertificate` to `Effect::VerifyCommitCertificate`
 - Rename `Error::InvalidCertificate` to `Error::InvalidCommitCertificate`
 
 ## 0.1.0
