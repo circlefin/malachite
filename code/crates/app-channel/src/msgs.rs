@@ -134,7 +134,7 @@ pub enum AppMsg<Ctx: Context> {
         /// Height of the validator set to retrieve
         height: Ctx::Height,
         /// Channel for sending back the validator set
-        reply: Reply<Ctx::ValidatorSet>,
+        reply: Reply<Option<Ctx::ValidatorSet>>,
     },
 
     /// Notifies the application that consensus has decided on a value.

@@ -788,7 +788,7 @@ where
     async fn get_validator_set(
         &self,
         height: Ctx::Height,
-    ) -> Result<Ctx::ValidatorSet, ActorProcessingErr> {
+    ) -> Result<Option<Ctx::ValidatorSet>, ActorProcessingErr> {
         let validator_set = ractor::call!(self.host, |reply_to| HostMsg::GetValidatorSet {
             height,
             reply_to
@@ -1063,10 +1063,12 @@ where
                 let validator_set = self
                     .get_validator_set(height)
                     .await
-                    .map_err(|e| warn!("No validator set found for height {height}: {e:?}"))
+                    .map_err(|e| {
+                        warn!("Error while getting validator set for height {height}: {e:?}")
+                    })
                     .ok();
 
-                Ok(r.resume_with(validator_set))
+                Ok(r.resume_with(validator_set.unwrap_or_default()))
             }
 
             Effect::RestreamProposal(height, round, valid_round, address, value_id, r) => {

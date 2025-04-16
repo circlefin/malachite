@@ -172,7 +172,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             // In our case, our validator set stays constant between heights so we can
             // send back the validator set found in our genesis state.
             AppMsg::GetValidatorSet { height: _, reply } => {
-                if reply.send(state.get_validator_set().clone()).is_err() {
+                if reply.send(Some(state.get_validator_set().clone())).is_err() {
                     error!("Failed to send GetValidatorSet reply");
                 }
             }
