@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-> Nothing yet.
+### `malachitebft-engine`
+- Changed the reply channel of `GetValidatorSet` message to `RpcReplyPort<Option<Ctx::ValidatorSet>>`
 
 ## 0.2.0
 
