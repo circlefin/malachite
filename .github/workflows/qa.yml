@@ -77,6 +77,7 @@ jobs:
           TIMESTAMP=$(date +%F-%H-%M)
           aws s3 cp latency.csv s3://malachite-performance-site/$TIMESTAMP/
           aws s3 cp throughput.csv s3://malachite-performance-site/$TIMESTAMP/
+          aws s3 cp block-time.csv s3://malachite-performance-site/$TIMESTAMP/
 
       - name: Terraform Destroy (Cleanup Nodes)
         if: always()
