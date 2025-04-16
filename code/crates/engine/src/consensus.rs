@@ -1064,9 +1064,9 @@ where
                     .get_validator_set(height)
                     .await
                     .map_err(|e| {
-                        warn!("Error while getting validator set for height {height}: {e:?}")
+                        warn!("Error while asking application for the validator set at height {height}: {e:?}")
                     })
-                    .ok();
+                    .ok(); // If call fails, send back `None` to consensus
 
                 Ok(r.resume_with(validator_set.unwrap_or_default()))
             }
