@@ -167,13 +167,14 @@ pub async fn run(
             //
             // We send back the appropriate validator set for that height.
             AppMsg::GetValidatorSet { height, reply } => {
-                let validator_set = state
-                    .ctx
-                    .middleware()
-                    .get_validator_set(&state.ctx, state.current_height, height, &genesis)
-                    .expect("Validator set should be available");
+                let validator_set = state.ctx.middleware().get_validator_set(
+                    &state.ctx,
+                    state.current_height,
+                    height,
+                    &genesis,
+                );
 
-                if reply.send(Some(validator_set)).is_err() {
+                if reply.send(validator_set).is_err() {
                     error!("Failed to send GetValidatorSet reply");
                 }
             }

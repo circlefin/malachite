@@ -252,6 +252,7 @@ pub async fn start_late_rotate_epoch_validator_set() {
             epochs_limit: 5,
         })
         .start_after(1, Duration::from_secs(5))
+        .wait_until(HEIGHT)
         .success();
 
     test.build()
