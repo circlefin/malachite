@@ -413,13 +413,13 @@ _export_prometheus_performance_csv() {
   10
 
   _export_prometheus_csv \
-  'malachitebft_core_consensus_consensus_time_sum / malachitebft_core_consensus_consensus_time_count' \
+  'increase(malachitebft_core_consensus_consensus_time_sum[30s]) / increase(malachitebft_core_consensus_consensus_time_count[30s])' \
   latency.csv \
   30 \
   10
 
   _export_prometheus_csv \
-  'malachitebft_core_consensus_time_per_block_sum / malachitebft_core_consensus_time_per_block_count' \
+  'increase(malachitebft_core_consensus_time_per_block_sum[30s]) / increase(malachitebft_core_consensus_time_per_block_count[30s])' \
   block-time.csv \
   30 \
   10
