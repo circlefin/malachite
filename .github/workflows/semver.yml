@@ -129,14 +129,18 @@ jobs:
             message += '2. Take all of the following steps:\n';
 
             if (versionBump === 'major') {
-              message += '   - Update the version in Cargo.toml to a new **major** version (e.g., from `1.2.3-pre` to `2.0.0-pre`)\n';
+              message += '   - Update the version in Cargo.toml to a new **minor** version (e.g., from `0.2.3-pre` to `0.3.0-pre`)\n';
             } else if (versionBump === 'minor') {
-              message += '   - Update the version in Cargo.toml** to a new **minor** version (e.g., from `0.2.3-pre` to `0.3.0-pre`)\n';
+              message += '   - Update the version in Cargo.toml** to a new **patch** version (e.g., from `0.2.3-pre` to `0.2.4-pre`)\n';
             } else {
               message += '   - **Update the version in Cargo.toml** to a new version, depending on the type of semver violation\n';
             }
 
             message += '   - Document the breaking changes in `BREAKING_CHANGES.md` with details about what changed and how users should adapt\n\n';
+
+            message += '> [!NOTE]\n';
+            message += '> Because we are still at version `0.X.Y`, major semver violations require only a minor version bump (`X`), ';
+            message += 'while minor semver violations require only a patch version bump (`Y`).\n\n';
 
             message += '### Breaking Changes Documentation\n\n';
             message += 'If you decide to keep the breaking changes, please make sure to:\n';
