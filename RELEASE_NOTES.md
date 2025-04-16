@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-> Nothing yet.
+- Reply to `GetValidatorSet` is now optional ([#990](https://github.com/informalsystems/malachite/issues/990))
 
 ## 0.2.0
 
