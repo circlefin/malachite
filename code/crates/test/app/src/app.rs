@@ -173,7 +173,7 @@ pub async fn run(
                     .get_validator_set(&state.ctx, state.current_height, height, &genesis)
                     .expect("Validator set should be available");
 
-                if reply.send(validator_set).is_err() {
+                if reply.send(Some(validator_set)).is_err() {
                     error!("Failed to send GetValidatorSet reply");
                 }
             }
