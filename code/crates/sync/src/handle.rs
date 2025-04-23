@@ -1,4 +1,5 @@
 use core::marker::PhantomData;
+use std::time::Instant;
 
 use derive_where::derive_where;
 use thiserror::Error;
@@ -213,11 +214,15 @@ pub async fn on_value_request<Ctx>(
 where
     Ctx: Context,
 {
+    let start_time = Instant::now();
     debug!(%request.height, %peer, "Received request for value");
 
     metrics.decided_value_request_received(request.height.as_u64());
 
     perform!(co, Effect::GetDecidedValue(request_id, request.height));
+
+    let time_elapsed = Instant::elapsed(&start_time).as_millis();
+    debug!(%request.height, %peer, time_elapsed, "Completed request for value");
 
     Ok(())
 }
