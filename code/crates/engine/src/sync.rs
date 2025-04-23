@@ -267,19 +267,19 @@ where
 
             Effect::GetDecidedValue(request_id, height) => {
                 let start_time = Instant::now();
-                debug!(%height, "Started getting decided value");
+                info!(%height, "Started getting decided value");
                 self.host.call_and_forward(
                     |reply_to| HostMsg::GetDecidedValue { height, reply_to },
                     myself,
                     move |synced_value| {
                         let time_elapsed = Instant::elapsed(&start_time).as_millis();
-                        debug!(%height, time_elapsed, "Forwarded decided value to sync actor");
+                        info!(%height, time_elapsed, "Forwarded decided value to sync actor");
                         Msg::<Ctx>::GotDecidedBlock(request_id, height, synced_value)
                     },
                     None,
                 )?;
                 let time_elapsed = Instant::elapsed(&start_time).as_millis();
-                debug!(time_elapsed, %height, "Finished processing decided value");
+                info!(time_elapsed, %height, "Finished processing decided value");
             }
             Effect::SendVoteSetRequest(peer_id, vote_set_request) => {
                 debug!(
