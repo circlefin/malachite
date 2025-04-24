@@ -16,8 +16,8 @@ use malachitebft_core_consensus::{
     Effect, PeerId, Resumable, Resume, SignedConsensusMsg, VoteExtensionError, VoteSyncMode,
 };
 use malachitebft_core_types::{
-    Context, Round, SigningProvider, SigningProviderExt, Timeout, TimeoutKind, ValidatorSet,
-    ValueId, ValueOrigin,
+    Context, Proposal, Round, SigningProvider, SigningProviderExt, Timeout, TimeoutKind,
+    ValidatorSet, ValueId, ValueOrigin, Vote,
 };
 use malachitebft_metrics::Metrics;
 use malachitebft_sync::{
@@ -109,6 +109,40 @@ pub enum Msg<Ctx: Context> {
     /// 2. Since consensus resets its write-ahead log, the node may equivocate on proposals and votes
     ///    for the restarted height, potentially violating protocol safety
     RestartHeight(Ctx::Height, Ctx::ValidatorSet),
+}
+
+impl<Ctx: Context> Msg<Ctx> {
+    fn info(&self) -> String {
+        match self {
+            Msg::StartHeight(height, _) => format!("StartHeight(height={})", height),
+            Msg::NetworkEvent(event) => match event {
+                NetworkEvent::Proposal(_, proposal) => format!(
+                    "NetworkEvent(Proposal height={} round={})",
+                    proposal.height(),
+                    proposal.round()
+                ),
+                NetworkEvent::ProposalPart(_, part) => {
+                    format!("NetworkEvent(ProposalPart sequence={})", part.sequence)
+                }
+                NetworkEvent::Vote(_, vote) => format!(
+                    "NetworkEvent(Vote height={} round={})",
+                    vote.height(),
+                    vote.round()
+                ),
+                _ => "NetworkEvent".to_string(),
+            },
+            Msg::TimeoutElapsed(_) => "TimeoutElapsed".to_string(),
+            Msg::ProposeValue(value) => format!(
+                "ProposeValue(height={} round={})",
+                value.height, value.round
+            ),
+            Msg::ReceivedProposedValue(value, _) => format!(
+                "ReceivedProposedValue(height={} round={})",
+                value.height, value.round
+            ),
+            Msg::RestartHeight(height, _) => format!("RestartHeight(height={})", height),
+        }
+    }
 }
 
 impl<Ctx: Context> From<NetworkEvent<Ctx>> for Msg<Ctx> {
@@ -292,7 +326,7 @@ where
         info!(count = %state.msg_buffer.len(), "Replaying buffered messages");
 
         while let Some(msg) = state.msg_buffer.pop() {
-            debug!("Replaying buffered message: {msg:?}");
+            debug!("Replaying buffered message: {}", msg.info());
 
             if let Err(e) = self.handle_msg(myself.clone(), state, msg).await {
                 error!("Error when handling buffered message: {e:?}");
