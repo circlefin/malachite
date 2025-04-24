@@ -362,10 +362,7 @@ async fn on_get_value(
         .part_store
         .all_parts_by_stream_id(stream_id, height, round);
 
-    let Some(value) = state.build_value_from_parts(&parts, height, round).await else {
-        error!(%height, %round, "Failed to build block from parts");
-        return Ok(());
-    };
+    let value = state.build_proposal_from_parts(height, round, &parts).await;
 
     debug!(%height, %round, %block_hash, "Storing proposed value from assembled block");
     if let Err(e) = state.block_store.store_undecided_value(value.clone()).await {
@@ -569,7 +566,9 @@ async fn on_received_proposal_part(
         return Ok(());
     };
 
-    let sequence = part.sequence;
+    // The `part` sequence number must be for the first `ProposalPart` in `parts`.
+    // So we start with this sequence and we increment for the debug log.
+    let mut sequence = part.sequence;
     let stream_id = part.stream_id;
 
     if parts.height < state.height {
@@ -601,7 +600,10 @@ async fn on_received_proposal_part(
             .await
         {
             debug!(
-                height = %value.height, round = %value.round, block_hash = %value.value,
+                height = %value.height,
+                round = %value.round,
+                block_hash = %value.value,
+                validity = ?value.validity,
                 "Storing proposed value assembled from proposal parts"
             );
 
@@ -615,6 +617,8 @@ async fn on_received_proposal_part(
             reply_to.send(value)?;
             break;
         }
+
+        sequence += 1;
     }
 
     Ok(())

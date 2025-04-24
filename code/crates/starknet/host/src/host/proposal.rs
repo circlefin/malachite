@@ -200,6 +200,8 @@ async fn run_build_proposal_task(
     // Fin
     {
         let part = ProposalPart::Fin(ProposalFin {
+            // TODO: Compute the actual propoosal commitment hash, for now
+            // we use the transaction commitment
             proposal_commitment_hash: transaction_commitment,
         });
         tx_part.send(part).await?;
