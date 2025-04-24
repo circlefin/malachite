@@ -1,0 +1,224 @@
+name: Semver
+
+on:
+  pull_request:
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+  CARGO_PROFILE_DEV_DEBUG: 1
+  CARGO_PROFILE_RELEASE_DEBUG: 1
+  RUST_BACKTRACE: short
+  CARGO_NET_RETRY: 10
+  RUSTUP_MAX_RETRIES: 10
+
+jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - 'code/**'
+
+  semver-checks:
+    name: Detect semver violations
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write # Necessary to post comments on PRs
+      contents: read
+      actions: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          cache-workspaces: "code"
+      - name: Install cargo-semver-checks
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-semver-checks
+      - name: Extract branch name
+        shell: bash
+        run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+        id: extract_branch
+      - name: Restore Rustdoc cache
+        id: restore-cache-rustdoc
+        uses: actions/cache/restore@v4
+        with:
+          path: code/target/semver-checks/cache
+          key: ${{ runner.os }}-semver-${{ steps.extract_branch.outputs.branch }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-semver-${{ steps.extract_branch.outputs.branch }}
+      - name: Check semver
+        id: semver-check
+        run: |
+          # Capture current version
+          current_version=$(grep -m 1 "version" code/Cargo.toml | cut -d'"' -f2)
+          echo "current_version=$current_version" >> $GITHUB_OUTPUT
+
+          # Run the checks and capture output
+          output_file="semver_check_output.txt"
+          if cargo semver-checks \
+            --package informalsystems-malachitebft-core-types \
+            --package informalsystems-malachitebft-core-consensus \
+            --package informalsystems-malachitebft-engine \
+            --package informalsystems-malachitebft-app \
+            --package informalsystems-malachitebft-app-channel \
+            --package informalsystems-malachitebft-codec \
+            --package informalsystems-malachitebft-sync \
+            --package informalsystems-malachitebft-wal \
+            --package informalsystems-malachitebft-metrics \
+            --manifest-path code/Cargo.toml \
+            > "$output_file" 2>&1; then
+            echo "::success::Semver check passed"
+            echo "has_violations=false" >> $GITHUB_OUTPUT
+          else
+            echo "::error::Semver check failed"
+            echo "has_violations=true" >> $GITHUB_OUTPUT
+            cat "$output_file"
+          fi
+
+          # Extract package name and required version bump from output
+          if grep -q "semver requires new major version" "$output_file"; then
+            echo "version_bump=major" >> $GITHUB_OUTPUT
+          elif grep -q "semver requires new minor version" "$output_file"; then
+            echo "version_bump=minor" >> $GITHUB_OUTPUT
+          else
+            echo "version_bump=unknown" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
+      - name: Save Rustdoc cache
+        id: save-cache-rustdoc
+        uses: actions/cache/save@v4
+        with:
+          path: code/target/semver-checks/cache
+          key: ${{ runner.os }}-semver-${{ steps.extract_branch.outputs.branch }}-${{ hashFiles('**/Cargo.lock') }}
+      - name: Post comment on PR if violation found
+        if: steps.semver-check.outputs.has_violations == 'true'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const versionBump = '${{ steps.semver-check.outputs.version_bump }}';
+            const currentVersion = '${{ steps.semver-check.outputs.current_version }}';
+
+            let message = '## ⚠️ Semver Violation Detected ⚠️\n\n';
+            message += 'This PR introduces breaking changes that violate semantic versioning rules.\n\n';
+            message += '**Violation type:** `' + versionBump + '`\n';
+            message += '**Current version:** `' + currentVersion + '`\n\n';
+
+            message += '### Required Action\n\n';
+            message += 'You need to either:\n';
+            message += '1. Revert the breaking changes to maintain backward compatibility, OR\n';
+            message += '2. Take all of the following steps:\n';
+
+            if (versionBump === 'major') {
+              message += '   - Update the version in Cargo.toml to a new **minor** version (e.g., from `0.2.3-pre` to `0.3.0-pre`)\n';
+            } else if (versionBump === 'minor') {
+              message += '   - Update the version in Cargo.toml** to a new **patch** version (e.g., from `0.2.3-pre` to `0.2.4-pre`)\n';
+            } else {
+              message += '   - **Update the version in Cargo.toml** to a new version, depending on the type of semver violation\n';
+            }
+
+            message += '   - Document the breaking changes in `BREAKING_CHANGES.md` with details about what changed and how users should adapt\n\n';
+
+            message += '> [!NOTE]\n';
+            message += '> Because we are still at version `0.X.Y`, major semver violations require only a minor version bump (`X`), ';
+            message += 'while minor semver violations require only a patch version bump (`Y`).\n\n';
+
+            message += '### Breaking Changes Documentation\n\n';
+            message += 'If you decide to keep the breaking changes, please make sure to:\n';
+            message += '- Update `BREAKING_CHANGES.md` with a detailed explanation of the changes\n';
+            message += '- Include information about how users should migrate their code\n';
+            message += '- Specify which version introduces these changes\n\n';
+
+            message += 'For more information on semantic versioning in Rust, please consult the [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/necessities) and [Cargo\'s SemVer compatibility rules](https://doc.rust-lang.org/cargo/reference/semver.html).';
+
+            // Get all comments for the PR
+            const { data: comments } = await github.rest.issues.listComments({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+
+            // Look for an existing semver violation comment from this workflow
+            const botComment = comments.find(comment =>
+              comment.user.login === 'github-actions[bot]' &&
+              comment.body.includes('Semver')
+            );
+
+            if (botComment) {
+              // Update the existing comment
+              await github.rest.issues.updateComment({
+                comment_id: botComment.id,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: message
+              });
+              console.log(`Updated existing comment ID ${botComment.id}`);
+            } else {
+              // Create a new comment
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: message
+              });
+              console.log('Created new comment');
+            }
+      - name: Update PR comment when violations are fixed
+        if: steps.semver-check.outputs.has_violations == 'false'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // Get all comments for the PR
+            const { data: comments } = await github.rest.issues.listComments({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+
+            // Look for an existing semver violation comment from this workflow
+            const botComment = comments.find(comment =>
+              comment.user.login === 'github-actions[bot]' &&
+              comment.body.includes('Semver')
+            );
+
+            if (botComment) {
+              // Either update the comment to indicate all issues are fixed
+              const successMessage = '## ✅ Semver Check Passed\n\n' +
+                'Great job! All semver violations have been resolved. This PR now complies with semantic versioning rules.\n\n' +
+                'If you made version updates, please ensure that:\n' +
+                '- The version in Cargo.toml accurately reflects the nature of your changes\n' +
+                '- Any breaking changes are properly documented in BREAKING_CHANGES.md';
+
+              await github.rest.issues.updateComment({
+                comment_id: botComment.id,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: successMessage
+              });
+              console.log(`Updated comment ID ${botComment.id} to show issues are fixed`);
+            }
+      - name: Fail workflow if semver check failed
+        if: steps.semver-check.outputs.has_violations == 'true'
+        run: |
+          echo "::error::Semver check failed. Please see PR comments for details on how to fix this issue."
+          exit 1
