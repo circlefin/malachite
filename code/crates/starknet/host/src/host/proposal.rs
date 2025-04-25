@@ -140,7 +140,7 @@ async fn run_build_proposal_task(
         let exec_time = params.exec_time_per_tx * txes.len() as u32;
         tokio::time::sleep(exec_time).await;
 
-        debug!(
+        trace!(
             %sequence,
             "Created a tx batch with {} tx-es of size {} in {:?}",
             txes.len(),

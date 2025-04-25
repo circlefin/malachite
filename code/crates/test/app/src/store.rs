@@ -13,7 +13,7 @@ use malachitebft_app_channel::app::types::ProposedValue;
 use malachitebft_proto::{Error as ProtoError, Protobuf};
 use malachitebft_test::codec::proto as codec;
 use malachitebft_test::codec::proto::ProtobufCodec;
-use malachitebft_test::{proto, Address};
+use malachitebft_test::proto;
 use malachitebft_test::{Height, TestContext, Value, ValueId};
 
 mod keys;
@@ -159,36 +159,6 @@ impl Db {
                     .map_err(StoreError::Protobuf)?;
 
                 proposals.push(proposal);
-            }
-        }
-
-        Ok(proposals)
-    }
-
-    fn get_our_undecided_proposals(
-        &self,
-        height: Height,
-        round: Round,
-        proposer: Address,
-    ) -> Result<Vec<ProposedValue<TestContext>>, StoreError> {
-        let tx: redb::ReadTransaction = self.db.begin_read()?;
-        let table = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
-
-        let mut proposals = Vec::new();
-        for result in table.iter()? {
-            let (key, value) = result?;
-            let (h, r, _) = key.value();
-
-            if h == height && r == round {
-                let bytes = value.value();
-
-                let proposal: ProposedValue<TestContext> = ProtobufCodec
-                    .decode(Bytes::from(bytes))
-                    .map_err(StoreError::Protobuf)?;
-
-                if proposal.proposer == proposer {
-                    proposals.push(proposal);
-                }
             }
         }
 
@@ -354,17 +324,6 @@ impl Store {
     ) -> Result<Vec<ProposedValue<TestContext>>, StoreError> {
         let db = Arc::clone(&self.db);
         tokio::task::spawn_blocking(move || db.get_undecided_proposals(height, round)).await?
-    }
-
-    pub async fn get_our_undecided_proposals(
-        &self,
-        height: Height,
-        round: Round,
-        proposer: Address,
-    ) -> Result<Vec<ProposedValue<TestContext>>, StoreError> {
-        let db = Arc::clone(&self.db);
-        tokio::task::spawn_blocking(move || db.get_our_undecided_proposals(height, round, proposer))
-            .await?
     }
 
     pub async fn prune(&self, retain_height: Height) -> Result<(), StoreError> {

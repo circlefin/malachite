@@ -237,10 +237,7 @@ impl State {
         height: Height,
         round: Round,
     ) -> eyre::Result<Option<LocallyProposedValue<TestContext>>> {
-        let proposals = self
-            .store
-            .get_our_undecided_proposals(height, round, self.address)
-            .await?;
+        let proposals = self.store.get_undecided_proposals(height, round).await?;
         assert!(proposals.len() <= 1);
 
         proposals

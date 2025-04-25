@@ -14,6 +14,9 @@ use malachitebft_engine::util::streaming::StreamId;
 
 type Key<Height> = (StreamId, Height, Round);
 
+/// Stores proposal parts for a given stream, height, and round.
+/// `value_id` is the value id of the proposal as computed by the proposer. It is also included in one of the parts but stored here for convenience.
+/// `parts` is a list of `ProposalPart`s, ordered by the sequence of the `StreamMessage` that delivered them.
 #[derive_where(Clone, Debug, Default)]
 pub struct Entry<Ctx: Context> {
     pub value_id: Option<ValueId<Ctx>>,
@@ -39,7 +42,8 @@ impl<Ctx: Context> PartStore<Ctx> {
         }
     }
 
-    /// Return all the parts for the given height and round, sorted by sequence in ascending order
+    /// Return all the parts for the given `stream_id`, `height` and `round`.
+    /// Parts are already sorted by sequence in ascending order.
     pub fn all_parts_by_stream_id(
         &self,
         stream_id: StreamId,
@@ -52,6 +56,8 @@ impl<Ctx: Context> PartStore<Ctx> {
             .unwrap_or_default()
     }
 
+    /// Return all the parts for the given `value_id`. If multiple entries with same `value_id` are present, the parts of the first one are returned.
+    /// Parts are already sorted by sequence in ascending order.
     pub fn all_parts_by_value_id(&self, value_id: &ValueId<Ctx>) -> Vec<Arc<Ctx::ProposalPart>> {
         self.store
             .values()
@@ -60,6 +66,8 @@ impl<Ctx: Context> PartStore<Ctx> {
             .unwrap_or_default()
     }
 
+    /// Store a part for the given `stream_id`, `height` and `round`.
+    /// The part is added to the end of the list of parts and is for the next sequence number after the last part.
     pub fn store(
         &mut self,
         stream_id: &StreamId,
@@ -74,6 +82,7 @@ impl<Ctx: Context> PartStore<Ctx> {
         existing.parts.push(Arc::new(proposal_part));
     }
 
+    /// Store the `value_id` of the proposal, as computed by the proposer, for the given `stream_id`, `height` and `round`.
     pub fn store_value_id(
         &mut self,
         stream_id: &StreamId,
@@ -88,10 +97,14 @@ impl<Ctx: Context> PartStore<Ctx> {
         existing.value_id = Some(value_id);
     }
 
+    /// Prune the parts for all heights lower than `min_height`.
+    /// This is used to prune the parts from the store when a min_height has been finalized.
+    /// Parts for higher heights may be present if the node is lagging and are kept.
     pub fn prune(&mut self, min_height: Ctx::Height) {
-        self.store.retain(|(_, height, _), _| *height > min_height);
+        self.store.retain(|(_, height, _), _| *height >= min_height);
     }
 
+    /// Return the number of blocks in the store.
     pub fn blocks_count(&self) -> usize {
         self.store.len()
     }
