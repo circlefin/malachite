@@ -187,7 +187,7 @@ impl State {
 
                 // Prune the store, keep the last HISTORY_LENGTH decided values, remove all undecided proposals for the decided height
                 let retain_height = Height::new(height.as_u64().saturating_sub(HISTORY_LENGTH));
-                self.store.prune(retain_height).await?;
+                self.store.prune(height, retain_height).await?;
 
                 // Move to next height
                 self.current_height = self.current_height.increment();

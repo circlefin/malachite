@@ -180,12 +180,12 @@ impl Db {
         Ok(())
     }
 
-    fn prune(&self, retain_height: Height) -> Result<(), StoreError> {
+    fn prune(&self, current_height: Height, retain_height: Height) -> Result<(), StoreError> {
         let tx = self.db.begin_write().unwrap();
         {
-            // Remove all undecided proposals
+            // Remove all undecided proposals with height <= current_height
             let mut undecided = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
-            undecided.retain(|_, _| false)?;
+            undecided.retain(|(height, _, _), _| height > current_height)?;
 
             // Prune decided values and certificates up to the retain height
             let mut decided = tx.open_table(DECIDED_VALUES_TABLE)?;
@@ -326,9 +326,9 @@ impl Store {
         tokio::task::spawn_blocking(move || db.get_undecided_proposals(height, round)).await?
     }
 
-    pub async fn prune(&self, retain_height: Height) -> Result<(), StoreError> {
+    pub async fn prune(&self, current_height: Height, retain_height: Height) -> Result<(), StoreError> {
         let db = Arc::clone(&self.db);
-        tokio::task::spawn_blocking(move || db.prune(retain_height)).await?
+        tokio::task::spawn_blocking(move || db.prune(current_height, retain_height)).await?
     }
 
     pub async fn get_undecided_proposal_by_value_id(
