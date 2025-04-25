@@ -425,7 +425,11 @@ impl Store {
 
     /// Prunes the store by removing all undecided proposals and decided values up to the retain height.
     /// Called by the application to clean up old data and free up space. This is done when a new value is committed.
-    pub async fn prune(&self, current_height: Height, retain_height: Height) -> Result<(), StoreError> {
+    pub async fn prune(
+        &self,
+        current_height: Height,
+        retain_height: Height,
+    ) -> Result<(), StoreError> {
         let db = Arc::clone(&self.db);
         tokio::task::spawn_blocking(move || db.prune(current_height, retain_height)).await?
     }
