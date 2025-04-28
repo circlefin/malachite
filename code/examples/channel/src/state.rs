@@ -401,9 +401,27 @@ impl State {
         parts
     }
 
-    /// Returns the set of validators.
-    pub fn get_validator_set(&self) -> &ValidatorSet {
-        &self.genesis.validator_set
+    /// Returns the validator set for the given height.
+    /// The validator set is rotated based on the height, selecting floor((n+1)/2)
+    /// validators from the genesis validator set.
+    pub fn get_validator_set(&self, height: Height) -> ValidatorSet {
+        let num_validators = self.genesis.validator_set.len();
+        let selection_size = (num_validators + 1) / 2;
+
+        if num_validators <= selection_size {
+            return self.genesis.validator_set.clone();
+        }
+
+        ValidatorSet::new(
+            self.genesis
+                .validator_set
+                .iter()
+                .cycle()
+                .skip(height.as_u64() as usize % num_validators)
+                .take(selection_size)
+                .cloned()
+                .collect::<Vec<_>>(),
+        )
     }
 
     /// Verifies the signature of the proposal.
@@ -436,8 +454,8 @@ impl State {
         };
 
         // Retrieve the the proposer
-        let proposer = self
-            .get_validator_set()
+        let validator_set = self.get_validator_set(self.current_height);
+        let proposer = validator_set
             .get_by_address(&parts.proposer)
             .ok_or(SignatureVerificationError::ProposerNotFound)?;
 
