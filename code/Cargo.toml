@@ -164,7 +164,7 @@ tikv-jemallocator  = "0.6.0"
 time               = "0.3"
 tokio              = "1.44.2"
 tokio-stream       = "0.1"
-toml               = "0.8.19"
+toml               = "0.8.21"
 tracing            = "0.1.41"
 tracing-appender   = "0.2.3"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
