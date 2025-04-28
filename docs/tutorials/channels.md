@@ -513,7 +513,7 @@ fn factor_value(value: Value) -> Vec<u64> {
 
 ```
 
-Then, let's introduce _getter_ methods that are quite self-explanatory. For the validator set, we select a  rotating subset (floor((n+1)/2)) of the validators from the genesis validator set based on the height. This is done to showcase the ability to change the validator set over time (or height, in this case).
+Then, let's introduce _getter_ methods that are quite self-explanatory:
 
 ```rust
 impl State {
@@ -548,6 +548,16 @@ impl State {
             proposal.value,
         )))
     }
+
+    // ...
+}
+```
+
+For the validator set, we select a  rotating subset (floor((n+1)/2)) of the validators from the genesis validator set based on the height. This is done to showcase the ability to change the validator set over time (or height, in this case).
+
+```rust
+impl State {
+    // ...
 
     /// Returns the validator set for the given height.
     /// The validator set is rotated based on the height,selecting floor((n+1)/2)
