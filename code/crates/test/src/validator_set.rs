@@ -75,6 +75,11 @@ impl ValidatorSet {
         self.validators.len()
     }
 
+    /// Check if the set is empty
+    pub fn is_empty(&self) -> bool {
+        self.validators.is_empty()
+    }
+
     /// Iterate over the validators in the set
     pub fn iter(&self) -> slice::Iter<Validator> {
         self.validators.iter()
