@@ -31,7 +31,7 @@ jobs:
     env:
       TF_VAR_do_token: "${{ secrets.DO_TOKEN }}"
       TF_VAR_ssh_keys: '["${{ secrets.DO_SSH_FINGERPRINT }}"]'
-      EXPR_SETUP: "${{ github.event.inputs.setup || 'north-america' }}"
+      EXPR_SETUP: "${{ github.event.inputs.setup || 'global' }}"
       EXPR_DURATION_MINUTES: "${{ github.event.inputs.expr_duration || '15' }}"
 
     steps:
@@ -111,7 +111,7 @@ jobs:
         working-directory: qa/terraform
         run: | 
           TIMESTAMP=$(date +%F-%H-%M)
-          S3_PATH="$EXPR_SETUP/$TIMESTAMP"
+          S3_PATH="$EXPR_SETUP-$TIMESTAMP"
           aws s3 cp latency.csv s3://malachite-performance-site/$S3_PATH/
           aws s3 cp throughput.csv s3://malachite-performance-site/$S3_PATH/
           aws s3 cp block-time.csv s3://malachite-performance-site/$S3_PATH/
