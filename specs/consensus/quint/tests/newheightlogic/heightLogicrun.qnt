@@ -154,7 +154,7 @@ run slowProcessAtHeight1 = {
 run catchUpToHigherRound = {
     init
     .then(fastProcessesDoNotDecide(0, 0, ValueList[0], ValueList[1]))
-    // // deliver all prevotes of round 0 and 1
+    // deliver all prevotes of round 0 and 1
     .then(ListDeliverAllVotes(Prevote, ["v1", "v3"], [slow], validatorSet, 0, 0, Nil))
     .then(ListDeliverAllVotes(Prevote, ["v2"], [slow], validatorSet, 0, 0, Val("a")))
     .then(ListDeliverAllVotes(Prevote, fastList, [slow], validatorSet, 0, 1, Val("b")))

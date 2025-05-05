@@ -51,7 +51,6 @@ run UnSuccessfulRound(prop: NonNilValue, r: Round): bool =
         N4F0::unchangedAll
     }
     .then(N4F0::deliverProposal(proposer, mkProposal(proposer, 0, r, prop, -1)))
-    // .then(everyoneTakesAStep) 
     .then(N4F0::valStep(proposer))
     .then(nonprop.length().reps(i => N4F0::valTimeout(nonprop[i])))
     .then(all{
