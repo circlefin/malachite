@@ -317,7 +317,10 @@ _change_config() {
     sconfig "$file" \
       "test.exec_time_per_tx=0ms" \
       "mempool.load.interval=100ms" \
-      "mempool.load.size=1 KB"
+      "mempool.load.size=1 KB" \
+      "consensus.timeout_propose=10s" \
+      "consensus.timeout_prevote=5s" \
+      "consensus.timeout_precommit=5s" 
   done
 }
 
