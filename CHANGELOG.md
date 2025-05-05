@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.2.0
+
+*April 16, 2025*
+
+## 📖 Release notes
+See [`RELEASE_NOTES.md`](./RELEASE_NOTES.md#0.2.0) for the release notes.
+
+### ⚠️ Breaking changes
+See [`BREAKING_CHANGES.md`](./BREAKING_CHANGES.md#0.2.0) for the list of breaking changes.
+
+### 🚀 Features
+
+- *(code)* Add the capability to re-run consensus for a given height ([#952](https://github.com/informalsystems/malachite/pull/952))
+- *(code)* Removal of timeout commit ([#976](https://github.com/informalsystems/malachite/pull/976))
+- *(code)* Verification of polka certificates ([#975](https://github.com/informalsystems/malachite/pull/975))
+
+### 📄 Documentation
+
+- *(docs)* Update README.md to include a pronunciation guide ([#978](https://github.com/informalsystems/malachite/pull/978))
+
 ## 0.1.0
 
 *April 9, 2025*

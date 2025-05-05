@@ -84,7 +84,7 @@ pub enum HostMsg<Ctx: Context> {
     /// Get the validator set at a given height
     GetValidatorSet {
         height: Ctx::Height,
-        reply_to: RpcReplyPort<Ctx::ValidatorSet>,
+        reply_to: RpcReplyPort<Option<Ctx::ValidatorSet>>,
     },
 
     /// Consensus has decided on a value.

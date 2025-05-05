@@ -2,20 +2,17 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use bytesize::ByteSize;
-use malachitebft_config::mempool_load::{NonUniformLoadConfig, UniformLoadConfig};
 use ractor::{concurrency::JoinHandle, Actor, ActorProcessingErr, ActorRef};
 use rand::rngs::SmallRng;
 use rand::seq::IteratorRandom;
 use rand::{Rng, RngCore, SeedableRng};
 use tracing::info;
 
+use malachitebft_config::mempool_load::{NonUniformLoadConfig, UniformLoadConfig};
 use malachitebft_config::MempoolLoadType;
 use malachitebft_starknet_p2p_types::{Transaction, TransactionBatch};
-use malachitebft_test_mempool::types::MempoolTransactionBatch;
 
-use crate::proto::Protobuf;
-
-use crate::mempool::network::{MempoolNetworkMsg, MempoolNetworkRef};
+use crate::mempool::{MempoolMsg, MempoolRef};
 
 pub type MempoolLoadMsg = Msg;
 pub type MempoolLoadRef = ActorRef<Msg>;
@@ -36,25 +33,25 @@ pub struct Params {
 
 pub struct MempoolLoad {
     params: Params,
-    network: MempoolNetworkRef,
+    mempool: MempoolRef,
     span: tracing::Span,
 }
 
 impl MempoolLoad {
-    pub fn new(params: Params, network: MempoolNetworkRef, span: tracing::Span) -> Self {
+    pub fn new(params: Params, mempool: MempoolRef, span: tracing::Span) -> Self {
         Self {
             params,
-            network,
+            mempool,
             span,
         }
     }
 
     pub async fn spawn(
         params: Params,
-        network: MempoolNetworkRef,
+        mempool: MempoolRef,
         span: tracing::Span,
     ) -> Result<MempoolLoadRef, ractor::SpawnErr> {
-        let actor = Self::new(params, network, span);
+        let actor = Self::new(params, mempool, span);
         let (actor_ref, _) = Actor::spawn(None, actor, ()).await?;
         Ok(actor_ref)
     }
@@ -175,11 +172,9 @@ impl Actor for MempoolLoad {
         match msg {
             Msg::GenerateTransactions { count, size } => {
                 let transactions = Self::generate_transactions(count, size);
-                let tx_batch = TransactionBatch::new(transactions).to_any().unwrap();
+                let tx_batch = TransactionBatch::new(transactions);
 
-                let mempool_batch: MempoolTransactionBatch = MempoolTransactionBatch::new(tx_batch);
-                self.network
-                    .cast(MempoolNetworkMsg::BroadcastMsg(mempool_batch))?;
+                self.mempool.cast(MempoolMsg::AddBatch(tx_batch))?;
 
                 Ok(())
             }

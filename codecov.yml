@@ -1,68 +1,67 @@
-codecov:
-  require_ci_to_pass: yes
-
-# Map path on GitHub runner to repository
-fixes:
-  - "/home/runner/work/malachite/::"
-
-comment:
-  layout: "header, diff, flags, components"
-
-ignore:
-  - "code/examples"
-  - "code/crates/proto"
-  - "code/crates/test/mempool"
-  - "code/crates/test/proto"
-  - "code/crates/test/cli"
-  - "code/crates/signing-ed25519"
-  - "code/crates/starknet/p2p-proto"
-  - "code/crates/starknet/p2p-types"
-
-component_management:
-  individual_components:
-    - component_id: core
-      name: core
-      paths:
-        - "code/crates/core-consensus/**"
-        - "code/crates/core-driver/**"
-        - "code/crates/core-state-machine/**"
-        - "code/crates/core-state-types/**"
-        - "code/crates/core-state-votekeeper/**"
-    - component_id: engine
-      name: engine
-      paths:
-        - "code/crates/engine/**"
-        - "code/crates/sync/**"
-    - component_id: app
-      name: app
-      paths:
-        - "code/crates/app/**"
-        - "code/crates/app-channel/**"
-    - component_id: starknet
-      name: starknet
-      paths:
-        - "code/crates/starknet/**"
-
-coverage:
-  precision: 2
-  round: nearest
-  range: "50...90"
-
-  status:
-    project:
-      default:
-        target: auto
-        threshold: 5%
-        removed_code_behavior: adjust_base
-        paths:
-          - "code"
-    patch:
-      default:
-        target: 0%
-        threshold: 5%
-        paths:
-          - "code"
-
-    changes:
-      default:
-        informational: true
+# codecov:
+#   require_ci_to_pass: yes
+# # Map path on GitHub runner to repository
+# fixes:
+#   - "/home/runner/work/malachite/malachite/::"
+#
+# comment:
+#   layout: "header, diff, flags, components"
+#
+# ignore:
+#   - "code/examples"
+#   - "code/crates/proto"
+#   - "code/crates/test/mempool"
+#   - "code/crates/test/proto"
+#   - "code/crates/test/cli"
+#   - "code/crates/signing-ed25519"
+#   - "code/crates/starknet/p2p-proto"
+#   - "code/crates/starknet/p2p-types"
+#
+# component_management:
+#   individual_components:
+#     - component_id: core
+#       name: core
+#       paths:
+#         - "code/crates/core-consensus/**"
+#         - "code/crates/core-driver/**"
+#         - "code/crates/core-state-machine/**"
+#         - "code/crates/core-state-types/**"
+#         - "code/crates/core-state-votekeeper/**"
+#     - component_id: engine
+#       name: engine
+#       paths:
+#         - "code/crates/engine/**"
+#         - "code/crates/sync/**"
+#     - component_id: app
+#       name: app
+#       paths:
+#         - "code/crates/app/**"
+#         - "code/crates/app-channel/**"
+#     - component_id: starknet
+#       name: starknet
+#       paths:
+#         - "code/crates/starknet/**"
+#
+# coverage:
+#   precision: 2
+#   round: nearest
+#   range: "50...90"
+#
+#   status:
+#     project:
+#       default:
+#         target: auto
+#         threshold: 5%
+#         removed_code_behavior: adjust_base
+#         paths:
+#           - "code"
+#     patch:
+#       default:
+#         target: 0%
+#         threshold: 5%
+#         paths:
+#           - "code"
+#
+#     changes:
+#       default:
+#         informational: true

@@ -165,7 +165,7 @@ pub async fn run(
             // In our case, our validator set stays constant between heights so we can
             // send back the validator set found in our genesis state.
             AppMsg::GetValidatorSet { height: _, reply } => {
-                if reply.send(genesis.validator_set.clone()).is_err() {
+                if reply.send(Some(genesis.validator_set.clone())).is_err() {
                     error!("Failed to send GetValidatorSet reply");
                 }
             }

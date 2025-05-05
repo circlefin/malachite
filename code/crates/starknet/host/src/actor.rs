@@ -292,13 +292,13 @@ fn on_get_history_min_height(
 async fn on_get_validator_set(
     state: &mut HostState,
     height: Height,
-    reply_to: RpcReplyPort<ValidatorSet>,
+    reply_to: RpcReplyPort<Option<ValidatorSet>>,
 ) -> Result<(), ActorProcessingErr> {
     let Some(validators) = state.host.validators(height).await else {
         return Err(eyre!("No validator set found for the given height {height}").into());
     };
 
-    reply_to.send(ValidatorSet::new(validators))?;
+    reply_to.send(Some(ValidatorSet::new(validators)))?;
     Ok(())
 }
 
