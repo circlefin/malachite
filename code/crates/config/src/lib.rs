@@ -362,7 +362,7 @@ pub mod mempool_load {
         }
     }
 
-    #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, serde::Deserialize)]
+    #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
     pub struct UniformLoadConfig {
         /// Interval at which to generate load
         #[serde(with = "humantime_serde")]
@@ -379,7 +379,7 @@ pub mod mempool_load {
         fn default() -> Self {
             Self {
                 interval: Duration::from_secs(1),
-                count: 100,
+                count: 1000,
                 size: ByteSize::b(256),
             }
         }
@@ -639,6 +639,8 @@ pub struct TestConfig {
     pub max_retain_blocks: usize,
     #[serde(default)]
     pub vote_extensions: VoteExtensionsConfig,
+    #[serde(default)]
+    pub stable_block_times: bool,
 }
 
 impl Default for TestConfig {
@@ -650,6 +652,7 @@ impl Default for TestConfig {
             exec_time_per_tx: Duration::from_millis(1),
             max_retain_blocks: 1000,
             vote_extensions: VoteExtensionsConfig::default(),
+            stable_block_times: false,
         }
     }
 }
