@@ -135,7 +135,7 @@ humantime-serde    = "1.1.1"
 itertools          = "0.14"
 itf                = "0.2.3"
 libp2p             = { version = "0.55.0", features = ["macros", "identify", "tokio", "ed25519", "ecdsa", "tcp", "quic", "noise", "yamux", "gossipsub", "dns", "ping", "metrics", "request-response", "cbor", "serde", "kad"] }
-libp2p-identity    = "0.2.10"
+libp2p-identity    = "0.2.11"
 libp2p-broadcast   = { version = "0.2.0", package = "libp2p-scatter" }
 multiaddr          = "0.18.2"
 multihash          = { version = "0.19.3", default-features = false }
