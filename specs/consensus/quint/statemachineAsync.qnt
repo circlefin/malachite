@@ -266,7 +266,7 @@ action step = {
     nondet value = oneOf(Values)
     any {
         valStep(v),
-        valTimeout(v), // comment out for runs that don't timeout
+        valTimeout(v), // comment out for runs were no timeout ever expires
         deliver(v),
         setNextValueToPropose(v, value),
     }
