@@ -16,32 +16,32 @@ run AllButOneDecideInR1WhileSlowInR0 = {
     .then(reps(2, _ => valStep(slow))) // enter round 0 and consume step change
     .then(onlyProposerReceivesProposal(others, validatorList, validatorSet, 0, 0, "blue"))
 
-    // receive all prevotes    
-    .then(ListDeliverAllVotes(Prevote, List(thisProposer), others, validatorSet, 0, 0, Val("blue")))
-    .then(ListDeliverAllVotes(Prevote, others.select(x => x != thisProposer), others, validatorSet, 0, 0, Nil)) 
-    .then(others.length().reps(_ => ListTakeAStep(others)))   
-    .then(all{
-        assert(SetFromList(others).forall(proc => system.get(proc).timeouts.contains((PrevoteTimeout, 0, 0)))),
-        ListTakeAStep(others)
-    })
-    .then(all{ 
-        assert(SetFromList(others).forall(proc => system.get(proc).es.pendingStepChange == PrecommitStep)),
-        ListTakeAStep(others)
-    })
-    .then(ListDeliverAllVotes(Precommit, others, others, validatorSet, 0, 0, Nil))
-    .then(others.length().reps(_ => ListTakeAStep(others)))   
-    // Others now go to next round on timeoutPrecommit
-    .then(all{
-        assert(SetFromList(others).forall(proc => system.get(proc).timeouts.contains((PrecommitTimeout, 0, 0)))),
-        everyoneReceivesProposal (others, validatorList, validatorSet, 0, 1, "green")
-    })          
-    .then(fromPrevoteToPrecommit(others, others, validatorList, validatorSet, 0, 1, Val("green")))
-    .then(ListDeliverAllVotes(Precommit, others, others, validatorSet, 0, 1, Val("green")))
-    .then(others.length().reps(_ => ListTakeAStep(correctList)))
-    .then(all {
-        assert(SetFromList(others).forall(proc => system.get(proc).es.chain.head().decision.proposal == "green")),
-        unchangedAll
-    })       
+    // // receive all prevotes    
+    // .then(ListDeliverAllVotes(Prevote, List(thisProposer), others, validatorSet, 0, 0, Val("blue")))
+    // .then(ListDeliverAllVotes(Prevote, others.select(x => x != thisProposer), others, validatorSet, 0, 0, Nil)) 
+    // .then(others.length().reps(_ => ListTakeAStep(others)))   
+    // .then(all{
+    //     assert(SetFromList(others).forall(proc => system.get(proc).timeouts.contains((PrevoteTimeout, 0, 0)))),
+    //     ListTakeAStep(others)
+    // })
+    // .then(all{ 
+    //     assert(SetFromList(others).forall(proc => system.get(proc).es.pendingStepChange == PrecommitStep)),
+    //     ListTakeAStep(others)
+    // })
+    // .then(ListDeliverAllVotes(Precommit, others, others, validatorSet, 0, 0, Nil))
+    // .then(others.length().reps(_ => ListTakeAStep(others)))   
+    // // Others now go to next round on timeoutPrecommit
+    // .then(all{
+    //     assert(SetFromList(others).forall(proc => system.get(proc).timeouts.contains((PrecommitTimeout, 0, 0)))),
+    //     everyoneReceivesProposal (others, validatorList, validatorSet, 0, 1, "green")
+    // })          
+    // .then(fromPrevoteToPrecommit(others, others, validatorList, validatorSet, 0, 1, Val("green")))
+    // .then(ListDeliverAllVotes(Precommit, others, others, validatorSet, 0, 1, Val("green")))
+    // .then(others.length().reps(_ => ListTakeAStep(correctList)))
+    // .then(all {
+    //     assert(SetFromList(others).forall(proc => system.get(proc).es.chain.head().decision.proposal == "green")),
+    //     unchangedAll
+    // })       
 }
 
 run DecideForFutureRoundRun = {

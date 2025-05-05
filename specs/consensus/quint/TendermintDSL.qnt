@@ -71,7 +71,10 @@ run onlyProposerReceivesProposal(active, valList, valset, h, r, value) = {
         ListTakeAStep(active)
     })
     .then(deliverSomeProposal(p))
-    .then(ListTakeAStep(active))
+//    .then(ListTakeAStep(active))
+    .then(valStep(p))
+    .then(ListTimesOut(active.select(x => x != p)))
+    //
     .then(all{ 
         assert(SetFromList(active).forall(proc => system.get(proc).es.pendingStepChange == PrevoteStep)),
         ListTakeAStep(active)
