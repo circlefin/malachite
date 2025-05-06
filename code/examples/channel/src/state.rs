@@ -238,7 +238,11 @@ impl State {
         round: Round,
     ) -> eyre::Result<Option<LocallyProposedValue<TestContext>>> {
         let proposals = self.store.get_undecided_proposals(height, round).await?;
-        assert!(proposals.len() <= 1);
+
+        assert!(
+            proposals.len() <= 1,
+            "There should be at most one proposal for a given height and round"
+        );
 
         proposals
             .first()
