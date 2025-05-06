@@ -249,7 +249,7 @@ impl State {
             .map(|p| LocallyProposedValue::new(p.height, p.round, p.value.clone()))
             .map(Some)
             .map(Ok)
-            .unwrap_or_else(|| Ok(None))
+            .unwrap_or(Ok(None))
     }
 
     /// Creates a new proposal value for the given height and round
