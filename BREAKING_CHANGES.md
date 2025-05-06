@@ -5,7 +5,7 @@
 ### `malachitebft-engine`
 - Changed the reply channel of `GetValidatorSet` message to take an `Option<Ctx::ValidatorSet>` instead of `Ctx::ValidatorSet`.
 - Changed `PartStore::all_parts` to `PartStore::all_parts_by_stream_id`:
-  - Renamed method to clarify that, when a new part is received, the contiguous parts should be queries by stream id
+  - Renamed method to clarify that, when a new part is received, the contiguous parts should be queried by stream id
   - Added required `StreamId` parameter
 - Added new public API `PartStore::all_parts_by_value_id` to be used instead of `PartStore::all_parts` when a decision is reached
 - Added `&StreamId` parameter to `part_store::PartStore::store`
