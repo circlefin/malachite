@@ -211,17 +211,14 @@ impl State {
                 "Trying to commit a value with value id {value_id} at height {height} and round {round} for which there is no proposal"
             ));
         };
-        self.store
-            .remove_undecided_proposals_by_value_id(value_id)
-            .await?;
 
         self.store
             .store_decided_value(&certificate, proposal.value)
             .await?;
 
-        // Prune the store, keep the last HISTORY_LENGTH values
+        // Prune the store, keep the last HISTORY_LENGTH decided values, remove all undecided proposals for the decided height
         let retain_height = Height::new(height.as_u64().saturating_sub(HISTORY_LENGTH));
-        self.store.prune(retain_height).await?;
+        self.store.prune(height, retain_height).await?;
 
         // Move to next height
         self.current_height = self.current_height.increment();
@@ -230,24 +227,32 @@ impl State {
         Ok(())
     }
 
-    /// Retrieves a previously built proposal value for the given height
+    /// Retrieves a previously built proposal value for the given height and round.
+    /// Called by the consensus engine to re-use a previously built value.
+    /// There should be at most one proposal for a given height and round when the proposer is not byzantine.
+    /// We assume this implementation is not byzantine and we are the proposer for the given height and round.
+    /// Therefore there must be a single proposal for the rounds where we are the proposer, with the proposer address matching our own.
     pub async fn get_previously_built_value(
         &self,
         height: Height,
         round: Round,
     ) -> eyre::Result<Option<LocallyProposedValue<TestContext>>> {
-        let Some(proposal) = self.store.get_undecided_proposal(height, round).await? else {
-            return Ok(None);
-        };
+        let proposals = self.store.get_undecided_proposals(height, round).await?;
 
-        Ok(Some(LocallyProposedValue::new(
-            proposal.height,
-            proposal.round,
-            proposal.value,
-        )))
+        assert!(
+            proposals.len() <= 1,
+            "There should be at most one proposal for a given height and round"
+        );
+
+        proposals
+            .first()
+            .map(|p| LocallyProposedValue::new(p.height, p.round, p.value.clone()))
+            .map(Some)
+            .map(Ok)
+            .unwrap_or(Ok(None))
     }
 
-    /// Creates a new proposal value for the given height
+    /// Creates a new proposal value for the given height and round
     async fn create_proposal(
         &mut self,
         height: Height,
@@ -313,11 +318,6 @@ impl State {
         assert_eq!(height, self.current_height);
         assert_eq!(round, self.current_round);
 
-        // Check if we have already built a proposal for this height and round
-        if let Some(proposal) = self.get_previously_built_value(height, round).await? {
-            return Ok(proposal);
-        }
-
         let proposal = self.create_proposal(height, round).await?;
 
         Ok(LocallyProposedValue::new(
@@ -346,7 +346,11 @@ impl State {
             msgs.push(msg);
         }
 
-        msgs.push(StreamMessage::new(stream_id, sequence, StreamContent::Fin));
+        msgs.push(StreamMessage::new(
+            stream_id.clone(),
+            sequence,
+            StreamContent::Fin,
+        ));
 
         msgs.into_iter()
     }
@@ -401,9 +405,27 @@ impl State {
         parts
     }
 
-    /// Returns the set of validators.
-    pub fn get_validator_set(&self) -> &ValidatorSet {
-        &self.genesis.validator_set
+    /// Returns the validator set for the given height.
+    /// The validator set is rotated based on the height, selecting floor((n+1)/2)
+    /// validators from the genesis validator set.
+    pub fn get_validator_set(&self, height: Height) -> ValidatorSet {
+        let num_validators = self.genesis.validator_set.len();
+        let selection_size = (num_validators + 1) / 2;
+
+        if num_validators <= selection_size {
+            return self.genesis.validator_set.clone();
+        }
+
+        ValidatorSet::new(
+            self.genesis
+                .validator_set
+                .iter()
+                .cycle()
+                .skip(height.as_u64() as usize % num_validators)
+                .take(selection_size)
+                .cloned()
+                .collect::<Vec<_>>(),
+        )
     }
 
     /// Verifies the signature of the proposal.
@@ -436,8 +458,8 @@ impl State {
         };
 
         // Retrieve the the proposer
-        let proposer = self
-            .get_validator_set()
+        let validator_set = self.get_validator_set(self.current_height);
+        let proposer = validator_set
             .get_by_address(&parts.proposer)
             .ok_or(SignatureVerificationError::ProposerNotFound)?;
 

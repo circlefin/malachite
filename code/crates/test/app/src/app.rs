@@ -38,11 +38,14 @@ pub async fn run(
                 sleep(Duration::from_millis(200)).await;
 
                 // We can simply respond by telling the engine to start consensus
-                // at the next height, and provide it with the genesis validator set
-                if reply
-                    .send((start_height, genesis.validator_set.clone()))
-                    .is_err()
-                {
+                // at the next height, and provide it with the appropriate validator set
+                let validator_set = state
+                    .ctx
+                    .middleware()
+                    .get_validator_set(&state.ctx, start_height, start_height, &genesis)
+                    .expect("Validator set should be available");
+
+                if reply.send((start_height, validator_set)).is_err() {
                     error!("Failed to send ConsensusReady reply");
                 }
             }
@@ -62,16 +65,11 @@ pub async fn run(
                 state.current_round = round;
                 state.current_proposer = Some(proposer);
 
-                // If we have already built or seen a value for this height and round,
-                // send it back to consensus. This may happen when we are restarting after a crash.
-                if let Some(proposal) = state.store.get_undecided_proposal(height, round).await? {
-                    info!(%height, %round, "Replaying already known proposed value: {}", proposal.value.id());
-
-                    if reply_value.send(Some(proposal)).is_err() {
-                        error!("Failed to send undecided proposal");
-                    }
-                } else {
-                    let _ = reply_value.send(None);
+                // If we have already built or seen values for this height and round,
+                // send them back to consensus. This may happen when we are restarting after a crash.
+                let proposals = state.store.get_undecided_proposals(height, round).await?;
+                if reply_value.send(proposals).is_err() {
+                    error!("Failed to send undecided proposals");
                 }
             }
 
@@ -92,8 +90,6 @@ pub async fn run(
 
                 // Here it is important that, if we have previously built a value for this height and round,
                 // we send back the very same value.
-                // However, for testing purposes a node may be configured to be a byzantine proposer.
-                // In that case, we will not send back the previously built value but a new one.
                 let proposal = match state.get_previously_built_value(height, round).await? {
                     Some(mut proposal) => {
                         state
@@ -162,10 +158,16 @@ pub async fn run(
             // than the one we are at (e.g. because we are lagging behind a little bit),
             // the engine may ask us for the validator set at that height.
             //
-            // In our case, our validator set stays constant between heights so we can
-            // send back the validator set found in our genesis state.
-            AppMsg::GetValidatorSet { height: _, reply } => {
-                if reply.send(Some(genesis.validator_set.clone())).is_err() {
+            // We send back the appropriate validator set for that height.
+            AppMsg::GetValidatorSet { height, reply } => {
+                let validator_set = state.ctx.middleware().get_validator_set(
+                    &state.ctx,
+                    state.current_height,
+                    height,
+                    &genesis,
+                );
+
+                if reply.send(validator_set).is_err() {
                     error!("Failed to send GetValidatorSet reply");
                 }
             }
@@ -192,10 +194,21 @@ pub async fn run(
                 match state.commit(certificate).await {
                     Ok(_) => {
                         // And then we instruct consensus to start the next height
+                        let validator_set = state
+                            .ctx
+                            .middleware()
+                            .get_validator_set(
+                                &state.ctx,
+                                state.current_height,
+                                state.current_height,
+                                &genesis,
+                            )
+                            .expect("Validator set should be available");
+
                         if reply
                             .send(ConsensusMsg::StartHeight(
                                 state.current_height,
-                                genesis.validator_set.clone(),
+                                validator_set,
                             ))
                             .is_err()
                         {
@@ -207,10 +220,21 @@ pub async fn run(
                         error!("Commit failed: {e}");
                         error!("Restarting height {}", state.current_height);
 
+                        let validator_set = state
+                            .ctx
+                            .middleware()
+                            .get_validator_set(
+                                &state.ctx,
+                                state.current_height,
+                                state.current_height,
+                                &genesis,
+                            )
+                            .expect("Validator set should be available");
+
                         if reply
                             .send(ConsensusMsg::RestartHeight(
                                 state.current_height,
-                                genesis.validator_set.clone(),
+                                validator_set,
                             ))
                             .is_err()
                         {
@@ -296,10 +320,10 @@ pub async fn run(
 
                 assert_ne!(valid_round, Round::Nil, "valid_round should not be nil");
 
-                //  Look for a proposal at valid_round (should be already stored)
+                //  Look for a proposal for the given value_id at valid_round (should be already stored)
                 let proposal = state
                     .store
-                    .get_undecided_proposal(height, valid_round)
+                    .get_undecided_proposal(height, valid_round, value_id)
                     .await?;
 
                 if let Some(proposal) = proposal {

@@ -262,14 +262,14 @@ where
         }
 
         DriverOutput::Vote(vote) => {
-            info!(
-                vote_type = ?vote.vote_type(),
-                value = %PrettyVal(vote.value().as_ref()),
-                round = %vote.round(),
-                "Voting",
-            );
-
             if state.is_validator() {
+                info!(
+                    vote_type = ?vote.vote_type(),
+                    value = %PrettyVal(vote.value().as_ref()),
+                    round = %vote.round(),
+                    "Voting",
+                );
+
                 let vote_type = vote.vote_type();
 
                 let extended_vote = extend_vote(co, vote).await?;

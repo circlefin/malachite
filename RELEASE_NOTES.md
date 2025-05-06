@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Reply to `GetValidatorSet` is now optional ([#990](https://github.com/informalsystems/malachite/issues/990))
+- Clarify and improve the application handling of multiple proposals for same height and round ([#833](https://github.com/informalsystems/malachite/issues/833))
 
 ## 0.2.0
 

@@ -33,7 +33,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 sleep(Duration::from_millis(200)).await;
 
                 if reply
-                    .send((start_height, state.get_validator_set().clone()))
+                    .send((start_height, state.get_validator_set(start_height).clone()))
                     .is_err()
                 {
                     error!("Failed to send ConsensusReady reply");
@@ -57,16 +57,11 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 state.current_round = round;
                 state.current_proposer = Some(proposer);
 
-                // If we have already built or seen a value for this height and round,
-                // send it back to consensus. This may happen when we are restarting after a crash.
-                if let Some(proposal) = state.store.get_undecided_proposal(height, round).await? {
-                    info!(%height, %round, "Replaying already known proposed value: {}", proposal.value.id());
-
-                    if reply_value.send(Some(proposal)).is_err() {
-                        error!("Failed to send undecided proposal");
-                    }
-                } else {
-                    let _ = reply_value.send(None);
+                // If we have already built or seen values for this height and round,
+                // send them all back to consensus. This may happen when we are restarting after a crash.
+                let proposals = state.store.get_undecided_proposals(height, round).await?;
+                if reply_value.send(proposals).is_err() {
+                    error!("Failed to send undecided proposals");
                 }
             }
 
@@ -171,8 +166,11 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             //
             // In our case, our validator set stays constant between heights so we can
             // send back the validator set found in our genesis state.
-            AppMsg::GetValidatorSet { height: _, reply } => {
-                if reply.send(Some(state.get_validator_set().clone())).is_err() {
+            AppMsg::GetValidatorSet { height, reply } => {
+                if reply
+                    .send(Some(state.get_validator_set(height).clone()))
+                    .is_err()
+                {
                     error!("Failed to send GetValidatorSet reply");
                 }
             }
@@ -201,7 +199,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         if reply
                             .send(ConsensusMsg::StartHeight(
                                 state.current_height,
-                                state.get_validator_set().clone(),
+                                state.get_validator_set(state.current_height).clone(),
                             ))
                             .is_err()
                         {
@@ -214,7 +212,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         if reply
                             .send(ConsensusMsg::RestartHeight(
                                 state.current_height,
-                                state.get_validator_set().clone(),
+                                state.get_validator_set(state.current_height).clone(),
                             ))
                             .is_err()
                         {
@@ -296,14 +294,14 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 round,
                 valid_round,
                 address: _,
-                value_id: _,
+                value_id,
             } => {
                 //  Look for a proposal at valid_round (should be already stored)
                 info!(%height, %valid_round, "Restreaming existing propos*al...");
 
                 let proposal = state
                     .store
-                    .get_undecided_proposal(height, valid_round)
+                    .get_undecided_proposal(height, valid_round, value_id)
                     .await?;
 
                 if let Some(proposal) = proposal {
