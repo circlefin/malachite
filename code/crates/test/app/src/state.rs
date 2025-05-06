@@ -324,12 +324,16 @@ impl State {
         let mut sequence = 0;
 
         for part in parts {
-            let msg = StreamMessage::new(&stream_id, sequence, StreamContent::Data(part));
+            let msg = StreamMessage::new(stream_id.clone(), sequence, StreamContent::Data(part));
             sequence += 1;
             msgs.push(msg);
         }
 
-        msgs.push(StreamMessage::new(&stream_id, sequence, StreamContent::Fin));
+        msgs.push(StreamMessage::new(
+            stream_id.clone(),
+            sequence,
+            StreamContent::Fin,
+        ));
 
         msgs.into_iter()
     }

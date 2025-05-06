@@ -340,13 +340,17 @@ async fn on_get_value(
 
         debug!(%stream_id, %sequence, "Broadcasting proposal part");
 
-        let msg = StreamMessage::new(&stream_id, sequence, StreamContent::Data(part.clone()));
+        let msg = StreamMessage::new(
+            stream_id.clone(),
+            sequence,
+            StreamContent::Data(part.clone()),
+        );
         network.cast(NetworkMsg::PublishProposalPart(msg))?;
 
         sequence += 1;
     }
 
-    let msg = StreamMessage::new(&stream_id, sequence, StreamContent::Fin);
+    let msg = StreamMessage::new(stream_id.clone(), sequence, StreamContent::Fin);
     network.cast(NetworkMsg::PublishProposalPart(msg))?;
 
     let block_hash = rx_hash.await?;
@@ -472,7 +476,7 @@ async fn on_restream_proposal(
 
         debug!(%stream_id, %sequence, "Broadcasting proposal part");
 
-        let msg = StreamMessage::new(&stream_id, sequence, StreamContent::Data(new_part));
+        let msg = StreamMessage::new(stream_id.clone(), sequence, StreamContent::Data(new_part));
 
         network.cast(NetworkMsg::PublishProposalPart(msg))?;
 
