@@ -96,16 +96,19 @@ where
                     return Ok(());
                 };
 
-                // Do not block processing of other messages while waiting for the value
+                // Do not block processing of other messages while waiting for the values
                 tokio::spawn({
                     let consensus = consensus.clone();
                     async move {
-                        if let Ok(Some(value)) = rx_value.await {
-                            let msg =
-                                ConsensusMsg::ReceivedProposedValue(value, ValueOrigin::Consensus);
-
-                            if let Err(e) = consensus.cast(msg) {
-                                error!("Failed to send back undecided value to consensus: {e}");
+                        if let Ok(values) = rx_value.await {
+                            for value in values {
+                                let msg = ConsensusMsg::ReceivedProposedValue(
+                                    value,
+                                    ValueOrigin::Consensus,
+                                );
+                                if let Err(e) = consensus.cast(msg) {
+                                    error!("Failed to send back undecided value to consensus: {e}");
+                                }
                             }
                         }
                     }

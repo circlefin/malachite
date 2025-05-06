@@ -1,5 +1,5 @@
 #![allow(clippy::too_many_arguments)]
-
+use sha3::Digest;
 use std::sync::Arc;
 use std::time::SystemTime;
 
@@ -99,6 +99,7 @@ async fn run_build_proposal_task(
     }
 
     let max_block_size = params.max_block_size.as_u64() as usize;
+    let mut hasher = sha3::Keccak256::new();
 
     'reap: loop {
         let reaped_txes = mempool
@@ -132,7 +133,8 @@ async fn run_build_proposal_task(
             block_size += tx.size_bytes();
             block_tx_count += 1;
 
-            txes.push(tx);
+            txes.push(tx.clone());
+            hasher.update(tx.clone().hash().as_bytes());
         }
 
         let exec_time = params.exec_time_per_tx * txes.len() as u32;
@@ -168,6 +170,8 @@ async fn run_build_proposal_task(
         tokio::time::sleep(build_deadline - Instant::now()).await;
     }
 
+    let transaction_commitment = Hash::new(hasher.finalize().into());
+
     // Proposal Commitment
     {
         let part = ProposalPart::Commitment(Box::new(ProposalCommitment {
@@ -178,7 +182,7 @@ async fn run_build_proposal_task(
             protocol_version: PROTOCOL_VERSION.to_string(),
             old_state_root: Hash::new([0; 32]),
             state_diff_commitment: Hash::new([0; 32]),
-            transaction_commitment: Hash::new([0; 32]),
+            transaction_commitment,
             event_commitment: Hash::new([0; 32]),
             receipt_commitment: Hash::new([0; 32]),
             concatenated_counts: Felt::ONE,
@@ -193,13 +197,12 @@ async fn run_build_proposal_task(
         sequence += 1;
     }
 
-    // TODO: Compute the actual propoosal commitment hash
-    let proposal_commitment_hash = Hash::new([42; 32]);
-
     // Fin
     {
         let part = ProposalPart::Fin(ProposalFin {
-            proposal_commitment_hash,
+            // TODO: Compute the actual propoosal commitment hash, for now
+            // we use the transaction commitment
+            proposal_commitment_hash: transaction_commitment,
         });
         tx_part.send(part).await?;
         sequence += 1;
@@ -211,12 +214,12 @@ async fn run_build_proposal_task(
     let block_size = ByteSize::b(block_size as u64);
 
     debug!(
-        tx_count = %block_tx_count, size = %block_size, %proposal_commitment_hash, parts = %sequence,
+        tx_count = %block_tx_count, size = %block_size, %transaction_commitment, parts = %sequence,
         "Built block in {:?}", start.elapsed()
     );
 
     tx_value_id
-        .send(proposal_commitment_hash)
+        .send(transaction_commitment)
         .map_err(|_| "Failed to send proposal commitment hash")?;
 
     Ok(())

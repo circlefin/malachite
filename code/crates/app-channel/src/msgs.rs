@@ -49,8 +49,8 @@ pub enum AppMsg<Ctx: Context> {
         round: Round,
         /// Proposer for that round
         proposer: Ctx::Address,
-        /// Channel for sending back a previously received undecided value to consensus
-        reply_value: Reply<Option<ProposedValue<Ctx>>>,
+        /// Channel for sending back previously received undecided values to consensus
+        reply_value: Reply<Vec<ProposedValue<Ctx>>>,
     },
 
     /// Requests the application to build a value for consensus to run on.
