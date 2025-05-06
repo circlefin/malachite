@@ -63,33 +63,15 @@ message ProposedValue {
     bool validity = 6;
 }
 
-message VoteSetRequest {
-  uint64 height = 1;
-  uint32 round = 2;
-}
-
-message VoteSetResponse {
-  uint64 height = 1;
-  uint32 round = 2;
-  VoteSet vote_set = 3;
-  repeated PolkaCertificate polka_certificates = 5;
-}
-
-message VoteSet {
-  repeated SignedMessage signed_votes = 1;
-}
-
 message SyncRequest {
   oneof request {
     ValueRequest value_request = 1;
-    VoteSetRequest vote_set_request = 2;
   }
 }
 
 message SyncResponse {
   oneof response {
     ValueResponse value_response = 1;
-    VoteSetResponse vote_set_response = 2;
   }
 }
 

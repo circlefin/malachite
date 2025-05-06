@@ -13,7 +13,7 @@ use tracing::{debug, error, info, warn, Instrument};
 
 use malachitebft_codec as codec;
 use malachitebft_core_consensus::PeerId;
-use malachitebft_core_types::{CertificateError, CommitCertificate, Context, Round};
+use malachitebft_core_types::{CertificateError, CommitCertificate, Context};
 use malachitebft_sync::{self as sync, InboundRequestId, OutboundRequestId, Response};
 use malachitebft_sync::{RawDecidedValue, Request};
 
@@ -94,12 +94,6 @@ pub enum Msg<Ctx: Context> {
 
     /// We received an invalid [`CommitCertificate`] from a peer
     InvalidCommitCertificate(PeerId, CommitCertificate<Ctx>, CertificateError<Ctx>),
-
-    /// Consensus needs vote set from peers
-    RequestVoteSet(Ctx::Height, Round),
-
-    /// Consensus has sent a vote set response to a peer
-    SentVoteSetResponse(InboundRequestId, Ctx::Height, Round),
 }
 
 impl<Ctx: Context> From<NetworkEvent<Ctx>> for Msg<Ctx> {
@@ -276,38 +270,6 @@ where
                     None,
                 )?;
             }
-            Effect::SendVoteSetRequest(peer_id, vote_set_request) => {
-                debug!(
-                    height = %vote_set_request.height, round = %vote_set_request.round, peer = %peer_id,
-                    "Send the vote set request to peer"
-                );
-
-                let request = Request::VoteSetRequest(vote_set_request);
-
-                let result = ractor::call!(self.gossip, |reply_to| {
-                    NetworkMsg::OutgoingRequest(peer_id, request.clone(), reply_to)
-                });
-                match result {
-                    Ok(request_id) => {
-                        timers.start_timer(
-                            Timeout::Request(request_id.clone()),
-                            self.params.request_timeout,
-                        );
-
-                        inflight.insert(
-                            request_id.clone(),
-                            InflightRequest {
-                                peer_id,
-                                request_id,
-                                request,
-                            },
-                        );
-                    }
-                    Err(e) => {
-                        error!("Failed to send request to gossip layer: {e}");
-                    }
-                }
-            }
         }
 
         Ok(sync::Resume::default())
@@ -320,22 +282,6 @@ where
         state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
         match msg {
-            Msg::RequestVoteSet(height, round) => {
-                debug!(%height, %round, "Make a vote set request to one of the peers");
-
-                self.process_input(&myself, state, sync::Input::GetVoteSet(height, round))
-                    .await?;
-            }
-
-            Msg::SentVoteSetResponse(request_id, height, round) => {
-                self.process_input(
-                    &myself,
-                    state,
-                    sync::Input::GotVoteSet(request_id, height, round),
-                )
-                .await?;
-            }
-
             Msg::Tick => {
                 self.process_input(&myself, state, sync::Input::Tick)
                     .await?;
@@ -370,14 +316,6 @@ where
                         )
                         .await?;
                     }
-                    Request::VoteSetRequest(vote_set_request) => {
-                        self.process_input(
-                            &myself,
-                            state,
-                            sync::Input::VoteSetRequest(request_id, from, vote_set_request),
-                        )
-                        .await?;
-                    }
                 };
             }
 
@@ -391,14 +329,6 @@ where
                             &myself,
                             state,
                             sync::Input::ValueResponse(request_id, peer, value_response),
-                        )
-                        .await?;
-                    }
-                    Response::VoteSetResponse(vote_set_response) => {
-                        self.process_input(
-                            &myself,
-                            state,
-                            sync::Input::VoteSetResponse(request_id, peer, vote_set_response),
                         )
                         .await?;
                     }

@@ -160,22 +160,6 @@ where
         })
     }
 
-    pub fn expect_vote_set_request(&mut self, at_height: u64) -> &mut Self {
-        self.on_event(move |event, _| {
-            let Event::RequestedVoteSet(height, round) = event else {
-                return Ok(HandlerResult::WaitForNextEvent);
-            };
-
-            info!("Requested vote set for height {height} and round {round}");
-
-            if height.as_u64() != at_height {
-                bail!("Unexpected vote set request for height {height}, expected {at_height}")
-            }
-
-            Ok(HandlerResult::ContinueTest)
-        })
-    }
-
     pub fn expect_vote_rebroadcast(&mut self, at_height: u64) -> &mut Self {
         self.on_event(move |event, _| {
             let Event::Rebroadcast(msg) = event else {

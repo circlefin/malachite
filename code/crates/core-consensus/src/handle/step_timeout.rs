@@ -1,4 +1,4 @@
-use crate::{prelude::*, VoteSyncMode};
+use crate::prelude::*;
 
 #[cfg_attr(not(feature = "metrics"), allow(unused_variables))]
 pub async fn on_step_limit_timeout<Ctx>(
@@ -14,15 +14,6 @@ where
         height = %state.driver.height(), %round,
         "Consensus is halted in {:?} step", state.driver.step()
     );
-
-    if state.params.vote_sync_mode == VoteSyncMode::RequestResponse {
-        warn!(height = %state.driver.height(), %round, "Requesting vote set");
-
-        perform!(
-            co,
-            Effect::RequestVoteSet(state.driver.height(), round, Default::default())
-        );
-    }
 
     #[cfg(feature = "metrics")]
     metrics.step_timeouts.inc();

@@ -9,9 +9,7 @@ use malachitebft_core_types::{
 };
 use malachitebft_engine::util::streaming::{StreamContent, StreamId, StreamMessage};
 use malachitebft_starknet_p2p_types::{Felt, FeltExt, Signature};
-use malachitebft_sync::{
-    self as sync, ValueRequest, ValueResponse, VoteSetRequest, VoteSetResponse,
-};
+use malachitebft_sync::{self as sync, ValueRequest, ValueResponse};
 
 use crate::proto::{self as proto, Error as ProtoError, Protobuf};
 use crate::types::{self as p2p, Address, BlockHash, Height, MockContext, ProposalPart, Vote};
@@ -215,12 +213,6 @@ pub fn decode_sync_request(
                 value_request.fork_id,
             )))
         }
-        proto::sync::sync_request::Messages::VoteSetRequest(vote_set_request) => {
-            sync::Request::VoteSetRequest(VoteSetRequest::new(
-                Height::new(vote_set_request.block_number, vote_set_request.fork_id),
-                Round::new(vote_set_request.round),
-            ))
-        }
     };
 
     Ok(request)
@@ -235,18 +227,6 @@ pub fn encode_sync_request(
                 proto::sync::ValueRequest {
                     fork_id: value_request.height.fork_id,
                     block_number: value_request.height.block_number,
-                },
-            )),
-        },
-        sync::Request::VoteSetRequest(vote_set_request) => proto::sync::SyncRequest {
-            messages: Some(proto::sync::sync_request::Messages::VoteSetRequest(
-                proto::sync::VoteSetRequest {
-                    fork_id: vote_set_request.height.fork_id,
-                    block_number: vote_set_request.height.block_number,
-                    round: vote_set_request
-                        .round
-                        .as_u32()
-                        .expect("round should not be nil"),
                 },
             )),
         },
@@ -281,25 +261,8 @@ pub fn decode_sync_response(
                 value_response.value.map(decode_synced_value).transpose()?,
             ))
         }
-        proto::sync::sync_response::Messages::VoteSetResponse(vote_set_response) => {
-            let height = Height::new(vote_set_response.block_number, vote_set_response.fork_id);
-            let round = Round::new(vote_set_response.round);
-            let vote_set = vote_set_response
-                .vote_set
-                .ok_or_else(|| ProtoError::missing_field::<proto::sync::VoteSet>("vote_set"))?;
-            let polka_certificates = vote_set_response.polka_certificates;
-
-            sync::Response::VoteSetResponse(VoteSetResponse::new(
-                height,
-                round,
-                decode_vote_set(vote_set)?,
-                polka_certificates
-                    .into_iter()
-                    .map(decode_polka_certificate)
-                    .collect::<Result<Vec<_>, _>>()?,
-            ))
-        }
     };
+
     Ok(response)
 }
 
@@ -317,24 +280,6 @@ pub fn encode_sync_response(
                         .as_ref()
                         .map(encode_synced_value)
                         .transpose()?,
-                },
-            )),
-        },
-        sync::Response::VoteSetResponse(vote_set_response) => proto::sync::SyncResponse {
-            messages: Some(proto::sync::sync_response::Messages::VoteSetResponse(
-                proto::sync::VoteSetResponse {
-                    fork_id: vote_set_response.height.fork_id,
-                    block_number: vote_set_response.height.block_number,
-                    round: vote_set_response
-                        .round
-                        .as_u32()
-                        .expect("round should not be nil"),
-                    vote_set: Some(encode_vote_set(&vote_set_response.vote_set)?),
-                    polka_certificates: vote_set_response
-                        .polka_certificates
-                        .iter()
-                        .map(encode_polka_certificate)
-                        .collect::<Result<Vec<_>, _>>()?,
                 },
             )),
         },
@@ -611,30 +556,6 @@ impl Codec<sync::RawDecidedValue<MockContext>> for ProtobufCodec {
     fn encode(&self, msg: &sync::RawDecidedValue<MockContext>) -> Result<Bytes, Self::Error> {
         Ok(Bytes::from(encode_synced_value(msg)?.encode_to_vec()))
     }
-}
-
-pub(crate) fn encode_vote_set(
-    vote_set: &malachitebft_core_types::VoteSet<MockContext>,
-) -> Result<proto::sync::VoteSet, ProtoError> {
-    Ok(proto::sync::VoteSet {
-        signed_votes: vote_set
-            .votes
-            .iter()
-            .map(encode_vote)
-            .collect::<Result<Vec<_>, _>>()?,
-    })
-}
-
-pub(crate) fn decode_vote_set(
-    vote_set: proto::sync::VoteSet,
-) -> Result<malachitebft_core_types::VoteSet<MockContext>, ProtoError> {
-    Ok(malachitebft_core_types::VoteSet {
-        votes: vote_set
-            .signed_votes
-            .into_iter()
-            .map(decode_vote)
-            .collect::<Result<Vec<_>, _>>()?,
-    })
 }
 
 pub(crate) fn encode_vote(vote: &SignedVote<MockContext>) -> Result<proto::Vote, ProtoError> {

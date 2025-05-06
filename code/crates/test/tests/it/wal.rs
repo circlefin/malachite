@@ -5,7 +5,7 @@ use tracing::info;
 
 use informalsystems_malachitebft_test::{self as malachitebft_test};
 
-use malachitebft_config::{ValuePayload, VoteSyncMode};
+use malachitebft_config::ValuePayload;
 use malachitebft_core_consensus::LocallyProposedValue;
 use malachitebft_core_types::{NilOrVal, Round, SignedVote};
 use malachitebft_engine::util::events::Event;
@@ -197,9 +197,8 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
 
 #[tokio::test]
 #[ignore]
-async fn restart_with_byzantine_proposer_1_request_response_parts_only() {
+async fn restart_with_byzantine_proposer_1_parts_only() {
     byzantine_proposer_crashes_after_proposing_1(TestParams {
-        vote_sync_mode: Some(VoteSyncMode::RequestResponse),
         value_payload: ValuePayload::PartsOnly,
         ..TestParams::default()
     })
@@ -208,31 +207,8 @@ async fn restart_with_byzantine_proposer_1_request_response_parts_only() {
 
 #[tokio::test]
 #[ignore]
-async fn restart_with_byzantine_proposer_1_request_response_proposal_and_parts() {
+async fn restart_with_byzantine_proposer_1_proposal_and_parts() {
     byzantine_proposer_crashes_after_proposing_1(TestParams {
-        vote_sync_mode: Some(VoteSyncMode::RequestResponse),
-        value_payload: ValuePayload::ProposalAndParts,
-        ..TestParams::default()
-    })
-    .await
-}
-
-#[tokio::test]
-#[ignore]
-async fn restart_with_byzantine_proposer_1_rebroadcast_parts_only() {
-    byzantine_proposer_crashes_after_proposing_1(TestParams {
-        vote_sync_mode: Some(VoteSyncMode::Rebroadcast),
-        value_payload: ValuePayload::PartsOnly,
-        ..TestParams::default()
-    })
-    .await
-}
-
-#[tokio::test]
-#[ignore]
-async fn restart_with_byzantine_proposer_1_rebroadcast_proposal_and_parts() {
-    byzantine_proposer_crashes_after_proposing_1(TestParams {
-        vote_sync_mode: Some(VoteSyncMode::Rebroadcast),
         value_payload: ValuePayload::ProposalAndParts,
         ..TestParams::default()
     })
@@ -322,30 +298,9 @@ async fn byzantine_proposer_crashes_after_proposing_1(params: TestParams) {
 }
 
 #[tokio::test]
-async fn restart_with_byzantine_proposer_2_request_response_parts_only() {
-    byzantine_proposer_crashes_after_proposing_2(TestParams {
-        vote_sync_mode: Some(VoteSyncMode::RequestResponse),
-        value_payload: ValuePayload::PartsOnly,
-        ..TestParams::default()
-    })
-    .await
-}
-
-#[tokio::test]
-async fn restart_with_byzantine_proposer_2_request_response_proposal_and_parts() {
-    byzantine_proposer_crashes_after_proposing_2(TestParams {
-        vote_sync_mode: Some(VoteSyncMode::RequestResponse),
-        value_payload: ValuePayload::ProposalAndParts,
-        ..TestParams::default()
-    })
-    .await
-}
-
-#[tokio::test]
 #[ignore]
-async fn restart_with_byzantine_proposer_2_rebroadcast_parts_only() {
+async fn restart_with_byzantine_proposer_2_parts_only() {
     byzantine_proposer_crashes_after_proposing_2(TestParams {
-        vote_sync_mode: Some(VoteSyncMode::Rebroadcast),
         value_payload: ValuePayload::PartsOnly,
         ..TestParams::default()
     })
@@ -354,9 +309,8 @@ async fn restart_with_byzantine_proposer_2_rebroadcast_parts_only() {
 
 #[tokio::test]
 #[ignore]
-async fn restart_with_byzantine_proposer_2_rebroadcast_proposal_and_parts() {
+async fn restart_with_byzantine_proposer_2_proposal_and_parts() {
     byzantine_proposer_crashes_after_proposing_2(TestParams {
-        vote_sync_mode: Some(VoteSyncMode::Rebroadcast),
         value_payload: ValuePayload::ProposalAndParts,
         ..TestParams::default()
     })

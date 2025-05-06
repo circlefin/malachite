@@ -8,13 +8,12 @@ use malachitebft_metrics::prometheus::metrics::histogram::{exponential_buckets, 
 use malachitebft_metrics::SharedRegistry;
 
 pub type DecidedValuesMetrics = Inner;
-pub type VoteSetMetrics = Inner;
 
 #[derive(Clone, Debug)]
-pub struct Metrics(Arc<(DecidedValuesMetrics, VoteSetMetrics)>);
+pub struct Metrics(Arc<DecidedValuesMetrics>);
 
 impl Deref for Metrics {
-    type Target = (Inner, Inner);
+    type Target = Inner;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -59,18 +58,11 @@ impl Default for Inner {
 
 impl Metrics {
     pub fn new() -> Self {
-        Self(Arc::new((
-            DecidedValuesMetrics::new(),
-            VoteSetMetrics::new(),
-        )))
+        Self(Arc::new(DecidedValuesMetrics::new()))
     }
 
     fn decided_values(&self) -> &DecidedValuesMetrics {
-        &self.0 .0
-    }
-
-    fn vote_set(&self) -> &VoteSetMetrics {
-        &self.0 .1
+        &self.0
     }
 
     pub fn register(registry: &SharedRegistry) -> Self {
@@ -118,49 +110,6 @@ impl Metrics {
                 "value_request_timeouts",
                 "Number of ValueSync request timeouts",
                 metrics.decided_values().request_timeouts.clone(),
-            );
-
-            registry.register(
-                "vote_set_requests_sent",
-                "Number of ValueSync requests sent",
-                metrics.decided_values().requests_sent.clone(),
-            );
-
-            // Vote set sync related metrics
-            registry.register(
-                "vote_set_requests_received",
-                "Number of VoteSet requests received",
-                metrics.vote_set().requests_received.clone(),
-            );
-
-            registry.register(
-                "vote_set_responses_sent",
-                "Number of VoteSet responses sent",
-                metrics.vote_set().responses_sent.clone(),
-            );
-
-            registry.register(
-                "vote_set_responses_received",
-                "Number of VoteSet responses received",
-                metrics.vote_set().responses_received.clone(),
-            );
-
-            registry.register(
-                "vote_set_client_latency",
-                "Interval of time between when request was sent and response was received",
-                metrics.vote_set().client_latency.clone(),
-            );
-
-            registry.register(
-                "vote_set_server_latency",
-                "Interval of time between when request was received and response was sent",
-                metrics.vote_set().server_latency.clone(),
-            );
-
-            registry.register(
-                "vote_set_timeouts",
-                "Number of VoteSet request timeouts",
-                metrics.vote_set().request_timeouts.clone(),
             );
         });
 
@@ -214,55 +163,6 @@ impl Metrics {
         self.decided_values()
             .instant_request_sent
             .remove(&(height, 0));
-    }
-
-    pub fn vote_set_request_sent(&self, height: u64, round: i64) {
-        self.vote_set().requests_sent.inc();
-        self.vote_set()
-            .instant_request_sent
-            .insert((height, round), Instant::now());
-    }
-
-    pub fn vote_set_request_received(&self, height: u64, round: i64) {
-        self.vote_set().requests_received.inc();
-        self.vote_set()
-            .instant_request_received
-            .insert((height, round), Instant::now());
-    }
-
-    pub fn vote_set_response_sent(&self, height: u64, round: i64) {
-        self.vote_set().responses_sent.inc();
-
-        if let Some((_, instant)) = self
-            .vote_set()
-            .instant_request_received
-            .remove(&(height, round))
-        {
-            self.vote_set()
-                .server_latency
-                .observe(instant.elapsed().as_secs_f64());
-        }
-    }
-
-    pub fn vote_set_response_received(&self, height: u64, round: i64) {
-        self.vote_set().responses_received.inc();
-
-        if let Some((_, instant)) = self
-            .vote_set()
-            .instant_request_sent
-            .remove(&(height, round))
-        {
-            self.vote_set()
-                .client_latency
-                .observe(instant.elapsed().as_secs_f64());
-        }
-    }
-
-    pub fn vote_set_request_timed_out(&self, height: u64, round: i64) {
-        self.vote_set().request_timeouts.inc();
-        self.vote_set()
-            .instant_request_sent
-            .remove(&(height, round));
     }
 }
 

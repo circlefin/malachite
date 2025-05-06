@@ -6,7 +6,7 @@ use malachitebft_codec::Codec;
 use malachitebft_core_consensus::{ProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{
     CommitCertificate, CommitSignature, PolkaCertificate, PolkaSignature, Round, SignedExtension,
-    SignedProposal, SignedVote, Validity, VoteSet,
+    SignedProposal, SignedVote, Validity,
 };
 use malachitebft_proto::{Error as ProtoError, Protobuf};
 use malachitebft_signing_ed25519::Signature;
@@ -234,9 +234,6 @@ impl Codec<sync::Request<TestContext>> for ProtobufCodec {
             proto::sync_request::Request::ValueRequest(req) => Ok(sync::Request::ValueRequest(
                 sync::ValueRequest::new(Height::new(req.height)),
             )),
-            proto::sync_request::Request::VoteSetRequest(req) => Ok(sync::Request::VoteSetRequest(
-                sync::VoteSetRequest::new(Height::new(req.height), Round::new(req.round)),
-            )),
         }
     }
 
@@ -246,14 +243,6 @@ impl Codec<sync::Request<TestContext>> for ProtobufCodec {
                 request: Some(proto::sync_request::Request::ValueRequest(
                     proto::ValueRequest {
                         height: req.height.as_u64(),
-                    },
-                )),
-            },
-            sync::Request::VoteSetRequest(req) => proto::SyncRequest {
-                request: Some(proto::sync_request::Request::VoteSetRequest(
-                    proto::VoteSetRequest {
-                        height: req.height.as_u64(),
-                        round: req.round.as_u32().unwrap(),
                     },
                 )),
             },
@@ -289,25 +278,8 @@ pub fn decode_sync_response(
                 value_response.value.map(decode_synced_value).transpose()?,
             ))
         }
-        proto::sync_response::Response::VoteSetResponse(vote_set_response) => {
-            let height = Height::new(vote_set_response.height);
-            let round = Round::new(vote_set_response.round);
-            let vote_set = vote_set_response
-                .vote_set
-                .ok_or_else(|| ProtoError::missing_field::<proto::VoteSet>("vote_set"))?;
-
-            sync::Response::VoteSetResponse(sync::VoteSetResponse::new(
-                height,
-                round,
-                decode_vote_set(vote_set)?,
-                vote_set_response
-                    .polka_certificates
-                    .into_iter()
-                    .map(decode_polka_certificate)
-                    .collect::<Result<Vec<_>, _>>()?,
-            ))
-        }
     };
+
     Ok(response)
 }
 
@@ -324,23 +296,6 @@ pub fn encode_sync_response(
                         .as_ref()
                         .map(encode_synced_value)
                         .transpose()?,
-                },
-            )),
-        },
-        sync::Response::VoteSetResponse(vote_set_response) => proto::SyncResponse {
-            response: Some(proto::sync_response::Response::VoteSetResponse(
-                proto::VoteSetResponse {
-                    height: vote_set_response.height.as_u64(),
-                    round: vote_set_response
-                        .round
-                        .as_u32()
-                        .expect("round should not be nil"),
-                    vote_set: Some(encode_vote_set(&vote_set_response.vote_set)?),
-                    polka_certificates: vote_set_response
-                        .polka_certificates
-                        .iter()
-                        .map(encode_polka_certificate)
-                        .collect::<Result<Vec<_>, _>>()?,
                 },
             )),
         },
@@ -500,32 +455,12 @@ pub fn encode_extension(
     })
 }
 
-pub fn encode_vote_set(vote_set: &VoteSet<TestContext>) -> Result<proto::VoteSet, ProtoError> {
-    Ok(proto::VoteSet {
-        signed_votes: vote_set
-            .votes
-            .iter()
-            .map(encode_vote)
-            .collect::<Result<Vec<_>, _>>()?,
-    })
-}
-
 pub fn encode_vote(vote: &SignedVote<TestContext>) -> Result<proto::SignedMessage, ProtoError> {
     Ok(proto::SignedMessage {
         message: Some(proto::signed_message::Message::Vote(
             vote.message.to_proto()?,
         )),
         signature: Some(encode_signature(&vote.signature)),
-    })
-}
-
-pub fn decode_vote_set(vote_set: proto::VoteSet) -> Result<VoteSet<TestContext>, ProtoError> {
-    Ok(VoteSet {
-        votes: vote_set
-            .signed_votes
-            .into_iter()
-            .map(decode_vote)
-            .collect::<Result<Vec<_>, _>>()?,
     })
 }
 

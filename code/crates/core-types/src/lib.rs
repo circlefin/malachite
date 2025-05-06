@@ -27,7 +27,6 @@ mod validator_set;
 mod value;
 mod vote;
 mod vote_extension;
-mod vote_set;
 
 /// Type alias to make it easier to refer the `ValueId` type.
 pub type ValueId<Ctx> = <<Ctx as Context>::Value as Value>::Id;
@@ -69,4 +68,3 @@ pub use validator_set::{Address, Validator, ValidatorSet, VotingPower};
 pub use value::{NilOrVal, Value, ValueOrigin, ValuePayload};
 pub use vote::{Vote, VoteType};
 pub use vote_extension::{Extension, VoteExtensions};
-pub use vote_set::VoteSet;

@@ -1,7 +1,5 @@
 use std::time::Duration;
 
-use malachitebft_config::VoteSyncMode;
-
 use crate::{TestBuilder, TestParams};
 
 #[tokio::test]
@@ -46,7 +44,6 @@ pub async fn crash_restart_from_start() {
             TestParams {
                 // Enable Sync to allow the node to catch up to the latest height
                 enable_value_sync: true,
-                vote_sync_mode: Some(VoteSyncMode::Rebroadcast),
                 timeout_step: Duration::from_secs(5),
                 ..TestParams::default()
             },
@@ -89,7 +86,6 @@ pub async fn crash_restart_from_latest() {
             Duration::from_secs(60),
             TestParams {
                 enable_value_sync: false,
-                vote_sync_mode: Some(VoteSyncMode::Rebroadcast),
                 ..Default::default()
             },
         )
@@ -126,7 +122,6 @@ pub async fn start_late() {
             Duration::from_secs(60),
             TestParams {
                 enable_value_sync: false,
-                vote_sync_mode: Some(VoteSyncMode::Rebroadcast),
                 ..Default::default()
             },
         )
