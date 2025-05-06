@@ -551,9 +551,37 @@ impl State {
         )))
     }
 
-    // Returns the set of validators.
-    pub fn get_validator_set(&self) -> &ValidatorSet {
-        &self.genesis.validator_set
+    // ...
+}
+```
+
+For the validator set, we select a  rotating subset (floor((n+1)/2)) of the validators from the genesis validator set based on the height. This is done to showcase the ability to change the validator set over time (or height, in this case).
+
+```rust
+impl State {
+    // ...
+
+    /// Returns the validator set for the given height.
+    /// The validator set is rotated based on the height,selecting floor((n+1)/2)
+    /// validators from the genesis validator set.
+    pub fn get_validator_set(&self, height: Height) -> ValidatorSet {
+        let num_validators = self.genesis.validator_set.len();
+        let selection_size = (num_validators + 1) / 2;
+
+        if num_validators <= selection_size {
+            return self.genesis.validator_set.clone();
+        }
+
+        ValidatorSet::new(
+            self.genesis
+                .validator_set
+                .iter()
+                .cycle()
+                .skip(height.as_u64() as usize % num_validators)
+                .take(selection_size)
+                .cloned()
+                .collect::<Vec<_>>(),
+        )
     }
 
     // ...
@@ -787,8 +815,8 @@ impl State {
         };
 
         // Retrieve the the proposer
-        let proposer = self
-            .get_validator_set()
+        let validator_set = self.get_validator_set(self.current_height);
+        let proposer = validator_set
             .get_by_address(&parts.proposer)
             .ok_or(SignatureVerificationError::ProposerNotFound)?;
 
@@ -1099,7 +1127,7 @@ which is either 1 or the next height after the last decided value in the store (
                 sleep(Duration::from_millis(200)).await;
 
                 if reply
-                    .send((start_height, state.get_validator_set().clone()))
+                    .send((start_height, state.get_validator_set(start_height).clone()))
                     .is_err()
                 {
                     error!("Failed to send ConsensusReady reply");
@@ -1312,8 +1340,8 @@ In our case, our validator set stays constant between heights so we can
 send back the validator set found in our genesis state.
 
 ```rust
-            AppMsg::GetValidatorSet { height: _, reply } => {
-                if reply.send(state.get_validator_set().clone()).is_err() {
+            AppMsg::GetValidatorSet { height, reply } => {
+                if reply.send(state.get_validator_set(height).clone()).is_err() {
                     error!("Failed to send GetValidatorSet reply");
                 }
             }
@@ -1393,7 +1421,7 @@ If `commit` fails we can re-run consensus for the same height.
                 if reply
                     .send(ConsensusMsg::StartHeight(
                         state.current_height,
-                        state.get_validator_set().clone(),
+                        state.get_validator_set(state.current_height).clone(),
                     ))
                     .is_err()
                 {
@@ -1406,7 +1434,7 @@ If `commit` fails we can re-run consensus for the same height.
                 if reply
                     .send(ConsensusMsg::RestartHeight(
                         state.current_height,
-                        state.get_validator_set().clone(),
+                        state.get_validator_set(state.current_height).clone(),
                     ))
                     .is_err()
                 {

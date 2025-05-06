@@ -38,11 +38,14 @@ pub async fn run(
                 sleep(Duration::from_millis(200)).await;
 
                 // We can simply respond by telling the engine to start consensus
-                // at the next height, and provide it with the genesis validator set
-                if reply
-                    .send((start_height, genesis.validator_set.clone()))
-                    .is_err()
-                {
+                // at the next height, and provide it with the appropriate validator set
+                let validator_set = state
+                    .ctx
+                    .middleware()
+                    .get_validator_set(&state.ctx, start_height, start_height, &genesis)
+                    .expect("Validator set should be available");
+
+                if reply.send((start_height, validator_set)).is_err() {
                     error!("Failed to send ConsensusReady reply");
                 }
             }
@@ -155,10 +158,16 @@ pub async fn run(
             // than the one we are at (e.g. because we are lagging behind a little bit),
             // the engine may ask us for the validator set at that height.
             //
-            // In our case, our validator set stays constant between heights so we can
-            // send back the validator set found in our genesis state.
-            AppMsg::GetValidatorSet { height: _, reply } => {
-                if reply.send(Some(genesis.validator_set.clone())).is_err() {
+            // We send back the appropriate validator set for that height.
+            AppMsg::GetValidatorSet { height, reply } => {
+                let validator_set = state.ctx.middleware().get_validator_set(
+                    &state.ctx,
+                    state.current_height,
+                    height,
+                    &genesis,
+                );
+
+                if reply.send(validator_set).is_err() {
                     error!("Failed to send GetValidatorSet reply");
                 }
             }
@@ -185,10 +194,21 @@ pub async fn run(
                 match state.commit(certificate).await {
                     Ok(_) => {
                         // And then we instruct consensus to start the next height
+                        let validator_set = state
+                            .ctx
+                            .middleware()
+                            .get_validator_set(
+                                &state.ctx,
+                                state.current_height,
+                                state.current_height,
+                                &genesis,
+                            )
+                            .expect("Validator set should be available");
+
                         if reply
                             .send(ConsensusMsg::StartHeight(
                                 state.current_height,
-                                genesis.validator_set.clone(),
+                                validator_set,
                             ))
                             .is_err()
                         {
@@ -200,10 +220,21 @@ pub async fn run(
                         error!("Commit failed: {e}");
                         error!("Restarting height {}", state.current_height);
 
+                        let validator_set = state
+                            .ctx
+                            .middleware()
+                            .get_validator_set(
+                                &state.ctx,
+                                state.current_height,
+                                state.current_height,
+                                &genesis,
+                            )
+                            .expect("Validator set should be available");
+
                         if reply
                             .send(ConsensusMsg::RestartHeight(
                                 state.current_height,
-                                genesis.validator_set.clone(),
+                                validator_set,
                             ))
                             .is_err()
                         {
