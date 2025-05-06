@@ -247,7 +247,7 @@ impl State {
         )))
     }
 
-    /// Creates a new proposal value for the given height
+    /// Create a new proposal value for the given height
     async fn create_proposal(
         &mut self,
         height: Height,
