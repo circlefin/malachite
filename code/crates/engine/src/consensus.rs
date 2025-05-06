@@ -1,3 +1,4 @@
+use core::fmt;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::time::Duration;
@@ -111,36 +112,40 @@ pub enum Msg<Ctx: Context> {
     RestartHeight(Ctx::Height, Ctx::ValidatorSet),
 }
 
-impl<Ctx: Context> Msg<Ctx> {
-    fn info(&self) -> String {
+impl<Ctx: Context> fmt::Display for Msg<Ctx> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Msg::StartHeight(height, _) => format!("StartHeight(height={})", height),
+            Msg::StartHeight(height, _) => write!(f, "StartHeight(height={})", height),
             Msg::NetworkEvent(event) => match event {
-                NetworkEvent::Proposal(_, proposal) => format!(
+                NetworkEvent::Proposal(_, proposal) => write!(
+                    f,
                     "NetworkEvent(Proposal height={} round={})",
                     proposal.height(),
                     proposal.round()
                 ),
                 NetworkEvent::ProposalPart(_, part) => {
-                    format!("NetworkEvent(ProposalPart sequence={})", part.sequence)
+                    write!(f, "NetworkEvent(ProposalPart sequence={})", part.sequence)
                 }
-                NetworkEvent::Vote(_, vote) => format!(
+                NetworkEvent::Vote(_, vote) => write!(
+                    f,
                     "NetworkEvent(Vote height={} round={})",
                     vote.height(),
                     vote.round()
                 ),
-                _ => "NetworkEvent".to_string(),
+                _ => write!(f, "NetworkEvent"),
             },
-            Msg::TimeoutElapsed(_) => "TimeoutElapsed".to_string(),
-            Msg::ProposeValue(value) => format!(
+            Msg::TimeoutElapsed(timeout) => write!(f, "TimeoutElapsed({})", timeout.display_key()),
+            Msg::ProposeValue(value) => write!(
+                f,
                 "ProposeValue(height={} round={})",
                 value.height, value.round
             ),
-            Msg::ReceivedProposedValue(value, _) => format!(
+            Msg::ReceivedProposedValue(value, _) => write!(
+                f,
                 "ReceivedProposedValue(height={} round={})",
                 value.height, value.round
             ),
-            Msg::RestartHeight(height, _) => format!("RestartHeight(height={})", height),
+            Msg::RestartHeight(height, _) => write!(f, "RestartHeight(height={})", height),
         }
     }
 }
@@ -326,7 +331,7 @@ where
         info!(count = %state.msg_buffer.len(), "Replaying buffered messages");
 
         while let Some(msg) = state.msg_buffer.pop() {
-            debug!("Replaying buffered message: {}", msg.info());
+            debug!("Replaying buffered message: {msg}");
 
             if let Err(e) = self.handle_msg(myself.clone(), state, msg).await {
                 error!("Error when handling buffered message: {e:?}");
