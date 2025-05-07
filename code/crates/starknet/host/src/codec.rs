@@ -457,6 +457,8 @@ impl Codec<CommitCertificate<MockContext>> for ProtobufCodec {
     }
 }
 
+// NOTE: Will be used again in #997
+#[allow(dead_code)]
 pub(crate) fn encode_polka_certificate(
     certificate: &PolkaCertificate<MockContext>,
 ) -> Result<proto::sync::PolkaCertificate, ProtoError> {
@@ -480,6 +482,8 @@ pub(crate) fn encode_polka_certificate(
     })
 }
 
+// NOTE: Will be used again in #997
+#[allow(dead_code)]
 pub(crate) fn decode_polka_certificate(
     certificate: proto::sync::PolkaCertificate,
 ) -> Result<PolkaCertificate<MockContext>, ProtoError> {
@@ -558,10 +562,14 @@ impl Codec<sync::RawDecidedValue<MockContext>> for ProtobufCodec {
     }
 }
 
+// NOTE: Will be used again in #997
+#[allow(dead_code)]
 pub(crate) fn encode_vote(vote: &SignedVote<MockContext>) -> Result<proto::Vote, ProtoError> {
     vote.message.to_proto()
 }
 
+// NOTE: Will be used again in #997
+#[allow(dead_code)]
 pub(crate) fn decode_vote(msg: proto::Vote) -> Result<SignedVote<MockContext>, ProtoError> {
     let signature = Signature::test();
     let vote = Vote::from_proto(msg)?;

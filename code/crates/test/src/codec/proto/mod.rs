@@ -326,6 +326,8 @@ pub fn decode_synced_value(
     })
 }
 
+// NOTE: Will be used again in #997
+#[allow(dead_code)]
 pub(crate) fn encode_polka_certificate(
     polka_certificate: &PolkaCertificate<TestContext>,
 ) -> Result<proto::PolkaCertificate, ProtoError> {
@@ -351,6 +353,8 @@ pub(crate) fn encode_polka_certificate(
     })
 }
 
+// NOTE: Will be used again in #997
+#[allow(dead_code)]
 pub(crate) fn decode_polka_certificate(
     certificate: proto::PolkaCertificate,
 ) -> Result<PolkaCertificate<TestContext>, ProtoError> {
