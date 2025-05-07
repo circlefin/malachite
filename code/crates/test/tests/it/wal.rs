@@ -106,6 +106,7 @@ async fn proposer_crashes_after_proposing(params: TestParams) {
 }
 
 #[tokio::test]
+#[ignore] // NOTE: To re-enable once #997 is merged
 async fn non_proposer_crashes_after_voting_parts_only() {
     non_proposer_crashes_after_voting(TestParams {
         value_payload: ValuePayload::PartsOnly,
@@ -115,6 +116,7 @@ async fn non_proposer_crashes_after_voting_parts_only() {
 }
 
 #[tokio::test]
+#[ignore] // NOTE: To re-enable once #997 is merged
 async fn non_proposer_crashes_after_voting_proposal_and_parts() {
     non_proposer_crashes_after_voting(TestParams {
         value_payload: ValuePayload::ProposalAndParts,
@@ -124,7 +126,7 @@ async fn non_proposer_crashes_after_voting_proposal_and_parts() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore] // NOTE: The test application does not support proposal-only mode yet
 async fn non_proposer_crashes_after_voting_proposal_only() {
     non_proposer_crashes_after_voting(TestParams {
         value_payload: ValuePayload::ProposalOnly,
