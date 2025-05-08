@@ -103,7 +103,6 @@ impl ItfRunner for VoteKeeperRunner {
                     )
                     .map_err(|err| {
                         println!("Error applying vote: {:?}", err);
-                        ();
                     })
             }
         }

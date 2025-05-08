@@ -114,3 +114,15 @@ pub enum VoteExtensionError {
     #[error("Invalid vote extension")]
     InvalidVoteExtension,
 }
+
+#[derive_where(Clone, Debug)]
+pub struct MisbehaviorEvidence<Ctx: Context> {
+    pub proposals: malachitebft_core_driver::EvidenceMap<Ctx>,
+    pub votes: malachitebft_core_votekeeper::EvidenceMap<Ctx>,
+}
+
+impl<Ctx: Context> MisbehaviorEvidence<Ctx> {
+    pub fn is_empty(&self) -> bool {
+        self.proposals.is_empty() && self.votes.is_empty()
+    }
+}

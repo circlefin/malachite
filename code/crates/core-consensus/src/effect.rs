@@ -4,7 +4,7 @@ use malachitebft_core_types::*;
 
 use crate::input::RequestId;
 use crate::types::SignedConsensusMsg;
-use crate::{ConsensusMsg, VoteExtensionError, WalEntry};
+use crate::{ConsensusMsg, MisbehaviorEvidence, VoteExtensionError, WalEntry};
 
 /// Provides a way to construct the appropriate [`Resume`] value to
 /// resume execution after handling an [`Effect`].
@@ -133,8 +133,7 @@ where
     Decide(
         CommitCertificate<Ctx>,
         VoteExtensions<Ctx>,
-        malachitebft_core_driver::EvidenceMap<Ctx>,
-        malachitebft_core_votekeeper::EvidenceMap<Ctx>,
+        MisbehaviorEvidence<Ctx>,
         resume::Continue,
     ),
 

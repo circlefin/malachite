@@ -4,8 +4,8 @@ use std::time::Duration;
 use eyre::bail;
 use tracing::info;
 
-use malachitebft_core_consensus::{LocallyProposedValue, SignedConsensusMsg};
-use malachitebft_core_types::{Context, Height, SignedVote, Vote, VotingPower};
+use malachitebft_core_consensus::{LocallyProposedValue, MisbehaviorEvidence, SignedConsensusMsg};
+use malachitebft_core_types::{CommitCertificate, Context, Height, SignedVote, Vote, VotingPower};
 use malachitebft_engine::util::events::Event;
 use malachitebft_test::middleware::{DefaultMiddleware, Middleware};
 
@@ -220,6 +220,30 @@ where
         self.on_event(move |event, state| {
             if let Event::Published(SignedConsensusMsg::Vote(vote)) = event {
                 f(vote, state)
+            } else {
+                Ok(HandlerResult::WaitForNextEvent)
+            }
+        })
+    }
+
+    pub fn on_decided<F>(&mut self, f: F) -> &mut Self
+    where
+        F: Fn(
+                CommitCertificate<Ctx>,
+                MisbehaviorEvidence<Ctx>,
+                &mut State,
+            ) -> Result<HandlerResult, eyre::Report>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.on_event(move |event, state| {
+            if let Event::Decided {
+                commit_certificate,
+                evidence,
+            } = event
+            {
+                f(commit_certificate, evidence, state)
             } else {
                 Ok(HandlerResult::WaitForNextEvent)
             }

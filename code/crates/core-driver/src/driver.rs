@@ -11,12 +11,12 @@ use malachitebft_core_types::{
     SignedProposal, SignedVote, Timeout, TimeoutKind, Validator, ValidatorSet, Validity, Value,
     ValueId, Vote, VoteType,
 };
+use malachitebft_core_votekeeper::keeper::Output as VKOutput;
 use malachitebft_core_votekeeper::keeper::VoteKeeper;
-use malachitebft_core_votekeeper::keeper::{Output as VKOutput, RecordVoteError};
 
 use crate::input::Input;
 use crate::output::Output;
-use crate::proposal_keeper::{EvidenceMap, ProposalKeeper};
+use crate::proposal_keeper::{self, ProposalKeeper};
 use crate::Error;
 use crate::ThresholdParams;
 
@@ -45,22 +45,8 @@ where
     /// The proposals to decide on.
     pub(crate) proposal_keeper: ProposalKeeper<Ctx>,
 
-    /// The evidence of equivocation (if any) after processing a proposal.
-    pub(crate) proposal_equivocation_evidence: Option<(
-        Ctx::Height,
-        Ctx::Address,
-        (SignedProposal<Ctx>, SignedProposal<Ctx>),
-    )>,
-
     /// The vote keeper.
     pub(crate) vote_keeper: VoteKeeper<Ctx>,
-
-    /// The evidence of equivocation (if any) after processing a vote.
-    pub(crate) vote_equivocation_evidence: Option<(
-        Ctx::Height,
-        Ctx::Address,
-        (SignedVote<Ctx>, SignedVote<Ctx>),
-    )>,
 
     /// The commit certificates
     pub(crate) commit_certificates: Vec<CommitCertificate<Ctx>>,
@@ -104,9 +90,7 @@ where
             threshold_params,
             validator_set,
             proposal_keeper,
-            proposal_equivocation_evidence: None,
             vote_keeper,
-            vote_equivocation_evidence: None,
             round_state,
             proposer: None,
             pending_inputs: vec![],
@@ -208,41 +192,14 @@ where
         &self.validator_set
     }
 
-    /// Return recorded evidence of equivocation for this height.
-    pub fn evidence(&self) -> &EvidenceMap<Ctx> {
+    /// Return recorded evidence of proposal equivocation for this height.
+    pub fn proposal_evidence(&self) -> &proposal_keeper::EvidenceMap<Ctx> {
         self.proposal_keeper.evidence()
     }
 
-    /// Return proposal equivocation evidence, if any.
-    pub fn proposal_equivocation_evidence(
-        &self,
-    ) -> Option<(
-        Ctx::Height,
-        Ctx::Address,
-        (SignedProposal<Ctx>, SignedProposal<Ctx>),
-    )> {
-        self.proposal_equivocation_evidence.clone()
-    }
-
-    /// Clear the proposal equivocation evidence.
-    pub fn clear_proposal_equivocation_evidence(&mut self) {
-        self.proposal_equivocation_evidence = None;
-    }
-
-    /// Return vote equivocation evidence, if any.
-    pub fn vote_equivocation_evidence(
-        &self,
-    ) -> Option<(
-        Ctx::Height,
-        Ctx::Address,
-        (SignedVote<Ctx>, SignedVote<Ctx>),
-    )> {
-        self.vote_equivocation_evidence.clone()
-    }
-
-    /// Clear the vote equivocation evidence.
-    pub fn clear_vote_equivocation_evidence(&mut self) {
-        self.vote_equivocation_evidence = None;
+    /// Return recorded evidence of vote equivocation for this height.
+    pub fn vote_evidence(&self) -> &malachitebft_core_votekeeper::EvidenceMap<Ctx> {
+        self.votes().evidence()
     }
 
     /// Return the proposer for the current round.
@@ -497,21 +454,10 @@ where
         let vote_round = vote.round();
         let this_round = self.round();
 
-        let validator_address = vote.validator_address().clone();
-        let height = vote.height();
-
         let output = match self.vote_keeper.apply_vote(vote, this_round) {
             Ok(Some(output)) => output,
             Ok(None) => return Ok(None),
-            Err(RecordVoteError::ConflictingVote {
-                existing,
-                conflicting,
-            }) => {
-                self.vote_equivocation_evidence =
-                    Some((height, validator_address, (existing, conflicting)));
-
-                return Ok(None);
-            }
+            Err(_) => return Ok(None),
         };
 
         if let VKOutput::PolkaValue(val) = &output {

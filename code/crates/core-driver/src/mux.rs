@@ -37,7 +37,6 @@ use malachitebft_core_votekeeper::keeper::Output as VKOutput;
 use malachitebft_core_votekeeper::keeper::VoteKeeper;
 use malachitebft_core_votekeeper::Threshold;
 
-use crate::proposal_keeper::RecordProposalError;
 use crate::Driver;
 
 impl<Ctx> Driver<Ctx>
@@ -200,19 +199,9 @@ where
         let proposal = signed_proposal.message.clone();
 
         // Store the proposal and its validity
-        if let Err(RecordProposalError::ConflictingProposal {
-            existing,
-            conflicting,
-        }) = self
+        let _ = self
             .proposal_keeper
-            .store_proposal(signed_proposal, validity)
-        {
-            let validator_address = existing.validator_address().clone();
-            let height = existing.height();
-
-            self.proposal_equivocation_evidence =
-                Some((height, validator_address, (existing, conflicting)));
-        }
+            .store_proposal(signed_proposal, validity);
 
         self.multiplex_proposal(proposal, validity)
     }
