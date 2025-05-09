@@ -343,6 +343,33 @@ where
                 output_port.send(NetworkEvent::PeerDisconnected(peer_id));
             }
 
+            Msg::NewEvent(Event::LivenessMessage(Channel::Liveness, from, data)) => {
+                let msg = match self.codec.decode(data) {
+                    Ok(msg) => msg,
+                    Err(e) => {
+                        error!(%from, "Failed to decode liveness message: {e:?}");
+                        return Ok(());
+                    }
+                };
+
+                let event = match msg {
+                    LivenessMsg::PolkaCertificate(polka_cert) => {
+                        NetworkEvent::PolkaCertificate(from, polka_cert)
+                    }
+                    LivenessMsg::SkipRoundCertificate(round_cert) => {
+                        NetworkEvent::RoundCertificate(from, round_cert)
+                    }
+                    LivenessMsg::Vote(vote) => NetworkEvent::Vote(from, vote),
+                };
+
+                output_port.send(event);
+            }
+
+            Msg::NewEvent(Event::LivenessMessage(channel, from, _)) => {
+                error!(%from, "Unexpected liveness message on {channel} channel");
+                return Ok(());
+            }
+
             Msg::NewEvent(Event::ConsensusMessage(Channel::Consensus, from, data)) => {
                 let msg = match self.codec.decode(data) {
                     Ok(msg) => msg,
@@ -360,35 +387,6 @@ where
                 };
 
                 output_port.send(event);
-            }
-
-            Msg::NewEvent(Event::LivenessMessage(channel, from, data)) => {
-                if channel == Channel::Liveness {
-                    let msg = match self.codec.decode(data) {
-                        Ok(msg) => msg,
-                        Err(e) => {
-                            error!(%from, "Failed to decode liveness message: {e:?}");
-                            return Ok(());
-                        }
-                    };
-
-                    let event = match msg {
-                        LivenessMsg::PolkaCertificate(polka_cert) => {
-                            NetworkEvent::PolkaCertificate(from, polka_cert)
-                        }
-                        LivenessMsg::SkipRoundCertificate(round_cert) => {
-                            NetworkEvent::RoundCertificate(from, round_cert)
-                        }
-                        LivenessMsg::Vote(vote) => NetworkEvent::Vote(from, vote),
-                    };
-
-                    output_port.send(event);
-                }
-            }
-
-            Msg::NewEvent(Event::ConsensusMessage(Channel::Liveness, from, _)) => {
-                error!(%from, "Unexpected consensus message on liveness channel");
-                return Ok(());
             }
 
             Msg::NewEvent(Event::ConsensusMessage(Channel::ProposalParts, from, data)) => {
@@ -430,6 +428,11 @@ where
                     status.peer_id,
                     Status::new(status.tip_height, status.history_min_height),
                 ));
+            }
+
+            Msg::NewEvent(Event::ConsensusMessage(channel, from, _)) => {
+                error!(%from, "Unexpected consensus message on {channel} channel");
+                return Ok(());
             }
 
             Msg::NewEvent(Event::Sync(raw_msg)) => match raw_msg {
