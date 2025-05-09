@@ -148,7 +148,7 @@ impl Node for App {
         let db_dir = self.get_home_dir().join("db");
         std::fs::create_dir_all(&db_dir)?;
 
-        let store = Store::open(db_dir.join("store.db"), metrics)?;
+        let store = Store::open(db_dir.join("store.db"), metrics).await?;
         let start_height = self.start_height.unwrap_or(Height::INITIAL);
         let mut state = State::new(ctx, signing_provider, genesis, address, start_height, store);
 

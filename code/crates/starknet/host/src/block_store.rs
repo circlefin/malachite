@@ -247,11 +247,14 @@ pub struct BlockStore {
 }
 
 impl BlockStore {
-    pub fn new(path: impl AsRef<Path>) -> Result<Self, StoreError> {
-        let db = Db::new(path)?;
-        db.create_tables()?;
+    pub async fn new(path: impl AsRef<Path>) -> Result<Self, StoreError> {
+        let path = path.as_ref().to_owned();
+        tokio::task::spawn_blocking(move || {
+            let db = Db::new(path)?;
+            db.create_tables()?;
 
-        Ok(Self { db: Arc::new(db) })
+            Ok(Self { db: Arc::new(db) })
+        }).await?
     }
 
     pub fn first_height(&self) -> Option<Height> {

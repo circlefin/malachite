@@ -56,7 +56,7 @@ impl Host {
         let (actor_ref, _) = Actor::spawn(
             None,
             Self::new(mempool, mempool_load, network, metrics, span),
-            HostState::new(ctx, host, db_path, &mut StdRng::from_entropy()),
+            HostState::new(ctx, host, db_path, &mut StdRng::from_entropy()).await,
         )
         .await?;
 
