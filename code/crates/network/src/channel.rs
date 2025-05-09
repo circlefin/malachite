@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Channel {
     Consensus,
-    Gossip,
+    Liveness,
     ProposalParts,
     Sync,
 }
@@ -18,12 +18,16 @@ impl Channel {
             Channel::Consensus,
             Channel::ProposalParts,
             Channel::Sync,
-            Channel::Gossip,
+            Channel::Liveness,
         ]
     }
 
     pub fn consensus() -> &'static [Channel] {
-        &[Channel::Consensus, Channel::ProposalParts, Channel::Gossip]
+        &[
+            Channel::Consensus,
+            Channel::ProposalParts,
+            Channel::Liveness,
+        ]
     }
 
     pub fn to_gossipsub_topic(self) -> gossipsub::IdentTopic {
@@ -39,7 +43,7 @@ impl Channel {
             Channel::Consensus => "/consensus",
             Channel::ProposalParts => "/proposal_parts",
             Channel::Sync => "/sync",
-            Channel::Gossip => "/gossip",
+            Channel::Liveness => "/liveness",
         }
     }
 
@@ -60,7 +64,7 @@ impl Channel {
             "/consensus" => Some(Channel::Consensus),
             "/proposal_parts" => Some(Channel::ProposalParts),
             "/sync" => Some(Channel::Sync),
-            "/gossip" => Some(Channel::Gossip),
+            "/liveness" => Some(Channel::Liveness),
             _ => None,
         }
     }
@@ -70,7 +74,7 @@ impl Channel {
             b"/consensus" => Some(Channel::Consensus),
             b"/proposal_parts" => Some(Channel::ProposalParts),
             b"/sync" => Some(Channel::Sync),
-            b"/gossip" => Some(Channel::Gossip),
+            b"/liveness" => Some(Channel::Liveness),
             _ => None,
         }
     }

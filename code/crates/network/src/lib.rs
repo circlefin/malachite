@@ -148,7 +148,7 @@ pub enum Event {
     PeerConnected(PeerId),
     PeerDisconnected(PeerId),
     ConsensusMessage(Channel, PeerId, Bytes),
-    GossipMessage(Channel, PeerId, Bytes),
+    LivenessMessage(Channel, PeerId, Bytes),
     Sync(sync::RawMessage),
 }
 
@@ -570,8 +570,8 @@ async fn handle_gossipsub_event(
                 message.data.len()
             );
 
-            if channel == Channel::Gossip {
-                let event = Event::GossipMessage(
+            if channel == Channel::Liveness {
+                let event = Event::LivenessMessage(
                     channel,
                     PeerId::from_libp2p(&peer_id),
                     Bytes::from(message.data),

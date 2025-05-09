@@ -150,10 +150,10 @@ pub enum Msg<Ctx: Context> {
     Subscribe(Box<dyn Subscriber<NetworkEvent<Ctx>>>),
 
     /// Publish a signed consensus message
-    Publish(SignedConsensusMsg<Ctx>),
+    PublishConsensusMsg(SignedConsensusMsg<Ctx>),
 
-    /// Publish a gossip message
-    PublishGossipMsg(LivenessMsg<Ctx>),
+    /// Publish a liveness message
+    PublishLivenessMsg(LivenessMsg<Ctx>),
 
     /// Publish a proposal part
     PublishProposalPart(StreamMessage<Ctx::ProposalPart>),
@@ -260,14 +260,14 @@ where
                 subscriber.subscribe_to_port(output_port);
             }
 
-            Msg::Publish(msg) => match self.codec.encode(&msg) {
+            Msg::PublishConsensusMsg(msg) => match self.codec.encode(&msg) {
                 Ok(data) => ctrl_handle.publish(Channel::Consensus, data).await?,
                 Err(e) => error!("Failed to encode consensus message: {e:?}"),
             },
 
-            Msg::PublishGossipMsg(msg) => match self.codec.encode(&msg) {
-                Ok(data) => ctrl_handle.publish(Channel::Gossip, data).await?,
-                Err(e) => error!("Failed to encode gossip message: {e:?}"),
+            Msg::PublishLivenessMsg(msg) => match self.codec.encode(&msg) {
+                Ok(data) => ctrl_handle.publish(Channel::Liveness, data).await?,
+                Err(e) => error!("Failed to encode liveness message: {e:?}"),
             },
 
             Msg::PublishProposalPart(msg) => {
@@ -362,12 +362,12 @@ where
                 output_port.send(event);
             }
 
-            Msg::NewEvent(Event::GossipMessage(channel, from, data)) => {
-                if channel == Channel::Gossip {
+            Msg::NewEvent(Event::LivenessMessage(channel, from, data)) => {
+                if channel == Channel::Liveness {
                     let msg = match self.codec.decode(data) {
                         Ok(msg) => msg,
                         Err(e) => {
-                            error!(%from, "Failed to decode gossip message: {e:?}");
+                            error!(%from, "Failed to decode liveness message: {e:?}");
                             return Ok(());
                         }
                     };
@@ -386,8 +386,8 @@ where
                 }
             }
 
-            Msg::NewEvent(Event::ConsensusMessage(Channel::Gossip, from, _)) => {
-                error!(%from, "Unexpected consensus message on gossip channel");
+            Msg::NewEvent(Event::ConsensusMessage(Channel::Liveness, from, _)) => {
+                error!(%from, "Unexpected consensus message on liveness channel");
                 return Ok(());
             }
 
