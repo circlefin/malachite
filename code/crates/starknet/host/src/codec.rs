@@ -432,6 +432,9 @@ impl Codec<LivenessMsg<MockContext>> for ProtobufCodec {
     fn decode(&self, bytes: Bytes) -> Result<LivenessMsg<MockContext>, Self::Error> {
         let msg = proto::GossipMessage::decode(bytes.as_ref())?;
         match msg.message {
+            Some(proto::gossip_message::Message::Vote(vote)) => {
+                Ok(LivenessMsg::Vote(decode_vote(vote)?))
+            }
             Some(proto::gossip_message::Message::PolkaCertificate(cert)) => Ok(
                 LivenessMsg::PolkaCertificate(decode_polka_certificate(cert)?),
             ),
@@ -444,6 +447,15 @@ impl Codec<LivenessMsg<MockContext>> for ProtobufCodec {
 
     fn encode(&self, msg: &LivenessMsg<MockContext>) -> Result<Bytes, Self::Error> {
         match msg {
+            LivenessMsg::Vote(vote) => {
+                let message = encode_vote(vote)?;
+                Ok(Bytes::from(
+                    proto::GossipMessage {
+                        message: Some(proto::gossip_message::Message::Vote(message)),
+                    }
+                    .encode_to_vec(),
+                ))
+            }
             LivenessMsg::PolkaCertificate(cert) => {
                 let message = encode_polka_certificate(cert)?;
                 Ok(Bytes::from(

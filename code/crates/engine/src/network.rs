@@ -379,6 +379,7 @@ where
                         LivenessMsg::SkipRoundCertificate(round_cert) => {
                             NetworkEvent::RoundCertificate(from, round_cert)
                         }
+                        LivenessMsg::Vote(vote) => NetworkEvent::Vote(from, vote),
                     };
 
                     output_port.send(event);

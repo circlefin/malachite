@@ -1121,7 +1121,7 @@ where
                     self.tx_event.send(|| Event::RebroadcastVote(msg.clone()));
 
                     self.network
-                        .cast(NetworkMsg::Publish(SignedConsensusMsg::Vote(msg)))
+                        .cast(NetworkMsg::PublishGossipMsg(LivenessMsg::Vote(msg)))
                         .map_err(|e| eyre!("Error when rebroadcasting vote message: {e:?}"))?;
                 }
 

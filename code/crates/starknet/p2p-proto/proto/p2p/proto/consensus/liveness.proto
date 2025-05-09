@@ -34,7 +34,8 @@ message RoundCertificate {
 
 message GossipMessage {
     oneof message {
-        PolkaCertificate polka_certificate = 1;
-        RoundCertificate round_certificate = 2;
+        Vote vote = 1;
+        PolkaCertificate polka_certificate = 2;
+        RoundCertificate round_certificate = 3;
     }
 }
