@@ -254,7 +254,8 @@ impl BlockStore {
             db.create_tables()?;
 
             Ok(Self { db: Arc::new(db) })
-        }).await?
+        })
+        .await?
     }
 
     pub fn first_height(&self) -> Option<Height> {

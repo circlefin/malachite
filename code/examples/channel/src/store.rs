@@ -342,7 +342,8 @@ impl Store {
             let db = Db::new(path, metrics)?;
             db.create_tables()?;
             Ok(Self { db: Arc::new(db) })
-        }).await?
+        })
+        .await?
     }
 
     /// Returns the minimum height of decided values in the store.

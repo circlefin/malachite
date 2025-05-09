@@ -259,7 +259,8 @@ impl Store {
             let db = Db::new(path)?;
             db.create_tables()?;
             Ok(Self { db: Arc::new(db) })
-        }).await?
+        })
+        .await?
     }
 
     pub async fn min_decided_value_height(&self) -> Option<Height> {
