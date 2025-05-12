@@ -237,9 +237,8 @@ where
                 self.evidence.add(existing.clone(), conflicting);
 
                 warn!(
-                    "Conflicting vote: existing: {}, conflicting: {}",
-                    existing.validator_address(),
-                    vote.validator_address()
+                    "Conflicting vote: existing: {:?}, conflicting: {:?}",
+                    existing, vote
                 );
 
                 return Err(RecordVoteError::ConflictingVote {

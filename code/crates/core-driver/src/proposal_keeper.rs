@@ -145,9 +145,8 @@ where
                 self.evidence.add(existing.clone(), conflicting.clone());
 
                 warn!(
-                    "Conflicting proposal: existing: {}, conflicting: {}",
-                    existing.validator_address(),
-                    conflicting.validator_address()
+                    "Conflicting proposal: existing: {:?}, conflicting: {:?}",
+                    existing, conflicting
                 );
 
                 Err(RecordProposalError::ConflictingProposal {
