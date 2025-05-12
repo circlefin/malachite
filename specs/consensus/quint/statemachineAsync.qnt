@@ -111,9 +111,7 @@ pure def startTimeout(sys: Address -> NodeState, v: Address, timeout: Timeout) :
 pure def addGetValueRequest(sys: Address -> NodeState, v: Address, h: Height, r: Round) : Address -> NodeState =
     sys.put(v, { ...sys.get(v), getValueRequests: sys.get(v).getValueRequests.union(Set((h,r)))})
 
-action valStep(v: Address) : bool = {
-    // pick action
-    val next_action = system.get(v).nextAction() 
+action doStep(v, next_action) = {
     val node_state = next_action._1
     val driver_input = next_action._2
     // remove action from v
@@ -176,6 +174,21 @@ action valStep(v: Address) : bool = {
         _hist' = { validator: v, input: driver_input, output: consensus_output }
 //         _histSimple' = (v, input._2.name, res._2.name)
     }
+}
+
+
+action valTimeout(v: Address) : bool = {
+    if (system.get(v).existsTimeout())
+        val next_action = system.get(v).pickTimeout()
+        doStep(v, next_action)
+    else
+       unchangedAll 
+}
+
+action valStep(v: Address) : bool = {
+    // Pick next action to execute, excluding timeouts
+    val next_action = system.get(v).nextAction() 
+    doStep(v, next_action)
 }
 
 
@@ -253,6 +266,7 @@ action step = {
     nondet value = oneOf(Values)
     any {
         valStep(v),
+        valTimeout(v), // comment out for runs where no timeout ever expires
         deliver(v),
         setNextValueToPropose(v, value),
     }

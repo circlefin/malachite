@@ -232,6 +232,28 @@ where
         })
     }
 
+    pub fn expect_polka_certificate(&mut self, at_height: u64, at_round: u32) -> &mut Self {
+        self.on_event(move |event, _| {
+            let Event::PolkaCertificate(msg) = event else {
+                return Ok(HandlerResult::WaitForNextEvent);
+            };
+
+            let (height, round) = (msg.height, msg.round);
+
+            if height.as_u64() != at_height {
+                bail!("Unexpected round certificate rebroadcast for height {height}, expected {at_height}")
+            }
+
+            if round.as_u32() != Some(at_round) {
+                bail!("Unexpected round certificate rebroadcast for round {round}, expected {at_round}")
+            }
+
+            info!(%height, %round, "Broadcasted round certificate");
+
+            Ok(HandlerResult::ContinueTest)
+        })
+    }
+
     pub fn on_proposed_value<F>(&mut self, f: F) -> &mut Self
     where
         F: Fn(LocallyProposedValue<Ctx>, &mut State) -> Result<HandlerResult, eyre::Report>

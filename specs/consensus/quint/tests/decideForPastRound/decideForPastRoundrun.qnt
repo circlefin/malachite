@@ -51,7 +51,7 @@ run runToDecision =
 // at this point others have decided and testedVal is ready to go into next round.
     .expect(otherSet.forall(x => system.get(x).es.chain[0].decision.proposal == "blue"))
     .expect(system.get(testedVal).es.chain == List())
-    .then(valStep(testedVal))
+    .then(valTimeout(testedVal))
 
 // testedVal has moved on to round 1
     .expect(system.get(testedVal).es.cs.round == 1) 

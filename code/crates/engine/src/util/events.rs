@@ -9,7 +9,7 @@ use malachitebft_core_consensus::{
     LocallyProposedValue, ProposedValue, SignedConsensusMsg, WalEntry,
 };
 use malachitebft_core_types::{
-    CommitCertificate, Context, Round, RoundCertificate, SignedVote, ValueOrigin,
+    CommitCertificate, Context, PolkaCertificate, Round, RoundCertificate, SignedVote, ValueOrigin,
 };
 
 pub type RxEvent<Ctx> = broadcast::Receiver<Event<Ctx>>;
@@ -52,6 +52,8 @@ pub enum Event<Ctx: Context> {
     Decided(CommitCertificate<Ctx>),
     RebroadcastVote(SignedVote<Ctx>),
     RebroadcastRoundCertificate(RoundCertificate<Ctx>),
+    SkipRoundCertificate(RoundCertificate<Ctx>),
+    PolkaCertificate(PolkaCertificate<Ctx>),
     RequestedVoteSet(Ctx::Height, Round),
     SentVoteSetResponse(Ctx::Height, Round, usize, usize),
     WalReplayBegin(Ctx::Height, usize),
@@ -98,6 +100,12 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
             Event::WalReplayEntry(entry) => write!(f, "WalReplayEntry(entry: {entry:?})"),
             Event::WalReplayDone(height) => write!(f, "WalReplayDone(height: {height})"),
             Event::WalReplayError(error) => write!(f, "WalReplayError({error})"),
+            Event::PolkaCertificate(certificate) => {
+                write!(f, "PolkaCertificate: {certificate:?})")
+            }
+            Event::SkipRoundCertificate(certificate) => {
+                write!(f, "SkipRoundCertificate: {certificate:?})")
+            }
         }
     }
 }

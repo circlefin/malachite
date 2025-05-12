@@ -31,6 +31,12 @@ where
             #[cfg(feature = "metrics")]
             metrics.round.set(round.as_i64());
 
+            // Publishing the round certificate upon entering round > 0
+            // is part of the new round synchronization mechanism, which
+            // ensures all validators advance through rounds even in the
+            // presence of asynchrony or Byzantine behavior. Moreover,
+            // it guarantees that after GST, all correct replicas will receive
+            // the round certificate and enter the same round within bounded time.
             if round > &Round::new(0) {
                 if let Some(certificate) = state.driver.round_certificate() {
                     info!(?certificate, "Sending round certificate");
@@ -272,18 +278,26 @@ where
                     );
                 };
 
+                // Publishing the polka certificate of the re-proposed value
+                // ensures all validators receive it, which is necessary for
+                // them to accept the re-proposed value.
                 if proposal.pol_round().is_defined() {
                     // Broadcast the polka certificate at pol_round
-                    let polka_certificate = state.polka_certificate_at_round(proposal.pol_round());
-                    if let Some(polka_certificate) = polka_certificate {
-                        perform!(
-                            co,
-                            Effect::PublishLivenessMsg(
-                                LivenessMsg::PolkaCertificate(polka_certificate),
-                                Default::default()
-                            )
+                    let Some(polka_certificate) =
+                        state.polka_certificate_at_round(proposal.pol_round())
+                    else {
+                        panic!(
+                            "Missing polka certificate for pol_round {}",
+                            proposal.pol_round()
                         );
-                    }
+                    };
+                    perform!(
+                        co,
+                        Effect::PublishLivenessMsg(
+                            LivenessMsg::PolkaCertificate(polka_certificate),
+                            Default::default()
+                        )
+                    );
                 }
             }
 
@@ -291,9 +305,23 @@ where
         }
 
         DriverOutput::Vote(vote) => {
+            // Upon locking, in addition to publishing a Precommit message,
+            // a validator must request the application to restream the proposal,
+            // publish the proposal message, and publish the polka certificate.
+            // In other words, it must ensure that all validators receive the same events
+            // that led it to lock a value. Together with the timeout mechanisms,
+            // this guarantees that after GST, all correct validators will update
+            // their validValue and validRound to these values in this round.
+            // As a result, Malachite ensures liveness, because all validators
+            // will be aware of the most recently locked value, and whichever validator
+            // becomes the leader in one of the following rounds will propose a value
+            // that all correct validators can accept.
+            // Importantly, this mechanism does not need to be enabled from round 0,
+            // as it is expensive; it can be activated from any round as a last-resort
+            // backup to guarantee liveness.
             if vote.vote_type() == VoteType::Precommit
                 && vote.value().is_val()
-                && state.driver.round() > HIDDEN_LOCK_ROUND
+                && state.driver.round() >= HIDDEN_LOCK_ROUND
             {
                 if let Some((signed_proposal, Validity::Valid)) =
                     state.driver.proposal_and_validity_for_round(vote.round())
@@ -309,16 +337,32 @@ where
                             Default::default()
                         )
                     );
-                    if let Some(polka_certificate) = state.polka_certificate_at_round(vote.round())
-                    {
+
+                    if state.params.value_payload.include_proposal() {
                         perform!(
                             co,
-                            Effect::PublishLivenessMsg(
-                                LivenessMsg::PolkaCertificate(polka_certificate),
+                            Effect::PublishConsensusMsg(
+                                SignedConsensusMsg::Proposal(signed_proposal.clone()),
                                 Default::default()
                             )
                         );
                     }
+
+                    let Some(polka_certificate) = state.polka_certificate_at_round(vote.round())
+                    else {
+                        panic!(
+                            "Missing polka certificate for Precommit({:?}) at round {}",
+                            vote.value(),
+                            vote.round()
+                        );
+                    };
+                    perform!(
+                        co,
+                        Effect::PublishLivenessMsg(
+                            LivenessMsg::PolkaCertificate(polka_certificate),
+                            Default::default()
+                        )
+                    );
                 }
             }
 

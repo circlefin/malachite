@@ -4,11 +4,11 @@
 
 ### `malachitebft-core-consensus`
 - Added new variants to `Input` enum: `PolkaCertificate` and `RoundCertificate`
-- Added new variant to `Effect` enum: `PublishGossipMessage`
+- Added new variant to `Effect` enum: `PublishLivenessMessage`
 
 ### `malachitebft-engine`
 - Changed the reply channel of `GetValidatorSet` message to take an `Option<Ctx::ValidatorSet>` instead of `Ctx::ValidatorSet`.
-- Added new variant to `Msg` enum: `PublishGossipMsg`
+- Added new variant to `Msg` enum: `PublishLivenessMsg`
 - Added new variants to `NetworkEvent` enum: `PolkaCertificate` and `RoundCertificate`
 - Changed `PartStore::all_parts` to `PartStore::all_parts_by_stream_id`:
   - Renamed method to clarify that, when a new part is received, the contiguous parts should be queried by stream id
@@ -18,9 +18,9 @@
 - Added `&StreamId` parameter to `part_store::PartStore::store_value_id`
 
 ### `malachitebft-network`
-- Added new variant to `Channel` enum: `Gossip`
+- Added new variant to `Channel` enum: `Liveness`
 - Renamed `Event::Message` variant to `Event::ConsensusMessage`
-- Added new variant to `Event::GossipMessage`
+- Added new variant to `Event::LivenessMessage`
 
 ## 0.2.0
 

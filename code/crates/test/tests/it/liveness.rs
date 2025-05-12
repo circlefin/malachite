@@ -2,13 +2,13 @@ use std::time::Duration;
 
 use informalsystems_malachitebft_test::TestContext;
 use malachitebft_config::VoteSyncMode;
-use malachitebft_core_types::VoteType;
+use malachitebft_core_types::{Round, VoteType};
 use malachitebft_test_framework::TestNode;
 
 use crate::middlewares::PrevoteNil;
 use crate::{TestBuilder, TestParams};
 
-fn expect_rebroadcasts(node: &mut TestNode<TestContext>) {
+fn expect_round_certificate_rebroadcasts(node: &mut TestNode<TestContext>) {
     use VoteType::*;
 
     node.expect_vote_rebroadcast(1, 0, Prevote)
@@ -48,7 +48,7 @@ fn expect_rebroadcasts(node: &mut TestNode<TestContext>) {
 }
 
 #[tokio::test]
-async fn multi_rounds() {
+async fn round_certificate_rebroadcast() {
     const FINAL_HEIGHT: u64 = 3;
 
     let mut test = TestBuilder::<()>::new();
@@ -59,27 +59,75 @@ async fn multi_rounds() {
         }))
         .start()
         .wait_until(1)
-        .with(expect_rebroadcasts)
+        .with(expect_round_certificate_rebroadcasts)
         .wait_until(FINAL_HEIGHT)
         .success();
 
     test.add_node()
         .start()
         .wait_until(1)
-        .with(expect_rebroadcasts)
+        .with(expect_round_certificate_rebroadcasts)
         .wait_until(FINAL_HEIGHT)
         .success();
 
     test.add_node()
         .start()
         .wait_until(1)
-        .with(expect_rebroadcasts)
+        .with(expect_round_certificate_rebroadcasts)
         .wait_until(FINAL_HEIGHT)
         .success();
 
     test.build()
         .run_with_params(
             Duration::from_secs(30),
+            TestParams {
+                enable_value_sync: false,
+                vote_sync_mode: Some(VoteSyncMode::Rebroadcast),
+                ..Default::default()
+            },
+        )
+        .await
+}
+
+fn expect_hidden_lock_messages(node: &mut TestNode<TestContext>, round: u32) {
+    node.expect_polka_certificate(1, round);
+}
+
+#[tokio::test]
+async fn polka_certificate_for_hidden_lock() {
+    const FINAL_HEIGHT: u64 = 3;
+    // TODO: Use the actual hidden lock round constant
+    const HIDDEN_LOCK_ROUND: u32 = 10;
+
+    let mut test = TestBuilder::<()>::new();
+
+    test.add_node()
+        .with_middleware(PrevoteNil::when(|height, round, _| {
+            height.as_u64() == 1 && round < Round::from(HIDDEN_LOCK_ROUND)
+        }))
+        .start()
+        .wait_until(1)
+        .with(|node| expect_hidden_lock_messages(node, HIDDEN_LOCK_ROUND))
+        .wait_until(FINAL_HEIGHT)
+        .success();
+
+    test.add_node()
+        .start()
+        .wait_until(1)
+        .with(|node| expect_hidden_lock_messages(node, HIDDEN_LOCK_ROUND))
+        .wait_until(FINAL_HEIGHT)
+        .success();
+
+    test.add_node()
+        .start()
+        .wait_until(1)
+        .with(|node| expect_hidden_lock_messages(node, HIDDEN_LOCK_ROUND))
+        .wait_until(FINAL_HEIGHT)
+        .success();
+
+    test.build()
+        .run_with_params(
+            Duration::from_secs(120),
             TestParams {
                 enable_value_sync: false,
                 vote_sync_mode: Some(VoteSyncMode::Rebroadcast),

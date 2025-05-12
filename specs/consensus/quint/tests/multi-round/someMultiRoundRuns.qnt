@@ -22,7 +22,7 @@ run AllButOneDecideInR1WhileSlowInR0 = {
     .then(others.length().reps(_ => ListTakeAStep(others)))   
     .then(all{
         assert(SetFromList(others).forall(proc => system.get(proc).timeouts.contains((PrevoteTimeout, 0, 0)))),
-        ListTakeAStep(others)
+        ListTimesOut(others)
     })
     .then(all{ 
         assert(SetFromList(others).forall(proc => system.get(proc).es.pendingStepChange == PrecommitStep)),
@@ -33,7 +33,7 @@ run AllButOneDecideInR1WhileSlowInR0 = {
     // Others now go to next round on timeoutPrecommit
     .then(all{
         assert(SetFromList(others).forall(proc => system.get(proc).timeouts.contains((PrecommitTimeout, 0, 0)))),
-        everyoneReceivesProposal (others, validatorList, validatorSet, 0, 1, "green")
+        everyoneReceivesProposalTO (others, validatorList, validatorSet, 0, 1, "green")
     })          
     .then(fromPrevoteToPrecommit(others, others, validatorList, validatorSet, 0, 1, Val("green")))
     .then(ListDeliverAllVotes(Precommit, others, others, validatorSet, 0, 1, Val("green")))
@@ -50,16 +50,7 @@ run DecideForFutureRoundRun = {
     .then(deliverProposal(slow, mkProposal(nextProposer, 0, 1, "green", -1)))
     .then(valStep(slow))
     .then(ProcessDeliverAllVotes(Precommit, slow, others, validatorSet, 0, 1, Val("green")))
-    .then(2.reps(_ => valStep(slow))) // TODO parameterize the 2 away
-    .then(all { // slow skipped to round 1
-        assert(system.get(slow).es.pendingStepChange == ProposeStep and system.get(slow).es.cs.round == 1),
-        valStep(slow) // now it processes the step change and discovers the proposal -> it prevotes
-    })
-    .then(all { 
-        assert(system.get(slow).es.pendingStepChange == PrevoteStep),
-        valStep(slow) // now it consumes the step change, but nothing happens
-    })
-    .then(valStep(slow)) // it receives the final precommit and decides
+    .then(others.length().reps(_ => valStep(slow))) 
     .then(all {
         assert(validators.forall(proc => system.get(proc).es.chain.head().decision.proposal == "green")),
         unchangedAll
@@ -72,7 +63,7 @@ run DecideForFutureRoundPrecommitFirstRun = {
     .then(ProcessDeliverAllVotes(Precommit, slow, others, validatorSet, 0, 1, Val("green")))
     .then(2.reps(_ => valStep(slow))) // TODO parameterize the 2 away
     .then(all { // slow skipped to round 1
-        assert(system.get(slow).es.pendingStepChange == ProposeStep and system.get(slow).es.cs.round == 1),
+        assert(system.get(slow).es.cs.round == 1),
         valStep(slow) // now it processes the step change but nothing happens
     })
     .then(valStep(slow)) // it receives the final precommit
