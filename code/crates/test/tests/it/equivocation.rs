@@ -6,9 +6,9 @@ use malachitebft_core_types::{NilOrVal, Round};
 use rand::Rng;
 
 #[derive(Copy, Clone, Debug)]
-struct EquivocationProposer;
+struct _EquivocationProposer;
 
-impl Middleware for EquivocationProposer {
+impl Middleware for _EquivocationProposer {
     fn on_propose_value(
         &self,
         _ctx: &TestContext,
@@ -44,9 +44,9 @@ impl Middleware for EquivocationProposer {
 }
 
 #[derive(Clone, Debug)]
-struct EquivocationVoter;
+struct _EquivocationVoter;
 
-impl Middleware for EquivocationVoter {
+impl Middleware for _EquivocationVoter {
     fn new_prevote(
         &self,
         _ctx: &TestContext,
