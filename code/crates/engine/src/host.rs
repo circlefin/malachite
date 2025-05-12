@@ -4,9 +4,9 @@ use std::time::Duration;
 use derive_where::derive_where;
 use ractor::{ActorRef, RpcReplyPort};
 
-use malachitebft_core_consensus::{PeerId, VoteExtensionError};
+use malachitebft_core_consensus::VoteExtensionError;
 use malachitebft_core_types::{CommitCertificate, Context, Round, ValueId, VoteExtensions};
-use malachitebft_sync::RawDecidedValue;
+use malachitebft_sync::{PeerId, RawDecidedValue};
 
 use crate::consensus::ConsensusRef;
 use crate::util::streaming::StreamMessage;
@@ -115,22 +115,5 @@ pub enum HostMsg<Ctx: Context> {
         validator_address: Ctx::Address,
         value_bytes: Bytes,
         reply_to: RpcReplyPort<ProposedValue<Ctx>>,
-    },
-
-    /// A peer joined our local view of the network.
-    /// In a gossip network, there is no guarantee that we will ever see all peers,
-    /// as we are typically only connected to a subset of the network (i.e. in our mesh).
-    PeerJoined {
-        /// The ID of the peer that joined
-        peer_id: PeerId,
-    },
-
-    /// A peer left our local view of the network.
-    /// In a gossip network, there is no guarantee that this means that this peer
-    /// has left the whole network altogether, just that it is not part of the subset
-    /// of the network that we are connected to (i.e. our mesh).
-    PeerLeft {
-        /// The ID of the peer that left
-        peer_id: PeerId,
     },
 }

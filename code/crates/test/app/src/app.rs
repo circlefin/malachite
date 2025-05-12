@@ -347,20 +347,6 @@ pub async fn run(
                 }
             }
 
-            AppMsg::PeerJoined { peer_id } => {
-                info!(%peer_id, "Peer joined our local view of network");
-
-                // You might want to track connected peers in your state
-                state.peers.insert(peer_id);
-            }
-
-            AppMsg::PeerLeft { peer_id } => {
-                info!(%peer_id, "Peer left our local view of network");
-
-                // Remove the peer from tracking
-                state.peers.remove(&peer_id);
-            }
-
             AppMsg::ExtendVote { reply, .. } => {
                 if reply.send(None).is_err() {
                     error!("Failed to send ExtendVote reply");
