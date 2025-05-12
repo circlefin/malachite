@@ -8,7 +8,7 @@ use alloc::collections::{BTreeMap, BTreeSet};
 use malachitebft_core_types::{
     Context, NilOrVal, Round, SignedVote, Validator, ValidatorSet, ValueId, Vote, VoteType,
 };
-use tracing::debug;
+use tracing::warn;
 
 use crate::evidence::EvidenceMap;
 use crate::round_votes::RoundVotes;
@@ -236,7 +236,7 @@ where
                 // This is an equivocating vote
                 self.evidence.add(existing.clone(), conflicting);
 
-                debug!(
+                warn!(
                     "Conflicting vote: existing: {}, conflicting: {}",
                     existing.validator_address(),
                     vote.validator_address()
