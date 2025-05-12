@@ -1,3 +1,4 @@
+mod equivocation;
 mod full_nodes;
 mod n3f0;
 mod n3f0_consensus_mode;

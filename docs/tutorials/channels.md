@@ -412,21 +412,23 @@ We will use two other modules called `store` and `streaming`. The `store` crate 
         value: ProposedValue<TestContext>,
     ) -> Result<(), StoreError>
 
-    /// Get the undecided proposal at the given height and round
+    /// Retrieves a specific undecided proposal for a given height, round, and value ID
     pub async fn get_undecided_proposal(
         &self,
         height: Height,
         round: Round,
+        value_id: ValueId,
     ) -> Result<Option<ProposedValue<TestContext>>, StoreError>
 
-    /// Prune the store, removing all decided values below the given height
-    pub async fn prune(&self, retain_height: Height) -> Result<Vec<Height>, StoreError>
-
-    /// Remove undecided proposals matching the given value id
-    pub async fn remove_undecided_proposals_by_value_id(
+    /// Retrieves all undecided proposals for a given height and round
+    pub async fn get_undecided_proposals(
         &self,
-        value_id: ValueId,
-    ) -> Result<(), StoreError>
+        height: Height,
+        round: Round,
+    ) -> Result<Vec<ProposedValue<TestContext>>, StoreError>
+
+    /// Prunes the store by removing all undecided proposals and decided values up to the retain height
+    pub async fn prune(&self, current_height: Height, retain_height: Height) -> Result<Vec<Height>, StoreError>
 
     /// Get the undecided proposal matching the given value id
     pub async fn get_undecided_proposal_by_value_id(
@@ -1268,13 +1270,13 @@ It is also possible that the application is requested to restream a proposal it 
                 round,
                 valid_round,
                 address: _,
-                value_id: _,
+                value_id,
             } => {
                 info!(%height, %valid_round, "Restreaming existing propos*al...");
 
                 let proposal = state
                     .store
-                    .get_undecided_proposal(height, valid_round)
+                    .get_undecided_proposal(height, valid_round, value_id)
                     .await?;
 
                 if let Some(proposal) = proposal {

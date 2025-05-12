@@ -1,4 +1,3 @@
-use std::ops::RangeBounds;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -121,11 +120,12 @@ impl Db {
         &self,
         height: Height,
         round: Round,
+        value_id: ValueId,
     ) -> Result<Option<ProposedValue<TestContext>>, StoreError> {
         let tx = self.db.begin_read()?;
         let table = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
 
-        let value = if let Ok(Some(value)) = table.get(&(height, round)) {
+        let value = if let Ok(Some(value)) = table.get(&(height, round, value_id)) {
             Some(
                 ProtobufCodec
                     .decode(Bytes::from(value.value()))
@@ -138,11 +138,38 @@ impl Db {
         Ok(value)
     }
 
+    fn get_undecided_proposals(
+        &self,
+        height: Height,
+        round: Round,
+    ) -> Result<Vec<ProposedValue<TestContext>>, StoreError> {
+        let tx = self.db.begin_read()?;
+        let table = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
+
+        let mut proposals = Vec::new();
+        for result in table.iter()? {
+            let (key, value) = result?;
+            let (h, r, _) = key.value();
+
+            if h == height && r == round {
+                let bytes = value.value();
+
+                let proposal = ProtobufCodec
+                    .decode(Bytes::from(bytes))
+                    .map_err(StoreError::Protobuf)?;
+
+                proposals.push(proposal);
+            }
+        }
+
+        Ok(proposals)
+    }
+
     fn insert_undecided_proposal(
         &self,
         proposal: ProposedValue<TestContext>,
     ) -> Result<(), StoreError> {
-        let key = (proposal.height, proposal.round);
+        let key = (proposal.height, proposal.round, proposal.value.id());
         let value = ProtobufCodec.encode(&proposal)?;
         let tx = self.db.begin_write()?;
         {
@@ -153,72 +180,25 @@ impl Db {
         Ok(())
     }
 
-    pub fn remove_undecided_proposal(
-        &self,
-        height: Height,
-        round: Round,
-    ) -> Result<(), StoreError> {
-        let tx = self.db.begin_write()?;
-        {
-            let mut table = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
-            table.remove(&(height, round))?;
-        }
-        tx.commit()?;
-        Ok(())
-    }
-
-    fn height_range<Table>(
-        &self,
-        table: &Table,
-        range: impl RangeBounds<Height>,
-    ) -> Result<Vec<Height>, StoreError>
-    where
-        Table: redb::ReadableTable<HeightKey, Vec<u8>>,
-    {
-        Ok(table
-            .range(range)?
-            .flatten()
-            .map(|(key, _)| key.value())
-            .collect::<Vec<_>>())
-    }
-
-    fn undecided_proposals_range<Table>(
-        &self,
-        table: &Table,
-        range: impl RangeBounds<(Height, Round)>,
-    ) -> Result<Vec<(Height, Round)>, StoreError>
-    where
-        Table: redb::ReadableTable<UndecidedValueKey, Vec<u8>>,
-    {
-        Ok(table
-            .range(range)?
-            .flatten()
-            .map(|(key, _)| key.value())
-            .collect::<Vec<_>>())
-    }
-
-    fn prune(&self, retain_height: Height) -> Result<Vec<Height>, StoreError> {
+    fn prune(&self, current_height: Height, retain_height: Height) -> Result<(), StoreError> {
         let tx = self.db.begin_write().unwrap();
-        let pruned = {
+        {
+            // Remove all undecided proposals with height <= current_height
             let mut undecided = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
-            let keys = self.undecided_proposals_range(&undecided, ..(retain_height, Round::Nil))?;
-            for key in keys {
-                undecided.remove(key)?;
-            }
+            undecided.retain(|(height, _, _), _| height > current_height)?;
 
+            // Prune decided values and certificates up to the retain height
             let mut decided = tx.open_table(DECIDED_VALUES_TABLE)?;
             let mut certificates = tx.open_table(CERTIFICATES_TABLE)?;
 
-            let keys = self.height_range(&decided, ..retain_height)?;
-            for key in &keys {
-                decided.remove(key)?;
-                certificates.remove(key)?;
-            }
-            keys
-        };
+            // Keep only decided values with height >= retain_height
+            decided.retain(|k, _| k >= retain_height)?;
+            // Keep only certificates with height >= retain_height
+            certificates.retain(|k, _| k >= retain_height)?;
+        }
         tx.commit()?;
 
-        Ok(pruned)
+        Ok(())
     }
 
     fn min_decided_value_height(&self) -> Option<Height> {
@@ -326,27 +306,33 @@ impl Store {
         tokio::task::spawn_blocking(move || db.insert_undecided_proposal(value)).await?
     }
 
-    pub async fn remove_undecided_proposal(
-        &self,
-        height: Height,
-        round: Round,
-    ) -> Result<(), StoreError> {
-        let db = Arc::clone(&self.db);
-        tokio::task::spawn_blocking(move || db.remove_undecided_proposal(height, round)).await?
-    }
-
     pub async fn get_undecided_proposal(
         &self,
         height: Height,
         round: Round,
+        value_id: ValueId,
     ) -> Result<Option<ProposedValue<TestContext>>, StoreError> {
         let db = Arc::clone(&self.db);
-        tokio::task::spawn_blocking(move || db.get_undecided_proposal(height, round)).await?
+        tokio::task::spawn_blocking(move || db.get_undecided_proposal(height, round, value_id))
+            .await?
     }
 
-    pub async fn prune(&self, retain_height: Height) -> Result<Vec<Height>, StoreError> {
+    pub async fn get_undecided_proposals(
+        &self,
+        height: Height,
+        round: Round,
+    ) -> Result<Vec<ProposedValue<TestContext>>, StoreError> {
         let db = Arc::clone(&self.db);
-        tokio::task::spawn_blocking(move || db.prune(retain_height)).await?
+        tokio::task::spawn_blocking(move || db.get_undecided_proposals(height, round)).await?
+    }
+
+    pub async fn prune(
+        &self,
+        current_height: Height,
+        retain_height: Height,
+    ) -> Result<(), StoreError> {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.prune(current_height, retain_height)).await?
     }
 
     pub async fn get_undecided_proposal_by_value_id(
