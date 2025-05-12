@@ -1104,18 +1104,21 @@ where
 
             Effect::PublishLivenessMsg(msg, r) => {
                 // Publish liveness message only if vote sync mode is set to "rebroadcast".
-                match msg {
-                    LivenessMsg::PolkaCertificate(ref certificate) => {
-                        self.tx_event
-                            .send(|| Event::PolkaCertificate(certificate.clone()));
-                    }
-                    LivenessMsg::SkipRoundCertificate(ref certificate) => {
-                        self.tx_event
-                            .send(|| Event::SkipRoundCertificate(certificate.clone()));
-                    }
-                }
-
                 if self.params.vote_sync_mode == VoteSyncMode::Rebroadcast {
+                    match msg {
+                        LivenessMsg::Vote(ref msg) => {
+                            self.tx_event.send(|| Event::RebroadcastVote(msg.clone()));
+                        }
+                        LivenessMsg::PolkaCertificate(ref certificate) => {
+                            self.tx_event
+                                .send(|| Event::PolkaCertificate(certificate.clone()));
+                        }
+                        LivenessMsg::SkipRoundCertificate(ref certificate) => {
+                            self.tx_event
+                                .send(|| Event::SkipRoundCertificate(certificate.clone()));
+                        }
+                    }
+
                     self.network
                         .cast(NetworkMsg::PublishLivenessMsg(msg))
                         .map_err(|e| eyre!("Error when broadcasting liveness message: {e:?}"))?;
