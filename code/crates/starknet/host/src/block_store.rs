@@ -258,12 +258,20 @@ impl BlockStore {
         .await?
     }
 
-    pub fn first_height(&self) -> Option<Height> {
-        self.db.first_key()
+    pub async fn first_height(&self) -> Option<Height> {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.first_key())
+            .await
+            .ok()
+            .flatten()
     }
 
-    pub fn last_height(&self) -> Option<Height> {
-        self.db.last_key()
+    pub async fn last_height(&self) -> Option<Height> {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.last_key())
+            .await
+            .ok()
+            .flatten()
     }
 
     pub async fn get(&self, height: Height) -> Result<Option<DecidedBlock>, StoreError> {
