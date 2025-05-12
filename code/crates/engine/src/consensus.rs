@@ -1085,15 +1085,12 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::Decide(certificate, extensions, evidence, r) => {
+            Effect::Decide(certificate, extensions, r) => {
                 assert!(!certificate.commit_signatures.is_empty());
 
                 self.wal_flush(state.phase).await?;
 
-                self.tx_event.send(|| Event::Decided {
-                    commit_certificate: certificate.clone(),
-                    evidence,
-                });
+                self.tx_event.send(|| Event::Decided(certificate.clone()));
 
                 let height = certificate.height;
 

@@ -2196,6 +2196,7 @@ dependencies = [
  "informalsystems-malachitebft-core-votekeeper",
  "informalsystems-malachitebft-test",
  "thiserror 2.0.12",
+ "tracing",
 ]
 
 [[package]]
@@ -2225,6 +2226,7 @@ dependencies = [
  "informalsystems-malachitebft-core-types",
  "informalsystems-malachitebft-test",
  "thiserror 2.0.12",
+ "tracing",
 ]
 
 [[package]]

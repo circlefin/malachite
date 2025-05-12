@@ -17,6 +17,7 @@ malachitebft-core-types = { workspace = true }
 
 derive-where = { workspace = true }
 thiserror = { workspace = true, default-features = false }
+tracing = { workspace = true }
 
 [dev-dependencies]
 malachitebft-test = { workspace = true }

@@ -101,14 +101,14 @@ where
         }
     }
 
-    let evidence = MisbehaviorEvidence {
+    let _evidence = MisbehaviorEvidence {
         proposals: state.driver.proposal_evidence().clone(),
         votes: state.driver.vote_evidence().clone(),
     };
 
     perform!(
         co,
-        Effect::Decide(certificate, extensions, evidence, Default::default())
+        Effect::Decide(certificate, extensions, Default::default())
     );
 
     Ok(())

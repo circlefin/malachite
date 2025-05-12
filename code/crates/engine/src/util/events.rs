@@ -6,7 +6,7 @@ use ractor::ActorProcessingErr;
 use tokio::sync::broadcast;
 
 use malachitebft_core_consensus::{
-    LocallyProposedValue, MisbehaviorEvidence, ProposedValue, SignedConsensusMsg, WalEntry,
+    LocallyProposedValue, ProposedValue, SignedConsensusMsg, WalEntry,
 };
 use malachitebft_core_types::{CommitCertificate, Context, Round, SignedVote, ValueOrigin};
 
@@ -47,10 +47,7 @@ pub enum Event<Ctx: Context> {
     Published(SignedConsensusMsg<Ctx>),
     ProposedValue(LocallyProposedValue<Ctx>),
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
-    Decided {
-        commit_certificate: CommitCertificate<Ctx>,
-        evidence: MisbehaviorEvidence<Ctx>,
-    },
+    Decided(CommitCertificate<Ctx>),
     Rebroadcast(SignedVote<Ctx>),
     RequestedVoteSet(Ctx::Height, Round),
     SentVoteSetResponse(Ctx::Height, Round, usize, usize),
@@ -77,15 +74,9 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
                     "ReceivedProposedValue(value: {value:?}, origin: {origin:?})"
                 )
             }
-            Event::Decided {
-                commit_certificate,
-                evidence,
-            } => write!(
-                f,
-                "Decided(value: {}, evidence: {})",
-                commit_certificate.value_id,
-                !evidence.is_empty()
-            ),
+            Event::Decided(commit_certificate) => {
+                write!(f, "Decided(value: {})", commit_certificate.value_id,)
+            }
             Event::Rebroadcast(msg) => write!(f, "Rebroadcast(msg: {msg:?})"),
             Event::RequestedVoteSet(height, round) => {
                 write!(f, "RequestedVoteSet(height: {height}, round: {round})")
