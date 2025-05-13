@@ -21,10 +21,6 @@ on:
           - "10"
           - "15"
 
-  push:
-    branches:
-      - nenad/800-run-qa-from-git
-
 jobs:
   run-malachite-do:
     runs-on: ubuntu-latest
