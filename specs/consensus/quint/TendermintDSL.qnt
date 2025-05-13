@@ -19,6 +19,10 @@ run ListTakeAStep (active) = {
     active.length().reps(i => valStep(active[i]))
 }
 
+run ListTimesOut (active) = {
+    active.length().reps(i => valTimeout(active[i]))
+}
+
 run ListDeliverProposal (active, propMsg) = {
     all{
         assert( Faulty.contains(propMsg.srcAddress) or 
@@ -67,7 +71,8 @@ run onlyProposerReceivesProposal(active, valList, valset, h, r, value) = {
         ListTakeAStep(active)
     })
     .then(deliverSomeProposal(p))
-    .then(ListTakeAStep(active))
+    .then(valStep(p))
+    .then(ListTimesOut(active.select(x => x != p)))
     .then(all{ 
         assert(SetFromList(active).forall(proc => system.get(proc).es.pendingStepChange == PrevoteStep)),
         ListTakeAStep(active)
@@ -82,7 +87,7 @@ run everyoneReceivesProposalVR (active, valList, valset, h, r, value, vr) = {
         setNextValueToPropose(p, value),
         assert(ListContains(active, p)) // proposer must be in active list for this run
     }
-    .then(ListTakeAStep(active))
+    .then(ListTimesOut(active))
     .then(all{ // after new round an empty step to clean step "propose"
         assert(SetFromList(active).forall(proc => system.get(proc).es.pendingStepChange == ProposeStep)),
         ListTakeAStep(active)
@@ -106,6 +111,29 @@ run everyoneReceivesProposal (active, valList, valset, h, r, value) = {
         assert(ListContains(active, p)) // proposer must be in active list for this run
     }
     .then(ListTakeAStep(active))
+    .then(all{ // after new round an empty step to clean step "propose"
+        assert(SetFromList(active).forall(proc => system.get(proc).es.pendingStepChange == ProposeStep)),
+        ListTakeAStep(active)
+    })
+    .then(all {
+        assert(true),
+        ListDeliverProposal(active, propMsg)
+    })
+    .then(ListTakeAStep(active))
+    .then(all{ 
+        assert(SetFromList(active).forall(proc => system.get(proc).es.pendingStepChange == PrevoteStep)),
+        ListTakeAStep(active)
+    })        
+}
+
+run everyoneReceivesProposalTO (active, valList, valset, h, r, value) = {
+    val p = proposer(valset, h, r)
+    val propMsg = mkProposal(p, h, r, value, -1)
+    all{
+        setNextValueToPropose(p, value),
+        assert(ListContains(active, p)) // proposer must be in active list for this run
+    }
+    .then(ListTimesOut(active))
     .then(all{ // after new round an empty step to clean step "propose"
         assert(SetFromList(active).forall(proc => system.get(proc).es.pendingStepChange == ProposeStep)),
         ListTakeAStep(active)
