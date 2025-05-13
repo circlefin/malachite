@@ -175,18 +175,20 @@ impl Codec<LivenessMsg<TestContext>> for ProtobufCodec {
     type Error = ProtoError;
 
     fn decode(&self, bytes: Bytes) -> Result<LivenessMsg<TestContext>, Self::Error> {
-        let msg = proto::GossipMessage::decode(bytes.as_ref())?;
+        let msg = proto::LivenessMessage::decode(bytes.as_ref())?;
         match msg.message {
-            Some(proto::gossip_message::Message::Vote(vote)) => {
+            Some(proto::liveness_message::Message::Vote(vote)) => {
                 Ok(LivenessMsg::Vote(decode_vote(vote)?))
             }
-            Some(proto::gossip_message::Message::PolkaCertificate(cert)) => Ok(
+            Some(proto::liveness_message::Message::PolkaCertificate(cert)) => Ok(
                 LivenessMsg::PolkaCertificate(decode_polka_certificate(cert)?),
             ),
-            Some(proto::gossip_message::Message::RoundCertificate(cert)) => Ok(
+            Some(proto::liveness_message::Message::RoundCertificate(cert)) => Ok(
                 LivenessMsg::SkipRoundCertificate(decode_round_certificate(cert)?),
             ),
-            None => Err(ProtoError::missing_field::<proto::GossipMessage>("message")),
+            None => Err(ProtoError::missing_field::<proto::LivenessMessage>(
+                "message",
+            )),
         }
     }
 
@@ -195,8 +197,8 @@ impl Codec<LivenessMsg<TestContext>> for ProtobufCodec {
             LivenessMsg::Vote(vote) => {
                 let message = encode_vote(vote)?;
                 Ok(Bytes::from(
-                    proto::GossipMessage {
-                        message: Some(proto::gossip_message::Message::Vote(message)),
+                    proto::LivenessMessage {
+                        message: Some(proto::liveness_message::Message::Vote(message)),
                     }
                     .encode_to_vec(),
                 ))
@@ -204,8 +206,8 @@ impl Codec<LivenessMsg<TestContext>> for ProtobufCodec {
             LivenessMsg::PolkaCertificate(cert) => {
                 let message = encode_polka_certificate(cert)?;
                 Ok(Bytes::from(
-                    proto::GossipMessage {
-                        message: Some(proto::gossip_message::Message::PolkaCertificate(message)),
+                    proto::LivenessMessage {
+                        message: Some(proto::liveness_message::Message::PolkaCertificate(message)),
                     }
                     .encode_to_vec(),
                 ))
@@ -213,8 +215,8 @@ impl Codec<LivenessMsg<TestContext>> for ProtobufCodec {
             LivenessMsg::SkipRoundCertificate(cert) => {
                 let message = encode_round_certificate(cert)?;
                 Ok(Bytes::from(
-                    proto::GossipMessage {
-                        message: Some(proto::gossip_message::Message::RoundCertificate(message)),
+                    proto::LivenessMessage {
+                        message: Some(proto::liveness_message::Message::RoundCertificate(message)),
                     }
                     .encode_to_vec(),
                 ))

@@ -32,7 +32,7 @@ message RoundCertificate {
     repeated RoundSignature signatures = 4;
 }
 
-message GossipMessage {
+message LivenessMessage {
     oneof message {
         Vote vote = 1;
         PolkaCertificate polka_certificate = 2;
