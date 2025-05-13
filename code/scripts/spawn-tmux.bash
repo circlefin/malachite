@@ -26,6 +26,10 @@ export MALACHITE__TEST__MAX_RETAIN_BLOCKS=100
 export MALACHITE__TEST__VOTE_EXTENSIONS__ENABLED=false
 export MALACHITE__TEST__VOTE_EXTENSIONS__SIZE="1KiB"
 
+export MALACHITE__VALUE_SYNC__ENABLED="true"
+export MALACHITE__VALUE_SYNC__STATUS_UPDATE_INTERVAL="10s"
+export MALACHITE__VALUE_SYNC__REQUEST_TIMEOUT="10s"
+
 # Check if tmux is available
 if ! command -v tmux &> /dev/null; then
     echo "Error: tmux is not installed or not in PATH"
@@ -168,4 +172,3 @@ echo
 
 read -p "Press Enter to kill the tmux session... " quit
 tmux kill-session -t "$session"
-
