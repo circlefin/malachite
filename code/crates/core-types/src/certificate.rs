@@ -200,9 +200,9 @@ impl<Ctx: Context> RoundSignature<Ctx> {
 /// Represents a certificate for entering a new round at a given height.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct RoundCertificate<Ctx: Context> {
-    /// The height at which a Polka was witnessed
+    /// The height at which a certificate was witnessed
     pub height: Ctx::Height,
-    /// The round at which a Polka that was witnessed
+    /// The round of the votes that made up the certificate
     pub round: Round,
     /// The signatures for the votes that make up the certificate
     pub round_signatures: Vec<RoundSignature<Ctx>>,
@@ -225,6 +225,30 @@ impl<Ctx: Context> RoundCertificate<Ctx> {
                     )
                 })
                 .collect(),
+        }
+    }
+}
+
+/// Represents a local certificate that triggered or will trigger the start of a new round.
+#[derive_where(Clone, Debug, PartialEq, Eq)]
+pub struct LocalRoundCertificate<Ctx: Context> {
+    /// The certificate that triggered or will trigger the start of a new round
+    pub certificate: RoundCertificate<Ctx>,
+    /// The round that is or will be started due to the certificate
+    pub target_round: Round,
+}
+
+impl<Ctx: Context> LocalRoundCertificate<Ctx> {
+    /// Creates a new `LocalRoundCertificate` from a vector of signed votes.
+    pub fn new_from_votes(
+        height: Ctx::Height,
+        target_round: Round,
+        round: Round,
+        votes: Vec<SignedVote<Ctx>>,
+    ) -> Self {
+        Self {
+            certificate: RoundCertificate::new_from_votes(height, round, votes),
+            target_round,
         }
     }
 }

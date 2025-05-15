@@ -37,20 +37,22 @@ where
             // it guarantees that after GST, all correct replicas will receive
             // the round certificate and enter the same round within bounded time.
             if round > &Round::new(0) {
-                if let Some(certificate) = state.driver.round_certificate() {
-                    info!(
-                        %certificate.height,
-                        %certificate.round,
-                        number_of_votes = certificate.round_signatures.len(),
-                        "Sending round certificate"
-                    );
-                    perform!(
-                        co,
-                        Effect::PublishLivenessMsg(
-                            LivenessMsg::SkipRoundCertificate(certificate.clone()),
-                            Default::default()
-                        )
-                    );
+                if let Some(local) = state.driver.round_certificate() {
+                    if local.target_round == *round {
+                        info!(
+                            %local.certificate.height,
+                            %local.target_round,
+                            number_of_votes = local.certificate.round_signatures.len(),
+                            "Sending round certificate"
+                        );
+                        perform!(
+                            co,
+                            Effect::PublishLivenessMsg(
+                                LivenessMsg::SkipRoundCertificate(local.certificate.clone()),
+                                Default::default()
+                            )
+                        );
+                    }
                 }
             }
 
@@ -63,6 +65,15 @@ where
                 co,
                 Effect::StartRound(*height, *round, proposer.clone(), Default::default())
             );
+
+            #[cfg(feature = "metrics")]
+            metrics.rebroadcast_timeouts.inc();
+
+            // Schedule rebroadcast timer if necessary
+            if state.params.vote_sync_mode == VoteSyncMode::Rebroadcast {
+                let timeout = Timeout::rebroadcast(*round);
+                perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
+            }
         }
 
         DriverInput::ProposeValue(round, _) => {
@@ -394,13 +405,6 @@ where
                 );
 
                 state.set_last_vote(signed_vote);
-
-                // Schedule rebroadcast timer if necessary
-                if state.params.vote_sync_mode == VoteSyncMode::Rebroadcast {
-                    let timeout = Timeout::rebroadcast(state.driver.round());
-
-                    perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
-                }
             }
 
             Ok(())

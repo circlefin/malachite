@@ -190,7 +190,11 @@ impl Timeouts {
             TimeoutKind::Precommit => self.config.timeout_precommit,
             TimeoutKind::PrevoteTimeLimit => self.config.timeout_step,
             TimeoutKind::PrecommitTimeLimit => self.config.timeout_step,
-            TimeoutKind::Rebroadcast => self.config.timeout_prevote,
+            TimeoutKind::Rebroadcast => {
+                self.config.timeout_propose
+                    + self.config.timeout_prevote
+                    + self.config.timeout_precommit
+            }
         }
     }
 

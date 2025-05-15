@@ -98,7 +98,11 @@ pub async fn on_round_certificate<Ctx>(
 where
     Ctx: Context,
 {
-    info!(%certificate.height, %certificate.round, "Received round certificate");
+    info!(
+        %certificate.height,
+        %certificate.round,
+        "Received round certificate"
+    );
 
     if certificate.height != state.height() {
         warn!(

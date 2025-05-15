@@ -8,8 +8,8 @@ use malachitebft_core_state_machine::output::Output as RoundOutput;
 use malachitebft_core_state_machine::state::{RoundValue, State as RoundState, Step};
 use malachitebft_core_state_machine::state_machine::Info;
 use malachitebft_core_types::{
-    CommitCertificate, Context, NilOrVal, PolkaCertificate, PolkaSignature, Proposal, Round,
-    RoundCertificate, SignedProposal, SignedVote, Timeout, TimeoutKind, Validator, ValidatorSet,
+    CommitCertificate, Context, LocalRoundCertificate, NilOrVal, PolkaCertificate, PolkaSignature,
+    Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutKind, Validator, ValidatorSet,
     Validity, Value, ValueId, Vote, VoteType,
 };
 use malachitebft_core_votekeeper::keeper::Output as VKOutput;
@@ -65,8 +65,10 @@ where
     last_prevote: Option<Ctx::Vote>,
     last_precommit: Option<Ctx::Vote>,
 
-    /// The certificate that justifies the current round.
-    pub round_certificate: Option<RoundCertificate<Ctx>>,
+    /// The certificate that justifies moving to `round`.
+    /// For `PrecommitAny` case it will be `round + 1` of the round signatures.
+    /// For `SkipRound` case it will be the `round` of the round signatures.
+    pub round_certificate: Option<LocalRoundCertificate<Ctx>>,
 }
 
 impl<Ctx> Driver<Ctx>
@@ -233,7 +235,7 @@ where
     }
 
     /// Get the round certificate for the current round.
-    pub fn round_certificate(&self) -> Option<&RoundCertificate<Ctx>> {
+    pub fn round_certificate(&self) -> Option<&LocalRoundCertificate<Ctx>> {
         self.round_certificate.as_ref()
     }
 
@@ -512,8 +514,9 @@ where
             .cloned()
             .collect();
 
-        self.round_certificate = Some(RoundCertificate::new_from_votes(
+        self.round_certificate = Some(LocalRoundCertificate::new_from_votes(
             self.height(),
+            vote_round.increment(),
             vote_round,
             precommits,
         ));
@@ -532,8 +535,9 @@ where
             .cloned()
             .collect();
 
-        self.round_certificate = Some(RoundCertificate::new_from_votes(
+        self.round_certificate = Some(LocalRoundCertificate::new_from_votes(
             self.height(),
+            vote_round,
             vote_round,
             skip_votes,
         ));

@@ -210,7 +210,11 @@ where
         })
     }
 
-    pub fn expect_round_certificate(&mut self, at_height: u64, at_round: u32) -> &mut Self {
+    pub fn expect_round_certificate_rebroadcast(
+        &mut self,
+        at_height: u64,
+        at_round: u32,
+    ) -> &mut Self {
         self.on_event(move |event, _| {
             let Event::RebroadcastRoundCertificate(msg) = event else {
                 return Ok(HandlerResult::WaitForNextEvent);
@@ -227,6 +231,28 @@ where
             }
 
             info!(%height, %round, "Rebroadcasted round certificate");
+
+            Ok(HandlerResult::ContinueTest)
+        })
+    }
+
+    pub fn expect_skip_round_certificate(&mut self, at_height: u64, at_round: u32) -> &mut Self {
+        self.on_event(move |event, _| {
+            let Event::SkipRoundCertificate(msg) = event else {
+                return Ok(HandlerResult::WaitForNextEvent);
+            };
+
+            let (height, round) = (msg.height, msg.round);
+
+            if height.as_u64() != at_height {
+                bail!("Unexpected round certificate broadcast for height {height}, expected {at_height}")
+            }
+
+            if round.as_u32() != Some(at_round) {
+                bail!("Unexpected round certificate broadcast for round {round}, expected {at_round}")
+            }
+
+            info!(%height, %round, "Broadcasted skip round certificate");
 
             Ok(HandlerResult::ContinueTest)
         })

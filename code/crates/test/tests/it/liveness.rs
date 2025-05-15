@@ -3,21 +3,16 @@ use std::time::Duration;
 use informalsystems_malachitebft_test::TestContext;
 use malachitebft_config::VoteSyncMode;
 use malachitebft_core_consensus::HIDDEN_LOCK_ROUND;
-use malachitebft_core_types::{Round, VoteType};
+use malachitebft_core_types::Round;
 use malachitebft_test_framework::TestNode;
 
 use crate::middlewares::PrevoteNil;
 use crate::{TestBuilder, TestParams};
 
 fn expect_round_certificate_rebroadcasts(node: &mut TestNode<TestContext>) {
-    use VoteType::*;
-
-    node.expect_vote_rebroadcast(1, 0, Prevote)
-        // When we enter round 0 there is no round certificate
-        .expect_vote_rebroadcast(1, 1, Prevote)
-        .expect_round_certificate(1, 0)
-        .expect_vote_rebroadcast(1, 2, Prevote)
-        .expect_round_certificate(1, 1);
+    node.expect_skip_round_certificate(1, 0)
+        .expect_skip_round_certificate(1, 1)
+        .expect_skip_round_certificate(1, 2);
 }
 
 #[tokio::test]

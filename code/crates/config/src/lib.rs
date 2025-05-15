@@ -550,7 +550,9 @@ impl TimeoutConfig {
             TimeoutKind::PrevoteTimeLimit => self.timeout_step,
             TimeoutKind::PrecommitTimeLimit => self.timeout_step,
             // TODO - clarify the rebroadcast timeout duration
-            TimeoutKind::Rebroadcast => self.timeout_prevote,
+            TimeoutKind::Rebroadcast => {
+                self.timeout_propose + self.timeout_prevote + self.timeout_precommit
+            }
         }
     }
 
