@@ -19,12 +19,12 @@ pub struct Address(
 impl Address {
     const LENGTH: usize = 20;
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     pub const fn new(value: [u8; Self::LENGTH]) -> Self {
         Self(value)
     }
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     pub fn from_public_key(public_key: &PublicKey) -> Self {
         let hash = public_key.hash();
         let mut address = [0; Self::LENGTH];
@@ -38,7 +38,7 @@ impl Address {
 }
 
 impl fmt::Display for Address {
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for byte in self.0.iter() {
             write!(f, "{:02X}", byte)?;
@@ -48,7 +48,7 @@ impl fmt::Display for Address {
 }
 
 impl fmt::Debug for Address {
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Address({})", self)
     }

@@ -60,7 +60,7 @@ inherits = "release"
 debug = true
 
 [workspace.lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage_nightly)'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin)'] }
 
 [workspace.lints.clippy]
 disallowed_types = "deny"

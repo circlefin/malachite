@@ -33,7 +33,7 @@ impl fmt::Display for ValueId {
 impl Protobuf for ValueId {
     type Proto = proto::ValueId;
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         let bytes = proto
             .value
@@ -50,7 +50,7 @@ impl Protobuf for ValueId {
         Ok(ValueId::new(u64::from_be_bytes(bytes)))
     }
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(proto::ValueId {
             value: Some(self.0.to_be_bytes().to_vec().into()),
@@ -93,7 +93,7 @@ impl malachitebft_core_types::Value for Value {
 impl Protobuf for Value {
     type Proto = proto::Value;
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         let bytes = proto
             .value
@@ -114,7 +114,7 @@ impl Protobuf for Value {
         })
     }
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         let mut bytes = BytesMut::new();
         bytes.extend_from_slice(&self.value.to_be_bytes());

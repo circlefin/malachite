@@ -12,7 +12,7 @@ pub struct Validator {
 }
 
 impl Validator {
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     pub fn new(public_key: PublicKey, voting_power: VotingPower) -> Self {
         Self {
             address: Address::from_public_key(public_key),

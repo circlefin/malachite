@@ -25,7 +25,7 @@ pub enum StreamContent {
 impl Protobuf for StreamMessage {
     type Proto = p2p_proto::StreamMessage;
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, malachitebft_proto::Error> {
         let content = match proto
             .message
@@ -42,7 +42,7 @@ impl Protobuf for StreamMessage {
         })
     }
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, malachitebft_proto::Error> {
         Ok(Self::Proto {
             stream_id: self.id.clone(),

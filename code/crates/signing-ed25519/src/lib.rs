@@ -1,5 +1,5 @@
 #![cfg_attr(not(feature = "std"), no_std)]
-#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
+#![cfg_attr(tarpaulin, feature(coverage_attribute))]
 
 extern crate alloc;
 
@@ -15,7 +15,7 @@ use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "serde")]
-#[cfg_attr(coverage_nightly, coverage(off))]
+#[cfg_attr(tarpaulin, coverage(off))]
 mod serializers;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -23,7 +23,7 @@ pub struct Ed25519;
 
 impl Ed25519 {
     #[cfg(feature = "rand")]
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     pub fn generate_keypair<R>(rng: R) -> PrivateKey
     where
         R: RngCore + CryptoRng,
@@ -72,7 +72,7 @@ impl Signature {
 }
 
 impl From<ed25519_consensus::Signature> for Signature {
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn from(signature: ed25519_consensus::Signature) -> Self {
         Self(signature)
     }
@@ -81,21 +81,21 @@ impl From<ed25519_consensus::Signature> for Signature {
 impl TryFrom<&[u8]> for Signature {
     type Error = ed25519_consensus::Error;
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
         Ok(Self(ed25519_consensus::Signature::try_from(bytes)?))
     }
 }
 
 impl PartialOrd for Signature {
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl Ord for Signature {
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.0.to_bytes().cmp(&other.0.to_bytes())
     }
@@ -111,7 +111,7 @@ pub struct PrivateKey(
 
 impl PrivateKey {
     #[cfg(feature = "rand")]
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     pub fn generate<R>(rng: R) -> Self
     where
         R: RngCore + CryptoRng,
@@ -121,17 +121,17 @@ impl PrivateKey {
         Self(signing_key)
     }
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     pub fn public_key(&self) -> PublicKey {
         PublicKey::new(self.0.verification_key())
     }
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     pub fn sign(&self, msg: &[u8]) -> Signature {
         Signature(self.0.sign(msg))
     }
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     pub fn inner(&self) -> &ed25519_consensus::SigningKey {
         &self.0
     }

@@ -543,7 +543,7 @@ impl<Ctx> fmt::Debug for Driver<Ctx>
 where
     Ctx: Context,
 {
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Driver")
             .field("address", &self.address)

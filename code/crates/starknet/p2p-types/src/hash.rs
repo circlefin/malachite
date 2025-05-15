@@ -44,14 +44,14 @@ impl Hash {
 }
 
 impl PartialOrd for Hash {
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl Ord for Hash {
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.as_bytes().cmp(other.as_bytes())
     }
@@ -60,14 +60,14 @@ impl Ord for Hash {
 impl proto::Protobuf for Hash {
     type Proto = p2p_proto::Hash;
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
         Ok(Self::new(proto.elements.as_ref().try_into().map_err(
             |_| proto::Error::Other("Invalid hash length".to_string()),
         )?))
     }
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
         Ok(p2p_proto::Hash {
             elements: Bytes::copy_from_slice(self.as_bytes().as_ref()),
@@ -76,14 +76,14 @@ impl proto::Protobuf for Hash {
 }
 
 impl fmt::Display for Hash {
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.0, f)
     }
 }
 
 impl fmt::Debug for Hash {
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self.0, f)
     }
@@ -92,7 +92,7 @@ impl fmt::Debug for Hash {
 impl str::FromStr for Hash {
     type Err = Box<dyn core::error::Error>;
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let hash = str::FromStr::from_str(s)?;
         Ok(Self(hash))

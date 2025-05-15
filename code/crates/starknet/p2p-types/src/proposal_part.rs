@@ -106,7 +106,7 @@ impl ProposalPart {
 impl proto::Protobuf for ProposalPart {
     type Proto = p2p_proto::ProposalPart;
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
         use p2p_proto::proposal_part::Messages;
 
@@ -146,7 +146,7 @@ impl proto::Protobuf for ProposalPart {
         })
     }
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
         use p2p_proto::proposal_part::Messages;
 

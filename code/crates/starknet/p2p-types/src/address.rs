@@ -12,19 +12,19 @@ use crate::PublicKey;
 pub struct Address(PublicKey);
 
 impl Address {
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     pub fn new(bytes: [u8; 32]) -> Self {
         Self::from_public_key(PublicKey::from_bytes(bytes))
     }
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     pub fn from_public_key(public_key: PublicKey) -> Self {
         Self(public_key)
     }
 }
 
 impl fmt::Display for Address {
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for byte in self.0.as_bytes().iter() {
             write!(f, "{:02X}", byte)?;
@@ -34,7 +34,7 @@ impl fmt::Display for Address {
 }
 
 impl fmt::Debug for Address {
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Address({})", self)
     }

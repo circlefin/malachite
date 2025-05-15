@@ -109,7 +109,7 @@ impl malachitebft_core_types::Vote<TestContext> for Vote {
 impl Protobuf for Vote {
     type Proto = crate::proto::Vote;
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         Ok(Self {
             typ: decode_votetype(proto.vote_type()),
@@ -128,7 +128,7 @@ impl Protobuf for Vote {
         })
     }
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(Self::Proto {
             vote_type: encode_votetype(self.typ).into(),
@@ -143,7 +143,7 @@ impl Protobuf for Vote {
     }
 }
 
-#[cfg_attr(coverage_nightly, coverage(off))]
+#[cfg_attr(tarpaulin, coverage(off))]
 fn encode_votetype(vote_type: VoteType) -> proto::VoteType {
     match vote_type {
         VoteType::Prevote => proto::VoteType::Prevote,
@@ -151,7 +151,7 @@ fn encode_votetype(vote_type: VoteType) -> proto::VoteType {
     }
 }
 
-#[cfg_attr(coverage_nightly, coverage(off))]
+#[cfg_attr(tarpaulin, coverage(off))]
 fn decode_votetype(vote_type: proto::VoteType) -> VoteType {
     match vote_type {
         proto::VoteType::Prevote => VoteType::Prevote,

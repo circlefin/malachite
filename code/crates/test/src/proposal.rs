@@ -69,7 +69,7 @@ impl malachitebft_core_types::Proposal<TestContext> for Proposal {
 impl Protobuf for Proposal {
     type Proto = crate::proto::Proposal;
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(Self::Proto {
             height: self.height.to_proto()?,
@@ -80,7 +80,7 @@ impl Protobuf for Proposal {
         })
     }
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         Ok(Self {
             height: Height::from_proto(proto.height)?,

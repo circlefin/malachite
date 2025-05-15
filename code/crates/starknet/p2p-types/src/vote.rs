@@ -54,7 +54,7 @@ impl Vote {
 impl proto::Protobuf for Vote {
     type Proto = p2p_proto::Vote;
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
         let vote_type = proto_to_common_vote_type(proto.vote_type());
 
@@ -74,7 +74,7 @@ impl proto::Protobuf for Vote {
         })
     }
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
         Ok(Self::Proto {
             vote_type: common_to_proto_vote_type(self.vote_type).into(),

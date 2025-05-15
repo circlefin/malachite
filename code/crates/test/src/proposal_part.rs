@@ -118,7 +118,7 @@ impl malachitebft_core_types::ProposalPart<TestContext> for ProposalPart {
 impl Protobuf for ProposalPart {
     type Proto = crate::proto::ProposalPart;
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         use crate::proto::proposal_part::Part;
 
@@ -146,7 +146,7 @@ impl Protobuf for ProposalPart {
         }
     }
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[cfg_attr(tarpaulin, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         use crate::proto;
         use crate::proto::proposal_part::Part;
