@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      BUCKET_NAME: s3://malachite-performance-site/
+      BUCKET_NAME: malachite-performance-site/
       S3_PREFIX: test/         
       OUTPUT_FILE: file_list.json
 
