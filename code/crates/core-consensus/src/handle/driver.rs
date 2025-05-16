@@ -65,6 +65,15 @@ where
                 co,
                 Effect::StartRound(*height, *round, proposer.clone(), Default::default())
             );
+
+            #[cfg(feature = "metrics")]
+            metrics.rebroadcast_timeouts.inc();
+
+            // Schedule rebroadcast timer if necessary
+            if state.params.vote_sync_mode == VoteSyncMode::Rebroadcast {
+                let timeout = Timeout::rebroadcast(*round);
+                perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
+            }
         }
 
         DriverInput::ProposeValue(round, _) => {
@@ -396,13 +405,6 @@ where
                 );
 
                 state.set_last_vote(signed_vote);
-
-                // Schedule rebroadcast timer if necessary
-                if state.params.vote_sync_mode == VoteSyncMode::Rebroadcast {
-                    let timeout = Timeout::rebroadcast(state.driver.round());
-
-                    perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
-                }
             }
 
             Ok(())

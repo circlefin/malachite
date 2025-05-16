@@ -539,6 +539,11 @@ pub struct TimeoutConfig {
     /// the vote synchronization protocol.
     #[serde(with = "humantime_serde")]
     pub timeout_step: Duration,
+
+    /// How long we wait after entering a round before starting
+    /// the rebroadcast liveness protocol    
+    #[serde(with = "humantime_serde")]
+    pub timeout_rebroadcast: Duration,
 }
 
 impl TimeoutConfig {
@@ -550,7 +555,9 @@ impl TimeoutConfig {
             TimeoutKind::PrevoteTimeLimit => self.timeout_step,
             TimeoutKind::PrecommitTimeLimit => self.timeout_step,
             // TODO - clarify the rebroadcast timeout duration
-            TimeoutKind::Rebroadcast => self.timeout_prevote,
+            TimeoutKind::Rebroadcast => {
+                self.timeout_propose + self.timeout_prevote + self.timeout_precommit
+            }
         }
     }
 
@@ -568,14 +575,21 @@ impl TimeoutConfig {
 
 impl Default for TimeoutConfig {
     fn default() -> Self {
+        let timeout_propose = Duration::from_secs(3);
+        let timeout_prevote = Duration::from_secs(1);
+        let timeout_precommit = Duration::from_secs(1);
+        let timeout_step = Duration::from_secs(2);
+        let timeout_rebroadcast = timeout_propose + timeout_prevote + timeout_precommit;
+
         Self {
-            timeout_propose: Duration::from_secs(3),
+            timeout_propose,
             timeout_propose_delta: Duration::from_millis(500),
-            timeout_prevote: Duration::from_secs(1),
+            timeout_prevote,
             timeout_prevote_delta: Duration::from_millis(500),
-            timeout_precommit: Duration::from_secs(1),
+            timeout_precommit,
             timeout_precommit_delta: Duration::from_millis(500),
-            timeout_step: Duration::from_secs(2),
+            timeout_step,
+            timeout_rebroadcast,
         }
     }
 }

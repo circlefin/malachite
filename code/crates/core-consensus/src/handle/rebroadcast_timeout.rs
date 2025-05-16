@@ -5,7 +5,6 @@ pub async fn on_rebroadcast_timeout<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    timeout: Timeout,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
@@ -19,8 +18,8 @@ where
     if let Some(vote) = state.last_signed_prevote.as_ref() {
         warn!(
             %height, %round, vote_height = %vote.height(), vote_round = %vote.round(),
-            "Rebroadcasting vote at {:?} step after {:?} timeout",
-            state.driver.step(), timeout.kind,
+            "Rebroadcasting vote at {:?} step",
+            state.driver.step()
         );
 
         perform!(
@@ -32,8 +31,8 @@ where
     if let Some(vote) = state.last_signed_precommit.as_ref() {
         warn!(
             %height, %round, vote_height = %vote.height(), vote_round = %vote.round(),
-            "Rebroadcasting vote at {:?} step after {:?} timeout",
-            state.driver.step(), timeout.kind,
+            "Rebroadcasting vote at {:?} step",
+            state.driver.step()
         );
         perform!(
             co,
@@ -60,6 +59,7 @@ where
     #[cfg(feature = "metrics")]
     metrics.rebroadcast_timeouts.inc();
 
+    let timeout = Timeout::rebroadcast(round);
     perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
 
     Ok(())
