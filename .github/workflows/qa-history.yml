@@ -11,8 +11,9 @@ jobs:
 
     env:
       BUCKET_NAME: malachite-performance-site
-      S3_PREFIX: test/         
+      S3_PREFIX: test/
       OUTPUT_FILE: file_list.json
+      BASE_URL: https://malachite-performance-site.s3.amazonaws.com
 
     steps:
       - name: Checkout
@@ -35,10 +36,12 @@ jobs:
             jq -r '.[]' |
             grep -i '\.csv$' |
             grep -v 'file_list.json' |
-            jq -R . | jq -s . > "$OUTPUT_FILE"
-
+            jq -R --arg base "$BASE_URL" --arg prefix "$S3_PREFIX" '{
+              name: sub("^" + $prefix; ""),
+              url: ($base + "/" + .)
+            }' |
+            jq -s . > "$OUTPUT_FILE"
 
       - name: Upload file_list.json to S3
         run: |
-          aws s3 cp $OUTPUT_FILE s3://$BUCKET_NAME/$S3_PREFIX$OUTPUT_FILE
-
+          aws s3 cp "$OUTPUT_FILE" "s3://$BUCKET_NAME/$S3_PREFIX$OUTPUT_FILE"
