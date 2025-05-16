@@ -38,5 +38,5 @@ jobs:
 
       - name: Upload file_list.json to S3
         run: |
-          aws s3 cp $OUTPUT_FILE s3://$BUCKET_NAME/$S3_PREFIX$OUTPUT_FILE \
-            --acl public-read
+          aws s3 cp $OUTPUT_FILE s3://$BUCKET_NAME/$S3_PREFIX$OUTPUT_FILE
+
