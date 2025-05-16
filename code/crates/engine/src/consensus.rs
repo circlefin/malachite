@@ -206,7 +206,10 @@ impl Timeouts {
             TimeoutKind::Precommit => c.timeout_precommit += c.timeout_precommit_delta,
             TimeoutKind::PrevoteTimeLimit => (),
             TimeoutKind::PrecommitTimeLimit => (),
-            TimeoutKind::Rebroadcast => (),
+            TimeoutKind::Rebroadcast => {
+                c.timeout_rebroadcast +=
+                    c.timeout_propose_delta + c.timeout_prevote_delta + c.timeout_precommit_delta
+            }
         };
     }
 }
