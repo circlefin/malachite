@@ -65,9 +65,7 @@ where
     last_prevote: Option<Ctx::Vote>,
     last_precommit: Option<Ctx::Vote>,
 
-    /// The certificate that justifies moving to `round`.
-    /// For `PrecommitAny` case it will be `round + 1` of the round signatures.
-    /// For `SkipRound` case it will be the `round` of the round signatures.
+    /// The certificate that justifies moving to the `enter_round` specified in the `EnterRoundCertificate.
     pub round_certificate: Option<EnterRoundCertificate<Ctx>>,
 }
 
