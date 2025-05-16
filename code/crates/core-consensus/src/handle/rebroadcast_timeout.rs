@@ -54,7 +54,7 @@ where
                 Effect::RebroadcastRoundCertificate(cert.certificate.clone(), Default::default())
             );
         }
-    }
+    };
 
     #[cfg(feature = "metrics")]
     metrics.rebroadcast_timeouts.inc();
