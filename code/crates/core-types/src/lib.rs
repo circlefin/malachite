@@ -54,7 +54,7 @@ pub type SignedProposalPart<Ctx> = SignedMessage<Ctx, <Ctx as Context>::Proposal
 pub type SignedExtension<Ctx> = SignedMessage<Ctx, <Ctx as Context>::Extension>;
 
 pub use certificate::{
-    CertificateError, CommitCertificate, CommitSignature, LocalRoundCertificate, PolkaCertificate,
+    CertificateError, CommitCertificate, CommitSignature, EnterRoundCertificate, PolkaCertificate,
     PolkaSignature, RoundCertificate, RoundSignature,
 };
 pub use context::Context;

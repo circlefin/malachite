@@ -40,18 +40,18 @@ where
         );
     };
 
-    if let Some(local) = state.round_certificate() {
-        if local.target_round == round {
+    if let Some(cert) = state.round_certificate() {
+        if cert.enter_round == round {
             warn!(
-                %local.certificate.height,
+                %cert.certificate.height,
                 %round,
-                %local.certificate.round,
-                number_of_votes = local.certificate.round_signatures.len(),
+                %cert.certificate.round,
+                number_of_votes = cert.certificate.round_signatures.len(),
                 "Rebroadcasting round certificate"
             );
             perform!(
                 co,
-                Effect::RebroadcastRoundCertificate(local.certificate.clone(), Default::default())
+                Effect::RebroadcastRoundCertificate(cert.certificate.clone(), Default::default())
             );
         }
     }

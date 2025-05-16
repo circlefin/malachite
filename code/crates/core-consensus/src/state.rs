@@ -270,7 +270,7 @@ where
             .is_some()
     }
 
-    pub fn round_certificate(&self) -> Option<&LocalRoundCertificate<Ctx>> {
+    pub fn round_certificate(&self) -> Option<&EnterRoundCertificate<Ctx>> {
         self.driver.round_certificate.as_ref()
     }
 }

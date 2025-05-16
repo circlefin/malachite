@@ -231,24 +231,24 @@ impl<Ctx: Context> RoundCertificate<Ctx> {
 
 /// Represents a local certificate that triggered or will trigger the start of a new round.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
-pub struct LocalRoundCertificate<Ctx: Context> {
+pub struct EnterRoundCertificate<Ctx: Context> {
     /// The certificate that triggered or will trigger the start of a new round
     pub certificate: RoundCertificate<Ctx>,
-    /// The round that is or will be started due to the certificate
-    pub target_round: Round,
+    /// The round that is or will be entered due to the certificate
+    pub enter_round: Round,
 }
 
-impl<Ctx: Context> LocalRoundCertificate<Ctx> {
+impl<Ctx: Context> EnterRoundCertificate<Ctx> {
     /// Creates a new `LocalRoundCertificate` from a vector of signed votes.
     pub fn new_from_votes(
         height: Ctx::Height,
-        target_round: Round,
+        enter_round: Round,
         round: Round,
         votes: Vec<SignedVote<Ctx>>,
     ) -> Self {
         Self {
             certificate: RoundCertificate::new_from_votes(height, round, votes),
-            target_round,
+            enter_round,
         }
     }
 }
