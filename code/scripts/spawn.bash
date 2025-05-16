@@ -38,11 +38,12 @@ fi
 
 # Environment variables
 export MALACHITE__CONSENSUS__P2P__PROTOCOL__TYPE="gossipsub"
-export MALACHITE__CONSENSUS__TIMEOUT_PROPOSE="2s"
-export MALACHITE__CONSENSUS__TIMEOUT_PROPOSE_DELTA="1s"
+export MALACHITE__CONSENSUS__TIMEOUT_PROPOSE="3s"
+export MALACHITE__CONSENSUS__TIMEOUT_PROPOSE_DELTA="500ms"
 export MALACHITE__CONSENSUS__TIMEOUT_PREVOTE="1s"
+export MALACHITE__CONSENSUS__TIMEOUT_PREVOTE_DELTA="500ms"
 export MALACHITE__CONSENSUS__TIMEOUT_PRECOMMIT="1s"
-export MALACHITE__CONSENSUS__TIMEOUT_COMMIT="0s"
+export MALACHITE__CONSENSUS__TIMEOUT_PRECOMMIT_DELTA="500ms"
 # Set the timeout step to 2 seconds to trigger the vote sync and polka certificate faster
 export MALACHITE__CONSENSUS__TIMEOUT_STEP="2s"
 # Set to request-response to be able to sync polka certificates, "broadcast" does not yet send the certificates
