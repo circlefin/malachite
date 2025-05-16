@@ -31,10 +31,12 @@ jobs:
             --bucket "$BUCKET_NAME" \
             --prefix "$S3_PREFIX" \
             --query 'Contents[].Key' \
-            --output text |
-            grep -E '\.csv$' |
-            sed "s|^$S3_PREFIX||" |
-            jq -R . | jq -s . > $OUTPUT_FILE
+            --output json |
+            jq -r '.[]' |
+            grep -i '\.csv$' |
+            grep -v 'file_list.json' |
+            jq -R . | jq -s . > "$OUTPUT_FILE"
+
 
       - name: Upload file_list.json to S3
         run: |
