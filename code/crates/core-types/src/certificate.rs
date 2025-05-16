@@ -234,9 +234,11 @@ impl<Ctx: Context> RoundCertificate<Ctx> {
 pub struct EnterRoundCertificate<Ctx: Context> {
     /// The certificate that triggered or will trigger the start of a new round
     pub certificate: RoundCertificate<Ctx>,
-    /// The round that is or will be entered due to the certificate
-    /// For `PrecommitAny` case it will be `round + 1` of the round signatures in `RoundCertificate`.
-    /// For `SkipRound` case it will be the `round` of the round signatures.
+    /// The round that will be entered due to the `RoundCertificate`.
+    /// - If the certificate is `PrecommitAny`, it contains signatures from the previous round,
+    ///   so `enter_round` will be one more than the round of those signatures.
+    /// - If the certificate is `SkipRound`, it contains signatures from the round being entered,
+    ///   so `enter_round` will be equal to the round of those signatures.
     pub enter_round: Round,
 }
 
