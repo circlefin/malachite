@@ -540,7 +540,8 @@ pub struct TimeoutConfig {
     #[serde(with = "humantime_serde")]
     pub timeout_step: Duration,
 
-    /// How long we wait for a rebroadcast timeout
+    /// How long we wait after entering a round before starting
+    /// the rebroadcast liveness protocol    
     #[serde(with = "humantime_serde")]
     pub timeout_rebroadcast: Duration,
 }
