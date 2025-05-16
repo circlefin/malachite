@@ -10,11 +10,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("cargo:rerun-if-changed={proto}");
     }
 
+    let fds = protox::compile(protos, ["./proto"])?;
+
     let mut config = prost_build::Config::new();
     config.bytes(["."]);
     config.enable_type_names();
     config.default_package_filename("p2p");
-    config.compile_protos(protos, &["./proto"])?;
+    config.compile_fds(fds)?;
 
     Ok(())
 }

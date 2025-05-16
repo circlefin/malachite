@@ -8,8 +8,7 @@ For more background on this application, [please read the corresponding tutorial
 
 ### Prerequisites
 
-Before running the examples, make sure you have the required development environment setup as specified in this [Setup](../../../CONTRIBUTING_CODE.md#setup) section. 
-This includes the latest Rust toolchain and the Protocol Buffers Compiler (protoc).
+Before running the examples, make sure you have the required development environment setup as specified in this [Setup](../../../CONTRIBUTING_CODE.md#setup) section.
 
 ### Compile the app
 

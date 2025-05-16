@@ -1,9 +1,15 @@
-use std::io::Result;
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let protos = &["proto/malachite.mempool.proto"];
 
-fn main() -> Result<()> {
+    for proto in protos {
+        println!("cargo:rerun-if-changed={proto}");
+    }
+
+    let fds = protox::compile(protos, ["proto"])?;
+
     let mut config = prost_build::Config::new();
     config.enable_type_names();
-    config.compile_protos(&["proto/malachite.mempool.proto"], &["proto"])?;
+    config.compile_fds(fds)?;
 
     Ok(())
 }
