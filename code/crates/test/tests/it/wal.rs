@@ -399,13 +399,7 @@ async fn byzantine_proposer_crashes_after_proposing_2(params: TestParams) {
         .success();
 
     test.build()
-        .run_with_params(
-            Duration::from_secs(60),
-            TestParams {
-                timeout_step: Duration::from_secs(5),
-                ..params
-            },
-        )
+        .run_with_params(Duration::from_secs(60), params)
         .await
 }
 

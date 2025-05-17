@@ -50,7 +50,6 @@ pub async fn crash_restart_from_start() {
             TestParams {
                 // Enable ValueSync to allow the node to catch up to the latest height
                 enable_value_sync: true,
-                timeout_step: Duration::from_secs(5),
                 value_payload: ValuePayload::PartsOnly,
                 ..TestParams::default()
             },

@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use bytesize::ByteSize;
 
 use malachitebft_config::{PubSubProtocol, ValuePayload};
@@ -15,7 +13,6 @@ pub struct TestParams {
     pub vote_extensions: Option<ByteSize>,
     pub value_payload: ValuePayload,
     pub max_retain_blocks: usize,
-    pub timeout_step: Duration,
     pub stable_block_times: bool,
 }
 
@@ -30,7 +27,6 @@ impl Default for TestParams {
             vote_extensions: None,
             value_payload: ValuePayload::ProposalAndParts,
             max_retain_blocks: 50,
-            timeout_step: Duration::from_secs(2),
             stable_block_times: true,
         }
     }
