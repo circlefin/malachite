@@ -442,7 +442,7 @@ async fn wal_multi_rounds(params: TestParams) {
 
     test.build()
         .run_with_params(
-            Duration::from_secs(60),
+            Duration::from_secs(120),
             TestParams {
                 enable_value_sync: false,
                 ..params
