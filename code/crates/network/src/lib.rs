@@ -133,13 +133,11 @@ impl TransportProtocol {
 
 /// sync event details:
 ///
-/// peer1: sync               peer2: network       peer2: sync           peer1: network
-///                                                                or consensus
+/// peer1: sync                  peer2: network                    peer2: sync              peer1: network
 /// CtrlMsg::SyncRequest       --> Event::Sync      -----------> CtrlMsg::SyncReply ------> Event::Sync
 /// (peer_id, height)             (RawMessage::Request           (request_id, height)       RawMessage::Response
 ///                           {request_id, peer_id, request}                                {request_id, response}
 ///
-/// - request can be for a block or vote set
 ///
 /// An event that can be emitted by the gossip layer
 #[derive(Clone, Debug)]

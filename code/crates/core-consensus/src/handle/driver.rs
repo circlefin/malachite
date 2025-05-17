@@ -163,22 +163,12 @@ where
         }
     }
 
-    if prev_step != new_step {
-        if state.driver.step_is_prevote() {
-            // Cancel the Propose timeout since we have moved from Propose to Prevote
-            perform!(
-                co,
-                Effect::CancelTimeout(Timeout::propose(state.driver.round()), Default::default())
-            );
-        } else if state.driver.step_is_commit() {
-            perform!(
-                co,
-                Effect::CancelTimeout(
-                    Timeout::precommit_time_limit(state.driver.round()),
-                    Default::default()
-                )
-            );
-        }
+    if prev_step != new_step && state.driver.step_is_prevote() {
+        // Cancel the Propose timeout since we have moved from Propose to Prevote
+        perform!(
+            co,
+            Effect::CancelTimeout(Timeout::propose(state.driver.round()), Default::default())
+        );
     }
 
     process_driver_outputs(co, state, metrics, outputs).await?;

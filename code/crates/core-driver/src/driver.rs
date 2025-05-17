@@ -548,8 +548,6 @@ where
             TimeoutKind::Precommit => RoundInput::TimeoutPrecommit,
 
             // The driver never receives these events, so we can just ignore them.
-            TimeoutKind::PrevoteTimeLimit => return Ok(None),
-            TimeoutKind::PrecommitTimeLimit => return Ok(None),
             TimeoutKind::Rebroadcast => return Ok(None),
         };
 

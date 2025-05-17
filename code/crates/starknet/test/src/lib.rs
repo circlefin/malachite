@@ -230,7 +230,6 @@ fn apply_params(config: &mut Config, params: &TestParams) {
     config.consensus.value_payload = ValuePayload::PartsOnly;
     config.value_sync.enabled = params.enable_value_sync;
     config.consensus.p2p.protocol = params.protocol;
-    config.consensus.timeouts.timeout_step = params.timeout_step;
     config.test.max_block_size = params.block_size;
     config.test.txs_per_part = params.txs_per_part;
     config.test.vote_extensions.enabled = params.vote_extensions.is_some();

@@ -40,7 +40,6 @@ impl TestParams {
     pub fn apply_to_config(&self, config: &mut Config) {
         config.value_sync.enabled = self.enable_value_sync;
         config.consensus.p2p.protocol = self.protocol;
-        config.consensus.timeouts.timeout_step = self.timeout_step;
         config.consensus.value_payload = self.value_payload;
         config.test.max_block_size = self.block_size;
         config.test.txs_per_part = self.txs_per_part;

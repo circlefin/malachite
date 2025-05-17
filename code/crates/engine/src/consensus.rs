@@ -185,8 +185,6 @@ impl Timeouts {
             TimeoutKind::Propose => self.config.timeout_propose,
             TimeoutKind::Prevote => self.config.timeout_prevote,
             TimeoutKind::Precommit => self.config.timeout_precommit,
-            TimeoutKind::PrevoteTimeLimit => self.config.timeout_step,
-            TimeoutKind::PrecommitTimeLimit => self.config.timeout_step,
             TimeoutKind::Rebroadcast => {
                 self.config.timeout_propose
                     + self.config.timeout_prevote
@@ -201,8 +199,6 @@ impl Timeouts {
             TimeoutKind::Propose => c.timeout_propose += c.timeout_propose_delta,
             TimeoutKind::Prevote => c.timeout_prevote += c.timeout_prevote_delta,
             TimeoutKind::Precommit => c.timeout_precommit += c.timeout_precommit_delta,
-            TimeoutKind::PrevoteTimeLimit => (),
-            TimeoutKind::PrecommitTimeLimit => (),
             TimeoutKind::Rebroadcast => {
                 c.timeout_rebroadcast +=
                     c.timeout_propose_delta + c.timeout_prevote_delta + c.timeout_precommit_delta
@@ -640,10 +636,7 @@ where
         // Print debug information if the timeout is for a prevote or precommit
         if matches!(
             timeout.kind,
-            TimeoutKind::Prevote
-                | TimeoutKind::Precommit
-                | TimeoutKind::PrevoteTimeLimit
-                | TimeoutKind::PrecommitTimeLimit
+            TimeoutKind::Prevote | TimeoutKind::Precommit | TimeoutKind::Rebroadcast
         ) {
             warn!(step = ?timeout.kind, "Timeout elapsed");
             state.consensus.print_state();
