@@ -6,8 +6,11 @@ use crate::handle::on_proposal;
 use crate::handle::signature::sign_proposal;
 use crate::handle::signature::sign_vote;
 use crate::handle::vote::on_vote;
+use crate::params::HIDDEN_LOCK_ROUND;
 use crate::prelude::*;
-use crate::types::{LocallyProposedValue, SignedConsensusMsg};
+use crate::types::{
+    LivenessMsg, {LocallyProposedValue, SignedConsensusMsg},
+};
 use crate::util::pretty::PrettyVal;
 
 use super::propose::on_propose;
@@ -27,13 +30,48 @@ where
             #[cfg(feature = "metrics")]
             metrics.round.set(round.as_i64());
 
+            // Publishing the round certificate upon entering round > 0
+            // is part of the new round synchronization mechanism, which
+            // ensures all validators advance through rounds even in the
+            // presence of asynchrony or Byzantine behavior. Moreover,
+            // it guarantees that after GST, all correct replicas will receive
+            // the round certificate and enter the same round within bounded time.
+            if round > &Round::new(0) {
+                if let Some(cert) = state.driver.round_certificate() {
+                    if cert.enter_round == *round {
+                        info!(
+                            %cert.certificate.height,
+                            %cert.enter_round,
+                            number_of_votes = cert.certificate.round_signatures.len(),
+                            "Sending round certificate"
+                        );
+                        perform!(
+                            co,
+                            Effect::PublishLivenessMsg(
+                                LivenessMsg::SkipRoundCertificate(cert.certificate.clone()),
+                                Default::default()
+                            )
+                        );
+                    }
+                }
+            }
+
             info!(%height, %round, %proposer, "Starting new round");
+            state.last_signed_prevote = None;
+            state.last_signed_precommit = None;
 
             perform!(co, Effect::CancelAllTimeouts(Default::default()));
             perform!(
                 co,
                 Effect::StartRound(*height, *round, proposer.clone(), Default::default())
             );
+
+            #[cfg(feature = "metrics")]
+            metrics.rebroadcast_timeouts.inc();
+
+            // Schedule rebroadcast timer
+            let timeout = Timeout::rebroadcast(*round);
+            perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
         }
 
         DriverInput::ProposeValue(round, _) => {
@@ -194,7 +232,7 @@ where
 
             // Only sign and publish if we're in the validator set
             if state.is_validator() {
-                let signed_proposal = sign_proposal(co, proposal).await?;
+                let signed_proposal = sign_proposal(co, proposal.clone()).await?;
 
                 if signed_proposal.pol_round().is_defined() {
                     perform!(
@@ -217,18 +255,101 @@ where
                 if state.params.value_payload.include_proposal() {
                     perform!(
                         co,
-                        Effect::Publish(
+                        Effect::PublishConsensusMsg(
                             SignedConsensusMsg::Proposal(signed_proposal),
                             Default::default()
                         )
                     );
                 };
+
+                // Publishing the polka certificate of the re-proposed value
+                // ensures all validators receive it, which is necessary for
+                // them to accept the re-proposed value.
+                if proposal.pol_round().is_defined() {
+                    // Broadcast the polka certificate at pol_round
+                    let Some(polka_certificate) =
+                        state.polka_certificate_at_round(proposal.pol_round())
+                    else {
+                        panic!(
+                            "Missing polka certificate for pol_round {}",
+                            proposal.pol_round()
+                        );
+                    };
+                    perform!(
+                        co,
+                        Effect::PublishLivenessMsg(
+                            LivenessMsg::PolkaCertificate(polka_certificate),
+                            Default::default()
+                        )
+                    );
+                }
             }
 
             Ok(())
         }
 
         DriverOutput::Vote(vote) => {
+            // Upon locking, in addition to publishing a Precommit message,
+            // a validator must request the application to restream the proposal,
+            // publish the proposal message, and publish the polka certificate.
+            // In other words, it must ensure that all validators receive the same events
+            // that led it to lock a value. Together with the timeout mechanisms,
+            // this guarantees that after GST, all correct validators will update
+            // their validValue and validRound to these values in this round.
+            // As a result, Malachite ensures liveness, because all validators
+            // will be aware of the most recently locked value, and whichever validator
+            // becomes the leader in one of the following rounds will propose a value
+            // that all correct validators can accept.
+            // Importantly, this mechanism does not need to be enabled from round 0,
+            // as it is expensive; it can be activated from any round as a last-resort
+            // backup to guarantee liveness.
+            if vote.vote_type() == VoteType::Precommit
+                && vote.value().is_val()
+                && state.driver.round() >= HIDDEN_LOCK_ROUND
+            {
+                if let Some((signed_proposal, Validity::Valid)) =
+                    state.driver.proposal_and_validity_for_round(vote.round())
+                {
+                    perform!(
+                        co,
+                        Effect::RestreamProposal(
+                            signed_proposal.height(),
+                            signed_proposal.round(),
+                            signed_proposal.pol_round(),
+                            signed_proposal.validator_address().clone(),
+                            signed_proposal.value().id(),
+                            Default::default()
+                        )
+                    );
+
+                    if state.params.value_payload.include_proposal() {
+                        perform!(
+                            co,
+                            Effect::PublishConsensusMsg(
+                                SignedConsensusMsg::Proposal(signed_proposal.clone()),
+                                Default::default()
+                            )
+                        );
+                    }
+
+                    let Some(polka_certificate) = state.polka_certificate_at_round(vote.round())
+                    else {
+                        panic!(
+                            "Missing polka certificate for Precommit({:?}) at round {}",
+                            vote.value(),
+                            vote.round()
+                        );
+                    };
+                    perform!(
+                        co,
+                        Effect::PublishLivenessMsg(
+                            LivenessMsg::PolkaCertificate(polka_certificate),
+                            Default::default()
+                        )
+                    );
+                }
+            }
+
             if state.is_validator() {
                 info!(
                     vote_type = ?vote.vote_type(),
@@ -237,8 +358,6 @@ where
                     "Voting",
                 );
 
-                let vote_type = vote.vote_type();
-
                 let extended_vote = extend_vote(co, vote).await?;
                 let signed_vote = sign_vote(co, extended_vote).await?;
 
@@ -246,7 +365,7 @@ where
 
                 perform!(
                     co,
-                    Effect::Publish(
+                    Effect::PublishConsensusMsg(
                         SignedConsensusMsg::Vote(signed_vote.clone()),
                         Default::default()
                     )
@@ -255,11 +374,7 @@ where
                 state.set_last_vote(signed_vote);
 
                 // Schedule rebroadcast timer
-                let timeout = match vote_type {
-                    VoteType::Prevote => Timeout::prevote_rebroadcast(state.driver.round()),
-                    VoteType::Precommit => Timeout::precommit_rebroadcast(state.driver.round()),
-                };
-
+                let timeout = Timeout::rebroadcast(state.driver.round());
                 perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
             }
 

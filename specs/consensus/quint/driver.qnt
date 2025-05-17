@@ -576,9 +576,9 @@ module driver {
     pure def existsTimeout(state: NodeState): bool =
         state.timeouts.exists(x => x._2 == state.es.cs.height and x._3 == state.es.cs.round)
 
-    // Pick an outstanding timeout and remove it from the incoming list.
-    // Assumes that state.timeouts is not empty for current height and round, that is, that
-    // existsTimeout has been called.
+    /// Pick an outstanding timeout and remove it from the incoming list.
+    /// Assumes that state.timeouts is not empty for current height and round, that is, that
+    /// existsTimeout has been called.
     pure def pickTimeout(state: NodeState): (NodeState, DriverInput) =
         val timeouts = state.timeouts.filter(x => x._2 == state.es.cs.height and x._3 == state.es.cs.round)
         // Potential improvement: We could check that timeouts is not empty
@@ -587,8 +587,8 @@ module driver {
         val newstate = { ...state, timeouts: state.timeouts.exclude(Set(someTimeout))}
         (newstate, TimeoutDInput(someTimeout._1))
 
-    // This function figures out on what external events (messages,
-    // timeouts, etc.) the node should act.
+    // This function figures out on what external events (messages), 
+    // the node should act.
     // currently this is linked in via the state machine. But we can move it into
     // the functional layer
     pure def nextAction(state: NodeState): (NodeState, DriverInput) =
@@ -653,9 +653,6 @@ module driver {
             val newstate = { ...state, incomingVotes: state.incomingVotes.exclude(Set(vote))}
             (newstate, VoteDInput(vote))
 
-        else if (state.existsTimeout())
-            state.pickTimeout()
-
         else
             (state, NoDInput)
 
@@ -668,7 +665,8 @@ module driver {
         | CertificateCmd
         | TimeoutCmd
 
-    // This function can be used to control test runs better.
+    /// This function can be used to control test runs better.
+    /// We can pass in what command should be executed, including timeouts.
     pure def nextActionCommand(state: NodeState, command: Command): (NodeState, DriverInput) =
         val proposalsForCurrentHeight = state.incomingProposals.filter(p => p.height == state.es.cs.height)
         val votesForCurrentHeight = state.incomingVotes.filter(v => v.height == state.es.cs.height)
@@ -710,7 +708,7 @@ module driver {
             val cert = certificatesForCurrentHeight.fold (Set(), (sum, y) => y)
             val newstate = { ...state, incomingCertificates: state.incomingCertificates.exclude(Set(cert))}
             (newstate, CertificateDInput(cert))
-            
+
         else if (command == TimeoutCmd and state.existsTimeout())
             state.pickTimeout()
 

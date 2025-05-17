@@ -335,11 +335,15 @@ pub struct Store {
 impl Store {
     /// Opens a new store at the given path with the provided metrics.
     /// Called by the application when initializing the store.
-    pub fn open(path: impl AsRef<Path>, metrics: DbMetrics) -> Result<Self, StoreError> {
-        let db = Db::new(path, metrics)?;
-        db.create_tables()?;
+    pub async fn open(path: impl AsRef<Path>, metrics: DbMetrics) -> Result<Self, StoreError> {
+        let path = path.as_ref().to_owned();
 
-        Ok(Self { db: Arc::new(db) })
+        tokio::task::spawn_blocking(move || {
+            let db = Db::new(path, metrics)?;
+            db.create_tables()?;
+            Ok(Self { db: Arc::new(db) })
+        })
+        .await?
     }
 
     /// Returns the minimum height of decided values in the store.

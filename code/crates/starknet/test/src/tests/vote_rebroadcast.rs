@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use malachitebft_core_types::VoteType;
+
 use crate::{TestBuilder, TestParams};
 
 #[tokio::test]
@@ -12,14 +14,14 @@ pub async fn crash_restart_from_start() {
     test.add_node()
         .start()
         .wait_until(CRASH_HEIGHT)
-        .expect_vote_rebroadcast(CRASH_HEIGHT)
+        .expect_vote_rebroadcast(CRASH_HEIGHT, 0, VoteType::Prevote)
         .wait_until(HEIGHT)
         .success();
 
     test.add_node()
         .start()
         .wait_until(CRASH_HEIGHT)
-        .expect_vote_rebroadcast(CRASH_HEIGHT)
+        .expect_vote_rebroadcast(CRASH_HEIGHT, 0, VoteType::Prevote)
         .wait_until(HEIGHT)
         .success();
 
@@ -61,14 +63,14 @@ pub async fn crash_restart_from_latest() {
     test.add_node()
         .start()
         .wait_until(CRASH_HEIGHT)
-        .expect_vote_rebroadcast(CRASH_HEIGHT)
+        .expect_vote_rebroadcast(CRASH_HEIGHT, 0, VoteType::Prevote)
         .wait_until(HEIGHT)
         .success();
 
     test.add_node()
         .start()
         .wait_until(CRASH_HEIGHT)
-        .expect_vote_rebroadcast(CRASH_HEIGHT)
+        .expect_vote_rebroadcast(CRASH_HEIGHT, 0, VoteType::Prevote)
         .wait_until(HEIGHT)
         .success();
 
@@ -101,14 +103,14 @@ pub async fn start_late() {
     test.add_node()
         .start()
         .wait_until(1)
-        .expect_vote_rebroadcast(1)
+        .expect_vote_rebroadcast(1, 0, VoteType::Prevote)
         .wait_until(HEIGHT)
         .success();
 
     test.add_node()
         .start()
         .wait_until(1)
-        .expect_vote_rebroadcast(1)
+        .expect_vote_rebroadcast(1, 0, VoteType::Prevote)
         .wait_until(HEIGHT)
         .success();
 

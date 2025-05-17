@@ -74,6 +74,8 @@ run hiddenlockrun =
         otherSet.forall(p => system.get(p).es.cs.lockedValue == Val(value)),
         system.get(testedval).es.cs.lockedValue == Nil
         })
+    
+    .then(valTimeout(testedval))
 
     // now all enough precommits are passed around so that we can start a timeout and start 
     // the next round...
@@ -81,6 +83,10 @@ run hiddenlockrun =
     .then(ListDeliverAllVotes(Precommit, List(testedval), correctList, validatorSet, 0, 0, Nil))
     .then(Correct.size().reps(_ => ListTakeAStep(correctList)))
     .then(3.reps(_ => ListTakeAStep(correctList)))
+    .then(ListTimesOut(correctList))
+
+    .expect(Correct.forall(q => system.get(q).es.cs.round == 1))
+    .expect(Correct.forall(q => system.get(q).es.cs.step == ProposeStep))
 
     // ... where a correct node is the proposer 
     .then(ListDeliverSomeProposal(correctList))
@@ -89,8 +95,9 @@ run hiddenlockrun =
     .then(ListDeliverAllVotes(Prevote, faultyList, List(testedval), validatorSet, 0, 0, Val(value)))
 
     // now some messages are digested
-    .then(1.reps(_ => ListTakeAStep(correctList)))
-    .then(2.reps(_ => valStep(testedval)))
+    .then(2.reps(_ => ListTakeAStep(correctList)))
+    .then(1.reps(_ => valStep(testedval)))
+    .then(valTimeout(testedval))
 
     // and we have the liveness situation where the others have prevoted for the value ...
     .expect(otherSet.forall(p => Correct.forall(q => voteBuffer.get(q).contains(mkVote(Prevote, p, 0, 1, Val(value))))))
@@ -112,9 +119,13 @@ run hiddenlockrun =
     .then(ListDeliverAllVotes(Prevote, List(testedval), correctList, validatorSet, 0, 1, Nil))   
     .then(Correct.size().reps(_ => ListTakeAStep(correctList)))
     .then(3.reps(_ => ListTakeAStep(correctList)))
+    .then(ListTimesOut(correctList))
     .then(ListDeliverAllVotes(Precommit, correctList, correctList, validatorSet, 0, 1, Nil))
     .then(Correct.size().reps(_ => ListTakeAStep(correctList)))
+    .then(3.reps(_ => ListTakeAStep(correctList)))
     .then(valStep(testedval))
+
+   
 
     // now the proposer reproposes and the correct ones receive the proposal...
     .then(everyoneReceivesProposalVR (correctList, validatorList, validatorSet, 0, 2, value, 0))

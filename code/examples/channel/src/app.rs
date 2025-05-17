@@ -296,12 +296,17 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 address: _,
                 value_id,
             } => {
-                //  Look for a proposal at valid_round (should be already stored)
-                info!(%height, %valid_round, "Restreaming existing propos*al...");
+                //  Look for a proposal at valid_round or round(should be already stored)
+                let proposal_round = if valid_round == Round::Nil {
+                    round
+                } else {
+                    valid_round
+                };
+                info!(%height, %proposal_round, "Restreaming existing propos*al...");
 
                 let proposal = state
                     .store
-                    .get_undecided_proposal(height, valid_round, value_id)
+                    .get_undecided_proposal(height, proposal_round, value_id)
                     .await?;
 
                 if let Some(proposal) = proposal {
@@ -321,20 +326,6 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                             .await?;
                     }
                 }
-            }
-
-            AppMsg::PeerJoined { peer_id } => {
-                info!(%peer_id, "Peer joined our local view of network");
-
-                // You might want to track connected peers in your state
-                state.peers.insert(peer_id);
-            }
-
-            AppMsg::PeerLeft { peer_id } => {
-                info!(%peer_id, "Peer left our local view of network");
-
-                // Remove the peer from tracking
-                state.peers.remove(&peer_id);
             }
         }
     }

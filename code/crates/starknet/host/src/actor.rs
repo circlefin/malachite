@@ -56,7 +56,7 @@ impl Host {
         let (actor_ref, _) = Actor::spawn(
             None,
             Self::new(mempool, mempool_load, network, metrics, span),
-            HostState::new(ctx, host, db_path, &mut StdRng::from_entropy()),
+            HostState::new(ctx, host, db_path, &mut StdRng::from_entropy()).await,
         )
         .await?;
 
@@ -133,7 +133,9 @@ impl Host {
                 proposer,
             } => on_started_round(state, height, round, proposer).await,
 
-            HostMsg::GetHistoryMinHeight { reply_to } => on_get_history_min_height(state, reply_to),
+            HostMsg::GetHistoryMinHeight { reply_to } => {
+                on_get_history_min_height(state, reply_to).await
+            }
 
             HostMsg::GetValue {
                 height,
@@ -205,16 +207,6 @@ impl Host {
                 value_bytes,
                 reply_to,
             } => on_process_synced_value(value_bytes, height, round, validator_address, reply_to),
-
-            HostMsg::PeerJoined { peer_id } => {
-                debug!(%peer_id, "Peer joined the network");
-                Ok(())
-            }
-
-            HostMsg::PeerLeft { peer_id } => {
-                debug!(%peer_id, "Peer left the network");
-                Ok(())
-            }
         }
     }
 }
@@ -223,7 +215,7 @@ async fn on_consensus_ready(
     state: &mut HostState,
     consensus: ConsensusRef<MockContext>,
 ) -> Result<(), ActorProcessingErr> {
-    let latest_block_height = state.block_store.last_height().unwrap_or_default();
+    let latest_block_height = state.block_store.last_height().await.unwrap_or_default();
     let start_height = latest_block_height.increment();
 
     state.consensus = Some(consensus.clone());
@@ -279,11 +271,11 @@ async fn on_started_round(
     Ok(())
 }
 
-fn on_get_history_min_height(
+async fn on_get_history_min_height(
     state: &mut HostState,
     reply_to: RpcReplyPort<Height>,
 ) -> Result<(), ActorProcessingErr> {
-    let history_min_height = state.block_store.first_height().unwrap_or_default();
+    let history_min_height = state.block_store.first_height().await.unwrap_or_default();
     reply_to.send(history_min_height)?;
 
     Ok(())
@@ -519,8 +511,8 @@ async fn on_get_decided_block(
 
     match state.block_store.get(height).await {
         Ok(None) => {
-            let min = state.block_store.first_height().unwrap_or_default();
-            let max = state.block_store.last_height().unwrap_or_default();
+            let min = state.block_store.first_height().await.unwrap_or_default();
+            let max = state.block_store.last_height().await.unwrap_or_default();
 
             warn!(%height, "No block for this height, available blocks: {min}..={max}");
 
@@ -699,7 +691,7 @@ async fn on_decided(
 }
 
 async fn prune_block_store(state: &mut HostState) {
-    let max_height = state.block_store.last_height().unwrap_or_default();
+    let max_height = state.block_store.last_height().await.unwrap_or_default();
     let max_retain_blocks = state.host.params.max_retain_blocks as u64;
 
     // Compute the height to retain blocks higher than

@@ -147,7 +147,8 @@ pub enum Event {
     Listening(Multiaddr),
     PeerConnected(PeerId),
     PeerDisconnected(PeerId),
-    Message(Channel, PeerId, Bytes),
+    ConsensusMessage(Channel, PeerId, Bytes),
+    LivenessMessage(Channel, PeerId, Bytes),
     Sync(sync::RawMessage),
 }
 
@@ -569,15 +570,26 @@ async fn handle_gossipsub_event(
                 message.data.len()
             );
 
-            let event = Event::Message(
-                channel,
-                PeerId::from_libp2p(&peer_id),
-                Bytes::from(message.data),
-            );
-
-            if let Err(e) = tx_event.send(event).await {
-                error!("Error sending message to handle: {e}");
-                return ControlFlow::Break(());
+            if channel == Channel::Liveness {
+                let event = Event::LivenessMessage(
+                    channel,
+                    PeerId::from_libp2p(&peer_id),
+                    Bytes::from(message.data),
+                );
+                if let Err(e) = tx_event.send(event).await {
+                    error!("Error sending message to handle: {e}");
+                    return ControlFlow::Break(());
+                }
+            } else {
+                let event = Event::ConsensusMessage(
+                    channel,
+                    PeerId::from_libp2p(&peer_id),
+                    Bytes::from(message.data),
+                );
+                if let Err(e) = tx_event.send(event).await {
+                    error!("Error sending message to handle: {e}");
+                    return ControlFlow::Break(());
+                }
             }
         }
 
@@ -636,7 +648,7 @@ async fn handle_broadcast_event(
                 message.len()
             );
 
-            let event = Event::Message(
+            let event = Event::ConsensusMessage(
                 channel,
                 PeerId::from_libp2p(&peer_id),
                 Bytes::copy_from_slice(message.as_ref()),

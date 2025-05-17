@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 import "consensus.proto";
+import "liveness.proto";
 
 package test;
 
@@ -39,19 +40,6 @@ message CommitCertificate {
     uint32 round = 2;
     ValueId value_id = 3;
     repeated CommitSignature signatures = 4;
-}
-
-message PolkaSignature {
-    // TODO: Add flag (no vote, nil, value?)
-    Address validator_address = 1;
-    Signature signature = 2;
-}
-
-message PolkaCertificate {
-    uint64 height = 1;
-    uint32 round = 2;
-    ValueId value_id = 3;
-    repeated PolkaSignature signatures = 4;
 }
 
 message ProposedValue {

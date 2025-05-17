@@ -6,6 +6,11 @@ For more background on this application, [please read the corresponding tutorial
 
 ## Run a local testnet
 
+### Prerequisites
+
+Before running the examples, make sure you have the required development environment setup as specified in this [Setup](../../../CONTRIBUTING_CODE.md#setup) section. 
+This includes the latest Rust toolchain and the Protocol Buffers Compiler (protoc).
+
 ### Compile the app
 
 ```

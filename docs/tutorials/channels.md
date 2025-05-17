@@ -385,7 +385,7 @@ We will use two other modules called `store` and `streaming`. The `store` crate 
 
 ```rust
     /// Creates a new store/database
-    pub fn open(path: impl AsRef<Path>, metrics: DbMetrics) -> Result<Self, StoreError>
+    pub async fn open(path: impl AsRef<Path>, metrics: DbMetrics) -> Result<Self, StoreError>
 
     /// Get the minimum height of the decided values in the store
     pub async fn min_decided_value_height(&self) -> Option<Height>

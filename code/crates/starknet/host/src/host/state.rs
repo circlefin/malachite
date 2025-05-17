@@ -30,7 +30,7 @@ pub struct HostState {
 }
 
 impl HostState {
-    pub fn new<R>(
+    pub async fn new<R>(
         ctx: MockContext,
         host: StarknetHost,
         db_path: impl AsRef<Path>,
@@ -46,7 +46,7 @@ impl HostState {
             proposer: None,
             host,
             consensus: None,
-            block_store: BlockStore::new(db_path).unwrap(),
+            block_store: BlockStore::new(db_path).await.unwrap(),
             part_streams_map: PartStreamsMap::default(),
             nonce: rng.next_u64(),
         }

@@ -27,7 +27,7 @@ run runToLine42 =
     })     
     .then(all{
         assert(system.get(testedVal).timeouts.contains((ProposeTimeout, 0, 0))),
-        valStep(testedVal)
+        valTimeout(testedVal)
     })
     .then(all{ 
         assert(system.get(testedVal).es.pendingStepChange == PrevoteStep),
@@ -37,7 +37,7 @@ run runToLine42 =
     .then(othersList.length().reps(_ => valStep(testedVal)))
     .then(all{
         assert(system.get(testedVal).timeouts.contains((PrevoteTimeout, 0, 0))),
-        valStep(testedVal) 
+        valTimeout(testedVal) 
     })
     .then(all{ 
         assert(system.get(testedVal).es.pendingStepChange == PrecommitStep),

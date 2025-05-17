@@ -1,7 +1,7 @@
 //! Internal state of the application. This is a simplified abstract to keep it simple.
 //! A regular application would have mempool implemented, a proper database and input methods like RPC.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::time::Duration;
 
 use bytes::{Bytes, BytesMut};
@@ -47,7 +47,6 @@ pub struct State {
     pub current_height: Height,
     pub current_round: Round,
     pub current_proposer: Option<Address>,
-    pub peers: HashSet<PeerId>,
 }
 
 /// Represents errors that can occur during the verification of a proposal's signature.
@@ -102,7 +101,6 @@ impl State {
             vote_extensions: HashMap::new(),
             streams_map: PartStreamsMap::new(),
             rng: StdRng::seed_from_u64(seed_from_address(&address, std::process::id() as u64)),
-            peers: HashSet::new(),
         }
     }
 
@@ -252,7 +250,7 @@ impl State {
             .unwrap_or(Ok(None))
     }
 
-    /// Creates a new proposal value for the given height and round
+    /// Create a new proposal value for the given height and round
     async fn create_proposal(
         &mut self,
         height: Height,

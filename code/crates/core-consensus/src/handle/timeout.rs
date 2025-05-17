@@ -50,9 +50,7 @@ where
     apply_driver_input(co, state, metrics, DriverInput::TimeoutElapsed(timeout)).await?;
 
     match timeout.kind {
-        TimeoutKind::PrevoteRebroadcast | TimeoutKind::PrecommitRebroadcast => {
-            on_rebroadcast_timeout(co, state, metrics, timeout).await
-        }
+        TimeoutKind::Rebroadcast => on_rebroadcast_timeout(co, state, metrics).await,
         TimeoutKind::PrevoteTimeLimit | TimeoutKind::PrecommitTimeLimit => {
             on_step_limit_timeout(co, state, metrics, timeout.round).await
         }

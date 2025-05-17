@@ -12,7 +12,6 @@ pub mod node;
 pub mod part_store;
 pub mod spawn;
 pub mod types;
-
 pub mod events {
     pub use malachitebft_engine::util::events::{RxEvent, TxEvent};
 }

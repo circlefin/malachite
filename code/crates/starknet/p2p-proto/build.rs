@@ -4,6 +4,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "./proto/p2p/proto/common.proto",
         "./proto/p2p/proto/transaction.proto",
         "./proto/p2p/proto/consensus/consensus.proto",
+        "./proto/p2p/proto/consensus/liveness.proto",
     ];
 
     for proto in protos {

@@ -143,6 +143,15 @@ where
         Some((votes, certificates))
     }
 
+    pub fn polka_certificate_at_round(&self, round: Round) -> Option<PolkaCertificate<Ctx>> {
+        // Get the polka certificate for the specified round if it exists
+        self.driver
+            .polka_certificates()
+            .iter()
+            .find(|c| c.round == round && c.height == self.driver.height())
+            .cloned()
+    }
+
     pub fn full_proposal_at_round_and_value(
         &self,
         height: &Ctx::Height,
@@ -259,6 +268,10 @@ where
         self.validator_set()
             .get_by_address(self.address())
             .is_some()
+    }
+
+    pub fn round_certificate(&self) -> Option<&EnterRoundCertificate<Ctx>> {
+        self.driver.round_certificate.as_ref()
     }
 }
 
