@@ -3,16 +3,17 @@ use prost::Message;
 
 use malachitebft_app::engine::util::streaming::{StreamContent, StreamId, StreamMessage};
 use malachitebft_codec::Codec;
-use malachitebft_core_consensus::{ProposedValue, SignedConsensusMsg};
+use malachitebft_core_consensus::{LivenessMsg, ProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{
-    CommitCertificate, CommitSignature, PolkaCertificate, PolkaSignature, Round, SignedExtension,
-    SignedProposal, SignedVote, Validity, VoteSet,
+    CommitCertificate, CommitSignature, NilOrVal, PolkaCertificate, PolkaSignature, Round,
+    RoundCertificate, RoundSignature, SignedExtension, SignedProposal, SignedVote, Validity,
+    VoteSet,
 };
 use malachitebft_proto::{Error as ProtoError, Protobuf};
 use malachitebft_signing_ed25519::Signature;
 use malachitebft_sync::{self as sync, PeerId};
 
-use crate::proto;
+use crate::{decode_votetype, encode_votetype, proto};
 use crate::{Address, Height, Proposal, ProposalPart, TestContext, Value, ValueId, Vote};
 
 #[derive(Copy, Clone, Debug)]
@@ -108,6 +109,117 @@ impl Codec<SignedConsensusMsg<TestContext>> for ProtobufCodec {
                     signature: Some(encode_signature(&proposal.signature)),
                 };
                 Ok(Bytes::from(proto.encode_to_vec()))
+            }
+        }
+    }
+}
+
+pub fn encode_round_certificate(
+    certificate: &RoundCertificate<TestContext>,
+) -> Result<proto::RoundCertificate, ProtoError> {
+    Ok(proto::RoundCertificate {
+        height: certificate.height.as_u64(),
+        round: certificate.round.as_u32().expect("round should not be nil"),
+        signatures: certificate
+            .round_signatures
+            .iter()
+            .map(|sig| -> Result<proto::RoundSignature, ProtoError> {
+                let value_id = match sig.value_id {
+                    NilOrVal::Nil => None,
+                    NilOrVal::Val(value_id) => Some(value_id.to_proto()?),
+                };
+                Ok(proto::RoundSignature {
+                    vote_type: encode_votetype(sig.vote_type).into(),
+                    validator_address: Some(sig.address.to_proto()?),
+                    signature: Some(encode_signature(&sig.signature)),
+                    value_id,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+    })
+}
+
+pub fn decode_round_certificate(
+    certificate: proto::RoundCertificate,
+) -> Result<RoundCertificate<TestContext>, ProtoError> {
+    Ok(RoundCertificate {
+        height: Height::new(certificate.height),
+        round: Round::new(certificate.round),
+        round_signatures: certificate
+            .signatures
+            .into_iter()
+            .map(|sig| -> Result<RoundSignature<TestContext>, ProtoError> {
+                let vote_type = decode_votetype(sig.vote_type());
+                let address = sig.validator_address.ok_or_else(|| {
+                    ProtoError::missing_field::<proto::RoundCertificate>("validator_address")
+                })?;
+
+                let signature = sig.signature.ok_or_else(|| {
+                    ProtoError::missing_field::<proto::RoundCertificate>("signature")
+                })?;
+
+                let value_id = match sig.value_id {
+                    None => NilOrVal::Nil,
+                    Some(value_id) => NilOrVal::Val(ValueId::from_proto(value_id)?),
+                };
+
+                let signature = decode_signature(signature)?;
+                let address = Address::from_proto(address)?;
+                Ok(RoundSignature::new(vote_type, value_id, address, signature))
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+    })
+}
+
+impl Codec<LivenessMsg<TestContext>> for ProtobufCodec {
+    type Error = ProtoError;
+
+    fn decode(&self, bytes: Bytes) -> Result<LivenessMsg<TestContext>, Self::Error> {
+        let msg = proto::LivenessMessage::decode(bytes.as_ref())?;
+        match msg.message {
+            Some(proto::liveness_message::Message::Vote(vote)) => {
+                Ok(LivenessMsg::Vote(decode_vote(vote)?))
+            }
+            Some(proto::liveness_message::Message::PolkaCertificate(cert)) => Ok(
+                LivenessMsg::PolkaCertificate(decode_polka_certificate(cert)?),
+            ),
+            Some(proto::liveness_message::Message::RoundCertificate(cert)) => Ok(
+                LivenessMsg::SkipRoundCertificate(decode_round_certificate(cert)?),
+            ),
+            None => Err(ProtoError::missing_field::<proto::LivenessMessage>(
+                "message",
+            )),
+        }
+    }
+
+    fn encode(&self, msg: &LivenessMsg<TestContext>) -> Result<Bytes, Self::Error> {
+        match msg {
+            LivenessMsg::Vote(vote) => {
+                let message = encode_vote(vote)?;
+                Ok(Bytes::from(
+                    proto::LivenessMessage {
+                        message: Some(proto::liveness_message::Message::Vote(message)),
+                    }
+                    .encode_to_vec(),
+                ))
+            }
+            LivenessMsg::PolkaCertificate(cert) => {
+                let message = encode_polka_certificate(cert)?;
+                Ok(Bytes::from(
+                    proto::LivenessMessage {
+                        message: Some(proto::liveness_message::Message::PolkaCertificate(message)),
+                    }
+                    .encode_to_vec(),
+                ))
+            }
+            LivenessMsg::SkipRoundCertificate(cert) => {
+                let message = encode_round_certificate(cert)?;
+                Ok(Bytes::from(
+                    proto::LivenessMessage {
+                        message: Some(proto::liveness_message::Message::RoundCertificate(message)),
+                    }
+                    .encode_to_vec(),
+                ))
             }
         }
     }
@@ -556,4 +668,56 @@ pub fn decode_signature(signature: proto::Signature) -> Result<Signature, ProtoE
     let bytes = <[u8; 64]>::try_from(signature.bytes.as_ref())
         .map_err(|_| ProtoError::Other("Invalid signature length".to_string()))?;
     Ok(Signature::from_bytes(bytes))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Address, Height};
+    use malachitebft_core_types::{NilOrVal, Round, RoundSignature, VoteType};
+    use malachitebft_signing_ed25519::Signature;
+
+    #[test]
+    fn test_round_certificate_encode_decode() {
+        // Create test data
+        let height = Height::new(1);
+        let round = Round::new(2);
+        let address = Address::new([1; 20]);
+        let signature = Signature::from_bytes([2; 64]);
+
+        // Create a round signature
+        let round_sig = RoundSignature::new(VoteType::Prevote, NilOrVal::Nil, address, signature);
+
+        // Create the round certificate
+        let certificate = RoundCertificate {
+            height,
+            round,
+            round_signatures: vec![round_sig],
+        };
+
+        // Encode the certificate
+        let encoded = encode_round_certificate(&certificate).unwrap();
+
+        // Decode the certificate
+        let decoded = decode_round_certificate(encoded).unwrap();
+
+        // Verify the decoded data matches the original
+        assert_eq!(decoded.height, certificate.height);
+        assert_eq!(decoded.round, certificate.round);
+        assert_eq!(
+            decoded.round_signatures.len(),
+            certificate.round_signatures.len()
+        );
+
+        // Verify the signature details
+        let decoded_sig = &decoded.round_signatures[0];
+        let original_sig = &certificate.round_signatures[0];
+        assert_eq!(decoded_sig.vote_type, original_sig.vote_type);
+        assert_eq!(decoded_sig.value_id, original_sig.value_id);
+        assert_eq!(decoded_sig.address, original_sig.address);
+        assert_eq!(
+            decoded_sig.signature.to_bytes(),
+            original_sig.signature.to_bytes()
+        );
+    }
 }

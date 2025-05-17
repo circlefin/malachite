@@ -408,7 +408,7 @@ impl State {
     /// validators from the genesis validator set.
     pub fn get_validator_set(&self, height: Height) -> ValidatorSet {
         let num_validators = self.genesis.validator_set.len();
-        let selection_size = (num_validators + 1) / 2;
+        let selection_size = num_validators.div_ceil(2);
 
         if num_validators <= selection_size {
             return self.genesis.validator_set.clone();

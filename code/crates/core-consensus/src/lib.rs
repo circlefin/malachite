@@ -12,6 +12,9 @@ pub use error::Error;
 mod params;
 pub use params::{Params, ThresholdParams, VoteSyncMode};
 
+#[doc(hidden)]
+pub use params::HIDDEN_LOCK_ROUND;
+
 mod effect;
 pub use effect::{Effect, Resumable, Resume};
 

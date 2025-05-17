@@ -350,6 +350,8 @@ where
                             break 'inner;
                         }
                         Err(e) => {
+                            error!("Event handler returned an error: {e}");
+
                             event_monitor.abort();
                             handle.kill(Some("Test failed".to_string())).await.unwrap();
 

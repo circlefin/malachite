@@ -1,7 +1,7 @@
 use derive_where::derive_where;
 use malachitebft_core_types::{
-    CommitCertificate, Context, PolkaCertificate, Round, SignedProposal, SignedVote, Timeout,
-    ValueOrigin, VoteSet,
+    CommitCertificate, Context, PolkaCertificate, Round, RoundCertificate, SignedProposal,
+    SignedVote, Timeout, ValueOrigin, VoteSet,
 };
 
 use crate::types::ProposedValue;
@@ -26,6 +26,12 @@ where
     /// This input MUST only be provided when `ValuePayload` is set to `ProposalOnly` or `ProposalAndParts`,
     /// i.e. when consensus runs in a mode where the proposer sends a Proposal consensus message over the network.
     Proposal(SignedProposal<Ctx>),
+
+    /// Process a PolkaCertificate message received over the network
+    PolkaCertificate(PolkaCertificate<Ctx>),
+
+    /// Process a RoundCertificate message received over the network
+    RoundCertificate(RoundCertificate<Ctx>),
 
     /// Propose the given value.
     ///

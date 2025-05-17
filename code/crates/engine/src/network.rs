@@ -15,8 +15,10 @@ use malachitebft_sync::{
 };
 
 use malachitebft_codec as codec;
-use malachitebft_core_consensus::SignedConsensusMsg;
-use malachitebft_core_types::{Context, SignedProposal, SignedVote};
+use malachitebft_core_consensus::{LivenessMsg, SignedConsensusMsg};
+use malachitebft_core_types::{
+    Context, PolkaCertificate, RoundCertificate, SignedProposal, SignedVote,
+};
 use malachitebft_metrics::SharedRegistry;
 use malachitebft_network::handle::CtrlHandle;
 use malachitebft_network::{Channel, Config, Event, Multiaddr, PeerId};
@@ -106,6 +108,10 @@ pub enum NetworkEvent<Ctx: Context> {
     Proposal(PeerId, SignedProposal<Ctx>),
     ProposalPart(PeerId, StreamMessage<Ctx::ProposalPart>),
 
+    PolkaCertificate(PeerId, PolkaCertificate<Ctx>),
+
+    RoundCertificate(PeerId, RoundCertificate<Ctx>),
+
     Status(PeerId, Status<Ctx>),
 
     Request(InboundRequestId, PeerId, Request<Ctx>),
@@ -144,7 +150,10 @@ pub enum Msg<Ctx: Context> {
     Subscribe(Box<dyn Subscriber<NetworkEvent<Ctx>>>),
 
     /// Publish a signed consensus message
-    Publish(SignedConsensusMsg<Ctx>),
+    PublishConsensusMsg(SignedConsensusMsg<Ctx>),
+
+    /// Publish a liveness message
+    PublishLivenessMsg(LivenessMsg<Ctx>),
 
     /// Publish a proposal part
     PublishProposalPart(StreamMessage<Ctx::ProposalPart>),
@@ -177,6 +186,7 @@ where
     Codec: codec::Codec<sync::Status<Ctx>>,
     Codec: codec::Codec<sync::Request<Ctx>>,
     Codec: codec::Codec<sync::Response<Ctx>>,
+    Codec: codec::Codec<LivenessMsg<Ctx>>,
 {
     type Msg = Msg<Ctx>;
     type State = State<Ctx>;
@@ -250,9 +260,14 @@ where
                 subscriber.subscribe_to_port(output_port);
             }
 
-            Msg::Publish(msg) => match self.codec.encode(&msg) {
+            Msg::PublishConsensusMsg(msg) => match self.codec.encode(&msg) {
                 Ok(data) => ctrl_handle.publish(Channel::Consensus, data).await?,
-                Err(e) => error!("Failed to encode gossip message: {e:?}"),
+                Err(e) => error!("Failed to encode consensus message: {e:?}"),
+            },
+
+            Msg::PublishLivenessMsg(msg) => match self.codec.encode(&msg) {
+                Ok(data) => ctrl_handle.publish(Channel::Liveness, data).await?,
+                Err(e) => error!("Failed to encode liveness message: {e:?}"),
             },
 
             Msg::PublishProposalPart(msg) => {
@@ -328,11 +343,38 @@ where
                 output_port.send(NetworkEvent::PeerDisconnected(peer_id));
             }
 
-            Msg::NewEvent(Event::Message(Channel::Consensus, from, data)) => {
+            Msg::NewEvent(Event::LivenessMessage(Channel::Liveness, from, data)) => {
                 let msg = match self.codec.decode(data) {
                     Ok(msg) => msg,
                     Err(e) => {
-                        error!(%from, "Failed to decode gossip message: {e:?}");
+                        error!(%from, "Failed to decode liveness message: {e:?}");
+                        return Ok(());
+                    }
+                };
+
+                let event = match msg {
+                    LivenessMsg::PolkaCertificate(polka_cert) => {
+                        NetworkEvent::PolkaCertificate(from, polka_cert)
+                    }
+                    LivenessMsg::SkipRoundCertificate(round_cert) => {
+                        NetworkEvent::RoundCertificate(from, round_cert)
+                    }
+                    LivenessMsg::Vote(vote) => NetworkEvent::Vote(from, vote),
+                };
+
+                output_port.send(event);
+            }
+
+            Msg::NewEvent(Event::LivenessMessage(channel, from, _)) => {
+                error!(%from, "Unexpected liveness message on {channel} channel");
+                return Ok(());
+            }
+
+            Msg::NewEvent(Event::ConsensusMessage(Channel::Consensus, from, data)) => {
+                let msg = match self.codec.decode(data) {
+                    Ok(msg) => msg,
+                    Err(e) => {
+                        error!(%from, "Failed to decode consensus message: {e:?}");
                         return Ok(());
                     }
                 };
@@ -347,7 +389,7 @@ where
                 output_port.send(event);
             }
 
-            Msg::NewEvent(Event::Message(Channel::ProposalParts, from, data)) => {
+            Msg::NewEvent(Event::ConsensusMessage(Channel::ProposalParts, from, data)) => {
                 let msg: StreamMessage<Ctx::ProposalPart> = match self.codec.decode(data) {
                     Ok(stream_msg) => stream_msg,
                     Err(e) => {
@@ -366,7 +408,7 @@ where
                 output_port.send(NetworkEvent::ProposalPart(from, msg));
             }
 
-            Msg::NewEvent(Event::Message(Channel::Sync, from, data)) => {
+            Msg::NewEvent(Event::ConsensusMessage(Channel::Sync, from, data)) => {
                 let status: sync::Status<Ctx> = match self.codec.decode(data) {
                     Ok(status) => status,
                     Err(e) => {
@@ -386,6 +428,11 @@ where
                     status.peer_id,
                     Status::new(status.tip_height, status.history_min_height),
                 ));
+            }
+
+            Msg::NewEvent(Event::ConsensusMessage(channel, from, _)) => {
+                error!(%from, "Unexpected consensus message on {channel} channel");
+                return Ok(());
             }
 
             Msg::NewEvent(Event::Sync(raw_msg)) => match raw_msg {

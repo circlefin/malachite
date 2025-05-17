@@ -8,7 +8,9 @@ use tokio::sync::broadcast;
 use malachitebft_core_consensus::{
     LocallyProposedValue, ProposedValue, SignedConsensusMsg, WalEntry,
 };
-use malachitebft_core_types::{CommitCertificate, Context, Round, SignedVote, ValueOrigin};
+use malachitebft_core_types::{
+    CommitCertificate, Context, PolkaCertificate, Round, RoundCertificate, SignedVote, ValueOrigin,
+};
 
 pub type RxEvent<Ctx> = broadcast::Receiver<Event<Ctx>>;
 
@@ -48,7 +50,10 @@ pub enum Event<Ctx: Context> {
     ProposedValue(LocallyProposedValue<Ctx>),
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
     Decided(CommitCertificate<Ctx>),
-    Rebroadcast(SignedVote<Ctx>),
+    RebroadcastVote(SignedVote<Ctx>),
+    RebroadcastRoundCertificate(RoundCertificate<Ctx>),
+    SkipRoundCertificate(RoundCertificate<Ctx>),
+    PolkaCertificate(PolkaCertificate<Ctx>),
     RequestedVoteSet(Ctx::Height, Round),
     SentVoteSetResponse(Ctx::Height, Round, usize, usize),
     WalReplayBegin(Ctx::Height, usize),
@@ -75,7 +80,11 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
                 )
             }
             Event::Decided(cert) => write!(f, "Decided(value: {})", cert.value_id),
-            Event::Rebroadcast(msg) => write!(f, "Rebroadcast(msg: {msg:?})"),
+            Event::RebroadcastVote(vote) => write!(f, "RebroadcastVote(vote: {vote:?})"),
+            Event::RebroadcastRoundCertificate(certificate) => write!(
+                f,
+                "RebroadcastRoundCertificate(certificate: {certificate:?})"
+            ),
             Event::RequestedVoteSet(height, round) => {
                 write!(f, "RequestedVoteSet(height: {height}, round: {round})")
             }
@@ -91,6 +100,12 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
             Event::WalReplayEntry(entry) => write!(f, "WalReplayEntry(entry: {entry:?})"),
             Event::WalReplayDone(height) => write!(f, "WalReplayDone(height: {height})"),
             Event::WalReplayError(error) => write!(f, "WalReplayError({error})"),
+            Event::PolkaCertificate(certificate) => {
+                write!(f, "PolkaCertificate: {certificate:?})")
+            }
+            Event::SkipRoundCertificate(certificate) => {
+                write!(f, "SkipRoundCertificate: {certificate:?})")
+            }
         }
     }
 }

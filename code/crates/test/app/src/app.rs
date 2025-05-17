@@ -318,12 +318,16 @@ pub async fn run(
             } => {
                 info!(%height, %valid_round, "Restreaming existing proposal...");
 
-                assert_ne!(valid_round, Round::Nil, "valid_round should not be nil");
-
+                //  Look for a proposal at valid_round or round(should be already stored)
+                let proposal_round = if valid_round == Round::Nil {
+                    round
+                } else {
+                    valid_round
+                };
                 //  Look for a proposal for the given value_id at valid_round (should be already stored)
                 let proposal = state
                     .store
-                    .get_undecided_proposal(height, valid_round, value_id)
+                    .get_undecided_proposal(height, proposal_round, value_id)
                     .await?;
 
                 if let Some(proposal) = proposal {

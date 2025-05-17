@@ -90,18 +90,16 @@ impl proto::Protobuf for Vote {
     }
 }
 
-fn common_to_proto_vote_type(
-    vote_type: VoteType,
-) -> malachitebft_starknet_p2p_proto::vote::VoteType {
+fn common_to_proto_vote_type(vote_type: VoteType) -> malachitebft_starknet_p2p_proto::VoteType {
     match vote_type {
-        VoteType::Prevote => p2p_proto::vote::VoteType::Prevote,
-        VoteType::Precommit => p2p_proto::vote::VoteType::Precommit,
+        VoteType::Prevote => p2p_proto::VoteType::Prevote,
+        VoteType::Precommit => p2p_proto::VoteType::Precommit,
     }
 }
 
-fn proto_to_common_vote_type(vote_type: p2p_proto::vote::VoteType) -> VoteType {
+fn proto_to_common_vote_type(vote_type: p2p_proto::VoteType) -> VoteType {
     match vote_type {
-        p2p_proto::vote::VoteType::Prevote => VoteType::Prevote,
-        p2p_proto::vote::VoteType::Precommit => VoteType::Precommit,
+        p2p_proto::VoteType::Prevote => VoteType::Prevote,
+        p2p_proto::VoteType::Precommit => VoteType::Precommit,
     }
 }

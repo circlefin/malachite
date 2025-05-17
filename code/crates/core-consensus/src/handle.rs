@@ -1,5 +1,6 @@
 mod decide;
 mod driver;
+mod liveness;
 mod proposal;
 mod propose;
 mod proposed_value;
@@ -13,6 +14,7 @@ mod validator_set;
 mod vote;
 mod vote_set;
 
+use liveness::{on_polka_certificate, on_round_certificate};
 use proposal::on_proposal;
 use propose::on_propose;
 use proposed_value::on_proposed_value;
@@ -66,6 +68,12 @@ where
         }
         Input::VoteSetResponse(vote_set, polka_certificate) => {
             on_vote_set_response(co, state, metrics, vote_set, polka_certificate).await
+        }
+        Input::PolkaCertificate(certificate) => {
+            on_polka_certificate(co, state, metrics, certificate).await
+        }
+        Input::RoundCertificate(certificate) => {
+            on_round_certificate(co, state, metrics, certificate).await
         }
     }
 }

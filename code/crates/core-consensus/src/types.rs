@@ -2,7 +2,8 @@ use derive_where::derive_where;
 use thiserror::Error;
 
 use malachitebft_core_types::{
-    Context, Proposal, Round, Signature, SignedProposal, SignedVote, Timeout, Validity, Vote,
+    Context, PolkaCertificate, Proposal, Round, RoundCertificate, Signature, SignedProposal,
+    SignedVote, Timeout, Validity, Vote,
 };
 
 pub use malachitebft_core_types::ValuePayload;
@@ -113,4 +114,11 @@ pub enum VoteExtensionError {
     InvalidSignature,
     #[error("Invalid vote extension")]
     InvalidVoteExtension,
+}
+
+#[derive_where(Clone, Debug, PartialEq, Eq)]
+pub enum LivenessMsg<Ctx: Context> {
+    Vote(SignedVote<Ctx>),
+    PolkaCertificate(PolkaCertificate<Ctx>),
+    SkipRoundCertificate(RoundCertificate<Ctx>),
 }

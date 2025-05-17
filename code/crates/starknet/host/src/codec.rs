@@ -2,10 +2,10 @@ use bytes::Bytes;
 use prost::Message;
 
 use malachitebft_codec::Codec;
-use malachitebft_core_consensus::{PeerId, ProposedValue, SignedConsensusMsg};
+use malachitebft_core_consensus::{LivenessMsg, PeerId, ProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{
-    CommitCertificate, CommitSignature, PolkaCertificate, PolkaSignature, Round, SignedVote,
-    Validity,
+    CommitCertificate, CommitSignature, NilOrVal, PolkaCertificate, PolkaSignature, Round,
+    RoundCertificate, RoundSignature, SignedVote, Validity, VoteType,
 };
 use malachitebft_engine::util::streaming::{StreamContent, StreamId, StreamMessage};
 use malachitebft_starknet_p2p_types::{Felt, FeltExt, Signature};
@@ -66,36 +66,6 @@ impl Codec<ProposalPart> for ProtobufCodec {
         Protobuf::to_bytes(msg)
     }
 }
-
-// impl Codec<SignedExtension<MockContext>> for ProtobufCodec {
-//     type Error = ProtoError;
-//
-//     fn decode(&self, bytes: Bytes) -> Result<SignedExtension<MockContext>, Self::Error> {
-//         decode_extension(proto::Extension::decode(bytes)?)
-//     }
-//
-//     fn encode(&self, msg: &SignedExtension<MockContext>) -> Result<Bytes, Self::Error> {
-//         encode_extension(msg).map(|proto| proto.encode_to_bytes())
-//     }
-// }
-//
-// pub fn decode_extension(ext: proto::Extension) -> Result<SignedExtension<MockContext>, ProtoError> {
-//     let signature = ext
-//         .signature
-//         .ok_or_else(|| ProtoError::missing_field::<proto::Extension>("signature"))
-//         .and_then(p2p::Signature::from_proto)?;
-//
-//     Ok(SignedExtension::new(ext.data, signature))
-// }
-//
-// pub fn encode_extension(
-//     ext: &SignedExtension<MockContext>,
-// ) -> Result<proto::Extension, ProtoError> {
-//     Ok(proto::Extension {
-//         data: ext.message.clone(),
-//         signature: Some(ext.signature.to_proto()?),
-//     })
-// }
 
 pub fn decode_proposed_value(
     proto: proto::sync::ProposedValue,
@@ -392,6 +362,124 @@ impl Codec<SignedConsensusMsg<MockContext>> for ProtobufCodec {
     }
 }
 
+pub(crate) fn encode_round_certificate(
+    certificate: &RoundCertificate<MockContext>,
+) -> Result<proto::RoundCertificate, ProtoError> {
+    Ok(proto::RoundCertificate {
+        fork_id: certificate.height.fork_id,
+        block_number: certificate.height.block_number,
+        round: certificate.round.as_u32().expect("round should not be nil"),
+        signatures: certificate
+            .round_signatures
+            .iter()
+            .map(|sig| -> Result<proto::RoundSignature, ProtoError> {
+                let address = sig.address.to_proto()?;
+                let signature = encode_signature(&sig.signature)?;
+                let block_hash = match sig.value_id {
+                    NilOrVal::Nil => None,
+                    NilOrVal::Val(value_id) => Some(value_id.to_proto()?),
+                };
+                Ok(proto::RoundSignature {
+                    vote_type: match sig.vote_type {
+                        VoteType::Prevote => proto::VoteType::Prevote as i32,
+                        VoteType::Precommit => proto::VoteType::Precommit as i32,
+                    },
+                    validator_address: Some(address),
+                    signature: Some(signature),
+                    block_hash,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+    })
+}
+
+pub(crate) fn decode_round_certificate(
+    certificate: proto::RoundCertificate,
+) -> Result<RoundCertificate<MockContext>, ProtoError> {
+    Ok(RoundCertificate {
+        height: Height::new(certificate.block_number, certificate.fork_id),
+        round: Round::new(certificate.round),
+        round_signatures: certificate
+            .signatures
+            .into_iter()
+            .map(|sig| -> Result<RoundSignature<MockContext>, ProtoError> {
+                let address = sig.validator_address.ok_or_else(|| {
+                    ProtoError::missing_field::<proto::RoundCertificate>("validator_address")
+                })?;
+                let signature = sig.signature.ok_or_else(|| {
+                    ProtoError::missing_field::<proto::RoundCertificate>("signature")
+                })?;
+                let signature = decode_signature(signature)?;
+                let address = Address::from_proto(address)?;
+                let value_id = match sig.block_hash {
+                    None => NilOrVal::Nil,
+                    Some(block_hash) => NilOrVal::Val(BlockHash::from_proto(block_hash)?),
+                };
+                let vote_type = match sig.vote_type {
+                    0 => VoteType::Prevote,
+                    1 => VoteType::Precommit,
+                    _ => return Err(ProtoError::Other("Invalid vote type".to_string())),
+                };
+                Ok(RoundSignature::new(vote_type, value_id, address, signature))
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+    })
+}
+
+impl Codec<LivenessMsg<MockContext>> for ProtobufCodec {
+    type Error = ProtoError;
+
+    fn decode(&self, bytes: Bytes) -> Result<LivenessMsg<MockContext>, Self::Error> {
+        let msg = proto::LivenessMessage::decode(bytes.as_ref())?;
+        match msg.message {
+            Some(proto::liveness_message::Message::Vote(vote)) => {
+                Ok(LivenessMsg::Vote(decode_vote(vote)?))
+            }
+            Some(proto::liveness_message::Message::PolkaCertificate(cert)) => Ok(
+                LivenessMsg::PolkaCertificate(decode_polka_certificate(cert)?),
+            ),
+            Some(proto::liveness_message::Message::RoundCertificate(cert)) => Ok(
+                LivenessMsg::SkipRoundCertificate(decode_round_certificate(cert)?),
+            ),
+            None => Err(ProtoError::missing_field::<proto::LivenessMessage>(
+                "message",
+            )),
+        }
+    }
+
+    fn encode(&self, msg: &LivenessMsg<MockContext>) -> Result<Bytes, Self::Error> {
+        match msg {
+            LivenessMsg::Vote(vote) => {
+                let message = encode_vote(vote)?;
+                Ok(Bytes::from(
+                    proto::LivenessMessage {
+                        message: Some(proto::liveness_message::Message::Vote(message)),
+                    }
+                    .encode_to_vec(),
+                ))
+            }
+            LivenessMsg::PolkaCertificate(cert) => {
+                let message = encode_polka_certificate(cert)?;
+                Ok(Bytes::from(
+                    proto::LivenessMessage {
+                        message: Some(proto::liveness_message::Message::PolkaCertificate(message)),
+                    }
+                    .encode_to_vec(),
+                ))
+            }
+            LivenessMsg::SkipRoundCertificate(cert) => {
+                let message = encode_round_certificate(cert)?;
+                Ok(Bytes::from(
+                    proto::LivenessMessage {
+                        message: Some(proto::liveness_message::Message::RoundCertificate(message)),
+                    }
+                    .encode_to_vec(),
+                ))
+            }
+        }
+    }
+}
+
 impl<T> Codec<StreamMessage<T>> for ProtobufCodec
 where
     T: Protobuf,
@@ -514,8 +602,8 @@ impl Codec<CommitCertificate<MockContext>> for ProtobufCodec {
 
 pub(crate) fn encode_polka_certificate(
     certificate: &PolkaCertificate<MockContext>,
-) -> Result<proto::sync::PolkaCertificate, ProtoError> {
-    Ok(proto::sync::PolkaCertificate {
+) -> Result<proto::PolkaCertificate, ProtoError> {
+    Ok(proto::PolkaCertificate {
         fork_id: certificate.height.fork_id,
         block_number: certificate.height.block_number,
         block_hash: Some(certificate.value_id.to_proto()?),
@@ -523,10 +611,10 @@ pub(crate) fn encode_polka_certificate(
         signatures: certificate
             .polka_signatures
             .iter()
-            .map(|sig| -> Result<proto::sync::PolkaSignature, ProtoError> {
+            .map(|sig| -> Result<proto::PolkaSignature, ProtoError> {
                 let address = sig.address.to_proto()?;
                 let signature = encode_signature(&sig.signature)?;
-                Ok(proto::sync::PolkaSignature {
+                Ok(proto::PolkaSignature {
                     validator_address: Some(address),
                     signature: Some(signature),
                 })
@@ -536,11 +624,11 @@ pub(crate) fn encode_polka_certificate(
 }
 
 pub(crate) fn decode_polka_certificate(
-    certificate: proto::sync::PolkaCertificate,
+    certificate: proto::PolkaCertificate,
 ) -> Result<PolkaCertificate<MockContext>, ProtoError> {
     let block_hash = certificate
         .block_hash
-        .ok_or_else(|| ProtoError::missing_field::<proto::sync::PolkaCertificate>("block_hash"))?;
+        .ok_or_else(|| ProtoError::missing_field::<proto::PolkaCertificate>("block_hash"))?;
 
     Ok(PolkaCertificate {
         height: Height::new(certificate.block_number, certificate.fork_id),
@@ -551,10 +639,10 @@ pub(crate) fn decode_polka_certificate(
             .into_iter()
             .map(|sig| -> Result<PolkaSignature<MockContext>, ProtoError> {
                 let address = sig.validator_address.ok_or_else(|| {
-                    ProtoError::missing_field::<proto::sync::PolkaCertificate>("validator_address")
+                    ProtoError::missing_field::<proto::PolkaCertificate>("validator_address")
                 })?;
                 let signature = sig.signature.ok_or_else(|| {
-                    ProtoError::missing_field::<proto::sync::PolkaCertificate>("signature")
+                    ProtoError::missing_field::<proto::PolkaCertificate>("signature")
                 })?;
                 let signature = decode_signature(signature)?;
                 let address = Address::from_proto(address)?;
@@ -568,7 +656,7 @@ impl Codec<PolkaCertificate<MockContext>> for ProtobufCodec {
     type Error = ProtoError;
 
     fn decode(&self, bytes: Bytes) -> Result<PolkaCertificate<MockContext>, Self::Error> {
-        decode_polka_certificate(proto::sync::PolkaCertificate::decode(bytes)?)
+        decode_polka_certificate(proto::PolkaCertificate::decode(bytes)?)
     }
 
     fn encode(&self, msg: &PolkaCertificate<MockContext>) -> Result<Bytes, Self::Error> {

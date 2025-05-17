@@ -62,6 +62,10 @@ timeout_commit = "0s"
 # Override with MALACHITE__CONSENSUS__TIMEOUT_STEP env variable
 timeout_step = "2s"
 
+# How long we wait after entering a round before starting the rebroadcast liveness protocol
+# Override with MALACHITE__CONSENSUS__TIMEOUT_REBROADCAST env variable
+timeout_rebroadcast = "5s"
+
 # The message(s) required to carry the value payload.
 # Available options are:
 # - "parts-only": Full value is included in the proposal parts and there is no explicit Proposal message (default)

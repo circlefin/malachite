@@ -5,7 +5,7 @@ use eyre::bail;
 use tracing::info;
 
 use malachitebft_core_consensus::{LocallyProposedValue, SignedConsensusMsg};
-use malachitebft_core_types::{Context, Height, SignedVote, Vote, VotingPower};
+use malachitebft_core_types::{Context, Height, SignedVote, Vote, VoteType, VotingPower};
 use malachitebft_engine::util::events::Event;
 use malachitebft_test::middleware::{DefaultMiddleware, Middleware};
 
@@ -176,9 +176,14 @@ where
         })
     }
 
-    pub fn expect_vote_rebroadcast(&mut self, at_height: u64) -> &mut Self {
+    pub fn expect_vote_rebroadcast(
+        &mut self,
+        at_height: u64,
+        at_round: u32,
+        vote_type: VoteType,
+    ) -> &mut Self {
         self.on_event(move |event, _| {
-            let Event::Rebroadcast(msg) = event else {
+            let Event::RebroadcastVote(msg) = event else {
                 return Ok(HandlerResult::WaitForNextEvent);
             };
 
@@ -188,7 +193,88 @@ where
                 bail!("Unexpected vote rebroadcast for height {height}, expected {at_height}")
             }
 
-            info!(%height, %round, "Rebroadcasted vote");
+            if round.as_u32() != Some(at_round) {
+                bail!("Unexpected vote rebroadcast for round {round}, expected {at_round}")
+            }
+
+            if vote_type != msg.vote_type() {
+                bail!(
+                    "Unexpected vote type {vote_type:?}, expected {:?}",
+                    msg.vote_type()
+                )
+            }
+
+            info!(%height, %round, ?vote_type, "Rebroadcasted vote");
+
+            Ok(HandlerResult::ContinueTest)
+        })
+    }
+
+    pub fn expect_round_certificate_rebroadcast(
+        &mut self,
+        at_height: u64,
+        at_round: u32,
+    ) -> &mut Self {
+        self.on_event(move |event, _| {
+            let Event::RebroadcastRoundCertificate(msg) = event else {
+                return Ok(HandlerResult::WaitForNextEvent);
+            };
+
+            let (height, round) = (msg.height, msg.round);
+
+            if height.as_u64() != at_height {
+                bail!("Unexpected round certificate rebroadcast for height {height}, expected {at_height}")
+            }
+
+            if round.as_u32() != Some(at_round) {
+                bail!("Unexpected round certificate rebroadcast for round {round}, expected {at_round}")
+            }
+
+            info!(%height, %round, "Rebroadcasted round certificate");
+
+            Ok(HandlerResult::ContinueTest)
+        })
+    }
+
+    pub fn expect_skip_round_certificate(&mut self, at_height: u64, at_round: u32) -> &mut Self {
+        self.on_event(move |event, _| {
+            let Event::SkipRoundCertificate(msg) = event else {
+                return Ok(HandlerResult::WaitForNextEvent);
+            };
+
+            let (height, round) = (msg.height, msg.round);
+
+            if height.as_u64() != at_height {
+                bail!("Unexpected round certificate broadcast for height {height}, expected {at_height}")
+            }
+
+            if round.as_u32() != Some(at_round) {
+                bail!("Unexpected round certificate broadcast for round {round}, expected {at_round}")
+            }
+
+            info!(%height, %round, "Broadcasted skip round certificate");
+
+            Ok(HandlerResult::ContinueTest)
+        })
+    }
+
+    pub fn expect_polka_certificate(&mut self, at_height: u64, at_round: u32) -> &mut Self {
+        self.on_event(move |event, _| {
+            let Event::PolkaCertificate(msg) = event else {
+                return Ok(HandlerResult::WaitForNextEvent);
+            };
+
+            let (height, round) = (msg.height, msg.round);
+
+            if height.as_u64() != at_height {
+                bail!("Unexpected round certificate rebroadcast for height {height}, expected {at_height}")
+            }
+
+            if round.as_u32() != Some(at_round) {
+                bail!("Unexpected round certificate rebroadcast for round {round}, expected {at_round}")
+            }
+
+            info!(%height, %round, "Broadcasted round certificate");
 
             Ok(HandlerResult::ContinueTest)
         })
@@ -243,5 +329,10 @@ where
 
     pub fn is_full_node(&self) -> bool {
         self.voting_power == 0
+    }
+
+    pub fn with(&mut self, f: impl FnOnce(&mut Self)) -> &mut Self {
+        f(self);
+        self
     }
 }

@@ -4,6 +4,7 @@ package sync;
 
 import "p2p/proto/common.proto";
 import "p2p/proto/consensus/consensus.proto";
+import "p2p/proto/consensus/liveness.proto";
 
 message Status {
   PeerID peer_id = 1;
@@ -52,20 +53,6 @@ message CommitCertificate {
     uint32 round = 3;
     Hash block_hash = 4;
     repeated CommitSignature signatures = 5;
-}
-
-message PolkaSignature {
-    // TODO - add flag (no vote, nil, value?)
-    Address validator_address    = 1;
-    ConsensusSignature signature = 2;
-}
-
-message PolkaCertificate {
-    uint64 fork_id = 1;
-    uint64 block_number = 2;
-    uint32 round = 3;
-    Hash block_hash = 4;
-    repeated PolkaSignature signatures = 5;
 }
 
 message ProposedValue {

@@ -2,14 +2,26 @@
 
 ## Unreleased
 
+### `malachitebft-core-consensus`
+- Added new variants to `Input` enum: `PolkaCertificate` and `RoundCertificate`
+- Added new variant to `Effect` enum: `PublishLivenessMessage`
+
 ### `malachitebft-engine`
 - Changed the reply channel of `GetValidatorSet` message to take an `Option<Ctx::ValidatorSet>` instead of `Ctx::ValidatorSet`.
+- Added new variant to `Msg` enum: `PublishLivenessMsg`
+- Added new variants to `NetworkEvent` enum: `PolkaCertificate` and `RoundCertificate`
 - Changed `PartStore::all_parts` to `PartStore::all_parts_by_stream_id`:
   - Renamed method to clarify that, when a new part is received, the contiguous parts should be queried by stream id
   - Added required `StreamId` parameter
 - Added new public API `PartStore::all_parts_by_value_id` to be used instead of `PartStore::all_parts` when a decision is reached
 - Added `&StreamId` parameter to `part_store::PartStore::store`
 - Added `&StreamId` parameter to `part_store::PartStore::store_value_id`
+- Changed semantics of `RestreamProposal` variant of `HostMsg`: the value at `round` should be now be restreamed if `valid_round` is `Nil`
+
+### `malachitebft-network`
+- Added new variant to `Channel` enum: `Liveness`
+- Renamed `Event::Message` variant to `Event::ConsensusMessage`
+- Added new variant to `Event::LivenessMessage`
 
 ## 0.2.0
 

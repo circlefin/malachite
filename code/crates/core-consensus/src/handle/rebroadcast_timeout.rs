@@ -5,7 +5,6 @@ pub async fn on_rebroadcast_timeout<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    timeout: Timeout,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
@@ -16,31 +15,52 @@ where
 
     let (height, round) = (state.driver.height(), state.driver.round());
 
-    let (maybe_vote, timeout) = match timeout.kind {
-        TimeoutKind::PrevoteRebroadcast => (
-            state.last_signed_prevote.as_ref(),
-            Timeout::prevote_rebroadcast(round),
-        ),
-        TimeoutKind::PrecommitRebroadcast => (
-            state.last_signed_precommit.as_ref(),
-            Timeout::precommit_rebroadcast(round),
-        ),
-        _ => return Ok(()),
-    };
-
-    if let Some(vote) = maybe_vote.cloned() {
+    if let Some(vote) = state.last_signed_prevote.as_ref() {
         warn!(
-            %height, %round,
-            "Rebroadcasting vote at {:?} step after {:?} timeout",
-            state.driver.step(), timeout.kind,
+            %height, %round, vote_height = %vote.height(), vote_round = %vote.round(),
+            "Rebroadcasting vote at {:?} step",
+            state.driver.step()
         );
 
-        perform!(co, Effect::Rebroadcast(vote, Default::default()));
-        perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
-    }
+        perform!(
+            co,
+            Effect::RebroadcastVote(vote.clone(), Default::default())
+        );
+    };
+
+    if let Some(vote) = state.last_signed_precommit.as_ref() {
+        warn!(
+            %height, %round, vote_height = %vote.height(), vote_round = %vote.round(),
+            "Rebroadcasting vote at {:?} step",
+            state.driver.step()
+        );
+        perform!(
+            co,
+            Effect::RebroadcastVote(vote.clone(), Default::default())
+        );
+    };
+
+    if let Some(cert) = state.round_certificate() {
+        if cert.enter_round == round {
+            warn!(
+                %cert.certificate.height,
+                %round,
+                %cert.certificate.round,
+                number_of_votes = cert.certificate.round_signatures.len(),
+                "Rebroadcasting round certificate"
+            );
+            perform!(
+                co,
+                Effect::RebroadcastRoundCertificate(cert.certificate.clone(), Default::default())
+            );
+        }
+    };
 
     #[cfg(feature = "metrics")]
     metrics.rebroadcast_timeouts.inc();
+
+    let timeout = Timeout::rebroadcast(round);
+    perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
 
     Ok(())
 }
