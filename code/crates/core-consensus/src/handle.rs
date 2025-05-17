@@ -7,7 +7,6 @@ mod proposed_value;
 mod rebroadcast_timeout;
 mod signature;
 mod start_height;
-mod step_timeout;
 mod sync;
 mod timeout;
 mod validator_set;

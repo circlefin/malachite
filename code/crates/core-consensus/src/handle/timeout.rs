@@ -1,6 +1,5 @@
 use crate::handle::driver::apply_driver_input;
 use crate::handle::rebroadcast_timeout::on_rebroadcast_timeout;
-use crate::handle::step_timeout::on_step_limit_timeout;
 use crate::prelude::*;
 use crate::types::WalEntry;
 
@@ -49,11 +48,9 @@ where
 
     apply_driver_input(co, state, metrics, DriverInput::TimeoutElapsed(timeout)).await?;
 
-    match timeout.kind {
-        TimeoutKind::Rebroadcast => on_rebroadcast_timeout(co, state, metrics).await,
-        TimeoutKind::PrevoteTimeLimit | TimeoutKind::PrecommitTimeLimit => {
-            on_step_limit_timeout(co, state, metrics, timeout.round).await
-        }
-        _ => Ok(()),
+    if matches!(timeout.kind, TimeoutKind::Rebroadcast) {
+        on_rebroadcast_timeout(co, state, metrics).await?;
     }
+
+    Ok(())
 }

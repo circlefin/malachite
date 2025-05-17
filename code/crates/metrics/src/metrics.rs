@@ -78,9 +78,6 @@ pub struct Inner {
     /// The round of the proposal that was decided on
     pub proposal_round: Histogram,
 
-    /// Number of times consensus was blocked in Prevote or Precommit step and required vote synchronization
-    pub step_timeouts: Counter,
-
     /// Number of times consensus rebroadcasted Prevote or Precommit votes due to no round progress
     pub rebroadcast_timeouts: Counter,
 
@@ -123,7 +120,6 @@ impl Metrics {
             block_size_bytes: Histogram::new(linear_buckets(0.0, 64.0 * 1024.0, 128)),
             consensus_round: Histogram::new(linear_buckets(0.0, 1.0, 20)),
             proposal_round: Histogram::new(linear_buckets(0.0, 1.0, 20)),
-            step_timeouts: Counter::default(),
             rebroadcast_timeouts: Counter::default(),
             connected_peers: Gauge::default(),
             height: Gauge::default(),
@@ -195,15 +191,9 @@ impl Metrics {
             );
 
             registry.register(
-                "step_timeouts",
-                "Number of times consensus was blocked and required vote synchronization",
-                metrics.step_timeouts.clone(),
-            );
-
-            registry.register(
                 "rebroadcast_timeouts",
                 "Number of times consensus rebroadcasted its vote due to no round progress",
-                metrics.step_timeouts.clone(),
+                metrics.rebroadcast_timeouts.clone(),
             );
 
             registry.register(

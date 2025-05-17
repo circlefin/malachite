@@ -71,7 +71,7 @@ pub enum Input<Ctx: Context> {
     /// Got a response from the application to our `GetValue` request
     GotDecidedValue(InboundRequestId, Ctx::Height, Option<RawDecidedValue<Ctx>>),
 
-    /// A request for a value or vote set timed out
+    /// A request for a value timed out
     SyncRequestTimedOut(PeerId, Request<Ctx>),
 
     /// We received an invalid [`CommitCertificate`]
