@@ -152,7 +152,7 @@ fn decode_timeout(mut buf: impl Read) -> io::Result<Timeout> {
 
         // Consensus will typically not want to store these timeouts in the WAL,
         // but we still need to handle them here.
-        5 => TimeoutKind::Rebroadcast,
+        7 => TimeoutKind::Rebroadcast,
 
         _ => {
             return Err(io::Error::new(
