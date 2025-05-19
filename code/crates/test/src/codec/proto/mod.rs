@@ -6,7 +6,8 @@ use malachitebft_codec::Codec;
 use malachitebft_core_consensus::{LivenessMsg, ProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{
     CommitCertificate, CommitSignature, NilOrVal, PolkaCertificate, PolkaSignature, Round,
-    RoundCertificate, RoundSignature, SignedExtension, SignedProposal, SignedVote, Validity,
+    RoundCertificate, RoundCertificateType, RoundSignature, SignedExtension, SignedProposal,
+    SignedVote, Validity,
 };
 use malachitebft_proto::{Error as ProtoError, Protobuf};
 use malachitebft_signing_ed25519::Signature;
@@ -119,6 +120,12 @@ pub fn encode_round_certificate(
     Ok(proto::RoundCertificate {
         height: certificate.height.as_u64(),
         round: certificate.round.as_u32().expect("round should not be nil"),
+        cert_type: match certificate.cert_type {
+            RoundCertificateType::Precommit => {
+                proto::RoundCertificateType::RoundCertPrecommit.into()
+            }
+            RoundCertificateType::Skip => proto::RoundCertificateType::RoundCertSkip.into(),
+        },
         signatures: certificate
             .round_signatures
             .iter()
@@ -144,6 +151,12 @@ pub fn decode_round_certificate(
     Ok(RoundCertificate {
         height: Height::new(certificate.height),
         round: Round::new(certificate.round),
+        cert_type: match proto::RoundCertificateType::try_from(certificate.cert_type)
+            .map_err(|_| ProtoError::Other("Unknown RoundCertificateType".into()))?
+        {
+            proto::RoundCertificateType::RoundCertPrecommit => RoundCertificateType::Precommit,
+            proto::RoundCertificateType::RoundCertSkip => RoundCertificateType::Skip,
+        },
         round_signatures: certificate
             .signatures
             .into_iter()
@@ -622,6 +635,7 @@ mod tests {
         let round = Round::new(2);
         let address = Address::new([1; 20]);
         let signature = Signature::from_bytes([2; 64]);
+        let cert_type = RoundCertificateType::Skip;
 
         // Create a round signature
         let round_sig = RoundSignature::new(VoteType::Prevote, NilOrVal::Nil, address, signature);
@@ -630,6 +644,7 @@ mod tests {
         let certificate = RoundCertificate {
             height,
             round,
+            cert_type,
             round_signatures: vec![round_sig],
         };
 

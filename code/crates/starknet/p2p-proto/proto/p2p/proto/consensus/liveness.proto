@@ -25,11 +25,17 @@ message RoundSignature {
     optional Hash      block_hash   = 4;
 }
 
+enum RoundCertificateType {
+    ROUND_CERT_PRECOMMIT = 0;
+    ROUND_CERT_SKIP = 1;
+}
+
 message RoundCertificate {
     uint64 fork_id = 1;
     uint64 block_number = 2;
     uint32 round = 3;
-    repeated RoundSignature signatures = 4;
+    RoundCertificateType cert_type = 4;
+    repeated RoundSignature signatures = 5;
 }
 
 message LivenessMessage {

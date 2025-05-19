@@ -25,10 +25,16 @@ message RoundSignature {
     optional ValueId value_id = 4;
 }
 
+enum RoundCertificateType {
+    ROUND_CERT_PRECOMMIT = 0;
+    ROUND_CERT_SKIP = 1;
+}
+
 message RoundCertificate {
     uint64 height = 1;
     uint32 round = 2;
-    repeated RoundSignature signatures = 3;
+    RoundCertificateType cert_type = 3;
+    repeated RoundSignature signatures = 4;
 }
 
 message LivenessMessage {

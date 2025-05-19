@@ -170,8 +170,8 @@ pub enum CertificateError<Ctx: Context> {
     #[error("Multiple votes from the same validator: {0}")]
     DuplicateVote(Ctx::Address),
 
-    /// Prevote found in the skip round certificate.
-    #[error(" Prevote found in the skip round certificate: {0}")]
+    /// A Prevote was incorrectly included in a Precommit round certificate.
+    #[error("Prevote received in precommit round certificate from validator: {0}")]
     InvalidVoteType(Ctx::Address),
 }
 
