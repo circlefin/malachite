@@ -132,27 +132,24 @@ where
     }
 
     for signature in certificate.round_signatures {
-        let vote_type = signature.vote_type;
-        let vote: SignedVote<Ctx> = match vote_type {
-            VoteType::Prevote => SignedVote::new(
-                state.ctx.new_prevote(
+        let vote = {
+            let vote_msg = match signature.vote_type {
+                VoteType::Prevote => state.ctx.new_prevote(
                     certificate.height,
                     certificate.round,
                     signature.value_id,
                     signature.address,
                 ),
-                signature.signature,
-            ),
-            VoteType::Precommit => SignedVote::new(
-                state.ctx.new_precommit(
+                VoteType::Precommit => state.ctx.new_precommit(
                     certificate.height,
                     certificate.round,
                     signature.value_id,
                     signature.address,
                 ),
-                signature.signature,
-            ),
+            };
+            SignedVote::new(vote_msg, signature.signature)
         };
+
         apply_driver_input(co, state, metrics, DriverInput::Vote(vote)).await?;
     }
 
