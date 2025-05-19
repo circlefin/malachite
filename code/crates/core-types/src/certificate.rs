@@ -136,13 +136,17 @@ impl<Ctx: Context> PolkaCertificate<Ctx> {
 #[derive(Error)]
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub enum CertificateError<Ctx: Context> {
-    /// One of the commit signature is invalid.
+    /// One of the commit signatures is invalid.
     #[error("Invalid commit signature: {0:?}")]
     InvalidCommitSignature(CommitSignature<Ctx>),
 
-    /// One of the commit signature is invalid.
+    /// One of the commit signatures is invalid.
     #[error("Invalid polka signature: {0:?}")]
     InvalidPolkaSignature(PolkaSignature<Ctx>),
+
+    /// One of the round signatures is invalid.
+    #[error("Invalid round signature: {0:?}")]
+    InvalidRoundSignature(RoundSignature<Ctx>),
 
     /// A validator in the certificate is not in the validator set.
     #[error("A validator in the certificate is not in the validator set: {0:?}")]
@@ -165,6 +169,10 @@ pub enum CertificateError<Ctx: Context> {
     /// Multiple votes from the same validator.
     #[error("Multiple votes from the same validator: {0}")]
     DuplicateVote(Ctx::Address),
+
+    /// Prevote found in the skip round certificate.
+    #[error(" Prevote found in the skip round certificate: {0}")]
+    InvalidVoteType(Ctx::Address),
 }
 
 /// Represents a signature for a round certificate, with the address of the validator that produced it.
@@ -197,23 +205,40 @@ impl<Ctx: Context> RoundSignature<Ctx> {
     }
 }
 
-/// Represents a certificate for entering a new round at a given height.
+/// Describes the type of a `RoundCertificate`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RoundCertificateType {
+    /// Composed of f+1 votes (e.g., SkipRound)
+    Skip,
+    /// Composed of 2f+1 Precommit votes from the previous round (e.g., PrecommitAny)
+    Precommit,
+}
+
+/// Represents a certificate used to justify entering a new round at a given height.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct RoundCertificate<Ctx: Context> {
     /// The height at which a certificate was witnessed
     pub height: Ctx::Height,
     /// The round of the votes that made up the certificate
     pub round: Round,
+    /// The type of the certificate
+    pub cert_type: RoundCertificateType,
     /// The signatures for the votes that make up the certificate
     pub round_signatures: Vec<RoundSignature<Ctx>>,
 }
 
 impl<Ctx: Context> RoundCertificate<Ctx> {
     /// Creates a new `RoundCertificate` from a vector of signed votes.
-    pub fn new_from_votes(height: Ctx::Height, round: Round, votes: Vec<SignedVote<Ctx>>) -> Self {
+    pub fn new_from_votes(
+        height: Ctx::Height,
+        round: Round,
+        cert_type: RoundCertificateType,
+        votes: Vec<SignedVote<Ctx>>,
+    ) -> Self {
         RoundCertificate {
             height,
             round,
+            cert_type,
             round_signatures: votes
                 .into_iter()
                 .map(|v| {
@@ -248,10 +273,11 @@ impl<Ctx: Context> EnterRoundCertificate<Ctx> {
         height: Ctx::Height,
         enter_round: Round,
         round: Round,
+        cert_type: RoundCertificateType,
         votes: Vec<SignedVote<Ctx>>,
     ) -> Self {
         Self {
-            certificate: RoundCertificate::new_from_votes(height, round, votes),
+            certificate: RoundCertificate::new_from_votes(height, round, cert_type, votes),
             enter_round,
         }
     }

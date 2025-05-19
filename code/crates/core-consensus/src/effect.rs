@@ -184,6 +184,16 @@ where
         resume::CertificateValidity,
     ),
 
+    /// Verify a round certificate
+    ///
+    /// Resume with: [`resume::CertificateValidity`]
+    VerifyRoundCertificate(
+        RoundCertificate<Ctx>,
+        Ctx::ValidatorSet,
+        ThresholdParams,
+        resume::CertificateValidity,
+    ),
+
     /// Append an entry to the Write-Ahead Log for crash recovery
     ///
     /// Resume with: [`resume::Continue`]`

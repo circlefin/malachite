@@ -5,7 +5,8 @@ use core::fmt::{Debug, Display};
 use crate::certificate::PolkaSignature;
 use crate::{
     CertificateError, CommitCertificate, CommitSignature, Context, NilOrVal, PolkaCertificate,
-    PublicKey, Signature, SignedMessage, ThresholdParams, Validator, VotingPower,
+    PublicKey, RoundCertificate, RoundCertificateType, RoundSignature, Signature, SignedMessage,
+    ThresholdParams, Validator, VoteType, VotingPower,
 };
 
 /// A signing scheme that can be used to sign votes and verify such signatures.
@@ -198,6 +199,18 @@ where
         validator: &Ctx::Validator,
     ) -> Result<VotingPower, CertificateError<Ctx>>;
 
+    /// Verify a round signature in a round certificate against the public key of its validator.
+    ///
+    /// ## Return
+    /// Return the voting power of that validator if the signature is valid.
+    fn verify_round_signature(
+        &self,
+        ctx: &Ctx,
+        certificate: &RoundCertificate<Ctx>,
+        signature: &RoundSignature<Ctx>,
+        validator: &Ctx::Validator,
+    ) -> Result<VotingPower, CertificateError<Ctx>>;
+
     /// Verify the given certificate against the given validator set.
     ///
     /// - For each commit signature in the certificate:
@@ -224,6 +237,23 @@ where
         &self,
         ctx: &Ctx,
         certificate: &PolkaCertificate<Ctx>,
+        validator_set: &Ctx::ValidatorSet,
+        thresholds: ThresholdParams,
+    ) -> Result<(), CertificateError<Ctx>>;
+
+    /// Verify the round certificate against the given validator set.
+    ///
+    /// - For each signature in the certificate:
+    ///   - Reconstruct the signed vote and verify its signature.
+    /// - Check that the required voting power has signed the certificate:
+    ///   - If `Precommit`, ensure that 2/3+ of the voting power is represented.
+    ///   - If `Skip`, ensure that 1/3+ of the voting power is represented.
+    ///  
+    /// Returns a [`CertificateError`] if any verification step fails.
+    fn verify_round_certificate(
+        &self,
+        ctx: &Ctx,
+        certificate: &RoundCertificate<Ctx>,
         validator_set: &Ctx::ValidatorSet,
         thresholds: ThresholdParams,
     ) -> Result<(), CertificateError<Ctx>>;
@@ -283,6 +313,41 @@ where
         // Verify signature
         if !self.verify_signed_vote(&vote, &signature.signature, validator.public_key()) {
             return Err(CertificateError::InvalidPolkaSignature(signature.clone()));
+        }
+
+        Ok(validator.voting_power())
+    }
+
+    /// Verify a round signature in a round certificate against the public key of its validator.
+    ///
+    /// ## Return
+    /// Return the voting power of that validator if the signature is valid.
+    fn verify_round_signature(
+        &self,
+        ctx: &Ctx,
+        certificate: &RoundCertificate<Ctx>,
+        signature: &RoundSignature<Ctx>,
+        validator: &Ctx::Validator,
+    ) -> Result<VotingPower, CertificateError<Ctx>> {
+        let vote_type = signature.vote_type;
+        let vote = match vote_type {
+            VoteType::Prevote => ctx.new_prevote(
+                certificate.height,
+                certificate.round,
+                signature.value_id.clone(),
+                validator.address().clone(),
+            ),
+            VoteType::Precommit => ctx.new_precommit(
+                certificate.height,
+                certificate.round,
+                signature.value_id.clone(),
+                validator.address().clone(),
+            ),
+        };
+
+        // Verify signature
+        if !self.verify_signed_vote(&vote, &signature.signature, validator.public_key()) {
+            return Err(CertificateError::InvalidRoundSignature(signature.clone()));
         }
 
         Ok(validator.voting_power())
@@ -403,6 +468,76 @@ where
                 signed: signed_voting_power,
                 total: total_voting_power,
                 expected: thresholds.quorum.min_expected(total_voting_power),
+            })
+        }
+    }
+
+    /// Verify the round certificate against the given validator set.
+    ///
+    /// - For each signature in the certificate:
+    ///   - Reconstruct the signed vote and verify its signature.
+    /// - Check that the required voting power has signed the certificate:
+    ///   - If `Precommit`, ensure that 2/3+ of the voting power is represented.
+    ///   - If `Skip`, ensure that 1/3+ of the voting power is represented.
+    ///  
+    /// Returns a [`CertificateError`] if any verification step fails.
+    fn verify_round_certificate(
+        &self,
+        ctx: &Ctx,
+        certificate: &RoundCertificate<Ctx>,
+        validator_set: &Ctx::ValidatorSet,
+        thresholds: ThresholdParams,
+    ) -> Result<(), CertificateError<Ctx>> {
+        use crate::ValidatorSet;
+
+        let mut signed_voting_power = 0;
+        let mut seen_validators = Vec::new();
+
+        for signature in &certificate.round_signatures {
+            let validator_address = &signature.address;
+
+            // Abort if validator already voted
+            if seen_validators.contains(&validator_address) {
+                return Err(CertificateError::DuplicateVote(validator_address.clone()));
+            }
+
+            // Add the validator to the list of seenv validators
+            seen_validators.push(validator_address);
+
+            // Abort if validator not in validator set
+            let validator = validator_set
+                .get_by_address(validator_address)
+                .ok_or_else(|| CertificateError::UnknownValidator(validator_address.clone()))?;
+
+            // Precommit certificates must not contain votes of type Prevote.
+            if certificate.cert_type == RoundCertificateType::Precommit
+                && signature.vote_type == VoteType::Prevote
+            {
+                return Err(CertificateError::InvalidVoteType(validator_address.clone()));
+            }
+
+            // Check that the vote signature is valid. Do this last and lazily as it is expensive.
+            if let Ok(voting_power) =
+                self.verify_round_signature(ctx, certificate, signature, validator)
+            {
+                signed_voting_power += voting_power;
+            }
+        }
+
+        let total_voting_power = validator_set.total_voting_power();
+
+        let threshold = match certificate.cert_type {
+            RoundCertificateType::Precommit => &thresholds.quorum,
+            RoundCertificateType::Skip => &thresholds.honest,
+        };
+
+        if threshold.is_met(signed_voting_power, total_voting_power) {
+            Ok(())
+        } else {
+            Err(CertificateError::NotEnoughVotingPower {
+                signed: signed_voting_power,
+                total: total_voting_power,
+                expected: threshold.min_expected(total_voting_power),
             })
         }
     }

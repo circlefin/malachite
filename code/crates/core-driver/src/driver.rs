@@ -9,8 +9,8 @@ use malachitebft_core_state_machine::state::{RoundValue, State as RoundState, St
 use malachitebft_core_state_machine::state_machine::Info;
 use malachitebft_core_types::{
     CommitCertificate, Context, EnterRoundCertificate, NilOrVal, PolkaCertificate, PolkaSignature,
-    Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutKind, Validator, ValidatorSet,
-    Validity, Value, ValueId, Vote, VoteType,
+    Proposal, Round, RoundCertificateType, SignedProposal, SignedVote, Timeout, TimeoutKind,
+    Validator, ValidatorSet, Validity, Value, ValueId, Vote, VoteType,
 };
 use malachitebft_core_votekeeper::keeper::Output as VKOutput;
 use malachitebft_core_votekeeper::keeper::VoteKeeper;
@@ -516,6 +516,7 @@ where
             self.height(),
             vote_round.increment(),
             vote_round,
+            RoundCertificateType::Precommit,
             precommits,
         ));
     }
@@ -537,6 +538,7 @@ where
             self.height(),
             vote_round,
             vote_round,
+            RoundCertificateType::Skip,
             skip_votes,
         ));
     }

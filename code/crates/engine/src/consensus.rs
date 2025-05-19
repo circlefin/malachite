@@ -1010,6 +1010,17 @@ where
                 Ok(r.resume_with(result))
             }
 
+            Effect::VerifyRoundCertificate(certificate, validator_set, thresholds, r) => {
+                let result = self.signing_provider.verify_round_certificate(
+                    &self.ctx,
+                    &certificate,
+                    &validator_set,
+                    thresholds,
+                );
+
+                Ok(r.resume_with(result))
+            }
+
             Effect::ExtendVote(height, round, value_id, r) => {
                 if let Some(extension) = self.extend_vote(height, round, value_id).await? {
                     let signed_extension = self.signing_provider.sign_vote_extension(extension);

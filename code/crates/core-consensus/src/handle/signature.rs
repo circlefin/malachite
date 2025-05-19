@@ -62,8 +62,6 @@ where
     Ok(result)
 }
 
-// NOTE: Will be used again in #997
-#[allow(dead_code)]
 pub async fn verify_polka_certificate<Ctx>(
     co: &Co<Ctx>,
     certificate: PolkaCertificate<Ctx>,
@@ -75,6 +73,23 @@ where
 {
     let result = perform!(co,
         Effect::VerifyPolkaCertificate(certificate, validator_set, threshold_params, Default::default()),
+        Resume::CertificateValidity(result) => result
+    );
+
+    Ok(result)
+}
+
+pub async fn verify_round_certificate<Ctx>(
+    co: &Co<Ctx>,
+    certificate: RoundCertificate<Ctx>,
+    validator_set: Ctx::ValidatorSet,
+    threshold_params: ThresholdParams,
+) -> Result<Result<(), CertificateError<Ctx>>, Error<Ctx>>
+where
+    Ctx: Context,
+{
+    let result = perform!(co,
+        Effect::VerifyRoundCertificate(certificate, validator_set, threshold_params, Default::default()),
         Resume::CertificateValidity(result) => result
     );
 
