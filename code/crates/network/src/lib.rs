@@ -8,6 +8,8 @@ use libp2p::metrics::{Metrics, Recorder};
 use libp2p::request_response::{InboundRequestId, OutboundRequestId};
 use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, quic, SwarmBuilder};
+mod i2p_transport;
+use i2p_transport::I2pTransport;
 use libp2p_broadcast as broadcast;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, error_span, info, trace, warn, Instrument};
@@ -116,6 +118,8 @@ impl Config {
 pub enum TransportProtocol {
     Tcp,
     Quic,
+    /// I2P transport: communications routed through the I2P anonymizing network
+    I2p,
 }
 
 impl TransportProtocol {
@@ -124,6 +128,7 @@ impl TransportProtocol {
             match protocol {
                 "tcp" => return Some(TransportProtocol::Tcp),
                 "quic" | "quic-v1" => return Some(TransportProtocol::Quic),
+                "i2p" => return Some(TransportProtocol::I2p),
                 _ => {}
             }
         }
@@ -184,7 +189,7 @@ pub async fn spawn(
         match config.transport {
             TransportProtocol::Tcp => Ok(builder
                 .with_tcp(
-                    libp2p::tcp::Config::new().nodelay(true), // Disable Nagle's algorithm
+                    libp2p::tcp::Config::new().nodelay(true),
                     libp2p::noise::Config::new,
                     libp2p::yamux::Config::default,
                 )?
@@ -196,6 +201,12 @@ pub async fn spawn(
             TransportProtocol::Quic => Ok(builder
                 .with_quic_config(|cfg| config.apply_to_quic(cfg))
                 .with_dns()?
+                .with_bandwidth_metrics(registry)
+                .with_behaviour(|kp| Behaviour::new_with_metrics(&config, kp, registry))?
+                .with_swarm_config(|cfg| config.apply_to_swarm(cfg))
+                .build()),
+            TransportProtocol::I2p => Ok(builder
+                .with_other_transport(|_kp| I2pTransport::new())?
                 .with_bandwidth_metrics(registry)
                 .with_behaviour(|kp| Behaviour::new_with_metrics(&config, kp, registry))?
                 .with_swarm_config(|cfg| config.apply_to_swarm(cfg))
@@ -731,5 +742,35 @@ impl PeerIdExt for PeerId {
 
     fn from_libp2p(peer_id: &libp2p::PeerId) -> Self {
         Self::from_bytes(&peer_id.to_bytes()).expect("valid PeerId")
+    }
+}
+// Unit tests for TransportProtocol
+#[cfg(test)]
+mod transport_tests {
+    use super::TransportProtocol;
+    use multiaddr::Multiaddr;
+
+    #[test]
+    fn test_from_multiaddr_tcp() {
+        let ma: Multiaddr = "/ip4/127.0.0.1/tcp/8080".parse().unwrap();
+        assert_eq!(TransportProtocol::from_multiaddr(&ma), Some(TransportProtocol::Tcp));
+    }
+
+    #[test]
+    fn test_from_multiaddr_quic() {
+        let ma: Multiaddr = "/ip4/127.0.0.1/udp/8080/quic-v1".parse().unwrap();
+        assert_eq!(TransportProtocol::from_multiaddr(&ma), Some(TransportProtocol::Quic));
+    }
+
+    #[test]
+    fn test_from_multiaddr_i2p() {
+        let ma: Multiaddr = "/i2p/TESTDEST".parse().unwrap();
+        assert_eq!(TransportProtocol::from_multiaddr(&ma), Some(TransportProtocol::I2p));
+    }
+
+    #[test]
+    fn test_from_multiaddr_none() {
+        let ma: Multiaddr = "/dns4/example.com/udp/443".parse().unwrap();
+        assert_eq!(TransportProtocol::from_multiaddr(&ma), None);
     }
 }

@@ -126,6 +126,20 @@ We invite all contributors.
 - Rust v1.82+ ([rustup.rs](https://rustup.rs))
 - Quint v0.22+ ([github.com](https://github.com/informalsystems/quint))
 - Protobuf v29.0+ ([protobuf.dev](https://protobuf.dev/))
+ - Java Development Kit (JDK) 17+ (required for I2P transport)
+
+## I2P Transport Feature
+
+The networking layer in Malachite supports an optional I2P transport for anonymized peer-to-peer communication.
+This feature is disabled by default and requires a Java Development Kit (JDK) 17+ on your system.
+
+To enable I2P support, build the network crate with the `i2p` feature:
+```
+cargo build -p informalsystems-malachitebft-network --features i2p
+```
+
+At runtime, the embedded I2P router will be launched automatically, and a server tunnel will
+be opened on `127.0.0.1:5555`. Peers can then connect over the I2P network via base32 destinations.
 
 ## Join Us
 

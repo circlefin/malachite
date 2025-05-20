@@ -26,7 +26,14 @@ eyre = { workspace = true }
 futures = { workspace = true }
 libp2p = { workspace = true }
 libp2p-broadcast = { workspace = true }
+# I2P transport deps
+j4-i2p-rs = { git = "https://github.com/kn0sys/j4-i2p-rs.git", tag = "v0.3.1-alpha", package = "j4-i2p-rs", optional = true }
 seahash = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true, features = ["macros"] }
 tracing = { workspace = true }
+# [dev-dependencies]
+# multiaddr = { workspace = true }
+[features]
+default = []
+i2p = ["j4-i2p-rs"]
