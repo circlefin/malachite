@@ -427,7 +427,7 @@ async fn test_multi_rounds(crash_height: u64, restart_after: Duration) {
 
     test.build()
         .run_with_params(
-            Duration::from_secs(120),
+            Duration::from_secs(90),
             TestParams {
                 enable_value_sync: false,
                 ..TestParams::default()
