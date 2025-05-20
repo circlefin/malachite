@@ -332,8 +332,8 @@ pub(crate) fn encode_round_certificate(
                 };
                 Ok(proto::RoundSignature {
                     vote_type: match sig.vote_type {
-                        VoteType::Prevote => proto::VoteType::Prevote as i32,
-                        VoteType::Precommit => proto::VoteType::Precommit as i32,
+                        VoteType::Prevote => proto::VoteType::Prevote.into(),
+                        VoteType::Precommit => proto::VoteType::Precommit.into(),
                     },
                     validator_address: Some(address),
                     signature: Some(signature),
@@ -372,10 +372,11 @@ pub(crate) fn decode_round_certificate(
                     None => NilOrVal::Nil,
                     Some(block_hash) => NilOrVal::Val(BlockHash::from_proto(block_hash)?),
                 };
-                let vote_type = match sig.vote_type {
-                    0 => VoteType::Prevote,
-                    1 => VoteType::Precommit,
-                    _ => return Err(ProtoError::Other("Invalid vote type".to_string())),
+                let vote_type = match proto::VoteType::try_from(sig.vote_type)
+                    .map_err(|_| ProtoError::Other("Invalid vote type".to_string()))?
+                {
+                    proto::VoteType::Prevote => VoteType::Prevote,
+                    proto::VoteType::Precommit => VoteType::Precommit,
                 };
                 Ok(RoundSignature::new(vote_type, value_id, address, signature))
             })
