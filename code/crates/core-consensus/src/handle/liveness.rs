@@ -114,6 +114,16 @@ where
         return Ok(());
     }
 
+    if certificate.round < state.round() {
+        warn!(
+            %certificate.round,
+            consensus.round = %state.round(),
+            "Round certificate from older round"
+        );
+
+        return Ok(());
+    }
+
     let validator_set = get_validator_set(co, state, certificate.height)
         .await?
         .ok_or_else(|| Error::ValidatorSetNotFound(certificate.height))?;
@@ -131,6 +141,20 @@ where
         return Ok(());
     }
 
+    // For round certificates, we process votes one by one, unlike polka and commit certificates,
+    // which we process as a whole. The reason for this difference lies in how driver handles equivocated votes.
+    //
+    // If we were to process polka or commit certificates vote by vote, any equivocated vote (i.e. a vote
+    // that conflicts with an already received vote from the same validator) would be discarded. This would
+    // cause us to ignore equivocated votes that are part of the certificate and which are important for
+    // correct operation of the protocol. To avoid this, we process polka and commit certificates as a whole.
+    //
+    // For round certificates, however, this is not necessary. It suffices that at least one valid vote
+    // (either from the certificate or already present in the system) is processed. Thus, discarding an
+    // equivocated vote from the round certificate does not affect correctness.
+    //
+    // As a result, we decided to simplify the logic for round certificates by handling their votes individually.
+    // This avoids extra complexity and edge case handling in the driver.
     for signature in certificate.round_signatures {
         let vote = {
             let vote_msg = match signature.vote_type {
@@ -153,8 +177,6 @@ where
         apply_driver_input(co, state, metrics, DriverInput::Vote(vote)).await?;
     }
 
-    // Cancel rebroadcast timer
-    // TODO: Should do only if the round certificate is well formed, i.e. either PrecommitAny or SkipRound
     perform!(
         co,
         Effect::CancelTimeout(Timeout::rebroadcast(certificate.round), Default::default())

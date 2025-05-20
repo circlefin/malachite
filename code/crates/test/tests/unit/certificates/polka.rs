@@ -146,7 +146,7 @@ fn invalid_polka_certificate_invalid_signature() {
         });
 }
 
-/// Tests the verification of a certificate containing a vote with an invalid signature.
+/// Tests the verification of a certificate containing a vote with invalid height or round.
 #[test]
 fn invalid_polka_certificate_wrong_vote_height_round() {
     CertificateTest::<Polka>::new()
