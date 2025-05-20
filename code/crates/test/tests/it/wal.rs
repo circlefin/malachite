@@ -403,29 +403,27 @@ async fn byzantine_proposer_crashes_after_proposing_2(params: TestParams) {
         .await
 }
 
-#[tokio::test]
-async fn multi_rounds() {
-    const CRASH_HEIGHT: u64 = 1;
-    const CRASH_ROUND: u32 = 3;
-    const FINAL_HEIGHT: u64 = CRASH_HEIGHT + 2;
+async fn test_multi_rounds(crash_height: u64, restart_after: Duration) {
+    let crash_round: u32 = 3;
+    let final_height: u64 = crash_height + 2;
 
     let mut test = TestBuilder::<()>::new();
 
     test.add_node()
-        .with_middleware(PrevoteNil::when(|height, round, _| {
-            height.as_u64() == CRASH_HEIGHT && round.as_u32() <= Some(CRASH_ROUND)
+        .with_middleware(PrevoteNil::when(move |height, round, _| {
+            height.as_u64() == crash_height && round.as_u32() <= Some(crash_round)
         }))
         .start()
-        .wait_until(CRASH_HEIGHT)
-        .wait_until_round(CRASH_ROUND)
+        .wait_until(crash_height)
+        .wait_until_round(crash_round)
         .crash()
-        .restart_after(Duration::from_secs(30))
-        .expect_wal_replay(CRASH_HEIGHT)
-        .wait_until(FINAL_HEIGHT)
+        .restart_after(restart_after)
+        .expect_wal_replay(crash_height)
+        .wait_until(final_height)
         .success();
 
-    test.add_node().start().wait_until(FINAL_HEIGHT).success();
-    test.add_node().start().wait_until(FINAL_HEIGHT).success();
+    test.add_node().start().wait_until(final_height).success();
+    test.add_node().start().wait_until(final_height).success();
 
     test.build()
         .run_with_params(
@@ -436,4 +434,14 @@ async fn multi_rounds() {
             },
         )
         .await
+}
+
+#[tokio::test]
+async fn multi_rounds_1() {
+    test_multi_rounds(1, Duration::from_secs(30)).await
+}
+
+#[tokio::test]
+async fn multi_rounds_2() {
+    test_multi_rounds(3, Duration::from_secs(10)).await
 }
