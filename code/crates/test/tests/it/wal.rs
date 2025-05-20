@@ -5,7 +5,7 @@ use tracing::info;
 
 use informalsystems_malachitebft_test::{self as malachitebft_test};
 
-use malachitebft_config::ValuePayload;
+use malachitebft_config::{PubSubProtocol, ValuePayload};
 use malachitebft_core_consensus::LocallyProposedValue;
 use malachitebft_core_types::SignedVote;
 use malachitebft_engine::util::events::Event;
@@ -406,6 +406,7 @@ async fn byzantine_proposer_crashes_after_proposing_2(params: TestParams) {
 #[tokio::test]
 async fn multi_rounds() {
     const CRASH_HEIGHT: u64 = 1;
+    const FINAL_HEIGHT: u64 = 3;
 
     let mut test = TestBuilder::<()>::new();
 
@@ -419,24 +420,19 @@ async fn multi_rounds() {
         .crash()
         .restart_after(Duration::from_secs(10))
         .expect_wal_replay(CRASH_HEIGHT)
-        .wait_until(CRASH_HEIGHT + 2)
+        .wait_until(FINAL_HEIGHT)
         .success();
 
-    test.add_node()
-        .start()
-        .wait_until(CRASH_HEIGHT + 2)
-        .success();
+    test.add_node().start().wait_until(FINAL_HEIGHT).success();
 
-    test.add_node()
-        .start()
-        .wait_until(CRASH_HEIGHT + 2)
-        .success();
+    test.add_node().start().wait_until(FINAL_HEIGHT).success();
 
     test.build()
         .run_with_params(
             Duration::from_secs(120),
             TestParams {
                 enable_value_sync: false,
+                protocol: PubSubProtocol::Broadcast,
                 ..TestParams::default()
             },
         )
