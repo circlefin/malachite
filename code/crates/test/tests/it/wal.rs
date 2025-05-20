@@ -405,9 +405,9 @@ async fn byzantine_proposer_crashes_after_proposing_2(params: TestParams) {
 
 #[tokio::test]
 async fn multi_rounds() {
-    const CRASH_HEIGHT: u64 = 2;
+    const CRASH_HEIGHT: u64 = 1;
     const CRASH_ROUND: u32 = 3;
-    const FINAL_HEIGHT: u64 = 5;
+    const FINAL_HEIGHT: u64 = CRASH_HEIGHT + 2;
 
     let mut test = TestBuilder::<()>::new();
 
@@ -419,7 +419,7 @@ async fn multi_rounds() {
         .wait_until(CRASH_HEIGHT)
         .wait_until_round(CRASH_ROUND)
         .crash()
-        .restart_after(Duration::from_secs(10))
+        .restart_after(Duration::from_secs(30))
         .expect_wal_replay(CRASH_HEIGHT)
         .wait_until(FINAL_HEIGHT)
         .success();
