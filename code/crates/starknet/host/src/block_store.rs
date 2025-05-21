@@ -52,13 +52,19 @@ pub enum StoreError {
     Commit(#[from] redb::CommitError),
 
     #[error("Transaction error: {0}")]
-    Transaction(#[from] redb::TransactionError),
+    Transaction(#[from] Box<redb::TransactionError>),
 
     #[error("Failed to encode/decode Protobuf: {0}")]
     Protobuf(#[from] ProtoError),
 
     #[error("Failed to join on task: {0}")]
     TaskJoin(#[from] tokio::task::JoinError),
+}
+
+impl From<redb::TransactionError> for StoreError {
+    fn from(err: redb::TransactionError) -> Self {
+        Self::Transaction(Box::new(err))
+    }
 }
 
 const CERTIFICATES_TABLE: redb::TableDefinition<HeightKey, Vec<u8>> =

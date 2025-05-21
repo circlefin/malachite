@@ -66,10 +66,7 @@ impl Read for FailingFile {
 impl Write for FailingFile {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         if self.bytes_written + buf.len() > self.fail_after {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Simulated system failure",
-            ));
+            return Err(io::Error::other("Simulated system failure"));
         }
         let written = self.inner.write(buf)?;
         self.bytes_written += written;
@@ -204,10 +201,7 @@ impl Storage for FailingSync {
 
     fn sync_all(&mut self) -> io::Result<()> {
         if self.should_fail {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Simulated power failure during fsync",
-            ));
+            return Err(io::Error::other("Simulated power failure during fsync"));
         }
 
         self.inner.sync_all()
