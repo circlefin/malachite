@@ -16,11 +16,11 @@ use malachitebft_engine::util::events::TxEvent;
 use malachitebft_engine::wal::{Wal, WalCodec, WalRef};
 use malachitebft_network::{Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, Keypair};
 
-use crate::config::{self, ConsensusConfig, PubSubProtocol, ValueSyncConfig, VoteSyncConfig};
+use crate::config::{ConsensusConfig, PubSubProtocol, ValueSyncConfig};
 use crate::metrics::{Metrics, SharedRegistry};
 use crate::types::core::{Context, SigningProvider};
 use crate::types::sync;
-use crate::types::{ValuePayload, VoteSyncMode};
+use crate::types::ValuePayload;
 
 pub async fn spawn_node_actor<Ctx>(
     ctx: Ctx,
@@ -92,18 +92,12 @@ where
         config::ValuePayload::ProposalAndParts => ValuePayload::ProposalAndParts,
     };
 
-    let vote_sync_mode = match cfg.vote_sync.mode {
-        config::VoteSyncMode::RequestResponse => VoteSyncMode::RequestResponse,
-        config::VoteSyncMode::Rebroadcast => VoteSyncMode::Rebroadcast,
-    };
-
     let consensus_params = ConsensusParams {
         initial_height,
         initial_validator_set,
         address,
         threshold_params: Default::default(),
         value_payload,
-        vote_sync_mode,
     };
 
     Consensus::spawn(
@@ -148,13 +142,12 @@ pub async fn spawn_sync_actor<Ctx>(
     network: NetworkRef<Ctx>,
     host: HostRef<Ctx>,
     config: &ValueSyncConfig,
-    vote_sync: &VoteSyncConfig,
     registry: &SharedRegistry,
 ) -> Result<Option<SyncRef<Ctx>>>
 where
     Ctx: Context,
 {
-    if !config.enabled && vote_sync.mode != config::VoteSyncMode::RequestResponse {
+    if !config.enabled {
         return Ok(None);
     }
 

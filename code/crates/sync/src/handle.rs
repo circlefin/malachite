@@ -4,12 +4,12 @@ use derive_where::derive_where;
 use thiserror::Error;
 use tracing::{debug, error, info, trace, warn};
 
-use malachitebft_core_types::{CertificateError, CommitCertificate, Context, Height, Round};
+use malachitebft_core_types::{CertificateError, CommitCertificate, Context, Height};
 
 use crate::co::Co;
 use crate::{
     perform, InboundRequestId, Metrics, OutboundRequestId, PeerId, RawDecidedValue, Request, State,
-    Status, ValueRequest, ValueResponse, VoteSetRequest, VoteSetResponse,
+    Status, ValueRequest, ValueResponse,
 };
 
 #[derive_where(Debug)]
@@ -45,9 +45,6 @@ pub enum Effect<Ctx: Context> {
 
     /// Retrieve a value from the application
     GetDecidedValue(InboundRequestId, Ctx::Height),
-
-    /// Send a VoteSet request to a peer
-    SendVoteSetRequest(PeerId, VoteSetRequest<Ctx>),
 }
 
 #[derive_where(Debug)]
@@ -74,23 +71,11 @@ pub enum Input<Ctx: Context> {
     /// Got a response from the application to our `GetValue` request
     GotDecidedValue(InboundRequestId, Ctx::Height, Option<RawDecidedValue<Ctx>>),
 
-    /// A request for a value or vote set timed out
+    /// A request for a value timed out
     SyncRequestTimedOut(PeerId, Request<Ctx>),
 
     /// We received an invalid [`CommitCertificate`]
     InvalidCertificate(PeerId, CommitCertificate<Ctx>, CertificateError<Ctx>),
-
-    /// Consensus needs a vote set for the height and round for recovery.
-    GetVoteSet(Ctx::Height, Round),
-
-    /// A VoteSet request has been received from a peer
-    VoteSetRequest(InboundRequestId, PeerId, VoteSetRequest<Ctx>),
-
-    /// Got a response from consensus for an incoming request
-    GotVoteSet(InboundRequestId, Ctx::Height, Round),
-
-    /// A VoteSet response has been received
-    VoteSetResponse(OutboundRequestId, PeerId, VoteSetResponse<Ctx>),
 }
 
 pub async fn handle<Ctx>(
@@ -131,22 +116,6 @@ where
 
         Input::InvalidCertificate(peer, certificate, error) => {
             on_invalid_certificate(co, state, metrics, peer, certificate, error).await
-        }
-
-        Input::GetVoteSet(height, round) => {
-            on_get_vote_set(co, state, metrics, height, round).await
-        }
-
-        Input::VoteSetRequest(request_id, peer_id, request) => {
-            on_vote_set_request(co, state, metrics, request_id, peer_id, request).await
-        }
-
-        Input::VoteSetResponse(request_id, peer_id, response) => {
-            on_vote_set_response(co, state, metrics, request_id, peer_id, response).await
-        }
-
-        Input::GotVoteSet(request_id, height, round) => {
-            on_vote_set_response_sent(co, state, metrics, request_id, height, round).await
         }
     }
 }
@@ -340,13 +309,6 @@ where
             state.remove_pending_decided_value_request(height);
             metrics.decided_value_request_timed_out(height.as_u64());
         }
-        Request::VoteSetRequest(vote_set_request) => {
-            let height = vote_set_request.height;
-            let round = vote_set_request.round;
-            warn!(%peer_id, %height, %round, "Vote set request timed out");
-            state.remove_pending_vote_set_request(height, round);
-            metrics.vote_set_request_timed_out(height.as_u64(), round.as_i64());
-        }
     };
 
     Ok(())
@@ -425,117 +387,4 @@ where
     };
 
     request_value_from_peer(co, state, metrics, certificate.height, peer).await
-}
-
-pub async fn on_get_vote_set<Ctx>(
-    co: Co<Ctx>,
-    state: &mut State<Ctx>,
-    metrics: &Metrics,
-    height: Ctx::Height,
-    round: Round,
-) -> Result<(), Error<Ctx>>
-where
-    Ctx: Context,
-{
-    if state.has_pending_vote_set_request(height, round) {
-        debug!(%height, %round, "Vote set request pending for this height and round");
-        return Ok(());
-    }
-
-    let Some(peer) = state.random_peer_with_sync_at(height, round) else {
-        warn!(%height, %round, "No peer to request vote set from");
-        return Ok(());
-    };
-
-    request_vote_set_from_peer(co, state, metrics, height, round, peer).await?;
-
-    Ok(())
-}
-
-async fn request_vote_set_from_peer<Ctx>(
-    co: Co<Ctx>,
-    state: &mut State<Ctx>,
-    metrics: &Metrics,
-    height: Ctx::Height,
-    round: Round,
-    peer: PeerId,
-) -> Result<(), Error<Ctx>>
-where
-    Ctx: Context,
-{
-    debug!(%height, %round, %peer, "Requesting vote set from peer");
-
-    perform!(
-        co,
-        Effect::SendVoteSetRequest(peer, VoteSetRequest::new(height, round))
-    );
-
-    metrics.vote_set_request_sent(height.as_u64(), round.as_i64());
-
-    state.store_pending_vote_set_request(height, round, peer);
-
-    Ok(())
-}
-
-pub async fn on_vote_set_request<Ctx>(
-    _co: Co<Ctx>,
-    _state: &mut State<Ctx>,
-    metrics: &Metrics,
-    request_id: InboundRequestId,
-    peer: PeerId,
-    request: VoteSetRequest<Ctx>,
-) -> Result<(), Error<Ctx>>
-where
-    Ctx: Context,
-{
-    debug!(
-        %request.height, %request.round, %request_id, %peer,
-        "Received request for vote set"
-    );
-
-    metrics.vote_set_request_received(request.height.as_u64(), request.round.as_i64());
-
-    Ok(())
-}
-
-pub async fn on_vote_set_response_sent<Ctx>(
-    _co: Co<Ctx>,
-    _state: &mut State<Ctx>,
-    metrics: &Metrics,
-    request_id: InboundRequestId,
-    height: Ctx::Height,
-    round: Round,
-) -> Result<(), Error<Ctx>>
-where
-    Ctx: Context,
-{
-    debug!(%height, %round, %request_id, "Vote set response sent");
-
-    metrics.vote_set_response_sent(height.as_u64(), round.as_i64());
-
-    Ok(())
-}
-
-pub async fn on_vote_set_response<Ctx>(
-    _co: Co<Ctx>,
-    state: &mut State<Ctx>,
-    metrics: &Metrics,
-    request_id: OutboundRequestId,
-    peer: PeerId,
-    response: VoteSetResponse<Ctx>,
-) -> Result<(), Error<Ctx>>
-where
-    Ctx: Context,
-{
-    debug!(
-        %request_id, %peer,
-        height = %response.height, round = %response.round,
-        votes.count = response.vote_set.len(),
-        "Received vote set response"
-    );
-
-    state.remove_pending_vote_set_request(response.height, response.round);
-    metrics.vote_set_response_received(response.height.as_u64(), response.round.as_i64());
-
-    Ok(())
 }

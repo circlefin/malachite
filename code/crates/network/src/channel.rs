@@ -7,17 +7,27 @@ use serde::{Deserialize, Serialize};
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Channel {
     Consensus,
+    Liveness,
     ProposalParts,
     Sync,
 }
 
 impl Channel {
     pub fn all() -> &'static [Channel] {
-        &[Channel::Consensus, Channel::ProposalParts, Channel::Sync]
+        &[
+            Channel::Consensus,
+            Channel::ProposalParts,
+            Channel::Sync,
+            Channel::Liveness,
+        ]
     }
 
     pub fn consensus() -> &'static [Channel] {
-        &[Channel::Consensus, Channel::ProposalParts]
+        &[
+            Channel::Consensus,
+            Channel::ProposalParts,
+            Channel::Liveness,
+        ]
     }
 
     pub fn to_gossipsub_topic(self) -> gossipsub::IdentTopic {
@@ -33,6 +43,7 @@ impl Channel {
             Channel::Consensus => "/consensus",
             Channel::ProposalParts => "/proposal_parts",
             Channel::Sync => "/sync",
+            Channel::Liveness => "/liveness",
         }
     }
 
@@ -53,6 +64,7 @@ impl Channel {
             "/consensus" => Some(Channel::Consensus),
             "/proposal_parts" => Some(Channel::ProposalParts),
             "/sync" => Some(Channel::Sync),
+            "/liveness" => Some(Channel::Liveness),
             _ => None,
         }
     }
@@ -62,6 +74,7 @@ impl Channel {
             b"/consensus" => Some(Channel::Consensus),
             b"/proposal_parts" => Some(Channel::ProposalParts),
             b"/sync" => Some(Channel::Sync),
+            b"/liveness" => Some(Channel::Liveness),
             _ => None,
         }
     }

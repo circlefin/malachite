@@ -78,10 +78,10 @@ pub enum Line {
     /// L55 - f+1 for higher round: move to that round
     L55,
 
-    /// L59 - proposer
+    /// L59 - proposer, proposeTimeout expired: prevote nil
     L59Proposer,
 
-    /// L59 - non proposer
+    /// L59 - non proposer, proposeTimeout expired: prevote nil
     L59NonProposer,
 
     /// L61 - prevoteTimeout expired: precommit nil

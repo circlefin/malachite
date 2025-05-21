@@ -62,6 +62,8 @@ where
     Ok(result)
 }
 
+// NOTE: Will be used again in #997
+#[allow(dead_code)]
 pub async fn verify_polka_certificate<Ctx>(
     co: &Co<Ctx>,
     certificate: PolkaCertificate<Ctx>,

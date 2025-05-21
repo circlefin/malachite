@@ -2,8 +2,7 @@ use derive_where::derive_where;
 
 use malachitebft_core_types::*;
 
-use crate::input::RequestId;
-use crate::types::SignedConsensusMsg;
+use crate::types::{LivenessMsg, SignedConsensusMsg};
 use crate::{ConsensusMsg, VoteExtensionError, WalEntry};
 
 /// Provides a way to construct the appropriate [`Resume`] value to
@@ -82,12 +81,22 @@ where
     /// Publish a message to peers
     ///
     /// Resume with: [`resume::Continue`]
-    Publish(SignedConsensusMsg<Ctx>, resume::Continue),
+    PublishConsensusMsg(SignedConsensusMsg<Ctx>, resume::Continue),
+
+    /// Publish a liveness message to peers
+    ///
+    /// Resume with: [`resume::Continue`]
+    PublishLivenessMsg(LivenessMsg<Ctx>, resume::Continue),
 
     /// Rebroadcast a vote to peers
     ///
     /// Resume with: [`resume::Continue`]
-    Rebroadcast(SignedVote<Ctx>, resume::Continue),
+    RebroadcastVote(SignedVote<Ctx>, resume::Continue),
+
+    /// Rebroadcast a round certificate to peers
+    ///
+    /// Resume with: [`resume::Continue`]
+    RebroadcastRoundCertificate(RoundCertificate<Ctx>, resume::Continue),
 
     /// Requests the application to build a value for consensus to run on.
     ///
@@ -173,23 +182,6 @@ where
         Ctx::ValidatorSet,
         ThresholdParams,
         resume::CertificateValidity,
-    ),
-
-    /// Consensus has been stuck in Prevote or Precommit step, ask for vote sets from peers
-    ///
-    /// Resume with: [`resume::Continue`]
-    RequestVoteSet(Ctx::Height, Round, resume::Continue),
-
-    /// A peer has required our vote set, send the response
-    ///
-    /// Resume with: [`resume::Continue`]`
-    SendVoteSetResponse(
-        RequestId,
-        Ctx::Height,
-        Round,
-        VoteSet<Ctx>,
-        Vec<PolkaCertificate<Ctx>>,
-        resume::Continue,
     ),
 
     /// Append an entry to the Write-Ahead Log for crash recovery

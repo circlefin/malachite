@@ -14,16 +14,14 @@ use tracing::{debug, error, error_span, info, warn};
 use malachitebft_codec as codec;
 use malachitebft_config::TimeoutConfig;
 use malachitebft_core_consensus::{
-    Effect, PeerId, Resumable, Resume, SignedConsensusMsg, VoteExtensionError, VoteSyncMode,
+    Effect, LivenessMsg, PeerId, Resumable, Resume, SignedConsensusMsg, VoteExtensionError,
 };
 use malachitebft_core_types::{
     Context, Proposal, Round, SigningProvider, SigningProviderExt, Timeout, TimeoutKind,
     ValidatorSet, ValueId, ValueOrigin, Vote,
 };
 use malachitebft_metrics::Metrics;
-use malachitebft_sync::{
-    self as sync, InboundRequestId, Response, ValueResponse, VoteSetRequest, VoteSetResponse,
-};
+use malachitebft_sync::{self as sync, ValueResponse};
 
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
 use crate::network::{NetworkEvent, NetworkMsg, NetworkRef};
@@ -44,12 +42,14 @@ pub use malachitebft_core_consensus::State as ConsensusState;
 /// This trait is automatically implemented for any type that implements:
 /// - [`codec::Codec<Ctx::ProposalPart>`]
 /// - [`codec::Codec<SignedConsensusMsg<Ctx>>`]
+/// - [`codec::Codec<PolkaCertificate<Ctx>>`]
 /// - [`codec::Codec<StreamMessage<Ctx::ProposalPart>>`]
 pub trait ConsensusCodec<Ctx>
 where
     Ctx: Context,
     Self: codec::Codec<Ctx::ProposalPart>,
     Self: codec::Codec<SignedConsensusMsg<Ctx>>,
+    Self: codec::Codec<LivenessMsg<Ctx>>,
     Self: codec::Codec<StreamMessage<Ctx::ProposalPart>>,
 {
 }
@@ -59,6 +59,7 @@ where
     Ctx: Context,
     Self: codec::Codec<Ctx::ProposalPart>,
     Self: codec::Codec<SignedConsensusMsg<Ctx>>,
+    Self: codec::Codec<LivenessMsg<Ctx>>,
     Self: codec::Codec<StreamMessage<Ctx::ProposalPart>>,
 {
 }
@@ -184,10 +185,11 @@ impl Timeouts {
             TimeoutKind::Propose => self.config.timeout_propose,
             TimeoutKind::Prevote => self.config.timeout_prevote,
             TimeoutKind::Precommit => self.config.timeout_precommit,
-            TimeoutKind::PrevoteTimeLimit => self.config.timeout_step,
-            TimeoutKind::PrecommitTimeLimit => self.config.timeout_step,
-            TimeoutKind::PrevoteRebroadcast => self.config.timeout_prevote,
-            TimeoutKind::PrecommitRebroadcast => self.config.timeout_precommit,
+            TimeoutKind::Rebroadcast => {
+                self.config.timeout_propose
+                    + self.config.timeout_prevote
+                    + self.config.timeout_precommit
+            }
         }
     }
 
@@ -197,10 +199,10 @@ impl Timeouts {
             TimeoutKind::Propose => c.timeout_propose += c.timeout_propose_delta,
             TimeoutKind::Prevote => c.timeout_prevote += c.timeout_prevote_delta,
             TimeoutKind::Precommit => c.timeout_precommit += c.timeout_precommit_delta,
-            TimeoutKind::PrevoteTimeLimit => (),
-            TimeoutKind::PrecommitTimeLimit => (),
-            TimeoutKind::PrevoteRebroadcast => (),
-            TimeoutKind::PrecommitRebroadcast => (),
+            TimeoutKind::Rebroadcast => {
+                c.timeout_rebroadcast +=
+                    c.timeout_propose_delta + c.timeout_prevote_delta + c.timeout_precommit_delta
+            }
         };
     }
 }
@@ -505,58 +507,6 @@ where
                         )?;
                     }
 
-                    NetworkEvent::Request(
-                        request_id,
-                        peer,
-                        sync::Request::VoteSetRequest(VoteSetRequest { height, round }),
-                    ) => {
-                        debug!(%height, %round, %request_id, %peer, "Received vote set request");
-
-                        if let Err(e) = self
-                            .process_input(
-                                &myself,
-                                state,
-                                ConsensusInput::VoteSetRequest(
-                                    request_id.to_string(),
-                                    height,
-                                    round,
-                                ),
-                            )
-                            .await
-                        {
-                            error!(%peer, %height, %round, "Error when processing VoteSetRequest: {e:?}");
-                        }
-                    }
-
-                    NetworkEvent::Response(
-                        request_id,
-                        peer,
-                        sync::Response::VoteSetResponse(VoteSetResponse {
-                            height,
-                            round,
-                            vote_set,
-                            polka_certificates,
-                        }),
-                    ) => {
-                        if vote_set.votes.is_empty() {
-                            debug!(%height, %round, %request_id, %peer, "Received an empty vote set response");
-                            return Ok(());
-                        };
-
-                        debug!(%height, %round, %request_id, %peer, "Received a non-empty vote set response");
-
-                        if let Err(e) = self
-                            .process_input(
-                                &myself,
-                                state,
-                                ConsensusInput::VoteSetResponse(vote_set, polka_certificates),
-                            )
-                            .await
-                        {
-                            error!(%height, %round, %request_id, %peer, "Error when processing VoteSetResponse: {e:?}");
-                        }
-                    }
-
                     NetworkEvent::Vote(from, vote) => {
                         if let Err(e) = self
                             .process_input(&myself, state, ConsensusInput::Vote(vote))
@@ -577,6 +527,39 @@ where
                             .await
                         {
                             error!(%from, "Error when processing proposal: {e}");
+                        }
+                    }
+
+                    NetworkEvent::PolkaCertificate(from, certificate) => {
+                        if let Err(e) = self
+                            .process_input(
+                                &myself,
+                                state,
+                                ConsensusInput::PolkaCertificate(certificate),
+                            )
+                            .await
+                        {
+                            error!(%from, "Error when processing polka certificate: {e}");
+                        }
+                    }
+
+                    NetworkEvent::RoundCertificate(from, certificate) => {
+                        info!(
+                            %from,
+                            %certificate.height,
+                            %certificate.round,
+                            number_of_votes = certificate.round_signatures.len(),
+                            "Received round certificate"
+                        );
+                        if let Err(e) = self
+                            .process_input(
+                                &myself,
+                                state,
+                                ConsensusInput::RoundCertificate(certificate),
+                            )
+                            .await
+                        {
+                            error!(%from, "Error when processing round certificate: {e}");
                         }
                     }
 
@@ -653,10 +636,7 @@ where
         // Print debug information if the timeout is for a prevote or precommit
         if matches!(
             timeout.kind,
-            TimeoutKind::Prevote
-                | TimeoutKind::Precommit
-                | TimeoutKind::PrevoteTimeLimit
-                | TimeoutKind::PrecommitTimeLimit
+            TimeoutKind::Prevote | TimeoutKind::Precommit | TimeoutKind::Rebroadcast
         ) {
             warn!(step = ?timeout.kind, "Timeout elapsed");
             state.consensus.print_state();
@@ -1057,7 +1037,7 @@ where
                 Ok(r.resume_with(result))
             }
 
-            Effect::Publish(msg, r) => {
+            Effect::PublishConsensusMsg(msg, r) => {
                 // Sync the WAL to disk before we broadcast the message
                 // NOTE: The message has already been append to the WAL by the `WalAppend` effect.
                 self.wal_flush(state.phase).await?;
@@ -1066,23 +1046,57 @@ where
                 self.tx_event.send(|| Event::Published(msg.clone()));
 
                 self.network
-                    .cast(NetworkMsg::Publish(msg))
-                    .map_err(|e| eyre!("Error when broadcasting gossip message: {e:?}"))?;
+                    .cast(NetworkMsg::PublishConsensusMsg(msg))
+                    .map_err(|e| eyre!("Error when broadcasting consensus message: {e:?}"))?;
 
                 Ok(r.resume_with(()))
             }
 
-            Effect::Rebroadcast(msg, r) => {
-                // Rebroadcast last vote only if vote sync mode is set to "rebroadcast",
-                // otherwise vote set requests are issued automatically by the sync protocol.
-                if self.params.vote_sync_mode == VoteSyncMode::Rebroadcast {
-                    // Notify any subscribers that we are about to rebroadcast a message
-                    self.tx_event.send(|| Event::Rebroadcast(msg.clone()));
-
-                    self.network
-                        .cast(NetworkMsg::Publish(SignedConsensusMsg::Vote(msg)))
-                        .map_err(|e| eyre!("Error when rebroadcasting vote message: {e:?}"))?;
+            Effect::PublishLivenessMsg(msg, r) => {
+                match msg {
+                    LivenessMsg::Vote(ref msg) => {
+                        self.tx_event.send(|| Event::RebroadcastVote(msg.clone()));
+                    }
+                    LivenessMsg::PolkaCertificate(ref certificate) => {
+                        self.tx_event
+                            .send(|| Event::PolkaCertificate(certificate.clone()));
+                    }
+                    LivenessMsg::SkipRoundCertificate(ref certificate) => {
+                        self.tx_event
+                            .send(|| Event::SkipRoundCertificate(certificate.clone()));
+                    }
                 }
+
+                self.network
+                    .cast(NetworkMsg::PublishLivenessMsg(msg))
+                    .map_err(|e| eyre!("Error when broadcasting liveness message: {e:?}"))?;
+
+                Ok(r.resume_with(()))
+            }
+
+            Effect::RebroadcastVote(msg, r) => {
+                // Notify any subscribers that we are about to rebroadcast a vote
+                self.tx_event.send(|| Event::RebroadcastVote(msg.clone()));
+
+                self.network
+                    .cast(NetworkMsg::PublishLivenessMsg(LivenessMsg::Vote(msg)))
+                    .map_err(|e| eyre!("Error when rebroadcasting vote message: {e:?}"))?;
+
+                Ok(r.resume_with(()))
+            }
+
+            Effect::RebroadcastRoundCertificate(certificate, r) => {
+                // Notify any subscribers that we are about to rebroadcast a round certificate
+                self.tx_event
+                    .send(|| Event::RebroadcastRoundCertificate(certificate.clone()));
+
+                self.network
+                    .cast(NetworkMsg::PublishLivenessMsg(
+                        LivenessMsg::SkipRoundCertificate(certificate),
+                    ))
+                    .map_err(|e| {
+                        eyre!("Error when rebroadcasting round certificate message: {e:?}")
+                    })?;
 
                 Ok(r.resume_with(()))
             }
@@ -1145,65 +1159,6 @@ where
                     sync.cast(SyncMsg::Decided(height))
                         .map_err(|e| eyre!("Error when sending decided height to sync: {e:?}"))?;
                 }
-
-                Ok(r.resume_with(()))
-            }
-
-            Effect::RequestVoteSet(height, round, r) => {
-                if let Some(sync) = &self.sync {
-                    debug!(%height, %round, "Request sync to obtain the vote set from peers");
-
-                    sync.cast(SyncMsg::RequestVoteSet(height, round))
-                        .map_err(|e| eyre!("Error when sending vote set request to sync: {e:?}"))?;
-
-                    self.tx_event
-                        .send(|| Event::RequestedVoteSet(height, round));
-                }
-
-                Ok(r.resume_with(()))
-            }
-
-            Effect::SendVoteSetResponse(
-                request_id_str,
-                height,
-                round,
-                vote_set,
-                polka_certificates,
-                r,
-            ) => {
-                let Some(sync) = self.sync.as_ref() else {
-                    warn!("Responding to a vote set request but sync actor is not available");
-                    return Ok(r.resume_with(()));
-                };
-
-                let vote_count = vote_set.len();
-                let polka_certificates_count = polka_certificates.len();
-
-                let response = Response::VoteSetResponse(VoteSetResponse::new(
-                    height,
-                    round,
-                    vote_set,
-                    polka_certificates,
-                ));
-
-                let request_id = InboundRequestId::new(request_id_str);
-
-                debug!(
-                    %height, %round, %request_id, vote.count = %vote_count,
-                    "Sending the vote set response"
-                );
-
-                self.network
-                    .cast(NetworkMsg::OutgoingResponse(request_id.clone(), response))?;
-
-                sync.cast(SyncMsg::SentVoteSetResponse(request_id, height, round))
-                    .map_err(|e| {
-                        eyre!("Error when notifying Sync about vote set response: {e:?}")
-                    })?;
-
-                self.tx_event.send(|| {
-                    Event::SentVoteSetResponse(height, round, vote_count, polka_certificates_count)
-                });
 
                 Ok(r.resume_with(()))
             }

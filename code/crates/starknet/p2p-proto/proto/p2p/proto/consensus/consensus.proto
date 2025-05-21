@@ -7,6 +7,11 @@ option go_package = "github.com/starknet-io/starknet-p2pspecs/p2p/proto/consensu
 
 // WIP - will change
 
+enum  VoteType {
+    Prevote   = 0;
+    Precommit = 1;
+};
+
 // Contains all variants of mempool and an L1Handler variant to cover all transactions that can be
 // in a new block.
 message ConsensusTransaction {
@@ -21,11 +26,6 @@ message ConsensusTransaction {
 }
 
 message Vote {
-    enum  VoteType {
-        Prevote   = 0;
-        Precommit = 1;
-    };
-
     // We use a type field to distinguish between prevotes and precommits instead of different
     // messages, to make sure the data, and therefore the signatures, are unambiguous between
     // Prevote and Precommit.

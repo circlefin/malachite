@@ -146,9 +146,6 @@ impl TestRunner {
             logging: LoggingConfig::default(),
             consensus: ConsensusConfig {
                 value_payload: ValuePayload::PartsOnly,
-                vote_sync: VoteSyncConfig {
-                    mode: VoteSyncMode::Rebroadcast,
-                },
                 timeouts: TimeoutConfig::default(),
                 p2p: P2pConfig {
                     protocol,
@@ -233,14 +230,9 @@ fn apply_params(config: &mut Config, params: &TestParams) {
     config.consensus.value_payload = ValuePayload::PartsOnly;
     config.value_sync.enabled = params.enable_value_sync;
     config.consensus.p2p.protocol = params.protocol;
-    config.consensus.timeouts.timeout_step = params.timeout_step;
     config.test.max_block_size = params.block_size;
     config.test.txs_per_part = params.txs_per_part;
     config.test.vote_extensions.enabled = params.vote_extensions.is_some();
     config.test.vote_extensions.size = params.vote_extensions.unwrap_or_default();
     config.test.max_retain_blocks = params.max_retain_blocks;
-
-    if let Some(vote_sync_mode) = params.vote_sync_mode {
-        config.consensus.vote_sync.mode = vote_sync_mode;
-    }
 }

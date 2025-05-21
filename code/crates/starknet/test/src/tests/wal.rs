@@ -3,7 +3,6 @@ use std::time::Duration;
 use eyre::bail;
 use tracing::info;
 
-use malachitebft_config::VoteSyncMode;
 use malachitebft_core_consensus::LocallyProposedValue;
 use malachitebft_core_types::SignedVote;
 use malachitebft_engine::util::events::Event;
@@ -132,40 +131,6 @@ async fn non_proposer_crashes_after_voting() {
             TestParams {
                 enable_value_sync: false,
                 ..TestParams::default()
-            },
-        )
-        .await
-}
-
-#[tokio::test]
-pub async fn node_crashes_after_vote_set_request() {
-    const HEIGHT: u64 = 3;
-
-    let mut test = TestBuilder::<()>::new();
-
-    test.add_node().start().wait_until(HEIGHT).success();
-    test.add_node()
-        .start()
-        .wait_until(2)
-        .crash()
-        // Restart from the latest height
-        .restart_after(Duration::from_secs(5))
-        // Wait for a vote set request for height 2
-        .expect_vote_set_request(2)
-        .crash()
-        // Restart again
-        .restart_after(Duration::from_secs(5))
-        .wait_until(HEIGHT)
-        .success();
-
-    test.build()
-        .run_with_params(
-            Duration::from_secs(60),
-            TestParams {
-                enable_value_sync: true,
-                vote_sync_mode: Some(VoteSyncMode::RequestResponse),
-                timeout_step: Duration::from_secs(5),
-                ..Default::default()
             },
         )
         .await

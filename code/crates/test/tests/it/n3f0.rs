@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use malachitebft_test_framework::TestParams;
 
-use malachitebft_config::{ValuePayload, VoteSyncMode};
+use malachitebft_config::ValuePayload;
 
 use crate::TestBuilder;
 
@@ -20,7 +20,6 @@ pub async fn all_correct_nodes() {
         .run_with_params(
             Duration::from_secs(50),
             TestParams {
-                vote_sync_mode: Some(VoteSyncMode::RequestResponse),
                 value_payload: ValuePayload::ProposalAndParts,
                 ..TestParams::default()
             },
