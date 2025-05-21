@@ -141,7 +141,7 @@ jobs:
           fail_ci_if_error: false
 
   upload-coverage:
-    name: Upload Combined Coverage
+    name: Upload coverage to Codecov
     needs: [integration, mbt]
     runs-on: ubuntu-latest
     if: ${{ !cancelled() }}
@@ -162,13 +162,13 @@ jobs:
           path: code/coverage
       - name: List coverage files
         run: ls -la code/coverage
-      - name: Upload Integration Coverage to Codecov
+      - name: Upload integration coverage to Codecov
         working-directory: code
         run: |
           bash <(curl -s https://codecov.io/bash) -f coverage/coverage-integration.info -F integration
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-      - name: Upload MBT Coverage to Codecov
+      - name: Upload MBT coverage to Codecov
         working-directory: code
         run: |
           bash <(curl -s https://codecov.io/bash) -f coverage/coverage-mbt.info -F mbt
