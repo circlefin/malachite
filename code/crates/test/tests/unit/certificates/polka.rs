@@ -10,9 +10,10 @@ impl CertificateBuilder for Polka {
     fn build_certificate(
         height: Height,
         round: Round,
-        value_id: ValueId,
+        value_id: Option<ValueId>,
         votes: Vec<SignedVote<TestContext>>,
     ) -> Self::Certificate {
+        let value_id = value_id.expect("value_id must be Some(_) in polka certificate");
         PolkaCertificate::new(height, round, value_id, votes)
     }
 
@@ -25,16 +26,6 @@ impl CertificateBuilder for Polka {
     ) -> Result<(), CertificateError<TestContext>> {
         signer.verify_polka_certificate(ctx, certificate, validator_set, threshold_params)
     }
-
-    fn make_vote(
-        ctx: &TestContext,
-        height: Height,
-        round: Round,
-        value_id: NilOrVal<ValueId>,
-        validator_address: Address,
-    ) -> Vote {
-        ctx.new_prevote(height, round, value_id, validator_address)
-    }
 }
 
 /// Tests the verification of a valid PolkaCertificate with signatures from validators
@@ -43,12 +34,12 @@ impl CertificateBuilder for Polka {
 fn valid_polka_certificate_with_sufficient_voting_power() {
     CertificateTest::<Polka>::new()
         .with_validators([20, 20, 30, 30])
-        .with_signatures(0..4)
+        .with_signatures(0..4, VoteType::Prevote)
         .expect_valid();
 
     CertificateTest::<Polka>::new()
         .with_validators([20, 20, 30, 30])
-        .with_signatures(0..3)
+        .with_signatures(0..3, VoteType::Prevote)
         .expect_valid();
 }
 
@@ -58,12 +49,12 @@ fn valid_polka_certificate_with_sufficient_voting_power() {
 fn valid_polka_certificate_with_exact_threshold_voting_power() {
     CertificateTest::<Polka>::new()
         .with_validators([21, 22, 24, 30])
-        .with_signatures(0..3)
+        .with_signatures(0..3, VoteType::Prevote)
         .expect_valid();
 
     CertificateTest::<Polka>::new()
         .with_validators([21, 22, 24, 0])
-        .with_signatures(0..3)
+        .with_signatures(0..3, VoteType::Prevote)
         .expect_valid();
 }
 
@@ -72,7 +63,7 @@ fn valid_polka_certificate_with_exact_threshold_voting_power() {
 fn invalid_polka_certificate_insufficient_voting_power() {
     CertificateTest::<Polka>::new()
         .with_validators([10, 20, 30, 40])
-        .with_signatures(0..3)
+        .with_signatures(0..3, VoteType::Prevote)
         .expect_error(CertificateError::NotEnoughVotingPower {
             signed: 60,
             total: 100,
@@ -81,7 +72,7 @@ fn invalid_polka_certificate_insufficient_voting_power() {
 
     CertificateTest::<Polka>::new()
         .with_validators([10, 10, 30, 50])
-        .with_signatures(0..2)
+        .with_signatures(0..2, VoteType::Prevote)
         .expect_error(CertificateError::NotEnoughVotingPower {
             signed: 20,
             total: 100,
@@ -90,7 +81,7 @@ fn invalid_polka_certificate_insufficient_voting_power() {
 
     CertificateTest::<Polka>::new()
         .with_validators([10, 10, 30, 50])
-        .with_signatures(0..4)
+        .with_signatures(0..4, VoteType::Prevote)
         .all_vote_nil()
         .expect_error(CertificateError::NotEnoughVotingPower {
             signed: 0,
@@ -109,8 +100,8 @@ fn invalid_polka_certificate_duplicate_validator_vote() {
 
     CertificateTest::<Polka>::new()
         .with_validators([10, 10, 10, 10])
-        .with_signatures(0..4)
-        .with_duplicate_vote(0) // Add duplicate vote from validator 0
+        .with_signatures(0..4, VoteType::Prevote)
+        .with_duplicate_vote(0, VoteType::Prevote) // Add duplicate vote from validator 0
         .expect_error(CertificateError::DuplicateVote(validator_addr));
 }
 
@@ -127,8 +118,8 @@ fn invalid_polka_certificate_unknown_validator() {
 
     CertificateTest::<Polka>::new()
         .with_validators([10, 10, 10, 10])
-        .with_signatures(0..4)
-        .with_external_vote(seed)
+        .with_signatures(0..4, VoteType::Prevote)
+        .with_external_vote(seed, VoteType::Prevote)
         .expect_error(CertificateError::UnknownValidator(external_validator_addr));
 }
 
@@ -137,7 +128,7 @@ fn invalid_polka_certificate_unknown_validator() {
 fn invalid_polka_certificate_invalid_signature() {
     CertificateTest::<Polka>::new()
         .with_validators([10, 10, 10])
-        .with_signatures(0..3)
+        .with_signatures(0..3, VoteType::Prevote)
         .with_invalid_signature(0) // Validator 0 has invalid signature
         .expect_error(CertificateError::NotEnoughVotingPower {
             signed: 20,
@@ -151,8 +142,8 @@ fn invalid_polka_certificate_invalid_signature() {
 fn invalid_polka_certificate_wrong_vote_height_round() {
     CertificateTest::<Polka>::new()
         .with_validators([10, 10, 10])
-        .with_signatures(0..2)
-        .with_invalid_vote_height(2) // Validator 2 has invalid vote height
+        .with_signatures(0..2, VoteType::Prevote)
+        .with_invalid_vote_height(2, VoteType::Prevote) // Validator 2 has invalid vote height
         .expect_error(CertificateError::NotEnoughVotingPower {
             signed: 20,
             total: 30,
@@ -161,8 +152,8 @@ fn invalid_polka_certificate_wrong_vote_height_round() {
 
     CertificateTest::<Polka>::new()
         .with_validators([10, 10, 10])
-        .with_signatures(0..2)
-        .with_invalid_vote_round(2) // Validator 2 has invalid vote round
+        .with_signatures(0..2, VoteType::Prevote)
+        .with_invalid_vote_round(2, VoteType::Prevote) // Validator 2 has invalid vote round
         .expect_error(CertificateError::NotEnoughVotingPower {
             signed: 20,
             total: 30,
@@ -175,7 +166,7 @@ fn invalid_polka_certificate_wrong_vote_height_round() {
 fn empty_polka_certificate() {
     CertificateTest::<Polka>::new()
         .with_validators([1, 1, 1])
-        .with_signatures([]) // No signatures
+        .with_signatures([], VoteType::Prevote) // No signatures
         .expect_error(CertificateError::NotEnoughVotingPower {
             signed: 0,
             total: 3,
@@ -188,14 +179,14 @@ fn empty_polka_certificate() {
 fn polka_certificate_with_mixed_valid_and_invalid_votes() {
     CertificateTest::<Polka>::new()
         .with_validators([10, 20, 30, 40])
-        .with_signatures(0..4)
+        .with_signatures(0..4, VoteType::Prevote)
         .with_invalid_signature(0) // Invalid signature for validator 0
         .with_invalid_signature(1) // Invalid signature for validator 1
         .expect_valid();
 
     CertificateTest::<Polka>::new()
         .with_validators([10, 20, 30, 40])
-        .with_signatures(0..4)
+        .with_signatures(0..4, VoteType::Prevote)
         .with_invalid_signature(2) // Invalid signature for validator 2
         .with_invalid_signature(3) // Invalid signature for validator 3
         .expect_error(CertificateError::NotEnoughVotingPower {

@@ -2,6 +2,7 @@
 
 mod commit;
 mod polka;
+mod round;
 
 use std::marker::PhantomData;
 
@@ -12,7 +13,7 @@ pub mod types {
     };
     pub use malachitebft_core_types::{
         CertificateError, Context, NilOrVal, Round, SignedVote, SigningProvider,
-        SigningProviderExt, ThresholdParams, VotingPower,
+        SigningProviderExt, ThresholdParams, VoteType, VotingPower,
     };
     pub use malachitebft_signing_ed25519::Signature;
 }
@@ -44,9 +45,11 @@ pub enum VoteSpec {
         invalid_signature: bool,
         invalid_height: bool,
         invalid_round: bool,
+        vote_type: VoteType,
     },
     Duplicate {
         validator_idx: usize,
+        vote_type: VoteType,
     },
 }
 
@@ -56,7 +59,7 @@ pub trait CertificateBuilder {
     fn build_certificate(
         height: Height,
         round: Round,
-        value_id: ValueId,
+        value_id: Option<ValueId>,
         votes: Vec<SignedVote<TestContext>>,
     ) -> Self::Certificate;
 
@@ -73,8 +76,14 @@ pub trait CertificateBuilder {
         height: Height,
         round: Round,
         value_id: NilOrVal<ValueId>,
+        vote_type: VoteType,
         validator_address: Address,
-    ) -> Vote;
+    ) -> Vote {
+        match vote_type {
+            VoteType::Prevote => ctx.new_prevote(height, round, value_id, validator_address),
+            VoteType::Precommit => ctx.new_precommit(height, round, value_id, validator_address),
+        }
+    }
 }
 
 /// A fluent builder for certificate testing
@@ -145,7 +154,11 @@ where
     }
 
     /// Specify which validators should sign the certificate
-    pub fn with_signatures(mut self, indices: impl IntoIterator<Item = usize>) -> Self {
+    pub fn with_signatures(
+        mut self,
+        indices: impl IntoIterator<Item = usize>,
+        vote_type: VoteType,
+    ) -> Self {
         for idx in indices {
             if idx < self.validators.len() {
                 self.vote_specs.push(VoteSpec::Normal {
@@ -154,13 +167,14 @@ where
                     invalid_signature: false,
                     invalid_height: false,
                     invalid_round: false,
+                    vote_type: vote_type,
                 });
             }
         }
         self
     }
 
-    pub fn with_invalid_vote_height(mut self, index: usize) -> Self {
+    pub fn with_invalid_vote_height(mut self, index: usize, vote_type: VoteType) -> Self {
         if index < self.validators.len() {
             self.vote_specs.push(VoteSpec::Normal {
                 validator_idx: index,
@@ -168,12 +182,13 @@ where
                 invalid_signature: false,
                 invalid_height: true,
                 invalid_round: false,
+                vote_type: vote_type,
             });
         }
         self
     }
 
-    pub fn with_invalid_vote_round(mut self, index: usize) -> Self {
+    pub fn with_invalid_vote_round(mut self, index: usize, vote_type: VoteType) -> Self {
         if index < self.validators.len() {
             self.vote_specs.push(VoteSpec::Normal {
                 validator_idx: index,
@@ -181,16 +196,18 @@ where
                 invalid_signature: false,
                 invalid_height: false,
                 invalid_round: true,
+                vote_type: vote_type,
             });
         }
         self
     }
 
     /// Add a duplicate vote from the specified validator index
-    pub fn with_duplicate_vote(mut self, index: usize) -> Self {
+    pub fn with_duplicate_vote(mut self, index: usize, vote_type: VoteType) -> Self {
         if index < self.validators.len() {
             self.vote_specs.push(VoteSpec::Duplicate {
                 validator_idx: index,
+                vote_type: vote_type,
             });
         }
         self
@@ -224,13 +241,14 @@ where
     }
 
     /// Add a vote from an external validator
-    pub fn with_external_vote(mut self, seed: u64) -> Self {
+    pub fn with_external_vote(mut self, seed: u64, vote_type: VoteType) -> Self {
         let ([validator], [signer]) = make_validators([0], seed);
         let vote = signer.sign_vote(C::make_vote(
             &self.ctx,
             self.height,
             self.round,
             NilOrVal::Val(self.value_id),
+            vote_type,
             validator.address,
         ));
         self.external_votes.push(vote);
@@ -252,6 +270,7 @@ where
                     invalid_signature,
                     invalid_height,
                     invalid_round,
+                    vote_type,
                 } => {
                     let value = if *is_nil {
                         NilOrVal::Nil
@@ -276,6 +295,7 @@ where
                         height,
                         round,
                         value,
+                        *vote_type,
                         self.validators[*validator_idx].address,
                     ));
 
@@ -285,13 +305,17 @@ where
 
                     votes.push(vote);
                 }
-                VoteSpec::Duplicate { validator_idx } => {
+                VoteSpec::Duplicate {
+                    validator_idx,
+                    vote_type,
+                } => {
                     // For a duplicate, we just create another vote from the same validator
                     let vote = self.signers[*validator_idx].sign_vote(C::make_vote(
                         &self.ctx,
                         self.height,
                         self.round,
                         NilOrVal::Val(self.value_id),
+                        *vote_type,
                         self.validators[*validator_idx].address,
                     ));
 
@@ -303,7 +327,7 @@ where
         // Add external votes
         votes.extend(self.external_votes.clone());
 
-        let certificate = C::build_certificate(self.height, self.round, self.value_id, votes);
+        let certificate = C::build_certificate(self.height, self.round, Some(self.value_id), votes);
         (certificate, validator_set)
     }
 
