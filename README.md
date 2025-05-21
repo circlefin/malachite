@@ -34,7 +34,7 @@ Malachite is a Byzantine-fault tolerant (BFT) consensus engine implemented in Ru
 Malachite `/ˈmæl.ə.kaɪt/` is pronounced as follows: __"Mala"__ (like in Malaysia) + __"kite"__ (like the flying toy).
 
 > [!IMPORTANT]
-> Malachite is pre-alpha software & under heavy development.
+> Malachite is alpha software and under heavy development.
 > The software is provided "as is" and has not been externally audited; use at your own risk.
 
 ### Goals
