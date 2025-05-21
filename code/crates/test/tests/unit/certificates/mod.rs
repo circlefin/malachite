@@ -12,8 +12,8 @@ pub mod types {
         Vote,
     };
     pub use malachitebft_core_types::{
-        CertificateError, Context, NilOrVal, Round, SignedVote, SigningProvider,
-        SigningProviderExt, ThresholdParams, VoteType, VotingPower,
+        CertificateError, Context, NilOrVal, Round, RoundCertificateType, SignedVote,
+        SigningProvider, SigningProviderExt, ThresholdParams, VoteType, VotingPower,
     };
     pub use malachitebft_signing_ed25519::Signature;
 }
