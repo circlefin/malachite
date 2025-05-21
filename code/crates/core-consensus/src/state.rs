@@ -7,7 +7,7 @@ use crate::input::Input;
 use crate::util::max_queue::MaxQueue;
 use crate::{FullProposal, FullProposalKeeper, Params, ProposedValue};
 
-/// The state maintained by consensus for processing a [`Input`][crate::Input].
+/// The state maintained by consensus for processing a [`Input`].
 pub struct State<Ctx>
 where
     Ctx: Context,

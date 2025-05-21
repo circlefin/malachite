@@ -15,16 +15,17 @@ use crate::{ConsensusMsg, VoteExtensionError, WalEntry};
 ///
 /// ```rust,ignore
 /// fn effect_handler(effect: Effect<Ctx>) -> Result<Resume<Ctx>, Error> {
-/// match effect {
-///    Effect::ResetTimeouts(r) => {
-///      reset_timeouts();
-///      Ok(r.resume_with(()))
-///    }
-///    Effect::GetValidatorSet(height, r) => {)
-///        let validator_set = get_validator_set(height);
-///        Ok(r.resume_with(validator_set))
-///    }
-///    // ...
+///     match effect {
+///         Effect::ResetTimeouts(r) => {
+///             reset_timeouts();
+///             Ok(r.resume_with(()))
+///         }
+///         Effect::GetValidatorSet(height, r) => {
+///             let validator_set = get_validator_set(height);
+///             Ok(r.resume_with(validator_set))
+///         }
+///        // ...
+///     }
 /// }
 /// ```
 pub trait Resumable<Ctx: Context> {
