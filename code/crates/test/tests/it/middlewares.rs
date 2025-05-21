@@ -1,3 +1,5 @@
+use core::fmt;
+
 use informalsystems_malachitebft_test::{self as malachitebft_test};
 
 use malachitebft_core_consensus::LocallyProposedValue;
@@ -46,14 +48,23 @@ impl Middleware for ByzantineProposer {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
 pub struct PrevoteNil {
-    enabled: fn(Height, Round, &NilOrVal<ValueId>) -> bool,
+    enabled: Box<dyn Fn(Height, Round, &NilOrVal<ValueId>) -> bool + Sync + Send>,
+}
+
+impl fmt::Debug for PrevoteNil {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PrevoteNil").finish()
+    }
 }
 
 impl PrevoteNil {
-    pub fn when(enabled: fn(Height, Round, &NilOrVal<ValueId>) -> bool) -> Self {
-        Self { enabled }
+    pub fn when(
+        enabled: impl Fn(Height, Round, &NilOrVal<ValueId>) -> bool + Sync + Send + 'static,
+    ) -> Self {
+        Self {
+            enabled: Box::new(enabled),
+        }
     }
 }
 
