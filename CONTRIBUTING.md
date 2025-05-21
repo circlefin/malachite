@@ -40,7 +40,17 @@ There are three ways you can contribute to Malachite:
 
 At this time, we will not be accepting contributions that only fix spelling or grammatical errors in documentation, code or elsewhere.
 
-Moreover, we will not accept any pull request which does not address an already existing issue, and which do not clearly specify which issue it is resolving and explains how it does so. 
+Pull requests will only be accepted if they meet **ALL** of the following criteria:
+
+1. The submitter must be a core contributor to Malachite
+    * OR the submitter must have been explicitly assigned to the issue that the PR addresses
+2. The PR must address an existing issue in our issue tracker
+3. The PR description must clearly reference the issue number it resolves and explain how it resolves the issue
+4. The PR must comply with all other contribution standards (code style, testing requirements, etc.)
+
+**Pull requests that do not meet these requirements will be closed without review.**
+
+If you are interested in contributing but are not a core contributor, please comment on an existing issue to request assignment before submitting a PR.
 
 ### Getting Help
 
