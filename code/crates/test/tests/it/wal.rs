@@ -403,44 +403,45 @@ async fn byzantine_proposer_crashes_after_proposing_2(params: TestParams) {
         .await
 }
 
-#[tokio::test]
-async fn multi_rounds() {
-    wal_multi_rounds(TestParams::default()).await
-}
-
-async fn wal_multi_rounds(params: TestParams) {
-    const CRASH_HEIGHT: u64 = 1;
+async fn test_multi_rounds(crash_height: u64, restart_after: Duration) {
+    let crash_round: u32 = 3;
+    let final_height: u64 = crash_height + 2;
 
     let mut test = TestBuilder::<()>::new();
 
     test.add_node()
-        .with_middleware(PrevoteNil::when(|_, round, _| round.as_i64() <= 3))
+        .with_middleware(PrevoteNil::when(move |height, round, _| {
+            height.as_u64() == crash_height && round.as_u32() <= Some(crash_round)
+        }))
         .start()
-        .wait_until(CRASH_HEIGHT)
-        .wait_until_round(3)
+        .wait_until(crash_height)
+        .wait_until_round(crash_round)
         .crash()
-        .restart_after(Duration::from_secs(10))
-        .expect_wal_replay(CRASH_HEIGHT)
-        .wait_until(CRASH_HEIGHT + 2)
+        .restart_after(restart_after)
+        .expect_wal_replay(crash_height)
+        .wait_until(final_height)
         .success();
 
-    test.add_node()
-        .start()
-        .wait_until(CRASH_HEIGHT + 2)
-        .success();
-
-    test.add_node()
-        .start()
-        .wait_until(CRASH_HEIGHT + 2)
-        .success();
+    test.add_node().start().wait_until(final_height).success();
+    test.add_node().start().wait_until(final_height).success();
 
     test.build()
         .run_with_params(
-            Duration::from_secs(120),
+            Duration::from_secs(90),
             TestParams {
                 enable_value_sync: false,
-                ..params
+                ..TestParams::default()
             },
         )
         .await
+}
+
+#[tokio::test]
+async fn multi_rounds_1() {
+    test_multi_rounds(1, Duration::from_secs(30)).await
+}
+
+#[tokio::test]
+async fn multi_rounds_2() {
+    test_multi_rounds(3, Duration::from_secs(10)).await
 }
