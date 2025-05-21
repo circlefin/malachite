@@ -49,12 +49,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      # - name: Setup Node
-      #   uses: actions/setup-node@v3
-      #   with:
-      #     node-version: "18"
-      # - name: Install Quint
-      #   run: npm install -g @informalsystems/quint
       - name: Setup Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
@@ -78,13 +72,12 @@ jobs:
             --output-path coverage-integration.info
       - name: Generate text report
         run: cargo llvm-cov report
-      - name: Upload integration coverage to Codecov
-        uses: codecov/codecov-action@v5
-        if: ${{ !cancelled() }}
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v3
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          flags: integration
-          fail_ci_if_error: false
+          name: integration-coverage
+          path: code/coverage-integration.info
+          retention-days: 1
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
         uses: codecov/test-results-action@v1
@@ -133,13 +126,12 @@ jobs:
            --all-features --codecov --output-path coverage-mbt.info
       - name: Generate text report
         run: cargo llvm-cov report
-      - name: Upload MBT coverage to Codecov
-        uses: codecov/codecov-action@v5
-        if: ${{ !cancelled() }}
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v3
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          flags: mbt
-          fail_ci_if_error: false
+          name: mbt-coverage
+          path: code/coverage-mbt.info
+          retention-days: 1
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
         uses: codecov/test-results-action@v1
@@ -147,3 +139,38 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: mbt
           fail_ci_if_error: false
+
+  upload-coverage:
+    name: Upload Combined Coverage
+    needs: [integration, mbt]
+    runs-on: ubuntu-latest
+    if: ${{ !cancelled() }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Create coverage directory
+        run: mkdir -p code/coverage
+      - name: Download integration coverage
+        uses: actions/download-artifact@v3
+        with:
+          name: integration-coverage
+          path: code/coverage
+      - name: Download mbt coverage
+        uses: actions/download-artifact@v3
+        with:
+          name: mbt-coverage
+          path: code/coverage
+      - name: List coverage files
+        run: ls -la code/coverage
+      - name: Upload Integration Coverage to Codecov
+        working-directory: code
+        run: |
+          bash <(curl -s https://codecov.io/bash) -f coverage/coverage-integration.info -F integration
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      - name: Upload MBT Coverage to Codecov
+        working-directory: code
+        run: |
+          bash <(curl -s https://codecov.io/bash) -f coverage/coverage-mbt.info -F mbt
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
