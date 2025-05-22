@@ -34,8 +34,7 @@ Malachite is a Byzantine-fault tolerant (BFT) consensus engine implemented in Ru
 Malachite `/ˈmæl.ə.kaɪt/` is pronounced as follows: __"Mala"__ (like in Malaysia) + __"kite"__ (like the flying toy).
 
 > [!IMPORTANT]
-> Malachite is pre-alpha software and still under heavy development.
-> At this stage, it is not meant for use in production.
+> Malachite is alpha software and under heavy development.
 > The software is provided "as is" and has not been externally audited; use at your own risk.
 
 ### Goals
@@ -59,12 +58,16 @@ Parts of Malachite were co-designed with their formal specification and model ch
 Early [experiments][announcement] with Malachite show an average finalization latency of 780 ms at a scale of 100 validators with 1MB blocks.
 Depending on the setup, Malachite can clear up to 2.5 blocks per second or finalize up to 13.5 MB/s (around 50,000 transactions per second).
 
+We publish regular performance benchmarks on the [dashboard][website-dashboard].
+
 #### Use-cases
 Malachite originated as a consensus core for the Starknet L2 decentralized sequencer.
 It will serve as the core consensus library in the [Madara][madara] and [Pathfinder][pathfinder] Starknet clients.
 Malachite is also being used for Farcaster’s newest backend layer called [Snapchain](https://github.com/farcasterxyz/snapchain-v0/).
 Thanks to its flexible design, Malachite is amenable to a broad range of environments, and a number of other teams are building and exploring in private.
-Please reach-out if interested, we would love to speak with more teams.
+Please [reach-out if interested][tg-url], we would love to speak with more teams.
+
+To follow-up with use-cases and more general announcements, see the [blog][website-announcements].
 
 ## Overview
 
@@ -175,6 +178,8 @@ Unless required by applicable law or agreed to in writing, software distributed 
 [announcement]: https://informal.systems/blog/malachite-decentralize-whatever
 [madara]: https://github.com/madara-alliance/madara
 [pathfinder]: https://github.com/eqlabs/pathfinder
+[website-dashboard]: https://informal.systems/malachite/dashboard
+[website-announcements]: https://informal.systems/malachite/blog
 
 [//]: # (crates.io and docs.rs: links and badges)
 [core-consensus-crate-image]: https://img.shields.io/crates/v/informalsystems-malachitebft-core-consensus

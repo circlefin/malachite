@@ -49,6 +49,7 @@ impl Middleware for ByzantineProposer {
 }
 
 pub struct PrevoteNil {
+    #[allow(clippy::type_complexity)]
     enabled: Box<dyn Fn(Height, Round, &NilOrVal<ValueId>) -> bool + Sync + Send>,
 }
 

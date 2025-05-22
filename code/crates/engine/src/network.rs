@@ -124,7 +124,7 @@ pub enum State<Ctx: Context> {
         listen_addrs: Vec<Multiaddr>,
         peers: BTreeSet<PeerId>,
         output_port: OutputPort<NetworkEvent<Ctx>>,
-        ctrl_handle: CtrlHandle,
+        ctrl_handle: Box<CtrlHandle>,
         recv_task: JoinHandle<()>,
         inbound_requests: HashMap<InboundRequestId, request_response::InboundRequestId>,
     },
@@ -214,7 +214,7 @@ where
             listen_addrs: Vec::new(),
             peers: BTreeSet::new(),
             output_port: OutputPort::with_capacity(128),
-            ctrl_handle,
+            ctrl_handle: Box::new(ctrl_handle),
             recv_task,
             inbound_requests: HashMap::new(),
         })
