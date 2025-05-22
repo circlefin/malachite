@@ -55,10 +55,10 @@ impl CertificateBuilder for RoundPrecommit {
 /// representing more than 1/3 of the total voting power.
 #[test]
 fn valid_round_skip_certificate_with_sufficient_voting_power() {
+    // SkipRoundCertificate from prevotes
     CertificateTest::<RoundSkip>::new()
         .with_validators([20, 20, 30, 30])
-        .with_votes(0..2, VoteType::Prevote)
-        .with_votes(2..4, VoteType::Precommit)
+        .with_votes(0..4, VoteType::Prevote)
         .expect_valid();
 
     CertificateTest::<RoundSkip>::new()
@@ -70,12 +70,104 @@ fn valid_round_skip_certificate_with_sufficient_voting_power() {
         .with_validators([20, 20, 30, 30])
         .with_votes(0..2, VoteType::Prevote)
         .expect_valid();
+
+    // SkipRoundCertificate from precommits
+    CertificateTest::<RoundSkip>::new()
+        .with_validators([20, 20, 30, 30])
+        .with_votes(0..4, VoteType::Precommit)
+        .expect_valid();
+
+    CertificateTest::<RoundSkip>::new()
+        .with_validators([20, 20, 30, 30])
+        .with_votes(0..3, VoteType::Precommit)
+        .expect_valid();
+
+    CertificateTest::<RoundSkip>::new()
+        .with_validators([20, 20, 30, 30])
+        .with_votes(0..2, VoteType::Precommit)
+        .expect_valid();
+
+    // SkipRoundCertificate from prevotes nil
+    CertificateTest::<RoundSkip>::new()
+        .with_validators([20, 20, 30, 30])
+        .with_nil_votes(0..4, VoteType::Prevote)
+        .expect_valid();
+
+    CertificateTest::<RoundSkip>::new()
+        .with_validators([20, 20, 30, 30])
+        .with_nil_votes(0..3, VoteType::Prevote)
+        .expect_valid();
+
+    CertificateTest::<RoundSkip>::new()
+        .with_validators([20, 20, 30, 30])
+        .with_nil_votes(0..2, VoteType::Prevote)
+        .expect_valid();
+
+    // SkipRoundCertificate from precommits nil
+    CertificateTest::<RoundSkip>::new()
+        .with_validators([20, 20, 30, 30])
+        .with_nil_votes(0..4, VoteType::Precommit)
+        .expect_valid();
+
+    CertificateTest::<RoundSkip>::new()
+        .with_validators([20, 20, 30, 30])
+        .with_nil_votes(0..3, VoteType::Precommit)
+        .expect_valid();
+
+    CertificateTest::<RoundSkip>::new()
+        .with_validators([20, 20, 30, 30])
+        .with_nil_votes(0..2, VoteType::Precommit)
+        .expect_valid();
+
+    // SkipRoundCertificate from mixed votes
+    CertificateTest::<RoundSkip>::new()
+        .with_validators([20, 20, 30, 30])
+        .with_votes(0..1, VoteType::Precommit)
+        .with_nil_votes(1..3, VoteType::Prevote)
+        .with_different_value_vote(3, VoteType::Precommit)
+        .expect_valid();
+
+    CertificateTest::<RoundSkip>::new()
+        .with_validators([20, 20, 30, 30])
+        .with_nil_votes(0..1, VoteType::Precommit)
+        .with_votes(1..2, VoteType::Prevote)
+        .with_different_value_vote(2, VoteType::Prevote)
+        .expect_valid();
+
+    CertificateTest::<RoundSkip>::new()
+        .with_validators([20, 20, 30, 30])
+        .with_votes(0..1, VoteType::Precommit)
+        .with_different_value_vote(1, VoteType::Prevote)
+        .expect_valid();
+}
+
+/// Tests the verification of a valid SkipRoundCertificate with signatures from validators
+/// representing more than 1/3 of the total voting power with random mixed votes.
+#[test]
+fn valid_round_skip_certificate_with_mixed_votes_with_sufficient_voting_power() {
+    for _ in 0..1000 {
+        CertificateTest::<RoundSkip>::new()
+            .with_validators([20, 20, 30, 30])
+            .with_random_votes(0..4, None)
+            .expect_valid();
+
+        CertificateTest::<RoundSkip>::new()
+            .with_validators([20, 20, 30, 30])
+            .with_random_votes(0..3, None)
+            .expect_valid();
+
+        CertificateTest::<RoundSkip>::new()
+            .with_validators([20, 20, 30, 30])
+            .with_random_votes(0..2, None)
+            .expect_valid();
+    }
 }
 
 /// Tests the verification of a valid PrecommitRoundCertificate with signatures from validators
 /// representing more than 2/3 of the total voting power.
 #[test]
 fn valid_round_precommit_certificate_with_sufficient_voting_power() {
+    // PrecommitRoundCertificate from precommits
     CertificateTest::<RoundPrecommit>::new()
         .with_validators([20, 20, 30, 30])
         .with_votes(0..4, VoteType::Precommit)
@@ -85,6 +177,49 @@ fn valid_round_precommit_certificate_with_sufficient_voting_power() {
         .with_validators([20, 20, 30, 30])
         .with_votes(0..3, VoteType::Precommit)
         .expect_valid();
+
+    // PrecommitRoundCertificate from precommits nil
+    CertificateTest::<RoundPrecommit>::new()
+        .with_validators([20, 20, 30, 30])
+        .with_nil_votes(0..4, VoteType::Precommit)
+        .expect_valid();
+
+    CertificateTest::<RoundPrecommit>::new()
+        .with_validators([20, 20, 30, 30])
+        .with_nil_votes(0..3, VoteType::Precommit)
+        .expect_valid();
+
+    // PrecommitRoundCertificate from mixed precommits
+    CertificateTest::<RoundPrecommit>::new()
+        .with_validators([20, 20, 30, 30])
+        .with_votes(0..2, VoteType::Precommit)
+        .with_nil_votes(2..3, VoteType::Precommit)
+        .with_different_value_vote(3, VoteType::Precommit)
+        .expect_valid();
+
+    CertificateTest::<RoundPrecommit>::new()
+        .with_validators([20, 20, 30, 30])
+        .with_votes(0..1, VoteType::Precommit)
+        .with_nil_votes(1..2, VoteType::Precommit)
+        .with_different_value_vote(2, VoteType::Precommit)
+        .expect_valid();
+}
+
+/// Tests the verification of a valid PrecommitRoundCertificate with signatures from validators
+/// representing more than 1/3 of the total voting power with random mixed votes.
+#[test]
+fn valid_round_precommit_certificate_with_mixed_votes_with_sufficient_voting_power() {
+    for _ in 0..1000 {
+        CertificateTest::<RoundPrecommit>::new()
+            .with_validators([20, 20, 30, 30])
+            .with_random_votes(0..4, Some(VoteType::Precommit))
+            .expect_valid();
+
+        CertificateTest::<RoundPrecommit>::new()
+            .with_validators([20, 20, 30, 30])
+            .with_random_votes(0..3, Some(VoteType::Precommit))
+            .expect_valid();
+    }
 }
 
 /// Tests the verification of a skip round certificate with signatures from validators
@@ -93,7 +228,8 @@ fn valid_round_precommit_certificate_with_sufficient_voting_power() {
 fn valid_round_skip_certificate_with_exact_threshold_voting_power() {
     CertificateTest::<RoundSkip>::new()
         .with_validators([12, 21, 29, 35])
-        .with_votes(0..2, VoteType::Prevote)
+        .with_votes(0..1, VoteType::Prevote)
+        .with_nil_votes(1..2, VoteType::Precommit)
         .expect_valid();
 
     CertificateTest::<RoundSkip>::new()

@@ -20,6 +20,8 @@ pub mod types {
 
 use types::*;
 
+use rand::Rng;
+
 const DEFAULT_SEED: u64 = 0xfeedbeef;
 
 pub fn make_validators<const N: usize>(
@@ -187,7 +189,7 @@ where
         if index < self.validators.len() {
             let vote = self.signers[index].sign_vote(C::make_vote(
                 &self.ctx,
-                self.height.increment(),
+                self.height,
                 self.round,
                 NilOrVal::Val(ValueId::new(85)),
                 vote_type,
@@ -196,6 +198,42 @@ where
 
             self.votes.push(vote);
         }
+        self
+    }
+
+    /// Add votes to include in the certificate with random types and values
+    /// If vote_type_opt is Some, uses that vote type; otherwise picks one at random.
+    pub fn with_random_votes(
+        mut self,
+        indices: impl IntoIterator<Item = usize>,
+        vote_type_opt: Option<VoteType>,
+    ) -> Self {
+        let mut rng = rand::thread_rng();
+
+        for idx in indices {
+            if idx < self.validators.len() {
+                let vote_type = match vote_type_opt {
+                    Some(vt) => vt,
+                    None => {
+                        // Randomly pick vote type
+                        if rng.gen_range(0..2) == 0 {
+                            VoteType::Prevote
+                        } else {
+                            VoteType::Precommit
+                        }
+                    }
+                };
+
+                // Randomly pick value kind: 0 = nil, 1 = same value, 2 = different value
+                match rng.gen_range(0..3) {
+                    0 => self = self.with_nil_votes([idx], vote_type),
+                    1 => self = self.with_votes([idx], vote_type),
+                    2 => self = self.with_different_value_vote(idx, vote_type),
+                    _ => unreachable!(),
+                };
+            }
+        }
+
         self
     }
 
