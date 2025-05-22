@@ -57,18 +57,18 @@ impl CertificateBuilder for RoundPrecommit {
 fn valid_round_skip_certificate_with_sufficient_voting_power() {
     CertificateTest::<RoundSkip>::new()
         .with_validators([20, 20, 30, 30])
-        .with_signatures(0..2, VoteType::Prevote)
-        .with_signatures(2..4, VoteType::Precommit)
+        .with_votes(0..2, VoteType::Prevote)
+        .with_votes(2..4, VoteType::Precommit)
         .expect_valid();
 
     CertificateTest::<RoundSkip>::new()
         .with_validators([20, 20, 30, 30])
-        .with_signatures(0..3, VoteType::Prevote)
+        .with_votes(0..3, VoteType::Prevote)
         .expect_valid();
 
     CertificateTest::<RoundSkip>::new()
         .with_validators([20, 20, 30, 30])
-        .with_signatures(0..2, VoteType::Prevote)
+        .with_votes(0..2, VoteType::Prevote)
         .expect_valid();
 }
 
@@ -78,12 +78,12 @@ fn valid_round_skip_certificate_with_sufficient_voting_power() {
 fn valid_round_precommit_certificate_with_sufficient_voting_power() {
     CertificateTest::<RoundPrecommit>::new()
         .with_validators([20, 20, 30, 30])
-        .with_signatures(0..4, VoteType::Precommit)
+        .with_votes(0..4, VoteType::Precommit)
         .expect_valid();
 
     CertificateTest::<RoundPrecommit>::new()
         .with_validators([20, 20, 30, 30])
-        .with_signatures(0..3, VoteType::Precommit)
+        .with_votes(0..3, VoteType::Precommit)
         .expect_valid();
 }
 
@@ -93,12 +93,12 @@ fn valid_round_precommit_certificate_with_sufficient_voting_power() {
 fn valid_round_skip_certificate_with_exact_threshold_voting_power() {
     CertificateTest::<RoundSkip>::new()
         .with_validators([12, 21, 29, 35])
-        .with_signatures(0..2, VoteType::Prevote)
+        .with_votes(0..2, VoteType::Prevote)
         .expect_valid();
 
     CertificateTest::<RoundSkip>::new()
         .with_validators([23, 19, 25, 0])
-        .with_signatures(0..1, VoteType::Prevote)
+        .with_votes(0..1, VoteType::Prevote)
         .expect_valid();
 }
 
@@ -108,12 +108,12 @@ fn valid_round_skip_certificate_with_exact_threshold_voting_power() {
 fn valid_round_precommit_certificate_with_exact_threshold_voting_power() {
     CertificateTest::<RoundPrecommit>::new()
         .with_validators([15, 19, 31, 32])
-        .with_signatures(0..3, VoteType::Precommit)
+        .with_votes(0..3, VoteType::Precommit)
         .expect_valid();
 
     CertificateTest::<RoundPrecommit>::new()
         .with_validators([30, 36, 16, 15])
-        .with_signatures(0..2, VoteType::Precommit)
+        .with_votes(0..2, VoteType::Precommit)
         .expect_valid();
 }
 
@@ -122,7 +122,7 @@ fn valid_round_precommit_certificate_with_exact_threshold_voting_power() {
 fn invalid_round_skip_certificate_insufficient_voting_power() {
     CertificateTest::<RoundSkip>::new()
         .with_validators([10, 5, 10, 75])
-        .with_signatures(0..3, VoteType::Prevote)
+        .with_votes(0..3, VoteType::Prevote)
         .expect_error(CertificateError::NotEnoughVotingPower {
             signed: 25,
             total: 100,
@@ -131,7 +131,7 @@ fn invalid_round_skip_certificate_insufficient_voting_power() {
 
     CertificateTest::<RoundSkip>::new()
         .with_validators([10, 10, 30, 50])
-        .with_signatures(0..2, VoteType::Prevote)
+        .with_votes(0..2, VoteType::Prevote)
         .expect_error(CertificateError::NotEnoughVotingPower {
             signed: 20,
             total: 100,
@@ -144,7 +144,7 @@ fn invalid_round_skip_certificate_insufficient_voting_power() {
 fn invalid_round_precommit_certificate_insufficient_voting_power() {
     CertificateTest::<RoundPrecommit>::new()
         .with_validators([10, 30, 10, 50])
-        .with_signatures(0..3, VoteType::Precommit)
+        .with_votes(0..3, VoteType::Precommit)
         .expect_error(CertificateError::NotEnoughVotingPower {
             signed: 50,
             total: 100,
@@ -153,7 +153,7 @@ fn invalid_round_precommit_certificate_insufficient_voting_power() {
 
     CertificateTest::<RoundPrecommit>::new()
         .with_validators([30, 36, 0, 34])
-        .with_signatures(0..2, VoteType::Precommit)
+        .with_votes(0..2, VoteType::Precommit)
         .expect_error(CertificateError::NotEnoughVotingPower {
             signed: 66,
             total: 100,
@@ -166,26 +166,25 @@ fn invalid_round_precommit_certificate_insufficient_voting_power() {
 fn invalid_round_certificate_duplicate_validator_vote() {
     let validator_addr = {
         let (validators, _) = make_validators([10, 10, 10, 10], DEFAULT_SEED);
-        validators[0].address
+        validators[2].address
     };
 
     CertificateTest::<RoundSkip>::new()
         .with_validators([10, 10, 10, 10])
-        .with_signatures(0..4, VoteType::Prevote)
-        .with_duplicate_vote(0, VoteType::Prevote) // Add duplicate vote from validator 0
+        .with_votes(0..3, VoteType::Prevote)
+        .with_duplicate_last_vote() // Add duplicate vote from validator 2
         .expect_error(CertificateError::DuplicateVote(validator_addr));
 
     CertificateTest::<RoundPrecommit>::new()
         .with_validators([10, 10, 10, 10])
-        .with_signatures(0..4, VoteType::Precommit)
-        .with_duplicate_vote(0, VoteType::Precommit) // Add duplicate vote from validator 0
+        .with_votes(0..3, VoteType::Precommit)
+        .with_duplicate_last_vote() // Add duplicate vote from validator 2
         .expect_error(CertificateError::DuplicateVote(validator_addr));
 }
 
 /// Tests the verification of a round certificate containing a vote from a validator not in the validator set.
 #[test]
 fn invalid_round_certificate_unknown_validator() {
-    // Define the seed for generating the other validator twice
     let seed = 0xcafecafe;
 
     let external_validator_addr = {
@@ -195,14 +194,14 @@ fn invalid_round_certificate_unknown_validator() {
 
     CertificateTest::<RoundSkip>::new()
         .with_validators([10, 10, 10, 10])
-        .with_signatures(0..4, VoteType::Prevote)
-        .with_external_vote(seed, VoteType::Prevote)
+        .with_votes(0..3, VoteType::Prevote)
+        .with_non_validator_vote(seed, VoteType::Prevote)
         .expect_error(CertificateError::UnknownValidator(external_validator_addr));
 
     CertificateTest::<RoundPrecommit>::new()
         .with_validators([10, 10, 10, 10])
-        .with_signatures(0..4, VoteType::Precommit)
-        .with_external_vote(seed, VoteType::Prevote)
+        .with_votes(0..3, VoteType::Precommit)
+        .with_non_validator_vote(seed, VoteType::Prevote)
         .expect_error(CertificateError::UnknownValidator(external_validator_addr));
 }
 
@@ -211,8 +210,8 @@ fn invalid_round_certificate_unknown_validator() {
 fn invalid_round_certificate_invalid_signature() {
     CertificateTest::<RoundSkip>::new()
         .with_validators([20, 5, 5])
-        .with_signatures(0..3, VoteType::Precommit)
-        .with_invalid_signature(0) // Validator 0 has invalid signature
+        .with_votes(1..3, VoteType::Precommit)
+        .with_invalid_signature_vote(0, VoteType::Precommit) // Validator 0 has invalid signature
         .expect_error(CertificateError::NotEnoughVotingPower {
             signed: 10,
             total: 30,
@@ -221,8 +220,8 @@ fn invalid_round_certificate_invalid_signature() {
 
     CertificateTest::<RoundPrecommit>::new()
         .with_validators([10, 10, 10])
-        .with_signatures(0..3, VoteType::Precommit)
-        .with_invalid_signature(0) // Validator 0 has invalid signature
+        .with_votes(1..3, VoteType::Precommit)
+        .with_invalid_signature_vote(0, VoteType::Precommit) // Validator 0 has invalid signature
         .expect_error(CertificateError::NotEnoughVotingPower {
             signed: 20,
             total: 30,
@@ -235,8 +234,8 @@ fn invalid_round_certificate_invalid_signature() {
 fn invalid_polka_certificate_wrong_vote_height_round() {
     CertificateTest::<RoundSkip>::new()
         .with_validators([5, 5, 20])
-        .with_signatures(0..2, VoteType::Prevote)
-        .with_invalid_vote_height(2, VoteType::Prevote) // Validator 2 has invalid vote height
+        .with_votes(0..2, VoteType::Prevote)
+        .with_invalid_height_vote(2, VoteType::Prevote) // Validator 2 has invalid vote height
         .expect_error(CertificateError::NotEnoughVotingPower {
             signed: 10,
             total: 30,
@@ -245,8 +244,8 @@ fn invalid_polka_certificate_wrong_vote_height_round() {
 
     CertificateTest::<RoundSkip>::new()
         .with_validators([5, 5, 20])
-        .with_signatures(0..2, VoteType::Prevote)
-        .with_invalid_vote_round(2, VoteType::Prevote) // Validator 2 has invalid vote round
+        .with_votes(0..2, VoteType::Prevote)
+        .with_invalid_round_vote(2, VoteType::Prevote) // Validator 2 has invalid vote round
         .expect_error(CertificateError::NotEnoughVotingPower {
             signed: 10,
             total: 30,
@@ -255,8 +254,8 @@ fn invalid_polka_certificate_wrong_vote_height_round() {
 
     CertificateTest::<RoundPrecommit>::new()
         .with_validators([10, 10, 10])
-        .with_signatures(0..2, VoteType::Precommit)
-        .with_invalid_vote_height(2, VoteType::Precommit) // Validator 2 has invalid vote height
+        .with_votes(0..2, VoteType::Precommit)
+        .with_invalid_height_vote(2, VoteType::Precommit) // Validator 2 has invalid vote height
         .expect_error(CertificateError::NotEnoughVotingPower {
             signed: 20,
             total: 30,
@@ -265,8 +264,8 @@ fn invalid_polka_certificate_wrong_vote_height_round() {
 
     CertificateTest::<RoundPrecommit>::new()
         .with_validators([10, 10, 10])
-        .with_signatures(0..2, VoteType::Precommit)
-        .with_invalid_vote_round(2, VoteType::Precommit) // Validator 2 has invalid vote round
+        .with_votes(0..2, VoteType::Precommit)
+        .with_invalid_round_vote(2, VoteType::Precommit) // Validator 2 has invalid vote round
         .expect_error(CertificateError::NotEnoughVotingPower {
             signed: 20,
             total: 30,
@@ -279,7 +278,7 @@ fn invalid_polka_certificate_wrong_vote_height_round() {
 fn empty_round_certificate() {
     CertificateTest::<RoundSkip>::new()
         .with_validators([1, 1, 1])
-        .with_signatures([], VoteType::Prevote) // No signatures
+        .with_votes([], VoteType::Prevote) // No signatures
         .expect_error(CertificateError::NotEnoughVotingPower {
             signed: 0,
             total: 3,
@@ -288,7 +287,7 @@ fn empty_round_certificate() {
 
     CertificateTest::<RoundPrecommit>::new()
         .with_validators([1, 1, 1])
-        .with_signatures([], VoteType::Precommit) // No signatures
+        .with_votes([], VoteType::Precommit) // No signatures
         .expect_error(CertificateError::NotEnoughVotingPower {
             signed: 0,
             total: 3,
@@ -298,19 +297,19 @@ fn empty_round_certificate() {
 
 /// Tests the verification of a certificate containing both valid and invalid votes.
 #[test]
-fn polka_certificate_with_mixed_valid_and_invalid_votes() {
+fn round_certificate_with_mixed_valid_and_invalid_votes() {
     CertificateTest::<RoundSkip>::new()
         .with_validators([10, 20, 30, 40])
-        .with_signatures(0..4, VoteType::Prevote)
-        .with_invalid_signature(0) // Invalid signature for validator 0
-        .with_invalid_signature(1) // Invalid signature for validator 1
+        .with_votes(2..4, VoteType::Prevote)
+        .with_invalid_signature_vote(0, VoteType::Prevote) // Invalid signature for validator 0
+        .with_invalid_signature_vote(1, VoteType::Prevote) // Invalid signature for validator 1
         .expect_valid();
 
     CertificateTest::<RoundSkip>::new()
         .with_validators([10, 20, 30, 40])
-        .with_signatures(0..4, VoteType::Precommit)
-        .with_invalid_signature(2) // Invalid signature for validator 2
-        .with_invalid_signature(3) // Invalid signature for validator 3
+        .with_votes(0..2, VoteType::Precommit)
+        .with_invalid_signature_vote(2, VoteType::Precommit) // Invalid signature for validator 2
+        .with_invalid_signature_vote(3, VoteType::Precommit) // Invalid signature for validator 3
         .expect_error(CertificateError::NotEnoughVotingPower {
             signed: 30,
             total: 100,
@@ -319,16 +318,16 @@ fn polka_certificate_with_mixed_valid_and_invalid_votes() {
 
     CertificateTest::<RoundPrecommit>::new()
         .with_validators([10, 20, 30, 40])
-        .with_signatures(0..4, VoteType::Precommit)
-        .with_invalid_signature(0) // Invalid signature for validator 0
-        .with_invalid_signature(1) // Invalid signature for validator 1
+        .with_votes(2..4, VoteType::Precommit)
+        .with_invalid_signature_vote(0, VoteType::Precommit) // Invalid signature for validator 0
+        .with_invalid_signature_vote(1, VoteType::Precommit) // Invalid signature for validator 1
         .expect_valid();
 
     CertificateTest::<RoundPrecommit>::new()
         .with_validators([10, 20, 30, 40])
-        .with_signatures(0..4, VoteType::Precommit)
-        .with_invalid_signature(2) // Invalid signature for validator 2
-        .with_invalid_signature(3) // Invalid signature for validator 3
+        .with_votes(0..2, VoteType::Precommit)
+        .with_invalid_signature_vote(2, VoteType::Precommit) // Invalid signature for validator 2
+        .with_invalid_signature_vote(3, VoteType::Precommit) // Invalid signature for validator 3
         .expect_error(CertificateError::NotEnoughVotingPower {
             signed: 30,
             total: 100,
