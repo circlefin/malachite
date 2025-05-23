@@ -6,7 +6,7 @@ use ractor::ActorProcessingErr;
 use tokio::sync::broadcast;
 
 use malachitebft_core_consensus::{
-    LocallyProposedValue, ProposedValue, SignedConsensusMsg, WalEntry,
+    LocallyProposedValue, ProposedValue, Role, SignedConsensusMsg, WalEntry,
 };
 use malachitebft_core_types::{
     CommitCertificate, Context, PolkaCertificate, Round, RoundCertificate, SignedVote, ValueOrigin,
@@ -45,7 +45,7 @@ impl<Ctx: Context> Default for TxEvent<Ctx> {
 #[derive_where(Clone, Debug)]
 pub enum Event<Ctx: Context> {
     StartedHeight(Ctx::Height, bool),
-    StartedRound(Ctx::Height, Round),
+    StartedRound(Ctx::Height, Round, Ctx::Address, Role),
     Published(SignedConsensusMsg<Ctx>),
     ProposedValue(LocallyProposedValue<Ctx>),
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
@@ -66,8 +66,8 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
             Event::StartedHeight(height, restart) => {
                 write!(f, "StartedHeight(height: {height}, restart: {restart})")
             }
-            Event::StartedRound(height, round) => {
-                write!(f, "StartedRound(height: {height}, round: {round})")
+            Event::StartedRound(height, round, proposer, role) => {
+                write!(f, "StartedRound(height: {height}, round: {round}, proposer: {proposer}, role: {role:?})")
             }
             Event::Published(msg) => write!(f, "Published(msg: {msg:?})"),
             Event::ProposedValue(value) => write!(f, "ProposedValue(value: {value:?})"),

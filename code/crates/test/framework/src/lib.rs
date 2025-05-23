@@ -292,11 +292,11 @@ where
                         return TestResult::Failure(failure);
                     }
 
-                    let Event::StartedRound(_, round) = event else {
+                    let Event::StartedRound(_, round, _, role) = event else {
                         continue 'inner;
                     };
 
-                    info!("Node started round {round}");
+                    info!(%round, ?role, "Node started round");
 
                     if round.as_u32() == Some(target_round) {
                         break 'inner;

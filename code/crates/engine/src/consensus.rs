@@ -927,16 +927,18 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::StartRound(height, round, proposer, r) => {
+            Effect::StartRound(height, round, proposer, role, r) => {
                 self.wal_flush(state.phase).await?;
 
                 self.host.cast(HostMsg::StartedRound {
                     height,
                     round,
-                    proposer,
+                    proposer: proposer.clone(),
+                    role,
                 })?;
 
-                self.tx_event.send(|| Event::StartedRound(height, round));
+                self.tx_event
+                    .send(|| Event::StartedRound(height, round, proposer, role));
 
                 Ok(r.resume_with(()))
             }

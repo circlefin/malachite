@@ -12,6 +12,7 @@ use crate::types::{
     LivenessMsg, {LocallyProposedValue, SignedConsensusMsg},
 };
 use crate::util::pretty::PrettyVal;
+use crate::Role;
 
 use super::propose::on_propose;
 
@@ -56,14 +57,23 @@ where
                 }
             }
 
-            info!(%height, %round, %proposer, "Starting new round");
+            let role = if state.address() == proposer {
+                Role::Proposer
+            } else if state.is_validator() {
+                Role::Validator
+            } else {
+                Role::None
+            };
+
+            info!(%height, %round, %proposer, ?role, "Starting new round");
+
             state.last_signed_prevote = None;
             state.last_signed_precommit = None;
 
             perform!(co, Effect::CancelAllTimeouts(Default::default()));
             perform!(
                 co,
-                Effect::StartRound(*height, *round, proposer.clone(), Default::default())
+                Effect::StartRound(*height, *round, proposer.clone(), role, Default::default())
             );
 
             #[cfg(feature = "metrics")]

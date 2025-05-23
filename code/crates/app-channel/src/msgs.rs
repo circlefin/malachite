@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use derive_where::derive_where;
+use malachitebft_app::consensus::Role;
 use malachitebft_app::types::core::ValueOrigin;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
@@ -49,6 +50,8 @@ pub enum AppMsg<Ctx: Context> {
         round: Round,
         /// Proposer for that round
         proposer: Ctx::Address,
+        /// Role that this node is playing in this round
+        role: Role,
         /// Channel for sending back previously received undecided values to consensus
         reply_value: Reply<Vec<ProposedValue<Ctx>>>,
     },

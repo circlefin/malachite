@@ -10,7 +10,7 @@ use rand::{Rng, SeedableRng};
 use sha3::Digest;
 use tracing::{debug, error};
 
-use malachitebft_app_channel::app::consensus::ProposedValue;
+use malachitebft_app_channel::app::consensus::{ProposedValue, Role};
 use malachitebft_app_channel::app::streaming::{StreamContent, StreamId, StreamMessage};
 use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::{CommitCertificate, Round, Validity};
@@ -38,6 +38,7 @@ pub struct State {
     pub current_height: Height,
     pub current_round: Round,
     pub current_proposer: Option<Address>,
+    pub current_role: Role,
     pub peers: HashSet<PeerId>,
     pub store: Store,
 
@@ -67,6 +68,7 @@ impl State {
             current_height: height,
             current_round: Round::new(0),
             current_proposer: None,
+            current_role: Role::None,
             streams_map: PartStreamsMap::new(),
             rng: StdRng::from_entropy(),
             peers: HashSet::new(),
