@@ -206,7 +206,7 @@ fn valid_round_precommit_certificate_with_sufficient_voting_power() {
 }
 
 /// Tests the verification of a valid PrecommitRoundCertificate with signatures from validators
-/// representing more than 1/3 of the total voting power with random mixed votes.
+/// representing more than 2/3 of the total voting power with random mixed votes.
 #[test]
 fn valid_round_precommit_certificate_with_mixed_votes_with_sufficient_voting_power() {
     for _ in 0..1000 {
