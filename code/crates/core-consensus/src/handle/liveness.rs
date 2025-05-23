@@ -114,14 +114,27 @@ where
         return Ok(());
     }
 
-    if certificate.round < state.round() {
-        warn!(
-            %certificate.round,
-            consensus.round = %state.round(),
-            "Round certificate from older round"
-        );
-
-        return Ok(());
+    match certificate.cert_type {
+        RoundCertificateType::Precommit => {
+            if certificate.round < state.round() {
+                warn!(
+                    %certificate.round,
+                    consensus.round = %state.round(),
+                    "Precommit round certificate from older round"
+                );
+                return Ok(());
+            }
+        }
+        RoundCertificateType::Skip => {
+            if certificate.round <= state.round() {
+                warn!(
+                    %certificate.round,
+                    consensus.round = %state.round(),
+                    "Skip round certificate from same or older round"
+                );
+                return Ok(());
+            }
+        }
     }
 
     let validator_set = get_validator_set(co, state, certificate.height)
