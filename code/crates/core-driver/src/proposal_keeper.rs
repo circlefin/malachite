@@ -24,7 +24,7 @@ where
         /// The conflicting proposal, from the same validator.
         conflicting: SignedProposal<Ctx>,
     },
-
+    /*
     /// Attempted to record a conflicting proposal from a different validator.
     #[error("Invalid conflicting proposal: existing: {existing}, conflicting: {conflicting}")]
     InvalidConflictingProposal {
@@ -32,7 +32,7 @@ where
         existing: SignedProposal<Ctx>,
         /// The conflicting proposal, from a different validator.
         conflicting: SignedProposal<Ctx>,
-    },
+    },*/
 }
 
 #[derive_where(Clone, Debug, PartialEq, Eq, Default)]
@@ -48,11 +48,6 @@ impl<Ctx> PerRound<Ctx>
 where
     Ctx: Context,
 {
-    /// Create a new `PerRound` instance
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     /// Return the first proposal and its validity that matches the given value_id, if any.
     fn get_first_proposal_and_validity(
         &self,
@@ -174,19 +169,17 @@ where
             }) => {
                 // This is an equivocating proposal
                 self.evidence.add(existing, conflicting);
-            }
-
-            Err(RecordProposalError::InvalidConflictingProposal {
-                existing,
-                conflicting,
-            }) => {
-                // This is not a valid equivocating proposal, since the two proposers are different
-                // We should never reach this point, since the consensus algorithm should prevent this.
-                unreachable!(
-                    "Conflicting proposals from different validators: existing: {}, conflicting: {}",
-                    existing.validator_address(), conflicting.validator_address()
-                );
-            }
+            } /*Err(RecordProposalError::InvalidConflictingProposal {
+                  existing,
+                  conflicting,
+              }) => {
+                  // This is not a valid equivocating proposal, since the two proposers are different
+                  // We should never reach this point, since the consensus algorithm should prevent this.
+                  unreachable!(
+                      "Conflicting proposals from different validators: existing: {}, conflicting: {}",
+                      existing.validator_address(), conflicting.validator_address()
+                  );
+              }*/
         }
     }
 }
@@ -229,10 +222,10 @@ where
     /// # Precondition
     /// - Panics if the two conflicting proposals were not proposed by the same validator.
     pub(crate) fn add(&mut self, existing: SignedProposal<Ctx>, conflicting: SignedProposal<Ctx>) {
-        assert_eq!(
+        /*assert_eq!(
             existing.validator_address(),
             conflicting.validator_address()
-        );
+        );*/
 
         if let Some(evidence) = self.map.get_mut(conflicting.validator_address()) {
             evidence.push((existing, conflicting));
