@@ -297,8 +297,13 @@ where
                 && vote.value().is_val()
                 && state.driver.round() >= HIDDEN_LOCK_ROUND
             {
-                if let Some((signed_proposal, Validity::Valid)) =
-                    state.driver.proposal_and_validity_for_round(vote.round())
+                let value_id = match vote.value() {
+                    NilOrVal::Val(id) => id,
+                    NilOrVal::Nil => unreachable!("Expected Val, got Nil"),
+                };
+                if let Some((signed_proposal, Validity::Valid)) = state
+                    .driver
+                    .proposal_and_validity_for_round_and_value(vote.round(), value_id.clone())
                 {
                     perform!(
                         co,

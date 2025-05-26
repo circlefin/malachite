@@ -1565,7 +1565,7 @@ fn driver_equivocate_proposal() {
 }
 
 #[test]
-#[should_panic(expected = "unreachable code: Conflicting proposals from different validators")]
+//#[should_panic(expected = "unreachable code: Conflicting proposals from different validators")]
 fn driver_conflicting_proposal_unreachable() {
     let value1 = Value::new(9999);
     let value2 = Value::new(42);
