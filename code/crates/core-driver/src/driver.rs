@@ -248,7 +248,7 @@ where
     }
 
     /// Returns the proposals and their validities for the given round, if any.
-    pub fn get_proposals_and_validities_for_round(
+    pub fn proposals_and_validities_for_round(
         &self,
         round: Round,
     ) -> Option<&[(SignedProposal<Ctx>, Validity)]> {

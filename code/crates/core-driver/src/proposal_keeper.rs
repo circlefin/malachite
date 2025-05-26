@@ -69,7 +69,7 @@ where
     }
 
     /// Returns all proposals and their validities.
-    pub fn proposals_and_validities(&self) -> &[(SignedProposal<Ctx>, Validity)] {
+    pub fn get_proposals_and_validities(&self) -> &[(SignedProposal<Ctx>, Validity)] {
         &self.proposals
     }
 
@@ -150,7 +150,7 @@ where
     ) -> Option<&[(SignedProposal<Ctx>, Validity)]> {
         self.per_round
             .get(&round)
-            .map(|round_info| round_info.proposals_and_validities())
+            .map(|round_info| round_info.get_proposals_and_validities())
     }
 
     /// Return the evidence of equivocation.
