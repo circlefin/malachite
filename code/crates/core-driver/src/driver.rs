@@ -500,6 +500,18 @@ where
         })
     }
 
+    /// Prunes all polka certificates and votes from rounds less than `min_round`.
+    pub fn prune_votes_and_certificates(&mut self, min_round: Round) {
+        self.prune_polka_certificates(min_round);
+        self.vote_keeper.prune_votes(min_round);
+    }
+
+    /// Prunes all polka certificates from rounds less than `min_round`.
+    fn prune_polka_certificates(&mut self, min_round: Round) {
+        self.polka_certificates
+            .retain(|cert| cert.round >= min_round);
+    }
+
     fn store_precommit_any_round_certificate(&mut self, vote_round: Round) {
         let Some(per_round) = self.vote_keeper.per_round(vote_round) else {
             panic!("Missing the PrecommitAny votes for round {}", vote_round);
