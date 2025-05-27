@@ -352,6 +352,7 @@ where
                     }
                 }
             }
+
             if state.is_validator() {
                 info!(
                     vote_type = ?vote.vote_type(),
