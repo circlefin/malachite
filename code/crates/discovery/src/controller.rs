@@ -135,17 +135,20 @@ impl Controller {
         if let Some(peer_id) = connection_data.peer_id() {
             self.dial.register_done_on(PeerData::PeerId(peer_id));
         }
-        self.dial
-            .register_done_on(PeerData::Multiaddr(connection_data.multiaddr()));
+        for addr in connection_data.listen_addrs() {
+            self.dial
+                .register_done_on(PeerData::Multiaddr(addr.clone()));
+        }
     }
 
     pub(crate) fn dial_is_done_on(&self, connection_data: &ConnectionData) -> bool {
         connection_data
             .peer_id()
             .is_some_and(|peer_id| self.dial.is_done_on(&PeerData::PeerId(peer_id)))
-            || self
-                .dial
-                .is_done_on(&PeerData::Multiaddr(connection_data.multiaddr()))
+            || connection_data
+                .listen_addrs()
+                .iter()
+                .any(|addr| self.dial.is_done_on(&PeerData::Multiaddr(addr.clone())))
     }
 
     pub(crate) fn dial_add_peer_id_to_connection_data(

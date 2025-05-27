@@ -5,15 +5,15 @@ use crate::util::Retry;
 #[derive(Debug, Clone)]
 pub struct ConnectionData {
     peer_id: Option<PeerId>,
-    multiaddr: Multiaddr,
+    listen_addrs: Vec<Multiaddr>,
     pub retry: Retry,
 }
 
 impl ConnectionData {
-    pub fn new(peer_id: Option<PeerId>, multiaddr: Multiaddr) -> Self {
+    pub fn new(peer_id: Option<PeerId>, listen_addrs: Vec<Multiaddr>) -> Self {
         Self {
             peer_id,
-            multiaddr,
+            listen_addrs,
             retry: Retry::new(),
         }
     }
@@ -26,21 +26,29 @@ impl ConnectionData {
         self.peer_id
     }
 
-    pub fn multiaddr(&self) -> Multiaddr {
-        self.multiaddr.clone()
+    pub fn listen_addrs(&self) -> Vec<Multiaddr> {
+        self.listen_addrs.clone()
     }
 
-    pub fn build_dial_opts(&self) -> DialOpts {
-        if let Some(peer_id) = self.peer_id {
-            DialOpts::peer_id(peer_id)
-                .addresses(vec![self.multiaddr.clone()])
-                .allocate_new_port()
-                .build()
+    pub fn build_dial_opts(&self) -> Option<DialOpts> {
+        if let Some(addr) = self.listen_addrs.first() {
+            if let Some(peer_id) = self.peer_id {
+                Some(
+                    DialOpts::peer_id(peer_id)
+                        .addresses(self.listen_addrs.clone())
+                        .allocate_new_port()
+                        .build(),
+                )
+            } else {
+                Some(
+                    DialOpts::unknown_peer_id()
+                        .address(addr.clone())
+                        .allocate_new_port()
+                        .build(),
+                )
+            }
         } else {
-            DialOpts::unknown_peer_id()
-                .address(self.multiaddr.clone())
-                .allocate_new_port()
-                .build()
+            return None; // No addresses to dial
         }
     }
 }

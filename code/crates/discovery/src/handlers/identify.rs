@@ -44,13 +44,15 @@ where
 
                 self.metrics.increment_total_discovered();
 
-                // If the address belongs to a bootstrap node, save the peer id
-                if let Some(bootstrap_node) = self
-                    .bootstrap_nodes
-                    .iter_mut()
-                    .find(|(_, addr)| addr == info.listen_addrs.first().unwrap())
+                // If at least one listen address belongs to a bootstrap node, save the peer id
+                if let Some(bootstrap_node) =
+                    self.bootstrap_nodes.iter_mut().find(|(_, listen_addrs)| {
+                        listen_addrs
+                            .iter()
+                            .any(|addr| info.listen_addrs.contains(addr))
+                    })
                 {
-                    *bootstrap_node = (Some(peer_id), info.listen_addrs.first().unwrap().clone());
+                    *bootstrap_node = (Some(peer_id), info.listen_addrs.clone());
                 }
             }
         }

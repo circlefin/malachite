@@ -54,7 +54,7 @@ where
 
     selector: Box<dyn Selector<C>>,
 
-    bootstrap_nodes: Vec<(Option<PeerId>, Multiaddr)>,
+    bootstrap_nodes: Vec<(Option<PeerId>, Vec<Multiaddr>)>,
     discovered_peers: HashMap<PeerId, identify::Info>,
     active_connections: HashMap<PeerId, Vec<ConnectionId>>,
     outbound_connections: HashMap<PeerId, OutboundConnection>,
@@ -113,7 +113,7 @@ where
             bootstrap_nodes: bootstrap_nodes
                 .clone()
                 .into_iter()
-                .map(|addr| (None, addr))
+                .map(|addr| (None, vec![addr]))
                 .collect(),
             discovered_peers: HashMap::new(),
             active_connections: HashMap::new(),

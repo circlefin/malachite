@@ -1,5 +1,5 @@
 use libp2p::{core::ConnectedPoint, swarm::ConnectionId, PeerId, Swarm};
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 use crate::{connection::ConnectionData, controller::PeerData, Discovery, DiscoveryClient};
 
@@ -25,8 +25,8 @@ where
         })
             // Has not already dialed, or has dialed but retries are allowed
             && (!check_already_dialed || !self.controller.dial_is_done_on(connection_data) || connection_data.retry.count() != 0)
-            // Is not itself (multiaddr)
-            && !swarm.listeners().any(|addr| *addr == connection_data.multiaddr())
+            // Is not itself (listen addresses)
+            && !swarm.listeners().any(|addr| connection_data.listen_addrs().contains(addr))
     }
 
     pub fn dial_peer(&mut self, swarm: &mut Swarm<C>, connection_data: ConnectionData) {
@@ -36,7 +36,13 @@ where
             return;
         }
 
-        let dial_opts = connection_data.build_dial_opts();
+        let Some(dial_opts) = connection_data.build_dial_opts() else {
+            warn!(
+                "No addresses to dial for peer {:?}, skipping dial attempt",
+                connection_data.peer_id()
+            );
+            return;
+        };
         let connection_id = dial_opts.connection_id();
 
         self.controller.dial_register_done_on(&connection_data);
@@ -51,26 +57,19 @@ where
         }
 
         debug!(
-            "Dialing peer at {}, retry #{}",
-            connection_data.multiaddr(),
+            "Dialing peer {:?} at {:?}, retry #{}",
+            connection_data.peer_id(),
+            connection_data.listen_addrs(),
             connection_data.retry.count()
         );
 
         if let Err(e) = swarm.dial(dial_opts) {
-            if let Some(peer_id) = connection_data.peer_id() {
-                error!(
-                    "Error dialing peer {} at {}: {}",
-                    peer_id,
-                    connection_data.multiaddr(),
-                    e
-                );
-            } else {
-                error!(
-                    "Error dialing peer at {}: {}",
-                    connection_data.multiaddr(),
-                    e
-                );
-            }
+            error!(
+                "Error dialing peer {:?} at {:?}: {}",
+                connection_data.peer_id(),
+                connection_data.listen_addrs(),
+                e
+            );
 
             self.handle_failed_connection(swarm, connection_id);
         }
@@ -129,8 +128,9 @@ where
             } else {
                 // No more trials left
                 error!(
-                    "Failed to dial peer at {0} after {1} trials",
-                    connection_data.multiaddr(),
+                    "Failed to dial peer {:?} at {:?} after {} trials",
+                    connection_data.peer_id(),
+                    connection_data.listen_addrs(),
                     connection_data.retry.count(),
                 );
 
@@ -152,8 +152,8 @@ where
     }
 
     pub fn dial_bootstrap_nodes(&mut self, swarm: &Swarm<C>) {
-        for (peer_id, addr) in &self.bootstrap_nodes.clone() {
-            self.add_to_dial_queue(swarm, ConnectionData::new(*peer_id, addr.clone()));
+        for (peer_id, listen_addrs) in &self.bootstrap_nodes.clone() {
+            self.add_to_dial_queue(swarm, ConnectionData::new(*peer_id, listen_addrs.clone()));
         }
     }
 }
