@@ -1,3 +1,6 @@
+#![doc = include_str!("../README.md")]
+#![allow(rustdoc::private_intra_doc_links)]
+
 mod prelude;
 
 mod input;
