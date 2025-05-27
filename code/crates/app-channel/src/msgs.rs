@@ -147,8 +147,10 @@ pub enum AppMsg<Ctx: Context> {
     /// and the aggregated signatures of the validators that committed to it.
     /// It also includes to the vote extensions received for that height.
     ///
-    /// In response to this message, the application MAY send a [`ConsensusMsg::StartHeight`]
+    /// In response to this message, the application MUST send a [`ConsensusMsg::StartHeight`]
     /// message back to consensus, instructing it to start the next height.
+    ///
+    /// If the application does not reply, consensus will stall.
     Decided {
         /// The certificate for the decided value
         certificate: CommitCertificate<Ctx>,
