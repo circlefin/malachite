@@ -1764,6 +1764,110 @@ fn driver_equivocating_proposal_valid_value() {
 }
 
 #[test]
+fn driver_equivocating_proposal_valid_value_with_polka_cert() {
+    let value1 = Value::new(9999);
+    let value2 = Value::new(42);
+
+    let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
+
+    let height = Height::new(1);
+    let ctx = TestContext::new();
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let proposal = Proposal::new(
+        Height::new(1),
+        Round::new(0),
+        value1.clone(),
+        Round::Nil,
+        v1.address,
+    );
+
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
+
+    let steps = vec![
+        TestStep {
+            desc: "Start round 0, as v3, start timeout propose",
+            input: new_round_input(Round::new(0), v1.address),
+            expected_outputs: vec![start_propose_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Receive proposal 1 from v1",
+            input: proposal_input(
+                Round::new(0),
+                value1.clone(),
+                Round::Nil,
+                Validity::Valid,
+                v1.address,
+            ),
+            expected_outputs: vec![prevote_output(Round::new(0), value1.clone(), &my_addr)],
+            expected_round: Round::new(0),
+            new_state: prevote_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Receive prevote for proposal 1 from itself",
+            input: prevote_input(value1.clone(), &v3.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: prevote_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Receive prevote for proposal 2 from v2, trigger timeout prevote",
+            input: prevote_input(value2.clone(), &v2.address),
+            expected_outputs: vec![start_prevote_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: prevote_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Receive proposal 2 from v1",
+            input: proposal_input(
+                Round::new(0),
+                value2.clone(),
+                Round::Nil,
+                Validity::Valid,
+                v1.address,
+            ),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: prevote_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "timeout prevote expires, send precommit nil",
+            input: timeout_prevote_input(Round::new(0)),
+            expected_outputs: vec![precommit_nil_output(Round::new(0), &my_addr)],
+            expected_round: Round::new(0),
+            new_state: precommit_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Receive prevote for proposal 1 from v1",
+            input: prevote_input(value1.clone(), &v1.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: precommit_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Receive polka certificate for proposal 1",
+            input: polka_certificate_input_at(
+                Round::new(0),
+                value1.clone(),
+                &[v1.address, v2.address],
+            ),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: precommit_state_with_proposal_and_valid(
+                Round::new(0),
+                Round::new(0),
+                proposal.clone(),
+            ),
+        },
+    ];
+
+    run_steps(&mut driver, steps);
+}
+
+#[test]
 //#[should_panic(expected = "unreachable code: Conflicting proposals from different validators")]
 fn driver_conflicting_proposal_unreachable() {
     let value1 = Value::new(9999);
