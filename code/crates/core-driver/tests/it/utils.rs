@@ -304,30 +304,6 @@ pub fn precommit_state_with_proposal_and_valid(
     }
 }
 
-pub fn commit_state_with_proposal_and_locked_and_valid(
-    round: Round,
-    proposal: Proposal,
-) -> State<TestContext> {
-    State {
-        height: Height::new(1),
-        round,
-        step: Step::Commit,
-        valid: Some(RoundValue {
-            value: proposal.value.clone(),
-            round: proposal.round,
-        }),
-        locked: Some(RoundValue {
-            value: proposal.value.clone(),
-            round: proposal.round,
-        }),
-        decision: Some(RoundValue {
-            value: proposal.value,
-            round: proposal.round,
-        }),
-        ..Default::default()
-    }
-}
-
 pub fn new_round(round: Round) -> State<TestContext> {
     State::new(Height::new(1), round)
 }
