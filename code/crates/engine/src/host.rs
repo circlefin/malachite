@@ -4,7 +4,7 @@ use std::time::Duration;
 use derive_where::derive_where;
 use ractor::{ActorRef, RpcReplyPort};
 
-use malachitebft_core_consensus::VoteExtensionError;
+use malachitebft_core_consensus::{Role, VoteExtensionError};
 use malachitebft_core_types::{CommitCertificate, Context, Round, ValueId, VoteExtensions};
 use malachitebft_sync::{PeerId, RawDecidedValue};
 
@@ -27,6 +27,7 @@ pub enum HostMsg<Ctx: Context> {
         height: Ctx::Height,
         round: Round,
         proposer: Ctx::Address,
+        role: Role,
     },
 
     /// Request to build a local value to propose

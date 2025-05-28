@@ -10,7 +10,7 @@ use rand::SeedableRng;
 use tokio::time::Instant;
 use tracing::{debug, error, info, trace, warn};
 
-use malachitebft_core_consensus::{PeerId, VoteExtensionError};
+use malachitebft_core_consensus::{PeerId, Role, VoteExtensionError};
 use malachitebft_core_types::{CommitCertificate, Round, Validity, ValueId, ValueOrigin};
 use malachitebft_engine::consensus::{ConsensusMsg, ConsensusRef};
 use malachitebft_engine::host::{LocallyProposedValue, ProposedValue};
@@ -131,7 +131,8 @@ impl Host {
                 height,
                 round,
                 proposer,
-            } => on_started_round(state, height, round, proposer).await,
+                role,
+            } => on_started_round(state, height, round, proposer, role).await,
 
             HostMsg::GetHistoryMinHeight { reply_to } => {
                 on_get_history_min_height(state, reply_to).await
@@ -259,10 +260,14 @@ async fn on_started_round(
     height: Height,
     round: Round,
     proposer: Address,
+    role: Role,
 ) -> Result<(), ActorProcessingErr> {
     state.height = height;
     state.round = round;
     state.proposer = Some(proposer);
+    state.role = role;
+
+    info!(%height, %round, %proposer, ?role, "Started new round");
 
     // If we have already built or seen one or more values for this height and round,
     // feed them back to consensus. This may happen when we are restarting after a crash.

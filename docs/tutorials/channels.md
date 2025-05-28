@@ -1400,6 +1400,7 @@ If `commit` fails we can re-run consensus for the same height.
 > 1. The application must clean all state associated with the height for which commit has failed
 > 2. Since consensus resets its WriteAahead Log, the node may equivocate on proposals and votes
 >    for the restarted height, potentially violating protocol safety
+> 3. The application MUST reply to the Decided message by sending a `ConsensusMsg::StartHeight` message back to consensus, instructing it to start the next height. If the application does not reply, consensus will stall.
 
 ```rust
     AppMsg::Decided {

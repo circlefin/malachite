@@ -20,7 +20,7 @@ See [Appendix A](#appendix-a-details-of-the-coroutine-based-effect-system) for a
 
 The `Input` enum represents all possible inputs that can be processed by the consensus coroutine.
 
-```rust
+```rust,ignore
 pub enum Input<Ctx>
 where
     Ctx: Context,
@@ -68,7 +68,7 @@ where
 
 The `Effect` enum represents all possible operations that the consensus coroutine might need from the environment.
 
-```rust
+```rust,ignore
 pub enum Effect<Ctx>
 where
     Ctx: Context,
@@ -231,7 +231,7 @@ The `Resume` enum represents all possible ways to resume the consensus coroutine
 
 Values of this type cannot be constructed directly, they can only be created by calling the `resume_with` method on a `Resumable` type.
 
-```rust
+```rust,ignore
 pub enum Resume<Ctx>
 where
     Ctx: Context,
@@ -268,7 +268,7 @@ where
 
 The `Resumable` trait allows creating a `Resume` value after having processed an effect.
 
-```rust
+```rust,ignore
 pub trait Resumable<Ctx>
   where Ctx: Context
 {
@@ -287,7 +287,7 @@ We omit its implementation here for brevity, but it handles starting the corouti
 
 One can think of it as a function with the following signature, depending on whether the effect handler is synchronous or asynchronous:
 
-```rust
+```rust,ignore
 // If the effect handler is synchronous
 fn process<Ctx>(
     input: Input<Ctx>,
@@ -299,7 +299,7 @@ where
     Ctx: Context;
 ```
 
-```rust
+```rust,ignore
 // If the effect handler is asynchronous
 async fn process<Ctx>(
     input: Input<Ctx>,
@@ -369,7 +369,7 @@ The `handle_effect` function demonstrates handling both synchronous and asynchro
    - Uses the network service to broadcast messages to peers
    - Waits for the operation to complete using `.await`
 
-```rust
+```rust,ignore
 use std::sync::Arc;
 
 use malachitebft_core_types::{Context, SignedVote};
@@ -526,7 +526,7 @@ Let's pretend that we are writing a program that needs to read a file from disk 
 
 If we were expressing this as an interface we might have a `Broadcast` trait:
 
-```rust
+```rust,ignore
 trait Broadcast {
   async fn broadcast(s: String) -> Result<(), Error>;
 }
@@ -534,7 +534,7 @@ trait Broadcast {
 
 and a `FileSystem` trait:
 
-```rust
+```rust,ignore
 enum FileSystem {
   async fn read_file(path: PathBuf) -> Result<String, Error>;
 }
@@ -542,7 +542,7 @@ enum FileSystem {
 
 And our program would look like:
 
-```rust
+```rust,ignore
 async fn program(file: PathBuf, fs: impl FileSystem, b: impl Broadcast) -> Result<(), Error> {
   println!("Reading file from disk");
   let contents = fs.read_file(file).await?;
@@ -560,7 +560,7 @@ Alternatively, we could use a single trait with multiple methods, but this would
 
 Instead, let's model our effects as data, and define an `Effect` enum with a variant per effect:
 
-```rust
+```rust,ignore
 enum Effect {
   Broadcast(String),
   Read(PathBuf),
@@ -569,7 +569,7 @@ enum Effect {
 
 To model the return value of each effect, we define a `Resume` enum:
 
-```rust
+```rust,ignore
 enum Resume {
   Broadcast(Result<(), Error>),
   ReadFile(Result<String, Error>),
@@ -578,7 +578,7 @@ enum Resume {
 
 Now, by defining an appropriate `perform!` macro, we can write a pure version of our program and choose how we want to interpret each effect later:
 
-```rust
+```rust,ignore
 async fn program(
   co: Co<Effect, Resume>,
   file: PathBuf,
@@ -605,7 +605,7 @@ We can now choose how we want interpret each of these effects when we run our pr
 
 For instance, we could actually perform these effects against the network and the filesystem:
 
-```rust
+```rust,ignore
 async fn perform_real(effect: Effect) -> Resume {
   match effect {
     Effect::ReadFile(path) => {
@@ -629,7 +629,7 @@ async fn main() {
 
 Or we can perform these effects against a mock file system and network, and for this we don't need to use async at all:
 
-```rust
+```rust,ignore
 fn perform_mock(effect: Effect) -> Resume {
   match effect {
     Effect::ReadFile(path) => {
@@ -653,7 +653,7 @@ Here we see one other advantage of modeling effects this way over using traits: 
 
 The main drawback of this approach is that it is possible to resume the program using the wrong type of data:
 
-```rust
+```rust,ignore
 fn perform_wrong(effect: Effect) -> Resume {
   match effect {
     Effect::ReadFile(path) => {
@@ -677,7 +677,7 @@ This program will crash at runtime with `UnexpectedResume` error telling us that
 
 To mitigate this issue, we can define a `Resumable` trait that connects each effect with its corresponding `Resume` type:
 
-```rust
+```rust,ignore
 trait Resumable {
     /// The value type that will be used to resume execution
     type Value;
@@ -689,7 +689,7 @@ trait Resumable {
 
 We then define a new type per resume type and implement `Resumable` for each:
 
-```rust
+```rust,ignore
 mod resume_with {
   struct Sent;
 
@@ -715,7 +715,7 @@ mod resume_with {
 
 We can now embed these types in each variant of the `Effect` enum:
 
-```rust
+```rust,ignore
 enum Effect {
     Broadcast(String, resume_with::Sent),
     Read(PathBuf, resume_with::FileContents),
@@ -726,7 +726,7 @@ Note that these `resume_with` types are private and cannot be constructed direct
 
 In the effect handler, we can now use the `Resumable::resume_with` method to resume the program with the correct type:
 
-```rust
+```rust,ignore
 fn perform_correct(effect: Effect) -> Resume {
     match effect {
         Effect::Read(path, r) => { // r is of type `resume_with::FileContents`

@@ -11,6 +11,17 @@ pub use malachitebft_core_types::ValuePayload;
 pub use malachitebft_peer::PeerId;
 pub use multiaddr::Multiaddr;
 
+/// The role that the node is playing in the consensus protocol during a round.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Role {
+    /// The node is the proposer for the current round.
+    Proposer,
+    /// The node is a validator for the current round.
+    Validator,
+    /// The node is not participating in the consensus protocol for the current round.
+    None,
+}
+
 /// A signed consensus message, ie. a signed vote or a signed proposal.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub enum SignedConsensusMsg<Ctx: Context> {
