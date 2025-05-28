@@ -1595,7 +1595,7 @@ fn driver_equivocating_proposal_others_vote_second() {
             new_state: propose_state(Round::new(0)),
         },
         TestStep {
-            desc: "Receive proposal 1 from v1, start timeout prevote",
+            desc: "Receive proposal 1 from v1",
             input: proposal_input(
                 Round::new(0),
                 value1.clone(),
@@ -1638,9 +1638,29 @@ fn driver_equivocating_proposal_others_vote_second() {
         TestStep {
             desc: "v1 prevotes proposal 2, v3 precommits with proposal and locked and valid",
             input: prevote_input(value2.clone(), &v1.address),
-            expected_outputs: vec![precommit_output(Round::new(0), value2, &my_addr)],
+            expected_outputs: vec![precommit_output(Round::new(0), value2.clone(), &my_addr)],
             expected_round: Round::new(0),
             new_state: precommit_state_with_proposal_and_locked_and_valid(
+                Round::new(0),
+                proposal.clone(),
+            ),
+        },
+        TestStep {
+            desc: "v2 precommits proposal 2",
+            input: precommit_input(Round::new(0), value2.clone(), &v2.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: precommit_state_with_proposal_and_locked_and_valid(
+                Round::new(0),
+                proposal.clone(),
+            ),
+        },
+        TestStep {
+            desc: "v1 precommits proposal 2",
+            input: precommit_input(Round::new(0), value2.clone(), &v1.address),
+            expected_outputs: vec![decide_output(Round::new(0), proposal.clone())],
+            expected_round: Round::new(0),
+            new_state: commit_state_with_proposal_and_locked_and_valid(
                 Round::new(0),
                 proposal.clone(),
             ),
