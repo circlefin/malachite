@@ -1553,11 +1553,11 @@ fn driver_equivocating_proposer_others_vote_first() {
 
 // Prevote on one value but precommit and decides on another value in the same round with a Byzantine proposer that equivocates
 //
-// Ev:             NewRound(0)       Prevote_nil(v1)         Proposal(v2)         Prevote(v1, v2)         Prevote(v1)
-// State: NewRound -----------> Propose -----------> Prevote -------------> Prevote ----------------> Precommit --------> Decide(v1)
+// Ev:             NewRound(0)           Proposal(v1)           Proposal(v2)          PolkaValue(v2)            PrecommitValue(v2)
+// State: Init ----------------> Propose ------------> Prevote -------------> Prevote --------------> Precommit -----------------> Commit (v2)
 //
-// Msg:            propose_timer     prevote(v1)          None                None                    precommit(v1)      decide(v1)
-// Alg:            L21               L24                  L24                  L36                      L49
+// Msg:           propose_timer           prevote(v1)               None               precommit(v2)                   None
+// Alg:               L21                    L24                    L24                    L36                         L49
 //
 // v1=2, v2=3, v3=2, we are v3
 // L21 - v3 is not proposer, starts propose timer (step propose)
@@ -1671,13 +1671,13 @@ fn driver_equivocating_proposer_others_vote_second() {
     run_steps(&mut driver, steps);
 }
 
-// Prevote on one value but update valid value to another value in the same round with a Byzantine proposer that equivocates
+// Prevote for one value, but update the valid value to another after receiving a polka for it in the same round by receiving individual votes.
+// The Byzantine proposer proposed two values in the same round.
+// Ev:             NewRound(0)           Proposal(v1)             PolkaAny            Proposal(v2)        TimeoutPrevoteExpire           PolkaValue(v2)
+// State: Init ----------------> Propose ------------> Prevote -------------> Prevote ------------> Prevote ---------------> Precommit -----------------> Precommit + valid_value
 //
-// Ev:             NewRound(0)       Prevote_nil(v1)         Proposal(v2)         Prevote(v1, v2)         Prevote(v1)
-// State: NewRound -----------> Propose -----------> Prevote -------------> Prevote ----------------> Precommit --------> Decide(v1)
-//
-// Msg:            propose_timer     prevote(v1)          None                None                    precommit(v1)      decide(v1)
-// Alg:            L21               L24                  L24                  L36                      L49
+// Msg:           propose_timer           prevote(v1)           prevote_timer             None               precommit(nil)                 None
+// Alg:               L21                    L24                     L35                  L24                     L61                       L36
 //
 // v1=2, v2=3, v3=2, we are v3
 // L21 - v3 is not proposer, starts propose timer (step propose)
@@ -1779,14 +1779,14 @@ fn driver_equivocating_proposer_valid_value() {
     run_steps(&mut driver, steps);
 }
 
-// Prevote for one value, but update the valid value to another after receiving a polka certificate for it.
+// Prevote for one value, but update the valid value to another after receiving a **polka certificate** for it in the same round.
 // The polka certificate includes an equivocated vote from a Byzantine proposer who proposed both values in the same round.
 //
-// Ev:             NewRound(0)       Prevote_nil(v1)         Proposal(v2)         Prevote(v1, v2)         Prevote(v1)
-// State: NewRound -----------> Propose -----------> Prevote -------------> Prevote ----------------> Precommit --------> Decide(v1)
+// Ev:             NewRound(0)           Proposal(v1)             PolkaAny            Proposal(v2)        TimeoutPrevoteExpire           PolkaValue(v2)
+// State: Init ----------------> Propose ------------> Prevote -------------> Prevote ------------> Prevote ---------------> Precommit -----------------> Precommit + valid_value
 //
-// Msg:            propose_timer     prevote(v1)          None                None                    precommit(v1)      decide(v1)
-// Alg:            L21               L24                  L24                  L36                      L49
+// Msg:           propose_timer           prevote(v1)           prevote_timer             None               precommit(nil)                 None
+// Alg:               L21                    L24                     L35                  L24                     L61                       L36
 //
 // v1=2, v2=3, v3=2, we are v3
 // L21 - v3 is not proposer, starts propose timer (step propose)
@@ -1796,7 +1796,7 @@ fn driver_equivocating_proposer_valid_value() {
 // L61 - timer prevote expires on v3, sends precommit nil (step precommit)
 // L36 - v3 receives polka certificate for v1 with equivocated vote from v2, polkaValue, only updates valid value and round because step is precommit
 #[test]
-fn driver_equivocating_proposal_valid_value_with_polka_cert() {
+fn driver_equivocating_proposer_valid_value_with_polka_cert() {
     let value1 = Value::new(9999);
     let value2 = Value::new(42);
 
@@ -1893,8 +1893,8 @@ fn driver_equivocating_proposal_valid_value_with_polka_cert() {
 }
 
 #[test]
-//#[should_panic(expected = "unreachable code: Conflicting proposals from different validators")]
-fn driver_conflicting_proposal_unreachable() {
+#[should_panic(expected = "BUG: Received proposals from different validators in the same round")]
+fn driver_conflicting_proposal_panic() {
     let value1 = Value::new(9999);
     let value2 = Value::new(42);
 

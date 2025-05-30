@@ -24,15 +24,6 @@ where
         /// The conflicting proposal, from the same validator.
         conflicting: SignedProposal<Ctx>,
     },
-    /*
-    /// Attempted to record a conflicting proposal from a different validator.
-    #[error("Invalid conflicting proposal: existing: {existing}, conflicting: {conflicting}")]
-    InvalidConflictingProposal {
-        /// The proposal already recorded for the same value.
-        existing: SignedProposal<Ctx>,
-        /// The conflicting proposal, from a different validator.
-        conflicting: SignedProposal<Ctx>,
-    },*/
 }
 
 #[derive_where(Clone, Debug, PartialEq, Eq, Default)]
@@ -70,8 +61,11 @@ where
 
     /// Add a proposal to this round, checking for conflicts.
     /// All proposals must come from the same validator (proposer).
+    /// If a proposal comes from a different validator than the first,
+    /// this is considered a calling code bug and the function will panic.
     /// - Stores each unique proposal once.
-    /// - Returns an error if equivocation is detected but stores it anyway.
+    /// - Returns an error if equivocation is detected but from the **same** validator.
+    /// - Panics if proposals come from **different validators**.
     pub fn add(
         &mut self,
         proposal: SignedProposal<Ctx>,
@@ -82,10 +76,23 @@ where
             return Ok(());
         }
 
+        // Check if the proposal is from the same validator as the first one recorded.
+        // This should never happen, as proposals should always come from the same validator (round's proposer).
+        if let Some(first) = self.get_first_proposal() {
+            if first.validator_address() != proposal.validator_address() {
+                panic!(
+                    "BUG: Received proposals from different validators in the same round.\n\
+                    Existing: {:?}, New: {:?}",
+                    first.validator_address(),
+                    proposal.validator_address()
+                );
+            }
+        }
+
         // Store the new unique proposal
         self.proposals.push((proposal.clone(), validity));
 
-        // If more than one distinct proposal has been recorded, it as equivocation
+        // If more than one distinct proposal has been recorded, treat it as equivocation.
         if self.proposals.len() > 1 {
             return Err(RecordProposalError::ConflictingProposal {
                 existing: self
@@ -95,11 +102,6 @@ where
                 conflicting: proposal,
             });
         }
-
-        // NOTE: The check for proposals from different validators was removed.
-        // We assume all proposals come from the same validator in this context.
-        // If that assumption is ever violated, it likely indicates a bug in the caller logic.
-        // Let's revisit and discuss this if needed.
 
         Ok(())
     }
@@ -155,9 +157,6 @@ where
     }
 
     /// Store a proposal, checking for conflicts and storing evidence of equivocation if necessary.
-    ///
-    /// # Precondition
-    /// - The given proposal must have been proposed by the expected proposer at the proposal's height and round.
     pub fn store_proposal(&mut self, proposal: SignedProposal<Ctx>, validity: Validity) {
         let per_round = self.per_round.entry(proposal.round()).or_default();
 
@@ -170,17 +169,7 @@ where
             }) => {
                 // This is an equivocating proposal
                 self.evidence.add(existing, conflicting);
-            } /*Err(RecordProposalError::InvalidConflictingProposal {
-                  existing,
-                  conflicting,
-              }) => {
-                  // This is not a valid equivocating proposal, since the two proposers are different
-                  // We should never reach this point, since the consensus algorithm should prevent this.
-                  unreachable!(
-                      "Conflicting proposals from different validators: existing: {}, conflicting: {}",
-                      existing.validator_address(), conflicting.validator_address()
-                  );
-              }*/
+            }
         }
     }
 }
@@ -219,15 +208,7 @@ where
 
     /// Add evidence of equivocating proposals, ie. two proposals submitted by the same validator,
     /// but with different values but for the same height and round.
-    ///
-    /// # Precondition
-    /// - Panics if the two conflicting proposals were not proposed by the same validator.
     pub(crate) fn add(&mut self, existing: SignedProposal<Ctx>, conflicting: SignedProposal<Ctx>) {
-        /*assert_eq!(
-            existing.validator_address(),
-            conflicting.validator_address()
-        );*/
-
         if let Some(evidence) = self.map.get_mut(conflicting.validator_address()) {
             evidence.push((existing, conflicting));
         } else {
