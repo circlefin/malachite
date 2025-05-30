@@ -127,7 +127,7 @@ where
         Self::default()
     }
 
-    /// Returns the proposal and its validity for the round matching the value_id, if any.
+    /// Returns the proposal and its validity for the round, matching the value_id, if any.
     pub fn get_proposal_and_validity_for_round_and_value(
         &self,
         round: Round,
