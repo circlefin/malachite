@@ -1487,7 +1487,7 @@ fn driver_equivocate_vote() {
 }
 
 #[test]
-fn driver_equivocating_proposal_others_vote_first() {
+fn driver_equivocating_proposer_others_vote_first() {
     let value1 = Value::new(9999);
     let value2 = Value::new(42);
 
