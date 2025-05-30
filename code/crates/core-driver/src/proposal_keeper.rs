@@ -142,10 +142,11 @@ where
     pub fn get_proposals_and_validities_for_round(
         &self,
         round: Round,
-    ) -> Option<&[(SignedProposal<Ctx>, Validity)]> {
+    ) -> &[(SignedProposal<Ctx>, Validity)] {
         self.per_round
             .get(&round)
-            .map(|round_info| round_info.get_proposals_and_validities())
+            .map(PerRound::get_proposals_and_validities)
+            .unwrap_or(&[])
     }
 
     /// Return the evidence of equivocation.

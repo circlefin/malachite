@@ -251,7 +251,7 @@ where
     pub fn proposals_and_validities_for_round(
         &self,
         round: Round,
-    ) -> Option<&[(SignedProposal<Ctx>, Validity)]> {
+    ) -> &[(SignedProposal<Ctx>, Validity)] {
         self.proposal_keeper
             .get_proposals_and_validities_for_round(round)
     }

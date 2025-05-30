@@ -363,10 +363,7 @@ where
     pub(crate) fn multiplex_step_change(&mut self, round: Round) -> Vec<(Round, RoundInput<Ctx>)> {
         let mut result = Vec::new();
 
-        let proposals = self
-            .proposals_and_validities_for_round(round)
-            .unwrap_or(&[])
-            .to_vec();
+        let proposals = self.proposals_and_validities_for_round(round).to_vec();
 
         for (signed_proposal, validity) in proposals {
             let proposal = &signed_proposal.message;
