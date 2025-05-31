@@ -82,7 +82,6 @@ where
         }
 
         metrics.block_end();
-        metrics.finalized_blocks.inc();
 
         metrics
             .consensus_round

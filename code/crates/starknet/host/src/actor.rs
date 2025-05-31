@@ -631,7 +631,7 @@ async fn on_decided(
     consensus: &ConsensusRef<MockContext>,
     mempool: &MempoolRef,
     certificate: CommitCertificate<MockContext>,
-    metrics: &Metrics,
+    _metrics: &Metrics,
 ) -> Result<(), ActorProcessingErr> {
     let (height, round) = (certificate.height, certificate.round);
 
@@ -656,14 +656,6 @@ async fn on_decided(
     {
         error!(%e, %height, %round, "Failed to store the block");
     }
-
-    // Update metrics
-    let tx_count: usize = all_parts.iter().map(|p| p.tx_count()).sum();
-    let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
-
-    metrics.block_tx_count.observe(tx_count as f64);
-    metrics.block_size_bytes.observe(block_size as f64);
-    metrics.finalized_txes.inc_by(tx_count as u64);
 
     // Gather hashes of all the tx-es included in the block,
     // so that we can notify the mempool to remove them.
