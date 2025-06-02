@@ -71,7 +71,7 @@ The sync module maintains the following state:
 
 The value sync protocol operates between two nodes: a syncing node that needs to catch up and a helping peer that provides the values. The flow consists of two main phases:
 
-**Normal Operation**: During normal operation, nodes periodically broadcast their status to inform peers about their current height. This helps peers detect when a node falls behind or when other nodes are ahead.
+**Normal Operation**: During normal operation, nodes periodically broadcast their status to inform directly connected peers about their current height. This helps peers detect when a node falls behind or when other nodes are ahead.
 
 **Catch-up Phase**: When a node detects it has fallen behind (by receiving a status with a higher height), it initiates the synchronization process:
    - Requests the missing value from a peer which is selected randomly from the list of all peers at higher height
@@ -79,7 +79,9 @@ The value sync protocol operates between two nodes: a syncing node that needs to
    - The value is sent back with its commit certificate
    - The syncing node processes the value through consensus and application layers
    - If processed successfully, the node moves to the next height
-   - Otherwise synchronizing the same height is retried
+   - Otherwise, synchronizing the same height is retried
+
+For more details about the underlying protocols and design decisions, see [Protocol Details](#protocol-details).
 
 The sequence diagram below illustrates the message flow between components during a successful value synchronization:
 
@@ -117,6 +119,21 @@ sequenceDiagram
     C1->>S1: Decided(height)
 ```
 
+
+### Protocol Details
+
+**Request/Response Protocol**
+The value sync protocol uses [libp2p's request-response protocol](https://github.com/libp2p/rust-libp2p/blob/v0.55.0/protocols/request-response/src/lib.rs) for reliable communication between peers. This protocol ensures:
+- A connection exists between peers before sending requests, or
+- Automatic dialing to establish connections when needed
+- Proper handling of timeouts and failures
+
+**Status Message Broadcasting**
+Status messages are broadcast using [libp2p-scatter](https://github.com/romac/libp2p-scatter), a direct peer broadcast mechanism without message forwarding. This design choice is intentional because:
+- It ensures that if a node needs to request values based on a received status message, the request is guaranteed to succeed since the peer is directly connected or a connection can be made.
+- Avoids potential issues where nodes might receive status updates from non-connected peers they cannot reach
+- Maintains a clear relationship between status updates and the ability to request values
+
 ## Status
 
 Accepted
@@ -153,4 +170,7 @@ Accepted
 
 * [Malachite Consensus Documentation](/docs/consensus.md)
 * [Channel Example Implementation](/examples/channel)
-* [Sync Protocol Implementation](/code/crates/sync) 
+* [Sync Protocol Implementation](/code/crates/sync)
+* [libp2p Request-Response Protocol](https://github.com/libp2p/rust-libp2p/blob/v0.55.0/protocols/request-response/src/lib.rs)
+* [libp2p-scatter](https://github.com/romac/libp2p-scatter)
+* [libp2p Gossipsub](https://github.com/libp2p/rust-libp2p/tree/master/protocols/gossipsub) 
