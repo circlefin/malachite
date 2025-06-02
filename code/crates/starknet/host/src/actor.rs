@@ -4,6 +4,7 @@ use std::time::Duration;
 use bytes::Bytes;
 use eyre::eyre;
 use itertools::Itertools;
+use malachitebft_sync::RawDecidedValue;
 use ractor::{async_trait, Actor, ActorProcessingErr, RpcReplyPort, SpawnErr};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
@@ -16,13 +17,12 @@ use malachitebft_engine::consensus::{ConsensusMsg, ConsensusRef};
 use malachitebft_engine::host::{LocallyProposedValue, ProposedValue};
 use malachitebft_engine::network::{NetworkMsg, NetworkRef};
 use malachitebft_engine::util::streaming::{StreamContent, StreamMessage};
-use malachitebft_metrics::Metrics;
-use malachitebft_sync::RawDecidedValue;
 
 use crate::host::state::HostState;
 use crate::host::{Host as _, StarknetHost};
 use crate::mempool::{MempoolMsg, MempoolRef};
 use crate::mempool_load::MempoolLoadRef;
+use crate::metrics::Metrics;
 use crate::proto::Protobuf;
 use crate::types::*;
 
@@ -631,7 +631,7 @@ async fn on_decided(
     consensus: &ConsensusRef<MockContext>,
     mempool: &MempoolRef,
     certificate: CommitCertificate<MockContext>,
-    _metrics: &Metrics,
+    metrics: &Metrics,
 ) -> Result<(), ActorProcessingErr> {
     let (height, round) = (certificate.height, certificate.round);
 
@@ -656,6 +656,14 @@ async fn on_decided(
     {
         error!(%e, %height, %round, "Failed to store the block");
     }
+
+    // Update metrics
+    let tx_count: usize = all_parts.iter().map(|p| p.tx_count()).sum();
+    let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
+
+    metrics.block_tx_count.observe(tx_count as f64);
+    metrics.block_size_bytes.observe(block_size as f64);
+    metrics.finalized_txes.inc_by(tx_count as u64);
 
     // Gather hashes of all the tx-es included in the block,
     // so that we can notify the mempool to remove them.
