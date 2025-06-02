@@ -147,7 +147,7 @@ impl Node for App {
         let db_path = self.get_home_dir().join("db");
         std::fs::create_dir_all(&db_path)?;
 
-        let store = Store::open(db_path.join("store.db"))?;
+        let store = Store::open(db_path.join("store.db")).await?;
         let start_height = self.start_height.unwrap_or_default();
 
         let mut state = State::new(
@@ -234,9 +234,6 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
         consensus: ConsensusConfig {
             // Current test app does not support proposal-only value payload properly as Init does not include valid_round
             value_payload: ValuePayload::ProposalAndParts,
-            vote_sync: VoteSyncConfig {
-                mode: VoteSyncMode::RequestResponse,
-            },
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),

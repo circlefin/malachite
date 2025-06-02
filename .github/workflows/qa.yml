@@ -1,0 +1,124 @@
+name: QA
+
+on:
+  workflow_dispatch:
+    inputs:
+      setup:
+        description: "Deployment setup:"
+        required: true
+        default: "north-america"
+        type: choice
+        options:
+          - global
+          - north-america
+      expr_duration:
+        description: "Experiment duration (in minutes)"
+        required: true
+        default: "15"
+        type: choice
+        options:
+          - "5"
+          - "10"
+          - "15"
+      branch:
+        description: "Git branch to use"
+        required: true
+        default: "main"
+
+jobs:
+  run-malachite-do:
+    runs-on: ubuntu-latest
+    env:
+      TF_VAR_do_token: "${{ secrets.DO_TOKEN }}"
+      TF_VAR_ssh_keys: '["${{ secrets.DO_SSH_FINGERPRINT }}"]'
+      EXPR_SETUP: "${{ github.event.inputs.setup || 'north-america' }}"
+      EXPR_DURATION_MINUTES: "${{ github.event.inputs.expr_duration || '15' }}"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch }}
+
+      - name: Set up SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DO_SSH_KEY }}
+
+      - name: Install parallel-ssh and create symlink
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y pssh
+          sudo ln -sf /usr/bin/parallel-ssh /usr/bin/pssh
+          pssh --version
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.10.5
+
+      - name: Set node regions based on setup
+        run: |
+          if [[ "$EXPR_SETUP" == "global" ]]; then
+            echo "TF_VAR_nyc1=2" >> $GITHUB_ENV
+            echo "TF_VAR_nyc3=2" >> $GITHUB_ENV
+            echo "TF_VAR_ams3=2" >> $GITHUB_ENV
+            echo "TF_VAR_blr1=2" >> $GITHUB_ENV
+            echo "TF_VAR_fra1=2" >> $GITHUB_ENV
+            echo "TF_VAR_lon1=2" >> $GITHUB_ENV
+            echo "TF_VAR_sfo3=2" >> $GITHUB_ENV
+            echo "TF_VAR_sgp1=2" >> $GITHUB_ENV
+            echo "TF_VAR_syd1=2" >> $GITHUB_ENV
+            echo "TF_VAR_tor1=2" >> $GITHUB_ENV
+          elif [[ "$EXPR_SETUP" == "north-america" ]]; then
+            echo "TF_VAR_nyc1=1" >> $GITHUB_ENV
+            echo "TF_VAR_nyc3=1" >> $GITHUB_ENV
+            echo "TF_VAR_tor1=1" >> $GITHUB_ENV
+            echo "TF_VAR_sfo3=1" >> $GITHUB_ENV
+          else
+            echo "Invalid EXPR_SETUP: $EXPR_SETUP"
+            exit 1
+          fi
+
+      - name: Terraform Init
+        working-directory: qa/terraform
+        run: terraform init
+
+      - name: Terraform Apply (Provision Nodes)
+        working-directory: qa/terraform
+        run: terraform apply -auto-approve
+
+      - name: Deploy application and run it
+        working-directory: qa/terraform
+        run: |
+          shopt -s expand_aliases
+          source commands.sh
+          mkdir -p "$HOME/.ssh"
+          touch "$HOME/.ssh/known_hosts"
+          deploy_cc 
+          setup_config
+          d_pull all
+          d_run all
+          EXPR_DURATION=$((EXPR_DURATION_MINUTES * 60))
+          sleep "$EXPR_DURATION"
+          _export_prometheus_performance_csv
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Copy files to S3
+        working-directory: qa/terraform
+        run: | 
+          TIMESTAMP=$(date +%F-%H-%M)
+          S3_PATH="$EXPR_SETUP-$TIMESTAMP"
+          aws s3 cp latency.csv s3://malachite-performance-site/$S3_PATH/
+          aws s3 cp throughput.csv s3://malachite-performance-site/$S3_PATH/
+          aws s3 cp block-time.csv s3://malachite-performance-site/$S3_PATH/
+
+      - name: Terraform Destroy (Cleanup Nodes)
+        if: always()
+        working-directory: qa/terraform
+        run: terraform destroy -auto-approve

@@ -1,7 +1,11 @@
 use derive_where::derive_where;
 
-use malachitebft_core_types::{Context, ValuePayload};
+use malachitebft_core_types::{Context, Round, ValuePayload};
 
+/// The round from which we enable the hidden lock mitigation mechanism
+pub const HIDDEN_LOCK_ROUND: Round = Round::new(10);
+
+#[doc(inline)]
 pub use malachitebft_core_driver::ThresholdParams;
 
 /// Consensus parameters.
@@ -21,17 +25,4 @@ pub struct Params<Ctx: Context> {
 
     /// The messages required to deliver proposals
     pub value_payload: ValuePayload,
-
-    /// The VoteSync mode
-    pub vote_sync_mode: VoteSyncMode,
-}
-
-/// The mode of vote synchronization
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum VoteSyncMode {
-    /// The lagging node sends a request to a peer for the missing votes
-    #[default]
-    RequestResponse,
-    /// Nodes rebroadcast their last vote to all peers
-    Rebroadcast,
 }

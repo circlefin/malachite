@@ -4,10 +4,7 @@ use std::time::Duration;
 use tokio::task::JoinHandle;
 use tracing::warn;
 
-use malachitebft_config::{
-    self as config, MempoolConfig, MempoolLoadConfig, ValueSyncConfig, VoteSyncConfig,
-};
-use malachitebft_core_consensus::VoteSyncMode;
+use malachitebft_config::{self as config, MempoolConfig, MempoolLoadConfig, ValueSyncConfig};
 use malachitebft_core_types::ValuePayload;
 use malachitebft_engine::consensus::{Consensus, ConsensusParams, ConsensusRef};
 use malachitebft_engine::host::HostRef;
@@ -16,7 +13,7 @@ use malachitebft_engine::node::{Node, NodeRef};
 use malachitebft_engine::sync::{Params as SyncParams, Sync, SyncRef};
 use malachitebft_engine::util::events::TxEvent;
 use malachitebft_engine::wal::{Wal, WalRef};
-use malachitebft_metrics::{Metrics, SharedRegistry};
+use malachitebft_metrics::{Metrics as ConsensusMetrics, SharedRegistry};
 use malachitebft_network::Keypair;
 use malachitebft_starknet_p2p_types::Ed25519Provider;
 use malachitebft_sync as sync;
@@ -29,6 +26,7 @@ use crate::host::{StarknetHost, StarknetParams};
 use crate::mempool::network::{MempoolNetwork, MempoolNetworkRef};
 use crate::mempool::{Mempool, MempoolRef};
 use crate::mempool_load::{MempoolLoad, MempoolLoadRef, Params};
+use crate::metrics::Metrics as AppMetrics;
 use crate::types::MockContext;
 use crate::types::{Address, Height, PrivateKey, ValidatorSet};
 
@@ -46,7 +44,10 @@ pub async fn spawn_node_actor(
     let start_height = start_height.unwrap_or(Height::new(1, 1));
 
     let registry = SharedRegistry::global().with_moniker(cfg.moniker.as_str());
-    let metrics = Metrics::register(&registry);
+    let consensus_metrics = ConsensusMetrics::register(&registry);
+    let app_metrics = AppMetrics::register(&registry);
+    let sync_metrics = sync::Metrics::register(&registry);
+
     let address = Address::from_public_key(private_key.public_key());
     let signing_provider = Ed25519Provider::new(private_key.clone());
 
@@ -68,7 +69,7 @@ pub async fn spawn_node_actor(
         mempool,
         mempool_load,
         network.clone(),
-        metrics.clone(),
+        app_metrics,
         &span,
     )
     .await;
@@ -78,8 +79,7 @@ pub async fn spawn_node_actor(
         network.clone(),
         host.clone(),
         &cfg.value_sync,
-        &cfg.consensus.vote_sync,
-        &registry,
+        sync_metrics,
         &span,
     )
     .await;
@@ -98,7 +98,7 @@ pub async fn spawn_node_actor(
         host.clone(),
         wal.clone(),
         sync.clone(),
-        metrics,
+        consensus_metrics,
         tx_event,
         &span,
     )
@@ -133,11 +133,10 @@ async fn spawn_sync_actor(
     network: NetworkRef<MockContext>,
     host: HostRef<MockContext>,
     config: &ValueSyncConfig,
-    vote_sync: &VoteSyncConfig,
-    registry: &SharedRegistry,
+    sync_metrics: sync::Metrics,
     span: &tracing::Span,
 ) -> Option<SyncRef<MockContext>> {
-    if !config.enabled && vote_sync.mode != config::VoteSyncMode::RequestResponse {
+    if !config.enabled {
         return None;
     }
 
@@ -146,8 +145,7 @@ async fn spawn_sync_actor(
         request_timeout: config.request_timeout,
     };
 
-    let metrics = sync::Metrics::register(registry);
-    let actor_ref = Sync::spawn(ctx, network, host, params, metrics, span.clone())
+    let actor_ref = Sync::spawn(ctx, network, host, params, sync_metrics, span.clone())
         .await
         .unwrap();
 
@@ -166,7 +164,7 @@ async fn spawn_consensus_actor(
     host: HostRef<MockContext>,
     wal: WalRef<MockContext>,
     sync: Option<SyncRef<MockContext>>,
-    metrics: Metrics,
+    consensus_metrics: ConsensusMetrics,
     tx_event: TxEvent<MockContext>,
     span: &tracing::Span,
 ) -> ConsensusRef<MockContext> {
@@ -176,10 +174,6 @@ async fn spawn_consensus_actor(
         address,
         threshold_params: Default::default(),
         value_payload: ValuePayload::PartsOnly,
-        vote_sync_mode: match cfg.consensus.vote_sync.mode {
-            config::VoteSyncMode::RequestResponse => VoteSyncMode::RequestResponse,
-            config::VoteSyncMode::Rebroadcast => VoteSyncMode::Rebroadcast,
-        },
     };
 
     Consensus::spawn(
@@ -191,7 +185,7 @@ async fn spawn_consensus_actor(
         host,
         wal,
         sync,
-        metrics,
+        consensus_metrics,
         tx_event,
         span.clone(),
     )
@@ -333,7 +327,7 @@ async fn spawn_host_actor(
     mempool: MempoolRef,
     mempool_load: MempoolLoadRef,
     network: NetworkRef<MockContext>,
-    metrics: Metrics,
+    metrics: AppMetrics,
     span: &tracing::Span,
 ) -> HostRef<MockContext> {
     if cfg.consensus.value_payload != config::ValuePayload::PartsOnly {

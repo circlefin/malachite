@@ -252,18 +252,6 @@ where
         resume::VoteExtensionValidity,
     ),
 
-    /// Consensus has been stuck in Prevote or Precommit step, and needs to ask for vote set from its peers
-    /// in order to make progress. Part of the VoteSync protocol.
-    ///
-    /// Resume with: [`resume::Continue`]
-    RequestVoteSet(Ctx::Height, Round, resume::Continue),
-
-    /// A peer has requested a vote set from us, send them the response.
-    /// Part of the VoteSync protocol.
-    ///
-    /// Resume with: [`resume::Continue`]`
-    SendVoteSetResponse(RequestId, Ctx::Height, Round, VoteSet<Ctx>, Vec<PolkaCertificate<Ctx>>, resume::Continue),
-
     /// Append a consensus message to the Write-Ahead Log for crash recovery
     ///
     /// Resume with: [`resume::Continue`]`
@@ -416,12 +404,6 @@ Here is a list of all effects that can be yielded when processing an input:
   - GetValidatorSet
   - VerifyCertificate
   - Decide
-
-* VoteSetRequest:
-  - SendVoteSetResponse
-
-* VoteSetResponse:
-  - Same as *Vote*
 
 ## Consequences
 

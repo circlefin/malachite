@@ -79,6 +79,7 @@ where
                 height,
                 round,
                 proposer,
+                role,
             } => {
                 let (reply_value, rx_value) = oneshot::channel();
 
@@ -87,6 +88,7 @@ where
                         height,
                         round,
                         proposer,
+                        role,
                         reply_value,
                     })
                     .await?;
@@ -96,16 +98,19 @@ where
                     return Ok(());
                 };
 
-                // Do not block processing of other messages while waiting for the value
+                // Do not block processing of other messages while waiting for the values
                 tokio::spawn({
                     let consensus = consensus.clone();
                     async move {
-                        if let Ok(Some(value)) = rx_value.await {
-                            let msg =
-                                ConsensusMsg::ReceivedProposedValue(value, ValueOrigin::Consensus);
-
-                            if let Err(e) = consensus.cast(msg) {
-                                error!("Failed to send back undecided value to consensus: {e}");
+                        if let Ok(values) = rx_value.await {
+                            for value in values {
+                                let msg = ConsensusMsg::ReceivedProposedValue(
+                                    value,
+                                    ValueOrigin::Consensus,
+                                );
+                                if let Err(e) = consensus.cast(msg) {
+                                    error!("Failed to send back undecided value to consensus: {e}");
+                                }
                             }
                         }
                     }
@@ -276,14 +281,6 @@ where
                     .await?;
 
                 reply_to.send(rx.await?)?;
-            }
-
-            HostMsg::PeerJoined { peer_id } => {
-                self.sender.send(AppMsg::PeerJoined { peer_id }).await?;
-            }
-
-            HostMsg::PeerLeft { peer_id } => {
-                self.sender.send(AppMsg::PeerLeft { peer_id }).await?;
             }
         };
 

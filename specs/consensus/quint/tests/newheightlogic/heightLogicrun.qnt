@@ -76,7 +76,7 @@ run fastProcessesDoNotDecide(h: Height, r: Round, value: NonNilValue, value2: No
     .then(fastList.length().reps(_ => ListTakeAStep(fastList)))   
     .then(all{
          assert(SetFromList(fastList).forall(proc => system.get(proc).timeouts.contains((PrevoteTimeout, h, r)))),
-         ListTakeAStep(fastList)
+         ListTimesOut(fastList)
     })
     .then(all{ 
         assert(SetFromList(fastList).forall(proc => system.get(proc).es.pendingStepChange == PrecommitStep)),
@@ -87,7 +87,7 @@ run fastProcessesDoNotDecide(h: Height, r: Round, value: NonNilValue, value2: No
     // FastList now go to next round on timeoutPrecommit
     .then(all{
         assert(SetFromList(fastList).forall(proc => system.get(proc).timeouts.contains((PrecommitTimeout, h, r)))),
-        everyoneReceivesProposal (fastList, validatorList, validatorSet, h, r + 1, value2)
+        everyoneReceivesProposalTO (fastList, validatorList, validatorSet, h, r + 1, value2)
     })        
     .then(fromPrevoteToPrecommit(fastList, fastList, validatorList, validatorSet, r, r + 1, Val(value2)))
     .then(ListDeliverAllVotes(Precommit, fastList, fastList, validatorSet, h, r+ 1, Val(value2)))
@@ -182,7 +182,7 @@ run catchUpToHigherRoundAfterHeightChange = {
     .then(fastList.length().reps(_ => ListTakeAStep(fastList)))   
     .then(all{
          assert(SetFromList(fastList).forall(proc => system.get(proc).timeouts.contains((PrevoteTimeout, 1, 0)))),
-         ListTakeAStep(fastList)
+         ListTimesOut(fastList)
     })
     .then(all{ 
         assert(SetFromList(fastList).forall(proc => system.get(proc).es.pendingStepChange == PrecommitStep)),
@@ -193,7 +193,7 @@ run catchUpToHigherRoundAfterHeightChange = {
     // FastList now go to next round on timeoutPrecommit
     .then(all{
         assert(SetFromList(fastList).forall(proc => system.get(proc).timeouts.contains((PrecommitTimeout, 1, 0)))),
-        everyoneReceivesProposal (fastList, validatorList, validatorSet, 1, 1, value2)
+        everyoneReceivesProposalTO (fastList, validatorList, validatorSet, 1, 1, value2)
     })        
     .then(fromPrevoteToPrecommit(fastList, fastList, validatorList, validatorSet, 1, 1, Val(value2)))
     .then(ListDeliverAllVotes(Precommit, fastList, fastList, validatorSet, 1, 1, Val(value2)))

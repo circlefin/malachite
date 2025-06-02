@@ -52,13 +52,19 @@ pub enum StoreError {
     Commit(#[from] redb::CommitError),
 
     #[error("Transaction error: {0}")]
-    Transaction(#[from] redb::TransactionError),
+    Transaction(#[from] Box<redb::TransactionError>),
 
     #[error("Failed to encode/decode Protobuf: {0}")]
     Protobuf(#[from] ProtoError),
 
     #[error("Failed to join on task: {0}")]
     TaskJoin(#[from] tokio::task::JoinError),
+}
+
+impl From<redb::TransactionError> for StoreError {
+    fn from(err: redb::TransactionError) -> Self {
+        Self::Transaction(Box::new(err))
+    }
 }
 
 const CERTIFICATES_TABLE: redb::TableDefinition<HeightKey, Vec<u8>> =
@@ -247,19 +253,31 @@ pub struct BlockStore {
 }
 
 impl BlockStore {
-    pub fn new(path: impl AsRef<Path>) -> Result<Self, StoreError> {
-        let db = Db::new(path)?;
-        db.create_tables()?;
+    pub async fn new(path: impl AsRef<Path>) -> Result<Self, StoreError> {
+        let path = path.as_ref().to_owned();
+        tokio::task::spawn_blocking(move || {
+            let db = Db::new(path)?;
+            db.create_tables()?;
 
-        Ok(Self { db: Arc::new(db) })
+            Ok(Self { db: Arc::new(db) })
+        })
+        .await?
     }
 
-    pub fn first_height(&self) -> Option<Height> {
-        self.db.first_key()
+    pub async fn first_height(&self) -> Option<Height> {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.first_key())
+            .await
+            .ok()
+            .flatten()
     }
 
-    pub fn last_height(&self) -> Option<Height> {
-        self.db.last_key()
+    pub async fn last_height(&self) -> Option<Height> {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.last_key())
+            .await
+            .ok()
+            .flatten()
     }
 
     pub async fn get(&self, height: Height) -> Result<Option<DecidedBlock>, StoreError> {

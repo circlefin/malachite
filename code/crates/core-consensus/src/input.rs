@@ -1,13 +1,10 @@
 use derive_where::derive_where;
 use malachitebft_core_types::{
-    CommitCertificate, Context, PolkaCertificate, Round, SignedProposal, SignedVote, Timeout,
-    ValueOrigin, VoteSet,
+    CommitCertificate, Context, PolkaCertificate, RoundCertificate, SignedProposal, SignedVote,
+    Timeout, ValueOrigin,
 };
 
-use crate::types::ProposedValue;
-use crate::LocallyProposedValue;
-
-pub type RequestId = String;
+use crate::types::{LocallyProposedValue, ProposedValue};
 
 /// Inputs to be handled by the consensus process.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
@@ -27,6 +24,12 @@ where
     /// i.e. when consensus runs in a mode where the proposer sends a Proposal consensus message over the network.
     Proposal(SignedProposal<Ctx>),
 
+    /// Process a PolkaCertificate message received over the network
+    PolkaCertificate(PolkaCertificate<Ctx>),
+
+    /// Process a RoundCertificate message received over the network
+    RoundCertificate(RoundCertificate<Ctx>),
+
     /// Propose the given value.
     ///
     /// This input MUST only be provided when we are the proposer for the current round.
@@ -42,10 +45,4 @@ where
 
     /// We have received a commit certificate via the sync protocol.
     CommitCertificate(CommitCertificate<Ctx>),
-
-    /// A peer has requested a vote set for the given height and round
-    VoteSetRequest(RequestId, Ctx::Height, Round),
-
-    /// Received a vote set from a peer via Sync
-    VoteSetResponse(VoteSet<Ctx>, Vec<PolkaCertificate<Ctx>>),
 }

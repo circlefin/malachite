@@ -6,6 +6,7 @@ This document provides guidelines and instructions to help you set up your devel
 
 ## Table of Contents
 
+- [Scope of Contributions](#scope-of-contribution)
 - [Setup](#setup)
   - [Prerequisites](#prerequisites)
   - [Environment Setup](#environment-setup)
@@ -18,6 +19,10 @@ This document provides guidelines and instructions to help you set up your devel
 - [Pull Request Process](#pull-request-process)
 - [Continuous Integration](#continuous-integration)
 
+## Scope of Contributions
+
+Please make sure to [read the corresponding section in CONTRIBUTING.md](/CONTRIBUTING.md#scope-of-contribution).
+
 ## Setup
 
 ### Prerequisites
@@ -25,7 +30,6 @@ This document provides guidelines and instructions to help you set up your devel
 To build and test Malachite, you need the following tools:
 
 - **Rust**: Install the latest stable Rust toolchain using [rustup](https://rustup.rs/)
-- **Protocol Buffers Compiler (protoc)**: Required for Protobuf message serialization
 - **Node.js**: Required for running [Quint](https://quint-lang.org)
 - **Quint**: A formal specification language used for our model-based tests
 - **cargo-nextest**: An improved test runner for Rust
@@ -40,25 +44,7 @@ To build and test Malachite, you need the following tools:
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
    ```
 
-2. **Install the Protocol Buffers Compiler**:
-
-   `protoc` is needed for compiling Protobuf definitions used in the test applications to Rust code.
-
-   For Ubuntu/Debian:
-
-   ```bash
-   sudo apt-get install protobuf-compiler
-   ```
-
-   For macOS:
-
-   ```bash
-   brew install protobuf
-   ```
-
-   Please ensure that the version of `protoc` is at least v29.0.
-
-3. **Install Node.js**: (only required for running model-based tests)
+2. **Install Node.js**: (only required for running model-based tests)
 
    Follow the instructions at [nodejs.org](https://nodejs.org/) or use a version manager:
 
@@ -69,19 +55,19 @@ To build and test Malachite, you need the following tools:
    nvm use 21
    ```
 
-4. **Install Quint**: (only required for running model-based tests)
+3. **Install Quint**: (only required for running model-based tests)
 
    ```bash
    npm install -g @informalsystems/quint
    ```
 
-5. **Install cargo-nextest**:
+4. **Install cargo-nextest**:
 
    ```bash
    cargo install cargo-nextest
    ```
 
-6. **Fork and clone the repository**:
+5. **Fork and clone the repository**:
 
    ```bash
    git clone https://github.com/USERNAME/malachite.git

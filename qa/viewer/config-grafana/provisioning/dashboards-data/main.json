@@ -15,7 +15,6 @@
       }
     ]
   },
-  "description": "",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
@@ -112,11 +111,13 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "maxHeight": 600,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "datasource": {
@@ -124,7 +125,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "malachite_consensus_finalized_blocks_total",
+          "expr": "malachitebft_core_consensus_finalized_blocks_total",
           "instant": false,
           "legendFormat": "{{instance}}",
           "range": true,
@@ -210,11 +211,13 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "maxHeight": 600,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "datasource": {
@@ -222,7 +225,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "increase(malachite_consensus_finalized_blocks_total[1m])",
+          "expr": "increase(malachitebft_core_consensus_finalized_blocks_total[1m])",
           "instant": false,
           "interval": "60",
           "legendFormat": "{{instance}}",
@@ -310,11 +313,13 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "maxHeight": 600,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "datasource": {
@@ -322,7 +327,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "malachite_consensus_finalized_txes_total",
+          "expr": "malachitebft_core_consensus_finalized_txes_total",
           "instant": false,
           "legendFormat": "{{instance}}",
           "range": true,
@@ -409,11 +414,13 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "maxHeight": 600,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "datasource": {
@@ -421,7 +428,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "increase(malachite_consensus_finalized_txes_total[1m])",
+          "expr": "increase(malachitebft_core_consensus_finalized_txes_total[1m])",
           "instant": false,
           "interval": "60",
           "legendFormat": "{{instance}}",
@@ -512,11 +519,13 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "maxHeight": 600,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "datasource": {
@@ -526,7 +535,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "malachite_consensus_round",
+          "expr": "malachitebft_core_consensus_round",
           "format": "time_series",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
@@ -617,10 +626,12 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "datasource": {
@@ -628,14 +639,14 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "malachite_consensus_consensus_time_sum / malachite_consensus_consensus_time_count",
+          "expr": "malachitebft_core_consensus_consensus_time_sum / malachitebft_core_consensus_consensus_time_count",
           "instant": false,
           "legendFormat": "{{instance}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "consensus time (latency)",
+      "title": "Consensus Latency",
       "type": "timeseries"
     },
     {
@@ -715,11 +726,13 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "maxHeight": 600,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "datasource": {
@@ -727,7 +740,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "malachite_consensus_time_per_block_sum/malachite_consensus_time_per_block_count",
+          "expr": "malachitebft_core_consensus_time_per_block_sum/malachitebft_core_consensus_time_per_block_count",
           "instant": false,
           "interval": "",
           "legendFormat": "{{instance}}",
@@ -762,11 +775,11 @@
               "mode": "none"
             }
           },
-          "displayName": "Round",
+          "displayName": "Block Creation",
           "fieldMinMax": false,
           "mappings": [],
-          "max": 4,
-          "min": 0,
+          "max": 2,
+          "min": 1,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -775,7 +788,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "unit": "s"
         },
         "overrides": []
       },
@@ -785,23 +799,26 @@
         "x": 12,
         "y": 25
       },
-      "id": 19,
+      "id": 18,
       "options": {
-        "bucketSize": 0.01,
+        "bucketOffset": 0,
         "combine": false,
         "legend": {
           "calcs": [
-            "last"
+            "last",
+            "mean"
           ],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "datasource": {
@@ -810,16 +827,16 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "malachite_consensus_rounds_per_block_bucket{instance=\"node0:9000\",le=\"1.0\"} /malachite_consensus_rounds_per_block_count{instance=\"node0:9000\"}",
+          "expr": "histogram_quantile(0.95, sum(rate(malachitebft_core_consensus_time_per_block_bucket[$__rate_interval])) by (le))",
           "format": "time_series",
           "instant": false,
-          "interval": "",
+          "interval": "7",
           "legendFormat": "{{instance}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Round buckets (count / round)",
+      "title": "Block creation buckets (count / creation time)",
       "type": "histogram"
     },
     {
@@ -896,11 +913,13 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "maxHeight": 600,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "datasource": {
@@ -908,7 +927,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "malachite_consensus_block_size_bytes_sum/malachite_consensus_block_size_bytes_count",
+          "expr": "malachitebft_core_consensus_block_size_bytes_sum/malachitebft_core_consensus_block_size_bytes_count",
           "instant": false,
           "interval": "1",
           "legendFormat": "{{instance}}",
@@ -920,193 +939,12 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "fillOpacity": 80,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineWidth": 1,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            }
-          },
-          "displayName": "Block Creation",
-          "fieldMinMax": false,
-          "mappings": [],
-          "max": 2,
-          "min": 1,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 33
-      },
-      "id": 18,
-      "options": {
-        "bucketOffset": 0,
-        "combine": false,
-        "legend": {
-          "calcs": [
-            "last",
-            "mean"
-          ],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "exemplar": false,
-          "expr": "histogram_quantile(0.95, sum(rate(malachite_consensus_time_per_block_bucket[$__rate_interval])) by (le))",
-          "format": "time_series",
-          "instant": false,
-          "interval": "7",
-          "legendFormat": "{{instance}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Block creation buckets (count / creation time)",
-      "type": "histogram"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 41
-      },
-      "id": 20,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "exemplar": false,
-          "expr": "sum(rate(malachite_consensus_block_size_bytes_bucket{le=\"8323072.0\"}[$__rate_interval])) by (instance)/sum(rate(malachite_consensus_block_size_bytes_count[$__rate_interval])) by (instance)",
-          "instant": false,
-          "interval": "1",
-          "legendFormat": "Bytes",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "WIP Block size buckets (count / size in bytes)",
-      "type": "timeseries"
-    },
-    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 49
+        "y": 41
       },
       "id": 4,
       "panels": [],
@@ -1176,7 +1014,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 50
+        "y": 42
       },
       "id": 7,
       "options": {
@@ -1189,11 +1027,13 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "maxHeight": 600,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "datasource": {
@@ -1203,7 +1043,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "malachite_consensus_height",
+          "expr": "malachitebft_core_consensus_height",
           "format": "time_series",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
@@ -1278,7 +1118,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 50
+        "y": 42
       },
       "id": 6,
       "options": {
@@ -1292,12 +1132,13 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "maxHeight": 600,
           "mode": "single",
           "sort": "none"
         }
       },
-      "pluginVersion": "11.0.1",
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "datasource": {
@@ -1305,7 +1146,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "malachite_consensus_connected_peers",
+          "expr": "malachitebft_core_consensus_connected_peers",
           "instant": false,
           "interval": "1",
           "legendFormat": "{{instance}}",
@@ -1315,469 +1156,6 @@
       ],
       "title": "Number of connected peers",
       "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "description": "Number of gossip messages divided by number of unique gossip messages",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineStyle": {
-              "fill": "solid"
-            },
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 58
-      },
-      "id": 24,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "last"
-          ],
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "expr": "100 * malachite_gossip_consensus_topic_msg_recv_counts_total{hash=\"/consensus\"} / malachite_gossip_consensus_topic_msg_recv_counts_unfiltered_total{hash=\"/consensus\"}",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "{{instance}}",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        }
-      ],
-      "title": "Consensus duplicate rate",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "description": "Number of gossip messages divided by number of unique gossip messages",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineStyle": {
-              "fill": "solid"
-            },
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 58
-      },
-      "id": 23,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "last"
-          ],
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "expr": "malachite_gossip_consensus_topic_msg_recv_counts_unfiltered_total{hash=\"/consensus\"} / malachite_gossip_consensus_topic_msg_recv_counts_total{hash=\"/consensus\"}",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "{{instance}}",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        }
-      ],
-      "title": "Message redundancy ratio",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "axisSoftMax": 100,
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "log": 10,
-              "type": "log"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 66
-      },
-      "id": 25,
-      "options": {
-        "legend": {
-          "calcs": [
-            "last",
-            "mean"
-          ],
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "expr": "100 * (malachite_consensus_rounds_per_block_bucket{instance=\"node0:9000\", le=\"1.0\"} - ignoring (le) malachite_consensus_rounds_per_block_bucket{instance=\"node0:9000\", le=\"0.0\"}) / malachite_consensus_height",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "round0",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "100 * (malachite_consensus_rounds_per_block_bucket{instance=\"node0:9000\", le=\"2.0\"} - ignoring (le) malachite_consensus_rounds_per_block_bucket{instance=\"node0:9000\", le=\"1.0\"}) / malachite_consensus_height",
-          "hide": false,
-          "instant": false,
-          "legendFormat": "round1",
-          "range": true,
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "100 * (malachite_consensus_rounds_per_block_bucket{instance=\"node0:9000\", le=\"3.0\"} - ignoring (le) malachite_consensus_rounds_per_block_bucket{instance=\"node0:9000\", le=\"2.0\"}) / malachite_consensus_height",
-          "hide": false,
-          "instant": false,
-          "legendFormat": "round2",
-          "range": true,
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "100 * (malachite_consensus_rounds_per_block_bucket{instance=\"node0:9000\", le=\"4.0\"} - ignoring (le) malachite_consensus_rounds_per_block_bucket{instance=\"node0:9000\", le=\"3.0\"}) / malachite_consensus_height",
-          "hide": false,
-          "instant": false,
-          "legendFormat": "round3",
-          "range": true,
-          "refId": "D"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "100 * (malachite_consensus_rounds_per_block_bucket{instance=\"node0:9000\", le=\"5.0\"} - ignoring (le) malachite_consensus_rounds_per_block_bucket{instance=\"node0:9000\", le=\"4.0\"}) / malachite_consensus_height",
-          "hide": false,
-          "instant": false,
-          "legendFormat": "round4",
-          "range": true,
-          "refId": "E"
-        }
-      ],
-      "title": "Rounds finalized percentage",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "fillOpacity": 80,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineWidth": 1,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 66
-      },
-      "id": 26,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum(rate(malachite_consensus_rounds_per_block_bucket{instance=\"node0:9000\"}[$__rate_interval])) by (le))",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "",
-          "hide": false,
-          "instant": false,
-          "range": true,
-          "refId": "B"
-        }
-      ],
-      "title": "WIP rounds per block histogram",
-      "type": "histogram"
     },
     {
       "datasource": {
@@ -1840,7 +1218,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 74
+        "y": 50
       },
       "id": 22,
       "options": {
@@ -1854,11 +1232,13 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "maxHeight": 600,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "datasource": {
@@ -1882,8 +1262,9 @@
       "type": "timeseries"
     }
   ],
+  "preload": false,
   "refresh": "5s",
-  "schemaVersion": 39,
+  "schemaVersion": 40,
   "tags": [],
   "templating": {
     "list": []
@@ -1894,8 +1275,8 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Malachite first stab",
+  "title": "Malachite metrics",
   "uid": "fdo24nq8yvf28f",
-  "version": 2,
+  "version": 3,
   "weekStart": ""
 }

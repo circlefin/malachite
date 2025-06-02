@@ -2,9 +2,8 @@ use derive_where::derive_where;
 
 use malachitebft_core_types::*;
 
-use crate::input::RequestId;
-use crate::types::SignedConsensusMsg;
-use crate::{ConsensusMsg, VoteExtensionError, WalEntry};
+use crate::types::{LivenessMsg, SignedConsensusMsg};
+use crate::{ConsensusMsg, Role, VoteExtensionError, WalEntry};
 
 /// Provides a way to construct the appropriate [`Resume`] value to
 /// resume execution after handling an [`Effect`].
@@ -16,16 +15,17 @@ use crate::{ConsensusMsg, VoteExtensionError, WalEntry};
 ///
 /// ```rust,ignore
 /// fn effect_handler(effect: Effect<Ctx>) -> Result<Resume<Ctx>, Error> {
-/// match effect {
-///    Effect::ResetTimeouts(r) => {
-///      reset_timeouts();
-///      Ok(r.resume_with(()))
-///    }
-///    Effect::GetValidatorSet(height, r) => {)
-///        let validator_set = get_validator_set(height);
-///        Ok(r.resume_with(validator_set))
-///    }
-///    // ...
+///     match effect {
+///         Effect::ResetTimeouts(r) => {
+///             reset_timeouts();
+///             Ok(r.resume_with(()))
+///         }
+///         Effect::GetValidatorSet(height, r) => {
+///             let validator_set = get_validator_set(height);
+///             Ok(r.resume_with(validator_set))
+///         }
+///        // ...
+///     }
 /// }
 /// ```
 pub trait Resumable<Ctx: Context> {
@@ -77,17 +77,27 @@ where
     /// Consensus is starting a new round with the given proposer
     ///
     /// Resume with: [`resume::Continue`]
-    StartRound(Ctx::Height, Round, Ctx::Address, resume::Continue),
+    StartRound(Ctx::Height, Round, Ctx::Address, Role, resume::Continue),
 
     /// Publish a message to peers
     ///
     /// Resume with: [`resume::Continue`]
-    Publish(SignedConsensusMsg<Ctx>, resume::Continue),
+    PublishConsensusMsg(SignedConsensusMsg<Ctx>, resume::Continue),
+
+    /// Publish a liveness message to peers
+    ///
+    /// Resume with: [`resume::Continue`]
+    PublishLivenessMsg(LivenessMsg<Ctx>, resume::Continue),
 
     /// Rebroadcast a vote to peers
     ///
     /// Resume with: [`resume::Continue`]
-    Rebroadcast(SignedVote<Ctx>, resume::Continue),
+    RebroadcastVote(SignedVote<Ctx>, resume::Continue),
+
+    /// Rebroadcast a round certificate to peers
+    ///
+    /// Resume with: [`resume::Continue`]
+    RebroadcastRoundCertificate(RoundCertificate<Ctx>, resume::Continue),
 
     /// Requests the application to build a value for consensus to run on.
     ///
@@ -175,21 +185,14 @@ where
         resume::CertificateValidity,
     ),
 
-    /// Consensus has been stuck in Prevote or Precommit step, ask for vote sets from peers
+    /// Verify a round certificate
     ///
-    /// Resume with: [`resume::Continue`]
-    RequestVoteSet(Ctx::Height, Round, resume::Continue),
-
-    /// A peer has required our vote set, send the response
-    ///
-    /// Resume with: [`resume::Continue`]`
-    SendVoteSetResponse(
-        RequestId,
-        Ctx::Height,
-        Round,
-        VoteSet<Ctx>,
-        Vec<PolkaCertificate<Ctx>>,
-        resume::Continue,
+    /// Resume with: [`resume::CertificateValidity`]
+    VerifyRoundCertificate(
+        RoundCertificate<Ctx>,
+        Ctx::ValidatorSet,
+        ThresholdParams,
+        resume::CertificateValidity,
     ),
 
     /// Append an entry to the Write-Ahead Log for crash recovery

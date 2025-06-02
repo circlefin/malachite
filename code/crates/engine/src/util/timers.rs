@@ -1,3 +1,4 @@
+use core::fmt;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -28,6 +29,15 @@ struct Timer<Key> {
 pub struct TimeoutElapsed<Key> {
     key: Key,
     generation: u64,
+}
+
+impl<Key> TimeoutElapsed<Key> {
+    pub fn display_key(&self) -> &dyn fmt::Display
+    where
+        Key: fmt::Display,
+    {
+        &self.key
+    }
 }
 
 pub struct TimerScheduler<Key>

@@ -1,3 +1,6 @@
+#![doc = include_str!("../README.md")]
+#![allow(rustdoc::private_intra_doc_links)]
+
 mod prelude;
 
 mod input;
@@ -10,7 +13,10 @@ mod error;
 pub use error::Error;
 
 mod params;
-pub use params::{Params, ThresholdParams, VoteSyncMode};
+pub use params::{Params, ThresholdParams};
+
+#[doc(hidden)]
+pub use params::HIDDEN_LOCK_ROUND;
 
 mod effect;
 pub use effect::{Effect, Resumable, Resume};

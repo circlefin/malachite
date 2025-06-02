@@ -4,13 +4,12 @@ use ed25519_consensus::Signature;
 use malachitebft_core_consensus::SignedConsensusMsg;
 use malachitebft_core_types::{
     AggregatedSignature, CommitCertificate, CommitSignature, Extension, Round, SignedExtension,
-    SignedProposal, SignedVote, VoteSet,
+    SignedProposal, SignedVote,
 };
 use malachitebft_engine::util::streaming::{StreamContent, StreamMessage};
 use malachitebft_proto::Protobuf;
 use malachitebft_sync::{
-    DecidedValue, PeerId, Request, Response, Status, ValueRequest, ValueResponse, VoteSetRequest,
-    VoteSetResponse,
+    DecidedValue, PeerId, Request, Response, Status, ValueRequest, ValueResponse,
 };
 use serde::{Deserialize, Serialize};
 
@@ -131,16 +130,8 @@ pub struct ValueRawRequest {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct VoteSetRawRequest {
-    pub height: Height,
-    #[serde(with = "RoundDef")]
-    pub round: Round,
-}
-
-#[derive(Serialize, Deserialize)]
 pub enum RawRequest {
     SyncRequest(ValueRawRequest),
-    VoteSetRequest(VoteSetRawRequest),
 }
 
 impl From<Request<TestContext>> for RawRequest {
@@ -148,10 +139,6 @@ impl From<Request<TestContext>> for RawRequest {
         match value {
             Request::ValueRequest(block_request) => Self::SyncRequest(ValueRawRequest {
                 height: block_request.height,
-            }),
-            Request::VoteSetRequest(vote_set_request) => Self::VoteSetRequest(VoteSetRawRequest {
-                height: vote_set_request.height,
-                round: vote_set_request.round,
             }),
         }
     }
@@ -163,12 +150,6 @@ impl From<RawRequest> for Request<TestContext> {
             RawRequest::SyncRequest(block_raw_request) => Self::ValueRequest(ValueRequest {
                 height: block_raw_request.height,
             }),
-            RawRequest::VoteSetRequest(vote_set_raw_request) => {
-                Self::VoteSetRequest(VoteSetRequest {
-                    height: vote_set_raw_request.height,
-                    round: vote_set_raw_request.round,
-                })
-            }
         }
     }
 }
@@ -286,81 +267,14 @@ impl From<ValueRawResponse> for ValueResponse<TestContext> {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct RawVoteSet {
-    vote_set: Vec<RawSignedMessage>,
-}
-
-impl From<VoteSet<TestContext>> for RawVoteSet {
-    fn from(value: VoteSet<TestContext>) -> Self {
-        Self {
-            vote_set: value
-                .votes
-                .iter()
-                .map(|vote| RawSignedMessage {
-                    message: vote.message.to_bytes(),
-                    signature: *vote.signature.inner(),
-                })
-                .collect(),
-        }
-    }
-}
-
-impl From<RawVoteSet> for VoteSet<TestContext> {
-    fn from(value: RawVoteSet) -> Self {
-        Self {
-            votes: value
-                .vote_set
-                .iter()
-                .map(|vote| SignedVote {
-                    message: Vote::from_bytes(&vote.message).unwrap(),
-                    signature: vote.signature.into(),
-                })
-                .collect(),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct VoteSetRawResponse {
-    pub height: Height,
-    #[serde(with = "RoundDef")]
-    pub round: Round,
-    pub vote_set: RawVoteSet,
-}
-
-impl From<VoteSetResponse<TestContext>> for VoteSetRawResponse {
-    fn from(value: VoteSetResponse<TestContext>) -> Self {
-        Self {
-            height: value.height,
-            round: value.round,
-            vote_set: value.vote_set.into(),
-        }
-    }
-}
-
-impl From<VoteSetRawResponse> for VoteSetResponse<TestContext> {
-    fn from(value: VoteSetRawResponse) -> Self {
-        Self {
-            height: value.height,
-            round: value.round,
-            vote_set: value.vote_set.into(),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize)]
 pub enum RawResponse {
     ValueResponse(ValueRawResponse),
-    VoteSetResponse(VoteSetRawResponse),
 }
 
 impl From<Response<TestContext>> for RawResponse {
     fn from(value: Response<TestContext>) -> Self {
         match value {
             Response::ValueResponse(block_response) => Self::ValueResponse(block_response.into()),
-            Response::VoteSetResponse(vote_set_response) => {
-                Self::VoteSetResponse(vote_set_response.into())
-            }
         }
     }
 }
@@ -370,9 +284,6 @@ impl From<RawResponse> for Response<TestContext> {
         match value {
             RawResponse::ValueResponse(block_raw_response) => {
                 Self::ValueResponse(block_raw_response.into())
-            }
-            RawResponse::VoteSetResponse(vote_set_raw_response) => {
-                Self::VoteSetResponse(vote_set_raw_response.into())
             }
         }
     }

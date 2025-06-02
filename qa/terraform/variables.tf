@@ -2,12 +2,19 @@ variable "do_token" {}
 
 variable "ssh_keys" {
   type = list(string)
+  default = []
 }
 
 # The project name in Digital Ocean.
 variable project_name {
   type = string
   default = "malachite-testnet"
+}
+
+# CC server region
+variable cc_region {
+  type = string
+  default = "fra1"
 }
 
 # Regions and number of servers to deploy there

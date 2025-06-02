@@ -25,9 +25,6 @@ where
     /// Decided value requests for these heights have been sent out to peers.
     pub pending_decided_value_requests: BTreeMap<Ctx::Height, PeerId>,
 
-    /// Vote set requests for these heights and rounds have been sent out to peers.
-    pub pending_vote_set_requests: BTreeMap<(Ctx::Height, Round), PeerId>,
-
     /// The set of peers we are connected to in order to get values, certificates and votes.
     /// TODO - For now value and vote sync peers are the same. Might need to revise in the future.
     pub peers: BTreeMap<PeerId, Status<Ctx>>,
@@ -44,7 +41,6 @@ where
             tip_height: Ctx::Height::ZERO,
             sync_height: Ctx::Height::ZERO,
             pending_decided_value_requests: BTreeMap::new(),
-            pending_vote_set_requests: BTreeMap::new(),
             peers: BTreeMap::new(),
         }
     }
@@ -106,23 +102,5 @@ where
 
     pub fn has_pending_decided_value_request(&self, height: &Ctx::Height) -> bool {
         self.pending_decided_value_requests.contains_key(height)
-    }
-
-    pub fn store_pending_vote_set_request(
-        &mut self,
-        height: Ctx::Height,
-        round: Round,
-        peer: PeerId,
-    ) {
-        self.pending_vote_set_requests.insert((height, round), peer);
-    }
-
-    pub fn remove_pending_vote_set_request(&mut self, height: Ctx::Height, round: Round) {
-        self.pending_vote_set_requests.remove(&(height, round));
-    }
-
-    pub fn has_pending_vote_set_request(&self, height: Ctx::Height, round: Round) -> bool {
-        self.pending_vote_set_requests
-            .contains_key(&(height, round))
     }
 }

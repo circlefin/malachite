@@ -45,6 +45,9 @@
 #  _change_config
 #  _create_hostname_links
 #  _parse_multiple_hosts
+# Undocumented commands used for getting prometheus metrics in .csv format
+# _export_prometheus_csv - export specified prometheus metric data and save it in .csv format
+# _export_prometheus_performance_csv - use function above to export consensus latency and throughput 
 ##
 
 # Global variables and aliases imported using jinja templates from terraform.
@@ -65,10 +68,14 @@ export IS_CC="0"
 
 # More global variables and aliases that can be derived from previously available data.
 alias ssh-cc="ssh -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null root@$${CANDC}"
-alias ssh_cc="ssh -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null root@$${CANDC}"
 export PSSH_P="$${D_N}"
 export PSSH_T=120
 export PSSH_V="-v"
+
+# ssh_cc runs commands on the CC server.
+ssh_cc() {
+  ssh -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null root@$${CANDC} "$@"
+}
 
 # Translate node ID numbers to IP addresses. 0 -> 1.2.3.4
 get_ip() {
@@ -121,10 +128,10 @@ ok_cc() {
 deploy_cc() {
   test -d "$MALACHITE_DIR/code" || (echo "Source code repository not found. Clone or copy manually." && return 1)
   if _is_cc; then
-    docker build --push -t cc.testnet/node --build-context "code=$MALACHITE_DIR/code" "$MALACHITE_DIR/qa/docker"
+    docker build --output=type=registry -t cc.testnet/node --build-context "code=$MALACHITE_DIR/code" "$MALACHITE_DIR/qa/docker"
   else
     _keyscan_cc 2> /dev/null # Needed for docker -H
-    docker -H ssh://root@$CANDC build --push -t cc.testnet/node --build-context "code=$MALACHITE_DIR/code" "$MALACHITE_DIR/qa/docker"
+    docker -H ssh://root@$CANDC build --output=type=registry -t cc.testnet/node --build-context "code=$MALACHITE_DIR/code" "$MALACHITE_DIR/qa/docker"
   fi
 }
 
@@ -136,7 +143,7 @@ setup_config() {
     _change_config all
     _create_hostname_links
   else
-    ssh-cc "source /etc/profile.d/commands.sh && setup_config"
+    ssh_cc "source /etc/profile.d/commands.sh && setup_config"
   fi
 }
 
@@ -145,7 +152,7 @@ d_pull() {
 }
 
 d_run() {
-  PSSH_H="$(_parse_multiple_hosts "$@")" xssh docker run -d -p 27000:27000/udp -p 28000:28000/udp -p 9000:9000/tcp --name node --cap-add=NET_ADMIN --dns $CANDC --mount type=bind,source=/data,target=/data --mount type=bind,source=/config,target=/config -e RUST_LOG $CANDC/node --home /config start
+  PSSH_H="$(_parse_multiple_hosts "$@")" xssh docker run -d -p 27000:27000/tcp -p 28000:28000/tcp -p 27000:27000/udp -p 28000:28000/udp -p 9000:9000/tcp --name node --cap-add=NET_ADMIN --dns $CANDC --mount type=bind,source=/data,target=/data --mount type=bind,source=/config,target=/root/config -e RUST_LOG $CANDC/node --home /root start
 }
 
 d_log() {
@@ -192,7 +199,7 @@ get_prometheus_data() {
     docker stop prometheus && tar -cvzf prometheus.tgz -C /var/lib/docker/volumes/docker_prometheus/_data .
     docker start prometheus
   else
-    ssh-cc "rm -f prometheus.tgz; docker stop prometheus && tar -cvzf prometheus.tgz -C /var/lib/docker/volumes/docker_prometheus/_data . ; docker start prometheus"
+    ssh_cc "rm -f prometheus.tgz; docker stop prometheus && tar -cvzf prometheus.tgz -C /var/lib/docker/volumes/docker_prometheus/_data . ; docker start prometheus"
     scp -r "root@$CANDC:prometheus.tgz" .
   fi
 }
@@ -203,7 +210,7 @@ _reset_prometheus_db() {
     rm -rf /var/lib/docker/volumes/docker_prometheus/_data/*
     docker start prometheus
   else
-    ssh-cc "docker stop prometheus && rm -rf /var/lib/docker/volumes/docker_prometheus/_data/*; docker start prometheus"
+    ssh_cc "docker stop prometheus && rm -rf /var/lib/docker/volumes/docker_prometheus/_data/*; docker start prometheus"
   fi
 }
 
@@ -233,7 +240,7 @@ _reset_elastic_db() {
     rm -rf /var/lib/docker/volumes/docker-elk_elasticsearch/_data/*
     docker start docker-elk-elasticsearch-1
   else
-    ssh-cc "docker stop docker-elk-elasticsearch-1 && rm -rf /var/lib/docker/volumes/docker-elk_elasticsearch/_data/*; docker start docker-elk-elasticsearch-1"
+    ssh_cc "docker stop docker-elk-elasticsearch-1 && rm -rf /var/lib/docker/volumes/docker-elk_elasticsearch/_data/*; docker start docker-elk-elasticsearch-1"
   fi
 }
 
@@ -256,6 +263,8 @@ _is_cc() {
 }
 
 _keyscan_cc() {
+  mkdir -p "$HOME/.ssh"
+  touch "$HOME/.ssh/known_hosts"
   ssh-keygen -R "$CANDC" > /dev/null
   ssh-keyscan -t ed25519 "$CANDC" >> "$HOME/.ssh/known_hosts"
 }
@@ -263,6 +272,7 @@ _keyscan_cc() {
 _compose_persistent_peers() {
   skip=$${1:-10000}
   port=$${2:-27000}
+  transport_protocol=$${3:-tcp}
 
   persistent_peers=""
   for i in $(seq 0 $((D_N-1)))
@@ -270,7 +280,11 @@ _compose_persistent_peers() {
     if [ "$i" -eq "$skip" ]; then
       continue
     fi
-    persistent_peers="$persistent_peers,/dns/node$i/udp/$port/quic-v1"
+    if [ "$transport_protocol" == "quic" ]; then
+      persistent_peers="$persistent_peers,/dns/node$i/udp/$port/quic-v1"
+    else
+      persistent_peers="$persistent_peers,/dns/node$i/tcp/$port"
+    fi
   done
   echo $${persistent_peers##,}
 }
@@ -285,16 +299,28 @@ _change_config() {
     file="/data/$i/config/config.toml"
     sconfig "$file" \
       "moniker=test-$i" \
-      "consensus.p2p.listen_addr=/ip4/0.0.0.0/udp/27000/quic-v1" \
-      "mempool.p2p.listen_addr=/ip4/0.0.0.0/udp/28000/quic-v1" \
+      "consensus.p2p.listen_addr=/ip4/0.0.0.0/tcp/27000" \
+      "consensus.p2p.transport=tcp" \
+      "consensus.p2p.discovery.enabled=true" \
+      "mempool.p2p.listen_addr=/ip4/0.0.0.0/tcp/28000" \
+      "mempool.p2p.transport=tcp" \
+      "mempool.p2p.discovery.enabled=true" \
       "metrics.listen_addr=0.0.0.0:9000" \
-      "runtime.flavor=multi_threaded" \
+      "runtime.flavor=single_threaded" \
       "logging.log_format=json" && \
     sconfig "$file" -t stringSlice \
-      "consensus.p2p.persistent_peers=$(_compose_persistent_peers $i)" \
-      "mempool.p2p.persistent_peers=$(_compose_persistent_peers $i 28000)" && \
+      "consensus.p2p.persistent_peers=$(_compose_persistent_peers $i 27000 tcp)" \
+      "mempool.p2p.persistent_peers=$(_compose_persistent_peers $i 28000 tcp)" && \
     sconfig "$file" -t int \
-      "runtime.worker_threads=0"
+      "runtime.worker_threads=0" \
+      "mempool.load.count=1000"
+    sconfig "$file" \
+      "test.exec_time_per_tx=0ms" \
+      "mempool.load.interval=100ms" \
+      "mempool.load.size=1 KB" \
+      "consensus.timeout_propose=10s" \
+      "consensus.timeout_prevote=5s" \
+      "consensus.timeout_precommit=5s" 
   done
 }
 
@@ -347,4 +373,58 @@ fetch_dashboard() {
   do
     wget -O "$i.png" "http://$${CANDC}:3000/render/d-solo/fdo24nq8yvf28f/malachite-first-stab?from=$FROM&to=$TO&panelId=$i&width=$WIDTH&height=$HEIGHT&scale=$SCALE&tz=$TIMEZONE"
   done
+}
+
+
+_export_prometheus_csv() {
+  local METRIC_QUERY="$1"         # PromQL expression
+  local OUTPUT="$2"               # output file name, e.g., "throughput.csv"
+  local STEP="$${3:-5}"
+  local LAST_MINUTES="$${4:-10}"  # default to last 10 minutes if not provided
+
+  local END=$(date +%s)
+  local START=$((END - LAST_MINUTES * 60))
+
+  local PROM_HOST
+  if _is_cc; then
+    PROM_HOST="localhost"
+  else
+    PROM_HOST="$CANDC"
+  fi
+
+  echo "Querying $METRIC_QUERY from $PROM_HOST, output to $OUTPUT (last $LAST_MINUTES minutes)..."
+
+  curl -sG "http://$PROM_HOST:9090/api/v1/query_range" \
+    --data-urlencode "query=$METRIC_QUERY" \
+    --data-urlencode "start=$START" \
+    --data-urlencode "end=$END" \
+    --data-urlencode "step=$STEP" | jq -r '
+      .data.result[]? | .metric as $m | .values[] |
+      [$m.instance, .[0], .[1]] | @csv
+    ' > "$OUTPUT"
+
+  echo "Exported to $OUTPUT"
+}
+
+
+_export_prometheus_performance_csv() {
+
+  _export_prometheus_csv \
+  'rate(malachitebft_core_consensus_finalized_txes_total[30s])' \
+  throughput.csv \
+  30 \
+  10
+
+  _export_prometheus_csv \
+  'increase(malachitebft_core_consensus_consensus_time_sum[30s]) / increase(malachitebft_core_consensus_consensus_time_count[30s])' \
+  latency.csv \
+  30 \
+  10
+
+  _export_prometheus_csv \
+  'increase(malachitebft_core_consensus_time_per_block_sum[30s]) / increase(malachitebft_core_consensus_time_per_block_count[30s])' \
+  block-time.csv \
+  30 \
+  10
+
 }

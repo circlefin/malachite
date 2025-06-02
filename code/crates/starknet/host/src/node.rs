@@ -251,9 +251,6 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
         moniker: format!("starknet-{}", index),
         consensus: ConsensusConfig {
             value_payload: ValuePayload::PartsOnly,
-            vote_sync: VoteSyncConfig {
-                mode: VoteSyncMode::Rebroadcast,
-            },
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
@@ -351,9 +348,6 @@ fn make_distributed_config(
         moniker: format!("starknet-{}", index),
         consensus: ConsensusConfig {
             value_payload: ValuePayload::PartsOnly,
-            vote_sync: VoteSyncConfig {
-                mode: VoteSyncMode::Rebroadcast,
-            },
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),

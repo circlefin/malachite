@@ -29,22 +29,14 @@ $ docker run -it -v .:/app --cap-add=NET_ADMIN rust:1-slim /bin/bash
 # apt install -y wget unzip git iproute2 procps iputils-ping curl vim make
 ```
 
-4. Install the Protobuf compiler
-
-```
-# wget https://github.com/protocolbuffers/protobuf/releases/download/v28.0/protoc-28.0-linux-aarch_64.zip
-# unzip -d /usr/local protoc-28.0-linux-aarch_64.zip
-# rm -f protoc-28.0-linux-aarch_64.zip
-```
-
-5. Build Malachite
+4. Build Malachite
 
 ```
 # cd app/code
 # cargo build --release
 ```
 
-6. Introduce network latency (optional)
+5. Introduce network latency (optional)
 
 To introduce 50ms latency in both ingress and egress on the loopback interface,
 so a total 100ms round-trip time between localhost to itself:
@@ -67,7 +59,7 @@ To restore it back to normal:
 
 **Note:** To modify these settings, you first need to disable them using the command above before re-introducing them.
 
-7. Test the latency to localhost
+6. Test the latency to localhost
 
 ```
 # ping 127.0.0.1
@@ -77,25 +69,25 @@ PING 127.0.0.1 (127.0.0.1) 56(84) bytes of data.
 64 bytes from 127.0.0.1: icmp_seq=3 ttl=64 time=109 ms
 ```
 
-8. Generate the testnet configuration in the directory `x`
+7. Generate the testnet configuration in the directory `x`
 
 ```
 # cargo run --release -- testnet --nodes 20 --home x -d
 ```
 
-9. In `scripts/spawn.bash`, modify the environment variables controlling the config according your needs
+8. In `scripts/spawn.bash`, modify the environment variables controlling the config according your needs
 
 ```
 # vim scripts/spawn.bash
 ```
 
-10. Run the devnet
+9. Run the devnet
 
 ```
 # ./scripts/spawn.bash --nodes 20 --home x
 ```
 
-11. Open another session to the container from the host machine
+10. Open another session to the container from the host machine
 
 For this, first find the name of the container that is running, then open a new bash shell within it:
 
@@ -104,13 +96,13 @@ $ docker ps
 $ docker exec -it CONTAINER_NAME /bin/bash
 ```
 
-12. In this new session, check the logs
+11. In this new session, check the logs
 
 ```
 # tail -f app/code/x/0/logs/node.log
 ```
 
-13. Check the metrics
+12. Check the metrics
 
 For the block time:
 

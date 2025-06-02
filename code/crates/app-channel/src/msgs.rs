@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use derive_where::derive_where;
+use malachitebft_app::consensus::Role;
 use malachitebft_app::types::core::ValueOrigin;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
@@ -49,8 +50,10 @@ pub enum AppMsg<Ctx: Context> {
         round: Round,
         /// Proposer for that round
         proposer: Ctx::Address,
-        /// Channel for sending back a previously received undecided value to consensus
-        reply_value: Reply<Option<ProposedValue<Ctx>>>,
+        /// Role that this node is playing in this round
+        role: Role,
+        /// Channel for sending back previously received undecided values to consensus
+        reply_value: Reply<Vec<ProposedValue<Ctx>>>,
     },
 
     /// Requests the application to build a value for consensus to run on.
@@ -144,8 +147,10 @@ pub enum AppMsg<Ctx: Context> {
     /// and the aggregated signatures of the validators that committed to it.
     /// It also includes to the vote extensions received for that height.
     ///
-    /// In response to this message, the application MAY send a [`ConsensusMsg::StartHeight`]
+    /// In response to this message, the application MUST send a [`ConsensusMsg::StartHeight`]
     /// message back to consensus, instructing it to start the next height.
+    ///
+    /// If the application does not reply, consensus will stall.
     Decided {
         /// The certificate for the decided value
         certificate: CommitCertificate<Ctx>,
@@ -183,25 +188,6 @@ pub enum AppMsg<Ctx: Context> {
         value_bytes: Bytes,
         /// Channel for sending back the proposed value, if successfully decoded
         reply: Reply<ProposedValue<Ctx>>,
-    },
-
-    /// Notifies the application that a peer has joined our local view of the network.
-    ///
-    /// In a gossip network, there is no guarantee that we will ever see all peers,
-    /// as we are typically only connected to a subset of the network (i.e. in our mesh).
-    PeerJoined {
-        /// The ID of the peer that joined
-        peer_id: PeerId,
-    },
-
-    /// Notifies the application that a peer has left our local view of the network.
-    ///
-    /// In a gossip network, there is no guarantee that this means that this peer
-    /// has left the whole network altogether, just that it is not part of the subset
-    /// of the network that we are connected to (i.e. our mesh).
-    PeerLeft {
-        /// The ID of the peer that left
-        peer_id: PeerId,
     },
 }
 

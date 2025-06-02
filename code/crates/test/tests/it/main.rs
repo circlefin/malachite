@@ -1,12 +1,14 @@
 mod full_nodes;
+mod liveness;
+mod middlewares;
 mod n3f0;
 mod n3f0_consensus_mode;
 mod n3f0_pubsub_protocol;
 mod n3f1;
 mod reset;
+mod validator_set;
 mod value_sync;
-mod vote_sync;
-mod vote_sync_bcast;
+mod vote_rebroadcast;
 mod wal;
 
 use std::collections::HashMap;
@@ -142,13 +144,7 @@ impl TestRunner {
             consensus: ConsensusConfig {
                 // Current test app does not support proposal-only value payload properly as Init does not include valid_round
                 value_payload: ValuePayload::ProposalAndParts,
-                vote_sync: VoteSyncConfig {
-                    mode: VoteSyncMode::RequestResponse,
-                },
-                timeouts: TimeoutConfig {
-                    timeout_step: Duration::from_secs(2),
-                    ..Default::default()
-                },
+                timeouts: TimeoutConfig::default(),
                 p2p: P2pConfig {
                     protocol,
                     discovery: DiscoveryConfig::default(),

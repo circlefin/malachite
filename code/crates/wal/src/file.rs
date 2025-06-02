@@ -28,10 +28,7 @@ impl Storage for File {
             .open(&path)?;
 
         AdvisoryFileLock::try_lock(&file, FileLockMode::Exclusive).map_err(|e| {
-            io::Error::new(
-                io::ErrorKind::Other,
-                format!("Failed to acquire exclusive advisory lock: {e}"),
-            )
+            io::Error::other(format!("Failed to acquire exclusive advisory lock: {e}"))
         })?;
 
         Ok(file)

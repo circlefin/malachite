@@ -19,6 +19,10 @@ run everyoneTakesAStep = {
     validatorList.length().reps(i => N4F0::valStep(validatorList[i]))
 }
 
+run everyoneTimesOut = {
+    validatorList.length().reps(i => N4F0::valTimeout(validatorList[i]))
+}
+
 // here there is a different prevote from the proposer
 run oneDeliversPrevote(validator, prop, r, proposer, nonprop) =
     nonprop.length().reps(i => 
@@ -47,7 +51,8 @@ run UnSuccessfulRound(prop: NonNilValue, r: Round): bool =
         N4F0::unchangedAll
     }
     .then(N4F0::deliverProposal(proposer, mkProposal(proposer, 0, r, prop, -1)))
-    .then(everyoneTakesAStep)
+    .then(N4F0::valStep(proposer))
+    .then(nonprop.length().reps(i => N4F0::valTimeout(nonprop[i])))
     .then(all{
         assert(N4F0::system.keys().forall(p => N4F0::system.get(p).es.pendingStepChange == PrevoteStep)),
         everyoneTakesAStep
@@ -58,7 +63,7 @@ run UnSuccessfulRound(prop: NonNilValue, r: Round): bool =
         assert(N4F0::system.forallValues(state => state.timeouts.contains((PrevoteTimeout, 0, r)))),
         N4F0::unchangedAll
     })
-    .then(everyoneTakesAStep)
+    .then(everyoneTimesOut)
     .then(all{
         assert(N4F0::system.keys().forall(p => N4F0::system.get(p).es.pendingStepChange == PrecommitStep)),
         everyoneTakesAStep
@@ -82,6 +87,18 @@ run UnSuccessfulRoundWithSetup (prop: NonNilValue, r: Round): bool =
         UnSuccessfulRound (prop, r)
     })
 
+run UnSuccessfulRoundWithSetupTO (prop: NonNilValue, r: Round): bool =
+    N4F0::setNextValueToPropose(N4F0::proposer(N4F0::validatorSet, 0, r), prop)
+    .then(everyoneTimesOut)
+    .then(all{ // after new round an empty step to clean step "propose"
+        assert(N4F0::system.keys().forall(p => N4F0::system.get(p).es.pendingStepChange == ProposeStep)),
+        everyoneTakesAStep
+    })
+    .then(all {
+        assert(N4F0::system.forallValues(state => state.es.cs.round == r)),
+        UnSuccessfulRound (prop, r)
+    })
+
 run oneOneRoundTest = {
     N4F0::init    
     .then(UnSuccessfulRoundWithSetup("blue", 0))
@@ -89,9 +106,10 @@ run oneOneRoundTest = {
 
 run multiRoundTest = {
     val proposals = ["blue", "red", "green", "yellow"]
-    val repetitions = proposals.length()
+    val repetitions = proposals.length() - 1
     N4F0::init    
-    .then(repetitions.reps(i => UnSuccessfulRoundWithSetup(proposals[i], i)))
+    .then(UnSuccessfulRoundWithSetup(proposals[0], 0))
+    .then(repetitions.reps(i => UnSuccessfulRoundWithSetupTO(proposals[i + 1], i + 1)))
 }
 
 

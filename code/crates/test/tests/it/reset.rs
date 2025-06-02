@@ -4,7 +4,6 @@ use std::time::Duration;
 use eyre::bail;
 use informalsystems_malachitebft_test::middleware::Middleware;
 use informalsystems_malachitebft_test::TestContext;
-use malachitebft_config::VoteSyncMode;
 use malachitebft_core_consensus::ProposedValue;
 use malachitebft_core_types::CommitCertificate;
 use malachitebft_test_framework::TestParams;
@@ -34,7 +33,6 @@ pub async fn reset_height() {
             Duration::from_secs(60),
             TestParams {
                 enable_value_sync: true,
-                vote_sync_mode: Some(VoteSyncMode::RequestResponse),
                 ..TestParams::default()
             },
         )
