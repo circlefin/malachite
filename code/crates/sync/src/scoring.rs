@@ -28,7 +28,7 @@ pub type Score = f64;
 /// Strategy for scoring peers based on sync results
 pub trait ScoringStrategy: Send + Sync {
     /// Initial score for new peers
-    fn initial_score(&self) -> Score;
+    fn initial_score(&self, peer_id: PeerId) -> Score;
 
     /// Update the score based on previous score and sync result
     fn updated_score(&self, previous_score: Score, result: SyncResult) -> Score;
@@ -58,13 +58,6 @@ pub struct PeerScorer {
 impl PeerScorer {
     /// Create a new peer scorer with specified strategy
     pub fn new(strategy: impl ScoringStrategy + 'static) -> Self {
-        let initial_score = strategy.initial_score();
-
-        assert!(
-            (0.0..=1.0).contains(&initial_score),
-            "initial_score must be between 0.0 and 1.0"
-        );
-
         Self {
             scores: HashMap::new(),
             strategy: Box::new(strategy),
@@ -76,7 +69,7 @@ impl PeerScorer {
         let peer_score = self
             .scores
             .entry(peer_id)
-            .or_insert_with(|| PeerScore::new(self.strategy.initial_score()));
+            .or_insert_with(|| PeerScore::new(self.strategy.initial_score(peer_id)));
 
         let previous_score = peer_score.score;
 
@@ -96,7 +89,7 @@ impl PeerScorer {
         self.scores
             .get(peer_id)
             .map(|p| p.score)
-            .unwrap_or(self.strategy.initial_score())
+            .unwrap_or(self.strategy.initial_score(*peer_id))
     }
 
     pub fn get_scores(&self) -> &HashMap<PeerId, PeerScore> {
@@ -407,7 +400,7 @@ mod tests {
             let update_count = u.int_in_range(1_usize..=20)?;
 
             let scorer = PeerScorer::new(strategy);
-            let mut current_score = scorer.strategy.initial_score();
+            let mut current_score = scorer.strategy.initial_score(PeerId::random());
             let mut scores = vec![current_score];
 
             for _ in 0..update_count {
@@ -506,7 +499,7 @@ mod tests {
             let slow_time = u.int_in_range(1000_u64..=5000)?;
 
             let scorer = PeerScorer::new(strategy);
-            let initial_score = scorer.strategy.initial_score();
+            let initial_score = scorer.strategy.initial_score(PeerId::random());
 
             let fast_result = SyncResult::Success(Duration::from_millis(fast_time));
             let slow_result = SyncResult::Success(Duration::from_millis(slow_time));
