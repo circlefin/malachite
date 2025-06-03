@@ -229,7 +229,7 @@ where
 {
     debug!(%request.height, %peer, "Received request for value");
 
-    metrics.decided_value_request_received(request.height.as_u64());
+    metrics.value_request_received(request.height.as_u64());
 
     perform!(co, Effect::GetDecidedValue(request_id, request.height));
 
@@ -251,7 +251,7 @@ where
 
     state.remove_pending_decided_value_request(response.height);
 
-    let response_time = metrics.decided_value_response_received(response.height.as_u64());
+    let response_time = metrics.value_response_received(response.height.as_u64());
 
     if let Some(response_time) = response_time {
         let sync_result = if response.value.is_none() {
@@ -303,7 +303,7 @@ where
         Effect::SendValueResponse(request_id, ValueResponse::new(height, response))
     );
 
-    metrics.decided_value_response_sent(height.as_u64());
+    metrics.value_response_sent(height.as_u64());
 
     Ok(())
 }
@@ -324,7 +324,7 @@ where
             warn!(%peer_id, %height, "Value request timed out");
 
             state.remove_pending_decided_value_request(height);
-            metrics.decided_value_request_timed_out(height.as_u64());
+            metrics.value_request_timed_out(height.as_u64());
 
             state.peer_scorer.update_score(peer_id, SyncResult::Timeout);
         }
@@ -377,7 +377,7 @@ where
         Effect::SendValueRequest(peer, ValueRequest::new(height))
     );
 
-    metrics.decided_value_request_sent(height.as_u64());
+    metrics.value_request_sent(height.as_u64());
     state.store_pending_decided_value_request(height, peer);
 
     Ok(())

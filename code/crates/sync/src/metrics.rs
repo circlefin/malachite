@@ -7,10 +7,8 @@ use malachitebft_metrics::prometheus::metrics::counter::Counter;
 use malachitebft_metrics::prometheus::metrics::histogram::{exponential_buckets, Histogram};
 use malachitebft_metrics::SharedRegistry;
 
-pub type DecidedValuesMetrics = Inner;
-
 #[derive(Clone, Debug)]
-pub struct Metrics(Arc<DecidedValuesMetrics>);
+pub struct Metrics(Arc<Inner>);
 
 impl Deref for Metrics {
     type Target = Inner;
@@ -30,8 +28,8 @@ pub struct Inner {
     server_latency: Histogram,
     request_timeouts: Counter,
 
-    instant_request_sent: Arc<DashMap<(u64, i64), Instant>>,
-    instant_request_received: Arc<DashMap<(u64, i64), Instant>>,
+    instant_request_sent: Arc<DashMap<u64, Instant>>,
+    instant_request_received: Arc<DashMap<u64, Instant>>,
 }
 
 impl Inner {
@@ -58,11 +56,7 @@ impl Default for Inner {
 
 impl Metrics {
     pub fn new() -> Self {
-        Self(Arc::new(DecidedValuesMetrics::new()))
-    }
-
-    fn decided_values(&self) -> &DecidedValuesMetrics {
-        &self.0
+        Self(Arc::new(Inner::new()))
     }
 
     pub fn register(registry: &SharedRegistry) -> Self {
@@ -73,102 +67,82 @@ impl Metrics {
             registry.register(
                 "value_requests_sent",
                 "Number of ValueSync requests sent",
-                metrics.decided_values().requests_sent.clone(),
+                metrics.requests_sent.clone(),
             );
 
             registry.register(
                 "value_requests_received",
                 "Number of ValueSync requests received",
-                metrics.decided_values().requests_received.clone(),
+                metrics.requests_received.clone(),
             );
 
             registry.register(
                 "value_responses_sent",
                 "Number of ValueSync responses sent",
-                metrics.decided_values().responses_sent.clone(),
+                metrics.responses_sent.clone(),
             );
 
             registry.register(
                 "value_responses_received",
                 "Number of ValueSync responses received",
-                metrics.decided_values().responses_received.clone(),
+                metrics.responses_received.clone(),
             );
 
             registry.register(
                 "value_client_latency",
                 "Interval of time between when request was sent and response was received",
-                metrics.decided_values().client_latency.clone(),
+                metrics.client_latency.clone(),
             );
 
             registry.register(
                 "value_server_latency",
                 "Interval of time between when request was received and response was sent",
-                metrics.decided_values().server_latency.clone(),
+                metrics.server_latency.clone(),
             );
 
             registry.register(
                 "value_request_timeouts",
                 "Number of ValueSync request timeouts",
-                metrics.decided_values().request_timeouts.clone(),
+                metrics.request_timeouts.clone(),
             );
         });
 
         metrics
     }
 
-    pub fn decided_value_request_sent(&self, height: u64) {
-        self.decided_values().requests_sent.inc();
-        self.decided_values()
-            .instant_request_sent
-            .insert((height, -1), Instant::now());
+    pub fn value_request_sent(&self, height: u64) {
+        self.requests_sent.inc();
+        self.instant_request_sent.insert(height, Instant::now());
     }
 
-    pub fn decided_value_request_received(&self, height: u64) {
-        self.decided_values().requests_received.inc();
-        self.decided_values()
-            .instant_request_received
-            .insert((height, -1), Instant::now());
+    pub fn value_request_received(&self, height: u64) {
+        self.requests_received.inc();
+        self.instant_request_received.insert(height, Instant::now());
     }
 
-    pub fn decided_value_response_sent(&self, height: u64) {
-        self.decided_values().responses_sent.inc();
+    pub fn value_response_sent(&self, height: u64) {
+        self.responses_sent.inc();
 
-        if let Some((_, instant)) = self
-            .decided_values()
-            .instant_request_received
-            .remove(&(height, -1))
-        {
-            self.decided_values()
-                .server_latency
-                .observe(instant.elapsed().as_secs_f64());
+        if let Some((_, instant)) = self.instant_request_received.remove(&height) {
+            self.server_latency.observe(instant.elapsed().as_secs_f64());
         }
     }
 
-    pub fn decided_value_response_received(&self, height: u64) -> Option<Duration> {
-        self.decided_values().responses_received.inc();
+    pub fn value_response_received(&self, height: u64) -> Option<Duration> {
+        self.responses_received.inc();
 
-        if let Some((_, instant_request_sent)) = self
-            .decided_values()
-            .instant_request_sent
-            .remove(&(height, -1))
-        {
+        if let Some((_, instant_request_sent)) = self.instant_request_sent.remove(&height) {
             let latency = instant_request_sent.elapsed();
-
-            self.decided_values()
-                .client_latency
-                .observe(latency.as_secs_f64());
-
+            self.client_latency.observe(latency.as_secs_f64());
             Some(latency)
         } else {
             None
         }
     }
 
-    pub fn decided_value_request_timed_out(&self, height: u64) {
-        self.decided_values().request_timeouts.inc();
-        self.decided_values()
-            .instant_request_sent
-            .remove(&(height, 0));
+    pub fn value_request_timed_out(&self, height: u64) {
+        self.request_timeouts.inc();
+        self.instant_request_sent.remove(&height);
     }
 }
 
