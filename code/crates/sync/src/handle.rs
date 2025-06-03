@@ -253,13 +253,18 @@ where
 
     let response_time = metrics.decided_value_response_received(response.height.as_u64());
 
-    let sync_result = if response.value.is_none() {
-        SyncResult::Failure
-    } else {
-        SyncResult::Success(response_time)
-    };
+    if let Some(response_time) = response_time {
+        let sync_result = if response.value.is_none() {
+            SyncResult::Failure
+        } else {
+            SyncResult::Success(response_time)
+        };
 
-    state.peer_scorer.update_score(peer_id, sync_result);
+        state.peer_scorer.update_score(peer_id, sync_result);
+    }
+
+    // We do not update the peer score if we do not know the response time.
+    // This should never happen, but we need to handle it gracefully just in case.
 
     Ok(())
 }

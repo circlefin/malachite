@@ -13,8 +13,8 @@ pub mod ema;
 /// Result of a sync request to a peer
 #[derive(Copy, Clone, Debug)]
 pub enum SyncResult {
-    /// Successful response with optionally known response time
-    Success(Option<Duration>),
+    /// Successful response with given response time
+    Success(Duration),
 
     /// Timeout response
     Timeout,
@@ -147,13 +147,12 @@ mod tests {
     }
 
     fn arb_sync_result(u: &mut Unstructured) -> Result<SyncResult> {
-        let result_type = u.int_in_range(0..=3)?;
+        let result_type = u.int_in_range(0..=2)?;
 
         Ok(match result_type {
-            0 => SyncResult::Success(Some(arb_response_time(u)?)),
-            1 => SyncResult::Success(None),
-            2 => SyncResult::Timeout,
-            3 => SyncResult::Failure,
+            0 => SyncResult::Success(arb_response_time(u)?),
+            1 => SyncResult::Timeout,
+            2 => SyncResult::Failure,
             _ => unreachable!(),
         })
     }
@@ -222,7 +221,7 @@ mod tests {
             let initial_score = scorer.get_score(&peer_id);
             let updated_score = scorer
                 .strategy
-                .updated_score(initial_score, SyncResult::Success(Some(response_time)));
+                .updated_score(initial_score, SyncResult::Success(response_time));
 
             // Success should never decrease score below a reasonable threshold
             // (allowing for very slow responses that might slightly decrease score)
@@ -339,8 +338,8 @@ mod tests {
                 u,
                 |u| {
                     u.choose_iter([
-                        SyncResult::Success(Some(Duration::from_millis(50))),
-                        SyncResult::Success(Some(Duration::from_millis(100))),
+                        SyncResult::Success(Duration::from_millis(50)),
+                        SyncResult::Success(Duration::from_millis(100)),
                     ])
                 },
                 5..=15,
@@ -418,7 +417,7 @@ mod tests {
 
             // Check monotonicity based on result type
             match result {
-                SyncResult::Success(Some(rt)) if rt < strategy.slow_threshold => {
+                SyncResult::Success(rt) if rt < strategy.slow_threshold => {
                     // For fast response, scores should increase
                     for window in scores.windows(2) {
                         let diff = window[1] - window[0];
@@ -430,7 +429,7 @@ mod tests {
                         );
                     }
                 }
-                SyncResult::Success(Some(_)) => {
+                SyncResult::Success(_) => {
                     // For slow responses, scores should decrease
                     for window in scores.windows(2) {
                         assert!(
@@ -441,24 +440,12 @@ mod tests {
                         );
                     }
                 }
-                SyncResult::Success(None) => {
-                    // For success without a response time, scores should not change
-                    for window in scores.windows(2) {
-                        let diff = window[1] - window[0];
-                        assert!(
-                            diff.abs() < 0.001,
-                            "Success without response time should not change score: {} -> {}",
-                            window[0],
-                            window[1]
-                        );
-                    }
-                }
                 SyncResult::Timeout | SyncResult::Failure => {
                     // For failures, scores should decrease
                     for window in scores.windows(2) {
                         assert!(
                             window[1] <= window[0],
-                            "Failure should decrease score: {} -> {}",
+                            "Timeouts and failures should decrease score: {} -> {}",
                             window[0],
                             window[1]
                         );
@@ -521,8 +508,8 @@ mod tests {
             let scorer = PeerScorer::new(strategy);
             let initial_score = scorer.strategy.initial_score();
 
-            let fast_result = SyncResult::Success(Some(Duration::from_millis(fast_time)));
-            let slow_result = SyncResult::Success(Some(Duration::from_millis(slow_time)));
+            let fast_result = SyncResult::Success(Duration::from_millis(fast_time));
+            let slow_result = SyncResult::Success(Duration::from_millis(slow_time));
 
             let fast_score = scorer.strategy.updated_score(initial_score, fast_result);
             let slow_score = scorer.strategy.updated_score(initial_score, slow_result);
@@ -587,7 +574,7 @@ mod tests {
             let score_after_timeout = scorer.get_score(&peer_id);
 
             // Apply a success
-            scorer.update_score(peer_id, SyncResult::Success(Some(response_time)));
+            scorer.update_score(peer_id, SyncResult::Success(response_time));
             let score_after_success = scorer.get_score(&peer_id);
 
             // Score after success should be higher than after timeout
