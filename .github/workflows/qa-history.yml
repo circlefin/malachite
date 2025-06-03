@@ -11,7 +11,7 @@ jobs:
 
     env:
       BUCKET_NAME: malachite-performance-site
-      S3_PREFIX: test/
+      S3_PREFIX: dashboard/
       OUTPUT_FILE: file_list.json
       BASE_URL: https://malachite-performance-site.s3.amazonaws.com
 
@@ -28,19 +28,25 @@ jobs:
 
       - name: List files from S3 and generate file_list.json
         run: |
-          aws s3api list-objects-v2 \
+          FILES=$(aws s3api list-objects-v2 \
             --bucket "$BUCKET_NAME" \
             --prefix "$S3_PREFIX" \
             --query 'Contents[].Key' \
-            --output json |
-            jq -r '.[]' |
-            grep -i '\.csv$' |
-            grep -v 'file_list.json' |
-            jq -R --arg base "$BASE_URL" --arg prefix "$S3_PREFIX" '{
-              name: sub("^" + $prefix; ""),
-              url: ($base + "/" + .)
-            }' |
-            jq -s . > "$OUTPUT_FILE"
+            --output json | jq -r '.[]' | grep -i '\.csv$' | grep -v 'file_list.json')
+
+          jq -n \
+            --arg base "$BASE_URL" \
+            --arg prefix "$S3_PREFIX" \
+            --argjson files "$(printf '%s\n' "$FILES" | jq -R . | jq -s .)" '
+            {
+              baseURL: $base,
+              "data-sources": {
+                "block-time": ($files | map(select(test("^" + $prefix + "block-time\\..*\\.csv$"))) | map(sub("^" + $prefix; "/"))),
+                "throughput": ($files | map(select(test("^" + $prefix + "throughput\\..*\\.csv$"))) | map(sub("^" + $prefix; "/")))
+              }
+            }
+          ' > "$OUTPUT_FILE"
+
 
       - name: Upload file_list.json to S3
         run: |
