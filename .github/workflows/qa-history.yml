@@ -41,11 +41,12 @@ jobs:
             {
               baseURL: $base,
               "data-sources": {
-                "block-time": ($files | map(select(test("^" + $prefix + "block-time\\..*\\.csv$"))) | map(sub("^" + $prefix; "/"))),
-                "throughput": ($files | map(select(test("^" + $prefix + "throughput\\..*\\.csv$"))) | map(sub("^" + $prefix; "/")))
+                "block-time": ($files | map(select(test("block-time-.*\\.csv$"))) | map(sub("^" + $prefix; "/"))),
+                "throughput": ($files | map(select(test("throughput-.*\\.csv$"))) | map(sub("^" + $prefix; "/")))
               }
             }
           ' > "$OUTPUT_FILE"
+
 
 
       - name: Upload file_list.json to S3
