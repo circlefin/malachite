@@ -14,8 +14,10 @@ use tracing::{debug, error, info, warn, Instrument};
 use malachitebft_codec as codec;
 use malachitebft_core_consensus::PeerId;
 use malachitebft_core_types::{CertificateError, CommitCertificate, Context};
-use malachitebft_sync::{self as sync, InboundRequestId, OutboundRequestId, Response};
-use malachitebft_sync::{RawDecidedValue, Request};
+use malachitebft_sync::scoring::ema::ExponentialMovingAverage;
+use malachitebft_sync::{
+    self as sync, InboundRequestId, OutboundRequestId, RawDecidedValue, Request, Response,
+};
 
 use crate::host::{HostMsg, HostRef};
 use crate::network::{NetworkEvent, NetworkMsg, NetworkRef, Status};
@@ -426,9 +428,10 @@ where
         );
 
         let rng = Box::new(rand::rngs::StdRng::from_entropy());
+        let scoring_strategy = ExponentialMovingAverage::default();
 
         Ok(State {
-            sync: sync::State::new(rng),
+            sync: sync::State::new(rng, scoring_strategy),
             timers: Timers::new(Box::new(myself.clone())),
             inflight: HashMap::new(),
             ticker,

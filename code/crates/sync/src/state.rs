@@ -1,10 +1,9 @@
 use std::collections::BTreeMap;
 
-use rand::seq::IteratorRandom;
-
 use malachitebft_core_types::{Context, Height};
 use malachitebft_peer::PeerId;
 
+use crate::scoring::{PeerScorer, ScoringStrategy};
 use crate::Status;
 
 pub struct State<Ctx>
@@ -26,15 +25,20 @@ where
     pub pending_decided_value_requests: BTreeMap<Ctx::Height, PeerId>,
 
     /// The set of peers we are connected to in order to get values, certificates and votes.
-    /// TODO - For now value and vote sync peers are the same. Might need to revise in the future.
     pub peers: BTreeMap<PeerId, Status<Ctx>>,
+
+    /// Peer scorer for scoring peers based on their performance.
+    pub peer_scorer: PeerScorer,
 }
 
 impl<Ctx> State<Ctx>
 where
     Ctx: Context,
 {
-    pub fn new(rng: Box<dyn rand::RngCore + Send>) -> Self {
+    pub fn new(
+        rng: Box<dyn rand::RngCore + Send>,
+        scoring_strategy: impl ScoringStrategy + 'static,
+    ) -> Self {
         Self {
             rng,
             started: false,
@@ -42,6 +46,7 @@ where
             sync_height: Ctx::Height::ZERO,
             pending_decided_value_requests: BTreeMap::new(),
             peers: BTreeMap::new(),
+            peer_scorer: PeerScorer::new(scoring_strategy),
         }
     }
 
@@ -55,14 +60,17 @@ where
     where
         Ctx: Context,
     {
-        self.peers
+        let peers = self
+            .peers
             .iter()
             .filter_map(|(&peer, status)| {
                 (status.history_min_height..=status.tip_height)
                     .contains(&height)
                     .then_some(peer)
             })
-            .choose_stable(&mut self.rng)
+            .collect::<Vec<_>>();
+
+        self.peer_scorer.select_peer(&peers, &mut self.rng)
     }
 
     /// Same as [`Self::random_peer_with_tip_at_or_above`], but excludes the given peer.
@@ -71,7 +79,8 @@ where
         height: Ctx::Height,
         except: PeerId,
     ) -> Option<PeerId> {
-        self.peers
+        let peers = self
+            .peers
             .iter()
             .filter_map(|(&peer, status)| {
                 (status.history_min_height..=status.tip_height)
@@ -79,7 +88,9 @@ where
                     .then_some(peer)
             })
             .filter(|&peer| peer != except)
-            .choose_stable(&mut self.rng)
+            .collect::<Vec<_>>();
+
+        self.peer_scorer.select_peer(&peers, &mut self.rng)
     }
 
     pub fn store_pending_decided_value_request(&mut self, height: Ctx::Height, peer: PeerId) {

@@ -1,6 +1,6 @@
 use std::ops::Deref;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use dashmap::DashMap;
 use malachitebft_metrics::prometheus::metrics::counter::Counter;
@@ -144,17 +144,23 @@ impl Metrics {
         }
     }
 
-    pub fn decided_value_response_received(&self, height: u64) {
+    pub fn decided_value_response_received(&self, height: u64) -> Option<Duration> {
         self.decided_values().responses_received.inc();
 
-        if let Some((_, instant)) = self
+        if let Some((_, instant_request_sent)) = self
             .decided_values()
             .instant_request_sent
             .remove(&(height, -1))
         {
+            let latency = instant_request_sent.elapsed();
+
             self.decided_values()
                 .client_latency
-                .observe(instant.elapsed().as_secs_f64());
+                .observe(latency.as_secs_f64());
+
+            Some(latency)
+        } else {
+            None
         }
     }
 

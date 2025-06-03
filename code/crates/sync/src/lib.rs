@@ -12,6 +12,8 @@ pub use types::*;
 
 mod rpc;
 
+pub mod scoring;
+
 mod macros;
 
 #[doc(hidden)]
