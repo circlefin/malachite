@@ -34,7 +34,7 @@ jobs:
             --output json | jq -r '.[]' | grep -i '\.csv$' | grep -v 'file_list.json')
 
           jq -n \
-            --arg base "https://malachite-performance-site.s3.us-east-1.amazonaws.com/dashboard/" \
+            --arg base "https://malachite-performance-site.s3.us-east-1.amazonaws.com/dashboard" \
             --argjson files "$(printf '%s\n' "$FILES" | jq -R . | jq -s .)" '
             {
               baseURL: $base,
