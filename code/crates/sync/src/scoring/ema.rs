@@ -29,7 +29,7 @@ impl Default for ExponentialMovingAverage {
             0.2,                    // Success
             0.1,                    // Timeout
             0.15,                   // Failure
-            Duration::from_secs(2), // Slow threshold
+            Duration::from_secs(1), // Slow threshold
         )
     }
 }
