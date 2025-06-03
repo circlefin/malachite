@@ -431,7 +431,7 @@ where
         let scoring_strategy = ExponentialMovingAverage::default();
 
         Ok(State {
-            sync: sync::State::new(rng, scoring_strategy),
+            sync: sync::State::new(rng, scoring_strategy, None),
             timers: Timers::new(Box::new(myself.clone())),
             inflight: HashMap::new(),
             ticker,

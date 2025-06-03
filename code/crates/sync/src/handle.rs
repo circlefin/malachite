@@ -133,7 +133,12 @@ where
 
     perform!(co, Effect::BroadcastStatus(state.tip_height));
 
-    debug!("Current peer scores: {:#?}", state.peer_scorer.get_scores());
+    if let Some(inactive_threshold) = state.inactive_threshold {
+        // If we are at or above the inactive threshold, we can prune inactive peers.
+        state.peer_scorer.prune_inactive_peers(inactive_threshold);
+    }
+
+    debug!("Peer scores: {:#?}", state.peer_scorer.get_scores());
 
     Ok(())
 }

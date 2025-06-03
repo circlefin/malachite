@@ -92,6 +92,7 @@ impl PeerScorer {
             .unwrap_or(self.strategy.initial_score(*peer_id))
     }
 
+    /// Get all peer scores
     pub fn get_scores(&self) -> &HashMap<PeerId, PeerScore> {
         &self.scores
     }
@@ -110,6 +111,14 @@ impl PeerScorer {
 
         assert!(index < peers.len(), "Index out of bounds");
         Some(peers[index])
+    }
+
+    /// Reset the score of peers that haven't been updated for the specified duration
+    pub fn prune_inactive_peers(&mut self, inactive_threshold: Duration) {
+        let now = Instant::now();
+
+        self.scores
+            .retain(|_, score| now.duration_since(score.last_update) < inactive_threshold);
     }
 }
 
@@ -577,6 +586,31 @@ mod tests {
                 score_after_success,
                 score_after_timeout
             );
+
+            Ok(())
+        });
+    }
+
+    // Property: Pruning inactive peers resets their scores
+    #[test]
+    fn pruning_inactive_peers_resets_scores() {
+        arbtest(|u| {
+            let strategy = arb_strategy(u)?;
+            let mut scorer = PeerScorer::new(strategy);
+            let peer_id = PeerId::random();
+
+            // Update score for the peer
+            scorer.update_score(peer_id, SyncResult::Success(Duration::from_millis(100)));
+
+            // Ensure the peer is present
+            assert!(scorer.get_scores().contains_key(&peer_id));
+
+            // Prune inactive peers with a threshold that will remove this peer
+            scorer.prune_inactive_peers(Duration::from_millis(0));
+
+            // Peer should be removed
+            assert!(!scorer.get_scores().contains_key(&peer_id));
+            assert_eq!(scorer.get_score(&peer_id), strategy.initial_score(peer_id));
 
             Ok(())
         });

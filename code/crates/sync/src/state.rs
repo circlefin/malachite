@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::time::Duration;
 
 use malachitebft_core_types::{Context, Height};
 use malachitebft_peer::PeerId;
@@ -29,6 +30,9 @@ where
 
     /// Peer scorer for scoring peers based on their performance.
     pub peer_scorer: PeerScorer,
+
+    /// Threshold for considering a peer inactive, and their score reset to the initial value.
+    pub inactive_threshold: Option<Duration>,
 }
 
 impl<Ctx> State<Ctx>
@@ -36,8 +40,12 @@ where
     Ctx: Context,
 {
     pub fn new(
+        // Random number generator for selecting peers
         rng: Box<dyn rand::RngCore + Send>,
+        // Strategy for scoring peers based on their performance
         scoring_strategy: impl ScoringStrategy + 'static,
+        // Threshold for considering a peer inactive, and their score reset to the initial value
+        inactive_threshold: Option<Duration>,
     ) -> Self {
         Self {
             rng,
@@ -47,6 +55,7 @@ where
             pending_decided_value_requests: BTreeMap::new(),
             peers: BTreeMap::new(),
             peer_scorer: PeerScorer::new(scoring_strategy),
+            inactive_threshold,
         }
     }
 
