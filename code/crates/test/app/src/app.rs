@@ -11,7 +11,7 @@ use malachitebft_app_channel::app::types::core::{Round, Validity};
 use malachitebft_app_channel::app::types::sync::RawDecidedValue;
 use malachitebft_app_channel::app::types::{LocallyProposedValue, ProposedValue};
 use malachitebft_app_channel::{AppMsg, Channels, ConsensusMsg, NetworkMsg};
-use malachitebft_test::codec::proto::ProtobufCodec;
+use malachitebft_test::codec::json::JsonCodec;
 use malachitebft_test::{Genesis, Height, TestContext};
 
 use crate::state::{decode_value, State};
@@ -292,7 +292,7 @@ pub async fn run(
 
                 let raw_decided_value = decided_value.map(|decided_value| RawDecidedValue {
                     certificate: decided_value.certificate,
-                    value_bytes: ProtobufCodec.encode(&decided_value.value).unwrap(), // FIXME: unwrap
+                    value_bytes: JsonCodec.encode(&decided_value.value).unwrap(), // FIXME: unwrap
                 });
 
                 if reply.send(raw_decided_value).is_err() {

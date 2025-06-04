@@ -4,7 +4,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use malachitebft_test::middleware::{DefaultMiddleware, Middleware};
+use malachitebft_test::codec::json::JsonCodec;
+use malachitebft_test::codec::proto::ProtobufCodec;
 use rand::{CryptoRng, RngCore};
 use tokio::task::JoinHandle;
 use tracing::Instrument;
@@ -18,9 +19,10 @@ use malachitebft_app_channel::app::node::{
 use malachitebft_app_channel::app::types::core::VotingPower;
 use malachitebft_app_channel::app::types::Keypair;
 
+use malachitebft_test::middleware::{DefaultMiddleware, Middleware};
+
 // Use the same types used for integration tests.
 // A real application would use its own types and context instead.
-use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{
     Address, Ed25519Provider, Genesis, Height, PrivateKey, PublicKey, TestContext, Validator,
     ValidatorSet,
@@ -136,7 +138,7 @@ impl Node for App {
             self.clone(),
             config.clone(),
             ProtobufCodec, // WAL codec
-            ProtobufCodec, // Network codec
+            JsonCodec,     // Network codec
             self.start_height,
             self.validator_set.clone(),
         )
