@@ -57,7 +57,7 @@ where
     {
         self.peers
             .iter()
-            .filter_map(move |(&peer, status)| {
+            .filter_map(|(&peer, status)| {
                 (status.history_min_height..=status.tip_height)
                     .contains(&height)
                     .then_some(peer)
@@ -73,7 +73,7 @@ where
     ) -> Option<PeerId> {
         self.peers
             .iter()
-            .filter_map(move |(&peer, status)| {
+            .filter_map(|(&peer, status)| {
                 (status.history_min_height..=status.tip_height)
                     .contains(&height)
                     .then_some(peer)
