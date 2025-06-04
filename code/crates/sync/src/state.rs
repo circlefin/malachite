@@ -73,7 +73,11 @@ where
     ) -> Option<PeerId> {
         self.peers
             .iter()
-            .filter_map(move |(&peer, status)| (status.tip_height >= height).then_some(peer))
+            .filter_map(move |(&peer, status)| {
+                (status.history_min_height..=status.tip_height)
+                    .contains(&height)
+                    .then_some(peer)
+            })
             .filter(|&peer| peer != except)
             .choose_stable(&mut self.rng)
     }
