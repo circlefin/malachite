@@ -50,7 +50,7 @@ where
     }
 
     /// Select at random a peer whose tip is at or above the given height and with min height below the given height.
-    /// In other words, `height` is in [`status.history_min_height`, `status.tip_height`] range.
+    /// In other words, `height` is in `status.history_min_height..=status.tip_height` range.
     pub fn random_peer_with_tip_at_or_above(&mut self, height: Ctx::Height) -> Option<PeerId>
     where
         Ctx: Context,
@@ -65,7 +65,7 @@ where
             .choose_stable(&mut self.rng)
     }
 
-    /// Select at random a peer that that we know is at or above the given height, except the given one.
+    /// Same as [`Self::random_peer_with_tip_at_or_above`], but excludes the given peer.
     pub fn random_peer_with_tip_at_or_above_except(
         &mut self,
         height: Ctx::Height,
