@@ -58,7 +58,9 @@ where
         self.peers
             .iter()
             .filter_map(move |(&peer, status)| {
-                (status.history_min_height <= height && height <= status.tip_height).then_some(peer)
+                (status.history_min_height..=status.tip_height)
+                    .contains(&height)
+                    .then_some(peer)
             })
             .choose_stable(&mut self.rng)
     }
