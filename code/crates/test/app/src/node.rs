@@ -125,7 +125,6 @@ impl Node for App {
             .unwrap_or_else(|| Arc::new(DefaultMiddleware));
 
         let ctx = TestContext::with_middleware(middleware);
-        let codec = ProtobufCodec;
 
         let public_key = self.get_public_key(&self.private_key);
         let address = self.get_address(&public_key);
@@ -134,9 +133,10 @@ impl Node for App {
 
         let (mut channels, engine_handle) = malachitebft_app_channel::start_engine(
             ctx.clone(),
-            codec,
             self.clone(),
             config.clone(),
+            ProtobufCodec, // WAL codec
+            ProtobufCodec, // Network codec
             self.start_height,
             self.validator_set.clone(),
         )

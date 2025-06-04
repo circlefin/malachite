@@ -10,25 +10,26 @@ use crate::app::node::{self, EngineHandle, NodeConfig};
 use crate::app::spawn::{
     spawn_consensus_actor, spawn_node_actor, spawn_sync_actor, spawn_wal_actor,
 };
-use crate::app::types::codec::{ConsensusCodec, SyncCodec, WalCodec};
+use crate::app::types::codec;
 use crate::app::types::core::Context;
 use crate::spawn::{spawn_host_actor, spawn_network_actor};
 use crate::Channels;
 
-pub async fn start_engine<Node, Ctx, Codec>(
+pub async fn start_engine<Node, Ctx, WalCodec, NetCodec>(
     ctx: Ctx,
-    codec: Codec,
     node: Node,
     cfg: Node::Config,
+    wal_codec: WalCodec,
+    net_codec: NetCodec,
     start_height: Option<Ctx::Height>,
     initial_validator_set: Ctx::ValidatorSet,
 ) -> Result<(Channels<Ctx>, EngineHandle)>
 where
     Ctx: Context,
     Node: node::Node<Context = Ctx>,
-    Codec: WalCodec<Ctx> + Clone,
-    Codec: ConsensusCodec<Ctx>,
-    Codec: SyncCodec<Ctx>,
+    WalCodec: codec::WalCodec<Ctx> + Clone,
+    NetCodec: codec::ConsensusCodec<Ctx>,
+    NetCodec: codec::SyncCodec<Ctx>,
 {
     let start_height = start_height.unwrap_or_default();
 
@@ -44,9 +45,9 @@ where
 
     // Spawn consensus gossip
     let (network, tx_network) =
-        spawn_network_actor(cfg.consensus(), keypair, &registry, codec.clone()).await?;
+        spawn_network_actor(cfg.consensus(), keypair, &registry, net_codec).await?;
 
-    let wal = spawn_wal_actor(&ctx, codec, &node.get_home_dir(), &registry).await?;
+    let wal = spawn_wal_actor(&ctx, wal_codec, &node.get_home_dir(), &registry).await?;
 
     // Spawn the host actor
     let (connector, rx_consensus) = spawn_host_actor(metrics.clone()).await?;
