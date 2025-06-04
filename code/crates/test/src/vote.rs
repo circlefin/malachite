@@ -51,10 +51,6 @@ impl Vote {
         }
     }
 
-    pub fn to_bytes(&self) -> Bytes {
-        Protobuf::to_bytes(self).unwrap()
-    }
-
     pub fn to_sign_bytes(&self) -> Bytes {
         let vote = Self {
             extension: None,
@@ -62,6 +58,10 @@ impl Vote {
         };
 
         Protobuf::to_bytes(&vote).unwrap()
+    }
+
+    pub fn from_sign_bytes(bytes: &[u8]) -> Result<Self, ProtoError> {
+        Protobuf::from_bytes(bytes)
     }
 }
 

@@ -23,13 +23,6 @@ impl ProposalData {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-#[serde(remote = "Round")]
-enum RoundDef {
-    Nil,
-    Some(u32),
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProposalPart {
     Init(ProposalInit),
@@ -76,9 +69,7 @@ impl ProposalPart {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProposalInit {
     pub height: Height,
-    #[serde(with = "RoundDef")]
     pub round: Round,
-    #[serde(with = "RoundDef")]
     pub pol_round: Round,
     pub proposer: Address,
 }
