@@ -290,6 +290,11 @@ where
             )
         })
     }
+
+    /// Prunes all stored votes from rounds less than `min_round`.
+    pub fn prune_votes(&mut self, min_round: Round) {
+        self.per_round.retain(|round, _| *round >= min_round);
+    }
 }
 
 /// Compute whether or not we have reached a threshold for the given value,

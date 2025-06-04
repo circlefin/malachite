@@ -79,6 +79,7 @@ where
                 height,
                 round,
                 proposer,
+                role,
             } => {
                 let (reply_value, rx_value) = oneshot::channel();
 
@@ -87,6 +88,7 @@ where
                         height,
                         round,
                         proposer,
+                        role,
                         reply_value,
                     })
                     .await?;

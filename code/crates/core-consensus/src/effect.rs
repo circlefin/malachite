@@ -3,7 +3,7 @@ use derive_where::derive_where;
 use malachitebft_core_types::*;
 
 use crate::types::{LivenessMsg, SignedConsensusMsg};
-use crate::{ConsensusMsg, VoteExtensionError, WalEntry};
+use crate::{ConsensusMsg, Role, VoteExtensionError, WalEntry};
 
 /// Provides a way to construct the appropriate [`Resume`] value to
 /// resume execution after handling an [`Effect`].
@@ -15,16 +15,17 @@ use crate::{ConsensusMsg, VoteExtensionError, WalEntry};
 ///
 /// ```rust,ignore
 /// fn effect_handler(effect: Effect<Ctx>) -> Result<Resume<Ctx>, Error> {
-/// match effect {
-///    Effect::ResetTimeouts(r) => {
-///      reset_timeouts();
-///      Ok(r.resume_with(()))
-///    }
-///    Effect::GetValidatorSet(height, r) => {)
-///        let validator_set = get_validator_set(height);
-///        Ok(r.resume_with(validator_set))
-///    }
-///    // ...
+///     match effect {
+///         Effect::ResetTimeouts(r) => {
+///             reset_timeouts();
+///             Ok(r.resume_with(()))
+///         }
+///         Effect::GetValidatorSet(height, r) => {
+///             let validator_set = get_validator_set(height);
+///             Ok(r.resume_with(validator_set))
+///         }
+///        // ...
+///     }
 /// }
 /// ```
 pub trait Resumable<Ctx: Context> {
@@ -76,7 +77,7 @@ where
     /// Consensus is starting a new round with the given proposer
     ///
     /// Resume with: [`resume::Continue`]
-    StartRound(Ctx::Height, Round, Ctx::Address, resume::Continue),
+    StartRound(Ctx::Height, Round, Ctx::Address, Role, resume::Continue),
 
     /// Publish a message to peers
     ///

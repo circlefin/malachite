@@ -56,9 +56,10 @@ pub async fn run(
                 height,
                 round,
                 proposer,
+                role,
                 reply_value,
             } => {
-                info!(%height, %round, %proposer, "Started round");
+                info!(%height, %round, %proposer, ?role, "Started round");
 
                 // We can use that opportunity to update our internal state
                 state.current_height = height;

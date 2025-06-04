@@ -105,7 +105,7 @@ where
         }
 
         WalMsg::Append(entry, reply) => {
-            let tpe = wal_entry_type(&entry);
+            let entry_type = wal_entry_type(&entry);
 
             let mut buf = Vec::new();
             encode_entry(&entry, codec, &mut buf)?;
@@ -117,7 +117,7 @@ where
                     error!("ATTENTION: Failed to append entry to WAL: {e}");
                 } else {
                     debug!(
-                        type = %tpe, entry.size = %buf.len(), log.entries = %log.len(),
+                        type = %entry_type, entry.size = %buf.len(), log.entries = %log.len(),
                         "Wrote log entry"
                     );
                 }

@@ -46,9 +46,10 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 height,
                 round,
                 proposer,
+                role,
                 reply_value,
             } => {
-                info!(%height, %round, %proposer, "Started round");
+                info!(%height, %round, %proposer, ?role, "Started round");
 
                 reload_log_level(height, round);
 

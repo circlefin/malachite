@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use rand::seq::IteratorRandom;
 
-use malachitebft_core_types::{Context, Height, Round};
+use malachitebft_core_types::{Context, Height};
 use malachitebft_peer::PeerId;
 
 use crate::Status;
@@ -49,37 +49,23 @@ where
         self.peers.insert(status.peer_id, status);
     }
 
-    /// Select at random a peer that is currently running consensus at `height` and round >= `round`.
-    /// TODO: Potentially extend `Status` to include consensus height and round.
-    pub fn random_peer_with_sync_at(
-        &mut self,
-        sync_height: Ctx::Height,
-        _round: Round,
-    ) -> Option<PeerId> {
-        let tip_height = sync_height.decrement().unwrap_or(sync_height);
-        self.random_peer_with_tip_at(tip_height)
-    }
-
-    /// Select at random a peer whose tip is at the given height.
-    pub fn random_peer_with_tip_at(&mut self, height: Ctx::Height) -> Option<PeerId> {
-        self.peers
-            .iter()
-            .filter_map(move |(&peer, status)| (status.tip_height == height).then_some(peer))
-            .choose_stable(&mut self.rng)
-    }
-
-    /// Select at random a peer whose tip at or above the given height.
+    /// Select at random a peer whose tip is at or above the given height and with min height below the given height.
+    /// In other words, `height` is in `status.history_min_height..=status.tip_height` range.
     pub fn random_peer_with_tip_at_or_above(&mut self, height: Ctx::Height) -> Option<PeerId>
     where
         Ctx: Context,
     {
         self.peers
             .iter()
-            .filter_map(move |(&peer, status)| (status.tip_height >= height).then_some(peer))
+            .filter_map(|(&peer, status)| {
+                (status.history_min_height..=status.tip_height)
+                    .contains(&height)
+                    .then_some(peer)
+            })
             .choose_stable(&mut self.rng)
     }
 
-    /// Select at random a peer that that we know is at or above the given height, except the given one.
+    /// Same as [`Self::random_peer_with_tip_at_or_above`], but excludes the given peer.
     pub fn random_peer_with_tip_at_or_above_except(
         &mut self,
         height: Ctx::Height,
@@ -87,7 +73,11 @@ where
     ) -> Option<PeerId> {
         self.peers
             .iter()
-            .filter_map(move |(&peer, status)| (status.tip_height >= height).then_some(peer))
+            .filter_map(|(&peer, status)| {
+                (status.history_min_height..=status.tip_height)
+                    .contains(&height)
+                    .then_some(peer)
+            })
             .filter(|&peer| peer != except)
             .choose_stable(&mut self.rng)
     }

@@ -6,6 +6,7 @@ This document provides guidelines and instructions to help you set up your devel
 
 ## Table of Contents
 
+- [Scope of Contributions](#scope-of-contribution)
 - [Setup](#setup)
   - [Prerequisites](#prerequisites)
   - [Environment Setup](#environment-setup)
@@ -17,6 +18,10 @@ This document provides guidelines and instructions to help you set up your devel
 - [Code Style and Guidelines](#code-style-and-guidelines)
 - [Pull Request Process](#pull-request-process)
 - [Continuous Integration](#continuous-integration)
+
+## Scope of Contributions
+
+Please make sure to [read the corresponding section in CONTRIBUTING.md](/CONTRIBUTING.md#scope-of-contribution).
 
 ## Setup
 

@@ -12,6 +12,7 @@ use crate::types::{
     LivenessMsg, {LocallyProposedValue, SignedConsensusMsg},
 };
 use crate::util::pretty::PrettyVal;
+use crate::Role;
 
 use super::propose::on_propose;
 
@@ -56,14 +57,23 @@ where
                 }
             }
 
-            info!(%height, %round, %proposer, "Starting new round");
+            let role = if state.address() == proposer {
+                Role::Proposer
+            } else if state.is_validator() {
+                Role::Validator
+            } else {
+                Role::None
+            };
+
+            info!(%height, %round, %proposer, ?role, "Starting new round");
+
             state.last_signed_prevote = None;
             state.last_signed_precommit = None;
 
             perform!(co, Effect::CancelAllTimeouts(Default::default()));
             perform!(
                 co,
-                Effect::StartRound(*height, *round, proposer.clone(), Default::default())
+                Effect::StartRound(*height, *round, proposer.clone(), role, Default::default())
             );
 
             #[cfg(feature = "metrics")]
@@ -293,55 +303,58 @@ where
             // Importantly, this mechanism does not need to be enabled from round 0,
             // as it is expensive; it can be activated from any round as a last-resort
             // backup to guarantee liveness.
-            if vote.vote_type() == VoteType::Precommit
-                && vote.value().is_val()
-                && state.driver.round() >= HIDDEN_LOCK_ROUND
-            {
-                let value_id = match vote.value() {
-                    NilOrVal::Val(id) => id,
-                    NilOrVal::Nil => unreachable!("Expected Val, got Nil"),
-                };
-                if let Some((signed_proposal, Validity::Valid)) = state
-                    .driver
-                    .proposal_and_validity_for_round_and_value(vote.round(), value_id.clone())
-                {
-                    perform!(
-                        co,
-                        Effect::RestreamProposal(
-                            signed_proposal.height(),
-                            signed_proposal.round(),
-                            signed_proposal.pol_round(),
-                            signed_proposal.validator_address().clone(),
-                            signed_proposal.value().id(),
-                            Default::default()
-                        )
-                    );
+            if vote.vote_type() == VoteType::Precommit && vote.value().is_val() {
+                // Prune all votes and certificates for the previous rounds as we know we are not going to use them anymore.
+                state.driver.prune_votes_and_certificates(vote.round());
 
-                    if state.params.value_payload.include_proposal() {
+                if state.driver.round() >= HIDDEN_LOCK_ROUND {
+                    let value_id = match vote.value() {
+                        NilOrVal::Val(id) => id,
+                        NilOrVal::Nil => unreachable!("Expected Val, got Nil"),
+                    };
+                    if let Some((signed_proposal, Validity::Valid)) = state
+                        .driver
+                        .proposal_and_validity_for_round_and_value(vote.round(), value_id.clone())
+                    {
                         perform!(
                             co,
-                            Effect::PublishConsensusMsg(
-                                SignedConsensusMsg::Proposal(signed_proposal.clone()),
+                            Effect::RestreamProposal(
+                                signed_proposal.height(),
+                                signed_proposal.round(),
+                                signed_proposal.pol_round(),
+                                signed_proposal.validator_address().clone(),
+                                signed_proposal.value().id(),
+                                Default::default()
+                            )
+                        );
+
+                        if state.params.value_payload.include_proposal() {
+                            perform!(
+                                co,
+                                Effect::PublishConsensusMsg(
+                                    SignedConsensusMsg::Proposal(signed_proposal.clone()),
+                                    Default::default()
+                                )
+                            );
+                        }
+
+                        let Some(polka_certificate) =
+                            state.polka_certificate_at_round(vote.round())
+                        else {
+                            panic!(
+                                "Missing polka certificate for Precommit({:?}) at round {}",
+                                vote.value(),
+                                vote.round()
+                            );
+                        };
+                        perform!(
+                            co,
+                            Effect::PublishLivenessMsg(
+                                LivenessMsg::PolkaCertificate(polka_certificate),
                                 Default::default()
                             )
                         );
                     }
-
-                    let Some(polka_certificate) = state.polka_certificate_at_round(vote.round())
-                    else {
-                        panic!(
-                            "Missing polka certificate for Precommit({:?}) at round {}",
-                            vote.value(),
-                            vote.round()
-                        );
-                    };
-                    perform!(
-                        co,
-                        Effect::PublishLivenessMsg(
-                            LivenessMsg::PolkaCertificate(polka_certificate),
-                            Default::default()
-                        )
-                    );
                 }
             }
 
