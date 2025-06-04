@@ -15,7 +15,11 @@ all-features = true
 [lints]
 workspace = true
 
+[features]
+serde = ["dep:serde"]
+
 [dependencies]
 bytes = { workspace = true, default-features = false }
 derive-where = { workspace = true }
 thiserror = { workspace = true, default-features = false }
+serde = { workspace = true, default-features = false, features = ["derive"], optional = true }

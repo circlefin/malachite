@@ -2165,6 +2165,7 @@ version = "0.3.0-pre"
 dependencies = [
  "bytes",
  "derive-where",
+ "serde",
  "thiserror 2.0.12",
 ]
 

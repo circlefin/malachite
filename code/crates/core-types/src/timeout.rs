@@ -4,6 +4,7 @@ use crate::Round;
 
 /// The timeout type. There may be multiple timeouts running in a given step.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum TimeoutKind {
     /// Timeout for the propose step.
     Propose,
@@ -20,6 +21,7 @@ pub enum TimeoutKind {
 
 /// A timeout for a round step.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Timeout {
     /// The timeout kind.
     pub kind: TimeoutKind,
