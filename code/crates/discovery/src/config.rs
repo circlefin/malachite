@@ -35,7 +35,7 @@ pub struct Config {
     pub num_outbound_peers: usize,
     pub num_inbound_peers: usize,
 
-    pub max_conections_per_peer: usize,
+    pub max_connections_per_peer: usize,
 
     pub ephemeral_connection_timeout: Duration,
 
@@ -59,7 +59,7 @@ impl Default for Config {
             num_outbound_peers: DEFAULT_NUM_OUTBOUND_PEERS,
             num_inbound_peers: DEFAULT_NUM_INBOUND_PEERS,
 
-            max_conections_per_peer: DEFAULT_MAX_CONNECTIONS_PER_PEER,
+            max_connections_per_peer: DEFAULT_MAX_CONNECTIONS_PER_PEER,
 
             ephemeral_connection_timeout: DEFAULT_EPHEMERAL_CONNECTION_TIMEOUT,
 
@@ -96,7 +96,7 @@ impl Config {
     }
 
     pub fn set_max_connections_per_peer(&mut self, max_connections: usize) {
-        self.max_conections_per_peer = max_connections;
+        self.max_connections_per_peer = max_connections;
     }
 
     pub fn set_ephemeral_connection_timeout(&mut self, timeout: Duration) {

@@ -74,11 +74,11 @@ where
                 connection_ids.len() + 1
             );
 
-            if connection_ids.len() >= self.config.max_conections_per_peer {
+            if connection_ids.len() >= self.config.max_connections_per_peer {
                 warn!(
                     peer = %peer_id, %connection_id,
                     "Peer has has already reached the maximum number of connections ({}), closing connection",
-                    self.config.max_conections_per_peer
+                    self.config.max_connections_per_peer
                 );
 
                 self.controller
