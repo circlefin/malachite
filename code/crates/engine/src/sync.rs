@@ -87,7 +87,7 @@ pub enum Msg<Ctx: Context> {
     StartedHeight(Ctx::Height, bool),
 
     /// Host has a response for the blocks request
-    GotDecidedBlock(InboundRequestId, Ctx::Height, Option<RawDecidedValue<Ctx>>),
+    GotDecidedValue(InboundRequestId, Ctx::Height, Option<RawDecidedValue<Ctx>>),
 
     /// A timeout has elapsed
     TimeoutElapsed(TimeoutElapsed<Timeout>),
@@ -265,7 +265,7 @@ where
                     |reply_to| HostMsg::GetDecidedValue { height, reply_to },
                     myself,
                     move |synced_value| {
-                        Msg::<Ctx>::GotDecidedBlock(request_id, height, synced_value)
+                        Msg::<Ctx>::GotDecidedValue(request_id, height, synced_value)
                     },
                     None,
                 )?;
@@ -351,7 +351,7 @@ where
                     .await?;
             }
 
-            Msg::GotDecidedBlock(request_id, height, block) => {
+            Msg::GotDecidedValue(request_id, height, block) => {
                 self.process_input(
                     &myself,
                     state,
