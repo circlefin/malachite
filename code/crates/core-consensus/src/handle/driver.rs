@@ -303,13 +303,15 @@ where
             // Importantly, this mechanism does not need to be enabled from round 0,
             // as it is expensive; it can be activated from any round as a last-resort
             // backup to guarantee liveness.
-            if vote.vote_type() == VoteType::Precommit && vote.value().is_val() {
+            if let (VoteType::Precommit, NilOrVal::Val(value_id)) = (vote.vote_type(), vote.value())
+            {
                 // Prune all votes and certificates for the previous rounds as we know we are not going to use them anymore.
                 state.driver.prune_votes_and_certificates(vote.round());
 
                 if state.driver.round() >= HIDDEN_LOCK_ROUND {
-                    if let Some((signed_proposal, Validity::Valid)) =
-                        state.driver.proposal_and_validity_for_round(vote.round())
+                    if let Some((signed_proposal, Validity::Valid)) = state
+                        .driver
+                        .proposal_and_validity_for_round_and_value(vote.round(), value_id.clone())
                     {
                         perform!(
                             co,

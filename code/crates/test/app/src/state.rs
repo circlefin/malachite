@@ -15,7 +15,7 @@ use malachitebft_app_channel::app::streaming::{StreamContent, StreamId, StreamMe
 use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::{CommitCertificate, Round, Validity};
 use malachitebft_app_channel::app::types::{LocallyProposedValue, PeerId};
-use malachitebft_test::codec::proto::ProtobufCodec;
+use malachitebft_test::codec::json::JsonCodec;
 use malachitebft_test::{
     Address, Ed25519Provider, Genesis, Height, ProposalData, ProposalFin, ProposalInit,
     ProposalPart, TestContext, ValidatorSet, Value, ValueId,
@@ -456,9 +456,14 @@ fn assemble_value_from_parts(parts: ProposalParts) -> eyre::Result<ProposedValue
     })
 }
 
-/// Decodes a Value from its byte representation using ProtobufCodec
-pub fn decode_value(bytes: Bytes) -> Value {
-    ProtobufCodec.decode(bytes).unwrap()
+/// Encode a value to its byte representation
+pub fn encode_value(value: &Value) -> Bytes {
+    JsonCodec.encode(value).unwrap()
+}
+
+/// Decodes a Value from its byte representation
+pub fn decode_value(bytes: Bytes) -> Option<Value> {
+    JsonCodec.decode(bytes).ok()
 }
 
 /// Returns the list of prime factors of the given value

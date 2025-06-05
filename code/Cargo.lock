@@ -2180,6 +2180,7 @@ version = "0.3.0-pre"
 dependencies = [
  "bytes",
  "derive-where",
+ "serde",
  "thiserror 2.0.12",
 ]
 
@@ -2494,6 +2495,7 @@ dependencies = [
  "informalsystems-malachitebft-core-consensus",
  "informalsystems-malachitebft-core-types",
  "informalsystems-malachitebft-engine",
+ "informalsystems-malachitebft-peer",
  "informalsystems-malachitebft-proto",
  "informalsystems-malachitebft-signing-ed25519",
  "informalsystems-malachitebft-sync",

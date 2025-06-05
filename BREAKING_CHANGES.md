@@ -13,7 +13,6 @@
 - Added new variant to `Effect` enum: `PublishLivenessMessage`
 
 ### `malachitebft-metrics`
-
 - Removed app-specific metrics from the `malachitebft-metrics` crate ([#1054](https://github.com/informalsystems/malachite/issues/1054))
 
 ### `malachitebft-engine`
@@ -38,6 +37,9 @@
 ### `malachitebft-sync`
 - Removed the VoteSet synchronization protocol, as it is neither required nor sufficient for liveness.
   See ([#998](https://github.com/informalsystems/malachite/issues/998)) for more details.
+
+### `informalsystems-malachitebft-app-channel`
+- The `start_engine` function now takes two `Codec`s: one for the WAL and one for the network.
 
 ## 0.2.0
 

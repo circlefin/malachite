@@ -207,6 +207,7 @@ impl<Ctx: Context> RoundSignature<Ctx> {
 
 /// Describes the type of a `RoundCertificate`.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum RoundCertificateType {
     /// Composed of f+1 votes (e.g., SkipRound)
     Skip,
