@@ -226,4 +226,44 @@ mod _borsh {
             }
         }
     }
+
+    impl<Ctx: Context> borsh::BorshSerialize for ProposedValue<Ctx>
+    where
+        Ctx::Height: borsh::BorshSerialize,
+        Ctx::Address: borsh::BorshSerialize,
+        Ctx::Value: borsh::BorshSerialize,
+    {
+        fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
+            self.height.serialize(writer)?;
+            self.round.serialize(writer)?;
+            self.valid_round.serialize(writer)?;
+            self.proposer.serialize(writer)?;
+            self.value.serialize(writer)?;
+            self.validity.serialize(writer)
+        }
+    }
+
+    impl<Ctx: Context> borsh::BorshDeserialize for ProposedValue<Ctx>
+    where
+        Ctx::Height: borsh::BorshDeserialize,
+        Ctx::Address: borsh::BorshDeserialize,
+        Ctx::Value: borsh::BorshDeserialize,
+    {
+        fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
+            let height = Ctx::Height::deserialize_reader(reader)?;
+            let round = Round::deserialize_reader(reader)?;
+            let valid_round = Round::deserialize_reader(reader)?;
+            let proposer = Ctx::Address::deserialize_reader(reader)?;
+            let value = Ctx::Value::deserialize_reader(reader)?;
+            let validity = Validity::deserialize_reader(reader)?;
+            Ok(ProposedValue {
+                height,
+                round,
+                valid_round,
+                proposer,
+                value,
+                validity,
+            })
+        }
+    }
 }
