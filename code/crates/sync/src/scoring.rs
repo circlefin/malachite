@@ -166,6 +166,25 @@ mod tests {
         })
     }
 
+    fn arb_sync_result_success_fast(
+        u: &mut Unstructured,
+        slow_threshold: Duration,
+    ) -> Result<SyncResult> {
+        Ok(SyncResult::Success(arb_response_time_fast(
+            u,
+            slow_threshold,
+        )?))
+    }
+
+    fn arb_sync_result_failure(u: &mut Unstructured) -> Result<SyncResult> {
+        let result_type = u.int_in_range(0..=1)?;
+        Ok(match result_type {
+            0 => SyncResult::Timeout,
+            1 => SyncResult::Failure,
+            _ => unreachable!(),
+        })
+    }
+
     fn arb_strategy(u: &mut Unstructured) -> Result<ema::ExponentialMovingAverage> {
         let alpha_success = u.choose(&[0.20, 0.25, 0.30])?;
         let alpha_timeout = u.choose(&[0.10, 0.15, 0.20])?;
@@ -194,7 +213,35 @@ mod tests {
     fn scores_are_bounded() {
         arbtest(|u| {
             let strategy = arb_strategy(u)?;
-            let results = arb_vec(u, arb_sync_result, 1..=100)?;
+            let results = arb_vec(
+                u,
+                |u| arb_sync_result_success_fast(u, strategy.slow_threshold),
+                10..=100,
+            )?;
+
+            let mut scorer = PeerScorer::new(strategy);
+            let peer_id = PeerId::random();
+
+            // Initial score should be bounded
+            let initial_score = scorer.get_score(&peer_id);
+            assert!((0.0..=1.0).contains(&initial_score));
+
+            // All updated scores should remain bounded
+            for result in results {
+                scorer.update_score(peer_id, result);
+                let score = scorer.get_score(&peer_id);
+                assert!(
+                    (0.0..=1.0).contains(&score),
+                    "Score {score} is out of bounds after result {result:?}",
+                );
+            }
+
+            Ok(())
+        });
+
+        arbtest(|u| {
+            let strategy = arb_strategy(u)?;
+            let results = arb_vec(u, arb_sync_result_failure, 10..=100)?;
 
             let mut scorer = PeerScorer::new(strategy);
             let peer_id = PeerId::random();
@@ -362,6 +409,8 @@ mod tests {
 
             let good_peer = PeerId::random();
             let bad_peer = PeerId::random();
+            assert_ne!(good_peer, bad_peer, "Peers should be distinct");
+
             let peers = vec![good_peer, bad_peer];
 
             let mut scorer = PeerScorer::default();
