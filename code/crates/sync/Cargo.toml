@@ -12,12 +12,16 @@ readme = "../../../README.md"
 [package.metadata.docs.rs]
 all-features = true
 
+[features]
+borsh = ["dep:borsh", "malachitebft-peer/borsh"]
+
 [dependencies]
 malachitebft-core-types = { workspace = true }
 malachitebft-metrics = { workspace = true }
 malachitebft-peer = { workspace = true }
 
 async-trait = { workspace = true }
+borsh = { workspace = true, optional = true }
 bytes = { workspace = true, features = ["serde"] }
 dashmap = { workspace = true }
 derive-where = { workspace = true }

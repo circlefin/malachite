@@ -56,3 +56,36 @@ where
         &self.message
     }
 }
+
+#[cfg(feature = "borsh")]
+mod _borsh {
+    use super::*;
+
+    impl<Ctx, Msg> borsh::BorshSerialize for SignedMessage<Ctx, Msg>
+    where
+        Ctx: Context,
+        Msg: borsh::BorshSerialize,
+        Signature<Ctx>: borsh::BorshSerialize,
+    {
+        fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
+            self.message.serialize(writer)?;
+            self.signature.serialize(writer)?;
+            Ok(())
+        }
+    }
+
+    #[cfg(feature = "borsh")]
+    impl<Ctx, Msg> borsh::BorshDeserialize for SignedMessage<Ctx, Msg>
+    where
+        Ctx: Context,
+        Msg: borsh::BorshDeserialize,
+        Signature<Ctx>: borsh::BorshDeserialize,
+    {
+        fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
+            Ok(Self {
+                message: Msg::deserialize_reader(reader)?,
+                signature: Signature::<Ctx>::deserialize_reader(reader)?,
+            })
+        }
+    }
+}

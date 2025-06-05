@@ -27,6 +27,10 @@ impl fmt::Display for StreamId {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "borsh",
+    derive(borsh::BorshSerialize, borsh::BorshDeserialize)
+)]
 pub struct StreamMessage<T> {
     /// Receivers identify streams by (sender, stream_id).
     /// This means each node can allocate stream_ids independently
@@ -59,6 +63,10 @@ impl<T> StreamMessage<T> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "borsh",
+    derive(borsh::BorshSerialize, borsh::BorshDeserialize)
+)]
 pub enum StreamContent<T> {
     /// Serialized content.
     Data(T),
@@ -84,5 +92,23 @@ impl<T> StreamContent<T> {
 
     pub fn is_fin(&self) -> bool {
         matches!(self, Self::Fin)
+    }
+}
+
+#[cfg(feature = "borsh")]
+mod _borsh {
+    use super::*;
+
+    impl borsh::BorshSerialize for StreamId {
+        fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
+            self.0.to_vec().serialize(writer)
+        }
+    }
+
+    impl borsh::BorshDeserialize for StreamId {
+        fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
+            let bytes = Vec::<u8>::deserialize_reader(reader)?;
+            Ok(StreamId(bytes.into()))
+        }
     }
 }

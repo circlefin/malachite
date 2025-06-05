@@ -13,6 +13,7 @@ readme = "../../../README.md"
 all-features = true
 
 [features]
+borsh = ["dep:borsh"]
 default = ["std", "metrics"]
 std = ["malachitebft-core-driver/std"]
 metrics = ["std", "dep:malachitebft-metrics"]
@@ -23,6 +24,7 @@ malachitebft-core-types.workspace = true
 malachitebft-core-driver.workspace = true
 malachitebft-metrics = { workspace = true, optional = true }
 malachitebft-peer.workspace = true
+borsh = { workspace = true, optional = true }
 
 async-recursion = { workspace = true }
 genawaiter = { workspace = true }

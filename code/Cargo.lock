@@ -486,6 +486,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "borsh"
+version = "1.5.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad8646f98db542e39fc66e68a20b2144f6a732636df7c2354e74645faaa433ce"
+dependencies = [
+ "cfg_aliases",
+]
+
+[[package]]
 name = "bs58"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2125,6 +2134,7 @@ name = "informalsystems-malachitebft-core-consensus"
 version = "0.3.0-pre"
 dependencies = [
  "async-recursion",
+ "borsh",
  "derive-where",
  "genawaiter",
  "informalsystems-malachitebft-core-driver",
@@ -2163,6 +2173,7 @@ dependencies = [
 name = "informalsystems-malachitebft-core-types"
 version = "0.3.0-pre"
 dependencies = [
+ "borsh",
  "bytes",
  "derive-where",
  "serde",
@@ -2215,6 +2226,7 @@ version = "0.3.0-pre"
 dependencies = [
  "async-recursion",
  "async-trait",
+ "borsh",
  "byteorder",
  "bytes",
  "derive-where",
@@ -2293,6 +2305,7 @@ dependencies = [
 name = "informalsystems-malachitebft-peer"
 version = "0.3.0-pre"
 dependencies = [
+ "borsh",
  "bs58",
  "multihash",
  "rand 0.8.5",
@@ -2446,6 +2459,7 @@ name = "informalsystems-malachitebft-sync"
 version = "0.3.0-pre"
 dependencies = [
  "async-trait",
+ "borsh",
  "bytes",
  "dashmap",
  "derive-where",

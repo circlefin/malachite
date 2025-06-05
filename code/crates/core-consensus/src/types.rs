@@ -133,3 +133,97 @@ pub enum LivenessMsg<Ctx: Context> {
     PolkaCertificate(PolkaCertificate<Ctx>),
     SkipRoundCertificate(RoundCertificate<Ctx>),
 }
+
+#[cfg(feature = "borsh")]
+mod _borsh {
+    use super::*;
+
+    impl<Ctx: Context> borsh::BorshSerialize for SignedConsensusMsg<Ctx>
+    where
+        SignedVote<Ctx>: borsh::BorshSerialize,
+        SignedProposal<Ctx>: borsh::BorshSerialize,
+    {
+        fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
+            match self {
+                SignedConsensusMsg::Vote(signed_message) => {
+                    0u8.serialize(writer)?;
+                    signed_message.serialize(writer)
+                }
+                SignedConsensusMsg::Proposal(signed_message) => {
+                    1u8.serialize(writer)?;
+                    signed_message.serialize(writer)
+                }
+            }
+        }
+    }
+
+    impl<Ctx: Context> borsh::BorshDeserialize for SignedConsensusMsg<Ctx>
+    where
+        SignedVote<Ctx>: borsh::BorshDeserialize,
+        SignedProposal<Ctx>: borsh::BorshDeserialize,
+    {
+        fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
+            let discriminant = u8::deserialize_reader(reader)?;
+            match discriminant {
+                0 => Ok(SignedConsensusMsg::Vote(SignedVote::deserialize_reader(
+                    reader,
+                )?)),
+                1 => Ok(SignedConsensusMsg::Proposal(
+                    SignedProposal::deserialize_reader(reader)?,
+                )),
+                _ => Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "Invalid discriminant",
+                )),
+            }
+        }
+    }
+
+    impl<Ctx: Context> borsh::BorshSerialize for LivenessMsg<Ctx>
+    where
+        SignedVote<Ctx>: borsh::BorshSerialize,
+        PolkaCertificate<Ctx>: borsh::BorshSerialize,
+        RoundCertificate<Ctx>: borsh::BorshSerialize,
+    {
+        fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+            match self {
+                LivenessMsg::Vote(signed_message) => {
+                    0u8.serialize(writer)?;
+                    signed_message.serialize(writer)
+                }
+                LivenessMsg::PolkaCertificate(polka_certificate) => {
+                    1u8.serialize(writer)?;
+                    polka_certificate.serialize(writer)
+                }
+                LivenessMsg::SkipRoundCertificate(round_certificate) => {
+                    2u8.serialize(writer)?;
+                    round_certificate.serialize(writer)
+                }
+            }
+        }
+    }
+
+    impl<Ctx: Context> borsh::BorshDeserialize for LivenessMsg<Ctx>
+    where
+        SignedVote<Ctx>: borsh::BorshDeserialize,
+        PolkaCertificate<Ctx>: borsh::BorshDeserialize,
+        RoundCertificate<Ctx>: borsh::BorshDeserialize,
+    {
+        fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
+            let discriminant = u8::deserialize_reader(reader)?;
+            match discriminant {
+                0 => Ok(LivenessMsg::Vote(SignedVote::deserialize_reader(reader)?)),
+                1 => Ok(LivenessMsg::PolkaCertificate(
+                    PolkaCertificate::deserialize_reader(reader)?,
+                )),
+                2 => Ok(LivenessMsg::SkipRoundCertificate(
+                    RoundCertificate::deserialize_reader(reader)?,
+                )),
+                _ => Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "Invalid discriminant",
+                )),
+            }
+        }
+    }
+}
