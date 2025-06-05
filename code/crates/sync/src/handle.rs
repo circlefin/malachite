@@ -212,7 +212,7 @@ where
     debug!(height.tip = %height, "Updating tip height");
 
     state.tip_height = height;
-    state.remove_pending_decided_value_request(height);
+    state.remove_pending_decided_value_request_by_height(&height);
 
     Ok(())
 }
@@ -250,7 +250,7 @@ where
 {
     debug!(%response.height, %request_id, %peer, "Received response");
 
-    state.remove_pending_decided_value_request(response.height);
+    state.remove_pending_decided_value_request_by_height(&response.height);
 
     metrics.decided_value_response_received(response.height.as_u64());
 
@@ -327,7 +327,8 @@ where
         Request::ValueRequest(value_request) => {
             let height = value_request.height;
             warn!(%peer_id, %height, "Value request timed out");
-            state.remove_pending_decided_value_request(height);
+
+            state.remove_pending_decided_value_request_by_height(&height);
             metrics.decided_value_request_timed_out(height.as_u64());
         }
     };
@@ -400,7 +401,7 @@ where
     trace!("Certificate: {certificate:#?}");
 
     info!(height.sync = %certificate.height, "Requesting sync from another peer");
-    state.remove_pending_decided_value_request(certificate.height);
+    state.remove_pending_decided_value_request_by_height(&certificate.height);
 
     let Some(peer) = state.random_peer_with_tip_at_or_above_except(certificate.height, from) else {
         error!(height.sync = %certificate.height, "No other peer to request sync from");
