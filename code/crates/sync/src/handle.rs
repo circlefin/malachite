@@ -107,7 +107,7 @@ where
         }
 
         Input::GotDecidedValue(request_id, height, value) => {
-            on_value(co, state, metrics, request_id, height, value).await
+            on_got_decided_value(co, state, metrics, request_id, height, value).await
         }
 
         Input::SyncRequestTimedOut(peer_id, request) => {
@@ -253,7 +253,7 @@ where
     Ok(())
 }
 
-pub async fn on_value<Ctx>(
+pub async fn on_got_decided_value<Ctx>(
     co: Co<Ctx>,
     _state: &mut State<Ctx>,
     metrics: &Metrics,
