@@ -108,7 +108,7 @@ where
         }
 
         Input::GotDecidedValue(request_id, height, value) => {
-            on_value(co, state, metrics, request_id, height, value).await
+            on_decided_value(co, state, metrics, request_id, height, value).await
         }
 
         Input::SyncRequestTimedOut(peer_id, request) => {
@@ -274,7 +274,7 @@ where
     Ok(())
 }
 
-pub async fn on_value<Ctx>(
+pub async fn on_decided_value<Ctx>(
     co: Co<Ctx>,
     _state: &mut State<Ctx>,
     metrics: &Metrics,
@@ -293,7 +293,7 @@ where
         Some(value) if value.certificate.height != height => {
             error!(
                 %height, value.height = %value.certificate.height,
-                "Received value response for wrong height"
+                "Received value response for wrong height from host"
             );
             None
         }
