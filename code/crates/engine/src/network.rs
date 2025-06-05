@@ -114,8 +114,8 @@ pub enum NetworkEvent<Ctx: Context> {
 
     Status(PeerId, Status<Ctx>),
 
-    Request(InboundRequestId, PeerId, Request<Ctx>),
-    Response(OutboundRequestId, PeerId, Response<Ctx>),
+    SyncRequest(InboundRequestId, PeerId, Request<Ctx>),
+    SyncResponse(OutboundRequestId, PeerId, Response<Ctx>),
 }
 
 pub enum State<Ctx: Context> {
@@ -451,7 +451,7 @@ where
 
                     inbound_requests.insert(InboundRequestId::new(request_id), request_id);
 
-                    output_port.send(NetworkEvent::Request(
+                    output_port.send(NetworkEvent::SyncRequest(
                         InboundRequestId::new(request_id),
                         peer,
                         request,
@@ -471,7 +471,7 @@ where
                         }
                     };
 
-                    output_port.send(NetworkEvent::Response(
+                    output_port.send(NetworkEvent::SyncResponse(
                         OutboundRequestId::new(request_id),
                         peer,
                         response,

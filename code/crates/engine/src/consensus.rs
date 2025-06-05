@@ -454,7 +454,7 @@ where
                         }
                     }
 
-                    NetworkEvent::Response(
+                    NetworkEvent::SyncResponse(
                         request_id,
                         peer,
                         sync::Response::ValueResponse(ValueResponse { height, value }),

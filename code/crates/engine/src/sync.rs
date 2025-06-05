@@ -306,7 +306,7 @@ where
                     .await?;
             }
 
-            Msg::NetworkEvent(NetworkEvent::Request(request_id, from, request)) => {
+            Msg::NetworkEvent(NetworkEvent::SyncRequest(request_id, from, request)) => {
                 match request {
                     Request::ValueRequest(value_request) => {
                         self.process_input(
@@ -319,7 +319,7 @@ where
                 };
             }
 
-            Msg::NetworkEvent(NetworkEvent::Response(request_id, peer, response)) => {
+            Msg::NetworkEvent(NetworkEvent::SyncResponse(request_id, peer, response)) => {
                 // Cancel the timer associated with the request for which we just received a response
                 state.timers.cancel(&Timeout::Request(request_id.clone()));
 
