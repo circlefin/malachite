@@ -22,7 +22,7 @@ where
         if self
             .active_connections
             .get(&peer_id)
-            .is_some_and(|connections| connections.contains(&connection_id))
+            .is_some_and(|connection_ids| connection_ids.contains(&connection_id))
         {
             return is_already_connected;
         }
@@ -41,15 +41,13 @@ where
         match self.discovered_peers.insert(peer_id, info.clone()) {
             Some(_) => {
                 info!(
-                    peer = %peer_id,
-                    connection_id = %connection_id,
+                    peer = %peer_id, %connection_id,
                     "New connection from known peer",
                 );
             }
             None => {
                 info!(
-                    peer = %peer_id,
-                    connection_id = %connection_id,
+                    peer = %peer_id, %connection_id,
                     "Discovered peer",
                 );
 
@@ -69,11 +67,6 @@ where
         }
 
         if let Some(connection_ids) = self.active_connections.get_mut(&peer_id) {
-            debug!(
-                "Additional connection {connection_id} to peer {peer_id}, total connections: {}",
-                connection_ids.len() + 1
-            );
-
             if connection_ids.len() >= self.config.max_connections_per_peer {
                 warn!(
                     peer = %peer_id, %connection_id,
@@ -86,6 +79,12 @@ where
                     .add_to_queue((peer_id, connection_id), None);
 
                 return is_already_connected;
+            } else {
+                debug!(
+                    peer = %peer_id, %connection_id,
+                    "Additional connection to peer, total connections: {}",
+                    connection_ids.len() + 1
+                );
             }
 
             connection_ids.push(connection_id);
@@ -110,8 +109,8 @@ where
                 && self.outbound_peers.len() < self.config.num_outbound_peers
             {
                 // If the initial discovery process is done and did not find enough peers,
-                // the connection is outbound, otherwise it is ephemeral, except if later
-                // the connection is requested to be persistent (inbound).
+                // the peer will be outbound, otherwise it is ephemeral, except if later
+                // the peer is requested to be persistent (inbound).
                 debug!(
                     peer = %peer_id, %connection_id,
                     "Connection is outbound (incomplete initial discovery)"
@@ -149,7 +148,7 @@ where
                     .add_address(&peer_id, info.listen_addrs.first().unwrap().clone());
             }
         } else {
-            // If discovery is disabled, all connections are inbound. The
+            // If discovery is disabled, all peers are inbound. The
             // maximum number of inbound peers is enforced by the
             // corresponding parameter in the configuration.
             if self.inbound_peers.len() < self.config.num_inbound_peers {
@@ -157,7 +156,7 @@ where
 
                 self.inbound_peers.insert(peer_id);
             } else {
-                warn!(peer = %peer_id, %connection_id, "Connections limit reached, refusing connection");
+                warn!(peer = %peer_id, %connection_id, "Peers limit reached, refusing connection");
 
                 self.controller
                     .close
@@ -168,7 +167,7 @@ where
             }
         }
 
-        self.update_connections_metrics();
+        self.update_discovery_metrics();
 
         return is_already_connected;
     }

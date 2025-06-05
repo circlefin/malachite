@@ -76,8 +76,8 @@ pub async fn circular_graph_n() {
     }
 
     let test: Test<N> = Test::new(
-        nodes.try_into().expect("Expected a Vec of length 100"),
-        expected.try_into().expect("Expected a Vec of length 100"),
+        nodes.try_into().expect("Expected a Vec of length {N}"),
+        expected.try_into().expect("Expected a Vec of length {N}"),
         Duration::from_secs(0),
         Duration::from_secs(10),
         DiscoveryConfig {
@@ -151,8 +151,8 @@ pub async fn discovery_concurrent_dial() {
     }
 
     let test: Test<N> = Test::new(
-        nodes.try_into().expect("Expected a Vec of length 100"),
-        expected.try_into().expect("Expected a Vec of length 100"),
+        nodes.try_into().expect("Expected a Vec of length {N}"),
+        expected.try_into().expect("Expected a Vec of length {N}"),
         Duration::from_secs(0),
         Duration::from_secs(10),
         DiscoveryConfig {

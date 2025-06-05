@@ -81,7 +81,7 @@ where
             debug!("Rejecting upgrade of peer {peer} to inbound peer as the limit is reached");
         }
 
-        self.update_connections_metrics();
+        self.update_discovery_metrics();
 
         if swarm
             .behaviour_mut()
@@ -121,10 +121,10 @@ where
                 debug!("All outbound peers are persistent");
 
                 self.metrics.initial_discovery_finished();
-                self.update_connections_metrics();
+                self.update_discovery_metrics();
             }
         } else {
-            debug!("Peer {peer} rejected connection upgrade to outbound connection");
+            debug!("Peer {peer} rejected connection upgrade to outbound peer");
 
             self.metrics.increment_total_rejected_connect_requests();
 

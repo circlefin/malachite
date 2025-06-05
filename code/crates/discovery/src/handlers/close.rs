@@ -20,7 +20,9 @@ where
             || self
                 .active_connections
                 .get(&peer_id)
-                .map_or(true, |connections| !connections.contains(&connection_id))
+                .map_or(true, |connection_ids| {
+                    !connection_ids.contains(&connection_id)
+                })
     }
 
     pub fn close_connection(
@@ -56,11 +58,11 @@ where
     ) {
         let mut was_last_connection = false;
 
-        if let Some(connections) = self.active_connections.get_mut(&peer_id) {
-            if connections.contains(&connection_id) {
+        if let Some(connection_ids) = self.active_connections.get_mut(&peer_id) {
+            if connection_ids.contains(&connection_id) {
                 warn!("Removing active connection {connection_id} to peer {peer_id}");
-                connections.retain(|id| id != &connection_id);
-                if connections.is_empty() {
+                connection_ids.retain(|id| id != &connection_id);
+                if connection_ids.is_empty() {
                     self.active_connections.remove(&peer_id);
 
                     was_last_connection = true;
@@ -95,6 +97,6 @@ where
             }
         }
 
-        self.update_connections_metrics();
+        self.update_discovery_metrics();
     }
 }

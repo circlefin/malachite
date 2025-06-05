@@ -67,6 +67,10 @@ pub struct DiscoveryConfig {
     #[serde(default)]
     pub num_inbound_peers: usize,
 
+    /// Maximum number of connections per peer
+    #[serde(default)]
+    pub max_connections_per_peer: usize,
+
     /// Ephemeral connection timeout
     #[serde(default)]
     #[serde(with = "humantime_serde")]
@@ -81,6 +85,7 @@ impl Default for DiscoveryConfig {
             selector: Default::default(),
             num_outbound_peers: 0,
             num_inbound_peers: 20,
+            max_connections_per_peer: 5,
             ephemeral_connection_timeout: Default::default(),
         }
     }

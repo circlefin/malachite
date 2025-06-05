@@ -11,8 +11,8 @@ mod util;
 mod behaviour;
 pub use behaviour::*;
 
-mod connection;
-use connection::ConnectionData;
+mod dial;
+use dial::DialData;
 
 pub mod config;
 pub use config::Config;
@@ -118,10 +118,6 @@ where
 
     pub fn is_enabled(&self) -> bool {
         self.config.enabled
-    }
-
-    fn active_connections_len(&self) -> usize {
-        self.active_connections.values().map(Vec::len).sum()
     }
 
     pub fn on_network_event(

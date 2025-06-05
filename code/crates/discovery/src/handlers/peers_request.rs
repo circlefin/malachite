@@ -8,7 +8,7 @@ use tracing::{debug, error, trace};
 
 use crate::{
     behaviour::{self, Response},
-    connection::ConnectionData,
+    dial::DialData,
     request::RequestData,
     Discovery, DiscoveryClient,
 };
@@ -139,7 +139,7 @@ where
         peers: HashSet<(Option<PeerId>, Vec<Multiaddr>)>,
     ) {
         for (peer_id, listen_addr) in peers {
-            self.add_to_dial_queue(swarm, ConnectionData::new(peer_id, listen_addr));
+            self.add_to_dial_queue(swarm, DialData::new(peer_id, listen_addr));
         }
     }
 

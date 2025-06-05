@@ -16,15 +16,15 @@ where
             info!(
                 "Discovery bootstrap done in {}ms, found {} peers",
                 self.metrics.elapsed().as_millis(),
-                self.active_connections_len()
+                self.active_connections.len()
             );
 
             self.metrics.initial_bootstrap_finished();
 
-            if self.active_connections_len() < self.config.num_outbound_peers {
+            if self.active_connections.len() < self.config.num_outbound_peers {
                 info!(
                     "Not enough active connections (got {}, expected {}) to select outbound peers",
-                    self.active_connections_len(),
+                    self.active_connections.len(),
                     self.config.num_outbound_peers
                 );
 
@@ -37,7 +37,7 @@ where
                     self.metrics.elapsed().as_millis()
                 );
 
-                self.adjust_connections(swarm);
+                self.adjust_peers(swarm);
 
                 self.state = State::Idle;
             }

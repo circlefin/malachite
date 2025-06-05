@@ -43,17 +43,17 @@ where
                 .add_to_queue(RequestData::new(peer_id), None);
         }
 
-        // Safety check: make sure that the inbound connections are not part of the outbound connections
+        // Safety check: make sure that the inbound peers are not part of the outbound peers
         self.inbound_peers
             .retain(|peer_id| !self.outbound_peers.contains_key(peer_id));
     }
 
-    pub(crate) fn adjust_connections(&mut self, swarm: &mut Swarm<C>) {
+    pub(crate) fn adjust_peers(&mut self, swarm: &mut Swarm<C>) {
         if !self.is_enabled() {
             return;
         }
 
-        debug!("Adjusting connections");
+        debug!("Adjusting peers");
 
         self.select_outbound_peers(swarm);
 
@@ -68,7 +68,7 @@ where
             .collect();
 
         debug!(
-            "Connections adjusted by disconnecting {} peers",
+            "Peers adjusted by disconnecting {} peers",
             peers_to_disconnect.len()
         );
 
@@ -107,12 +107,12 @@ where
             // Consider the connect request as done
             self.controller.connect_request.register_done_on(peer_id);
 
-            self.update_connections_metrics();
+            self.update_discovery_metrics();
 
             return;
         }
 
-        // If no inbound connection is available, then select a candidate
+        // If no inbound peers is available, then select a candidate
         match self.selector.try_select_n_outbound_candidates(
             swarm,
             &self.discovered_peers,

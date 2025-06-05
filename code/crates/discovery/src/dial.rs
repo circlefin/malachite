@@ -3,13 +3,13 @@ use libp2p::{swarm::dial_opts::DialOpts, Multiaddr, PeerId};
 use crate::util::Retry;
 
 #[derive(Debug, Clone)]
-pub struct ConnectionData {
+pub struct DialData {
     peer_id: Option<PeerId>,
     listen_addrs: Vec<Multiaddr>,
     pub retry: Retry,
 }
 
-impl ConnectionData {
+impl DialData {
     pub fn new(peer_id: Option<PeerId>, listen_addrs: Vec<Multiaddr>) -> Self {
         Self {
             peer_id,

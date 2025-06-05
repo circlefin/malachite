@@ -220,6 +220,7 @@ async fn spawn_network_actor(
             selector,
             num_outbound_peers: cfg.consensus.p2p.discovery.num_outbound_peers,
             num_inbound_peers: cfg.consensus.p2p.discovery.num_inbound_peers,
+            max_connections_per_peer: cfg.consensus.p2p.discovery.max_connections_per_peer,
             ephemeral_connection_timeout: cfg.consensus.p2p.discovery.ephemeral_connection_timeout,
             ..Default::default()
         },

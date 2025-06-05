@@ -6,6 +6,10 @@ impl<C> Discovery<C>
 where
     C: DiscoveryClient,
 {
+    fn total_active_connections_len(&self) -> usize {
+        self.active_connections.values().map(Vec::len).sum()
+    }
+
     fn outbound_connections_len(&self) -> usize {
         self.active_connections
             .iter()
@@ -32,9 +36,9 @@ where
             .sum()
     }
 
-    pub(crate) fn update_connections_metrics(&mut self) {
+    pub(crate) fn update_discovery_metrics(&mut self) {
         let num_active_peers = self.active_connections.len();
-        let num_active_connections = self.active_connections_len();
+        let num_active_connections = self.total_active_connections_len();
         let num_outbound_peers = self.outbound_peers.len();
         let num_outbound_connections = self.outbound_connections_len();
         let num_inbound_peers = self.inbound_peers.len();
