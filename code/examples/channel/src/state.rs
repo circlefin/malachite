@@ -495,9 +495,14 @@ fn assemble_value_from_parts(parts: ProposalParts) -> eyre::Result<ProposedValue
     })
 }
 
-/// Decodes a Value from its byte representation using ProtobufCodec
-pub fn decode_value(bytes: Bytes) -> Value {
-    ProtobufCodec.decode(bytes).unwrap()
+/// Encode a Value to its byte representation
+pub fn encode_value(value: &Value) -> Bytes {
+    ProtobufCodec.encode(value).unwrap()
+}
+
+/// Decodes a Value from its byte representation
+pub fn decode_value(bytes: Bytes) -> Option<Value> {
+    ProtobufCodec.decode(bytes).ok()
 }
 
 /// Returns the list of prime factors of the given value

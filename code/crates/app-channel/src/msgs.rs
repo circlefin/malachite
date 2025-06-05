@@ -176,7 +176,7 @@ pub enum AppMsg<Ctx: Context> {
     /// This may happen when the node is catching up with the network.
     ///
     /// If a value can be decoded from the bytes provided, then the application MUST reply
-    /// to this message with the decoded value.
+    /// to this message with the decoded value. Otherwise, it MUST reply with `None`.
     ProcessSyncedValue {
         /// Height of the synced value
         height: Ctx::Height,
@@ -187,7 +187,8 @@ pub enum AppMsg<Ctx: Context> {
         /// Raw encoded value data
         value_bytes: Bytes,
         /// Channel for sending back the proposed value, if successfully decoded
-        reply: Reply<ProposedValue<Ctx>>,
+        /// or `None` if the value could not be decoded
+        reply: Reply<Option<ProposedValue<Ctx>>>,
     },
 }
 
