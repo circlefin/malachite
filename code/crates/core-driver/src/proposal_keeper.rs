@@ -7,7 +7,7 @@ use alloc::vec::Vec;
 use derive_where::derive_where;
 use thiserror::Error;
 
-use malachitebft_core_types::{Context, Proposal, Round, SignedProposal, Validity};
+use malachitebft_core_types::{Context, Proposal, Round, SignedProposal, Validity, Value, ValueId};
 
 /// Errors can that be yielded when recording a proposal.
 #[derive_where(Debug)]
@@ -24,15 +24,6 @@ where
         /// The conflicting proposal, from the same validator.
         conflicting: SignedProposal<Ctx>,
     },
-
-    /// Attempted to record a conflicting proposal from a different validator.
-    #[error("Invalid conflicting proposal: existing: {existing}, conflicting: {conflicting}")]
-    InvalidConflictingProposal {
-        /// The proposal already recorded for the same value.
-        existing: SignedProposal<Ctx>,
-        /// The conflicting proposal, from a different validator.
-        conflicting: SignedProposal<Ctx>,
-    },
 }
 
 #[derive_where(Clone, Debug, PartialEq, Eq, Default)]
@@ -40,48 +31,79 @@ struct PerRound<Ctx>
 where
     Ctx: Context,
 {
-    /// The proposal received in a given round (proposal.round) if any.
-    proposal: Option<(SignedProposal<Ctx>, Validity)>,
+    /// The proposals received in a given round (proposal.round) if any.
+    proposals: Vec<(SignedProposal<Ctx>, Validity)>,
 }
 
 impl<Ctx> PerRound<Ctx>
 where
     Ctx: Context,
 {
-    /// Add a proposal to the round, checking for conflicts.
+    /// Return the first proposal and its validity that matches the given value_id, if any.
+    fn get_first_proposal_and_validity(
+        &self,
+        value_id: ValueId<Ctx>,
+    ) -> Option<&(SignedProposal<Ctx>, Validity)> {
+        self.proposals
+            .iter()
+            .find(|(proposal, _)| proposal.value().id() == value_id)
+    }
+
+    // /// Return the first proposal, if any, without validity.
+    fn get_first_proposal(&self) -> Option<&SignedProposal<Ctx>> {
+        self.proposals.first().map(|(p, _)| p)
+    }
+
+    /// Returns all proposals and their validities.
+    pub fn get_proposals_and_validities(&self) -> &[(SignedProposal<Ctx>, Validity)] {
+        &self.proposals
+    }
+
+    /// Add a proposal to this round, checking for conflicts.
+    /// All proposals must come from the same validator (proposer).
+    /// If a proposal comes from a different validator than the first,
+    /// this is considered a calling code bug and the function will panic.
+    /// - Stores each unique proposal once.
+    /// - Returns an error if equivocation is detected but from the **same** validator.
+    /// - Panics if proposals come from **different validators**.
     pub fn add(
         &mut self,
         proposal: SignedProposal<Ctx>,
         validity: Validity,
     ) -> Result<(), RecordProposalError<Ctx>> {
-        if let Some((existing, _)) = self.get_proposal() {
-            if existing.value() != proposal.value() {
-                if existing.validator_address() != proposal.validator_address() {
-                    // This is not a valid equivocating proposal, since the two proposers are different
-                    // We should never reach this point, since the consensus algorithm should prevent this.
-                    return Err(RecordProposalError::InvalidConflictingProposal {
-                        existing: existing.clone(),
-                        conflicting: proposal,
-                    });
-                }
+        // Ignore exact duplicates
+        if self.proposals.iter().any(|(p, _)| p == &proposal) {
+            return Ok(());
+        }
 
-                // This is an equivocating proposal
-                return Err(RecordProposalError::ConflictingProposal {
-                    existing: existing.clone(),
-                    conflicting: proposal,
-                });
+        // Check if the proposal is from the same validator as the first one recorded.
+        // This should never happen, as proposals should always come from the same validator (round's proposer).
+        if let Some(first) = self.get_first_proposal() {
+            if first.validator_address() != proposal.validator_address() {
+                panic!(
+                    "BUG: Received proposals from different validators in the same round.\n\
+                    Existing: {:?}, New: {:?}",
+                    first.validator_address(),
+                    proposal.validator_address()
+                );
             }
         }
 
-        // Add the proposal
-        self.proposal = Some((proposal, validity));
+        // Store the new unique proposal
+        self.proposals.push((proposal.clone(), validity));
+
+        // If more than one distinct proposal has been recorded, treat it as equivocation.
+        if self.proposals.len() > 1 {
+            return Err(RecordProposalError::ConflictingProposal {
+                existing: self
+                    .get_first_proposal()
+                    .expect("at least one proposal should exist after push")
+                    .clone(),
+                conflicting: proposal,
+            });
+        }
 
         Ok(())
-    }
-
-    /// Return the proposal received from the given validator.
-    pub fn get_proposal(&self) -> Option<&(SignedProposal<Ctx>, Validity)> {
-        self.proposal.as_ref()
     }
 }
 
@@ -107,14 +129,26 @@ where
         Self::default()
     }
 
-    /// Return the proposal and validity for the round.
-    pub fn get_proposal_and_validity_for_round(
+    /// Returns the proposal and its validity for the round, matching the value_id, if any.
+    pub fn get_proposal_and_validity_for_round_and_value(
         &self,
         round: Round,
+        value_id: ValueId<Ctx>,
     ) -> Option<&(SignedProposal<Ctx>, Validity)> {
         self.per_round
             .get(&round)
-            .and_then(|round_info| round_info.proposal.as_ref())
+            .and_then(|round_info| round_info.get_first_proposal_and_validity(value_id))
+    }
+
+    /// Returns all proposals and their validities for the round, if any.
+    pub fn get_proposals_and_validities_for_round(
+        &self,
+        round: Round,
+    ) -> &[(SignedProposal<Ctx>, Validity)] {
+        self.per_round
+            .get(&round)
+            .map(PerRound::get_proposals_and_validities)
+            .unwrap_or(&[])
     }
 
     /// Return the evidence of equivocation.
@@ -123,9 +157,6 @@ where
     }
 
     /// Store a proposal, checking for conflicts and storing evidence of equivocation if necessary.
-    ///
-    /// # Precondition
-    /// - The given proposal must have been proposed by the expected proposer at the proposal's height and round.
     pub fn store_proposal(&mut self, proposal: SignedProposal<Ctx>, validity: Validity) {
         let per_round = self.per_round.entry(proposal.round()).or_default();
 
@@ -138,18 +169,6 @@ where
             }) => {
                 // This is an equivocating proposal
                 self.evidence.add(existing, conflicting);
-            }
-
-            Err(RecordProposalError::InvalidConflictingProposal {
-                existing,
-                conflicting,
-            }) => {
-                // This is not a valid equivocating proposal, since the two proposers are different
-                // We should never reach this point, since the consensus algorithm should prevent this.
-                unreachable!(
-                    "Conflicting proposals from different validators: existing: {}, conflicting: {}",
-                    existing.validator_address(), conflicting.validator_address()
-                );
             }
         }
     }
@@ -189,15 +208,7 @@ where
 
     /// Add evidence of equivocating proposals, ie. two proposals submitted by the same validator,
     /// but with different values but for the same height and round.
-    ///
-    /// # Precondition
-    /// - Panics if the two conflicting proposals were not proposed by the same validator.
     pub(crate) fn add(&mut self, existing: SignedProposal<Ctx>, conflicting: SignedProposal<Ctx>) {
-        assert_eq!(
-            existing.validator_address(),
-            conflicting.validator_address()
-        );
-
         if let Some(evidence) = self.map.get_mut(conflicting.validator_address()) {
             evidence.push((existing, conflicting));
         } else {

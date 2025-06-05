@@ -156,7 +156,7 @@ rand               = { version = "0.8.5", features = ["std_rng", "small_rng"] }
 rand_chacha        = "0.3.1"
 redb               = "2.6.0"
 seahash            = "4.1"
-serde              = "1.0"
+serde              = { version = "1.0", default-features = false }
 serde_json         = "1.0"
 serde_with         = "3.9"
 sha3               = "0.10"

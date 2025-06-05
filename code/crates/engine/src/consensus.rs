@@ -466,11 +466,14 @@ where
                             return Ok(());
                         };
 
+                        let certificate_height = value.certificate.height;
+                        let certificate_round = value.certificate.round;
+
                         if let Err(e) = self
                             .process_input(
                                 &myself,
                                 state,
-                                ConsensusInput::CommitCertificate(value.certificate.clone()),
+                                ConsensusInput::CommitCertificate(value.certificate),
                             )
                             .await
                         {
@@ -493,10 +496,10 @@ where
 
                         self.host.call_and_forward(
                             |reply_to| HostMsg::ProcessSyncedValue {
-                                height: value.certificate.height,
-                                round: value.certificate.round,
+                                height: certificate_height,
+                                round: certificate_round,
                                 validator_address: state.consensus.address().clone(),
-                                value_bytes: value.value_bytes.clone(),
+                                value_bytes: value.value_bytes,
                                 reply_to,
                             },
                             &myself,

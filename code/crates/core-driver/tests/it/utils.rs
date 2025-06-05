@@ -1,7 +1,9 @@
 #![allow(clippy::needless_update)]
 
 use malachitebft_core_state_machine::state::{RoundValue, State, Step};
-use malachitebft_core_types::{NilOrVal, Round, SignedProposal, SignedVote, Timeout, Validity};
+use malachitebft_core_types::{
+    NilOrVal, PolkaCertificate, Round, SignedProposal, SignedVote, Timeout, Validity,
+};
 use malachitebft_test::{Address, Height, Proposal, Signature, TestContext, Value, Vote};
 
 use informalsystems_malachitebft_core_driver::{Input, Output};
@@ -116,6 +118,27 @@ pub fn precommit_input_at(round: Round, value: Value, addr: &Address) -> Input<T
         Vote::new_precommit(Height::new(1), round, NilOrVal::Val(value.id()), *addr),
         Signature::test(),
     ))
+}
+
+pub fn polka_certificate_input_at(
+    round: Round,
+    value: Value,
+    voters: &[Address],
+) -> Input<TestContext> {
+    let height = Height::new(1);
+    let value_id = value.id();
+
+    let votes: Vec<SignedVote<TestContext>> = voters
+        .iter()
+        .map(|addr| {
+            SignedVote::new(
+                Vote::new_prevote(height, round, NilOrVal::Val(value_id), *addr),
+                Signature::test(),
+            )
+        })
+        .collect();
+
+    Input::PolkaCertificate(PolkaCertificate::new(height, round, value_id, votes))
 }
 
 pub fn decide_output(round: Round, proposal: Proposal) -> Output<TestContext> {

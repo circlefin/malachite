@@ -38,7 +38,10 @@ where
             (certificate, extensions)
         });
 
-    let Some((proposal, _)) = state.driver.proposal_and_validity_for_round(proposal_round) else {
+    let Some((proposal, _)) = state
+        .driver
+        .proposal_and_validity_for_round_and_value(proposal_round, decided_id.clone())
+    else {
         return Err(Error::DriverProposalNotFound(height, proposal_round));
     };
 
@@ -82,7 +85,6 @@ where
         }
 
         metrics.block_end();
-        metrics.finalized_blocks.inc();
 
         metrics
             .consensus_round

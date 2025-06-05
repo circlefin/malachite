@@ -219,11 +219,12 @@ where
         self.commit_certificates.push(certificate);
 
         if let Some((signed_proposal, validity)) =
-            self.proposal_and_validity_for_round(certificate_round)
+            self.proposal_and_validity_for_round_and_value(certificate_round, certificate_value_id)
         {
-            let proposal = &signed_proposal.message;
-            if proposal.value().id() == certificate_value_id && validity.is_valid() {
-                return Some(RoundInput::ProposalAndPrecommitValue(proposal.clone()));
+            if validity.is_valid() {
+                return Some(RoundInput::ProposalAndPrecommitValue(
+                    signed_proposal.message.clone(),
+                ));
             }
         }
 
@@ -253,7 +254,8 @@ where
             self.polka_certificates.push(certificate);
         }
 
-        let Some((signed_proposal, validity)) = self.proposal_and_validity_for_round(self.round())
+        let Some((signed_proposal, validity)) = self
+            .proposal_and_validity_for_round_and_value(self.round(), certificate_value_id.clone())
         else {
             return Some((certificate_round, RoundInput::PolkaAny));
         };
@@ -297,13 +299,12 @@ where
             VKOutput::SkipRound(r) => (threshold_round, RoundInput::SkipRound(r)),
             VKOutput::PrecommitValue(v) => {
                 if let Some((proposal, validity)) =
-                    self.proposal_and_validity_for_round(threshold_round)
+                    self.proposal_and_validity_for_round_and_value(threshold_round, v)
                 {
-                    let proposal = &proposal.message;
-                    if v == proposal.value().id() && validity.is_valid() {
+                    if validity.is_valid() {
                         (
                             threshold_round,
-                            RoundInput::ProposalAndPrecommitValue(proposal.clone()),
+                            RoundInput::ProposalAndPrecommitValue(proposal.message.clone()),
                         )
                     } else {
                         (threshold_round, RoundInput::PrecommitAny)
@@ -314,46 +315,41 @@ where
             }
             VKOutput::PolkaValue(v) => {
                 if let Some((proposal, validity)) =
-                    self.proposal_and_validity_for_round(self.round())
+                    self.proposal_and_validity_for_round_and_value(self.round(), v)
                 {
                     let proposal = &proposal.message;
+                    // We have a proposal for the same value as the threshold.
+                    // validity  proposal(v, roundp, pol_round)      threshold(v, threshold_round) Output Line
+                    // =================================================================================
+                    // invalid   (v, roundp, pol_round)              (v, pol_round)             ProposalAndPolkaPrevious L32
+                    // valid     (v, roundp, pol_round)              (v, pol_round)             InvalidProposalAndPolkaPrevious L30
+                    //
+                    // valid     (v, roundp, pol_round)              (v, roundp)                ProposalAndPolkaCurrent L36
+                    // valid     (v, roundp, nil)                    (v, roundp)                ProposalAndPolkaCurrent L36
+                    //
+                    // *         *                                   (v, threshold_round)       PolkaAny L34
+                    let proposal_round = proposal.round();
+                    let pol_round = proposal.pol_round();
+                    let pol_round_match = pol_round == threshold_round;
+                    let round_match = proposal_round == threshold_round;
 
-                    if v == proposal.value().id() {
-                        // We have a proposal for the same value as the threshold.
-                        // validity  proposal(v, roundp, pol_round)      threshold(v, threshold_round) Output Line
-                        // =================================================================================
-                        // invalid   (v, roundp, pol_round)              (v, pol_round)             ProposalAndPolkaPrevious L32
-                        // valid     (v, roundp, pol_round)              (v, pol_round)             InvalidProposalAndPolkaPrevious L30
-                        //
-                        // valid     (v, roundp, pol_round)              (v, roundp)                ProposalAndPolkaCurrent L36
-                        // valid     (v, roundp, nil)                    (v, roundp)                ProposalAndPolkaCurrent L36
-                        //
-                        // *         *                                   (v, threshold_round)       PolkaAny L34
-                        let proposal_round = proposal.round();
-                        let pol_round = proposal.pol_round();
-                        let pol_round_match = pol_round == threshold_round;
-                        let round_match = proposal_round == threshold_round;
-                        match pol_round {
-                            // L32 - state machine will vote nil
-                            Round::Some(_) if !validity.is_valid() && pol_round_match => (
-                                proposal_round,
-                                RoundInput::InvalidProposalAndPolkaPrevious(proposal.clone()),
-                            ),
-                            // L30
-                            Round::Some(_) if validity.is_valid() && pol_round_match => (
-                                proposal_round,
-                                RoundInput::ProposalAndPolkaPrevious(proposal.clone()),
-                            ),
-                            // L36 with pol_round != *
-                            _ if round_match && validity.is_valid() => (
-                                threshold_round,
-                                RoundInput::ProposalAndPolkaCurrent(proposal.clone()),
-                            ),
-                            _ => (threshold_round, RoundInput::PolkaAny),
-                        }
-                    } else {
-                        // L34
-                        (threshold_round, RoundInput::PolkaAny)
+                    match pol_round {
+                        // L32 - state machine will vote nil
+                        Round::Some(_) if !validity.is_valid() && pol_round_match => (
+                            proposal_round,
+                            RoundInput::InvalidProposalAndPolkaPrevious(proposal.clone()),
+                        ),
+                        // L30
+                        Round::Some(_) if validity.is_valid() && pol_round_match => (
+                            proposal_round,
+                            RoundInput::ProposalAndPolkaPrevious(proposal.clone()),
+                        ),
+                        // L36 with pol_round != *
+                        _ if round_match && validity.is_valid() => (
+                            threshold_round,
+                            RoundInput::ProposalAndPolkaCurrent(proposal.clone()),
+                        ),
+                        _ => (threshold_round, RoundInput::PolkaAny),
                     }
                 } else {
                     // L34
@@ -367,12 +363,15 @@ where
     pub(crate) fn multiplex_step_change(&mut self, round: Round) -> Vec<(Round, RoundInput<Ctx>)> {
         let mut result = Vec::new();
 
-        if let Some((signed_proposal, validity)) = self.proposal_and_validity_for_round(round) {
-            let proposal = &signed_proposal.message;
+        let proposals = self.proposals_and_validities_for_round(round).to_vec();
 
-            match self.round_state().step {
+        for (signed_proposal, validity) in proposals {
+            let proposal = &signed_proposal.message;
+            let step = self.round_state().step;
+
+            match step {
                 Step::Propose => {
-                    if let Some(input) = self.multiplex_proposal(proposal.clone(), *validity) {
+                    if let Some(input) = self.multiplex_proposal(proposal.clone(), validity) {
                         result.push((self.round(), input))
                     }
                 }

@@ -2,10 +2,12 @@
 
 ## Unreleased
 
-- Removed the VoteSet synchronization protocol, as it is neither required nor sufficient for liveness.
-  See ([#998](https://github.com/informalsystems/malachite/issues/998)) for more details.
+- Removed the VoteSet synchronization protocol, as it is neither required nor sufficient for liveness ([#998](https://github.com/informalsystems/malachite/issues/998))
 - Reply to `GetValidatorSet` is now optional ([#990](https://github.com/informalsystems/malachite/issues/990))
 - Clarify and improve the application handling of multiple proposals for same height and round ([#833](https://github.com/informalsystems/malachite/issues/833))
+- Prune votes and polka certificates that are from lower rounds than node's `locked_round` ([#1019](https://github.com/informalsystems/malachite/issues/1019))
+- Take minimum available height into account when requesting values from peers ([#1074](https://github.com/informalsystems/malachite/issues/1074))
+- Add support for making progress in the presence of equivocating proposals ([#1018](https://github.com/informalsystems/malachite/issues/1018))
 
 ## 0.2.0
 

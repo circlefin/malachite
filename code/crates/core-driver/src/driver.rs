@@ -237,13 +237,23 @@ where
         self.round_certificate.as_ref()
     }
 
-    /// Get the proposal for the given round.
-    pub fn proposal_and_validity_for_round(
+    /// Returns the proposal and its validity for the given round and value_id, if any.
+    pub fn proposal_and_validity_for_round_and_value(
         &self,
         round: Round,
+        value_id: ValueId<Ctx>,
     ) -> Option<&(SignedProposal<Ctx>, Validity)> {
         self.proposal_keeper
-            .get_proposal_and_validity_for_round(round)
+            .get_proposal_and_validity_for_round_and_value(round, value_id)
+    }
+
+    /// Returns the proposals and their validities for the given round, if any.
+    pub fn proposals_and_validities_for_round(
+        &self,
+        round: Round,
+    ) -> &[(SignedProposal<Ctx>, Validity)] {
+        self.proposal_keeper
+            .get_proposals_and_validities_for_round(round)
     }
 
     /// Store the last vote that we have cast
@@ -498,6 +508,18 @@ where
                 .map(|v| PolkaSignature::new(v.validator_address().clone(), v.signature.clone()))
                 .collect(),
         })
+    }
+
+    /// Prunes all polka certificates and votes from rounds less than `min_round`.
+    pub fn prune_votes_and_certificates(&mut self, min_round: Round) {
+        self.prune_polka_certificates(min_round);
+        self.vote_keeper.prune_votes(min_round);
+    }
+
+    /// Prunes all polka certificates from rounds less than `min_round`.
+    fn prune_polka_certificates(&mut self, min_round: Round) {
+        self.polka_certificates
+            .retain(|cert| cert.round >= min_round);
     }
 
     fn store_precommit_any_round_certificate(&mut self, vote_round: Round) {

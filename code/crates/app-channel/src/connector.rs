@@ -9,6 +9,7 @@ use tracing::error;
 use malachitebft_app::types::core::ValueOrigin;
 use malachitebft_engine::consensus::ConsensusMsg;
 use malachitebft_engine::host::HostMsg;
+use tracing::warn;
 
 use crate::app::metrics::Metrics;
 use crate::app::types::core::Context;
@@ -280,7 +281,13 @@ where
                     })
                     .await?;
 
-                reply_to.send(rx.await?)?;
+                if let Some(value) = rx.await? {
+                    if let Err(e) = reply_to.send(value) {
+                        error!("Failed to send processed synced value: {e}");
+                    }
+                } else {
+                    warn!("Failed to decode synced value");
+                }
             }
         };
 

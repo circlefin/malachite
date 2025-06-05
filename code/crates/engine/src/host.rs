@@ -109,7 +109,8 @@ pub enum HostMsg<Ctx: Context> {
     },
 
     // Process a value synced from another node via the ValueSync protocol.
-    // If the encoded value within is valid, reply with that value to be proposed.
+    //
+    // If the encoded value within is valid, the host MUST reply with that value to be proposed.
     ProcessSyncedValue {
         height: Ctx::Height,
         round: Round,

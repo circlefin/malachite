@@ -4,6 +4,7 @@ use std::time::Duration;
 use bytes::Bytes;
 use eyre::eyre;
 use itertools::Itertools;
+use malachitebft_sync::RawDecidedValue;
 use ractor::{async_trait, Actor, ActorProcessingErr, RpcReplyPort, SpawnErr};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
@@ -16,13 +17,12 @@ use malachitebft_engine::consensus::{ConsensusMsg, ConsensusRef};
 use malachitebft_engine::host::{LocallyProposedValue, ProposedValue};
 use malachitebft_engine::network::{NetworkMsg, NetworkRef};
 use malachitebft_engine::util::streaming::{StreamContent, StreamMessage};
-use malachitebft_metrics::Metrics;
-use malachitebft_sync::RawDecidedValue;
 
 use crate::host::state::HostState;
 use crate::host::{Host as _, StarknetHost};
 use crate::mempool::{MempoolMsg, MempoolRef};
 use crate::mempool_load::MempoolLoadRef;
+use crate::metrics::Metrics;
 use crate::proto::Protobuf;
 use crate::types::*;
 

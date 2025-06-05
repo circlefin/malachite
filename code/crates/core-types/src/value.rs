@@ -4,6 +4,7 @@ use core::fmt::{Debug, Display};
 ///
 /// This type is isomorphic to `Option<Value>` but is more explicit about its intent.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum NilOrVal<Value> {
     /// The value is `nil`.
     #[default]

@@ -1,14 +1,17 @@
+pub mod raw;
+
 use bytes::Bytes;
 use malachitebft_codec::Codec;
 
-use malachitebft_core_consensus::SignedConsensusMsg;
+use malachitebft_core_consensus::{LivenessMsg, SignedConsensusMsg};
 use malachitebft_engine::util::streaming::StreamMessage;
 use malachitebft_sync::{Request, Response, Status};
 
-mod raw;
-use raw::{RawRequest, RawResponse, RawSignedConsensusMsg, RawStatus, RawStreamMessage};
-
 use crate::{ProposalPart, TestContext, Value};
+
+use raw::{
+    RawLivenessMsg, RawRequest, RawResponse, RawSignedConsensusMsg, RawStatus, RawStreamMessage,
+};
 
 #[derive(Copy, Clone, Debug)]
 pub struct JsonCodec;
@@ -94,5 +97,17 @@ impl Codec<Response<TestContext>> for JsonCodec {
 
     fn encode(&self, msg: &Response<TestContext>) -> Result<Bytes, Self::Error> {
         serde_json::to_vec(&RawResponse::from(msg.clone())).map(Bytes::from)
+    }
+}
+
+impl Codec<LivenessMsg<TestContext>> for JsonCodec {
+    type Error = serde_json::Error;
+
+    fn decode(&self, bytes: Bytes) -> Result<LivenessMsg<TestContext>, Self::Error> {
+        serde_json::from_slice::<RawLivenessMsg>(&bytes).map(Into::into)
+    }
+
+    fn encode(&self, msg: &LivenessMsg<TestContext>) -> Result<Bytes, Self::Error> {
+        serde_json::to_vec(&RawLivenessMsg::from(msg.clone())).map(Bytes::from)
     }
 }
