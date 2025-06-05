@@ -14,7 +14,7 @@ use tracing::{debug, error, info, warn, Instrument};
 use malachitebft_codec as codec;
 use malachitebft_core_consensus::PeerId;
 use malachitebft_core_types::{CertificateError, CommitCertificate, Context};
-use malachitebft_sync::{self as sync, InboundRequestId, OutboundRequestId, Response};
+use malachitebft_sync::{self as sync, InboundRequestId, OutboundRequestId, Response, Resumable};
 use malachitebft_sync::{RawDecidedValue, Request};
 
 use crate::host::{HostMsg, HostRef};
@@ -215,16 +215,18 @@ where
         use sync::Effect;
 
         match effect {
-            Effect::BroadcastStatus(height) => {
+            Effect::BroadcastStatus(height, r) => {
                 let history_min_height = self.get_history_min_height().await?;
 
                 self.gossip.cast(NetworkMsg::BroadcastStatus(Status::new(
                     height,
                     history_min_height,
                 )))?;
+
+                Ok(r.resume_with(()))
             }
 
-            Effect::SendValueRequest(peer_id, value_request) => {
+            Effect::SendValueRequest(peer_id, value_request, r) => {
                 let request = Request::ValueRequest(value_request);
                 let result = ractor::call!(self.gossip, |reply_to| {
                     NetworkMsg::OutgoingRequest(peer_id, request.clone(), reply_to)
@@ -243,24 +245,29 @@ where
                             request_id.clone(),
                             InflightRequest {
                                 peer_id,
-                                request_id,
+                                request_id: request_id.clone(),
                                 request,
                             },
                         );
+
+                        Ok(r.resume_with(Some(request_id)))
                     }
                     Err(e) => {
                         error!("Failed to send request to network layer: {e}");
+                        Ok(r.resume_with(None))
                     }
                 }
             }
 
-            Effect::SendValueResponse(request_id, value_response) => {
+            Effect::SendValueResponse(request_id, value_response, r) => {
                 let response = Response::ValueResponse(value_response);
                 self.gossip
                     .cast(NetworkMsg::OutgoingResponse(request_id, response))?;
+
+                Ok(r.resume_with(()))
             }
 
-            Effect::GetDecidedValue(request_id, height) => {
+            Effect::GetDecidedValue(request_id, height, r) => {
                 self.host.call_and_forward(
                     |reply_to| HostMsg::GetDecidedValue { height, reply_to },
                     myself,
@@ -269,10 +276,10 @@ where
                     },
                     None,
                 )?;
+
+                Ok(r.resume_with(()))
             }
         }
-
-        Ok(sync::Resume::default())
     }
 
     async fn handle_msg(

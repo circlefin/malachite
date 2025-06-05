@@ -10,13 +10,16 @@ pub use state::State;
 mod types;
 pub use types::*;
 
-mod rpc;
-
 mod macros;
+mod rpc;
 
 #[doc(hidden)]
 pub mod handle;
-pub use handle::{Effect, Error, Input, Resume};
+pub use handle::Input;
+
+#[doc(hidden)]
+pub mod effect;
+pub use effect::{Effect, Error, Resumable, Resume};
 
 #[doc(hidden)]
 pub mod co;

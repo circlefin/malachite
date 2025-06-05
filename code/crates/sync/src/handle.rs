@@ -1,51 +1,13 @@
-use core::marker::PhantomData;
-
 use derive_where::derive_where;
-use thiserror::Error;
 use tracing::{debug, error, info, trace, warn};
 
 use malachitebft_core_types::{CertificateError, CommitCertificate, Context, Height};
 
 use crate::co::Co;
 use crate::{
-    perform, InboundRequestId, Metrics, OutboundRequestId, PeerId, RawDecidedValue, Request, State,
-    Status, ValueRequest, ValueResponse,
+    perform, Effect, Error, InboundRequestId, Metrics, OutboundRequestId, PeerId, RawDecidedValue,
+    Request, Resume, State, Status, ValueRequest, ValueResponse,
 };
-
-#[derive_where(Debug)]
-#[derive(Error)]
-pub enum Error<Ctx: Context> {
-    /// The coroutine was resumed with a value which
-    /// does not match the expected type of resume value.
-    #[error("Unexpected resume: {0:?}, expected one of: {1}")]
-    UnexpectedResume(Resume<Ctx>, &'static str),
-}
-
-#[derive_where(Debug)]
-pub enum Resume<Ctx: Context> {
-    Continue(PhantomData<Ctx>),
-}
-
-impl<Ctx: Context> Default for Resume<Ctx> {
-    fn default() -> Self {
-        Self::Continue(PhantomData)
-    }
-}
-
-#[derive_where(Debug)]
-pub enum Effect<Ctx: Context> {
-    /// Broadcast our status to our direct peers
-    BroadcastStatus(Ctx::Height),
-
-    /// Send a ValueSync request to a peer
-    SendValueRequest(PeerId, ValueRequest<Ctx>),
-
-    /// Send a response to a ValueSync request
-    SendValueResponse(InboundRequestId, ValueResponse<Ctx>),
-
-    /// Retrieve a value from the application
-    GetDecidedValue(InboundRequestId, Ctx::Height),
-}
 
 #[derive_where(Debug)]
 pub enum Input<Ctx: Context> {
@@ -134,7 +96,10 @@ where
 {
     debug!(height.tip = %state.tip_height, "Broadcasting status");
 
-    perform!(co, Effect::BroadcastStatus(state.tip_height));
+    perform!(
+        co,
+        Effect::BroadcastStatus(state.tip_height, Default::default())
+    );
 
     Ok(())
 }
@@ -232,7 +197,10 @@ where
 
     metrics.decided_value_request_received(request.height.as_u64());
 
-    perform!(co, Effect::GetDecidedValue(request_id, request.height));
+    perform!(
+        co,
+        Effect::GetDecidedValue(request_id, request.height, Default::default())
+    );
 
     Ok(())
 }
@@ -305,7 +273,11 @@ where
 
     perform!(
         co,
-        Effect::SendValueResponse(request_id, ValueResponse::new(height, response))
+        Effect::SendValueResponse(
+            request_id,
+            ValueResponse::new(height, response),
+            Default::default()
+        )
     );
 
     metrics.decided_value_response_sent(height.as_u64());
@@ -375,13 +347,22 @@ where
 {
     info!(height.sync = %height, %peer, "Requesting sync value from peer");
 
-    perform!(
+    let request_id = perform!(
         co,
-        Effect::SendValueRequest(peer, ValueRequest::new(height))
+        Effect::SendValueRequest(peer, ValueRequest::new(height), Default::default()),
+        Resume::ValueRequestId(id) => id,
     );
 
     metrics.decided_value_request_sent(height.as_u64());
-    state.store_pending_decided_value_request(height, peer);
+
+    if let Some(request_id) = request_id {
+        debug!(%request_id, %peer, "Sent value request to peer");
+        state.store_pending_decided_value_request(height, request_id);
+    } else {
+        warn!(height.sync = %height, %peer, "Failed to send value request to peer");
+
+        // TODO: Try again?
+    }
 
     Ok(())
 }
