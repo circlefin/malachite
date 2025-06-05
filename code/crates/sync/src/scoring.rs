@@ -30,8 +30,8 @@ pub trait ScoringStrategy: Send + Sync {
     /// Initial score for new peers
     fn initial_score(&self, peer_id: PeerId) -> Score;
 
-    /// Update the score based on previous score and sync result
-    fn updated_score(&self, previous_score: Score, result: SyncResult) -> Score;
+    /// Update the peer score based on previous score and sync result
+    fn update_score(&mut self, previous_score: Score, result: SyncResult) -> Score;
 }
 
 #[derive(Debug)]
@@ -77,7 +77,7 @@ impl PeerScorer {
         debug!("  Result = {result:?}");
         debug!("    Prev = {previous_score}");
 
-        let new_score = self.strategy.updated_score(previous_score, result);
+        let new_score = self.strategy.update_score(previous_score, result);
         debug!("     New = {new_score}");
 
         peer_score.score = new_score;
@@ -217,19 +217,19 @@ mod tests {
             let strategy = arb_strategy(u)?;
             let response_time = arb_response_time_fast(u, strategy.slow_threshold)?;
 
-            let scorer = PeerScorer::new(strategy);
+            let mut scorer = PeerScorer::new(strategy);
             let peer_id = PeerId::random();
 
             let initial_score = scorer.get_score(&peer_id);
-            let updated_score = scorer
+            let update_score = scorer
                 .strategy
-                .updated_score(initial_score, SyncResult::Success(response_time));
+                .update_score(initial_score, SyncResult::Success(response_time));
 
             // Success should never decrease score below a reasonable threshold
             // (allowing for very slow responses that might slightly decrease score)
             assert!(
-                updated_score >= initial_score * 0.9,
-                "Success decreased score too much: {initial_score} -> {updated_score}",
+                update_score >= initial_score * 0.9,
+                "Success decreased score too much: {initial_score} -> {update_score}",
             );
 
             Ok(())
@@ -243,15 +243,15 @@ mod tests {
             let strategy = arb_strategy(u)?;
             let failure_type = u.choose(&[SyncResult::Timeout, SyncResult::Failure])?;
 
-            let scorer = PeerScorer::new(strategy);
+            let mut scorer = PeerScorer::new(strategy);
             let peer_id = PeerId::random();
 
             let initial_score = scorer.get_score(&peer_id);
-            let updated_score = scorer.strategy.updated_score(initial_score, *failure_type);
+            let update_score = scorer.strategy.update_score(initial_score, *failure_type);
 
             assert!(
-                updated_score < initial_score,
-                "Failure/timeout should decrease score: {initial_score} -> {updated_score} for {failure_type:?}",
+                update_score < initial_score,
+                "Failure/timeout should decrease score: {initial_score} -> {update_score} for {failure_type:?}",
             );
 
             Ok(())
@@ -408,12 +408,12 @@ mod tests {
             let result = arb_sync_result(u)?;
             let update_count = u.int_in_range(1_usize..=20)?;
 
-            let scorer = PeerScorer::new(strategy);
+            let mut scorer = PeerScorer::new(strategy);
             let mut current_score = scorer.strategy.initial_score(PeerId::random());
             let mut scores = vec![current_score];
 
             for _ in 0..update_count {
-                current_score = scorer.strategy.updated_score(current_score, result);
+                current_score = scorer.strategy.update_score(current_score, result);
                 scores.push(current_score);
             }
 
@@ -507,14 +507,14 @@ mod tests {
             let fast_time = u.int_in_range(10_u64..=100)?;
             let slow_time = u.int_in_range(1000_u64..=5000)?;
 
-            let scorer = PeerScorer::new(strategy);
+            let mut scorer = PeerScorer::new(strategy);
             let initial_score = scorer.strategy.initial_score(PeerId::random());
 
             let fast_result = SyncResult::Success(Duration::from_millis(fast_time));
             let slow_result = SyncResult::Success(Duration::from_millis(slow_time));
 
-            let fast_score = scorer.strategy.updated_score(initial_score, fast_result);
-            let slow_score = scorer.strategy.updated_score(initial_score, slow_result);
+            let fast_score = scorer.strategy.update_score(initial_score, fast_result);
+            let slow_score = scorer.strategy.update_score(initial_score, slow_result);
 
             assert!(
                 fast_score >= slow_score,
