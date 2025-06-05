@@ -13,10 +13,14 @@ where
 
     fn should_close(&self, peer_id: PeerId, connection_id: ConnectionId) -> bool {
         // Only close ephemeral connections (i.e not inbound/outbound connections)
-        self.outbound_connections
-            .get(&peer_id)
-            .is_none_or(|out_conn| out_conn.connection_id != Some(connection_id))
-            && self.inbound_connections.get(&peer_id) != Some(&connection_id)
+        // NOTE: a inbound or outbound connection can still be closed if it is not
+        // part of the active connections to the peer. This is possible due to the
+        // limit of the number of connections per peer.
+        (!self.outbound_peers.contains_key(&peer_id) && !self.inbound_peers.contains(&peer_id))
+            || self
+                .active_connections
+                .get(&peer_id)
+                .map_or(true, |connections| !connections.contains(&connection_id))
     }
 
     pub fn close_connection(
@@ -50,12 +54,16 @@ where
         peer_id: PeerId,
         connection_id: ConnectionId,
     ) {
+        let mut was_last_connection = false;
+
         if let Some(connections) = self.active_connections.get_mut(&peer_id) {
             if connections.contains(&connection_id) {
                 warn!("Removing active connection {connection_id} to peer {peer_id}");
                 connections.retain(|id| id != &connection_id);
                 if connections.is_empty() {
                     self.active_connections.remove(&peer_id);
+
+                    was_last_connection = true;
                 }
             } else {
                 warn!("Non-established connection {connection_id} to peer {peer_id} closed");
@@ -65,22 +73,26 @@ where
         // In case the connection was closed before identifying the peer
         self.controller.dial.remove_in_progress(&connection_id);
 
-        if self
-            .outbound_connections
-            .get(&peer_id)
-            .is_some_and(|out_conn| out_conn.connection_id == Some(connection_id))
-        {
+        if self.outbound_peers.contains_key(&peer_id) {
             warn!("Outbound connection {connection_id} to peer {peer_id} closed");
 
-            self.outbound_connections.remove(&peer_id);
+            if was_last_connection {
+                warn!("Last connection to peer {peer_id} closed, removing from outbound peers");
+
+                self.outbound_peers.remove(&peer_id);
+            }
 
             if self.is_enabled() {
-                self.repair_outbound_connection(swarm);
+                self.repair_outbound_peers(swarm);
             }
-        } else if self.inbound_connections.get(&peer_id) == Some(&connection_id) {
+        } else if self.inbound_peers.contains(&peer_id) {
             warn!("Inbound connection {connection_id} to peer {peer_id} closed");
 
-            self.inbound_connections.remove(&peer_id);
+            if was_last_connection {
+                warn!("Last connection to peer {peer_id} closed, removing from inbound peers");
+
+                self.inbound_peers.remove(&peer_id);
+            }
         }
 
         self.update_connections_metrics();

@@ -57,6 +57,7 @@ where
         }
 
         debug!(
+            connection_id = %connection_id,
             "Dialing peer {:?} at {:?}, retry #{}",
             connection_data.peer_id(),
             connection_data.listen_addrs(),
@@ -65,6 +66,7 @@ where
 
         if let Err(e) = swarm.dial(dial_opts) {
             error!(
+                connection_id = %connection_id,
                 "Error dialing peer {:?} at {:?}: {}",
                 connection_data.peer_id(),
                 connection_data.listen_addrs(),

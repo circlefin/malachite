@@ -418,6 +418,7 @@ async fn handle_swarm_event(
         SwarmEvent::ConnectionClosed {
             peer_id,
             connection_id,
+            num_established,
             cause,
             ..
         } => {
@@ -431,12 +432,14 @@ async fn handle_swarm_event(
                 .discovery
                 .handle_closed_connection(swarm, peer_id, connection_id);
 
-            if let Err(e) = tx_event
-                .send(Event::PeerDisconnected(PeerId::from_libp2p(&peer_id)))
-                .await
-            {
-                error!("Error sending peer disconnected event to handle: {e}");
-                return ControlFlow::Break(());
+            if num_established <= 0 {
+                if let Err(e) = tx_event
+                    .send(Event::PeerDisconnected(PeerId::from_libp2p(&peer_id)))
+                    .await
+                {
+                    error!("Error sending peer disconnected event to handle: {e}");
+                    return ControlFlow::Break(());
+                }
             }
         }
 
@@ -462,16 +465,19 @@ async fn handle_swarm_event(
                     info.protocol_version
                 );
 
-                state
-                    .discovery
-                    .handle_new_peer(swarm, connection_id, peer_id, info);
+                let is_already_connected =
+                    state
+                        .discovery
+                        .handle_new_peer(swarm, connection_id, peer_id, info);
 
-                if let Err(e) = tx_event
-                    .send(Event::PeerConnected(PeerId::from_libp2p(&peer_id)))
-                    .await
-                {
-                    error!("Error sending peer connected event to handle: {e}");
-                    return ControlFlow::Break(());
+                if !is_already_connected {
+                    if let Err(e) = tx_event
+                        .send(Event::PeerConnected(PeerId::from_libp2p(&peer_id)))
+                        .await
+                    {
+                        error!("Error sending peer connected event to handle: {e}");
+                        return ControlFlow::Break(());
+                    }
                 }
             } else {
                 trace!(
