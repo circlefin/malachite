@@ -308,6 +308,25 @@ where
     Ok(())
 }
 
+async fn on_invalid_certificate<Ctx>(
+    co: Co<Ctx>,
+    state: &mut State<Ctx>,
+    metrics: &Metrics,
+    from: PeerId,
+    certificate: CommitCertificate<Ctx>,
+    error: CertificateError<Ctx>,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    error!(%error, %certificate.height, %certificate.round, "Received invalid certificate");
+    trace!("Certificate: {certificate:#?}");
+
+    state.remove_pending_decided_value_request_by_height(&certificate.height);
+
+    request_value_from_peer_except(co, state, metrics, certificate.height, from).await
+}
+
 /// If there are no pending requests for the sync height,
 /// and there is peer at a higher height than our sync height,
 /// then sync from that peer.
@@ -345,7 +364,7 @@ async fn request_value_from_peer<Ctx>(
 where
     Ctx: Context,
 {
-    info!(height.sync = %height, %peer, "Requesting sync value from peer");
+    info!(height.sync = %height, %peer, "Requesting sync from peer");
 
     let request_id = perform!(
         co,
@@ -360,34 +379,29 @@ where
         state.store_pending_decided_value_request(height, request_id);
     } else {
         warn!(height.sync = %height, %peer, "Failed to send value request to peer");
-
-        // TODO: Try again?
+        request_value_from_peer_except(co, state, metrics, height, peer).await?;
     }
 
     Ok(())
 }
 
-async fn on_invalid_certificate<Ctx>(
+async fn request_value_from_peer_except<Ctx>(
     co: Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    from: PeerId,
-    certificate: CommitCertificate<Ctx>,
-    error: CertificateError<Ctx>,
+    height: Ctx::Height,
+    except: PeerId,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
-    error!(%error, %certificate.height, %certificate.round, "Received invalid certificate");
-    trace!("Certificate: {certificate:#?}");
+    info!(height.sync = %height, "Requesting sync from another peer");
 
-    info!(height.sync = %certificate.height, "Requesting sync from another peer");
-    state.remove_pending_decided_value_request_by_height(&certificate.height);
+    if let Some(peer) = state.random_peer_with_tip_at_or_above_except(height, except) {
+        request_value_from_peer(co, state, metrics, height, peer).await?;
+    } else {
+        error!(height.sync = %height, "No peer to request sync from");
+    }
 
-    let Some(peer) = state.random_peer_with_tip_at_or_above_except(certificate.height, from) else {
-        error!(height.sync = %certificate.height, "No other peer to request sync from");
-        return Ok(());
-    };
-
-    request_value_from_peer(co, state, metrics, certificate.height, peer).await
+    Ok(())
 }
