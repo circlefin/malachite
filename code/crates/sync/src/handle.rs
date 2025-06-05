@@ -65,8 +65,8 @@ pub enum Input<Ctx: Context> {
     /// A ValueSync request has been received from a peer
     ValueRequest(InboundRequestId, PeerId, ValueRequest<Ctx>),
 
-    /// A ValueSync response has been received
-    ValueResponse(OutboundRequestId, PeerId, ValueResponse<Ctx>),
+    /// A (possibly empty or invalid) ValueSync response has been received
+    ValueResponse(OutboundRequestId, PeerId, Option<ValueResponse<Ctx>>),
 
     /// Got a response from the application to our `GetValue` request
     GotDecidedValue(InboundRequestId, Ctx::Height, Option<RawDecidedValue<Ctx>>),
@@ -102,8 +102,12 @@ where
             on_value_request(co, state, metrics, request_id, peer_id, request).await
         }
 
-        Input::ValueResponse(request_id, peer_id, response) => {
+        Input::ValueResponse(request_id, peer_id, Some(response)) => {
             on_value_response(co, state, metrics, request_id, peer_id, response).await
+        }
+
+        Input::ValueResponse(request_id, peer_id, None) => {
+            on_empty_value_response(co, state, metrics, request_id, peer_id).await
         }
 
         Input::GotDecidedValue(request_id, height, value) => {
@@ -249,6 +253,23 @@ where
     state.remove_pending_decided_value_request(response.height);
 
     metrics.decided_value_response_received(response.height.as_u64());
+
+    Ok(())
+}
+
+pub async fn on_empty_value_response<Ctx>(
+    _co: Co<Ctx>,
+    state: &mut State<Ctx>,
+    _metrics: &Metrics,
+    request_id: OutboundRequestId,
+    peer: PeerId,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    debug!(%request_id, %peer, "Received empty response");
+
+    state.remove_pending_decided_value_request_by_id(&request_id);
 
     Ok(())
 }

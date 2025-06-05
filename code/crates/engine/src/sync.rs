@@ -324,11 +324,20 @@ where
                 state.timers.cancel(&Timeout::Request(request_id.clone()));
 
                 match response {
-                    Response::ValueResponse(value_response) => {
+                    Some(Response::ValueResponse(value_response)) => {
                         self.process_input(
                             &myself,
                             state,
-                            sync::Input::ValueResponse(request_id, peer, value_response),
+                            sync::Input::ValueResponse(request_id, peer, Some(value_response)),
+                        )
+                        .await?;
+                    }
+
+                    None => {
+                        self.process_input(
+                            &myself,
+                            state,
+                            sync::Input::ValueResponse(request_id, peer, None),
                         )
                         .await?;
                     }

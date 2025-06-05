@@ -457,7 +457,7 @@ where
                     NetworkEvent::SyncResponse(
                         request_id,
                         peer,
-                        sync::Response::ValueResponse(ValueResponse { height, value }),
+                        Some(sync::Response::ValueResponse(ValueResponse { height, value })),
                     ) => {
                         debug!(%height, %request_id, "Received sync response");
 
