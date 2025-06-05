@@ -18,10 +18,11 @@ pub struct ExponentialMovingAverage {
 
     /// Threshold for slow responses.
     ///
-    /// This should typically be based on the block time,
-    /// as we do not want responses that are slower than the
-    /// expected block time to be considered successful otherwise
-    /// a node might not be able to keep up with the network.
+    /// This should typically be smaller than both the expected
+    /// block time and the sync request timeout, as we do not
+    /// want responses that are slower than the expected block
+    /// time to be considered successful otherwise a node might
+    /// not be able to keep up with the network.
     pub slow_threshold: Duration,
 }
 

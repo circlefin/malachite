@@ -113,7 +113,14 @@ impl PeerScorer {
         Some(peers[index])
     }
 
-    /// Reset the score of peers that haven't been updated for the specified duration
+    /// Prune peers whose scores have not been updated for the specified duration,
+    /// effectively resetting their score to the initial score.
+    ///
+    /// A peer might be inactive because they were not picked for a long time
+    /// due to their score being very low. Resetting their score gives them a chance to participate again.
+    ///
+    /// Note that by resetting the score we can also reduce the score of a peer,
+    /// if the peer had a high score but was inactive for a long time.
     pub fn prune_inactive_peers(&mut self, inactive_threshold: Duration) {
         let now = Instant::now();
 
