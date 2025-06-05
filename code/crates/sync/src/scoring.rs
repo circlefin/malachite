@@ -155,6 +155,12 @@ mod tests {
         u.int_in_range(10..=max).map(Duration::from_millis)
     }
 
+    fn arb_response_time_slow(u: &mut Unstructured, slow_threshold: Duration) -> Result<Duration> {
+        let min = slow_threshold.as_millis() as u64;
+        let max = slow_threshold.as_millis() as u64 * 5;
+        u.int_in_range(min..=max).map(Duration::from_millis)
+    }
+
     fn arb_sync_result(u: &mut Unstructured) -> Result<SyncResult> {
         let result_type = u.int_in_range(0..=2)?;
 
@@ -264,9 +270,9 @@ mod tests {
         });
     }
 
-    // Property: Successful responses should generally improve scores
+    // Property: Fast responses should improve the score
     #[test]
-    fn success_improves_or_maintains_score() {
+    fn fast_responses_improve_score() {
         arbtest(|u| {
             let strategy = arb_strategy(u)?;
             let response_time = arb_response_time_fast(u, strategy.slow_threshold)?;
@@ -279,11 +285,33 @@ mod tests {
                 .strategy
                 .update_score(initial_score, SyncResult::Success(response_time));
 
-            // Success should never decrease score below a reasonable threshold
-            // (allowing for very slow responses that might slightly decrease score)
             assert!(
-                update_score >= initial_score * 0.9,
-                "Success decreased score too much: {initial_score} -> {update_score}",
+                update_score > initial_score,
+                "Fast response decreased score: {initial_score} -> {update_score}",
+            );
+
+            Ok(())
+        });
+    }
+
+    // Property: Slow responses should decrease the score
+    #[test]
+    fn slow_responses_decrease_score() {
+        arbtest(|u| {
+            let strategy = arb_strategy(u)?;
+            let response_time = arb_response_time_slow(u, strategy.slow_threshold)?;
+
+            let mut scorer = PeerScorer::new(strategy);
+            let peer_id = PeerId::random();
+
+            let initial_score = scorer.get_score(&peer_id);
+            let update_score = scorer
+                .strategy
+                .update_score(initial_score, SyncResult::Success(response_time));
+
+            assert!(
+                update_score < initial_score,
+                "Slow response should decrease score: {initial_score} -> {update_score}",
             );
 
             Ok(())
