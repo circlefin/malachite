@@ -379,7 +379,6 @@ where
         state.store_pending_decided_value_request(height, request_id);
     } else {
         warn!(height.sync = %height, %peer, "Failed to send value request to peer");
-        request_value_from_peer_except(co, state, metrics, height, peer).await?;
     }
 
     Ok(())
