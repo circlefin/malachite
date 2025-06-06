@@ -655,20 +655,30 @@ mod tests {
             let mut scorer = PeerScorer::new(strategy);
             let peer_id = PeerId::random();
 
+            let initial_score = scorer.get_score(&peer_id);
+
             // Apply a timeout
             scorer.update_score(peer_id, SyncResult::Timeout);
             let score_after_timeout = scorer.get_score(&peer_id);
+
+            // Score after success should be higher than after timeout
+            assert!(
+                score_after_timeout < initial_score,
+                "Score after timeout ({}) should be lower than initial score ({})",
+                score_after_timeout,
+                initial_score
+            );
 
             // Apply a success
             scorer.update_score(peer_id, SyncResult::Success(response_time));
             let score_after_success = scorer.get_score(&peer_id);
 
-            // Score after success should be higher than after timeout
+            // Score after success should be higher than initial score
             assert!(
-                score_after_success > score_after_timeout,
-                "Score after success ({}) should be greater than after timeout ({})",
+                score_after_success > initial_score,
+                "Score after success ({}) should be greater than initial score ({})",
                 score_after_success,
-                score_after_timeout
+                initial_score
             );
 
             Ok(())
