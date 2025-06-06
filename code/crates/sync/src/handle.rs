@@ -265,7 +265,9 @@ where
             SyncResult::Success(response_time)
         };
 
-        state.peer_scorer.update_score(peer_id, sync_result);
+        state
+            .peer_scorer
+            .update_score_with_metrics(peer_id, sync_result, &metrics.scoring);
     }
 
     // We do not update the peer score if we do not know the response time.

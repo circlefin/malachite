@@ -9,6 +9,9 @@ use tracing::debug;
 use malachitebft_peer::PeerId;
 
 pub mod ema;
+pub mod metrics;
+
+use metrics::Metrics;
 
 /// Result of a sync request to a peer
 #[derive(Copy, Clone, Debug)]
@@ -34,7 +37,7 @@ pub trait ScoringStrategy: Send + Sync {
     fn update_score(&mut self, previous_score: Score, result: SyncResult) -> Score;
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct PeerScore {
     score: Score,
     last_update: Instant,
@@ -64,8 +67,22 @@ impl PeerScorer {
         }
     }
 
-    /// Update a peer's score based on the result of a sync request
-    pub fn update_score(&mut self, peer_id: PeerId, result: SyncResult) {
+    /// Update a peer's score based on the result of a sync request, recording the result in metrics.
+    /// Returns the new score.
+    pub fn update_score_with_metrics(
+        &mut self,
+        peer_id: PeerId,
+        result: SyncResult,
+        metrics: &Metrics,
+    ) -> Score {
+        let new_score = self.update_score(peer_id, result);
+        metrics.observe_score(peer_id, new_score);
+        new_score
+    }
+
+    /// Update a peer's score based on the result of a sync request.
+    /// Returns the new score.
+    pub fn update_score(&mut self, peer_id: PeerId, result: SyncResult) -> Score {
         let peer_score = self
             .scores
             .entry(peer_id)
@@ -82,6 +99,8 @@ impl PeerScorer {
 
         peer_score.score = new_score;
         peer_score.last_update = Instant::now();
+
+        new_score
     }
 
     /// Get the current score for a peer

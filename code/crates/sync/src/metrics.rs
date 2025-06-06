@@ -30,6 +30,8 @@ pub struct Inner {
 
     instant_request_sent: Arc<DashMap<u64, Instant>>,
     instant_request_received: Arc<DashMap<u64, Instant>>,
+
+    pub scoring: crate::scoring::metrics::Metrics,
 }
 
 impl Inner {
@@ -44,6 +46,7 @@ impl Inner {
             request_timeouts: Counter::default(),
             instant_request_sent: Arc::new(DashMap::new()),
             instant_request_received: Arc::new(DashMap::new()),
+            scoring: crate::scoring::metrics::Metrics::new(),
         }
     }
 }
@@ -105,6 +108,8 @@ impl Metrics {
                 "Number of ValueSync request timeouts",
                 metrics.request_timeouts.clone(),
             );
+
+            metrics.scoring.register(registry);
         });
 
         metrics
