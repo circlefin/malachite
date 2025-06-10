@@ -56,6 +56,10 @@ impl ExponentialMovingAverage {
             (0.0..=1.0).contains(&alpha_failure),
             "alpha_failure must be between 0.0 and 1.0"
         );
+        assert!(
+            slow_threshold.as_secs_f64() > 0.0,
+            "slow_threshold must be greater than zero"
+        );
 
         Self {
             alpha_success,
