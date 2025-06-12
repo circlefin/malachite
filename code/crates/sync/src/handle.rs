@@ -206,7 +206,7 @@ where
 }
 
 pub async fn on_value_response<Ctx>(
-    _co: Co<Ctx>,
+    co: Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
     request_id: OutboundRequestId,
@@ -222,13 +222,20 @@ where
 
     metrics.decided_value_response_received(response.height.as_u64());
 
+    if response.value.is_none() {
+        warn!(%response.height, %request_id, "Received empty value response");
+
+        // If we received an empty response, we will try to request the value from another peer.
+        request_value_from_peer_except(co, state, metrics, response.height, peer).await?;
+    }
+
     Ok(())
 }
 
 pub async fn on_empty_value_response<Ctx>(
-    _co: Co<Ctx>,
+    co: Co<Ctx>,
     state: &mut State<Ctx>,
-    _metrics: &Metrics,
+    metrics: &Metrics,
     request_id: OutboundRequestId,
     peer: PeerId,
 ) -> Result<(), Error<Ctx>>
@@ -237,7 +244,12 @@ where
 {
     debug!(%request_id, %peer, "Received empty response");
 
-    state.remove_pending_decided_value_request_by_id(&request_id);
+    if let Some(height) = state.remove_pending_decided_value_request_by_id(&request_id) {
+        debug!(%height, %request_id, "Found which height this request was for");
+
+        // If we have an associated height for this request, we will try again and request it from another peer.
+        request_value_from_peer_except(co, state, metrics, height, peer).await?;
+    }
 
     Ok(())
 }

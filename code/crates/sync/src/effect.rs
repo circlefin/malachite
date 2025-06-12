@@ -1,9 +1,10 @@
 use std::marker::PhantomData;
 
 use derive_where::derive_where;
+use thiserror::Error;
+
 use malachitebft_core_types::Context;
 use malachitebft_peer::PeerId;
-use thiserror::Error;
 
 use crate::{InboundRequestId, OutboundRequestId, ValueRequest, ValueResponse};
 

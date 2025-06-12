@@ -100,6 +100,7 @@ where
             .insert(request_id);
     }
 
+    /// Remove all pending decided value requests for a given height.
     pub fn remove_pending_decided_value_request_by_height(&mut self, height: &Ctx::Height) {
         if let Some(request_ids) = self.pending_decided_value_requests.remove(height) {
             for request_id in request_ids {
@@ -108,11 +109,12 @@ where
         }
     }
 
-    pub fn remove_pending_decided_value_request_by_id(&mut self, request_id: &OutboundRequestId) {
-        let height = match self.height_per_request_id.remove(request_id) {
-            Some(height) => height,
-            None => return, // Request ID not found
-        };
+    /// Remove a pending decided value request by its ID and return the height it was associated with.
+    pub fn remove_pending_decided_value_request_by_id(
+        &mut self,
+        request_id: &OutboundRequestId,
+    ) -> Option<Ctx::Height> {
+        let height = self.height_per_request_id.remove(request_id)?;
 
         if let Some(request_ids) = self.pending_decided_value_requests.get_mut(&height) {
             request_ids.remove(request_id);
@@ -122,8 +124,11 @@ where
                 self.pending_decided_value_requests.remove(&height);
             }
         }
+
+        Some(height)
     }
 
+    /// Check if there are any pending decided value requests for a given height.
     pub fn has_pending_decided_value_request(&self, height: &Ctx::Height) -> bool {
         self.pending_decided_value_requests
             .get(height)
