@@ -35,6 +35,12 @@ enum State {
     Idle,
 }
 
+#[derive(Debug, PartialEq)]
+enum OutboundState {
+    Pending,
+    Confirmed,
+}
+
 #[derive(Debug)]
 pub struct Discovery<C>
 where
@@ -48,7 +54,7 @@ where
     bootstrap_nodes: Vec<(Option<PeerId>, Vec<Multiaddr>)>,
     discovered_peers: HashMap<PeerId, identify::Info>,
     active_connections: HashMap<PeerId, Vec<ConnectionId>>,
-    outbound_peers: HashMap<PeerId, bool>, // true if the connection is persistent
+    outbound_peers: HashMap<PeerId, OutboundState>,
     inbound_peers: HashSet<PeerId>,
 
     pub controller: Controller,

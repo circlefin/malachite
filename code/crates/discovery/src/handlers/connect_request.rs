@@ -7,7 +7,7 @@ use tracing::{debug, error, trace};
 use crate::{
     behaviour::{self, Response},
     request::RequestData,
-    Discovery, DiscoveryClient,
+    Discovery, DiscoveryClient, OutboundState,
 };
 
 impl<C> Discovery<C>
@@ -108,15 +108,15 @@ where
         if accepted {
             debug!("Successfully upgraded peer {peer} to outbound peer");
 
-            if let Some(is_persistent) = self.outbound_peers.get_mut(&peer) {
-                *is_persistent = true;
+            if let Some(state) = self.outbound_peers.get_mut(&peer) {
+                *state = OutboundState::Confirmed;
             }
 
             // if all outbound peers are persistent, discovery is done
             if self
                 .outbound_peers
                 .values()
-                .all(|&is_persistent| is_persistent)
+                .all(|state| *state == OutboundState::Confirmed)
             {
                 debug!("All outbound peers are persistent");
 

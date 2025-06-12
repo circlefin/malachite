@@ -1,7 +1,7 @@
 use libp2p::{swarm::ConnectionId, PeerId, Swarm};
 use tracing::{debug, warn};
 
-use crate::{request::RequestData, Discovery, DiscoveryClient};
+use crate::{request::RequestData, Discovery, DiscoveryClient, OutboundState};
 
 use super::selection::selector::Selection;
 
@@ -36,7 +36,7 @@ where
         };
 
         for peer_id in peers {
-            self.outbound_peers.insert(peer_id, false);
+            self.outbound_peers.insert(peer_id, OutboundState::Pending);
 
             self.controller
                 .connect_request
@@ -100,9 +100,8 @@ where
             debug!("Upgrading peer {peer_id} to outbound peer");
 
             self.inbound_peers.remove(&peer_id);
-            self.outbound_peers.insert(
-                peer_id, true, // Already persistent
-            );
+            self.outbound_peers
+                .insert(peer_id, OutboundState::Confirmed);
 
             // Consider the connect request as done
             self.controller.connect_request.register_done_on(peer_id);
@@ -122,7 +121,7 @@ where
             Selection::Exactly(peers) => {
                 if let Some(peer_id) = peers.first() {
                     debug!("Trying to connect to peer {peer_id} to repair outbound peers");
-                    self.outbound_peers.insert(*peer_id, false);
+                    self.outbound_peers.insert(*peer_id, OutboundState::Pending);
 
                     self.controller
                         .connect_request

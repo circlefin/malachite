@@ -2,6 +2,7 @@ use libp2p::{identify, swarm::ConnectionId, PeerId, Swarm};
 use tracing::{debug, info, warn};
 
 use crate::config::BootstrapProtocol;
+use crate::OutboundState;
 use crate::{request::RequestData, Discovery, DiscoveryClient, State};
 
 impl<C> Discovery<C>
@@ -116,7 +117,7 @@ where
                     "Connection is outbound (incomplete initial discovery)"
                 );
 
-                self.outbound_peers.insert(peer_id, false);
+                self.outbound_peers.insert(peer_id, OutboundState::Pending);
 
                 self.controller
                     .connect_request
