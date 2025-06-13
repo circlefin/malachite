@@ -57,10 +57,13 @@ macro_rules! process {
 /// # Example
 /// ```rust,ignore
 /// // If we do not need to extract the resume value
-/// let () = perform!(co, effect, Resume::ProposeValue(_, _));
+/// let () = perform!(co, effect, Resume::Continue => ());
+///
+/// // Or just
+/// let () = perform!(co, effect, Resume::Continue);
 ///
 /// /// If we need to extract the resume value
-/// let value: Ctx::Value = perform!(co, effect, Resume::ProposeValue(_, value) => value);
+/// let value: Ctx::Value = perform!(co, effect, Resume::SentValueRequest(request_id) => request_id);
 /// ```
 ///
 /// [continue]: crate::handle::Resume::Continue
@@ -68,7 +71,7 @@ macro_rules! process {
 #[macro_export]
 macro_rules! perform {
     ($co:expr, $effect:expr) => {
-        perform!($co, $effect, $crate::handle::Resume::Continue(_))
+        perform!($co, $effect, $crate::Resume::Continue(_))
     };
 
     ($co:expr, $effect:expr, $pat:pat) => {
@@ -77,11 +80,10 @@ macro_rules! perform {
 
     // TODO: Add support for multiple patterns + if guards
     ($co:expr, $effect:expr, $pat:pat => $expr:expr $(,)?) => {
-        #[allow(unreachable_patterns)]
         match $co.yield_($effect).await {
             $pat => $expr,
             resume => {
-                return ::core::result::Result::Err($crate::handle::Error::UnexpectedResume(
+                return ::core::result::Result::Err($crate::Error::UnexpectedResume(
                     resume,
                     stringify!($pat)
                 )

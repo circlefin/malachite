@@ -114,8 +114,8 @@ pub enum NetworkEvent<Ctx: Context> {
 
     Status(PeerId, Status<Ctx>),
 
-    Request(InboundRequestId, PeerId, Request<Ctx>),
-    Response(OutboundRequestId, PeerId, Response<Ctx>),
+    SyncRequest(InboundRequestId, PeerId, Request<Ctx>),
+    SyncResponse(OutboundRequestId, PeerId, Option<Response<Ctx>>),
 }
 
 pub enum State<Ctx: Context> {
@@ -441,7 +441,7 @@ where
                     peer,
                     body,
                 } => {
-                    let request: sync::Request<Ctx> = match self.codec.decode(body) {
+                    let request = match self.codec.decode(body) {
                         Ok(request) => request,
                         Err(e) => {
                             error!(%peer, "Failed to decode sync request: {e:?}");
@@ -451,7 +451,7 @@ where
 
                     inbound_requests.insert(InboundRequestId::new(request_id), request_id);
 
-                    output_port.send(NetworkEvent::Request(
+                    output_port.send(NetworkEvent::SyncRequest(
                         InboundRequestId::new(request_id),
                         peer,
                         request,
@@ -463,15 +463,15 @@ where
                     peer,
                     body,
                 } => {
-                    let response: sync::Response<Ctx> = match self.codec.decode(body) {
-                        Ok(response) => response,
+                    let response = match self.codec.decode(body) {
+                        Ok(response) => Some(response),
                         Err(e) => {
                             error!(%peer, "Failed to decode sync response: {e:?}");
-                            return Ok(());
+                            None
                         }
                     };
 
-                    output_port.send(NetworkEvent::Response(
+                    output_port.send(NetworkEvent::SyncResponse(
                         OutboundRequestId::new(request_id),
                         peer,
                         response,
