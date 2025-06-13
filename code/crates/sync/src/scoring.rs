@@ -30,10 +30,16 @@ pub type Score = f64;
 
 /// Strategy for scoring peers based on sync results
 pub trait ScoringStrategy: Send + Sync {
-    /// Initial score for new peers
+    /// Initial score for new peers.
+    ///
+    /// ## Important
+    /// The initial score MUST be in the `0.0..=1.0` range.
     fn initial_score(&self, peer_id: PeerId) -> Score;
 
     /// Update the peer score based on previous score and sync result
+    ///
+    /// ## Important
+    /// The updated score must be in the `0.0..=1.0` range.
     fn update_score(&mut self, previous_score: Score, result: SyncResult) -> Score;
 }
 

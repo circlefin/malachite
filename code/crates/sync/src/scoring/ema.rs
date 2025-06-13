@@ -84,7 +84,7 @@ impl ScoringStrategy for ExponentialMovingAverage {
                     // Fast responses get a high quality score
                     1.0
                 } else {
-                    // Slow responses get a low quality score based on slow they were
+                    // Slow responses get a low quality score based on how slow they were
                     (-response_time.as_secs_f64() / self.slow_threshold.as_secs_f64()).exp()
                 };
 
