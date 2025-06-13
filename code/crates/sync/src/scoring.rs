@@ -146,7 +146,7 @@ impl PeerScorer {
     ///
     /// Note that by resetting the score we can also reduce the score of a peer,
     /// if the peer had a high score but was inactive for a long time.
-    pub fn prune_inactive_peers(&mut self, inactive_threshold: Duration) {
+    pub fn reset_inactive_peers_scores(&mut self, inactive_threshold: Duration) {
         let now = Instant::now();
 
         self.scores
@@ -725,7 +725,7 @@ mod tests {
             assert!(scorer.get_scores().contains_key(&peer_id));
 
             // Prune inactive peers with a threshold that will remove this peer
-            scorer.prune_inactive_peers(Duration::from_millis(0));
+            scorer.reset_inactive_peers_scores(Duration::from_millis(0));
 
             // Peer should be removed
             assert!(!scorer.get_scores().contains_key(&peer_id));

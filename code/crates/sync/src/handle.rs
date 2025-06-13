@@ -104,7 +104,9 @@ where
 
     if let Some(inactive_threshold) = state.inactive_threshold {
         // If we are at or above the inactive threshold, we can prune inactive peers.
-        state.peer_scorer.prune_inactive_peers(inactive_threshold);
+        state
+            .peer_scorer
+            .reset_inactive_peers_scores(inactive_threshold);
     }
 
     debug!("Peer scores: {:#?}", state.peer_scorer.get_scores());
