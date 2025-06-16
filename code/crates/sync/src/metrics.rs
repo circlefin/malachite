@@ -61,7 +61,7 @@ impl Metrics {
         Self(Arc::new(DecidedValuesMetrics::new()))
     }
 
-    fn decided_values(&self) -> &DecidedValuesMetrics {
+    fn values(&self) -> &DecidedValuesMetrics {
         &self.0
     }
 
@@ -73,96 +73,86 @@ impl Metrics {
             registry.register(
                 "value_requests_sent",
                 "Number of ValueSync requests sent",
-                metrics.decided_values().requests_sent.clone(),
+                metrics.values().requests_sent.clone(),
             );
 
             registry.register(
                 "value_requests_received",
                 "Number of ValueSync requests received",
-                metrics.decided_values().requests_received.clone(),
+                metrics.values().requests_received.clone(),
             );
 
             registry.register(
                 "value_responses_sent",
                 "Number of ValueSync responses sent",
-                metrics.decided_values().responses_sent.clone(),
+                metrics.values().responses_sent.clone(),
             );
 
             registry.register(
                 "value_responses_received",
                 "Number of ValueSync responses received",
-                metrics.decided_values().responses_received.clone(),
+                metrics.values().responses_received.clone(),
             );
 
             registry.register(
                 "value_client_latency",
                 "Interval of time between when request was sent and response was received",
-                metrics.decided_values().client_latency.clone(),
+                metrics.values().client_latency.clone(),
             );
 
             registry.register(
                 "value_server_latency",
                 "Interval of time between when request was received and response was sent",
-                metrics.decided_values().server_latency.clone(),
+                metrics.values().server_latency.clone(),
             );
 
             registry.register(
                 "value_request_timeouts",
                 "Number of ValueSync request timeouts",
-                metrics.decided_values().request_timeouts.clone(),
+                metrics.values().request_timeouts.clone(),
             );
         });
 
         metrics
     }
 
-    pub fn decided_value_request_sent(&self, height: u64) {
-        self.decided_values().requests_sent.inc();
-        self.decided_values()
+    pub fn value_request_sent(&self, height: u64) {
+        self.values().requests_sent.inc();
+        self.values()
             .instant_request_sent
             .insert((height, -1), Instant::now());
     }
 
-    pub fn decided_value_request_received(&self, height: u64) {
-        self.decided_values().requests_received.inc();
-        self.decided_values()
+    pub fn value_request_received(&self, height: u64) {
+        self.values().requests_received.inc();
+        self.values()
             .instant_request_received
             .insert((height, -1), Instant::now());
     }
 
-    pub fn decided_value_response_sent(&self, height: u64) {
-        self.decided_values().responses_sent.inc();
+    pub fn value_response_sent(&self, height: u64) {
+        self.values().responses_sent.inc();
 
-        if let Some((_, instant)) = self
-            .decided_values()
-            .instant_request_received
-            .remove(&(height, -1))
-        {
-            self.decided_values()
+        if let Some((_, instant)) = self.values().instant_request_received.remove(&(height, -1)) {
+            self.values()
                 .server_latency
                 .observe(instant.elapsed().as_secs_f64());
         }
     }
 
-    pub fn decided_value_response_received(&self, height: u64) {
-        self.decided_values().responses_received.inc();
+    pub fn value_response_received(&self, height: u64) {
+        self.values().responses_received.inc();
 
-        if let Some((_, instant)) = self
-            .decided_values()
-            .instant_request_sent
-            .remove(&(height, -1))
-        {
-            self.decided_values()
+        if let Some((_, instant)) = self.values().instant_request_sent.remove(&(height, -1)) {
+            self.values()
                 .client_latency
                 .observe(instant.elapsed().as_secs_f64());
         }
     }
 
-    pub fn decided_value_request_timed_out(&self, height: u64) {
-        self.decided_values().request_timeouts.inc();
-        self.decided_values()
-            .instant_request_sent
-            .remove(&(height, 0));
+    pub fn value_request_timed_out(&self, height: u64) {
+        self.values().request_timeouts.inc();
+        self.values().instant_request_sent.remove(&(height, 0));
     }
 }
 
