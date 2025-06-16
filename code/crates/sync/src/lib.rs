@@ -10,6 +10,8 @@ pub use state::State;
 mod types;
 pub use types::*;
 
+pub mod scoring;
+
 mod macros;
 mod rpc;
 

@@ -110,6 +110,7 @@ impl DistributedTestnetCmd {
                 selector: self.selector,
                 num_outbound_peers: self.num_outbound_peers,
                 num_inbound_peers: self.num_inbound_peers,
+                max_connections_per_peer: self.num_outbound_peers + self.num_inbound_peers,
                 ephemeral_connection_timeout: Duration::from_millis(
                     self.ephemeral_connection_timeout_ms,
                 ),

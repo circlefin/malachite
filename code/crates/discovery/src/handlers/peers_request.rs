@@ -8,7 +8,7 @@ use tracing::{debug, error, trace};
 
 use crate::{
     behaviour::{self, Response},
-    connection::ConnectionData,
+    dial::DialData,
     request::RequestData,
     Discovery, DiscoveryClient,
 };
@@ -65,7 +65,7 @@ where
         swarm: &mut Swarm<C>,
         peer: PeerId,
         channel: ResponseChannel<Response>,
-        peers: HashSet<(Option<PeerId>, Multiaddr)>,
+        peers: HashSet<(Option<PeerId>, Vec<Multiaddr>)>,
     ) {
         // Compute the difference between the discovered peers and the requested peers
         // to avoid sending the requesting peer the peers it already knows.
@@ -90,7 +90,7 @@ where
         &mut self,
         swarm: &mut Swarm<C>,
         request_id: OutboundRequestId,
-        peers: HashSet<(Option<PeerId>, Multiaddr)>,
+        peers: HashSet<(Option<PeerId>, Vec<Multiaddr>)>,
     ) {
         self.controller
             .peers_request
@@ -136,37 +136,41 @@ where
     fn process_received_peers(
         &mut self,
         swarm: &mut Swarm<C>,
-        peers: HashSet<(Option<PeerId>, Multiaddr)>,
+        peers: HashSet<(Option<PeerId>, Vec<Multiaddr>)>,
     ) {
         for (peer_id, listen_addr) in peers {
-            self.add_to_dial_queue(swarm, ConnectionData::new(peer_id, listen_addr));
+            self.add_to_dial_queue(swarm, DialData::new(peer_id, listen_addr));
         }
     }
 
     /// Returns all discovered peers, including bootstrap nodes, except the given peer.
-    fn get_all_peers_except(&self, peer: PeerId) -> HashSet<(Option<PeerId>, Multiaddr)> {
+    fn get_all_peers_except(&self, peer: PeerId) -> HashSet<(Option<PeerId>, Vec<Multiaddr>)> {
         let mut remaining_bootstrap_nodes: Vec<_> = self.bootstrap_nodes.clone();
 
-        let mut peers: HashSet<(Option<PeerId>, Multiaddr)> = self
+        let mut peers: HashSet<(Option<PeerId>, Vec<Multiaddr>)> = self
             .discovered_peers
             .iter()
             .filter_map(|(peer_id, info)| {
-                if let Some(addr) = info.listen_addrs.first() {
-                    remaining_bootstrap_nodes.retain(|(_, x)| x != addr);
-
-                    if peer_id == &peer {
-                        return None;
-                    }
-
-                    Some((Some(*peer_id), addr.clone()))
-                } else {
-                    None
+                if info.listen_addrs.is_empty() {
+                    return None;
                 }
+
+                remaining_bootstrap_nodes.retain(|(_, listen_addrs)| {
+                    listen_addrs
+                        .iter()
+                        .all(|addr| !info.listen_addrs.contains(addr))
+                });
+
+                if peer_id == &peer {
+                    return None;
+                }
+
+                Some((Some(*peer_id), info.listen_addrs.clone()))
             })
             .collect();
 
-        for (peer_id, addr) in remaining_bootstrap_nodes {
-            peers.insert((peer_id, addr));
+        for (peer_id, listen_addrs) in remaining_bootstrap_nodes {
+            peers.insert((peer_id, listen_addrs.clone()));
         }
 
         peers

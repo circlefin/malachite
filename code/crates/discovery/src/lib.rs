@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use tracing::{debug, error, info, warn};
 
@@ -11,8 +11,8 @@ mod util;
 mod behaviour;
 pub use behaviour::*;
 
-mod connection;
-use connection::ConnectionData;
+mod dial;
+use dial::DialData;
 
 pub mod config;
 pub use config::Config;
@@ -35,13 +35,10 @@ enum State {
     Idle,
 }
 
-// The usage of `OutboundConnection` is to keep track of the persistent connection status
-// of a peer with its connection id. The connection id is an option as one can try to upgrade
-// a connection that does not exist yet (hence, no connection id exists yet).
-#[derive(Debug)]
-struct OutboundConnection {
-    connection_id: Option<ConnectionId>,
-    is_persistent: bool,
+#[derive(Debug, PartialEq)]
+enum OutboundState {
+    Pending,
+    Confirmed,
 }
 
 #[derive(Debug)]
@@ -54,11 +51,11 @@ where
 
     selector: Box<dyn Selector<C>>,
 
-    bootstrap_nodes: Vec<(Option<PeerId>, Multiaddr)>,
+    bootstrap_nodes: Vec<(Option<PeerId>, Vec<Multiaddr>)>,
     discovered_peers: HashMap<PeerId, identify::Info>,
     active_connections: HashMap<PeerId, Vec<ConnectionId>>,
-    outbound_connections: HashMap<PeerId, OutboundConnection>,
-    inbound_connections: HashMap<PeerId, ConnectionId>,
+    outbound_peers: HashMap<PeerId, OutboundState>,
+    inbound_peers: HashSet<PeerId>,
 
     pub controller: Controller,
     metrics: Metrics,
@@ -113,12 +110,12 @@ where
             bootstrap_nodes: bootstrap_nodes
                 .clone()
                 .into_iter()
-                .map(|addr| (None, addr))
+                .map(|addr| (None, vec![addr]))
                 .collect(),
             discovered_peers: HashMap::new(),
             active_connections: HashMap::new(),
-            outbound_connections: HashMap::new(),
-            inbound_connections: HashMap::new(),
+            outbound_peers: HashMap::new(),
+            inbound_peers: HashSet::new(),
 
             controller: Controller::new(),
             metrics: Metrics::new(registry, !config.enabled || bootstrap_nodes.is_empty()),
@@ -127,10 +124,6 @@ where
 
     pub fn is_enabled(&self) -> bool {
         self.config.enabled
-    }
-
-    fn active_connections_len(&self) -> usize {
-        self.active_connections.values().map(Vec::len).sum()
     }
 
     pub fn on_network_event(
@@ -184,7 +177,7 @@ where
                         behaviour::Request::Connect() => {
                             debug!(peer_id = %peer, %connection_id, "Received connect request");
 
-                            self.handle_connect_request(swarm, channel, peer, connection_id);
+                            self.handle_connect_request(swarm, channel, peer);
                         }
                     },
 
@@ -207,13 +200,7 @@ where
                         behaviour::Response::Connect(accepted) => {
                             debug!(%peer, %connection_id, accepted, "Received connect response");
 
-                            self.handle_connect_response(
-                                swarm,
-                                request_id,
-                                peer,
-                                connection_id,
-                                accepted,
-                            );
+                            self.handle_connect_response(swarm, request_id, peer, accepted);
                         }
                     },
 
