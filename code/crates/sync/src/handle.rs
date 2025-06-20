@@ -431,7 +431,7 @@ where
         if height >= limit {
             break;
         }
-        
+
         let Some(peer) = state.random_peer_with_tip_at_or_above(height) else {
             debug!(height.sync = %height, "No peer to request sync from");
             // No peer reached this height yet, we can stop here.
