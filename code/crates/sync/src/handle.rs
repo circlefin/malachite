@@ -428,6 +428,10 @@ where
 
     // Start requesting values from the first height that does not have a pending request or validation.
     loop {
+        if height >= limit {
+            break;
+        }
+        
         let Some(peer) = state.random_peer_with_tip_at_or_above(height) else {
             debug!(height.sync = %height, "No peer to request sync from");
             // No peer reached this height yet, we can stop here.
@@ -437,9 +441,6 @@ where
         request_value_from_peer(&co, state, metrics, height, peer).await?;
 
         height = height.increment();
-        if height >= limit {
-            break;
-        }
     }
 
     Ok(())
