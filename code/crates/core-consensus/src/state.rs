@@ -4,7 +4,7 @@ use malachitebft_core_driver::Driver;
 use malachitebft_core_types::*;
 
 use crate::input::Input;
-use crate::util::max_queue::MaxQueue;
+use crate::util::bounded_queue::BoundedQueue;
 use crate::{FullProposal, FullProposalKeeper, Params, ProposedValue};
 
 /// The state maintained by consensus for processing a [`Input`].
@@ -22,7 +22,7 @@ where
     pub driver: Driver<Ctx>,
 
     /// A queue of inputs that were received before the driver started.
-    pub input_queue: MaxQueue<Ctx::Height, Input<Ctx>>,
+    pub input_queue: BoundedQueue<Ctx::Height, Input<Ctx>>,
 
     /// The proposals to decide on.
     pub full_proposal_keeper: FullProposalKeeper<Ctx>,
@@ -38,7 +38,7 @@ impl<Ctx> State<Ctx>
 where
     Ctx: Context,
 {
-    pub fn new(ctx: Ctx, params: Params<Ctx>) -> Self {
+    pub fn new(ctx: Ctx, params: Params<Ctx>, queue_capacity: usize) -> Self {
         let driver = Driver::new(
             ctx.clone(),
             params.initial_height,
@@ -51,7 +51,7 @@ where
             ctx,
             driver,
             params,
-            input_queue: Default::default(),
+            input_queue: BoundedQueue::new(queue_capacity),
             full_proposal_keeper: Default::default(),
             last_signed_prevote: None,
             last_signed_precommit: None,

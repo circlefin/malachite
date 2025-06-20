@@ -1,6 +1,5 @@
 use libp2p::{
     request_response::{OutboundRequestId, ResponseChannel},
-    swarm::ConnectionId,
     PeerId, Swarm,
 };
 use tracing::{debug, error, trace};
@@ -8,7 +7,7 @@ use tracing::{debug, error, trace};
 use crate::{
     behaviour::{self, Response},
     request::RequestData,
-    Discovery, DiscoveryClient,
+    Discovery, DiscoveryClient, OutboundState,
 };
 
 impl<C> Discovery<C>
@@ -62,28 +61,27 @@ where
         swarm: &mut Swarm<C>,
         channel: ResponseChannel<Response>,
         peer: PeerId,
-        connection_id: ConnectionId,
     ) {
         let mut accepted: bool = false;
 
-        if self.outbound_connections.contains_key(&peer) {
-            debug!("Peer {peer} is already an outbound connection");
+        if self.outbound_peers.contains_key(&peer) {
+            debug!("Peer {peer} is already an outbound peer");
 
             accepted = true;
-        } else if self.inbound_connections.contains_key(&peer) {
-            debug!("Peer {peer} is already an inbound connection");
+        } else if self.inbound_peers.contains(&peer) {
+            debug!("Peer {peer} is already an inbound peer");
 
             accepted = true;
-        } else if self.inbound_connections.len() < self.config.num_inbound_peers {
-            debug!("Upgrading connection {connection_id} of peer {peer} to inbound connection");
+        } else if self.inbound_peers.len() < self.config.num_inbound_peers {
+            debug!("Upgrading peer {peer} to inbound peer");
 
-            self.inbound_connections.insert(peer, connection_id);
+            self.inbound_peers.insert(peer);
             accepted = true;
         } else {
-            debug!("Rejecting connection upgrade of peer {peer} to inbound connection as the limit is reached");
+            debug!("Rejecting upgrade of peer {peer} to inbound peer as the limit is reached");
         }
 
-        self.update_connections_metrics();
+        self.update_discovery_metrics();
 
         if swarm
             .behaviour_mut()
@@ -101,7 +99,6 @@ where
         swarm: &mut Swarm<C>,
         request_id: OutboundRequestId,
         peer: PeerId,
-        connection_id: ConnectionId,
         accepted: bool,
     ) {
         self.controller
@@ -109,26 +106,25 @@ where
             .remove_in_progress(&request_id);
 
         if accepted {
-            debug!("Successfully upgraded connection {connection_id} of peer {peer} to outbound connection");
+            debug!("Successfully upgraded peer {peer} to outbound peer");
 
-            if let Some(out_conn) = self.outbound_connections.get_mut(&peer) {
-                out_conn.is_persistent = true;
-                // Update connection data with the correct connection id.
-                out_conn.connection_id = Some(connection_id);
+            if let Some(state) = self.outbound_peers.get_mut(&peer) {
+                *state = OutboundState::Confirmed;
             }
 
-            // if all outbound connections are persistent, discovery is done
+            // if all outbound peers are persistent, discovery is done
             if self
-                .outbound_connections
+                .outbound_peers
                 .values()
-                .all(|out_conn| out_conn.is_persistent)
+                .all(|state| *state == OutboundState::Confirmed)
             {
-                debug!("All outbound connections are persistent");
+                debug!("All outbound peers are persistent");
+
                 self.metrics.initial_discovery_finished();
-                self.update_connections_metrics();
+                self.update_discovery_metrics();
             }
         } else {
-            debug!("Peer {peer} rejected connection upgrade to outbound connection");
+            debug!("Peer {peer} rejected connection upgrade to outbound peer");
 
             self.metrics.increment_total_rejected_connect_requests();
 
@@ -137,10 +133,10 @@ where
     }
 
     fn handle_connect_rejection(&mut self, swarm: &mut Swarm<C>, peer: PeerId) {
-        self.outbound_connections.remove(&peer);
+        self.outbound_peers.remove(&peer);
 
         if self.is_enabled() {
-            self.repair_outbound_connection(swarm);
+            self.repair_outbound_peers(swarm);
         }
     }
 

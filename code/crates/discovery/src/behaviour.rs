@@ -20,13 +20,13 @@ const DISCOVERY_REQRES_PROTOCOL: &str = "/malachitebft-discovery/reqres/v1beta1"
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Request {
-    Peers(HashSet<(Option<PeerId>, Multiaddr)>),
+    Peers(HashSet<(Option<PeerId>, Vec<Multiaddr>)>),
     Connect(),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Response {
-    Peers(HashSet<(Option<PeerId>, Multiaddr)>),
+    Peers(HashSet<(Option<PeerId>, Vec<Multiaddr>)>),
     Connect(bool),
 }
 

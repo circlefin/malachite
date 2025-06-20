@@ -8,7 +8,7 @@ use libp2p::{request_response::OutboundRequestId, swarm::ConnectionId, Multiaddr
 use tokio::sync::mpsc;
 use tracing::error;
 
-use crate::{request::RequestData, ConnectionData};
+use crate::{request::RequestData, DialData};
 
 const DEFAULT_DIAL_CONCURRENT_FACTOR: usize = 20;
 const DEFAULT_PEERS_REQUEST_CONCURRENT_FACTOR: usize = 20;
@@ -115,7 +115,7 @@ pub enum PeerData {
 
 #[derive(Debug)]
 pub struct Controller {
-    pub dial: Action<PeerData, ConnectionId, ConnectionData>,
+    pub dial: Action<PeerData, ConnectionId, DialData>,
     pub peers_request: Action<PeerId, OutboundRequestId, RequestData>,
     pub connect_request: Action<PeerId, OutboundRequestId, RequestData>,
     pub close: Action<(), (), (PeerId, ConnectionId)>,
@@ -131,42 +131,45 @@ impl Controller {
         }
     }
 
-    pub(crate) fn dial_register_done_on(&mut self, connection_data: &ConnectionData) {
-        if let Some(peer_id) = connection_data.peer_id() {
+    pub(crate) fn dial_register_done_on(&mut self, dial_data: &DialData) {
+        if let Some(peer_id) = dial_data.peer_id() {
             self.dial.register_done_on(PeerData::PeerId(peer_id));
         }
-        self.dial
-            .register_done_on(PeerData::Multiaddr(connection_data.multiaddr()));
+        for addr in dial_data.listen_addrs() {
+            self.dial
+                .register_done_on(PeerData::Multiaddr(addr.clone()));
+        }
     }
 
-    pub(crate) fn dial_is_done_on(&self, connection_data: &ConnectionData) -> bool {
-        connection_data
+    pub(crate) fn dial_is_done_on(&self, dial_data: &DialData) -> bool {
+        dial_data
             .peer_id()
             .is_some_and(|peer_id| self.dial.is_done_on(&PeerData::PeerId(peer_id)))
-            || self
-                .dial
-                .is_done_on(&PeerData::Multiaddr(connection_data.multiaddr()))
+            || dial_data
+                .listen_addrs()
+                .iter()
+                .any(|addr| self.dial.is_done_on(&PeerData::Multiaddr(addr.clone())))
     }
 
-    pub(crate) fn dial_add_peer_id_to_connection_data(
+    pub(crate) fn dial_add_peer_id_to_dial_data(
         &mut self,
         connection_id: ConnectionId,
         peer_id: PeerId,
     ) {
-        if let Some(connection_data) = self.dial.get_in_progress_mut(&connection_id) {
-            connection_data.set_peer_id(peer_id);
+        if let Some(dial_data) = self.dial.get_in_progress_mut(&connection_id) {
+            dial_data.set_peer_id(peer_id);
         }
     }
 
     pub(crate) fn dial_remove_matching_in_progress_connections(
         &mut self,
         peer_id: &PeerId,
-    ) -> Vec<ConnectionData> {
+    ) -> Vec<DialData> {
         let matching_connection_ids = self
             .dial
             .get_in_progress_iter()
-            .filter_map(|(connection_id, connection_data)| {
-                if connection_data.peer_id() == Some(*peer_id) {
+            .filter_map(|(connection_id, dial_data)| {
+                if dial_data.peer_id() == Some(*peer_id) {
                     Some(*connection_id)
                 } else {
                     None

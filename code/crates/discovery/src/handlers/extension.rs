@@ -54,7 +54,7 @@ where
 
         if is_idle && rx_dial_len == 0 && rx_peers_request_len == 0 {
             // Done when we found enough peers to which we did not request persistent connection yet
-            // to potentially upgrade them to outbound connections we are missing.
+            // to potentially upgrade them to the outbound peers we are missing.
             if self
                 .active_connections
                 .iter()
@@ -87,7 +87,7 @@ where
                 self.metrics.elapsed().as_millis()
             );
 
-            self.adjust_connections(swarm);
+            self.adjust_peers(swarm);
 
             self.state = State::Idle;
         } else {

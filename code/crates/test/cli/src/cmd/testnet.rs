@@ -94,6 +94,11 @@ pub struct TestnetCmd {
     #[clap(long, default_value = "20", verbatim_doc_comment)]
     pub num_inbound_peers: usize,
 
+    /// Maximum number of connections per peer
+    /// This limits the number of connections to a single peer
+    #[clap(long, default_value = "5", verbatim_doc_comment)]
+    pub max_connections_per_peer: usize,
+
     /// Ephemeral connection timeout
     /// The duration in milliseconds an ephemeral connection is kept alive
     #[clap(long, default_value = "5000", verbatim_doc_comment)]
@@ -127,6 +132,7 @@ impl TestnetCmd {
                 selector: self.selector,
                 num_outbound_peers: self.num_outbound_peers,
                 num_inbound_peers: self.num_inbound_peers,
+                max_connections_per_peer: self.max_connections_per_peer,
                 ephemeral_connection_timeout: Duration::from_millis(
                     self.ephemeral_connection_timeout_ms,
                 ),

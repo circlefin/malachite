@@ -78,12 +78,12 @@ malachitebft-config             = { version = "0.3.0-pre", package = "informalsy
 malachitebft-core-consensus     = { version = "0.3.0-pre", package = "informalsystems-malachitebft-core-consensus", path = "crates/core-consensus" }
 malachitebft-core-driver        = { version = "0.3.0-pre", package = "informalsystems-malachitebft-core-driver", path = "crates/core-driver" }
 malachitebft-core-state-machine = { version = "0.3.0-pre", package = "informalsystems-malachitebft-core-state-machine", path = "crates/core-state-machine" }
-malachitebft-core-types         = { version = "0.3.0-pre", package = "informalsystems-malachitebft-core-types", path = "crates/core-types" }
+malachitebft-core-types         = { version = "0.3.0-pre", package = "informalsystems-malachitebft-core-types", path = "crates/core-types", default-features = false }
 malachitebft-core-votekeeper    = { version = "0.3.0-pre", package = "informalsystems-malachitebft-core-votekeeper", path = "crates/core-votekeeper" }
 malachitebft-discovery          = { version = "0.3.0-pre", package = "informalsystems-malachitebft-discovery", path = "crates/discovery" }
 malachitebft-network            = { version = "0.3.0-pre", package = "informalsystems-malachitebft-network", path = "crates/network" }
 malachitebft-metrics            = { version = "0.3.0-pre", package = "informalsystems-malachitebft-metrics", path = "crates/metrics" }
-malachitebft-peer               = { version = "0.3.0-pre", package = "informalsystems-malachitebft-peer", path = "crates/peer" }
+malachitebft-peer               = { version = "0.3.0-pre", package = "informalsystems-malachitebft-peer", path = "crates/peer", default-features = false }
 malachitebft-proto              = { version = "0.3.0-pre", package = "informalsystems-malachitebft-proto", path = "crates/proto" }
 malachitebft-signing-ed25519    = { version = "0.3.0-pre", package = "informalsystems-malachitebft-signing-ed25519", path = "crates/signing-ed25519" }
 malachitebft-sync               = { version = "0.3.0-pre", package = "informalsystems-malachitebft-sync", path = "crates/sync" }
@@ -109,6 +109,7 @@ starknet-core   = "0.11.1"
 starknet-crypto = "0.7.3"
 
 advisory-lock      = "0.3.0"
+arbtest            = "0.3.2"
 async-recursion    = "1.1"
 async-trait        = "0.1.88"
 axum               = "0.7"
@@ -124,7 +125,7 @@ config             = { version = "0.14", features = ["toml"], default-features =
 crc32fast          = "1.4.0"
 criterion          = "0.6.0"
 dashmap            = "6.1.0"
-derive-where       = "1.4.0"
+derive-where       = "1.5.0"
 directories        = "5.0.1"
 displaydoc         = { version = "0.2", default-features = false }
 ed25519-consensus  = "2.1.0"

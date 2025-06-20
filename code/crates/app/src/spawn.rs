@@ -72,7 +72,7 @@ pub async fn spawn_consensus_actor<Ctx>(
     initial_validator_set: Ctx::ValidatorSet,
     address: Ctx::Address,
     ctx: Ctx,
-    cfg: &ConsensusConfig,
+    cfg: ConsensusConfig,
     signing_provider: Box<dyn SigningProvider<Ctx>>,
     network: NetworkRef<Ctx>,
     host: HostRef<Ctx>,
@@ -103,7 +103,7 @@ where
     Consensus::spawn(
         ctx,
         consensus_params,
-        cfg.timeouts,
+        cfg,
         signing_provider,
         network,
         host,

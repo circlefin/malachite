@@ -3,6 +3,29 @@ use std::{time::Duration, vec};
 use informalsystems_malachitebft_discovery_test::{Expected, Test, TestNode};
 use malachitebft_network::{BootstrapProtocol, DiscoveryConfig, Selector};
 
+// Ensuring that having the node's address in the bootstrap set does not cause
+// any issues.
+#[tokio::test]
+pub async fn bootstrap_set_with_self() {
+    let test = Test::new(
+        [
+            TestNode::correct(0, vec![0, 1]),
+            TestNode::correct(1, vec![0, 1]),
+        ],
+        [Expected::Exactly(vec![1]), Expected::Exactly(vec![0])],
+        Duration::from_secs(0),
+        Duration::from_secs(10),
+        DiscoveryConfig {
+            enabled: true,
+            bootstrap_protocol: BootstrapProtocol::Full,
+            selector: Selector::Random,
+            ..Default::default()
+        },
+    );
+
+    test.run().await
+}
+
 // Testing the following circular bootstrap sets graph:
 //     0 <--- 1 <--- 2 <--- 3 <--- 4
 //     |                           ^
@@ -53,8 +76,8 @@ pub async fn circular_graph_n() {
     }
 
     let test: Test<N> = Test::new(
-        nodes.try_into().expect("Expected a Vec of length 100"),
-        expected.try_into().expect("Expected a Vec of length 100"),
+        nodes.try_into().expect("Expected a Vec of length {N}"),
+        expected.try_into().expect("Expected a Vec of length {N}"),
         Duration::from_secs(0),
         Duration::from_secs(10),
         DiscoveryConfig {
@@ -105,6 +128,38 @@ pub async fn discovery_disabled() {
         DiscoveryConfig {
             enabled: false,
             num_inbound_peers: 2,
+            ..Default::default()
+        },
+    );
+
+    test.run().await
+}
+
+// Ensuring that the discovery protocol can handle concurrent dials between nodes.
+#[tokio::test]
+pub async fn discovery_concurrent_dial() {
+    const N: usize = 10;
+
+    let mut nodes = Vec::with_capacity(N);
+    let mut expected = Vec::with_capacity(N);
+    for i in 0..N {
+        let bootstrap = (0..N).filter(|&j| j != i).collect::<Vec<_>>();
+        nodes.push(TestNode::correct(i, bootstrap));
+        expected.push(Expected::Exactly(
+            (0..N).filter(|&j| j != i).collect::<Vec<_>>(),
+        ));
+    }
+
+    let test: Test<N> = Test::new(
+        nodes.try_into().expect("Expected a Vec of length {N}"),
+        expected.try_into().expect("Expected a Vec of length {N}"),
+        Duration::from_secs(0),
+        Duration::from_secs(10),
+        DiscoveryConfig {
+            enabled: true,
+            bootstrap_protocol: BootstrapProtocol::Full,
+            selector: Selector::Random,
+            ephemeral_connection_timeout: Duration::from_secs(3),
             ..Default::default()
         },
     );

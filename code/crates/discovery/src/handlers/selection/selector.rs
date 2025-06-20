@@ -41,13 +41,13 @@ where
         }
     }
 
-    /// Excluded peers are those that are already outbound connections or have already
+    /// Excluded peers are those that are already outbound or have already
     /// been requested to be so.
     pub(crate) fn get_excluded_peers(&self) -> Vec<PeerId> {
         self.discovered_peers
             .keys()
             .filter(|peer_id| {
-                self.outbound_connections.contains_key(peer_id)
+                self.outbound_peers.contains_key(peer_id)
                     || self.controller.connect_request.is_done_on(peer_id)
             })
             .cloned()

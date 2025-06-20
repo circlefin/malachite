@@ -1,2 +1,2 @@
-pub mod max_queue;
+pub mod bounded_queue;
 pub mod pretty;

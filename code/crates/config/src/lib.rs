@@ -67,6 +67,10 @@ pub struct DiscoveryConfig {
     #[serde(default)]
     pub num_inbound_peers: usize,
 
+    /// Maximum number of connections per peer
+    #[serde(default)]
+    pub max_connections_per_peer: usize,
+
     /// Ephemeral connection timeout
     #[serde(default)]
     #[serde(with = "humantime_serde")]
@@ -81,6 +85,7 @@ impl Default for DiscoveryConfig {
             selector: Default::default(),
             num_outbound_peers: 0,
             num_inbound_peers: 20,
+            max_connections_per_peer: 5,
             ephemeral_connection_timeout: Default::default(),
         }
     }
@@ -447,6 +452,9 @@ pub struct ConsensusConfig {
 
     /// Message types that can carry values
     pub value_payload: ValuePayload,
+
+    /// Size of the consensus input queue
+    pub queue_capacity: usize,
 }
 
 /// Message types required by consensus to deliver the value being proposed
@@ -503,7 +511,7 @@ pub struct TimeoutConfig {
     pub timeout_precommit_delta: Duration,
 
     /// How long we wait after entering a round before starting
-    /// the rebroadcast liveness protocol    
+    /// the rebroadcast liveness protocol
     #[serde(with = "humantime_serde")]
     pub timeout_rebroadcast: Duration,
 }
