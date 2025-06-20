@@ -24,9 +24,9 @@ malachitebft-core-types.workspace = true
 malachitebft-core-driver.workspace = true
 malachitebft-metrics = { workspace = true, optional = true }
 malachitebft-peer.workspace = true
-borsh = { workspace = true, optional = true }
 
 async-recursion = { workspace = true }
+borsh = { workspace = true, optional = true }
 genawaiter = { workspace = true }
 derive-where = { workspace = true }
 multiaddr = { workspace = true }
