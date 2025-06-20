@@ -412,23 +412,31 @@ where
         .sync_height
         .increment_by(state.config.parallel_requests);
 
-    loop {
-        // Check if already have a pending request or validation for this height.
-        if !state.has_pending_value_request(&height) && !state.has_pending_value_validation(&height)
-        {
-            let Some(peer) = state.random_peer_with_tip_at_or_above(height) else {
-                debug!(height.sync = %height, "No peer to request sync from");
-                // No peer reached this height yet, we can stop here.
-                break;
-            };
-
-            request_value_from_peer(&co, state, metrics, height, peer).await?;
-        } else {
-            debug!(height.sync = %height, "Already have a pending request or validation for this height");
+    // Find out the first height for which we do not have a pending request or validation.
+    while state.has_pending_value_request(&height) || state.has_pending_value_validation(&height) {
+        height = height.increment();
+        if height >= limit {
+            break;
         }
+    }
+
+    // If the height we are trying to request is already above the sync height,
+    // it means we already have a pending request or validation for the heights below.
+    if height > state.sync_height {
+        debug!(height.sync = %DisplayRange(state.sync_height, height), "Already have a pending request or validation for these heights");
+    }
+
+    // Start requesting values from the first height that does not have a pending request or validation.
+    loop {
+        let Some(peer) = state.random_peer_with_tip_at_or_above(height) else {
+            debug!(height.sync = %height, "No peer to request sync from");
+            // No peer reached this height yet, we can stop here.
+            break;
+        };
+
+        request_value_from_peer(&co, state, metrics, height, peer).await?;
 
         height = height.increment();
-
         if height >= limit {
             break;
         }
@@ -488,4 +496,12 @@ where
     }
 
     Ok(())
+}
+
+struct DisplayRange<A>(A, A);
+
+impl<A: core::fmt::Display> core::fmt::Display for DisplayRange<A> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}..{}", self.0, self.1)
+    }
 }
