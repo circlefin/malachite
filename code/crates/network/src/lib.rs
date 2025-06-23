@@ -412,7 +412,7 @@ async fn handle_swarm_event(
 
             state
                 .discovery
-                .handle_failed_connection(swarm, connection_id);
+                .handle_failed_connection(swarm, connection_id, error);
         }
 
         SwarmEvent::ConnectionClosed {

@@ -1,4 +1,8 @@
-use libp2p::{core::ConnectedPoint, swarm::ConnectionId, PeerId, Swarm};
+use libp2p::{
+    core::ConnectedPoint,
+    swarm::{ConnectionId, DialError},
+    PeerId, Swarm,
+};
 use tracing::{debug, error, warn};
 
 use crate::{controller::PeerData, dial::DialData, Discovery, DiscoveryClient};
@@ -73,7 +77,7 @@ where
                 e
             );
 
-            self.handle_failed_connection(swarm, connection_id);
+            self.handle_failed_connection(swarm, connection_id, e);
         }
     }
 
@@ -116,8 +120,24 @@ where
             .dial_add_peer_id_to_dial_data(connection_id, peer_id);
     }
 
-    pub fn handle_failed_connection(&mut self, swarm: &mut Swarm<C>, connection_id: ConnectionId) {
+    pub fn handle_failed_connection(
+        &mut self,
+        swarm: &mut Swarm<C>,
+        connection_id: ConnectionId,
+        error: DialError,
+    ) {
         if let Some(mut dial_data) = self.controller.dial.remove_in_progress(&connection_id) {
+            // Skip retrying for errors that will occur again
+            if matches!(
+                error,
+                DialError::LocalPeerId { .. }
+                    | DialError::NoAddresses
+                    | DialError::WrongPeerId { .. }
+            ) {
+                self.make_extension_step(swarm);
+                return;
+            }
+
             if dial_data.retry.count() < self.config.dial_max_retries {
                 // Retry dialing after a delay
                 dial_data.retry.inc_count();
