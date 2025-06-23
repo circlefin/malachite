@@ -1,10 +1,24 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use malachitebft_core_types::{Context, Height};
 use malachitebft_peer::PeerId;
 
 use crate::scoring::{ema, PeerScorer, Strategy};
 use crate::{Config, OutboundRequestId, Status};
+
+/// State of a decided value request.
+///
+/// State transitions:
+/// WaitingResponse -> WaitingValidation -> Validated
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum RequestState {
+    /// Initial state: waiting for a response from a peer
+    WaitingResponse,
+    /// Response received: waiting for value validation by consensus
+    WaitingValidation,
+    /// Value validated: request is complete
+    Validated,
+}
 
 pub struct State<Ctx>
 where
@@ -25,13 +39,10 @@ where
     pub sync_height: Ctx::Height,
 
     /// Decided value requests for these heights have been sent out to peers.
-    pub pending_value_requests: BTreeMap<Ctx::Height, BTreeSet<OutboundRequestId>>,
+    pub pending_value_requests: BTreeMap<Ctx::Height, (OutboundRequestId, RequestState)>,
 
     /// Maps request ID to height for pending decided value requests.
     pub height_per_request_id: BTreeMap<OutboundRequestId, Ctx::Height>,
-
-    /// Set of heights for which we are waiting for value validation from the consensus.
-    pub pending_value_validation: BTreeSet<Ctx::Height>,
 
     /// The set of peers we are connected to in order to get values, certificates and votes.
     pub peers: BTreeMap<PeerId, Status<Ctx>>,
@@ -62,7 +73,6 @@ where
             sync_height: Ctx::Height::ZERO,
             pending_value_requests: BTreeMap::new(),
             height_per_request_id: BTreeMap::new(),
-            pending_value_validation: BTreeSet::new(),
             peers: BTreeMap::new(),
             peer_scorer,
         }
@@ -112,6 +122,8 @@ where
     }
 
     /// Store a pending decided value request for a given height and request ID.
+    ///
+    /// State transition: None -> WaitingResponse
     pub fn store_pending_value_request(
         &mut self,
         height: Ctx::Height,
@@ -122,16 +134,35 @@ where
 
         self.pending_value_requests
             .entry(height)
-            .or_default()
-            .insert(request_id);
+            .or_insert_with(|| (request_id, RequestState::WaitingResponse))
+            .1 = RequestState::WaitingResponse;
     }
 
-    /// Remove all pending decided value requests for a given height.
-    pub fn remove_pending_value_request_by_height(&mut self, height: &Ctx::Height) {
-        if let Some(request_ids) = self.pending_value_requests.remove(height) {
-            for request_id in request_ids {
-                self.height_per_request_id.remove(&request_id);
+    /// Mark that a response has been received for a height.
+    ///
+    /// State transition: WaitingResponse -> WaitingValidation
+    pub fn response_received(&mut self, height: Ctx::Height) {
+        if let Some((_, state)) = self.pending_value_requests.get_mut(&height) {
+            if *state == RequestState::WaitingResponse {
+                *state = RequestState::WaitingValidation;
             }
+        }
+    }
+
+    /// Mark that a decided value has been validated for a height.
+    ///
+    /// State transition: WaitingValidation -> Validated
+    /// It is also possible to have the following transition: WaitingResponse -> Validated.
+    pub fn decided_received(&mut self, height: Ctx::Height) {
+        if let Some((_, state)) = self.pending_value_requests.get_mut(&height) {
+            *state = RequestState::Validated;
+        }
+    }
+
+    /// Remove the pending decided value request for a given height.
+    pub fn remove_pending_request_by_height(&mut self, height: &Ctx::Height) {
+        if let Some((request_id, _)) = self.pending_value_requests.remove(height) {
+            self.height_per_request_id.remove(&request_id);
         }
     }
 
@@ -142,37 +173,13 @@ where
     ) -> Option<Ctx::Height> {
         let height = self.height_per_request_id.remove(request_id)?;
 
-        if let Some(request_ids) = self.pending_value_requests.get_mut(&height) {
-            request_ids.remove(request_id);
-
-            // If there are no more requests for this height, remove the entry
-            if request_ids.is_empty() {
-                self.pending_value_requests.remove(&height);
-            }
-        }
+        self.pending_value_requests.remove(&height);
 
         Some(height)
     }
 
     /// Check if there are any pending decided value requests for a given height.
     pub fn has_pending_value_request(&self, height: &Ctx::Height) -> bool {
-        self.pending_value_requests
-            .get(height)
-            .is_some_and(|ids| !ids.is_empty())
-    }
-
-    /// Store a height for which we are waiting for value validation from the consensus.
-    pub fn store_pending_value_validation(&mut self, height: Ctx::Height) {
-        self.pending_value_validation.insert(height);
-    }
-
-    /// Remove a height from the set of pending value validations.
-    pub fn remove_pending_value_validation(&mut self, height: &Ctx::Height) {
-        self.pending_value_validation.remove(height);
-    }
-
-    /// Check if we are waiting for value validation for a given height.
-    pub fn has_pending_value_validation(&self, height: &Ctx::Height) -> bool {
-        self.pending_value_validation.contains(height)
+        self.pending_value_requests.contains_key(height)
     }
 }

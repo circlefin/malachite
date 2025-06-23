@@ -62,7 +62,7 @@ where
             on_started_height(co, state, metrics, height, restart).await
         }
 
-        Input::Decided(height) => on_decided(co, state, metrics, height).await,
+        Input::Decided(height) => on_decided(state, metrics, height).await,
 
         Input::ValueRequest(request_id, peer_id, request) => {
             on_value_request(co, state, metrics, request_id, peer_id, request).await
@@ -165,11 +165,6 @@ pub async fn on_started_height<Ctx>(
 where
     Ctx: Context,
 {
-    if state.tip_height >= height && !restart {
-        // We received a decided height event before the corresponding started height event.
-        return Ok(());
-    }
-
     let tip_height = height.decrement().unwrap_or_default();
 
     debug!(height.tip = %tip_height, height.sync = %height, %restart, "Starting new height");
@@ -178,6 +173,8 @@ where
     state.sync_height = height;
     state.tip_height = tip_height;
 
+    state.remove_pending_request_by_height(&tip_height);
+
     // Trigger potential requests if possible.
     request_values(co, state, metrics).await?;
 
@@ -185,24 +182,16 @@ where
 }
 
 pub async fn on_decided<Ctx>(
-    co: Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: &Metrics,
+    _metrics: &Metrics,
     height: Ctx::Height,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
-    debug!(height.tip = %height, "Updating tip height");
+    debug!(height.tip = %height, "Updating request state");
 
-    state.sync_height = height.increment();
-    state.tip_height = height;
-
-    state.remove_pending_value_validation(&height);
-    state.remove_pending_value_request_by_height(&height);
-
-    // Trigger potential requests if possible.
-    request_values(co, state, metrics).await?;
+    state.decided_received(height);
 
     Ok(())
 }
@@ -243,8 +232,6 @@ where
 {
     debug!(%response.height, %request_id, %peer_id, "Received response");
 
-    state.remove_pending_value_request_by_height(&response.height);
-
     let response_time = metrics.value_response_received(response.height.as_u64());
 
     if let Some(response_time) = response_time {
@@ -268,7 +255,7 @@ where
         request_value_from_peer_except(co, state, metrics, response.height, peer_id).await?;
     } else {
         // TODO: handle the case where this event is received after the corresponding value decision event.
-        state.store_pending_value_validation(response.height);
+        state.response_received(response.height);
     }
 
     Ok(())
@@ -356,7 +343,7 @@ where
 
             metrics.value_request_timed_out(height.as_u64());
 
-            state.remove_pending_value_request_by_height(&height);
+            state.remove_pending_request_by_height(&height);
             state.peer_scorer.update_score(peer_id, SyncResult::Timeout);
         }
     };
@@ -378,8 +365,7 @@ where
 
     state.peer_scorer.update_score(from, SyncResult::Failure);
 
-    state.remove_pending_value_validation(&height);
-    state.remove_pending_value_request_by_height(&height);
+    state.remove_pending_request_by_height(&height);
 
     request_value_from_peer_except(co, state, metrics, height, from).await
 }
@@ -396,8 +382,7 @@ where
 {
     error!(%peer, height.sync = %height, "Error while processing value");
 
-    state.remove_pending_value_validation(&height);
-    state.remove_pending_value_request_by_height(&height);
+    state.remove_pending_request_by_height(&height);
 
     // NOTE: We do not update the peer score here, as this is an internal error
     //       and not a failure from the peer's side.
@@ -422,7 +407,7 @@ where
         .increment_by(state.config.parallel_requests);
 
     // Find out the first height for which we do not have a pending request or validation.
-    while state.has_pending_value_request(&height) || state.has_pending_value_validation(&height) {
+    while state.has_pending_value_request(&height) {
         height = height.increment();
         if height >= limit {
             break;
@@ -497,7 +482,7 @@ where
 {
     info!(height.sync = %height, "Requesting sync from another peer");
 
-    state.remove_pending_value_request_by_height(&height);
+    state.remove_pending_request_by_height(&height);
 
     if let Some(peer) = state.random_peer_with_tip_at_or_above_except(height, except) {
         request_value_from_peer(&co, state, metrics, height, peer).await?;
