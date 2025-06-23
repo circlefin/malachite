@@ -652,11 +652,13 @@ async fn handle_broadcast_event(
                 message.len()
             );
 
-            let event = Event::ConsensusMessage(
-                channel,
-                PeerId::from_libp2p(&peer_id),
-                Bytes::copy_from_slice(message.as_ref()),
-            );
+            let peer_id = PeerId::from_libp2p(&peer_id);
+
+            let event = if channel == Channel::Liveness {
+                Event::LivenessMessage(channel, peer_id, message)
+            } else {
+                Event::ConsensusMessage(channel, peer_id, message)
+            };
 
             if let Err(e) = tx_event.send(event).await {
                 error!("Error sending message to handle: {e}");
