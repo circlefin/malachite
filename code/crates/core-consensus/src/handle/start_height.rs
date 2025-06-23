@@ -72,7 +72,12 @@ async fn replay_pending_msgs<Ctx>(
 where
     Ctx: Context,
 {
-    let pending_inputs = std::mem::take(&mut state.input_queue);
+    // Take all inputs that are pending for the current height.
+    let pending_inputs = state
+        .input_queue
+        .shift_and_take(&state.height())
+        .collect::<Vec<_>>();
+
     debug!(count = pending_inputs.len(), "Replaying inputs");
 
     for pending_input in pending_inputs {

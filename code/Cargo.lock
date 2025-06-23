@@ -2225,6 +2225,7 @@ version = "0.3.0"
 dependencies = [
  "bytes",
  "derive-where",
+ "informalsystems-malachitebft-peer",
  "serde",
  "thiserror 2.0.12",
 ]

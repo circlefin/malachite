@@ -410,7 +410,7 @@ _export_prometheus_csv() {
 _export_prometheus_performance_csv() {
 
   _export_prometheus_csv \
-  'rate(malachitebft_core_consensus_finalized_txes_total[30s])' \
+  'rate(starknet_app_finalized_txes_total[30s])' \
   throughput.csv \
   30 \
   10

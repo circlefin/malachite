@@ -452,6 +452,9 @@ pub struct ConsensusConfig {
 
     /// Message types that can carry values
     pub value_payload: ValuePayload,
+
+    /// Size of the consensus input queue
+    pub queue_capacity: usize,
 }
 
 /// Message types required by consensus to deliver the value being proposed
@@ -508,7 +511,7 @@ pub struct TimeoutConfig {
     pub timeout_precommit_delta: Duration,
 
     /// How long we wait after entering a round before starting
-    /// the rebroadcast liveness protocol    
+    /// the rebroadcast liveness protocol
     #[serde(with = "humantime_serde")]
     pub timeout_rebroadcast: Duration,
 }

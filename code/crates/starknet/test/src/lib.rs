@@ -146,6 +146,7 @@ impl TestRunner {
             logging: LoggingConfig::default(),
             consensus: ConsensusConfig {
                 value_payload: ValuePayload::PartsOnly,
+                queue_capacity: 100,
                 timeouts: TimeoutConfig::default(),
                 p2p: P2pConfig {
                     protocol,

@@ -83,7 +83,7 @@ malachitebft-core-votekeeper    = { version = "0.3.0", package = "informalsystem
 malachitebft-discovery          = { version = "0.3.0", package = "informalsystems-malachitebft-discovery", path = "crates/discovery" }
 malachitebft-network            = { version = "0.3.0", package = "informalsystems-malachitebft-network", path = "crates/network" }
 malachitebft-metrics            = { version = "0.3.0", package = "informalsystems-malachitebft-metrics", path = "crates/metrics" }
-malachitebft-peer               = { version = "0.3.0", package = "informalsystems-malachitebft-peer", path = "crates/peer" }
+malachitebft-peer               = { version = "0.3.0", package = "informalsystems-malachitebft-peer", path = "crates/peer", default-features = false }
 malachitebft-proto              = { version = "0.3.0", package = "informalsystems-malachitebft-proto", path = "crates/proto" }
 malachitebft-signing-ed25519    = { version = "0.3.0", package = "informalsystems-malachitebft-signing-ed25519", path = "crates/signing-ed25519" }
 malachitebft-sync               = { version = "0.3.0", package = "informalsystems-malachitebft-sync", path = "crates/sync" }

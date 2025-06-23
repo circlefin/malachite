@@ -179,7 +179,7 @@ async fn spawn_consensus_actor(
     Consensus::spawn(
         ctx,
         consensus_params,
-        cfg.consensus.timeouts,
+        cfg.consensus,
         Box::new(signing_provider),
         network,
         host,

@@ -69,7 +69,7 @@ where
         initial_validator_set,
         address,
         ctx.clone(),
-        cfg.consensus(),
+        cfg.consensus().clone(),
         Box::new(signing_provider),
         network.clone(),
         connector.clone(),
