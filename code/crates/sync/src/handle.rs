@@ -248,15 +248,23 @@ where
     // We do not update the peer score if we do not know the response time.
     // This should never happen, but we need to handle it gracefully just in case.
 
+    if let Some(height) = state.get_height_for_request_id(&request_id) {
+        if height != response.height {
+            warn!(%response.height, %request_id, "Received response for wrong height");
+
+            // TODO: penalize peer?
+        }
+    }
+
     if response.value.is_none() {
         warn!(%response.height, %request_id, "Received invalid value response");
 
-        if let Some(height) = state.remove_pending_value_request_by_id(&request_id) {
-            // It is possible that this height has been already validated via consensus messages.
-            // Therefore, we ignore the response status.
-            if !state.is_pending_value_request_validated(&height) {
-                request_value_from_peer_except(co, state, metrics, height, peer_id).await?;
-            }
+        // It is possible that this height has been already validated via consensus messages.
+        // Therefore, we ignore the response status.
+        if !state.is_pending_value_request_validated_by_height(&response.height) {
+            state.remove_pending_value_request_by_id(&request_id);
+
+            request_value_from_peer_except(co, state, metrics, response.height, peer_id).await?;
         }
     } else {
         state.response_received(request_id, response.height);
@@ -277,10 +285,10 @@ where
 {
     debug!(%request_id, %peer, "Received invalid response");
 
-    if let Some(height) = state.remove_pending_value_request_by_id(&request_id) {
-        // It is possible that this height has been already validated via consensus messages.
-        // Therefore, we ignore the response status.
-        if !state.is_pending_value_request_validated(&height) {
+    // It is possible that this height has been already validated via consensus messages.
+    // Therefore, we ignore the response status.
+    if !state.is_pending_value_request_validated_by_id(&request_id) {
+        if let Some(height) = state.remove_pending_value_request_by_id(&request_id) {
             request_value_from_peer_except(co, state, metrics, height, peer).await?;
         }
     }

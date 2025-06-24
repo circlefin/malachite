@@ -160,6 +160,11 @@ where
         }
     }
 
+    /// Get the height for a given request ID.
+    pub fn get_height_for_request_id(&self, request_id: &OutboundRequestId) -> Option<Ctx::Height> {
+        self.height_per_request_id.get(request_id).cloned()
+    }
+
     /// Remove the pending decided value request for a given height.
     pub fn remove_pending_request_by_height(&mut self, height: &Ctx::Height) {
         if let Some((request_id, _)) = self.pending_value_requests.remove(height) {
@@ -185,9 +190,18 @@ where
     }
 
     /// Check if a pending decided value request for a given height is in the `Validated` state.
-    pub fn is_pending_value_request_validated(&self, height: &Ctx::Height) -> bool {
+    pub fn is_pending_value_request_validated_by_height(&self, height: &Ctx::Height) -> bool {
         if let Some((_, state)) = self.pending_value_requests.get(height) {
             *state == RequestState::Validated
+        } else {
+            false
+        }
+    }
+
+    /// Check if a pending decided value request for a given request ID is in the `Validated` state.
+    pub fn is_pending_value_request_validated_by_id(&self, request_id: &OutboundRequestId) -> bool {
+        if let Some(height) = self.height_per_request_id.get(request_id) {
+            self.is_pending_value_request_validated_by_height(height)
         } else {
             false
         }
