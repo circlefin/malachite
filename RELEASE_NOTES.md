@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-> Nothing yet
+- Add parallel requests for the sync module ([#1092](https://github.com/informalsystems/malachite/issues/1092))
 
 ## 0.3.0
 
