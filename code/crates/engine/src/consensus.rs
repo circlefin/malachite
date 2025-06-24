@@ -848,7 +848,7 @@ where
             value_id,
             reply_to
         })
-        .map_err(|e| eyre!("Failed to get earliest block height: {e:?}").into())
+        .map_err(|e| eyre!("Failed to extend vote: {e:?}").into())
     }
 
     async fn verify_vote_extension(
