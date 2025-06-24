@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+> Nothing yet
+
+## 0.3.0
+
+*June 17th, 2025*
+
 ### `malachitebft-core-types`
 - Removed the VoteSet synchronization protocol, as it is neither required nor sufficient for liveness.
   See ([#998](https://github.com/informalsystems/malachite/issues/998)) for more details.
