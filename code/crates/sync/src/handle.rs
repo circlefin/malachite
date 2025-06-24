@@ -232,42 +232,58 @@ where
 {
     debug!(%response.height, %request_id, %peer_id, "Received response");
 
-    let response_time = metrics.value_response_received(response.height.as_u64());
-
-    if let Some(response_time) = response_time {
-        let sync_result = response
-            .value
-            .as_ref()
-            .map_or(SyncResult::Failure, |_| SyncResult::Success(response_time));
-
-        state
-            .peer_scorer
-            .update_score_with_metrics(peer_id, sync_result, &metrics.scoring);
-    }
-
-    // We do not update the peer score if we do not know the response time.
-    // This should never happen, but we need to handle it gracefully just in case.
-
     if let Some(height) = state.get_height_for_request_id(&request_id) {
         if height != response.height {
-            warn!(%response.height, %request_id, "Received response for wrong height");
+            warn!(%request_id, "Received response for wrong height, expected {}, got {}", height, response.height);
 
-            // TODO: penalize peer?
+            state.peer_scorer.update_score_with_metrics(
+                peer_id,
+                SyncResult::Failure,
+                &metrics.scoring,
+            );
+
+            // It is possible that this height has been already validated via consensus messages.
+            // Therefore, we ignore the response.
+            if !state.is_pending_value_request_validated_by_height(&height) {
+                state.remove_pending_value_request_by_id(&request_id);
+
+                request_value_from_peer_except(co, state, metrics, height, peer_id).await?;
+            }
+
+            return Ok(());
         }
-    }
 
-    if response.value.is_none() {
-        warn!(%response.height, %request_id, "Received invalid value response");
+        let response_time = metrics.value_response_received(height.as_u64());
 
-        // It is possible that this height has been already validated via consensus messages.
-        // Therefore, we ignore the response status.
-        if !state.is_pending_value_request_validated_by_height(&response.height) {
-            state.remove_pending_value_request_by_id(&request_id);
+        if response.value.is_none() {
+            warn!(%height, %request_id, "Received invalid value response");
 
-            request_value_from_peer_except(co, state, metrics, response.height, peer_id).await?;
+            state.peer_scorer.update_score_with_metrics(
+                peer_id,
+                SyncResult::Failure,
+                &metrics.scoring,
+            );
+
+            // It is possible that this height has been already validated via consensus messages.
+            // Therefore, we ignore the response.
+            if !state.is_pending_value_request_validated_by_height(&height) {
+                state.remove_pending_value_request_by_id(&request_id);
+
+                request_value_from_peer_except(co, state, metrics, height, peer_id).await?;
+            }
+        } else {
+            if let Some(response_time) = response_time {
+                state.peer_scorer.update_score_with_metrics(
+                    peer_id,
+                    SyncResult::Success(response_time),
+                    &metrics.scoring,
+                );
+            }
+
+            state.response_received(request_id, height);
         }
     } else {
-        state.response_received(request_id, response.height);
+        warn!(%request_id, %peer_id, "Received response for unknown request ID");
     }
 
     Ok(())
@@ -356,8 +372,15 @@ where
 
             metrics.value_request_timed_out(height.as_u64());
 
-            state.remove_pending_request_by_height(&height);
             state.peer_scorer.update_score(peer_id, SyncResult::Timeout);
+
+            // It is possible that this height has been already validated via consensus messages.
+            // Therefore, we ignore the timeout.
+            if !state.is_pending_value_request_validated_by_height(&height) {
+                state.remove_pending_request_by_height(&height);
+
+                request_value_from_peer_except(_co, state, metrics, height, peer_id).await?;
+            }
         }
     };
 
