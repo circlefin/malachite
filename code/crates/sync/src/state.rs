@@ -133,16 +133,17 @@ where
             .insert(request_id.clone(), height);
 
         self.pending_value_requests
-            .entry(height)
-            .or_insert_with(|| (request_id, RequestState::WaitingResponse))
-            .1 = RequestState::WaitingResponse;
+            .insert(height, (request_id, RequestState::WaitingResponse));
     }
 
     /// Mark that a response has been received for a height.
     ///
     /// State transition: WaitingResponse -> WaitingValidation
-    pub fn response_received(&mut self, height: Ctx::Height) {
-        if let Some((_, state)) = self.pending_value_requests.get_mut(&height) {
+    pub fn response_received(&mut self, request_id: OutboundRequestId, height: Ctx::Height) {
+        if let Some((req_id, state)) = self.pending_value_requests.get_mut(&height) {
+            if req_id != &request_id {
+                return; // A new request has been made in the meantime, ignore this response.
+            }
             if *state == RequestState::WaitingResponse {
                 *state = RequestState::WaitingValidation;
             }

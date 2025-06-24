@@ -251,11 +251,12 @@ where
     if response.value.is_none() {
         warn!(%response.height, %request_id, "Received invalid value response");
 
-        // If we received an empty response, we will try to request the value from another peer.
-        request_value_from_peer_except(co, state, metrics, response.height, peer_id).await?;
+        if let Some(height) = state.remove_pending_value_request_by_id(&request_id) {
+            // If we received an empty response, we will try to request the value from another peer.
+            request_value_from_peer_except(co, state, metrics, height, peer_id).await?;
+        }
     } else {
-        // TODO: handle the case where this event is received after the corresponding value decision event.
-        state.response_received(response.height);
+        state.response_received(request_id, response.height);
     }
 
     Ok(())
@@ -481,8 +482,6 @@ where
     Ctx: Context,
 {
     info!(height.sync = %height, "Requesting sync from another peer");
-
-    state.remove_pending_request_by_height(&height);
 
     if let Some(peer) = state.random_peer_with_tip_at_or_above_except(height, except) {
         request_value_from_peer(&co, state, metrics, height, peer).await?;
