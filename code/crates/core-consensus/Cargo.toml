@@ -14,7 +14,7 @@ all-features = true
 
 [features]
 default = ["std", "metrics"]
-borsh = ["dep:borsh"]
+borsh = ["dep:borsh", "malachitebft-core-types/borsh"]
 std = ["malachitebft-core-driver/std"]
 metrics = ["std", "dep:malachitebft-metrics"]
 debug = ["std", "malachitebft-core-driver/debug"]
