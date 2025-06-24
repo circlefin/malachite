@@ -201,7 +201,7 @@ pub async fn start_late() {
 
 #[tokio::test]
 pub async fn start_late_parallel_requests() {
-    const HEIGHT: u64 = 5;
+    const HEIGHT: u64 = 10;
 
     let mut test = TestBuilder::<()>::new();
 

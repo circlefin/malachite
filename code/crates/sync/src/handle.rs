@@ -191,7 +191,7 @@ where
 {
     debug!(height.tip = %height, "Updating request state");
 
-    state.decided_received(height);
+    state.validate_response(height);
 
     Ok(())
 }

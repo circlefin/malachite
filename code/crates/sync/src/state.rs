@@ -154,7 +154,7 @@ where
     ///
     /// State transition: WaitingValidation -> Validated
     /// It is also possible to have the following transition: WaitingResponse -> Validated.
-    pub fn decided_received(&mut self, height: Ctx::Height) {
+    pub fn validate_response(&mut self, height: Ctx::Height) {
         if let Some((_, state)) = self.pending_value_requests.get_mut(&height) {
             *state = RequestState::Validated;
         }
