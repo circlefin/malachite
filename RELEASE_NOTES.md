@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+> Nothing yet
+
+## 0.3.0
+
+*June 17th, 2025*
+
 - Removed the VoteSet synchronization protocol, as it is neither required nor sufficient for liveness ([#998](https://github.com/informalsystems/malachite/issues/998))
 - Reply to `GetValidatorSet` is now optional ([#990](https://github.com/informalsystems/malachite/issues/990))
 - Clarify and improve the application handling of multiple proposals for same height and round ([#833](https://github.com/informalsystems/malachite/issues/833))

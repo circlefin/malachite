@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.3.0
+
+*June 17, 2025*
+
+## 📖 Release notes
+See [`RELEASE_NOTES.md`](./RELEASE_NOTES.md#0.3.0) for the release notes.
+
+### ⚠️ Breaking changes
+See [`BREAKING_CHANGES.md`](./BREAKING_CHANGES.md#0.3.0) for the list of breaking changes.
+
+### 🧪 Specifications
+
+- *(spec/quint)* Move consensus timeout firing into state machine ([#981](https://github.com/informalsystems/malachite/pull/981))
+
+### 🚀 Features
+
+- *(code/test)* Dynamic validator set ([#987](https://github.com/informalsystems/malachite/pull/987))
+- *(code)* Handle multiple proposals for same height and round ([#977](https://github.com/informalsystems/malachite/pull/977))
+- *(code)* Implement minimal gossip properties to ensure liveness ([#997](https://github.com/informalsystems/malachite/pull/997))
+- *(code)* Improve round certificate verification ([#1041](https://github.com/informalsystems/malachite/pull/1041))
+- *(code)* Compute and show in logs the role of the node during a round: Proposer, Validator, or None ([#1055](https://github.com/informalsystems/malachite/pull/1055))
+- *(code)* Prune votes and polka certificates that are from lower rounds than node's `locked_round` ([#1061](https://github.com/informalsystems/malachite/pull/1061))
+- *(code)* Add driver support for handling multiple equivocating proposals ([#1057](https://github.com/informalsystems/malachite/pull/1057))
+- *(code/app)* Resurrect the JSON codec, use it in the test app for networking ([#1077](https://github.com/informalsystems/malachite/pull/1077))
+- *(code/sync)* Add peer scoring system  ([#1071](https://github.com/informalsystems/malachite/pull/1071))
+- *(code/sync)* Re-request sync from another peer on failed responses ([#1084](https://github.com/informalsystems/malachite/pull/1084))
+
+### 🐛 Bug Fixes
+
+- *(code)* Make `Store`/`BlockStore` "open" method async in example, test app, and starknet ([#1014](https://github.com/informalsystems/malachite/pull/1014))
+- *(code)* Remove unused `PeerJoined` and `PeerLeft` host/app messages ([#1016](https://github.com/informalsystems/malachite/pull/1016))
+- *(code)* Remove app-specific metrics from the `metrics` crate ([#1064](https://github.com/informalsystems/malachite/pull/1064))
+- *(code/sync)* Add `history_min_height <= height` filter when selecting sync peers ([#1075](https://github.com/informalsystems/malachite/pull/1075))
+- *(code/sync)* Process sync responses even when they fail to decode ([#1078](https://github.com/informalsystems/malachite/pull/1078))
+- *(code/discovery)* Connection upgrades and multiaddr issues ([#1060](https://github.com/informalsystems/malachite/pull/1060))
+
 ## 0.2.0
 
 *April 16, 2025*
