@@ -31,7 +31,7 @@ where
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(
     feature = "borsh",
-    derive(borsh::BorshSerialize, borsh::BorshDeserialize)
+    derive(::borsh::BorshSerialize, ::borsh::BorshDeserialize)
 )]
 pub enum Validity {
     /// The proposal is valid.

@@ -31,6 +31,8 @@ use thiserror::Error;
 #[cfg(feature = "rand")]
 use rand::Rng;
 
+mod ser;
+
 /// Local type-alias for multihash.
 ///
 /// Must be big enough to accommodate for `MAX_INLINE_KEY_LENGTH`.
@@ -225,23 +227,5 @@ impl FromStr for PeerId {
         let peer_id = PeerId::from_bytes(&bytes)?;
 
         Ok(peer_id)
-    }
-}
-
-#[cfg(feature = "borsh")]
-mod _borsh {
-    use super::*;
-
-    impl borsh::BorshSerialize for PeerId {
-        fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
-            self.multihash.to_bytes().serialize(writer)
-        }
-    }
-
-    impl borsh::BorshDeserialize for PeerId {
-        fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
-            let bytes = Vec::<u8>::deserialize_reader(reader)?;
-            Ok(PeerId::from_bytes(&bytes).unwrap())
-        }
     }
 }

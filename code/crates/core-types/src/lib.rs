@@ -19,6 +19,7 @@ mod height;
 mod proposal;
 mod proposal_part;
 mod round;
+mod ser;
 mod signed_message;
 mod signing;
 mod threshold;

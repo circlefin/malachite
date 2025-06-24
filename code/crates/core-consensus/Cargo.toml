@@ -13,8 +13,8 @@ readme = "../../../README.md"
 all-features = true
 
 [features]
-borsh = ["dep:borsh"]
 default = ["std", "metrics"]
+borsh = ["dep:borsh"]
 std = ["malachitebft-core-driver/std"]
 metrics = ["std", "dep:malachitebft-metrics"]
 debug = ["std", "malachitebft-core-driver/debug"]

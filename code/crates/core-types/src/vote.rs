@@ -7,7 +7,7 @@ use crate::{Context, NilOrVal, Round, SignedExtension, Value};
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
     feature = "borsh",
-    derive(borsh::BorshSerialize, borsh::BorshDeserialize)
+    derive(::borsh::BorshSerialize, ::borsh::BorshDeserialize)
 )]
 pub enum VoteType {
     /// Votes for values which validators observe are valid for a given round.
