@@ -252,8 +252,11 @@ where
         warn!(%response.height, %request_id, "Received invalid value response");
 
         if let Some(height) = state.remove_pending_value_request_by_id(&request_id) {
-            // If we received an empty response, we will try to request the value from another peer.
-            request_value_from_peer_except(co, state, metrics, height, peer_id).await?;
+            // It is possible that this height has been already validated via consensus messages.
+            // Therefore, we ignore the response status.
+            if !state.is_pending_value_request_validated(&height) {
+                request_value_from_peer_except(co, state, metrics, height, peer_id).await?;
+            }
         }
     } else {
         state.response_received(request_id, response.height);
@@ -275,10 +278,11 @@ where
     debug!(%request_id, %peer, "Received invalid response");
 
     if let Some(height) = state.remove_pending_value_request_by_id(&request_id) {
-        debug!(%height, %request_id, "Found which height this request was for");
-
-        // If we have an associated height for this request, we will try again and request it from another peer.
-        request_value_from_peer_except(co, state, metrics, height, peer).await?;
+        // It is possible that this height has been already validated via consensus messages.
+        // Therefore, we ignore the response status.
+        if !state.is_pending_value_request_validated(&height) {
+            request_value_from_peer_except(co, state, metrics, height, peer).await?;
+        }
     }
 
     Ok(())

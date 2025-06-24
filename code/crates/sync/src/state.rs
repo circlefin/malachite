@@ -183,4 +183,13 @@ where
     pub fn has_pending_value_request(&self, height: &Ctx::Height) -> bool {
         self.pending_value_requests.contains_key(height)
     }
+
+    /// Check if a pending decided value request for a given height is in the `Validated` state.
+    pub fn is_pending_value_request_validated(&self, height: &Ctx::Height) -> bool {
+        if let Some((_, state)) = self.pending_value_requests.get(height) {
+            *state == RequestState::Validated
+        } else {
+            false
+        }
+    }
 }
