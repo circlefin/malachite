@@ -1,6 +1,10 @@
 name: QA
 
 on:
+  push:
+    branches:
+      - nenad/history-file-website
+
   workflow_dispatch:
     inputs:
       setup:
@@ -41,12 +45,14 @@ jobs:
       TF_VAR_ssh_keys: '["${{ secrets.DO_SSH_FINGERPRINT }}"]'
       EXPR_SETUP: "${{ github.event.inputs.setup || 'north-america' }}"
       EXPR_DURATION_MINUTES: "${{ github.event.inputs.expr_duration || '15' }}"
+      BRANCH: "${{ github.event.inputs.branch || 'main' }}"
+      PUBLISH: "${{ github.event.inputs.publish || 'false' }}"
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.branch }}
+          ref: ${{ env.BRANCH }}
 
       - name: Set up SSH agent
         uses: webfactory/ssh-agent@v0.9.0
@@ -129,6 +135,8 @@ jobs:
           echo "setup=$SETUP" >> $GITHUB_OUTPUT
           echo "date=$DATE" >> $GITHUB_OUTPUT
           echo "suffix=-${SETUP}-${DATE}.csv" >> $GITHUB_OUTPUT
+        env:
+          EXPR_SETUP: ${{ env.EXPR_SETUP }}
 
       - name: Upload raw CSVs to S3
         working-directory: qa/terraform
@@ -139,14 +147,14 @@ jobs:
           aws s3 cp block-time.csv s3://malachite-performance-site/raw/block-time${SUFFIX}
 
       - name: Format block-time and throughput CSVs
-        if: ${{ github.event.inputs.publish == 'true' }}
+        if: ${{ env.PUBLISH == 'true' }}
         working-directory: qa/terraform
         run: |
           python3 ../scripts/format_csv_file.py block-time.csv --type block-time
           python3 ../scripts/format_csv_file.py throughput.csv --type throughput
 
       - name: Upload formatted CSVs to dashboard folder
-        if: ${{ github.event.inputs.publish == 'true' }}
+        if: ${{ env.PUBLISH == 'true' }}
         working-directory: qa/terraform
         run: |
           SUFFIX=${{ steps.vars.outputs.suffix }}
@@ -154,7 +162,7 @@ jobs:
           aws s3 cp throughput.csv s3://malachite-performance-site/dashboard/throughput${SUFFIX}
 
       - name: Generate file_list.json for dashboard
-        if: ${{ github.event.inputs.publish == 'true' }}
+        if: ${{ env.PUBLISH == 'true' }}
         working-directory: qa/terraform
         run: |
           FILES=$(aws s3api list-objects-v2 \
@@ -175,7 +183,7 @@ jobs:
           ' > file_list.json
 
       - name: Upload file_list.json to S3
-        if: ${{ github.event.inputs.publish == 'true' }}
+        if: ${{ env.PUBLISH == 'true' }}
         working-directory: qa/terraform
         run: |
           aws s3 cp file_list.json s3://malachite-performance-site/dashboard/file_list.json
