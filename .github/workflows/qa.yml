@@ -44,7 +44,7 @@ jobs:
       TF_VAR_do_token: "${{ secrets.DO_TOKEN }}"
       TF_VAR_ssh_keys: '["${{ secrets.DO_SSH_FINGERPRINT }}"]'
       EXPR_SETUP: "${{ github.event.inputs.setup || 'north-america' }}"
-      EXPR_DURATION_MINUTES: "${{ github.event.inputs.expr_duration || '5' }}"
+      EXPR_DURATION_MINUTES: "${{ github.event.inputs.expr_duration || '3' }}"
       BRANCH: "${{ github.event.inputs.branch || 'nenad/history-file-website' }}"
       PUBLISH: "${{ github.event.inputs.publish || 'true' }}"
 
@@ -63,7 +63,7 @@ jobs:
         run: |
           sudo apt-get update -qq && sudo apt-get install -y pssh jq python3 python3-pip
           sudo ln -sf /usr/bin/parallel-ssh /usr/bin/pssh
-          pip install --quiet --no-cache-dir -r qa/scripts/requirements.txt || true
+          pip install --quiet --no-cache-dir pandas
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v2
