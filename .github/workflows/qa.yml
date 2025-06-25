@@ -46,7 +46,7 @@ jobs:
       EXPR_SETUP: "${{ github.event.inputs.setup || 'north-america' }}"
       EXPR_DURATION_MINUTES: "${{ github.event.inputs.expr_duration || '15' }}"
       BRANCH: "${{ github.event.inputs.branch || 'main' }}"
-      PUBLISH: "${{ github.event.inputs.publish || 'false' }}"
+      PUBLISH: "${{ github.event.inputs.publish || 'true' }}"
 
     steps:
       - name: Checkout code
@@ -142,9 +142,9 @@ jobs:
         working-directory: qa/terraform
         run: |
           SUFFIX=${{ steps.vars.outputs.suffix }}
-          aws s3 cp latency.csv s3://malachite-performance-site/raw/latency${SUFFIX}
-          aws s3 cp throughput.csv s3://malachite-performance-site/raw/throughput${SUFFIX}
-          aws s3 cp block-time.csv s3://malachite-performance-site/raw/block-time${SUFFIX}
+          aws s3 cp latency.csv s3://malachite-performance-site/raw/$EXPR_SETUP/latency${SUFFIX}
+          aws s3 cp throughput.csv s3://malachite-performance-site/raw/$EXPR_SETUP/throughput${SUFFIX}
+          aws s3 cp block-time.csv s3://malachite-performance-site/raw/$EXPR_SETUP/block-time${SUFFIX}
 
       - name: Format block-time and throughput CSVs
         if: ${{ env.PUBLISH == 'true' }}
