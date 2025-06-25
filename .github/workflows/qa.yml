@@ -1,10 +1,6 @@
 name: QA
 
 on:
-  push:
-    branches:
-      - nenad/history-file-website
-
   workflow_dispatch:
     inputs:
       setup:
@@ -43,10 +39,10 @@ jobs:
     env:
       TF_VAR_do_token: "${{ secrets.DO_TOKEN }}"
       TF_VAR_ssh_keys: '["${{ secrets.DO_SSH_FINGERPRINT }}"]'
-      EXPR_SETUP: "${{ github.event.inputs.setup || 'north-america' }}"
-      EXPR_DURATION_MINUTES: "${{ github.event.inputs.expr_duration || '3' }}"
-      BRANCH: "${{ github.event.inputs.branch || 'nenad/history-file-website' }}"
-      PUBLISH: "${{ github.event.inputs.publish || 'true' }}"
+      EXPR_SETUP: "${{ github.event.inputs.setup }}"
+      EXPR_DURATION_MINUTES: "${{ github.event.inputs.expr_duration }}"
+      BRANCH: "${{ github.event.inputs.branch }}"
+      PUBLISH: "${{ github.event.inputs.publish }}"
 
     steps:
       - name: Checkout code
