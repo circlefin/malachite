@@ -150,8 +150,8 @@ jobs:
         if: ${{ env.PUBLISH == 'true' }}
         working-directory: qa/terraform
         run: |
-          python3 ../scripts/format_csv_file.py block-time.csv --type block-time
-          python3 ../scripts/format_csv_file.py throughput.csv --type throughput
+          python3 scripts/format_csv_file.py block-time.csv --type block-time
+          python3 scripts/format_csv_file.py throughput.csv --type throughput
 
       - name: Upload formatted CSVs to dashboard folder
         if: ${{ env.PUBLISH == 'true' }}
