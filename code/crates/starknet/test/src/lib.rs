@@ -179,6 +179,7 @@ impl TestRunner {
                 enabled: true,
                 status_update_interval: Duration::from_secs(2),
                 request_timeout: Duration::from_secs(5),
+                ..Default::default()
             },
             metrics: MetricsConfig {
                 enabled: false,

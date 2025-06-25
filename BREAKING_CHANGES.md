@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### `malachitebft-config`
+- Added new sync parameters to config.
+  See ([#1092](https://github.com/informalsystems/malachite/issues/1092)) for more details.
+
+
+### `malachitebft-sync`
+- Added new parallel requests related parameters to sync config.
+  See ([#1092](https://github.com/informalsystems/malachite/issues/1092)) for more details.
+
+## 0.3.0
+
+*June 17th, 2025*
+
 ### `malachitebft-core-types`
 - Removed the VoteSet synchronization protocol, as it is neither required nor sufficient for liveness.
   See ([#998](https://github.com/informalsystems/malachite/issues/998)) for more details.

@@ -1,5 +1,5 @@
 mod behaviour;
-pub use behaviour::{Behaviour, Config, Event};
+pub use behaviour::{Behaviour, Event};
 
 mod metrics;
 pub use metrics::Metrics;
@@ -14,6 +14,9 @@ pub mod scoring;
 
 mod macros;
 mod rpc;
+
+pub mod config;
+pub use config::Config;
 
 #[doc(hidden)]
 pub mod handle;

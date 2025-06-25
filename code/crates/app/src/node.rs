@@ -77,6 +77,7 @@ pub struct MakeConfigSettings {
     pub runtime: RuntimeConfig,
     pub transport: TransportProtocol,
     pub discovery: DiscoveryConfig,
+    pub value_sync: ValueSyncConfig,
 }
 
 pub trait CanMakeConfig: Node {

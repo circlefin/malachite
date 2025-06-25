@@ -367,6 +367,13 @@ where
                     state.set_phase(Phase::Recovering);
                 }
 
+                // Notify the sync actor that we have started a new height
+                if let Some(sync) = &self.sync {
+                    if let Err(e) = sync.cast(SyncMsg::StartedHeight(height, is_restart)) {
+                        error!(%height, "Error when notifying sync of started height: {e}")
+                    }
+                }
+
                 // Start consensus for the given height
                 let result = self
                     .process_input(
@@ -389,13 +396,6 @@ where
 
                 // Process any buffered messages, now that we are in the `Running` phase
                 self.process_buffered_msgs(&myself, state).await;
-
-                // Notify the sync actor that we have started a new height
-                if let Some(sync) = &self.sync {
-                    if let Err(e) = sync.cast(SyncMsg::StartedHeight(height, is_restart)) {
-                        error!(%height, "Error when notifying sync of started height: {e}")
-                    }
-                }
 
                 Ok(())
             }
@@ -497,6 +497,13 @@ where
                                     .map_err(|e| {
                                         eyre!(
                                             "Error when notifying sync of invalid certificate: {e}"
+                                        )
+                                    })?;
+                            } else {
+                                sync.cast(SyncMsg::ValueProcessingError(peer, height))
+                                    .map_err(|e| {
+                                        eyre!(
+                                            "Error when notifying sync of value processing error: {e}"
                                         )
                                     })?;
                             }

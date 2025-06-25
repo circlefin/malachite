@@ -43,6 +43,13 @@ pub trait ScoringStrategy: Send + Sync {
     fn update_score(&mut self, previous_score: Score, result: SyncResult) -> Score;
 }
 
+#[derive(Copy, Clone, Debug, Default)]
+pub enum Strategy {
+    /// Exponential moving average strategy
+    #[default]
+    Ema,
+}
+
 #[derive(Copy, Clone, Debug)]
 pub struct PeerScore {
     score: Score,
