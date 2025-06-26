@@ -21,17 +21,17 @@ pub enum Next<Ctx: Context> {
     /// Start at the given height with the given validator set.
     Start(Ctx::Height, Ctx::ValidatorSet),
 
-    Restart(
-        /// Restart at the given height with the given validator set.
-        Ctx::Height,
-        Ctx::ValidatorSet,
-    ),
+    /// Restart at the given height with the given validator set.
+    Restart(Ctx::Height, Ctx::ValidatorSet),
 }
 
 /// Messages that need to be handled by the host actor.
 #[derive_where(Debug)]
 pub enum HostMsg<Ctx: Context> {
-    /// Consensus is ready
+    /// Notifies the application that consensus is ready.
+    ///
+    /// The application MUST reply with a message to instruct
+    /// consensus to start at a given height.
     ConsensusReady {
         /// Use this reply port to instruct consensus to start the first height.
         reply_to: RpcReplyPort<(Ctx::Height, Ctx::ValidatorSet)>,
@@ -55,6 +55,9 @@ pub enum HostMsg<Ctx: Context> {
     },
 
     /// Request to build a local value to propose
+    ///
+    /// The application MUST reply to this message with the requested value
+    /// within the specified timeout duration.
     GetValue {
         /// The height at which the value should be proposed.
         height: Ctx::Height,
@@ -100,7 +103,11 @@ pub enum HostMsg<Ctx: Context> {
         reply_to: RpcReplyPort<Result<(), VoteExtensionError>>,
     },
 
-    /// Request to restream an existing block/value from Driver
+    /// Requests the application to re-stream a proposal that it has already seen.
+    ///
+    /// The application MUST re-publish again all the proposal parts pertaining
+    /// to that value by sending [`NetworkMsg::PublishProposalPart`] messages through
+    /// the [`Channels::network`] channel.
     RestreamValue {
         /// The height at which the value was proposed.
         height: Ctx::Height,
@@ -114,23 +121,40 @@ pub enum HostMsg<Ctx: Context> {
         value_id: ValueId<Ctx>,
     },
 
-    /// Request the earliest block height in the block store
+    /// Requests the earliest height available in the history maintained by the application.
+    ///
+    /// The application MUST respond with its earliest available height.
     GetHistoryMinHeight { reply_to: RpcReplyPort<Ctx::Height> },
 
-    /// ProposalPart received <-- consensus <-- gossip
+    /// Notifies the application that consensus has received a proposal part over the network.
+    ///
+    /// If this part completes the full proposal, the application MUST respond
+    /// with the complete proposed value. Otherwise, it MUST respond with `None`.
     ReceivedProposalPart {
         from: PeerId,
         part: StreamMessage<Ctx::ProposalPart>,
         reply_to: RpcReplyPort<ProposedValue<Ctx>>,
     },
 
-    /// Get the validator set at a given height
+    /// Requests the validator set for a specific height
     GetValidatorSet {
         height: Ctx::Height,
         reply_to: RpcReplyPort<Option<Ctx::ValidatorSet>>,
     },
 
-    /// Consensus has decided on a value.
+    /// Notifies the application that consensus has decided on a value.
+    ///
+    /// This message includes a commit certificate containing the ID of
+    /// the value that was decided on, the height and round at which it was decided,
+    /// and the aggregated signatures of the validators that committed to it.
+    /// It also includes to the vote extensions received for that height.
+    ///
+    /// In response to this message, the application MUST send a [`Next`]
+    /// message back to consensus, instructing it to either start the next height if
+    /// the application was able to commit the decided value, or to restart the current height
+    /// otherwise.
+    ///
+    /// If the application does not reply, consensus will stall.
     Decided {
         /// The commit certificate containing the ID of the value that was decided on,
         /// the the height and round at which it was decided, and the aggregated signatures
@@ -144,20 +168,32 @@ pub enum HostMsg<Ctx: Context> {
         reply_to: RpcReplyPort<Next<Ctx>>,
     },
 
-    // Retrieve decided value from the block store
+    /// Requests a previously decided value from the application's storage.
+    ///
+    /// The application MUST respond with that value if available, or `None` otherwise.
     GetDecidedValue {
+        /// Height of the decided value to retrieve
         height: Ctx::Height,
+        /// Channel for sending back the decided value
         reply_to: RpcReplyPort<Option<RawDecidedValue<Ctx>>>,
     },
 
-    // Process a value synced from another node via the ValueSync protocol.
-    //
-    // If the encoded value within is valid, the host MUST reply with that value to be proposed.
+    /// Notifies the application that a value has been synced from the network.
+    /// This may happen when the node is catching up with the network.
+    ///
+    /// If a value can be decoded from the bytes provided, then the application MUST reply
+    /// to this message with the decoded value. Otherwise, it MUST reply with `None`.
     ProcessSyncedValue {
+        /// Height of the synced value
         height: Ctx::Height,
+        /// Round of the synced value
         round: Round,
-        validator_address: Ctx::Address,
+        /// Address of the original proposer
+        proposer: Ctx::Address,
+        /// Raw encoded value data
         value_bytes: Bytes,
+        /// Channel for sending back the proposed value, if successfully decoded
+        /// or `None` if the value could not be decoded
         reply_to: RpcReplyPort<ProposedValue<Ctx>>,
     },
 }

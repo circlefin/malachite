@@ -521,7 +521,7 @@ where
                             |reply_to| HostMsg::ProcessSyncedValue {
                                 height: certificate_height,
                                 round: certificate_round,
-                                validator_address: state.consensus.address().clone(),
+                                proposer: state.consensus.address().clone(),
                                 value_bytes: value.value_bytes,
                                 reply_to,
                             },

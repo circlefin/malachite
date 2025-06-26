@@ -204,10 +204,10 @@ impl Host {
             HostMsg::ProcessSyncedValue {
                 height,
                 round,
-                validator_address,
+                proposer,
                 value_bytes,
                 reply_to,
-            } => on_process_synced_value(value_bytes, height, round, validator_address, reply_to),
+            } => on_process_synced_value(value_bytes, height, round, proposer, reply_to),
         }
     }
 }

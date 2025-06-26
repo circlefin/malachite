@@ -242,7 +242,7 @@ where
             HostMsg::ProcessSyncedValue {
                 height,
                 round,
-                validator_address,
+                proposer,
                 value_bytes,
                 reply_to,
             } => {
@@ -252,7 +252,7 @@ where
                     .send(AppMsg::ProcessSyncedValue {
                         height,
                         round,
-                        proposer: validator_address,
+                        proposer,
                         value_bytes,
                         reply,
                     })
