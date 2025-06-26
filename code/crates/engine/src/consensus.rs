@@ -964,12 +964,18 @@ where
             Effect::StartRound(height, round, proposer, role, r) => {
                 self.wal_flush(state.phase).await?;
 
-                self.host.cast(HostMsg::StartedRound {
-                    height,
-                    round,
-                    proposer: proposer.clone(),
-                    role,
-                })?;
+                let undecided_values =
+                    ractor::call!(self.host, |reply_to| HostMsg::StartedRound {
+                        height,
+                        round,
+                        proposer: proposer.clone(),
+                        role,
+                        reply_to,
+                    })?;
+
+                for value in undecided_values {
+                    let _ = myself.cast(Msg::ReceivedProposedValue(value, ValueOrigin::Consensus));
+                }
 
                 self.tx_event
                     .send(|| Event::StartedRound(height, round, proposer, role));

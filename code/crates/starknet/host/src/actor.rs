@@ -12,8 +12,7 @@ use tokio::time::Instant;
 use tracing::{debug, error, info, trace, warn};
 
 use malachitebft_core_consensus::{PeerId, Role, VoteExtensionError};
-use malachitebft_core_types::{CommitCertificate, Round, Validity, ValueId, ValueOrigin};
-use malachitebft_engine::consensus::ConsensusMsg;
+use malachitebft_core_types::{CommitCertificate, Round, Validity, ValueId};
 use malachitebft_engine::host::{LocallyProposedValue, Next, ProposedValue};
 use malachitebft_engine::network::{NetworkMsg, NetworkRef};
 use malachitebft_engine::util::streaming::{StreamContent, StreamMessage};
@@ -132,7 +131,8 @@ impl Host {
                 round,
                 proposer,
                 role,
-            } => on_started_round(state, height, round, proposer, role).await,
+                reply_to,
+            } => on_started_round(state, height, round, proposer, role, reply_to).await,
 
             HostMsg::GetHistoryMinHeight { reply_to } => {
                 on_get_history_min_height(state, reply_to).await
@@ -226,37 +226,13 @@ async fn on_consensus_ready(
     Ok(())
 }
 
-async fn replay_undecided_values(
-    state: &mut HostState,
-    height: Height,
-    round: Round,
-) -> Result<(), ActorProcessingErr> {
-    let undecided_values = state
-        .block_store
-        .get_undecided_values(height, round)
-        .await?;
-
-    // FIXME: Implement
-    // let consensus = state.consensus.as_ref().unwrap();
-    //
-    // for value in undecided_values {
-    //     info!(%height, %round, hash = %value.value, "Replaying already known proposed value");
-    //
-    //     consensus.cast(ConsensusMsg::ReceivedProposedValue(
-    //         value,
-    //         ValueOrigin::Consensus,
-    //     ))?;
-    // }
-
-    Ok(())
-}
-
 async fn on_started_round(
     state: &mut HostState,
     height: Height,
     round: Round,
     proposer: Address,
     role: Role,
+    reply_to: RpcReplyPort<Vec<ProposedValue<MockContext>>>,
 ) -> Result<(), ActorProcessingErr> {
     state.height = height;
     state.round = round;
@@ -267,7 +243,12 @@ async fn on_started_round(
 
     // If we have already built or seen one or more values for this height and round,
     // feed them back to consensus. This may happen when we are restarting after a crash.
-    replay_undecided_values(state, height, round).await?;
+    let undecided_values = state
+        .block_store
+        .get_undecided_values(height, round)
+        .await?;
+
+    reply_to.send(undecided_values)?;
 
     Ok(())
 }

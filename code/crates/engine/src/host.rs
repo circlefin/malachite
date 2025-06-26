@@ -39,17 +39,30 @@ pub enum HostMsg<Ctx: Context> {
 
     /// Consensus has started a new round.
     StartedRound {
+        /// The height at which the round started.
         height: Ctx::Height,
+        /// The round number that started.
         round: Round,
+        /// The address of the proposer for this round.
         proposer: Ctx::Address,
+        /// The role of the node in this round.
         role: Role,
+        /// Use this reply port to send the undecided values that were already seen for this
+        /// round. This is needed when recovering from a crash.
+        ///
+        /// The application MUST reply immediately with the values it has, or with an empty vector.
+        reply_to: RpcReplyPort<Vec<ProposedValue<Ctx>>>,
     },
 
     /// Request to build a local value to propose
     GetValue {
+        /// The height at which the value should be proposed.
         height: Ctx::Height,
+        /// The round in which the value should be proposed.
         round: Round,
+        /// The amount of time the application has to build the value.
         timeout: Duration,
+        /// Use this reply port to send the value that was built.
         reply_to: RpcReplyPort<LocallyProposedValue<Ctx>>,
     },
 
@@ -60,9 +73,13 @@ pub enum HostMsg<Ctx: Context> {
     /// This data is opaque to the consensus algorithm but can contain application-specific information.
     /// The proposer of the next block will receive all vote extensions along with the commit certificate.
     ExtendVote {
+        /// The height at which the vote is being extended.
         height: Ctx::Height,
+        /// The round in which the vote is being extended.
         round: Round,
+        /// The ID of the value that is being voted on.
         value_id: ValueId<Ctx>,
+        /// The vote extension to be added to the vote, if any.
         reply_to: RpcReplyPort<Option<Ctx::Extension>>,
     },
 
@@ -71,19 +88,29 @@ pub enum HostMsg<Ctx: Context> {
     /// If the vote extension is deemed invalid, the vote it was part of
     /// will be discarded altogether.
     VerifyVoteExtension {
+        /// The height for which the vote is.
         height: Ctx::Height,
+        /// The round for which the vote is.
         round: Round,
+        /// The ID of the value that the vote extension is for.
         value_id: ValueId<Ctx>,
+        /// The vote extension to verify.
         extension: Ctx::Extension,
+        /// Use this reply port to send the result of the verification.
         reply_to: RpcReplyPort<Result<(), VoteExtensionError>>,
     },
 
     /// Request to restream an existing block/value from Driver
     RestreamValue {
+        /// The height at which the value was proposed.
         height: Ctx::Height,
+        /// The round in which the value was proposed.
         round: Round,
+        /// The round in which the value was valid.
         valid_round: Round,
+        /// The address of the proposer of the value.
         address: Ctx::Address,
+        /// The ID of the value to restream.
         value_id: ValueId<Ctx>,
     },
 

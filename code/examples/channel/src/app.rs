@@ -195,6 +195,9 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 // When that happens, we store the decided value in our store
                 match state.commit(certificate, extensions).await {
                     Ok(_) => {
+                        // Sleep a bit to slow down the app.
+                        sleep(Duration::from_millis(500)).await;
+
                         // And then we instruct consensus to start the next height
                         if reply
                             .send(Next::Start(
@@ -207,13 +210,15 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         }
                     }
                     Err(_) => {
+                        let height = state.current_height;
+
                         // Commit failed, restart the height
-                        error!("Commit failed, restarting height {}", state.current_height);
+                        error!("Commit failed, restarting height {height}");
 
                         if reply
                             .send(Next::Restart(
-                                state.current_height,
-                                state.get_validator_set(state.current_height).clone(),
+                                height,
+                                state.get_validator_set(height).clone(),
                             ))
                             .is_err()
                         {
@@ -221,7 +226,6 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         }
                     }
                 }
-                sleep(Duration::from_millis(500)).await;
             }
 
             // It may happen that our node is lagging behind its peers. In that case,
