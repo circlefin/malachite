@@ -115,6 +115,7 @@ impl DistributedTestnetCmd {
                     self.ephemeral_connection_timeout_ms,
                 ),
             },
+            value_sync: Default::default(),
         };
 
         distributed_testnet(

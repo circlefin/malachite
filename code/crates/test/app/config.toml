@@ -156,6 +156,28 @@ status_update_interval = "10s"
 # Override with MALACHITE__VALUE_SYNC__REQUEST_TIMEOUT env variable
 request_timeout = "10s"
 
+# The maximum size of a ValueSync request.
+# Override with MALACHITE__VALUE_SYNC__MAX_REQUEST_SIZE env variable
+max_request_size = "1 MiB"
+
+# The maximum size of a ValueSync response.
+# Override with MALACHITE__VALUE_SYNC__MAX_RESPONSE_SIZE env variable
+max_response_size = "512 MiB"
+
+# The maximum number of requests to send in parallel when syncing values.
+# Override with MALACHITE__VALUE_SYNC__PARALLEL_REQUESTS env variable
+parallel_requests = 5
+
+# The scoring strategy to use for ValueSync.
+# Valid values:
+# - "ema": Exponential moving average (default)
+# Override with MALACHITE__VALUE_SYNC__SCORING_STRATEGY env variable
+scoring_strategy = "ema"
+
+# The threshold for considering a peer as inactive.
+# Override with MALACHITE__VALUE_SYNC__INACTIVE_THRESHOLD env variable
+inactive_threshold = "60s"
+
 #######################################################
 ###          Mempool Configuration Options          ###
 #######################################################
@@ -273,4 +295,3 @@ exec_time_per_tx = "1ms"
 max_retain_blocks = 1000
 # Override with MALACHITE__TEST__VOTE_EXTENSIONS__ENABLED and MALACHITE__TEST__VOTE_EXTENSIONS__SIZE env variables
 vote_extensions = { enabled = false, size = "0 KB" }
-

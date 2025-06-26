@@ -428,6 +428,23 @@ pub struct ValueSyncConfig {
     /// Timeout duration for sync requests
     #[serde(with = "humantime_serde")]
     pub request_timeout: Duration,
+
+    /// Maximum size of a request
+    pub max_request_size: ByteSize,
+
+    /// Maximum size of a response
+    pub max_response_size: ByteSize,
+
+    /// Maximum number of parallel requests to send
+    pub parallel_requests: usize,
+
+    /// Scoring strategy for peers
+    #[serde(default)]
+    pub scoring_strategy: ScoringStrategy,
+
+    /// Threshold for considering a peer inactive
+    #[serde(with = "humantime_serde")]
+    pub inactive_threshold: Duration,
 }
 
 impl Default for ValueSyncConfig {
@@ -436,6 +453,37 @@ impl Default for ValueSyncConfig {
             enabled: true,
             status_update_interval: Duration::from_secs(10),
             request_timeout: Duration::from_secs(10),
+            max_request_size: ByteSize::mib(1),
+            max_response_size: ByteSize::mib(512),
+            parallel_requests: 5,
+            scoring_strategy: ScoringStrategy::default(),
+            inactive_threshold: Duration::from_secs(60),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ScoringStrategy {
+    #[default]
+    Ema,
+}
+
+impl ScoringStrategy {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Ema => "ema",
+        }
+    }
+}
+
+impl FromStr for ScoringStrategy {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "ema" => Ok(Self::Ema),
+            e => Err(format!("unknown scoring strategy: {e}, available: ema")),
         }
     }
 }

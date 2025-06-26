@@ -145,9 +145,32 @@ async fn spawn_sync_actor(
         request_timeout: config.request_timeout,
     };
 
-    let actor_ref = Sync::spawn(ctx, network, host, params, sync_metrics, span.clone())
-        .await
-        .unwrap();
+    let scoring_strategy = match config.scoring_strategy {
+        config::ScoringStrategy::Ema => sync::scoring::Strategy::Ema,
+    };
+
+    let sync_config = sync::Config {
+        enabled: config.enabled,
+        max_request_size: config.max_request_size.as_u64() as usize,
+        max_response_size: config.max_response_size.as_u64() as usize,
+        request_timeout: config.request_timeout,
+        parallel_requests: config.parallel_requests as u64,
+        scoring_strategy,
+        inactive_threshold: (!config.inactive_threshold.is_zero())
+            .then_some(config.inactive_threshold),
+    };
+
+    let actor_ref = Sync::spawn(
+        ctx,
+        network,
+        host,
+        params,
+        sync_config,
+        sync_metrics,
+        span.clone(),
+    )
+    .await
+    .unwrap();
 
     Some(actor_ref)
 }

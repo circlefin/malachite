@@ -2,7 +2,14 @@
 
 ## Unreleased
 
-> Nothing yet
+### `malachitebft-config`
+- Added new sync parameters to config.
+  See ([#1092](https://github.com/informalsystems/malachite/issues/1092)) for more details.
+
+
+### `malachitebft-sync`
+- Added new parallel requests related parameters to sync config.
+  See ([#1092](https://github.com/informalsystems/malachite/issues/1092)) for more details.
 
 ## 0.3.0
 

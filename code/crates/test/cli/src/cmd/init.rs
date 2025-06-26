@@ -91,6 +91,7 @@ impl InitCmd {
                     self.ephemeral_connection_timeout_ms,
                 ),
             },
+            value_sync: Default::default(),
         };
 
         let config = N::make_config(0, 1, settings);

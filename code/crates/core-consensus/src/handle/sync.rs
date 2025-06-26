@@ -33,6 +33,14 @@ where
         return Err(Error::InvalidCommitCertificate(certificate, e));
     }
 
+    if state.driver.height() < certificate.height {
+        debug!("Received certificate for higher height, queuing for later");
+
+        state.buffer_input(certificate.height, Input::CommitCertificate(certificate));
+
+        return Ok(());
+    }
+
     apply_driver_input(
         co,
         state,

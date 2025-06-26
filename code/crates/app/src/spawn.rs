@@ -15,11 +15,11 @@ use malachitebft_engine::sync::{Params as SyncParams, Sync, SyncCodec, SyncRef};
 use malachitebft_engine::util::events::TxEvent;
 use malachitebft_engine::wal::{Wal, WalCodec, WalRef};
 use malachitebft_network::{Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, Keypair};
+use malachitebft_sync as sync;
 
 use crate::config::{ConsensusConfig, PubSubProtocol, ValueSyncConfig};
 use crate::metrics::{Metrics, SharedRegistry};
 use crate::types::core::{Context, SigningProvider};
-use crate::types::sync;
 use crate::types::ValuePayload;
 
 pub async fn spawn_node_actor<Ctx>(
@@ -156,9 +156,33 @@ where
         request_timeout: config.request_timeout,
     };
 
+    let scoring_strategy = match config.scoring_strategy {
+        malachitebft_config::ScoringStrategy::Ema => sync::scoring::Strategy::Ema,
+    };
+
+    let sync_config = sync::Config {
+        enabled: config.enabled,
+        max_request_size: config.max_request_size.as_u64() as usize,
+        max_response_size: config.max_response_size.as_u64() as usize,
+        request_timeout: config.request_timeout,
+        parallel_requests: config.parallel_requests as u64,
+        scoring_strategy,
+        inactive_threshold: (!config.inactive_threshold.is_zero())
+            .then_some(config.inactive_threshold),
+    };
+
     let metrics = sync::Metrics::register(registry);
 
-    let actor_ref = Sync::spawn(ctx, network, host, params, metrics, Span::current()).await?;
+    let actor_ref = Sync::spawn(
+        ctx,
+        network,
+        host,
+        params,
+        sync_config,
+        metrics,
+        Span::current(),
+    )
+    .await?;
 
     Ok(Some(actor_ref))
 }

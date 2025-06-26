@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use bytes::Bytes;
 use libp2p::metrics::Registry;
 use libp2p::request_response::{self as rpc, OutboundRequestId, ProtocolSupport};
@@ -9,6 +7,7 @@ use thiserror::Error;
 
 use crate::rpc::Codec;
 use crate::types::{RawRequest, RawResponse, ResponseChannel};
+use crate::Config;
 
 // use crate::Metrics;
 
@@ -19,40 +18,6 @@ pub struct Behaviour {
 }
 
 pub type Event = rpc::Event<RawRequest, RawResponse>;
-
-#[derive(Copy, Clone, Debug)]
-pub struct Config {
-    pub request_timeout: Duration,
-    pub max_request_size: usize,
-    pub max_response_size: usize,
-}
-
-impl Config {
-    pub fn with_request_timeout(mut self, request_timeout: Duration) -> Self {
-        self.request_timeout = request_timeout;
-        self
-    }
-
-    pub fn with_max_request_size(mut self, max_request_size: usize) -> Self {
-        self.max_request_size = max_request_size;
-        self
-    }
-
-    pub fn with_max_response_size(mut self, max_response_size: usize) -> Self {
-        self.max_response_size = max_response_size;
-        self
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            request_timeout: Duration::from_secs(30),
-            max_request_size: 1024 * 1024,        // 1 MiB
-            max_response_size: 512 * 1024 * 1024, // 512 MiB
-        }
-    }
-}
 
 impl Behaviour {
     pub const PROTOCOL: [(StreamProtocol, ProtocolSupport); 1] = [(

@@ -24,6 +24,14 @@ on:
         description: "Git branch to use"
         required: true
         default: "main"
+      publish:
+        description: "Upload results to S3 to be published on the Malachite website dashboard"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
 
 jobs:
   run-malachite-do:
@@ -31,25 +39,27 @@ jobs:
     env:
       TF_VAR_do_token: "${{ secrets.DO_TOKEN }}"
       TF_VAR_ssh_keys: '["${{ secrets.DO_SSH_FINGERPRINT }}"]'
-      EXPR_SETUP: "${{ github.event.inputs.setup || 'north-america' }}"
-      EXPR_DURATION_MINUTES: "${{ github.event.inputs.expr_duration || '15' }}"
+      EXPR_SETUP: "${{ github.event.inputs.setup }}"
+      EXPR_DURATION_MINUTES: "${{ github.event.inputs.expr_duration }}"
+      BRANCH: "${{ github.event.inputs.branch }}"
+      PUBLISH: "${{ github.event.inputs.publish }}"
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.branch }}
+          ref: ${{ env.BRANCH }}
 
       - name: Set up SSH agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.DO_SSH_KEY }}
 
-      - name: Install parallel-ssh and create symlink
+      - name: Install dependencies
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y pssh
+          sudo apt-get update -qq && sudo apt-get install -y pssh jq python3 python3-pip
           sudo ln -sf /usr/bin/parallel-ssh /usr/bin/pssh
-          pssh --version
+          pip install --quiet --no-cache-dir pandas
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v2
@@ -109,14 +119,70 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Copy files to S3
+      - name: Define filename suffix
+        id: vars
+        run: |
+          if [[ "$EXPR_SETUP" == "north-america" ]]; then
+            SETUP="na"
+          else
+            SETUP="global"
+          fi
+          DATE=$(date +%Y.%m.%d)
+          echo "setup=$SETUP" >> $GITHUB_OUTPUT
+          echo "date=$DATE" >> $GITHUB_OUTPUT
+          echo "suffix=-${SETUP}-${DATE}.csv" >> $GITHUB_OUTPUT
+        env:
+          EXPR_SETUP: ${{ env.EXPR_SETUP }}
+
+      - name: Upload raw CSVs to S3
         working-directory: qa/terraform
-        run: | 
-          TIMESTAMP=$(date +%F-%H-%M)
-          S3_PATH="$EXPR_SETUP-$TIMESTAMP"
-          aws s3 cp latency.csv s3://malachite-performance-site/$S3_PATH/
-          aws s3 cp throughput.csv s3://malachite-performance-site/$S3_PATH/
-          aws s3 cp block-time.csv s3://malachite-performance-site/$S3_PATH/
+        run: |
+          SUFFIX=${{ steps.vars.outputs.suffix }}
+          aws s3 cp latency.csv s3://malachite-performance-site/raw/$EXPR_SETUP/latency${SUFFIX}
+          aws s3 cp throughput.csv s3://malachite-performance-site/raw/$EXPR_SETUP/throughput${SUFFIX}
+          aws s3 cp block-time.csv s3://malachite-performance-site/raw/$EXPR_SETUP/block-time${SUFFIX}
+
+      - name: Format block-time and throughput CSVs
+        if: ${{ env.PUBLISH == 'true' }}
+        working-directory: qa/terraform
+        run: |
+          python3 scripts/format_csv_file.py block-time.csv --type block-time
+          python3 scripts/format_csv_file.py throughput.csv --type throughput
+
+      - name: Upload formatted CSVs to dashboard folder
+        if: ${{ env.PUBLISH == 'true' }}
+        working-directory: qa/terraform
+        run: |
+          SUFFIX=${{ steps.vars.outputs.suffix }}
+          aws s3 cp block-time.csv s3://malachite-performance-site/dashboard/block-time${SUFFIX}
+          aws s3 cp throughput.csv s3://malachite-performance-site/dashboard/throughput${SUFFIX}
+
+      - name: Generate file_list.json for dashboard
+        if: ${{ env.PUBLISH == 'true' }}
+        working-directory: qa/terraform
+        run: |
+          FILES=$(aws s3api list-objects-v2 \
+            --bucket malachite-performance-site \
+            --query 'Contents[].Key' \
+            --output json | jq -r '.[]' | grep -i '\.csv$' | grep -v 'file_list.json')
+
+          jq -n \
+            --arg base "https://malachite-performance-site.s3.us-east-1.amazonaws.com/dashboard" \
+            --argjson files "$(printf '%s\n' "$FILES" | jq -R . | jq -s .)" '
+            {
+              baseURL: $base,
+              "data-sources": {
+                "block-time": ($files | map(select(test("^dashboard/block-time-.*\\.csv$"))) | map(sub("^dashboard/"; "/"))),
+                "throughput": ($files | map(select(test("^dashboard/throughput-.*\\.csv$"))) | map(sub("^dashboard/"; "/")))
+              }
+            }
+          ' > file_list.json
+
+      - name: Upload file_list.json to S3
+        if: ${{ env.PUBLISH == 'true' }}
+        working-directory: qa/terraform
+        run: |
+          aws s3 cp file_list.json s3://malachite-performance-site/dashboard/file_list.json
 
       - name: Terraform Destroy (Cleanup Nodes)
         if: always()

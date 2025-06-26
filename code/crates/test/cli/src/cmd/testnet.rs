@@ -137,6 +137,7 @@ impl TestnetCmd {
                     self.ephemeral_connection_timeout_ms,
                 ),
             },
+            value_sync: Default::default(),
         };
 
         testnet(node, self.nodes, home_dir, self.deterministic, settings)

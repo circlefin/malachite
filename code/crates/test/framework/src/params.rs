@@ -6,6 +6,7 @@ use malachitebft_test_app::config::Config;
 #[derive(Copy, Clone, Debug)]
 pub struct TestParams {
     pub enable_value_sync: bool,
+    pub parallel_requests: usize,
     pub protocol: PubSubProtocol,
     pub block_size: ByteSize,
     pub tx_size: ByteSize,
@@ -20,6 +21,7 @@ impl Default for TestParams {
     fn default() -> Self {
         Self {
             enable_value_sync: false,
+            parallel_requests: 1,
             protocol: PubSubProtocol::default(),
             block_size: ByteSize::mib(1),
             tx_size: ByteSize::kib(1),
@@ -35,6 +37,7 @@ impl Default for TestParams {
 impl TestParams {
     pub fn apply_to_config(&self, config: &mut Config) {
         config.value_sync.enabled = self.enable_value_sync;
+        config.value_sync.parallel_requests = self.parallel_requests;
         config.consensus.p2p.protocol = self.protocol;
         config.consensus.value_payload = self.value_payload;
         config.test.max_block_size = self.block_size;
