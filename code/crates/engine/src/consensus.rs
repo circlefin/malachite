@@ -23,7 +23,7 @@ use malachitebft_core_types::{
 use malachitebft_metrics::Metrics;
 use malachitebft_sync::{self as sync, ValueResponse};
 
-use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
+use crate::host::{HostMsg, HostRef, LocallyProposedValue, Next, ProposedValue};
 use crate::network::{NetworkEvent, NetworkMsg, NetworkRef};
 use crate::sync::Msg as SyncMsg;
 use crate::sync::SyncRef;
@@ -105,6 +105,7 @@ pub enum Msg<Ctx: Context> {
     /// Instructs consensus to restart at a given height with the given validator set.
     ///
     /// On this input consensus resets the Write-Ahead Log.
+    ///
     /// # Warning
     /// This operation should be used with extreme caution as it can lead to safety violations:
     /// 1. The application must clean all state associated with the height for which commit has failed
@@ -425,7 +426,14 @@ where
                         if state.phase == Phase::Unstarted {
                             state.set_phase(Phase::Ready);
 
-                            self.host.cast(HostMsg::ConsensusReady(myself.clone()))?;
+                            self.host.call_and_forward(
+                                |reply_to| HostMsg::ConsensusReady { reply_to },
+                                &myself,
+                                |(height, validator_set)| {
+                                    ConsensusMsg::StartHeight(height, validator_set)
+                                },
+                                None,
+                            )?;
                         }
                     }
 
@@ -1187,11 +1195,19 @@ where
                 let height = certificate.height;
 
                 self.host
-                    .cast(HostMsg::Decided {
-                        certificate,
-                        extensions,
-                        consensus: myself.clone(),
-                    })
+                    .call_and_forward(
+                        |reply_to| HostMsg::Decided {
+                            certificate,
+                            extensions,
+                            reply_to,
+                        },
+                        myself,
+                        |next| match next {
+                            Next::Start(h, vs) => Msg::StartHeight(h, vs),
+                            Next::Restart(h, vs) => Msg::RestartHeight(h, vs),
+                        },
+                        None,
+                    )
                     .map_err(|e| eyre!("Error when sending decided value to host: {e:?}"))?;
 
                 if let Some(sync) = &self.sync {

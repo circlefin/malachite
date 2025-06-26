@@ -8,7 +8,6 @@ use malachitebft_core_consensus::{Role, VoteExtensionError};
 use malachitebft_core_types::{CommitCertificate, Context, Round, ValueId, VoteExtensions};
 use malachitebft_sync::{PeerId, RawDecidedValue};
 
-use crate::consensus::ConsensusRef;
 use crate::util::streaming::StreamMessage;
 
 pub use malachitebft_core_consensus::{LocallyProposedValue, ProposedValue};
@@ -16,11 +15,27 @@ pub use malachitebft_core_consensus::{LocallyProposedValue, ProposedValue};
 /// A reference to the host actor.
 pub type HostRef<Ctx> = ActorRef<HostMsg<Ctx>>;
 
+/// What to do next after a decision.
+#[derive_where(Debug)]
+pub enum Next<Ctx: Context> {
+    /// Start at the given height with the given validator set.
+    Start(Ctx::Height, Ctx::ValidatorSet),
+
+    Restart(
+        /// Restart at the given height with the given validator set.
+        Ctx::Height,
+        Ctx::ValidatorSet,
+    ),
+}
+
 /// Messages that need to be handled by the host actor.
 #[derive_where(Debug)]
 pub enum HostMsg<Ctx: Context> {
     /// Consensus is ready
-    ConsensusReady(ConsensusRef<Ctx>),
+    ConsensusReady {
+        /// Use this reply port to instruct consensus to start the first height.
+        reply_to: RpcReplyPort<(Ctx::Height, Ctx::ValidatorSet)>,
+    },
 
     /// Consensus has started a new round.
     StartedRound {
@@ -98,8 +113,8 @@ pub enum HostMsg<Ctx: Context> {
         /// Vote extensions that were received for this height.
         extensions: VoteExtensions<Ctx>,
 
-        /// Reference to the `Consensus` actor for starting a new height.
-        consensus: ConsensusRef<Ctx>,
+        /// Use this reply port to instruct consensus to start the next height.
+        reply_to: RpcReplyPort<Next<Ctx>>,
     },
 
     // Retrieve decided value from the block store

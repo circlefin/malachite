@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use eyre::eyre;
+use malachitebft_app_channel::app::engine::host::Next;
 use tokio::time::sleep;
 use tracing::{error, info};
 
@@ -8,7 +9,7 @@ use malachitebft_app_channel::app::streaming::StreamContent;
 use malachitebft_app_channel::app::types::core::{Height as _, Round, Validity};
 use malachitebft_app_channel::app::types::sync::RawDecidedValue;
 use malachitebft_app_channel::app::types::{LocallyProposedValue, ProposedValue};
-use malachitebft_app_channel::{AppMsg, Channels, ConsensusMsg, NetworkMsg};
+use malachitebft_app_channel::{AppMsg, Channels, NetworkMsg};
 use malachitebft_test::{Height, TestContext};
 
 use crate::state::{decode_value, encode_value, State};
@@ -196,7 +197,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     Ok(_) => {
                         // And then we instruct consensus to start the next height
                         if reply
-                            .send(ConsensusMsg::StartHeight(
+                            .send(Next::Start(
                                 state.current_height,
                                 state.get_validator_set(state.current_height).clone(),
                             ))
@@ -208,8 +209,9 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     Err(_) => {
                         // Commit failed, restart the height
                         error!("Commit failed, restarting height {}", state.current_height);
+
                         if reply
-                            .send(ConsensusMsg::RestartHeight(
+                            .send(Next::Restart(
                                 state.current_height,
                                 state.get_validator_set(state.current_height).clone(),
                             ))

@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use eyre::eyre;
+use malachitebft_app_channel::app::engine::host::Next;
 use tokio::time::sleep;
 use tracing::{debug, error, info};
 
@@ -10,7 +11,7 @@ use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::{Round, Validity};
 use malachitebft_app_channel::app::types::sync::RawDecidedValue;
 use malachitebft_app_channel::app::types::{LocallyProposedValue, ProposedValue};
-use malachitebft_app_channel::{AppMsg, Channels, ConsensusMsg, NetworkMsg};
+use malachitebft_app_channel::{AppMsg, Channels, NetworkMsg};
 use malachitebft_test::codec::json::JsonCodec;
 use malachitebft_test::{Genesis, Height, TestContext};
 
@@ -207,10 +208,7 @@ pub async fn run(
                             .expect("Validator set should be available");
 
                         if reply
-                            .send(ConsensusMsg::StartHeight(
-                                state.current_height,
-                                validator_set,
-                            ))
+                            .send(Next::Start(state.current_height, validator_set))
                             .is_err()
                         {
                             error!("Failed to send StartHeight reply");
@@ -233,10 +231,7 @@ pub async fn run(
                             .expect("Validator set should be available");
 
                         if reply
-                            .send(ConsensusMsg::RestartHeight(
-                                state.current_height,
-                                validator_set,
-                            ))
+                            .send(Next::Restart(state.current_height, validator_set))
                             .is_err()
                         {
                             error!("Failed to send RestartHeight reply");

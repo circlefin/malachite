@@ -4,6 +4,7 @@ use bytes::Bytes;
 use derive_where::derive_where;
 use malachitebft_app::consensus::Role;
 use malachitebft_app::types::core::ValueOrigin;
+use malachitebft_engine::host::Next;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
@@ -159,7 +160,7 @@ pub enum AppMsg<Ctx: Context> {
         extensions: VoteExtensions<Ctx>,
 
         /// Channel for instructing consensus to start the next height, if desired
-        reply: Reply<ConsensusMsg<Ctx>>,
+        reply: Reply<Next<Ctx>>,
     },
 
     /// Requests a previously decided value from the application's storage.

@@ -1,6 +1,9 @@
 //! Implementation of a host actor for bridiging consensus and the application via a set of channels.
 
+use std::marker::PhantomData;
+
 use derive_where::derive_where;
+use malachitebft_engine::host::Next;
 use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, SpawnErr};
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
@@ -52,7 +55,7 @@ where
 
 #[derive_where(Default)]
 pub struct State<Ctx: Context> {
-    consensus: Option<ActorRef<ConsensusMsg<Ctx>>>,
+    _marker: PhantomData<Ctx>,
 }
 
 impl<Ctx> Connector<Ctx>
@@ -66,14 +69,12 @@ where
         state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
         match msg {
-            HostMsg::ConsensusReady(consensus_ref) => {
+            HostMsg::ConsensusReady { reply_to } => {
                 let (reply, rx) = oneshot::channel();
                 self.sender.send(AppMsg::ConsensusReady { reply }).await?;
 
                 let (start_height, validator_set) = rx.await?;
-                consensus_ref.cast(ConsensusMsg::StartHeight(start_height, validator_set))?;
-
-                state.consensus = Some(consensus_ref);
+                reply_to.send((start_height, validator_set))?;
             }
 
             HostMsg::StartedRound {
@@ -94,28 +95,24 @@ where
                     })
                     .await?;
 
-                let Some(consensus) = &state.consensus else {
-                    error!("Consensus actor not set");
-                    return Ok(());
-                };
-
-                // Do not block processing of other messages while waiting for the values
-                tokio::spawn({
-                    let consensus = consensus.clone();
-                    async move {
-                        if let Ok(values) = rx_value.await {
-                            for value in values {
-                                let msg = ConsensusMsg::ReceivedProposedValue(
-                                    value,
-                                    ValueOrigin::Consensus,
-                                );
-                                if let Err(e) = consensus.cast(msg) {
-                                    error!("Failed to send back undecided value to consensus: {e}");
-                                }
-                            }
-                        }
-                    }
-                });
+                // FIXME: Implement
+                // // Do not block processing of other messages while waiting for the values
+                // tokio::spawn({
+                //     let consensus = consensus.clone();
+                //     async move {
+                //         if let Ok(values) = rx_value.await {
+                //             for value in values {
+                //                 let msg = ConsensusMsg::ReceivedProposedValue(
+                //                     value,
+                //                     ValueOrigin::Consensus,
+                //                 );
+                //                 if let Err(e) = consensus.cast(msg) {
+                //                     error!("Failed to send back undecided value to consensus: {e}");
+                //                 }
+                //             }
+                //         }
+                //     }
+                // });
             }
 
             HostMsg::GetValue {
@@ -237,7 +234,7 @@ where
             HostMsg::Decided {
                 certificate,
                 extensions,
-                consensus,
+                reply_to,
             } => {
                 let (reply, rx) = oneshot::channel();
 
@@ -249,7 +246,11 @@ where
                     })
                     .await?;
 
-                consensus.cast(rx.await?.into())?;
+                let next = rx.await?;
+
+                if let Err(e) = reply_to.send(next) {
+                    error!("Failed to send next height and validator set: {e}");
+                }
             }
 
             HostMsg::GetDecidedValue { height, reply_to } => {

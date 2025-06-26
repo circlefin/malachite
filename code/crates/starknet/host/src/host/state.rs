@@ -8,7 +8,6 @@ use rand::RngCore;
 use tracing::{debug, error, trace};
 
 use malachitebft_core_types::{Round, Validity};
-use malachitebft_engine::consensus::ConsensusRef;
 use malachitebft_engine::host::ProposedValue;
 use malachitebft_engine::util::streaming::StreamId;
 use malachitebft_starknet_p2p_proto as p2p_proto;
@@ -25,7 +24,6 @@ pub struct HostState {
     pub proposer: Option<Address>,
     pub role: Role,
     pub host: StarknetHost,
-    pub consensus: Option<ConsensusRef<MockContext>>,
     pub block_store: BlockStore,
     pub part_streams_map: PartStreamsMap,
     pub nonce: u64,
@@ -48,7 +46,6 @@ impl HostState {
             proposer: None,
             role: Role::None,
             host,
-            consensus: None,
             block_store: BlockStore::new(db_path).await.unwrap(),
             part_streams_map: PartStreamsMap::default(),
             nonce: rng.next_u64(),
