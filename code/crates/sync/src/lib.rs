@@ -14,8 +14,8 @@ pub mod scoring;
 
 mod macros;
 mod rpc;
-
 mod ser;
+
 pub mod config;
 pub use config::Config;
 
