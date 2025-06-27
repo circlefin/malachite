@@ -351,6 +351,11 @@ where
 
         match msg {
             Msg::StartHeight(height, validator_set) | Msg::RestartHeight(height, validator_set) => {
+                // Check that the validator set is not empty
+                if validator_set.count() == 0 {
+                    return Err(eyre!("Validator set for height {height} is empty").into());
+                }
+
                 self.tx_event
                     .send(|| Event::StartedHeight(height, is_restart));
 
@@ -439,7 +444,7 @@ where
 
                         let validator_set = state.consensus.validator_set();
                         let connected_peers = state.connected_peers.len();
-                        let total_peers = validator_set.count() - 1;
+                        let total_peers = validator_set.count().saturating_sub(1);
 
                         debug!(connected = %connected_peers, total = %total_peers, "Connected to another peer");
 
