@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.3.1
+
+*June 27, 2025*
+
+## 📖 Release notes
+See [`RELEASE_NOTES.md`](./RELEASE_NOTES.md#0.3.1) for the release notes.
+
+### ⚠️ Breaking changes
+No breaking changes.
+
+### 🚀 Features
+
+- *(code)* Derive Borsh encoding for core types ([#1098](https://github.com/informalsystems/malachite/pull/1098))
+
+### 🐛 Bug Fixes
+
+- *(code)* Emit error instead of panic when validator set is empty ([#1111](https://github.com/informalsystems/malachite/pull/1111))
+- *(code)* Drop the sync response instead of passing it up to the app when the commit certificate is invalid ([#1112](https://github.com/informalsystems/malachite/pull/1112))
+
 ## 0.3.0
 
 *June 17, 2025*
