@@ -12,6 +12,9 @@ readme = "../../../README.md"
 [package.metadata.docs.rs]
 all-features = true
 
+[features]
+borsh = ["dep:borsh"]
+
 [lints]
 workspace = true
 
@@ -27,6 +30,7 @@ malachitebft-wal.workspace = true
 
 async-trait = { workspace = true }
 async-recursion = { workspace = true }
+borsh = { workspace = true, optional = true }
 bytes = { workspace = true, features = ["serde"] }
 byteorder = { workspace = true }
 derive-where = { workspace = true }

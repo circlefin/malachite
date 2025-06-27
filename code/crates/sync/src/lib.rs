@@ -14,6 +14,7 @@ pub mod scoring;
 
 mod macros;
 mod rpc;
+mod ser;
 
 #[doc(hidden)]
 pub mod handle;

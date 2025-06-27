@@ -7,6 +7,10 @@ use malachitebft_peer::PeerId;
 /// This type is isomorphic to `Option<Value>` but is more explicit about its intent.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "borsh",
+    derive(borsh::BorshSerialize, borsh::BorshDeserialize)
+)]
 pub enum NilOrVal<Value> {
     /// The value is `nil`.
     #[default]

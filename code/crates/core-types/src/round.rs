@@ -7,6 +7,10 @@ use core::{cmp, fmt};
 /// - `Round::Some(r)` where `r >= 0`
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "borsh",
+    derive(::borsh::BorshSerialize, ::borsh::BorshDeserialize)
+)]
 pub enum Round {
     /// No round, ie. `-1`
     Nil,

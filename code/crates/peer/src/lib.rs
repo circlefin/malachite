@@ -31,6 +31,8 @@ use thiserror::Error;
 #[cfg(feature = "rand")]
 use rand::Rng;
 
+mod ser;
+
 /// Local type-alias for multihash.
 ///
 /// Must be big enough to accommodate for `MAX_INLINE_KEY_LENGTH`.

@@ -507,6 +507,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "borsh"
+version = "1.5.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad8646f98db542e39fc66e68a20b2144f6a732636df7c2354e74645faaa433ce"
+dependencies = [
+ "borsh-derive",
+ "cfg_aliases",
+]
+
+[[package]]
+name = "borsh-derive"
+version = "1.5.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fdd1d3c0c2f5833f22386f252fe8ed005c7f59fdcddeef025c01b4c3b9fd9ac3"
+dependencies = [
+ "once_cell",
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "bs58"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2185,6 +2208,7 @@ name = "informalsystems-malachitebft-core-consensus"
 version = "0.3.1"
 dependencies = [
  "async-recursion",
+ "borsh",
  "derive-where",
  "genawaiter",
  "informalsystems-malachitebft-core-driver",
@@ -2223,6 +2247,7 @@ dependencies = [
 name = "informalsystems-malachitebft-core-types"
 version = "0.3.1"
 dependencies = [
+ "borsh",
  "bytes",
  "derive-where",
  "informalsystems-malachitebft-peer",
@@ -2276,6 +2301,7 @@ version = "0.3.1"
 dependencies = [
  "async-recursion",
  "async-trait",
+ "borsh",
  "byteorder",
  "bytes",
  "derive-where",
@@ -2354,6 +2380,7 @@ dependencies = [
 name = "informalsystems-malachitebft-peer"
 version = "0.3.1"
 dependencies = [
+ "borsh",
  "bs58",
  "multihash",
  "rand 0.8.5",
@@ -2508,6 +2535,7 @@ version = "0.3.1"
 dependencies = [
  "arbtest",
  "async-trait",
+ "borsh",
  "bytes",
  "dashmap",
  "derive-where",
@@ -4007,6 +4035,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "353e1ca18966c16d9deb1c69278edbc5f194139612772bd9537af60ac231e1e6"
 dependencies = [
  "elliptic-curve",
+]
+
+[[package]]
+name = "proc-macro-crate"
+version = "3.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "edce586971a4dfaa28950c6f18ed55e0406c1ab88bbce2c6f6293a7aaba73d35"
+dependencies = [
+ "toml_edit",
 ]
 
 [[package]]
