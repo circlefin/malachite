@@ -500,6 +500,8 @@ where
                                         )
                                     })?;
                             }
+
+                            return Ok(());
                         }
 
                         self.host.call_and_forward(
