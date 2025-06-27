@@ -8,18 +8,13 @@ on:
         required: true
         default: "north-america"
         type: choice
-        options:
-          - global
-          - north-america
+        options: [global, north-america]
       expr_duration:
         description: "Experiment duration (in minutes)"
         required: true
         default: "15"
         type: choice
-        options:
-          - "5"
-          - "10"
-          - "15"
+        options: ["5", "10", "15"]
       branch:
         description: "Git branch to use"
         required: true
@@ -29,20 +24,17 @@ on:
         required: false
         default: "false"
         type: choice
-        options:
-          - "true"
-          - "false"
+        options: ["true", "false"]
       runs:
         description: "Number of times to repeat the experiment"
         required: false
         default: "1"
         type: choice
-        options:
-          - "1"
-          - "2"
-          - "3"
-          - "4"
-          - "5"
+        options: ["1", "2", "3", "4", "5"]
+  
+  push:
+    branches:
+      - nenad/run-qa-multiple-times
 
 jobs:
   run-malachite-do:
@@ -50,11 +42,11 @@ jobs:
     env:
       TF_VAR_do_token: "${{ secrets.DO_TOKEN }}"
       TF_VAR_ssh_keys: '["${{ secrets.DO_SSH_FINGERPRINT }}"]'
-      EXPR_SETUP: "${{ github.event.inputs.setup }}"
-      EXPR_DURATION_MINUTES: "${{ github.event.inputs.expr_duration }}"
-      BRANCH: "${{ github.event.inputs.branch }}"
-      PUBLISH: "${{ github.event.inputs.publish }}"
-      RUNS: "${{ github.event.inputs.runs }}"
+      EXPR_SETUP: "${{ github.event.inputs.setup || 'north-america' }}"
+      EXPR_DURATION_MINUTES: "${{ github.event.inputs.expr_duration || '15' }}"
+      BRANCH: "${{ github.event.inputs.branch || 'nenad/run-qa-multiple-times' }}"
+      PUBLISH: "${{ github.event.inputs.publish || 'true' }}"
+      RUNS: "${{ github.event.inputs.runs || '2' }}"
 
     steps:
       - name: Checkout code
