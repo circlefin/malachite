@@ -33,7 +33,7 @@ on:
           - "true"
           - "false"
       runs:
-        description: "Number of times to run the experiment"
+        description: "Number of times to repeat the experiment"
         required: false
         default: "1"
         type: choice
@@ -152,32 +152,37 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Upload all run CSVs to S3
+      - name: Upload raw CSVs from all runs to S3
         working-directory: qa/terraform
         run: |
           SETUP=${{ steps.vars.outputs.setup }}
           EXPERIMENT_ID=${{ steps.vars.outputs.experiment_id }}
 
           for i in $(seq 1 $RUNS); do
-            aws s3 cp latency_run${i}.csv s3://malachite-performance-site/raw/$SETUP/$EXPERIMENT_ID/latency_run_${i}.csv
-            aws s3 cp throughput_run${i}.csv s3://malachite-performance-site/raw/$SETUP/$EXPERIMENT_ID/throughput_run_${i}.csv
-            aws s3 cp block-time_run${i}.csv s3://malachite-performance-site/raw/$SETUP/$EXPERIMENT_ID/block-time_run_${i}.csv
+            aws s3 cp latency_run_${i}.csv s3://malachite-performance-site/raw/$SETUP/$EXPERIMENT_ID/latency_run_${i}.csv
+            aws s3 cp throughput_run_${i}.csv s3://malachite-performance-site/raw/$SETUP/$EXPERIMENT_ID/throughput_run_${i}.csv
+            aws s3 cp block-time_run_${i}.csv s3://malachite-performance-site/raw/$SETUP/$EXPERIMENT_ID/block-time_run_${i}.csv
           done
 
-      - name: Format block-time and throughput CSVs
+      - name: Format and average CSVs across runs
         if: ${{ env.PUBLISH == 'true' }}
         working-directory: qa/terraform
         run: |
-          python3 scripts/format_csv_file.py block-time-avg.csv --type block-time
-          python3 scripts/format_csv_file.py throughput-avg.csv --type throughput
+          for i in $(seq 1 $RUNS); do
+            python3 scripts/format_csv_file.py block-time_run_${i}.csv --type block-time
+            python3 scripts/format_csv_file.py throughput_run_${i}.csv --type throughput
+          done
+
+          python3 scripts/average_run.py block-time_run_*.csv --output block-time.csv
+          python3 scripts/average_run.py throughput_run_*.csv --output throughput.csv
 
       - name: Upload formatted CSVs to dashboard folder
         if: ${{ env.PUBLISH == 'true' }}
         working-directory: qa/terraform
         run: |
           SUFFIX="-${{ steps.vars.outputs.setup }}-${{ steps.vars.outputs.experiment_id }}.csv"
-          aws s3 cp block-time-avg.csv s3://malachite-performance-site/dashboard/block-time${SUFFIX}
-          aws s3 cp throughput-avg.csv s3://malachite-performance-site/dashboard/throughput${SUFFIX}
+          aws s3 cp block-time.csv s3://malachite-performance-site/dashboard/block-time${SUFFIX}
+          aws s3 cp throughput.csv s3://malachite-performance-site/dashboard/throughput${SUFFIX}
 
       - name: Generate file_list.json for dashboard
         if: ${{ env.PUBLISH == 'true' }}
