@@ -4,6 +4,13 @@
 
 > Nothing yet
 
+## 0.3.1
+
+*June 27th, 2025*
+
+No breaking changes.
+
+
 ## 0.3.0
 
 *June 17th, 2025*
