@@ -135,6 +135,9 @@ jobs:
             mv block-time.csv block-time_run_${i}.csv
 
             terraform destroy -auto-approve
+            
+            echo "Waiting to make sure Terraform finalized resource deletion..."
+            sleep 30
           done
 
       - name: Configure AWS credentials
