@@ -20,13 +20,9 @@ on:
           - "5"
           - "10"
           - "15"
-      branch:
-        description: "Git branch to use"
-        required: true
-        default: "main"
       publish:
         description: "Upload results to S3 to be published on the Malachite website dashboard"
-        required: false
+        required: true
         default: "false"
         type: choice
         options:
@@ -41,14 +37,13 @@ jobs:
       TF_VAR_ssh_keys: '["${{ secrets.DO_SSH_FINGERPRINT }}"]'
       EXPR_SETUP: "${{ github.event.inputs.setup }}"
       EXPR_DURATION_MINUTES: "${{ github.event.inputs.expr_duration }}"
-      BRANCH: "${{ github.event.inputs.branch }}"
       PUBLISH: "${{ github.event.inputs.publish }}"
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ env.BRANCH }}
+          ref: ${{ github.ref }}
 
       - name: Set up SSH agent
         uses: webfactory/ssh-agent@v0.9.0
