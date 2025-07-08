@@ -1,11 +1,25 @@
 # Changelog
 
-## 0.3.1
+## 0.4.0
 
-*June 27, 2025*
+*July 8, 2025*
 
 ## 📖 Release notes
-See [`RELEASE_NOTES.md`](./RELEASE_NOTES.md#0.3.1) for the release notes.
+See [`RELEASE_NOTES.md`](./RELEASE_NOTES.md#040) for the release notes.
+
+### ⚠️ Breaking changes
+See [`BREAKING_CHANGES.md`](./BREAKING_CHANGES.md#040) for the list of breaking changes.
+
+### 🚀 Features
+
+- *(code/sync)* Parallel requests ([#1095](https://github.com/informalsystems/malachite/pull/1095))
+
+## 0.3.1
+
+*July 7, 2025*
+
+## 📖 Release notes
+See [`RELEASE_NOTES.md`](./RELEASE_NOTES.md#031) for the release notes.
 
 ### ⚠️ Breaking changes
 No breaking changes.
@@ -24,10 +38,10 @@ No breaking changes.
 *June 17, 2025*
 
 ## 📖 Release notes
-See [`RELEASE_NOTES.md`](./RELEASE_NOTES.md#0.3.0) for the release notes.
+See [`RELEASE_NOTES.md`](./RELEASE_NOTES.md#030) for the release notes.
 
 ### ⚠️ Breaking changes
-See [`BREAKING_CHANGES.md`](./BREAKING_CHANGES.md#0.3.0) for the list of breaking changes.
+See [`BREAKING_CHANGES.md`](./BREAKING_CHANGES.md#030) for the list of breaking changes.
 
 ### 🧪 Specifications
 
@@ -60,10 +74,10 @@ See [`BREAKING_CHANGES.md`](./BREAKING_CHANGES.md#0.3.0) for the list of breakin
 *April 16, 2025*
 
 ## 📖 Release notes
-See [`RELEASE_NOTES.md`](./RELEASE_NOTES.md#0.2.0) for the release notes.
+See [`RELEASE_NOTES.md`](./RELEASE_NOTES.md#020) for the release notes.
 
 ### ⚠️ Breaking changes
-See [`BREAKING_CHANGES.md`](./BREAKING_CHANGES.md#0.2.0) for the list of breaking changes.
+See [`BREAKING_CHANGES.md`](./BREAKING_CHANGES.md#020) for the list of breaking changes.
 
 ### 🚀 Features
 
@@ -80,10 +94,10 @@ See [`BREAKING_CHANGES.md`](./BREAKING_CHANGES.md#0.2.0) for the list of breakin
 *April 9, 2025*
 
 ## 📖 Release notes
-See [`RELEASE_NOTES.md`](./RELEASE_NOTES.md#0.1.0) for the release notes.
+See [`RELEASE_NOTES.md`](./RELEASE_NOTES.md#010) for the release notes.
 
 ### ⚠️ Breaking changes
-See [`BREAKING_CHANGES.md`](./BREAKING_CHANGES.md#0.1.0) for the list of breaking changes.
+See [`BREAKING_CHANGES.md`](./BREAKING_CHANGES.md#010) for the list of breaking changes.
 
 ### 🧪 Specifications
 

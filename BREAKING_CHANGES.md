@@ -2,18 +2,24 @@
 
 ## Unreleased
 
+> Nothing yet.
+
+## 0.4.0
+
+*July 8th, 2025*
+
 ### `malachitebft-config`
 - Added new sync parameters to config.
   See ([#1092](https://github.com/informalsystems/malachite/issues/1092)) for more details.
-
 
 ### `malachitebft-sync`
 - Added new parallel requests related parameters to sync config.
   See ([#1092](https://github.com/informalsystems/malachite/issues/1092)) for more details.
 
+
 ## 0.3.1
 
-*June 27th, 2025*
+*July 7th, 2025*
 
 No breaking changes.
 
