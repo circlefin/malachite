@@ -257,3 +257,71 @@ fn max_entry_size() -> io::Result<()> {
 
     Ok(())
 }
+
+/// This test targets the most critical bug: silent data loss during recovery.
+///
+/// It creates a scenario where a valid entry's length field is corrupted
+/// with a value that is invalid, but small enough to fool the original,
+/// flawed recovery logic.
+///
+/// The old logic would incorrectly validate this entry and fail to truncate
+/// the log, leading to a corrupt state. The corrected logic must identify
+/// that the full entry cannot fit and truncate the file correctly.
+#[test]
+fn recovery_fails_to_truncate_with_carefully_corrupted_length() -> io::Result<()> {
+    let path = testwal!();
+
+    let second_entry_start_pos;
+    let total_size;
+
+    // Write two valid entries
+    {
+        let mut wal = Log::open(&path)?;
+        wal.append(b"entry1")?;
+        // Position after entry 1 is the start of entry 2
+        second_entry_start_pos = wal.size_bytes()?;
+        wal.append(b"entry2")?;
+        wal.flush()?;
+        total_size = wal.size_bytes()?;
+    }
+
+    // The total remaining space for the second entry is (total_size - second_entry_start_pos).
+    // Let's say this is 19 bytes.
+    // We will corrupt the length to a value that is *less than* this, to fool the old check.
+    // The actual data + crc for entry2 is 6+4=10 bytes. The header is 13 bytes.
+    // Let's corrupt the data_length to 15. The old code would calculate an
+    // entry_length of 15+4=19. The check `19 < 19` would be false, and it would
+    // incorrectly validate the entry.
+    let malicious_data_length = 15u64;
+
+    // Manually corrupt the length field of the *second* entry.
+    {
+        let mut file = OpenOptions::new().write(true).open(&path)?;
+        // Seek to the start of the second entry, then skip the compression flag (1 byte)
+        file.seek(SeekFrom::Start(second_entry_start_pos + 1))?;
+        // Overwrite the 8-byte length with our malicious value.
+        write_u64(&mut file, malicious_data_length)?;
+    }
+
+    // Reopen the WAL. The recovery logic should run.
+    {
+        // With the BUG, Log::open succeeds but wal.len() would be 2.
+        // With the FIX, Log::open succeeds and wal.len() is correctly 1.
+        let mut wal = Log::open(&path)?;
+        assert_eq!(
+            wal.len(),
+            1,
+            "WAL should have recovered only one valid entry"
+        );
+
+        let entries = wal.iter()?.collect::<Result<Vec<_>, _>>()?;
+        assert_eq!(
+            entries.len(),
+            1,
+            "Iterator should yield only the first valid entry"
+        );
+        assert_eq!(entries[0], b"entry1");
+    }
+
+    Ok(())
+}
