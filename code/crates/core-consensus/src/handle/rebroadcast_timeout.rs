@@ -18,10 +18,7 @@ where
             state.driver.step()
         );
 
-        perform!(
-            co,
-            Effect::RebroadcastVote(vote.clone(), Default::default())
-        );
+        perform!(co, Effect::RepublishVote(vote.clone(), Default::default()));
     };
 
     if let Some(vote) = state.last_signed_precommit.as_ref() {
@@ -30,10 +27,7 @@ where
             "Rebroadcasting vote at {:?} step",
             state.driver.step()
         );
-        perform!(
-            co,
-            Effect::RebroadcastVote(vote.clone(), Default::default())
-        );
+        perform!(co, Effect::RepublishVote(vote.clone(), Default::default()));
     };
 
     if let Some(cert) = state.round_certificate() {

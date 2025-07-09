@@ -1101,7 +1101,7 @@ where
             Effect::PublishLivenessMsg(msg, r) => {
                 match msg {
                     LivenessMsg::Vote(ref msg) => {
-                        self.tx_event.send(|| Event::RebroadcastVote(msg.clone()));
+                        self.tx_event.send(|| Event::RepublishVote(msg.clone()));
                     }
                     LivenessMsg::PolkaCertificate(ref certificate) => {
                         self.tx_event
@@ -1120,9 +1120,9 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::RebroadcastVote(msg, r) => {
+            Effect::RepublishVote(msg, r) => {
                 // Notify any subscribers that we are about to rebroadcast a vote
-                self.tx_event.send(|| Event::RebroadcastVote(msg.clone()));
+                self.tx_event.send(|| Event::RepublishVote(msg.clone()));
 
                 self.network
                     .cast(NetworkMsg::PublishLivenessMsg(LivenessMsg::Vote(msg)))

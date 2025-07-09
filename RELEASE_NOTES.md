@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-> Nothing yet
+- Rename `Effect::RebroadcastVote` to `Effect::RepublishVote` ([#1011](https://github.com/informalsystems/malachite/issues/1011))
 
 ## 0.4.0
 

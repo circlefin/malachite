@@ -92,7 +92,7 @@ where
     /// Rebroadcast a vote to peers
     ///
     /// Resume with: [`resume::Continue`]
-    RebroadcastVote(SignedVote<Ctx>, resume::Continue),
+    RepublishVote(SignedVote<Ctx>, resume::Continue),
 
     /// Rebroadcast a round certificate to peers
     ///
