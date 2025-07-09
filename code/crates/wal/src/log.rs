@@ -255,25 +255,39 @@ where
             let mut len = 0;
 
             // Scan through entries to validate and count them
-            while size.saturating_sub(pos) > ENTRY_HEADER_SIZE - ENTRY_CRC_SIZE {
+
+            // Check if there's enough space for the fixed part of the header.
+            while size.saturating_sub(pos) >= ENTRY_COMPRESSION_FLAG_SIZE + ENTRY_LENGTH_SIZE {
                 // Skip over compression flag
                 read_u8(&mut storage)?;
 
                 // Read entry length
                 let data_length = read_u64(&mut storage)?;
 
-                // Calculate total entry size including CRC
-                let Some(entry_length) = data_length.checked_add(ENTRY_CRC_SIZE) else {
-                    break; // Integer overflow, file is corrupt
+                // Calculate the full size required for this entry (header + data).
+                let Some(full_entry_size) = data_length.checked_add(ENTRY_HEADER_SIZE) else {
+                    break; // Corrupt, entry length overflows u64
                 };
 
                 // Check if enough bytes remain for full entry
-                if size.saturating_sub(pos) < entry_length {
+                if size.saturating_sub(pos) < full_entry_size {
                     break; // Partial/corrupt entry
                 }
 
+                // Calculate just the payload size for seeking past it.
+                let Some(payload_size) = data_length.checked_add(ENTRY_CRC_SIZE) else {
+                    break; // Integer overflow, file is corrupt
+                };
+
                 // Skip to next entry
-                pos = storage.seek(SeekFrom::Current(entry_length.try_into().unwrap()))?;
+                let seek_offset = i64::try_from(payload_size).map_err(|_| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "Entry length too large for seeking",
+                    )
+                })?;
+
+                pos = storage.seek(SeekFrom::Current(seek_offset))?;
                 len += 1;
             }
 

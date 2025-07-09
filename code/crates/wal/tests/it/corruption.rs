@@ -258,9 +258,7 @@ fn max_entry_size() -> io::Result<()> {
     Ok(())
 }
 
-/// This test targets the most critical bug: silent data loss during recovery.
-///
-/// It creates a scenario where a valid entry's length field is corrupted
+/// This test creates a scenario where a valid entry's length field is corrupted
 /// with a value that is invalid, but small enough to fool the original,
 /// flawed recovery logic.
 ///
@@ -272,17 +270,17 @@ fn recovery_fails_to_truncate_with_carefully_corrupted_length() -> io::Result<()
     let path = testwal!();
 
     let second_entry_start_pos;
-    let total_size;
 
     // Write two valid entries
     {
         let mut wal = Log::open(&path)?;
         wal.append(b"entry1")?;
+
         // Position after entry 1 is the start of entry 2
         second_entry_start_pos = wal.size_bytes()?;
+
         wal.append(b"entry2")?;
         wal.flush()?;
-        total_size = wal.size_bytes()?;
     }
 
     // The total remaining space for the second entry is (total_size - second_entry_start_pos).
