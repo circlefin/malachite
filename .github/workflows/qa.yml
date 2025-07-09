@@ -43,9 +43,9 @@ jobs:
       TF_VAR_do_token: "${{ secrets.DO_TOKEN }}"
       TF_VAR_ssh_keys: '["${{ secrets.DO_SSH_FINGERPRINT }}"]'
       EXPR_SETUP: "${{ github.event.inputs.setup || 'north-america' }}"
-      EXPR_DURATION_MINUTES: "${{ github.event.inputs.expr_duration || '15' }}"
+      EXPR_DURATION_MINUTES: "${{ github.event.inputs.expr_duration || '3' }}"
       BRANCH: "${{ github.event.inputs.branch || 'nenad/run-qa-multiple-times' }}"
-      PUBLISH: "${{ github.event.inputs.publish || 'true' }}"
+      PUBLISH: "${{ github.event.inputs.publish || 'false' }}"
       RUNS: "${{ github.event.inputs.runs || '2' }}"
 
     steps:
@@ -110,9 +110,10 @@ jobs:
       - name: Run experiment multiple times
         working-directory: qa/terraform
         run: |
+          terraform init
           for i in $(seq 1 $RUNS); do
             echo ">>> Starting run $i"
-            terraform init
+           
             terraform apply -auto-approve
 
             shopt -s expand_aliases
