@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### `malachitebft-app-channel`
+
+- Changed type of field `reply` of enum variant `AppMsg::Decided` to `Reply<malachitebft_engine::host::Next<Ctx>>` ([#1109](https://github.com/informalsystems/malachite/pull/1109))
+
+### `malachitebft-engine`
+
+- Changed tuple field of enum variant `HostMsg::ConsensusReady` to a field named `reply_to` of type `RpcReplyPort<(Ctx::Height, Ctx::ValidatorSet)>` ([#1109](https://github.com/informalsystems/malachite/pull/1109))
+- Added field `reply_to` to enum variant `HostMsg::StartedRound` with type `RpcReplyPort<Vec<ProposedValue<Ctx>>>` ([#1109](https://github.com/informalsystems/malachite/pull/1109))
+- Changed type of field `reply_to` of enum variant `HostMsg::Decided` to `RpcReplyPort<malachitebft_engine::host::Next<Ctx>>` ([#1109](https://github.com/informalsystems/malachite/pull/1109))
+
 ### `malachitebft-core-consensus`
 
 - Rename `Effect::RebroadcastVote` to `Effect::RepublishVote` ([#1011](https://github.com/informalsystems/malachite/issues/1011))
