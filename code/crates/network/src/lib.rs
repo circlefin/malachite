@@ -377,7 +377,7 @@ async fn handle_swarm_event(
     if let SwarmEvent::Behaviour(NetworkEvent::GossipSub(e)) = &event {
         metrics.record(e);
     } else if let SwarmEvent::Behaviour(NetworkEvent::Identify(e)) = &event {
-        metrics.record(e);
+        metrics.record(e.as_ref());
     }
 
     match event {
@@ -443,49 +443,52 @@ async fn handle_swarm_event(
             }
         }
 
-        SwarmEvent::Behaviour(NetworkEvent::Identify(identify::Event::Sent {
-            peer_id, ..
-        })) => {
-            trace!("Sent identity to {peer_id}");
-        }
-
-        SwarmEvent::Behaviour(NetworkEvent::Identify(identify::Event::Received {
-            connection_id,
-            peer_id,
-            info,
-        })) => {
-            trace!(
-                "Received identity from {peer_id}: protocol={:?}",
-                info.protocol_version
-            );
-
-            if info.protocol_version == PROTOCOL {
-                trace!(
-                    "Peer {peer_id} is using compatible protocol version: {:?}",
-                    info.protocol_version
-                );
-
-                let is_already_connected =
-                    state
-                        .discovery
-                        .handle_new_peer(swarm, connection_id, peer_id, info);
-
-                if !is_already_connected {
-                    if let Err(e) = tx_event
-                        .send(Event::PeerConnected(PeerId::from_libp2p(&peer_id)))
-                        .await
-                    {
-                        error!("Error sending peer connected event to handle: {e}");
-                        return ControlFlow::Break(());
-                    }
-                }
-            } else {
-                trace!(
-                    "Peer {peer_id} is using incompatible protocol version: {:?}",
-                    info.protocol_version
-                );
+        SwarmEvent::Behaviour(NetworkEvent::Identify(event)) => match *event {
+            identify::Event::Sent { peer_id, .. } => {
+                trace!("Sent identity to {peer_id}");
             }
-        }
+
+            identify::Event::Received {
+                connection_id,
+                peer_id,
+                info,
+            } => {
+                trace!(
+                    "Received identity from {peer_id}: protocol={:?}",
+                    info.protocol_version
+                );
+
+                if info.protocol_version == PROTOCOL {
+                    trace!(
+                        "Peer {peer_id} is using compatible protocol version: {:?}",
+                        info.protocol_version
+                    );
+
+                    let is_already_connected =
+                        state
+                            .discovery
+                            .handle_new_peer(swarm, connection_id, peer_id, info);
+
+                    if !is_already_connected {
+                        if let Err(e) = tx_event
+                            .send(Event::PeerConnected(PeerId::from_libp2p(&peer_id)))
+                            .await
+                        {
+                            error!("Error sending peer connected event to handle: {e}");
+                            return ControlFlow::Break(());
+                        }
+                    }
+                } else {
+                    trace!(
+                        "Peer {peer_id} is using incompatible protocol version: {:?}",
+                        info.protocol_version
+                    );
+                }
+            }
+
+            // Ignore other identify events
+            _ => (),
+        },
 
         SwarmEvent::Behaviour(NetworkEvent::Ping(event)) => {
             match &event.result {
@@ -514,7 +517,7 @@ async fn handle_swarm_event(
         }
 
         SwarmEvent::Behaviour(NetworkEvent::Discovery(network_event)) => {
-            state.discovery.on_network_event(swarm, network_event);
+            state.discovery.on_network_event(swarm, *network_event);
         }
 
         swarm_event => {
