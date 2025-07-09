@@ -18,7 +18,7 @@ use crate::{Storage, Version};
 /// ```text
 /// +-----------------|-----------------+----------------+-----------------+
 /// |  Is compressed  |     Length      |      CRC       |      Data       |
-/// |     (1 byte)    |    (4 bytes)    |   (4 bytes)    | ($length bytes) |
+/// |     (1 byte)    |  (8 bytes, BE)  |   (4 bytes)    | ($length bytes) |
 /// +-----------------|-----------------+----------------+-----------------+
 /// ```
 pub struct LogEntry<'a, S> {
