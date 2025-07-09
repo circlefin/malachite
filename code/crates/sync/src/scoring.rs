@@ -504,11 +504,7 @@ mod tests {
 
                 assert!(
                     good_selections > bad_selections,
-                    "Good peer (score: {}) selected {} times, bad peer (score: {}) selected {} times",
-                    good_score,
-                    good_selections,
-                    bad_score,
-                    bad_selections
+                    "Good peer (score: {good_score}) selected {good_selections} times, bad peer (score: {bad_score}) selected {bad_selections} times"
                 );
             }
 
@@ -634,11 +630,7 @@ mod tests {
 
             assert!(
                 fast_score >= slow_score,
-                "Fast response ({} ms) should score >= slow response ({} ms): {} vs {}",
-                fast_time,
-                slow_time,
-                fast_score,
-                slow_score
+                "Fast response ({fast_time} ms) should score >= slow response ({slow_time} ms): {fast_score} vs {slow_score}"
             );
 
             Ok(())
@@ -696,9 +688,7 @@ mod tests {
             // Score after success should be higher than after timeout
             assert!(
                 score_after_timeout < initial_score,
-                "Score after timeout ({}) should be lower than initial score ({})",
-                score_after_timeout,
-                initial_score
+                "Score after timeout ({score_after_timeout}) should be lower than initial score ({initial_score})"
             );
 
             // Apply a success
@@ -708,9 +698,7 @@ mod tests {
             // Score after success should be higher than initial score
             assert!(
                 score_after_success > initial_score,
-                "Score after success ({}) should be greater than initial score ({})",
-                score_after_success,
-                initial_score
+                "Score after success ({score_after_success}) should be greater than initial score ({initial_score})"
             );
 
             Ok(())
