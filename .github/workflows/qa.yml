@@ -45,7 +45,7 @@ jobs:
       EXPR_SETUP: "${{ github.event.inputs.setup || 'north-america' }}"
       EXPR_DURATION_MINUTES: "${{ github.event.inputs.expr_duration || '3' }}"
       BRANCH: "${{ github.event.inputs.branch || 'nenad/run-qa-multiple-times' }}"
-      PUBLISH: "${{ github.event.inputs.publish || 'false' }}"
+      PUBLISH: "${{ github.event.inputs.publish || 'true' }}"
       RUNS: "${{ github.event.inputs.runs || '2' }}"
 
     steps:
