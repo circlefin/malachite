@@ -596,5 +596,5 @@ where
 fn compute_crc(data: &[u8]) -> u32 {
     let mut hasher = crc32fast::Hasher::new();
     hasher.update(data);
-    u32::from_be_bytes(hasher.finalize().to_be_bytes())
+    hasher.finalize()
 }
