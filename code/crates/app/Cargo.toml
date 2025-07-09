@@ -12,6 +12,9 @@ readme = "../../../README.md"
 [package.metadata.docs.rs]
 all-features = true
 
+[features]
+borsh = ["malachitebft-core-consensus/borsh"]
+
 [dependencies]
 malachitebft-codec.workspace = true
 malachitebft-config.workspace = true

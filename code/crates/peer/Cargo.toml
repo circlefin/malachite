@@ -13,11 +13,13 @@ readme = "../../../README.md"
 all-features = true
 
 [features]
+borsh = ["dep:borsh"]
 rand = ["dep:rand"]
 serde = ["dep:serde"]
 
 [dependencies]
 multihash = { workspace = true, default-features = false, features = ["alloc"] }
+borsh = { workspace = true, optional = true }
 bs58 = { workspace = true, default-features = false, features = ["alloc"] }
 thiserror = { workspace = true }
 rand = { workspace = true, optional = true }

@@ -128,7 +128,6 @@ We invite all contributors.
 
 - Rust v1.82+ ([rustup.rs](https://rustup.rs))
 - Quint v0.22+ ([github.com](https://github.com/informalsystems/quint))
-- Protobuf v29.0+ ([protobuf.dev](https://protobuf.dev/))
 
 ## Join Us
 

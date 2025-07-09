@@ -50,7 +50,7 @@ pub enum Event<Ctx: Context> {
     ProposedValue(LocallyProposedValue<Ctx>),
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
     Decided(CommitCertificate<Ctx>),
-    RebroadcastVote(SignedVote<Ctx>),
+    RepublishVote(SignedVote<Ctx>),
     RebroadcastRoundCertificate(RoundCertificate<Ctx>),
     SkipRoundCertificate(RoundCertificate<Ctx>),
     PolkaCertificate(PolkaCertificate<Ctx>),
@@ -78,7 +78,7 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
                 )
             }
             Event::Decided(cert) => write!(f, "Decided(value: {})", cert.value_id),
-            Event::RebroadcastVote(vote) => write!(f, "RebroadcastVote(vote: {vote:?})"),
+            Event::RepublishVote(vote) => write!(f, "RepublishVote(vote: {vote:?})"),
             Event::RebroadcastRoundCertificate(certificate) => write!(
                 f,
                 "RebroadcastRoundCertificate(certificate: {certificate:?})"

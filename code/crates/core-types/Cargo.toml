@@ -17,9 +17,11 @@ workspace = true
 
 [features]
 serde = ["dep:serde"]
+borsh = ["dep:borsh"]
 
 [dependencies]
 malachitebft-peer = { workspace = true, default-features = false }
+borsh = { workspace = true, optional = true }
 bytes = { workspace = true, default-features = false }
 derive-where = { workspace = true }
 thiserror = { workspace = true, default-features = false }

@@ -27,7 +27,7 @@ impl fmt::Display for Address {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for byte in self.0.as_bytes().iter() {
-            write!(f, "{:02X}", byte)?;
+            write!(f, "{byte:02X}")?;
         }
         Ok(())
     }
@@ -36,7 +36,7 @@ impl fmt::Display for Address {
 impl fmt::Debug for Address {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Address({})", self)
+        write!(f, "Address({self})")
     }
 }
 

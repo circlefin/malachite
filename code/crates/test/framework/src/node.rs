@@ -167,7 +167,7 @@ where
         vote_type: VoteType,
     ) -> &mut Self {
         self.on_event(move |event, _| {
-            let Event::RebroadcastVote(msg) = event else {
+            let Event::RepublishVote(msg) = event else {
                 return Ok(HandlerResult::WaitForNextEvent);
             };
 

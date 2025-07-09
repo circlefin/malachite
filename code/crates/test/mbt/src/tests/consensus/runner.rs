@@ -68,7 +68,7 @@ impl ItfRunner for ConsensusRunner {
             }
         }
 
-        println!("🔸 step: actual state={:?}", actual);
+        println!("🔸 step: actual state={actual:?}");
         println!("🔸 step: model input={:?}", expected.input);
         println!("🔸 step: model state={:?}", expected.state);
 
@@ -227,8 +227,8 @@ impl ItfRunner for ConsensusRunner {
         // Get expected result.
         let expected_result = &expected.output;
 
-        println!("🟣 result invariant:   actual output={:?}", result);
-        println!("🟣 result invariant: expected output={:?}", expected_result);
+        println!("🟣 result invariant:   actual output={result:?}");
+        println!("🟣 result invariant: expected output={expected_result:?}");
 
         // Check result against expected result.
         match result {
@@ -320,7 +320,7 @@ impl ItfRunner for ConsensusRunner {
 
         // TODO: What to do with actual.height? There is no height in the spec.
 
-        println!("🟢 state invariant: actual state={:?}", actual);
+        println!("🟢 state invariant: actual state={actual:?}");
         println!("🟢 state invariant: expected state={:?}", expected.state);
 
         if expected.state.step == Step::None {

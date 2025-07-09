@@ -28,6 +28,8 @@ mod full_proposal;
 mod macros;
 mod util;
 
+mod ser;
+
 // Only used in macros
 #[doc(hidden)]
 pub mod gen;

@@ -3,5 +3,4 @@ disallowed-types = [
   "ractor::port::OutputPort",
   "ractor::port::OutputPortSubscriber",
   "ractor::port::OutputPortSubscriber",
-  ".."
 ]

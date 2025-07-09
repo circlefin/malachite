@@ -117,7 +117,7 @@ pub enum Msg<Ctx: Context> {
 impl<Ctx: Context> fmt::Display for Msg<Ctx> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Msg::StartHeight(height, _) => write!(f, "StartHeight(height={})", height),
+            Msg::StartHeight(height, _) => write!(f, "StartHeight(height={height})"),
             Msg::NetworkEvent(event) => match event {
                 NetworkEvent::Proposal(_, proposal) => write!(
                     f,
@@ -147,7 +147,7 @@ impl<Ctx: Context> fmt::Display for Msg<Ctx> {
                 "ReceivedProposedValue(height={} round={} origin={origin:?})",
                 value.height, value.round
             ),
-            Msg::RestartHeight(height, _) => write!(f, "RestartHeight(height={})", height),
+            Msg::RestartHeight(height, _) => write!(f, "RestartHeight(height={height})"),
         }
     }
 }
@@ -352,6 +352,11 @@ where
 
         match msg {
             Msg::StartHeight(height, validator_set) | Msg::RestartHeight(height, validator_set) => {
+                // Check that the validator set is not empty
+                if validator_set.count() == 0 {
+                    return Err(eyre!("Validator set for height {height} is empty").into());
+                }
+
                 self.tx_event
                     .send(|| Event::StartedHeight(height, is_restart));
 
@@ -447,7 +452,7 @@ where
 
                         let validator_set = state.consensus.validator_set();
                         let connected_peers = state.connected_peers.len();
-                        let total_peers = validator_set.count() - 1;
+                        let total_peers = validator_set.count().saturating_sub(1);
 
                         debug!(connected = %connected_peers, total = %total_peers, "Connected to another peer");
 
@@ -515,6 +520,8 @@ where
                                         )
                                     })?;
                             }
+
+                            return Ok(());
                         }
 
                         self.host.call_and_forward(
@@ -1108,7 +1115,7 @@ where
             Effect::PublishLivenessMsg(msg, r) => {
                 match msg {
                     LivenessMsg::Vote(ref msg) => {
-                        self.tx_event.send(|| Event::RebroadcastVote(msg.clone()));
+                        self.tx_event.send(|| Event::RepublishVote(msg.clone()));
                     }
                     LivenessMsg::PolkaCertificate(ref certificate) => {
                         self.tx_event
@@ -1127,9 +1134,9 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::RebroadcastVote(msg, r) => {
+            Effect::RepublishVote(msg, r) => {
                 // Notify any subscribers that we are about to rebroadcast a vote
-                self.tx_event.send(|| Event::RebroadcastVote(msg.clone()));
+                self.tx_event.send(|| Event::RepublishVote(msg.clone()));
 
                 self.network
                     .cast(NetworkMsg::PublishLivenessMsg(LivenessMsg::Vote(msg)))

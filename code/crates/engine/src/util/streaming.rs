@@ -5,7 +5,7 @@ use bytes::Bytes;
 pub type Sequence = u64;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct StreamId(Bytes);
+pub struct StreamId(pub(crate) Bytes);
 
 impl StreamId {
     pub fn new(bytes: Bytes) -> Self {
@@ -27,6 +27,10 @@ impl fmt::Display for StreamId {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "borsh",
+    derive(::borsh::BorshSerialize, ::borsh::BorshDeserialize)
+)]
 pub struct StreamMessage<T> {
     /// Receivers identify streams by (sender, stream_id).
     /// This means each node can allocate stream_ids independently
@@ -59,6 +63,10 @@ impl<T> StreamMessage<T> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "borsh",
+    derive(borsh::BorshSerialize, borsh::BorshDeserialize)
+)]
 pub enum StreamContent<T> {
     /// Serialized content.
     Data(T),

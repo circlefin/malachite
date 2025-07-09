@@ -2,14 +2,29 @@
 
 ## Unreleased
 
+### `malachitebft-core-consensus`
+
+- Rename `Effect::RebroadcastVote` to `Effect::RepublishVote` ([#1011](https://github.com/informalsystems/malachite/issues/1011))
+
+## 0.4.0
+
+*July 8th, 2025*
+
 ### `malachitebft-config`
 - Added new sync parameters to config.
   See ([#1092](https://github.com/informalsystems/malachite/issues/1092)) for more details.
 
-
 ### `malachitebft-sync`
 - Added new parallel requests related parameters to sync config.
   See ([#1092](https://github.com/informalsystems/malachite/issues/1092)) for more details.
+
+
+## 0.3.1
+
+*July 7th, 2025*
+
+No breaking changes.
+
 
 ## 0.3.0
 

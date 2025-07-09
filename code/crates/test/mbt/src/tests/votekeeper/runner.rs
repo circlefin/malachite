@@ -140,7 +140,7 @@ impl ItfRunner for VoteKeeperRunner {
                     assert_eq!(round, &Round::from(*expected_round));
                 }
                 (actual, expected) => {
-                    panic!("actual: {:?}, expected: {:?}", actual, expected)
+                    panic!("actual: {actual:?}, expected: {expected:?}")
                 }
             },
             None => assert_eq!(*expected_result, NoOutput),

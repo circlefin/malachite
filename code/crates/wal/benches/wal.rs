@@ -124,7 +124,7 @@ fn get_temp_wal_path(dir: &tempfile::TempDir) -> PathBuf {
     use std::sync::atomic::{AtomicUsize, Ordering};
     static COUNTER: AtomicUsize = AtomicUsize::new(0);
     let id = COUNTER.fetch_add(1, Ordering::SeqCst);
-    dir.path().join(format!("bench_{}.wal", id))
+    dir.path().join(format!("bench_{id}.wal"))
 }
 
 /// Benchmark sequential writes

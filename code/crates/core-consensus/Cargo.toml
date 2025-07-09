@@ -14,6 +14,7 @@ all-features = true
 
 [features]
 default = ["std", "metrics"]
+borsh = ["dep:borsh", "malachitebft-core-types/borsh"]
 std = ["malachitebft-core-driver/std"]
 metrics = ["std", "dep:malachitebft-metrics"]
 debug = ["std", "malachitebft-core-driver/debug"]
@@ -25,6 +26,7 @@ malachitebft-metrics = { workspace = true, optional = true }
 malachitebft-peer.workspace = true
 
 async-recursion = { workspace = true }
+borsh = { workspace = true, optional = true }
 genawaiter = { workspace = true }
 derive-where = { workspace = true }
 multiaddr = { workspace = true }

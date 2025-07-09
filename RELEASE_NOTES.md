@@ -2,7 +2,21 @@
 
 ## Unreleased
 
+- Rename `Effect::RebroadcastVote` to `Effect::RepublishVote` ([#1011](https://github.com/informalsystems/malachite/issues/1011))
+
+## 0.4.0
+
+*July 8th, 2025*
+
 - Add parallel requests for the sync module ([#1092](https://github.com/informalsystems/malachite/issues/1092))
+
+## 0.3.1
+
+*July 7th, 2025*
+
+- Derive [Borsh](https://borsh.io) encoding for all core types, behind a `borsh` feature flag ([#1098](https://github.com/informalsystems/malachite/pull/1098))
+- Fixed a bug where the consensus engine would panic when the validator set is empty, now an error is properly emitted in the logs ([#1111](https://github.com/informalsystems/malachite/pull/1111))
+- When the sync module receives an invalid commit certificate from another peer, it will now drop the associated synced value altogether instead of passing it up to the application ([#1112](https://github.com/informalsystems/malachite/pull/1112))
 
 ## 0.3.0
 
