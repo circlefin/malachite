@@ -11,6 +11,9 @@ use cfg_if::cfg_if;
 use crate::ext::{read_u32, read_u64, read_u8, write_u32, write_u64, write_u8};
 use crate::{Storage, Version};
 
+/// The maximum size of a single log entry in bytes. (1 GiB)
+const MAX_ENTRY_SIZE: usize = 1024 * 1024 * 1024;
+
 /// Represents a single entry in the Write-Ahead Log (WAL).
 ///
 /// Each entry has the following format on disk:
@@ -59,6 +62,13 @@ where
         let is_compressed = self.read_compression_flag()?;
         let length = self.read_length()? as usize;
         let expected_crc = self.read_crc()?;
+
+        if length > MAX_ENTRY_SIZE {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("Entry size {length} exceeds maximum of {MAX_ENTRY_SIZE}"),
+            ));
+        }
 
         let mut data = vec![0; length];
         self.log.storage.read_exact(&mut data)?;
