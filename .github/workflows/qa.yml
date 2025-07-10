@@ -14,7 +14,7 @@ on:
         required: true
         default: "15"
         type: choice
-        options: ["5", "10", "15"]
+        options: ["15", "20", "30"]
       branch:
         description: "Git branch to use"
         required: true
@@ -43,7 +43,7 @@ jobs:
       TF_VAR_do_token: "${{ secrets.DO_TOKEN }}"
       TF_VAR_ssh_keys: '["${{ secrets.DO_SSH_FINGERPRINT }}"]'
       EXPR_SETUP: "${{ github.event.inputs.setup || 'north-america' }}"
-      EXPR_DURATION_MINUTES: "${{ github.event.inputs.expr_duration || '3' }}"
+      EXPR_DURATION_MINUTES: "${{ github.event.inputs.expr_duration || '5' }}"
       BRANCH: "${{ github.event.inputs.branch || 'nenad/run-qa-multiple-times' }}"
       PUBLISH: "${{ github.event.inputs.publish || 'true' }}"
       RUNS: "${{ github.event.inputs.runs || '2' }}"
