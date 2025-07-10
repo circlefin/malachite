@@ -26,7 +26,7 @@ fn test_itf() {
 
     let quint_seed = option_env!("QUINT_SEED")
         .inspect(|x| {
-            println!("using QUINT_SEED={}", x);
+            println!("using QUINT_SEED={x}");
         })
         .or(Some("118"))
         .and_then(|x| x.parse::<u64>().ok())

@@ -35,7 +35,7 @@ impl Expected {
                     actual.len()
                 );
                 for node in expected {
-                    assert!(actual.contains(node), "Node {} not found", node);
+                    assert!(actual.contains(node), "Node {node} not found");
                 }
             }
             Expected::AtLeast(expected) => {
@@ -46,7 +46,7 @@ impl Expected {
                     actual.len()
                 );
                 for node in expected {
-                    assert!(actual.contains(node), "Node {} not found", node);
+                    assert!(actual.contains(node), "Node {node} not found");
                 }
             }
             Expected::AtMost(expected) => {
@@ -57,7 +57,7 @@ impl Expected {
                     actual.len()
                 );
                 for node in actual {
-                    assert!(expected.contains(&node), "Node {} not expected", node);
+                    assert!(expected.contains(&node), "Node {node} not expected");
                 }
             }
             Expected::LessThan(expected) => {
@@ -68,7 +68,7 @@ impl Expected {
                     actual.len()
                 );
                 for node in actual {
-                    assert!(expected.contains(&node), "Node {} not expected", node);
+                    assert!(expected.contains(&node), "Node {node} not expected");
                 }
             }
             Expected::GreaterThan(expected) => {
@@ -79,7 +79,7 @@ impl Expected {
                     actual.len()
                 );
                 for node in expected {
-                    assert!(actual.contains(node), "Node {} not found", node);
+                    assert!(actual.contains(node), "Node {node} not found");
                 }
             }
         }
@@ -89,11 +89,11 @@ impl Expected {
 impl fmt::Display for Expected {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Expected::Exactly(v) => write!(f, "exactly {:?}", v),
-            Expected::AtLeast(v) => write!(f, "at least {:?}", v),
-            Expected::AtMost(v) => write!(f, "at most {:?}", v),
-            Expected::LessThan(v) => write!(f, "less than {:?}", v),
-            Expected::GreaterThan(v) => write!(f, "greater than {:?}", v),
+            Expected::Exactly(v) => write!(f, "exactly {v:?}"),
+            Expected::AtLeast(v) => write!(f, "at least {v:?}"),
+            Expected::AtMost(v) => write!(f, "at most {v:?}"),
+            Expected::LessThan(v) => write!(f, "less than {v:?}"),
+            Expected::GreaterThan(v) => write!(f, "greater than {v:?}"),
         }
     }
 }

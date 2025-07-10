@@ -524,7 +524,7 @@ where
 
     fn store_precommit_any_round_certificate(&mut self, vote_round: Round) {
         let Some(per_round) = self.vote_keeper.per_round(vote_round) else {
-            panic!("Missing the PrecommitAny votes for round {}", vote_round);
+            panic!("Missing the PrecommitAny votes for round {vote_round}");
         };
 
         let precommits: Vec<SignedVote<Ctx>> = per_round
@@ -545,7 +545,7 @@ where
 
     fn store_skip_round_certificate(&mut self, vote_round: Round) {
         let Some(per_round) = self.vote_keeper.per_round(vote_round) else {
-            panic!("Missing the SkipRoundvotes for round {}", vote_round);
+            panic!("Missing the SkipRoundvotes for round {vote_round}");
         };
 
         let mut seen_addresses = BTreeSet::new();

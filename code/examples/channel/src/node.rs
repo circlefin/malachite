@@ -222,7 +222,7 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
     let metrics_port = METRICS_BASE_PORT + index;
 
     Config {
-        moniker: format!("app-{}", index),
+        moniker: format!("app-{index}"),
         consensus: ConsensusConfig {
             // Current channel app does not support parts-only value payload properly as Init does not include valid_round
             value_payload: ValuePayload::ProposalAndParts,

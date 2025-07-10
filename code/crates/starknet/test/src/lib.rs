@@ -142,7 +142,7 @@ impl TestRunner {
         let i = node - 1;
 
         Config {
-            moniker: format!("node-{}", node),
+            moniker: format!("node-{node}"),
             logging: LoggingConfig::default(),
             consensus: ConsensusConfig {
                 value_payload: ValuePayload::PartsOnly,

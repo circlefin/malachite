@@ -139,7 +139,7 @@ impl TestRunner {
         let i = node - 1;
 
         Config {
-            moniker: format!("node-{}", node),
+            moniker: format!("node-{node}"),
             logging: LoggingConfig::default(),
             consensus: ConsensusConfig {
                 // Current test app does not support proposal-only value payload properly as Init does not include valid_round

@@ -325,7 +325,7 @@ mod tests {
         let mut queue = BoundedQueue::new(2);
         queue.push(1, "value1");
 
-        let debug_str = format!("{:?}", queue);
+        let debug_str = format!("{queue:?}");
         assert!(debug_str.contains("BoundedQueue"));
         assert!(debug_str.contains("capacity: 2"));
         assert!(debug_str.contains("queue: {1: [\"value1\"]}"));
