@@ -16,7 +16,7 @@ on:
         type: choice
         options: ["15", "20", "30"]
       branch:
-        description: "Git branch to use"
+        description: "Git branch or tag to use"
         required: true
         default: "main"
       publish:
@@ -31,10 +31,6 @@ on:
         default: "1"
         type: choice
         options: ["1", "2", "3", "4", "5"]
-  
-  push:
-    branches:
-      - nenad/run-qa-multiple-times
 
 jobs:
   run-malachite-do:
@@ -42,11 +38,11 @@ jobs:
     env:
       TF_VAR_do_token: "${{ secrets.DO_TOKEN }}"
       TF_VAR_ssh_keys: '["${{ secrets.DO_SSH_FINGERPRINT }}"]'
-      EXPR_SETUP: "${{ github.event.inputs.setup || 'north-america' }}"
-      EXPR_DURATION_MINUTES: "${{ github.event.inputs.expr_duration || '5' }}"
-      BRANCH: "${{ github.event.inputs.branch || 'nenad/run-qa-multiple-times' }}"
-      PUBLISH: "${{ github.event.inputs.publish || 'true' }}"
-      RUNS: "${{ github.event.inputs.runs || '2' }}"
+      EXPR_SETUP: "${{ github.event.inputs.setup }}"
+      EXPR_DURATION_MINUTES: "${{ github.event.inputs.expr_duration }}"
+      BRANCH: "${{ github.event.inputs.branch }}"
+      PUBLISH: "${{ github.event.inputs.publish }}"
+      RUNS: "${{ github.event.inputs.runs }}"
 
     steps:
       - name: Checkout code
@@ -103,9 +99,12 @@ jobs:
           fi
           DATE=$(date +%Y.%m.%d)
           TIME=$(date +%H-%M-%S)
+          BRANCH_CLEANED=$(echo "$BRANCH" | sed 's|/|-|g')
           EXPERIMENT_ID="${DATE}-${TIME}"
+          SUFFIX="-${SETUP}-${BRANCH_CLEANED}-${EXPERIMENT_ID}.csv"
           echo "setup=$SETUP" >> $GITHUB_OUTPUT
           echo "experiment_id=$EXPERIMENT_ID" >> $GITHUB_OUTPUT
+          echo "suffix=$SUFFIX" >> $GITHUB_OUTPUT
 
       - name: Run experiment multiple times
         working-directory: qa/terraform
@@ -136,7 +135,6 @@ jobs:
             mv block-time.csv block-time_run_${i}.csv
 
             terraform destroy -auto-approve
-            
             echo "Waiting to make sure Terraform finalized resource deletion..."
             sleep 30
           done
@@ -153,7 +151,6 @@ jobs:
         run: |
           SETUP=${{ steps.vars.outputs.setup }}
           EXPERIMENT_ID=${{ steps.vars.outputs.experiment_id }}
-
           for i in $(seq 1 $RUNS); do
             aws s3 cp latency_run_${i}.csv s3://malachite-performance-site/raw/$SETUP/$EXPERIMENT_ID/latency_run_${i}.csv
             aws s3 cp throughput_run_${i}.csv s3://malachite-performance-site/raw/$SETUP/$EXPERIMENT_ID/throughput_run_${i}.csv
@@ -168,7 +165,6 @@ jobs:
             python3 scripts/format_csv_file.py block-time_run_${i}.csv --type block-time
             python3 scripts/format_csv_file.py throughput_run_${i}.csv --type throughput
           done
-
           python3 scripts/average_runs.py block-time_run_*.csv --output block-time.csv
           python3 scripts/average_runs.py throughput_run_*.csv --output throughput.csv
 
@@ -176,7 +172,7 @@ jobs:
         if: ${{ env.PUBLISH == 'true' }}
         working-directory: qa/terraform
         run: |
-          SUFFIX="-${{ steps.vars.outputs.setup }}-${{ steps.vars.outputs.experiment_id }}.csv"
+          SUFFIX="${{ steps.vars.outputs.suffix }}"
           aws s3 cp block-time.csv s3://malachite-performance-site/dashboard/block-time${SUFFIX}
           aws s3 cp throughput.csv s3://malachite-performance-site/dashboard/throughput${SUFFIX}
 
