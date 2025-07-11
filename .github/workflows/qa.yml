@@ -169,8 +169,8 @@ jobs:
             python3 scripts/format_csv_file.py throughput_run_${i}.csv --type throughput
           done
 
-          python3 scripts/average_run.py block-time_run_*.csv --output block-time.csv
-          python3 scripts/average_run.py throughput_run_*.csv --output throughput.csv
+          python3 scripts/average_runs.py block-time_run_*.csv --output block-time.csv
+          python3 scripts/average_runs.py throughput_run_*.csv --output throughput.csv
 
       - name: Upload formatted CSVs to dashboard folder
         if: ${{ env.PUBLISH == 'true' }}
