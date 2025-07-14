@@ -8,30 +8,29 @@ on:
         required: true
         default: "north-america"
         type: choice
-        options:
-          - global
-          - north-america
+        options: [global, north-america]
       expr_duration:
         description: "Experiment duration (in minutes)"
         required: true
         default: "15"
         type: choice
-        options:
-          - "5"
-          - "10"
-          - "15"
+        options: ["15", "20", "30"]
       branch:
-        description: "Git branch to use"
+        description: "Git branch or tag to use"
         required: true
         default: "main"
       publish:
-        description: "Upload results to S3 to be published on the Malachite website dashboard"
+        description: "Publish results to the Malachite website?"
         required: false
         default: "false"
         type: choice
-        options:
-          - "true"
-          - "false"
+        options: ["true", "false"]
+      runs:
+        description: "Number of times to repeat the experiment"
+        required: false
+        default: "1"
+        type: choice
+        options: ["1", "2", "3", "4", "5"]
 
 jobs:
   run-malachite-do:
@@ -43,6 +42,7 @@ jobs:
       EXPR_DURATION_MINUTES: "${{ github.event.inputs.expr_duration }}"
       BRANCH: "${{ github.event.inputs.branch }}"
       PUBLISH: "${{ github.event.inputs.publish }}"
+      RUNS: "${{ github.event.inputs.runs }}"
 
     steps:
       - name: Checkout code
@@ -89,37 +89,7 @@ jobs:
             exit 1
           fi
 
-      - name: Terraform Init
-        working-directory: qa/terraform
-        run: terraform init
-
-      - name: Terraform Apply (Provision Nodes)
-        working-directory: qa/terraform
-        run: terraform apply -auto-approve
-
-      - name: Deploy application and run it
-        working-directory: qa/terraform
-        run: |
-          shopt -s expand_aliases
-          source commands.sh
-          mkdir -p "$HOME/.ssh"
-          touch "$HOME/.ssh/known_hosts"
-          deploy_cc 
-          setup_config
-          d_pull all
-          d_run all
-          EXPR_DURATION=$((EXPR_DURATION_MINUTES * 60))
-          sleep "$EXPR_DURATION"
-          _export_prometheus_performance_csv
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-
-      - name: Define filename suffix
+      - name: Define experiment metadata
         id: vars
         run: |
           if [[ "$EXPR_SETUP" == "north-america" ]]; then
@@ -128,32 +98,81 @@ jobs:
             SETUP="global"
           fi
           DATE=$(date +%Y.%m.%d)
+          TIME=$(date +%H-%M-%S)
+          BRANCH_CLEANED=$(echo "$BRANCH" | sed 's|/|-|g')
+          EXPERIMENT_ID="${DATE}-${TIME}"
+          SUFFIX="-${SETUP}-${BRANCH_CLEANED}-${EXPERIMENT_ID}.csv"
           echo "setup=$SETUP" >> $GITHUB_OUTPUT
-          echo "date=$DATE" >> $GITHUB_OUTPUT
-          echo "suffix=-${SETUP}-${DATE}.csv" >> $GITHUB_OUTPUT
-        env:
-          EXPR_SETUP: ${{ env.EXPR_SETUP }}
+          echo "experiment_id=$EXPERIMENT_ID" >> $GITHUB_OUTPUT
+          echo "suffix=$SUFFIX" >> $GITHUB_OUTPUT
 
-      - name: Upload raw CSVs to S3
+      - name: Run experiment multiple times
         working-directory: qa/terraform
         run: |
-          SUFFIX=${{ steps.vars.outputs.suffix }}
-          aws s3 cp latency.csv s3://malachite-performance-site/raw/$EXPR_SETUP/latency${SUFFIX}
-          aws s3 cp throughput.csv s3://malachite-performance-site/raw/$EXPR_SETUP/throughput${SUFFIX}
-          aws s3 cp block-time.csv s3://malachite-performance-site/raw/$EXPR_SETUP/block-time${SUFFIX}
+          terraform init
+          for i in $(seq 1 $RUNS); do
+            echo ">>> Starting run $i"
+           
+            terraform apply -auto-approve
 
-      - name: Format block-time and throughput CSVs
+            shopt -s expand_aliases
+            source commands.sh
+            mkdir -p "$HOME/.ssh"
+            touch "$HOME/.ssh/known_hosts"
+
+            deploy_cc 
+            setup_config
+            d_pull all
+            d_run all
+
+            EXPR_DURATION=$((EXPR_DURATION_MINUTES * 60))
+            sleep "$EXPR_DURATION"
+
+            _export_prometheus_performance_csv
+
+            mv latency.csv latency_run_${i}.csv
+            mv throughput.csv throughput_run_${i}.csv
+            mv block-time.csv block-time_run_${i}.csv
+
+            terraform destroy -auto-approve
+            echo "Waiting to make sure Terraform finalized resource deletion..."
+            sleep 30
+          done
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Upload raw CSVs from all runs to S3
+        working-directory: qa/terraform
+        run: |
+          SETUP=${{ steps.vars.outputs.setup }}
+          EXPERIMENT_ID=${{ steps.vars.outputs.experiment_id }}
+          for i in $(seq 1 $RUNS); do
+            aws s3 cp latency_run_${i}.csv s3://malachite-performance-site/raw/$SETUP/$EXPERIMENT_ID/latency_run_${i}.csv
+            aws s3 cp throughput_run_${i}.csv s3://malachite-performance-site/raw/$SETUP/$EXPERIMENT_ID/throughput_run_${i}.csv
+            aws s3 cp block-time_run_${i}.csv s3://malachite-performance-site/raw/$SETUP/$EXPERIMENT_ID/block-time_run_${i}.csv
+          done
+
+      - name: Format and average CSVs across runs
         if: ${{ env.PUBLISH == 'true' }}
         working-directory: qa/terraform
         run: |
-          python3 scripts/format_csv_file.py block-time.csv --type block-time
-          python3 scripts/format_csv_file.py throughput.csv --type throughput
+          for i in $(seq 1 $RUNS); do
+            python3 scripts/format_csv_file.py block-time_run_${i}.csv --type block-time
+            python3 scripts/format_csv_file.py throughput_run_${i}.csv --type throughput
+          done
+          python3 scripts/average_runs.py block-time_run_*.csv --output block-time.csv
+          python3 scripts/average_runs.py throughput_run_*.csv --output throughput.csv
 
       - name: Upload formatted CSVs to dashboard folder
         if: ${{ env.PUBLISH == 'true' }}
         working-directory: qa/terraform
         run: |
-          SUFFIX=${{ steps.vars.outputs.suffix }}
+          SUFFIX="${{ steps.vars.outputs.suffix }}"
           aws s3 cp block-time.csv s3://malachite-performance-site/dashboard/block-time${SUFFIX}
           aws s3 cp throughput.csv s3://malachite-performance-site/dashboard/throughput${SUFFIX}
 
@@ -183,8 +202,3 @@ jobs:
         working-directory: qa/terraform
         run: |
           aws s3 cp file_list.json s3://malachite-performance-site/dashboard/file_list.json
-
-      - name: Terraform Destroy (Cleanup Nodes)
-        if: always()
-        working-directory: qa/terraform
-        run: terraform destroy -auto-approve
