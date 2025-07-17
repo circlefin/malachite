@@ -1131,7 +1131,7 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::RebroadcastRoundCertificate(certificate, r) => {
+            Effect::RepublishRoundCertificate(certificate, r) => {
                 // Notify any subscribers that we are about to rebroadcast a round certificate
                 self.tx_event
                     .send(|| Event::RebroadcastRoundCertificate(certificate.clone()));
