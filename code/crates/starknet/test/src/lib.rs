@@ -231,6 +231,8 @@ fn make_validators<S>(
 fn apply_params(config: &mut Config, params: &TestParams) {
     config.consensus.value_payload = ValuePayload::PartsOnly;
     config.value_sync.enabled = params.enable_value_sync;
+    config.value_sync.parallel_requests = params.parallel_requests;
+    config.value_sync.batch_size = params.batch_size;
     config.consensus.p2p.protocol = params.protocol;
     config.test.max_block_size = params.block_size;
     config.test.txs_per_part = params.txs_per_part;

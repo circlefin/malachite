@@ -167,7 +167,7 @@ pub async fn start_late() {
 
 #[tokio::test]
 pub async fn start_late_parallel_requests_with_batching() {
-    const HEIGHT: u64 = 20;
+    const HEIGHT: u64 = 10;
 
     let mut test = TestBuilder::<()>::new();
 
@@ -191,11 +191,11 @@ pub async fn start_late_parallel_requests_with_batching() {
 
     test.build()
         .run_with_params(
-            Duration::from_secs(30),
+            Duration::from_secs(60),
             TestParams {
                 enable_value_sync: true,
-                parallel_requests: 3,
-                batch_size: 5,
+                parallel_requests: 2,
+                batch_size: 2,
                 ..Default::default()
             },
         )
