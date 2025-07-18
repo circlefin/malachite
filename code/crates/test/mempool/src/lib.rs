@@ -271,7 +271,7 @@ async fn handle_swarm_event(
     if let SwarmEvent::Behaviour(NetworkEvent::GossipSub(e)) = &event {
         metrics.record(e);
     } else if let SwarmEvent::Behaviour(NetworkEvent::Identify(e)) = &event {
-        metrics.record(e);
+        metrics.record(e.as_ref());
     }
 
     match event {
@@ -284,36 +284,35 @@ async fn handle_swarm_event(
             }
         }
 
-        SwarmEvent::Behaviour(NetworkEvent::Identify(identify::Event::Sent {
-            peer_id, ..
-        })) => {
-            trace!("Sent identity to {peer_id}");
-        }
-
-        SwarmEvent::Behaviour(NetworkEvent::Identify(identify::Event::Received {
-            peer_id,
-            info,
-            ..
-        })) => {
-            trace!(
-                "Received identity from {peer_id}: protocol={:?}",
-                info.protocol_version
-            );
-
-            if info.protocol_version == PROTOCOL {
-                trace!(
-                    "Peer {peer_id} is using compatible protocol version: {:?}",
-                    info.protocol_version
-                );
-
-                state.peers.insert(peer_id, info);
-            } else {
-                trace!(
-                    "Peer {peer_id} is using incompatible protocol version: {:?}",
-                    info.protocol_version
-                );
+        SwarmEvent::Behaviour(NetworkEvent::Identify(event)) => match *event {
+            identify::Event::Sent { peer_id, .. } => {
+                trace!("Sent identity to {peer_id}");
             }
-        }
+
+            identify::Event::Received { peer_id, info, .. } => {
+                trace!(
+                    "Received identity from {peer_id}: protocol={:?}",
+                    info.protocol_version
+                );
+
+                if info.protocol_version == PROTOCOL {
+                    trace!(
+                        "Peer {peer_id} is using compatible protocol version: {:?}",
+                        info.protocol_version
+                    );
+
+                    state.peers.insert(peer_id, info);
+                } else {
+                    trace!(
+                        "Peer {peer_id} is using incompatible protocol version: {:?}",
+                        info.protocol_version
+                    );
+                }
+            }
+
+            // Ignore other identify event
+            _ => (),
+        },
 
         SwarmEvent::Behaviour(NetworkEvent::GossipSub(gossipsub::Event::Subscribed {
             peer_id,
