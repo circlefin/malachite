@@ -31,41 +31,11 @@ impl OutboundRequestId {
 
 pub type ResponseChannel = request_response::ResponseChannel<RawResponse>;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum PeerKind {
-    SyncV1,
-    SyncV2,
-}
-
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct Status<Ctx: Context> {
     pub peer_id: PeerId,
     pub tip_height: Ctx::Height,
     pub history_min_height: Ctx::Height,
-}
-
-impl<Ctx: Context> Status<Ctx> {
-    pub(crate) fn default(peer_id: PeerId) -> Self {
-        Self {
-            peer_id,
-            tip_height: Ctx::Height::ZERO,
-            history_min_height: Ctx::Height::ZERO,
-        }
-    }
-}
-
-#[derive_where(Clone, Debug, PartialEq, Eq)]
-pub struct PeerInfo<Ctx: Context> {
-    /// The kind of protocol the peer supports.
-    pub kind: PeerKind,
-    /// The peer's status.
-    pub status: Status<Ctx>,
-}
-
-impl<Ctx: Context> PeerInfo<Ctx> {
-    pub(crate) fn update_status(&mut self, status: Status<Ctx>) {
-        self.status = status;
-    }
 }
 
 #[derive_where(Clone, Debug, PartialEq, Eq)]

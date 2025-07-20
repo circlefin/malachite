@@ -434,7 +434,7 @@ where
                         }
                     }
 
-                    NetworkEvent::PeerConnected(peer_id, ..) => {
+                    NetworkEvent::PeerConnected(peer_id) => {
                         if !state.connected_peers.insert(peer_id) {
                             // We already saw that peer, ignoring...
                             return Ok(());

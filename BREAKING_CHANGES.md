@@ -18,16 +18,6 @@
   - Now it takes a range of heights instead of one, and the reply is a list (possibly empty) of
     decided values instead of one or zero.
 
-#### Enum Changes
-
-- Added extra parameter to `PeerConnected` in `NetworkEvent`.
-
-### `malachitebft-network`
-
-#### Enum Changes
-
-- Added extra parameter to `PeerConnected` in `NetworkEvent`.
-
 ### `malachitebft-sync`
 
 #### Enum Changes

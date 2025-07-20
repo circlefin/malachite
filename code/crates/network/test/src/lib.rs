@@ -204,7 +204,7 @@ impl<const N: usize> Test<N> {
                     tokio::select! {
                         event = handle.recv() => {
                             match event {
-                                Some(malachitebft_network::Event::PeerConnected(peer_id, ..)) => {
+                                Some(malachitebft_network::Event::PeerConnected(peer_id)) => {
                                     if !peers.contains(&peer_id.to_libp2p()) {
                                         peers.push(peer_id.to_libp2p());
                                     }

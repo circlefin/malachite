@@ -7,7 +7,7 @@ use futures::StreamExt;
 use libp2p::metrics::{Metrics, Recorder};
 use libp2p::request_response::{InboundRequestId, OutboundRequestId};
 use libp2p::swarm::{self, SwarmEvent};
-use libp2p::{gossipsub, identify, quic, StreamProtocol, SwarmBuilder};
+use libp2p::{gossipsub, identify, quic, SwarmBuilder};
 use libp2p_broadcast as broadcast;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, error_span, info, trace, warn, Instrument};
@@ -143,7 +143,7 @@ impl TransportProtocol {
 #[derive(Clone, Debug)]
 pub enum Event {
     Listening(Multiaddr),
-    PeerConnected(PeerId, Vec<StreamProtocol>),
+    PeerConnected(PeerId),
     PeerDisconnected(PeerId),
     ConsensusMessage(Channel, PeerId, Bytes),
     LivenessMessage(Channel, PeerId, Bytes),
@@ -473,10 +473,7 @@ async fn handle_swarm_event(
 
                     if !is_already_connected {
                         if let Err(e) = tx_event
-                            .send(Event::PeerConnected(
-                                PeerId::from_libp2p(&peer_id),
-                                info.protocols.clone(),
-                            ))
+                            .send(Event::PeerConnected(PeerId::from_libp2p(&peer_id)))
                             .await
                         {
                             error!("Error sending peer connected event to handle: {e}");

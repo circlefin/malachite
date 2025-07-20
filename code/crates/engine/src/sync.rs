@@ -307,12 +307,6 @@ where
                     .await?;
             }
 
-            Msg::NetworkEvent(NetworkEvent::PeerConnected(peer_id, protocols)) => {
-                info!(%peer_id, "Connected to peer");
-
-                state.sync.add_peer(peer_id, protocols);
-            }
-
             Msg::NetworkEvent(NetworkEvent::PeerDisconnected(peer_id)) => {
                 info!(%peer_id, "Disconnected from peer");
 

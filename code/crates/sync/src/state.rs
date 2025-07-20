@@ -2,14 +2,11 @@ use std::cmp::max;
 use std::collections::{BTreeMap, HashMap};
 use std::ops::RangeInclusive;
 
-use libp2p::StreamProtocol;
-
 use malachitebft_core_types::{Context, Height};
 use malachitebft_peer::PeerId;
-use tracing::warn;
 
 use crate::scoring::{ema, PeerScorer, Strategy};
-use crate::{Behaviour, Config, OutboundRequestId, PeerInfo, PeerKind, Status};
+use crate::{Config, OutboundRequestId, Status};
 
 pub struct State<Ctx>
 where
@@ -34,7 +31,7 @@ where
     pub pending_requests: BTreeMap<OutboundRequestId, RangeInclusive<Ctx::Height>>,
 
     /// The set of peers we are connected to in order to get values, certificates and votes.
-    pub peers: BTreeMap<PeerId, PeerInfo<Ctx>>,
+    pub peers: BTreeMap<PeerId, Status<Ctx>>,
 
     /// Peer scorer for scoring peers based on their performance.
     pub peer_scorer: PeerScorer,
@@ -66,35 +63,8 @@ where
         }
     }
 
-    pub fn add_peer(&mut self, peer_id: PeerId, protocols: Vec<StreamProtocol>) {
-        if self.peers.contains_key(&peer_id) {
-            warn!("Peer {} already exists in the state", peer_id);
-            return;
-        }
-
-        let kind = if protocols.contains(&Behaviour::SYNC_V2_PROTOCOL.0) {
-            PeerKind::SyncV2
-        } else if protocols.contains(&Behaviour::SYNC_V1_PROTOCOL.0) {
-            PeerKind::SyncV1
-        } else {
-            warn!("Peer {} does not support any known sync protocol", peer_id);
-            return;
-        };
-
-        self.peers.insert(
-            peer_id,
-            PeerInfo {
-                kind,
-                status: Status::default(peer_id),
-            },
-        );
-    }
-
     pub fn update_status(&mut self, status: Status<Ctx>) {
-        // TODO: should we consider status messages from non connected peers?
-        if let Some(peer_details) = self.peers.get_mut(&status.peer_id) {
-            peer_details.update_status(status);
-        }
+        self.peers.insert(status.peer_id, status);
     }
 
     /// Filter peers to only include those that can provide the given range of values, or at least a prefix of the range.
@@ -103,52 +73,35 @@ where
     /// Prefer peers that support batching (v2 sync protocol).
     /// Return the peer ID and the range of heights that the peer can provide.
     pub fn filter_peers_by_range(
-        peers: &BTreeMap<PeerId, PeerInfo<Ctx>>,
+        peers: &BTreeMap<PeerId, Status<Ctx>>,
         range: &RangeInclusive<Ctx::Height>,
         except: Option<PeerId>,
     ) -> HashMap<PeerId, RangeInclusive<Ctx::Height>> {
-        // Peers that support batching (v2 sync protocol) and can provide at least the first value in the range.
-        let v2_peers = peers.iter().filter(|(&peer, detail)| {
-            detail.kind == PeerKind::SyncV2
-                && detail.status.history_min_height <= *range.start()
-                && *range.start() <= detail.status.tip_height
-                && except.is_none_or(|p| p != peer)
-        });
-
-        // Peers that support batching and can provide the whole range of values.
-        let v2_peers_with_whole_range = v2_peers
-            .clone()
-            .filter(|(_, detail)| {
-                *range.start() <= *range.end() && *range.end() <= detail.status.tip_height
+        // Peers that can provide the whole range of values.
+        let peers_with_whole_range = peers
+            .iter()
+            .filter(|(peer, status)| {
+                status.history_min_height <= *range.start()
+                    && *range.start() <= *range.end()
+                    && *range.end() <= status.tip_height
+                    && except.is_none_or(|p| p != **peer)
             })
             .map(|(peer, _)| (peer.clone(), range.clone()))
             .collect::<HashMap<_, _>>();
 
         // Prefer peers that have the whole range of values in their history.
-        let v2_peers_range = if !v2_peers_with_whole_range.is_empty() {
-            v2_peers_with_whole_range
+        if !peers_with_whole_range.is_empty() {
+            peers_with_whole_range
         } else {
             // Otherwise, just get the peers that can provide a prefix of the range.
-            v2_peers
-                .map(|(peer, detail)| (peer.clone(), *range.start()..=detail.status.tip_height))
-                .filter(|(_, range)| !range.is_empty())
-                .collect::<HashMap<_, _>>()
-        };
-
-        // Prefer peers with a higher version of the sync protocol.
-        if !v2_peers_range.is_empty() {
-            v2_peers_range
-        } else {
-            // Fallback to v1 peers that can provide the first value in the range.
             peers
                 .iter()
-                .filter(|(&peer, detail)| {
-                    detail.kind == PeerKind::SyncV1
-                        && detail.status.history_min_height <= *range.start()
-                        && *range.start() <= detail.status.tip_height
-                        && except.is_none_or(|p| p != peer)
+                .filter(|(peer, status)| {
+                    status.history_min_height <= *range.start()
+                        && except.is_none_or(|p| p != **peer)
                 })
-                .map(|(peer, _)| (peer.clone(), *range.start()..=*range.start()))
+                .map(|(peer, status)| (peer.clone(), *range.start()..=status.tip_height))
+                .filter(|(_, range)| !range.is_empty())
                 .collect::<HashMap<_, _>>()
         }
     }

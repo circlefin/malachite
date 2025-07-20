@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use derive_where::derive_where;
 use eyre::eyre;
 use libp2p::identity::Keypair;
-use libp2p::{request_response, StreamProtocol};
+use libp2p::request_response;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
 use tracing::{error, trace};
@@ -17,7 +17,7 @@ use malachitebft_sync::{
 use malachitebft_codec as codec;
 use malachitebft_core_consensus::{LivenessMsg, SignedConsensusMsg};
 use malachitebft_core_types::{
-    Context, PolkaCertificate, RoundCertificate, SignedProposal, SignedVote,
+    Context, Height, PolkaCertificate, RoundCertificate, SignedProposal, SignedVote,
 };
 use malachitebft_metrics::SharedRegistry;
 use malachitebft_network::handle::CtrlHandle;
@@ -100,7 +100,7 @@ pub struct Args {
 pub enum NetworkEvent<Ctx: Context> {
     Listening(Multiaddr),
 
-    PeerConnected(PeerId, Vec<StreamProtocol>),
+    PeerConnected(PeerId),
     PeerDisconnected(PeerId),
 
     Vote(PeerId, SignedVote<Ctx>),
@@ -122,7 +122,7 @@ pub enum State<Ctx: Context> {
     Stopped,
     Running {
         listen_addrs: Vec<Multiaddr>,
-        peers: BTreeMap<PeerId, Vec<StreamProtocol>>,
+        peers: BTreeMap<PeerId, Status<Ctx>>,
         output_port: OutputPort<NetworkEvent<Ctx>>,
         ctrl_handle: Box<CtrlHandle>,
         recv_task: JoinHandle<()>,
@@ -134,6 +134,15 @@ pub enum State<Ctx: Context> {
 pub struct Status<Ctx: Context> {
     pub tip_height: Ctx::Height,
     pub history_min_height: Ctx::Height,
+}
+
+impl<Ctx: Context> Default for Status<Ctx> {
+    fn default() -> Self {
+        Self {
+            tip_height: Ctx::Height::ZERO,
+            history_min_height: Ctx::Height::ZERO,
+        }
+    }
 }
 
 impl<Ctx: Context> Status<Ctx> {
@@ -253,8 +262,8 @@ where
                     subscriber.send(NetworkEvent::Listening(addr.clone()));
                 }
 
-                for (peer_id, protocols) in peers.iter() {
-                    subscriber.send(NetworkEvent::PeerConnected(*peer_id, protocols.clone()));
+                for peer_id in peers.keys() {
+                    subscriber.send(NetworkEvent::PeerConnected(*peer_id));
                 }
 
                 subscriber.subscribe_to_port(output_port);
@@ -333,9 +342,9 @@ where
                 output_port.send(NetworkEvent::Listening(addr));
             }
 
-            Msg::NewEvent(Event::PeerConnected(peer_id, protocols)) => {
-                peers.insert(peer_id, protocols.clone());
-                output_port.send(NetworkEvent::PeerConnected(peer_id, protocols));
+            Msg::NewEvent(Event::PeerConnected(peer_id)) => {
+                peers.insert(peer_id, Status::default());
+                output_port.send(NetworkEvent::PeerConnected(peer_id));
             }
 
             Msg::NewEvent(Event::PeerDisconnected(peer_id)) => {
