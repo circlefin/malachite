@@ -84,11 +84,14 @@ where
                     })
                     .await?;
 
-                let values = rx_values.await?;
-
-                if let Err(e) = reply_to.send(values) {
-                    error!("Failed to send back undecided values: {e}");
-                }
+                // Do not block processing of other messages while waiting for the values
+                tokio::spawn(async move {
+                    if let Ok(values) = rx_values.await {
+                        if let Err(e) = reply_to.send(values) {
+                            error!("Failed to send back undecided values: {e}");
+                        }
+                    }
+                });
             }
 
             HostMsg::GetValue {
