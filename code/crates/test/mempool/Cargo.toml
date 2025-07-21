@@ -16,6 +16,7 @@ malachitebft-proto = { workspace = true }
 eyre = { workspace = true }
 futures = { workspace = true }
 libp2p = { workspace = true }
+libp2p-gossipsub = { workspace = true, features = ["metrics"] }
 prost = { workspace = true }
 prost-types = { workspace = true }
 seahash = { workspace = true }

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### General
+
+- Updated libp2p to v0.56.x ([#1124](https://github.com/informalsystems/malachite/pull/1124))
+
 ### `malachitebft-app-channel`
 
 - Changed type of field `reply` of enum variant `AppMsg::Decided` to `Reply<malachitebft_engine::host::Next<Ctx>>` ([#1109](https://github.com/informalsystems/malachite/pull/1109))
@@ -14,7 +18,7 @@
 
 ### `malachitebft-core-consensus`
 
-- Rename `Effect::RebroadcastVote` to `Effect::RepublishVote` ([#1011](https://github.com/informalsystems/malachite/issues/1011))
+- Renamed `Effect::RebroadcastVote` to `Effect::RepublishVote` ([#1011](https://github.com/informalsystems/malachite/issues/1011))
 
 ## 0.4.0
 
