@@ -18,17 +18,17 @@ use crate::{Config, GossipSubConfig, PROTOCOL};
 
 #[derive(Debug)]
 pub enum NetworkEvent {
-    Identify(identify::Event),
+    Identify(Box<identify::Event>),
     Ping(ping::Event),
     GossipSub(gossipsub::Event),
     Broadcast(broadcast::Event),
     Sync(sync::Event),
-    Discovery(discovery::NetworkEvent),
+    Discovery(Box<discovery::NetworkEvent>),
 }
 
 impl From<identify::Event> for NetworkEvent {
     fn from(event: identify::Event) -> Self {
-        Self::Identify(event)
+        Self::Identify(Box::new(event))
     }
 }
 
@@ -58,7 +58,7 @@ impl From<sync::Event> for NetworkEvent {
 
 impl From<discovery::NetworkEvent> for NetworkEvent {
     fn from(network_event: discovery::NetworkEvent) -> Self {
-        Self::Discovery(network_event)
+        Self::Discovery(Box::new(network_event))
     }
 }
 
@@ -158,13 +158,15 @@ impl Behaviour {
         let ping = ping::Behaviour::new(ping::Config::new().with_interval(Duration::from_secs(5)));
 
         let gossipsub = config.pubsub_protocol.is_gossipsub().then(|| {
-            gossipsub::Behaviour::new_with_metrics(
+            gossipsub::Behaviour::new(
                 gossipsub::MessageAuthenticity::Signed(keypair.clone()),
                 gossipsub_config(config.gossipsub, config.pubsub_max_size),
+            )
+            .unwrap()
+            .with_metrics(
                 registry.sub_registry_with_prefix("gossipsub"),
                 Default::default(),
             )
-            .unwrap()
         });
 
         let enable_broadcast = config.pubsub_protocol.is_broadcast() || config.enable_sync;

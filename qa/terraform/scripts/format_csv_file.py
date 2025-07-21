@@ -12,13 +12,28 @@ def process_throughput(df):
     df.columns = ['node_name', 'timestamp', 'throughput']
     df['node_name'] = normalize_node_names(df)
     df['timestamp'] = (df['timestamp'] - df['timestamp'].min()) / 60
+
+    # Check for NaNs, can happen if experiment duration is less than 10 minutes 
+    print(f"[i] Initial rows: {len(df)}")
+    print(f"[i] NaNs in 'throughput': {df['throughput'].isna().sum()}")
+    df = df.dropna(subset=['throughput'])
+    print(f"[i] Rows after cleaning: {len(df)}")
+
     df['throughput'] = df['throughput'].astype(int)
     return df
+
 
 def process_block_time(df):
     df.columns = ['node_name', 'timestamp', 'latency']
     df['node_name'] = normalize_node_names(df)
     df['timestamp'] = (df['timestamp'] - df['timestamp'].min()) / 60
+
+    # Check for NaNs, can happen if experiment duration is less than 10 minutes 
+    print(f"[i] Initial rows: {len(df)}")
+    print(f"[i] NaNs in 'latency': {df['latency'].isna().sum()}")
+    df = df.dropna(subset=['latency'])
+    print(f"[i] Rows after cleaning: {len(df)}")
+
     df['latency'] = (df['latency'] * 1000).astype(int)
     return df
 

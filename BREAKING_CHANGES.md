@@ -2,9 +2,13 @@
 
 ## Unreleased
 
+### General
+
+- Updated libp2p to v0.56.x ([#1124](https://github.com/informalsystems/malachite/pull/1124))
+
 ### `malachitebft-core-consensus`
 
-- Rename `Effect::RebroadcastVote` to `Effect::RepublishVote` ([#1011](https://github.com/informalsystems/malachite/issues/1011))
+- Renamed `Effect::RebroadcastVote` to `Effect::RepublishVote` ([#1011](https://github.com/informalsystems/malachite/issues/1011))
 
 ## 0.4.0
 

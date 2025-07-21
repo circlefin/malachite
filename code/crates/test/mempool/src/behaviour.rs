@@ -69,27 +69,26 @@ impl Behaviour {
                 keypair.public(),
             )),
             ping: ping::Behaviour::new(ping::Config::new().with_interval(Duration::from_secs(5))),
-            gossipsub: gossipsub::Behaviour::new_with_metrics(
+            gossipsub: gossipsub::Behaviour::new(
                 gossipsub::MessageAuthenticity::Signed(keypair.clone()),
                 gossipsub_config(),
-                registry,
-                Default::default(),
             )
-            .unwrap(),
+            .unwrap()
+            .with_metrics(registry, Default::default()),
         }
     }
 }
 
 #[derive(Debug)]
 pub enum NetworkEvent {
-    Identify(identify::Event),
+    Identify(Box<identify::Event>),
     Ping(ping::Event),
     GossipSub(gossipsub::Event),
 }
 
 impl From<identify::Event> for NetworkEvent {
     fn from(event: identify::Event) -> Self {
-        Self::Identify(event)
+        Self::Identify(Box::new(event))
     }
 }
 
