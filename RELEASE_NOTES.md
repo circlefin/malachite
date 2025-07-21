@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Rename `Effect::RebroadcastVote` to `Effect::RepublishVote` ([#1011](https://github.com/informalsystems/malachite/issues/1011))
+- Fix bug in WAL recovery logic where a corrupted entry would not be detected in some circumstances ([#1127](https://github.com/informalsystems/malachite/pull/1127))
 
 ## 0.4.0
 
