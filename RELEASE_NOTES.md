@@ -3,7 +3,7 @@
 ## Unreleased
 
 - Update libp2p to v0.56.x ([#1124](https://github.com/informalsystems/malachite/pull/1124))
-- Rename `Effect::RebroadcastVote` to `Effect::RepublishVote` ([#1011](https://github.com/informalsystems/malachite/issues/1011))
+- Rename `Effect::RebroadcastVote` to `Effect::RepublishVote` and `Effect::RebroadcastRoundCertificate` to `Effect::RepublishRoundCertificate` ([#1011](https://github.com/informalsystems/malachite/issues/1011))
 - Decouple `Host` messages from the `Consensus` actor ([#1109](https://github.com/informalsystems/malachite/pull/1109))
 
 ## 0.4.0
