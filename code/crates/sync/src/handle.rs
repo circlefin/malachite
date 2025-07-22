@@ -79,15 +79,17 @@ where
             let start = response.start_height;
             let end = response.end_height().unwrap_or(start);
 
-            // Check if the values in the response match the requested range of heights.
-            // Only responses that match exactly the requested range are considered valid.
+            // Check if the response is valid. A valid response either matches
+            // exactly the requested range or contains a single value (for peers
+            // not supporting batching).
             if let Some(requested_range) = state.pending_requests.get(&request_id) {
                 let expected_num_values =
                     requested_range.end().as_u64() - requested_range.start().as_u64() + 1;
-                let valid = requested_range.start().as_u64() == start.as_u64()
-                    && requested_range.end().as_u64() == end.as_u64()
-                    && response.values.len() as u64 == expected_num_values;
-                if valid {
+                let is_valid = requested_range.start().as_u64() == start.as_u64()
+                    && (requested_range.end().as_u64() == end.as_u64()
+                        && response.values.len() as u64 == expected_num_values)
+                    || (start.as_u64() == end.as_u64() && response.values.len() == 1);
+                if is_valid {
                     return on_value_response(co, state, metrics, request_id, peer_id, response)
                         .await;
                 } else {
@@ -270,12 +272,13 @@ where
     Ok(())
 }
 
-/// Assumes that the range of values in the response matches the requested range.
+/// Assumes that the range of values in the response matches the requested range
+/// or the response contains a single value.
 pub async fn on_value_response<Ctx>(
-    _co: Co<Ctx>,
+    co: Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    _request_id: OutboundRequestId,
+    request_id: OutboundRequestId,
     peer_id: PeerId,
     response: ValueResponse<Ctx>,
 ) -> Result<(), Error<Ctx>>
@@ -285,14 +288,21 @@ where
     let start = response.start_height;
     debug!(start = %start, num_values = %response.values.len(), %peer_id, "Received response from peer");
 
-    let response_time = metrics.value_response_received(start.as_u64());
-
-    if let Some(response_time) = response_time {
+    if let Some(response_time) = metrics.value_response_received(start.as_u64()) {
         state.peer_scorer.update_score_with_metrics(
             peer_id,
             SyncResult::Success(response_time),
             &metrics.scoring,
         );
+    }
+
+    // For nodes that do not support batching, we re-request the remaining values if the response contains a single value.
+    if let Some(requested_range) = state.pending_requests.get(&request_id) {
+        if response.values.len() == 1
+            && requested_range.end().as_u64() > requested_range.start().as_u64()
+        {
+            re_request_values_from_peer(co, state, metrics, request_id, None).await?;
+        }
     }
 
     Ok(())
