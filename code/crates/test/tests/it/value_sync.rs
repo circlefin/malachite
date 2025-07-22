@@ -254,14 +254,14 @@ pub async fn start_late_parallel_requests_with_batching() {
         .success();
 
     test.add_node()
-        .with_voting_power(5)
+        .with_voting_power(0)
         .start_after(1, Duration::from_secs(10))
         .wait_until(HEIGHT)
         .success();
 
     test.build()
         .run_with_params(
-            Duration::from_secs(60),
+            Duration::from_secs(30),
             TestParams {
                 enable_value_sync: true,
                 parallel_requests: 2,

@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use bytesize::ByteSize;
+
 use crate::{TestBuilder, TestParams};
 
 #[tokio::test]
@@ -184,7 +186,7 @@ pub async fn start_late_parallel_requests_with_batching() {
         .success();
 
     test.add_node()
-        .with_voting_power(5)
+        .with_voting_power(0)
         .start_after(1, Duration::from_secs(10))
         .wait_until(HEIGHT)
         .success();
@@ -196,6 +198,7 @@ pub async fn start_late_parallel_requests_with_batching() {
                 enable_value_sync: true,
                 parallel_requests: 2,
                 batch_size: 2,
+                block_size: ByteSize::kib(1),
                 ..Default::default()
             },
         )
