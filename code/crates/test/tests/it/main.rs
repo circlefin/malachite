@@ -144,7 +144,7 @@ impl TestRunner {
             consensus: ConsensusConfig {
                 // Current test app does not support proposal-only value payload properly as Init does not include valid_round
                 value_payload: ValuePayload::ProposalAndParts,
-                queue_capacity: 100,
+                queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`
                 timeouts: TimeoutConfig::default(),
                 p2p: P2pConfig {
                     protocol,
