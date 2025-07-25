@@ -59,7 +59,14 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
                 // If we have already built or seen values for this height and round,
                 // send them all back to consensus. This may happen when we are restarting after a crash.
-                let proposals = state.store.get_undecided_proposals(height, round).await?;
+                let mut proposals = state.store.get_undecided_proposals(height, round).await?;
+                info!(%height, %round, "Found {} undecided proposals", proposals.len());
+
+                let pending = state.store.get_pending_proposals(height, round).await?;
+                info!(%height, %round, "Found {} pending proposals", pending.len());
+
+                proposals.extend(pending);
+
                 if reply_value.send(proposals).is_err() {
                     error!("Failed to send undecided proposals");
                 }

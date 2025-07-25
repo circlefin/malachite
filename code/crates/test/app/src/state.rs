@@ -110,7 +110,7 @@ impl State {
                 part.height = %parts.height,
                 part.round = %parts.round,
                 part.sequence = %sequence,
-                "Received outdated proposal part, ignoring"
+                "Received outdated proposal, ignoring"
             );
 
             return Ok(None);
@@ -143,10 +143,16 @@ impl State {
             }
         }
 
+        let proposal_height = parts.height;
+
         // Re-assemble the proposal from its parts
         let value = assemble_value_from_parts(parts)?;
 
-        self.store.store_undecided_proposal(value.clone()).await?;
+        if proposal_height == self.current_height {
+            self.store.store_undecided_proposal(value.clone()).await?;
+        } else {
+            self.store.store_pending_proposal(value.clone()).await?;
+        }
 
         Ok(Some(value))
     }
