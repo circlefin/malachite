@@ -291,6 +291,20 @@ impl Db {
         Ok(proposals)
     }
 
+    fn remove_pending_proposal(
+        &self,
+        proposal: ProposedValue<TestContext>,
+    ) -> Result<(), StoreError> {
+        let key = (proposal.height, proposal.round, proposal.value.id());
+        let tx = self.db.begin_write()?;
+        {
+            let mut table = tx.open_table(PENDING_PROPOSALS_TABLE)?;
+            table.remove(key)?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
     fn insert_pending_proposal(
         &self,
         proposal: ProposedValue<TestContext>,
@@ -541,6 +555,16 @@ impl Store {
     ) -> Result<Vec<ProposedValue<TestContext>>, StoreError> {
         let db = Arc::clone(&self.db);
         tokio::task::spawn_blocking(move || db.get_pending_proposals(height, round)).await?
+    }
+
+    /// Removes a pending proposal.
+    /// Called by the application when a proposal is no longer valid.
+    pub async fn remove_pending_proposal(
+        &self,
+        value: ProposedValue<TestContext>,
+    ) -> Result<(), StoreError> {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.remove_pending_proposal(value)).await?
     }
 
     /// Prunes the store by removing all undecided proposals and decided values up to the retain height.

@@ -206,6 +206,20 @@ impl Db {
         Ok(())
     }
 
+    fn remove_pending_proposal(
+        &self,
+        proposal: ProposedValue<TestContext>,
+    ) -> Result<(), StoreError> {
+        let key = (proposal.height, proposal.round, proposal.value.id());
+        let tx = self.db.begin_write()?;
+        {
+            let mut table = tx.open_table(PENDING_PROPOSALS_TABLE)?;
+            table.remove(&key)?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
     fn get_pending_proposals(
         &self,
         height: Height,
@@ -365,6 +379,14 @@ impl Store {
     ) -> Result<(), StoreError> {
         let db = Arc::clone(&self.db);
         tokio::task::spawn_blocking(move || db.insert_undecided_proposal(value)).await?
+    }
+
+    pub async fn remove_pending_proposal(
+        &self,
+        value: ProposedValue<TestContext>,
+    ) -> Result<(), StoreError> {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.remove_pending_proposal(value)).await?
     }
 
     pub async fn get_undecided_proposal(

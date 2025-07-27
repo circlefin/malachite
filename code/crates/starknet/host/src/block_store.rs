@@ -208,6 +208,17 @@ impl Db {
         Ok(())
     }
 
+    fn remove_pending_value(&self, value: ProposedValue<MockContext>) -> Result<(), StoreError> {
+        let key = (value.height, value.round, value.value);
+        let tx = self.db.begin_write()?;
+        {
+            let mut table = tx.open_table(PENDING_VALUES_TABLE)?;
+            table.remove(key)?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
     fn height_range<Table>(
         &self,
         table: &Table,
@@ -388,6 +399,14 @@ impl BlockStore {
     ) -> Result<(), StoreError> {
         let db = Arc::clone(&self.db);
         tokio::task::spawn_blocking(move || db.insert_undecided_value(value)).await?
+    }
+
+    pub async fn remove_pending_value(
+        &self,
+        value: ProposedValue<MockContext>,
+    ) -> Result<(), StoreError> {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.remove_pending_value(value)).await?
     }
 
     pub async fn get_undecided_values(

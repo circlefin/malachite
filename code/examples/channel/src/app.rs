@@ -57,15 +57,18 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 state.current_round = round;
                 state.current_proposer = Some(proposer);
 
+                let pending = state.store.get_pending_proposals(height, round).await?;
+                info!(%height, %round, "Found {} pending proposals, validating...", pending.len());
+                for p in &pending {
+                    // TODO: check proposal validity
+                    state.store.store_undecided_proposal(p.clone()).await?;
+                    state.store.remove_pending_proposal(p.clone()).await?;
+                }
+
                 // If we have already built or seen values for this height and round,
                 // send them all back to consensus. This may happen when we are restarting after a crash.
-                let mut proposals = state.store.get_undecided_proposals(height, round).await?;
+                let proposals = state.store.get_undecided_proposals(height, round).await?;
                 info!(%height, %round, "Found {} undecided proposals", proposals.len());
-
-                let pending = state.store.get_pending_proposals(height, round).await?;
-                info!(%height, %round, "Found {} pending proposals", pending.len());
-
-                proposals.extend(pending);
 
                 if reply_value.send(proposals).is_err() {
                     error!("Failed to send undecided proposals");

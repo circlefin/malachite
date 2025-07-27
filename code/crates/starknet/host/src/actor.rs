@@ -241,19 +241,23 @@ async fn on_started_round(
 
     info!(%height, %round, %proposer, ?role, "Started new round");
 
+    let pending = state.block_store.get_pending_values(height, round).await?;
+    info!(%height, %round, "Found {} pending proposals, validating...", pending.len());
+    for p in &pending {
+        // TODO: check proposal validity
+        state.block_store.store_undecided_value(p.clone()).await?;
+        state.block_store.remove_pending_value(p.clone()).await?;
+    }
+
     // If we have already built or seen one or more values for this height and round,
     // feed them back to consensus. This may happen when we are restarting after a crash.
-    let mut undecided_values = state
+    let undecided_values = state
         .block_store
         .get_undecided_values(height, round)
         .await?;
 
     info!(%height, %round, "Found {} undecided values", undecided_values.len());
 
-    let pending_values = state.block_store.get_pending_values(height, round).await?;
-    info!(%height, %round, "Found {} pending value", pending_values.len());
-
-    undecided_values.extend(pending_values);
     reply_to.send(undecided_values)?;
 
     Ok(())
