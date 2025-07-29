@@ -76,17 +76,14 @@ where
 
     debug_assert_eq!(consensus_height, vote_height);
 
-    // Only append to WAL and store the non-nil precommit if we have not yet seen this vote.
-    if !state.driver.votes().has_vote(&signed_vote) {
-        // Append the vote to the Write-ahead Log
-        perform!(
-            co,
-            Effect::WalAppend(
-                WalEntry::ConsensusMsg(SignedConsensusMsg::Vote(signed_vote.clone())),
-                Default::default()
-            )
-        );
-    }
+    // Append the vote to the Write-ahead Log
+    perform!(
+        co,
+        Effect::WalAppend(
+            WalEntry::ConsensusMsg(SignedConsensusMsg::Vote(signed_vote.clone())),
+            Default::default()
+        )
+    );
 
     apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote)).await?;
 

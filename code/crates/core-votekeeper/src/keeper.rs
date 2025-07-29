@@ -205,13 +205,6 @@ where
         &self.evidence
     }
 
-    /// Check if we have already seen a vote.
-    pub fn has_vote(&self, vote: &SignedVote<Ctx>) -> bool {
-        self.per_round
-            .get(&vote.round())
-            .is_some_and(|per_round| per_round.received_votes().contains(vote))
-    }
-
     /// Apply a vote with a given weight, potentially triggering an output.
     pub fn apply_vote(
         &mut self,
