@@ -4,7 +4,7 @@ use derive_where::derive_where;
 use thiserror::Error;
 
 use alloc::collections::{BTreeMap, BTreeSet};
-
+use alloc::vec::Vec;
 use malachitebft_core_types::{
     Context, NilOrVal, Round, SignedVote, Validator, ValidatorSet, ValueId, Vote, VoteType,
 };
@@ -49,7 +49,7 @@ where
     addresses_weights: RoundWeights<Ctx::Address>,
 
     /// All the votes received for this round.
-    received_votes: BTreeSet<SignedVote<Ctx>>,
+    received_votes: Vec<SignedVote<Ctx>>,
 
     /// The emitted outputs for this round.
     emitted_outputs: BTreeSet<Output<ValueId<Ctx>>>,
@@ -104,7 +104,7 @@ where
             .set_once(vote.validator_address(), weight);
 
         // Add the vote to the received votes
-        self.received_votes.insert(vote);
+        self.received_votes.push(vote);
 
         Ok(())
     }
@@ -126,7 +126,7 @@ where
     }
 
     /// Return the votes for this round.
-    pub fn received_votes(&self) -> &BTreeSet<SignedVote<Ctx>> {
+    pub fn received_votes(&self) -> &Vec<SignedVote<Ctx>> {
         &self.received_votes
     }
 
