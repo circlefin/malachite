@@ -80,6 +80,15 @@ where
         Self::default()
     }
 
+    /// Create a new `PerRound` instance with pre-allocated capacity for the expected number of votes.
+    pub fn with_expected_number_of_votes(num_votes: usize) -> Self {
+        Self {
+            // pre-allocate capacity to avoid re-allocations during the addition of votes
+            received_votes: Vec::with_capacity(num_votes),
+            ..Self::default()
+        }
+    }
+
     /// Add a vote to the round, checking for conflicts.
     pub fn add(
         &mut self,
@@ -212,7 +221,12 @@ where
         round: Round,
     ) -> Option<Output<ValueId<Ctx>>> {
         let total_weight = self.total_weight();
-        let per_round = self.per_round.entry(vote.round()).or_default();
+        let per_round =
+            self.per_round
+                .entry(vote.round())
+                .or_insert(PerRound::with_expected_number_of_votes(
+                    self.validator_set.count(),
+                ));
 
         let Some(validator) = self.validator_set.get_by_address(vote.validator_address()) else {
             // Vote from unknown validator, let's discard it.
