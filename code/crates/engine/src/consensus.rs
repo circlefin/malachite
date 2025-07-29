@@ -524,11 +524,19 @@ where
                             return Ok(());
                         }
 
+                        // Fetch the proposer for the round and height of the synced value
+                        // Given that proposer selection is required be fully deterministic,
+                        // we are guaranteed to get the proposer for that value.
+                        let proposer = state
+                            .consensus
+                            .get_proposer(certificate_height, certificate_round)
+                            .clone();
+
                         self.host.call_and_forward(
                             |reply_to| HostMsg::ProcessSyncedValue {
                                 height: certificate_height,
                                 round: certificate_round,
-                                proposer: state.consensus.address().clone(),
+                                proposer,
                                 value_bytes: value.value_bytes,
                                 reply_to,
                             },

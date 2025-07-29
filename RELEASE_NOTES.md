@@ -5,6 +5,7 @@
 - Update libp2p to v0.56.x ([#1124](https://github.com/informalsystems/malachite/pull/1124))
 - Rename `Effect::RebroadcastVote` to `Effect::RepublishVote` and `Effect::RebroadcastRoundCertificate` to `Effect::RepublishRoundCertificate` ([#1011](https://github.com/informalsystems/malachite/issues/1011))
 - Decouple `Host` messages from the `Consensus` actor ([#1109](https://github.com/informalsystems/malachite/pull/1109))
+- Fix a bug where values synced from other peers were assigned the current node's address instead of their proposer's address ([#1141](https://github.com/informalsystems/malachite/pull/1141))
 
 ## 0.4.0
 
