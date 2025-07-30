@@ -44,5 +44,5 @@ where
     ProposedValue(ProposedValue<Ctx>, ValueOrigin),
 
     /// We have received a synced value via the sync protocol.
-    ValueResponse(ValueResponse<Ctx>),
+    SyncValueResponse(ValueResponse<Ctx>),
 }

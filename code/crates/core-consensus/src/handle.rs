@@ -57,7 +57,7 @@ where
         Input::ProposedValue(value, origin) => {
             on_proposed_value(co, state, metrics, value, origin).await
         }
-        Input::ValueResponse(value) => on_value_response(co, state, metrics, value).await,
+        Input::SyncValueResponse(value) => on_value_response(co, state, metrics, value).await,
         Input::PolkaCertificate(certificate) => {
             on_polka_certificate(co, state, metrics, certificate).await
         }

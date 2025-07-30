@@ -21,7 +21,7 @@ where
     if state.driver.height() < value.certificate.height {
         debug!("Received value response for higher height, queuing for later");
 
-        state.buffer_input(value.certificate.height, Input::ValueResponse(value));
+        state.buffer_input(value.certificate.height, Input::SyncValueResponse(value));
 
         return Ok(());
     }

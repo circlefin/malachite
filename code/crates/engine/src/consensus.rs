@@ -496,7 +496,7 @@ where
                             .process_input(
                                 &myself,
                                 state,
-                                ConsensusInput::ValueResponse(CoreValueResponse::new(
+                                ConsensusInput::SyncValueResponse(CoreValueResponse::new(
                                     peer,
                                     proposer,
                                     value.value_bytes,
