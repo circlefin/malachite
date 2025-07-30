@@ -200,8 +200,8 @@ async fn spawn_consensus_actor(
         value_payload: ValuePayload::PartsOnly,
     };
 
-    // Derive the consensus queue capacity from `sync.parallel_requests`
-    cfg.consensus.queue_capacity = cfg.value_sync.parallel_requests;
+    // Derive the consensus queue capacity from `sync.parallel_requests` and `sync.batch_size`
+    cfg.consensus.queue_capacity = cfg.value_sync.parallel_requests * cfg.value_sync.batch_size;
 
     Consensus::spawn(
         ctx,

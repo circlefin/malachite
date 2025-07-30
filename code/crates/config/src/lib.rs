@@ -461,7 +461,7 @@ impl Default for ValueSyncConfig {
             parallel_requests: 5,
             scoring_strategy: ScoringStrategy::default(),
             inactive_threshold: Duration::from_secs(60),
-            batch_size: 1000,
+            batch_size: 100,
         }
     }
 }
