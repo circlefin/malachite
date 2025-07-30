@@ -70,10 +70,6 @@ timeout_rebroadcast = "5s"
 # Override with MALACHITE__CONSENSUS__VALUE_PAYLOAD env variable
 value_payload = "parts-only"
 
-# Maximum number of heights to keep in the consensus input buffer.
-# Override with MALACHITE__CONSENSUS__QUEUE_CAPACITY env variable
-queue_capacity = 100
-
 # VoteSync configuration options
 [consensus.vote_sync]
 # The mode of vote synchronization

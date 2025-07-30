@@ -89,15 +89,15 @@ where
     /// Resume with: [`resume::Continue`]
     PublishLivenessMsg(LivenessMsg<Ctx>, resume::Continue),
 
-    /// Rebroadcast a vote to peers
+    /// Re-publish a vote to peers
     ///
     /// Resume with: [`resume::Continue`]
     RepublishVote(SignedVote<Ctx>, resume::Continue),
 
-    /// Rebroadcast a round certificate to peers
+    /// Re-publish a round certificate to peers
     ///
     /// Resume with: [`resume::Continue`]
-    RebroadcastRoundCertificate(RoundCertificate<Ctx>, resume::Continue),
+    RepublishRoundCertificate(RoundCertificate<Ctx>, resume::Continue),
 
     /// Requests the application to build a value for consensus to run on.
     ///

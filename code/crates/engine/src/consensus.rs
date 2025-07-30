@@ -23,7 +23,7 @@ use malachitebft_core_types::{
 use malachitebft_metrics::Metrics;
 use malachitebft_sync::{self as sync, ValueResponse};
 
-use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
+use crate::host::{HostMsg, HostRef, LocallyProposedValue, Next, ProposedValue};
 use crate::network::{NetworkEvent, NetworkMsg, NetworkRef};
 use crate::sync::Msg as SyncMsg;
 use crate::sync::SyncRef;
@@ -105,6 +105,7 @@ pub enum Msg<Ctx: Context> {
     /// Instructs consensus to restart at a given height with the given validator set.
     ///
     /// On this input consensus resets the Write-Ahead Log.
+    ///
     /// # Warning
     /// This operation should be used with extreme caution as it can lead to safety violations:
     /// 1. The application must clean all state associated with the height for which commit has failed
@@ -430,7 +431,14 @@ where
                         if state.phase == Phase::Unstarted {
                             state.set_phase(Phase::Ready);
 
-                            self.host.cast(HostMsg::ConsensusReady(myself.clone()))?;
+                            self.host.call_and_forward(
+                                |reply_to| HostMsg::ConsensusReady { reply_to },
+                                &myself,
+                                |(height, validator_set)| {
+                                    ConsensusMsg::StartHeight(height, validator_set)
+                                },
+                                None,
+                            )?;
                         }
                     }
 
@@ -657,11 +665,19 @@ where
             }
         }
 
+        // Fetch the proposer for the round and height of the synced value
+        // Given that proposer selection is required be fully deterministic,
+        // we are guaranteed to get the proposer for that value.
+        let proposer = state
+            .consensus
+            .get_proposer(certificate_height, certificate_round)
+            .clone();
+
         self.host.call_and_forward(
             |reply_to| HostMsg::ProcessSyncedValue {
                 height: certificate_height,
                 round: certificate_round,
-                validator_address: state.consensus.address().clone(),
+                proposer,
                 value_bytes: value.value_bytes.clone(),
                 reply_to,
             },
@@ -994,12 +1010,18 @@ where
             Effect::StartRound(height, round, proposer, role, r) => {
                 self.wal_flush(state.phase).await?;
 
-                self.host.cast(HostMsg::StartedRound {
-                    height,
-                    round,
-                    proposer: proposer.clone(),
-                    role,
-                })?;
+                let undecided_values =
+                    ractor::call!(self.host, |reply_to| HostMsg::StartedRound {
+                        height,
+                        round,
+                        proposer: proposer.clone(),
+                        role,
+                        reply_to,
+                    })?;
+
+                for value in undecided_values {
+                    let _ = myself.cast(Msg::ReceivedProposedValue(value, ValueOrigin::Consensus));
+                }
 
                 self.tx_event
                     .send(|| Event::StartedRound(height, round, proposer, role));
@@ -1162,7 +1184,7 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::RebroadcastRoundCertificate(certificate, r) => {
+            Effect::RepublishRoundCertificate(certificate, r) => {
                 // Notify any subscribers that we are about to rebroadcast a round certificate
                 self.tx_event
                     .send(|| Event::RebroadcastRoundCertificate(certificate.clone()));
@@ -1225,11 +1247,19 @@ where
                 let height = certificate.height;
 
                 self.host
-                    .cast(HostMsg::Decided {
-                        certificate,
-                        extensions,
-                        consensus: myself.clone(),
-                    })
+                    .call_and_forward(
+                        |reply_to| HostMsg::Decided {
+                            certificate,
+                            extensions,
+                            reply_to,
+                        },
+                        myself,
+                        |next| match next {
+                            Next::Start(h, vs) => Msg::StartHeight(h, vs),
+                            Next::Restart(h, vs) => Msg::RestartHeight(h, vs),
+                        },
+                        None,
+                    )
                     .map_err(|e| eyre!("Error when sending decided value to host: {e:?}"))?;
 
                 if let Some(sync) = &self.sync {
