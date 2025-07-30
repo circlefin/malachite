@@ -1,114 +1,141 @@
 use informalsystems_malachitebft_test::{Height, TestContext};
 use malachitebft_sync::{PeerId, State, Status};
 use std::collections::BTreeMap;
-use std::str::FromStr;
-
-// Helper function to create a set of two peers
-fn make_peers() -> (BTreeMap<PeerId, Status<TestContext>>, PeerId, PeerId) {
-    let peer1 = PeerId::from_str("12D3KooWEPvZRT1FQXVpgXVsUsi76VV8ahjG7bZSeMY3JvkbDYk1").unwrap();
-    let peer2 = PeerId::from_str("12D3KooWEPvZRT1FQXVpgXVsUsi76VV8ahjG7bZSeMY3JvkbDYk2").unwrap();
-    let peers = BTreeMap::from([
-        (
-            peer1,
-            Status::<TestContext> {
-                peer_id: peer1,
-                tip_height: Height::new(15),
-                history_min_height: Height::new(10),
-            },
-        ),
-        (
-            peer2,
-            Status::<TestContext> {
-                peer_id: peer2,
-                tip_height: Height::new(20),
-                history_min_height: Height::new(10),
-            },
-        ),
-    ]);
-    (peers, peer1, peer2)
-}
 
 #[test]
-fn filter_peers_empty_set_test() {
-    // An empty set of peers
-    let peers = BTreeMap::new();
+fn filter_peers_by_range_test() {
+    let peer1 = PeerId::random();
+    let peer2 = PeerId::random();
 
-    // Filter over an empty set of peers
-    let range = Height::new(1)..=Height::new(20);
-    let filtered_peers = State::<TestContext>::filter_peers_by_range(&peers, &range, None);
-    assert!(filtered_peers.is_empty());
-}
+    struct TestCase {
+        name: &'static str,
+        peers: Vec<(PeerId, u64, u64)>,
+        range: std::ops::RangeInclusive<Height>,
+        exclude_peer: Option<PeerId>,
+        expected_peers: Vec<PeerId>,
+        expected_ranges: Vec<(u64, u64)>, // (start, end) for each expected peer
+    }
 
-#[test]
-fn filter_peers_providing_full_range_test() {
-    // Given a set of two peers
-    let (peers, peer1, peer2) = make_peers();
+    let test_cases = vec![
+        TestCase {
+            name: "no peers",
+            peers: vec![],
+            range: Height::new(1)..=Height::new(20),
+            exclude_peer: None,
+            expected_peers: vec![],
+            expected_ranges: vec![],
+        },
+        TestCase {
+            name: "peers providing the full range, no exclusion",
+            peers: vec![(peer1, 10, 15), (peer2, 10, 20)],
+            range: Height::new(13)..=Height::new(15),
+            exclude_peer: None,
+            expected_peers: vec![peer1, peer2],
+            expected_ranges: vec![(13, 15), (13, 15)],
+        },
+        TestCase {
+            name: "peers providing the full range, excluding one peer",
+            peers: vec![(peer1, 10, 15), (peer2, 10, 20)],
+            range: Height::new(13)..=Height::new(15),
+            exclude_peer: Some(peer1),
+            expected_peers: vec![peer2],
+            expected_ranges: vec![(13, 15)],
+        },
+        TestCase {
+            name: "one peer providing a prefix range, no exclusion",
+            peers: vec![(peer1, 10, 15), (peer2, 10, 20)],
+            range: Height::new(17)..=Height::new(30),
+            exclude_peer: None,
+            expected_peers: vec![peer2],
+            expected_ranges: vec![(17, 20)],
+        },
+        TestCase {
+            name: "one peer providing a prefix range, excluding one peer",
+            peers: vec![(peer1, 10, 15), (peer2, 10, 20)],
+            range: Height::new(17)..=Height::new(30),
+            exclude_peer: Some(peer2),
+            expected_peers: vec![],
+            expected_ranges: vec![],
+        },
+        TestCase {
+            name: "no peers providing start height, no exclusion",
+            peers: vec![(peer1, 10, 15), (peer2, 10, 20)],
+            range: Height::new(5)..=Height::new(10),
+            exclude_peer: None,
+            expected_peers: vec![],
+            expected_ranges: vec![],
+        },
+        TestCase {
+            name: "no peers providing the range, no exclusion",
+            peers: vec![(peer1, 10, 15), (peer2, 10, 20)],
+            range: Height::new(21)..=Height::new(30),
+            exclude_peer: None,
+            expected_peers: vec![],
+            expected_ranges: vec![],
+        },
+    ];
 
-    // Given a range of heights that can be provided by both peers
-    let range = Height::new(13)..=Height::new(15);
+    for test_case in test_cases {
+        // Setup peers for this test case
+        let mut peers = BTreeMap::new();
+        for (peer_id, min, max) in &test_case.peers {
+            peers.insert(
+                *peer_id,
+                Status::<TestContext> {
+                    peer_id: *peer_id,
+                    tip_height: Height::new(*max),
+                    history_min_height: Height::new(*min),
+                },
+            );
+        }
 
-    // Filter by the range and exclude none
-    let filtered_peers = State::<TestContext>::filter_peers_by_range(&peers, &range, None);
-    assert_eq!(filtered_peers.len(), 2);
-    assert!(filtered_peers.contains_key(&peer1));
-    assert!(filtered_peers.contains_key(&peer2));
-    assert_eq!(filtered_peers.get(&peer1).unwrap().start().as_u64(), 13);
-    assert_eq!(filtered_peers.get(&peer1).unwrap().end().as_u64(), 15);
-    assert_eq!(filtered_peers.get(&peer2).unwrap().start().as_u64(), 13);
-    assert_eq!(filtered_peers.get(&peer2).unwrap().end().as_u64(), 15);
+        let filtered_peers = State::<TestContext>::filter_peers_by_range(
+            &peers,
+            &test_case.range,
+            test_case.exclude_peer,
+        );
 
-    // Filter by the range and exclude one peer
-    let filtered_peers = State::<TestContext>::filter_peers_by_range(&peers, &range, Some(peer1));
-    assert_eq!(filtered_peers.len(), 1);
-    assert!(!filtered_peers.contains_key(&peer1));
-    assert!(filtered_peers.contains_key(&peer2));
-    assert_eq!(filtered_peers.get(&peer2).unwrap().start().as_u64(), 13);
-    assert_eq!(filtered_peers.get(&peer2).unwrap().end().as_u64(), 15);
-}
+        // Validate expected number of peers
+        assert_eq!(
+            filtered_peers.len(),
+            test_case.expected_peers.len(),
+            "Test case '{}': expected {} peers, got {}",
+            test_case.name,
+            test_case.expected_peers.len(),
+            filtered_peers.len()
+        );
 
-#[test]
-fn filter_peers_providing_prefix_range_test() {
-    // Given a set of two peers
-    let (peers, peer1, peer2) = make_peers();
+        // Validate each expected peer is present with correct range
+        for (i, expected_peer) in test_case.expected_peers.iter().enumerate() {
+            assert!(
+                filtered_peers.contains_key(expected_peer),
+                "Test case '{}': expected peer {:?} not found",
+                test_case.name,
+                expected_peer
+            );
 
-    // Given a range of heights that can be partially provided by only one of the peers
-    let range = Height::new(17)..=Height::new(30);
+            let peer_range = filtered_peers.get(expected_peer).unwrap();
+            let (expected_start, expected_end) = test_case.expected_ranges[i];
 
-    // Filter by the range and exclude none
-    let filtered_peers = State::<TestContext>::filter_peers_by_range(&peers, &range, None);
-    assert_eq!(filtered_peers.len(), 1);
-    assert!(!filtered_peers.contains_key(&peer1));
-    assert!(filtered_peers.contains_key(&peer2));
-    assert_eq!(filtered_peers.get(&peer2).unwrap().start().as_u64(), 17);
-    assert_eq!(filtered_peers.get(&peer2).unwrap().end().as_u64(), 20);
+            assert_eq!(
+                peer_range.start().as_u64(),
+                expected_start,
+                "Test case '{}': peer {:?} has wrong start, expected {}, got {}",
+                test_case.name,
+                expected_peer,
+                expected_start,
+                peer_range.start().as_u64()
+            );
 
-    // Filter by the range and exclude one peer
-    let filtered_peers = State::<TestContext>::filter_peers_by_range(&peers, &range, Some(peer2));
-    assert!(filtered_peers.is_empty());
-}
-
-#[test]
-fn filter_peers_not_providing_start_height_test() {
-    // Given a set of two peers
-    let (peers, _, _) = make_peers();
-
-    // Given a range of heights with a start height not provided by any peer
-    let range = Height::new(5)..=Height::new(20);
-
-    // Filter by the range and exclude none
-    let filtered_peers = State::<TestContext>::filter_peers_by_range(&peers, &range, None);
-    assert!(filtered_peers.is_empty());
-}
-
-#[test]
-fn filter_peers_not_providing_range_test() {
-    // Given a set of two peers
-    let (peers, _, _) = make_peers();
-
-    // Given a range of heights not provided by any peer
-    let range = Height::new(21)..=Height::new(30);
-
-    // Filter by the range and exclude none
-    let filtered_peers = State::<TestContext>::filter_peers_by_range(&peers, &range, None);
-    assert!(filtered_peers.is_empty());
+            assert_eq!(
+                peer_range.end().as_u64(),
+                expected_end,
+                "Test case '{}': peer {:?} has wrong end, expected {}, got {}",
+                test_case.name,
+                expected_peer,
+                expected_end,
+                peer_range.end().as_u64()
+            );
+        }
+    }
 }

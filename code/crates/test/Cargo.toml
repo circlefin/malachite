@@ -17,7 +17,7 @@ malachitebft-core-types = { workspace = true, features = ["serde"] }
 malachitebft-config = { workspace = true }
 malachitebft-core-consensus = { workspace = true }
 malachitebft-proto = { workspace = true }
-malachitebft-peer = { workspace = true, features = ["serde"] }
+malachitebft-peer = { workspace = true, features = ["rand", "serde"] }
 malachitebft-signing-ed25519 = { workspace = true, features = ["rand", "serde"] }
 malachitebft-sync = { workspace = true }
 
