@@ -20,14 +20,6 @@
 
 - Rename `Effect::RebroadcastVote` to `Effect::RepublishVote` and `Effect::RebroadcastRoundCertificate` to `Effect::RepublishRoundCertificate` ([#1011](https://github.com/informalsystems/malachite/issues/1011))
 
-### `malachitebft-engine`
-
-#### Trait Changes
-
-- Renamed `GetDecidedValue` to `GetDecidedValues` in `HostMsg`. 
-  - Now it takes a range of heights instead of one, and the reply is a list (possibly empty) of
-    decided values instead of one or zero.
-
 ### `malachitebft-sync`
 
 #### Enum Changes

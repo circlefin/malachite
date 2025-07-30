@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use std::{ops::RangeInclusive, time::Duration};
+use std::time::Duration;
 
 use derive_where::derive_where;
 use ractor::{ActorRef, RpcReplyPort};
@@ -168,14 +168,14 @@ pub enum HostMsg<Ctx: Context> {
         reply_to: RpcReplyPort<Next<Ctx>>,
     },
 
-    /// Requests a previously decided values from the application's storage.
+    /// Requests a previously decided value from the application's storage.
     ///
-    /// The application MUST respond with those values if available, or empty otherwise.
-    GetDecidedValues {
-        /// Range of heights of the decided values to retrieve
-        range: RangeInclusive<Ctx::Height>,
-        /// Channel for sending back the decided values
-        reply_to: RpcReplyPort<Vec<RawDecidedValue<Ctx>>>,
+    /// The application MUST respond with that value if available, or `None` otherwise.
+    GetDecidedValue {
+        /// Height of the decided value to retrieve
+        height: Ctx::Height,
+        /// Channel for sending back the decided value
+        reply_to: RpcReplyPort<Option<RawDecidedValue<Ctx>>>,
     },
 
     /// Notifies the application that a value has been synced from the network.

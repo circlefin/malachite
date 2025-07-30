@@ -1,5 +1,4 @@
 use std::mem::size_of;
-use std::ops::RangeInclusive;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
@@ -373,25 +372,15 @@ impl Store {
             .flatten()
     }
 
-    /// Retrieves decided values for a range of heights.
-    /// Called by the application when a syncing peer is asking for a batch of decided values.
-    pub async fn get_decided_values(
+    /// Retrieves a decided value for the given height.
+    /// Called by the application when a syncing peer is asking for a decided value.
+    pub async fn get_decided_value(
         &self,
-        range: RangeInclusive<Height>,
-    ) -> Result<Vec<DecidedValue>, StoreError> {
+        height: Height,
+    ) -> Result<Option<DecidedValue>, StoreError> {
         let db = Arc::clone(&self.db);
-        tokio::task::spawn_blocking(move || {
-            // TODO: optimize this to avoid multiple database reads
 
-            let mut values = Vec::new();
-            for h in range.start().as_u64()..=range.end().as_u64() {
-                if let Some(value) = db.get_decided_value(Height::new(h))? {
-                    values.push(value);
-                }
-            }
-            Ok(values)
-        })
-        .await?
+        tokio::task::spawn_blocking(move || db.get_decided_value(height)).await?
     }
 
     /// Stores a decided value with its certificate.

@@ -280,28 +280,23 @@ pub async fn run(
             }
 
             // If, on the other hand, we are not lagging behind but are instead asked by one of
-            // our peers to help them catch up because they are the one lagging behind,
-            // then the engine might ask the application to provide with the values
-            // that were decided at some lower heights. In that case, we fetch them from our store
-            // and send them to consensus.
-            AppMsg::GetDecidedValues { range, reply } => {
-                info!(from = %range.start(), to = %range.end(), "Received sync request for decided values");
+            // our peer to help them catch up because they are the one lagging behind,
+            // then the engine might ask the application to provide with the value
+            // that was decided at some lower height. In that case, we fetch it from our store
+            // and send it to consensus.
+            AppMsg::GetDecidedValue { height, reply } => {
+                info!(%height, "Received sync request for decided value");
 
-                let decided_values = state.get_decided_values(range.clone()).await;
-                info!(from = %range.start(), to = %range.end(), "Found decided values: {decided_values:?}");
+                let decided_value = state.get_decided_value(height).await;
+                info!(%height, "Found decided value: {decided_value:?}");
 
-                let raw_decided_values: Vec<RawDecidedValue<TestContext>> = decided_values
-                    .into_iter()
-                    .map(|decided_value| {
-                        RawDecidedValue {
-                            value_bytes: JsonCodec.encode(&decided_value.value).unwrap(), // FIXME: unwrap
-                            certificate: decided_value.certificate,
-                        }
-                    })
-                    .collect();
+                let raw_decided_value = decided_value.map(|decided_value| RawDecidedValue {
+                    certificate: decided_value.certificate,
+                    value_bytes: JsonCodec.encode(&decided_value.value).unwrap(), // FIXME: unwrap
+                });
 
-                if reply.send(raw_decided_values).is_err() {
-                    error!("Failed to send GetDecidedValues reply");
+                if reply.send(raw_decided_value).is_err() {
+                    error!("Failed to send GetDecidedValue reply");
                 }
             }
 

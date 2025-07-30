@@ -78,23 +78,22 @@ where
         Input::ValueResponse(request_id, peer_id, Some(response)) => {
             let start = response.start_height;
             let end = response.end_height().unwrap_or(start);
+            let range_len = end.as_u64() - start.as_u64() + 1;
 
-            // Check if the response is valid. A valid response either matches
-            // exactly the requested range or contains a single value (for peers
-            // not supporting batching).
+            // Check if the response is valid. A valid response starts at the
+            // requested height, has at least one value, and no more than the
+            // requested range.
             if let Some(requested_range) = state.pending_requests.get(&request_id) {
-                let expected_num_values =
-                    requested_range.end().as_u64() - requested_range.start().as_u64() + 1;
-                let is_valid = requested_range.start().as_u64() == start.as_u64()
-                    && (requested_range.end().as_u64() == end.as_u64()
-                        && response.values.len() as u64 == expected_num_values)
-                    || (start.as_u64() == end.as_u64() && response.values.len() == 1);
+                let is_valid = start.as_u64() == requested_range.start().as_u64()
+                    && start.as_u64() <= end.as_u64()
+                    && end.as_u64() <= requested_range.end().as_u64()
+                    && response.values.len() as u64 == range_len;
                 if is_valid {
                     return on_value_response(co, state, metrics, request_id, peer_id, response)
                         .await;
                 } else {
                     warn!(%request_id, %peer_id, "Received request for wrong range of heights: expected {}..={} ({} values), got {}..={} ({} values)", 
-                        requested_range.start().as_u64(), requested_range.end().as_u64(), expected_num_values,
+                        requested_range.start().as_u64(), requested_range.end().as_u64(), range_len,
                         start.as_u64(), end.as_u64(), response.values.len() as u64);
                     return on_invalid_value_response(co, state, metrics, request_id, peer_id)
                         .await;
@@ -296,11 +295,10 @@ where
         );
     }
 
-    // For nodes that do not support batching, we re-request the remaining values if the response contains a single value.
+    // If the response contains a prefix of the requested values, re-request the remaining values.
     if let Some(requested_range) = state.pending_requests.get(&request_id) {
-        if response.values.len() == 1
-            && requested_range.end().as_u64() > requested_range.start().as_u64()
-        {
+        let range_len = requested_range.end().as_u64() - requested_range.start().as_u64() + 1;
+        if (response.values.len() as u64) < range_len {
             re_request_values_from_peer(co, state, metrics, request_id, None).await?;
         }
     }

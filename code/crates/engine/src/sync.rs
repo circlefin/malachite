@@ -14,7 +14,7 @@ use tracing::{debug, error, info, warn, Instrument};
 
 use malachitebft_codec as codec;
 use malachitebft_core_consensus::PeerId;
-use malachitebft_core_types::{CommitCertificate, Context};
+use malachitebft_core_types::{CommitCertificate, Context, Height};
 use malachitebft_sync::{
     self as sync, InboundRequestId, OutboundRequestId, RawDecidedValue, Request, Response,
     Resumable,
@@ -282,13 +282,29 @@ where
             }
 
             Effect::GetDecidedValues(request_id, range, r) => {
-                let range_cloned = range.clone();
-                self.host.call_and_forward(
-                    |reply_to| HostMsg::GetDecidedValues { range, reply_to },
-                    myself,
-                    move |values| Msg::<Ctx>::GotDecidedValues(request_id, range_cloned, values),
-                    None,
-                )?;
+                let mut values = Vec::new();
+                let mut height = *range.start();
+                while height <= *range.end() {
+                    let value = self
+                        .host
+                        .call(
+                            |reply_to| HostMsg::GetDecidedValue { height, reply_to },
+                            None,
+                        )
+                        .await?
+                        .success_or(eyre!("Failed to get decided value for height {height}"))?;
+
+                    if let Some(value) = value {
+                        values.push(value);
+                    } else {
+                        warn!("Decided value not found for height {height}");
+                        break;
+                    }
+
+                    height = height.increment();
+                }
+
+                myself.cast(Msg::<Ctx>::GotDecidedValues(request_id, range, values))?;
 
                 Ok(r.resume_with(()))
             }

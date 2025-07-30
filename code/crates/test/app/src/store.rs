@@ -1,4 +1,3 @@
-use std::ops::RangeInclusive;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -6,7 +5,7 @@ use bytes::Bytes;
 use prost::Message;
 use redb::ReadableTable;
 use thiserror::Error;
-use tracing::{error, warn};
+use tracing::error;
 
 use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::{CommitCertificate, Round};
@@ -292,30 +291,6 @@ impl Store {
     ) -> Result<Option<DecidedValue>, StoreError> {
         let db = Arc::clone(&self.db);
         tokio::task::spawn_blocking(move || db.get_decided_value(height)).await?
-    }
-
-    /// Retrieves decided values for a range of heights.
-    /// Called by the application when a syncing peer is asking for a batch of decided values.
-    pub async fn get_decided_values(
-        &self,
-        range: RangeInclusive<Height>,
-    ) -> Result<Vec<DecidedValue>, StoreError> {
-        let db = Arc::clone(&self.db);
-        tokio::task::spawn_blocking(move || {
-            // TODO: optimize this to avoid multiple database reads
-
-            let mut values = Vec::new();
-            for h in range.start().as_u64()..=range.end().as_u64() {
-                if let Some(value) = db.get_decided_value(Height::new(h))? {
-                    values.push(value);
-                } else {
-                    warn!("Decided value not found for height {h}");
-                    break;
-                }
-            }
-            Ok(values)
-        })
-        .await?
     }
 
     pub async fn store_decided_value(
