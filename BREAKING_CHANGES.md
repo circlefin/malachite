@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+> Nothing yet
+
+## 0.5.0
+
+*July 31st, 2025*
+
 ### General
 
 - Updated libp2p to v0.56.x ([#1124](https://github.com/informalsystems/malachite/pull/1124))

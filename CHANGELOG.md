@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.5.0
+
+*July 31, 2025*
+
+## 📖 Release notes
+See [`RELEASE_NOTES.md`](./RELEASE_NOTES.md#0.5.0) for the release notes.
+
+### ⚠️ Breaking changes
+See [`BREAKING_CHANGES.md`](./BREAKING_CHANGES.md#0.5.0) for the list of breaking changes.
+
+### 🚀 Features
+
+- *(code/engine)* [**breaking**] Decouple `Host` messages from `Consensus` actor ([#1109](https://github.com/informalsystems/malachite/pull/1109))
+
+### 🐛 Bug Fixes
+
+- *(code/sync)* Use proposer of synced value instead of our own address for `ProcessSyncedValue` ([#1141](https://github.com/informalsystems/malachite/pull/1141))
+- *(code/engine)* Derive the consensus queue capacity from the `sync.parallel_requests` setting ([#1143](https://github.com/informalsystems/malachite/pull/1143))
+
 ## 0.4.0
 
 *July 8, 2025*
