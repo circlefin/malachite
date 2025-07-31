@@ -133,6 +133,16 @@ where
         self.random_peer_with_except(range, None)
     }
 
+    /// Get the request that contains the given height.
+    ///
+    /// Assumes a height cannot be in multiple pending requests.
+    pub fn get_request_id_by(&self, height: Ctx::Height) -> Option<OutboundRequestId> {
+        self.pending_requests
+            .iter()
+            .find(|(_, range)| range.contains(&height))
+            .map(|(request_id, _)| request_id.clone())
+    }
+
     /// Return a new range of heights, trimming from the beginning any height
     /// that is not validated by consensus.
     pub fn trim_validated_heights(

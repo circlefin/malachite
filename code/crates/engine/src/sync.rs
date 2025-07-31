@@ -100,10 +100,10 @@ pub enum Msg<Ctx: Context> {
     TimeoutElapsed(TimeoutElapsed<Timeout>),
 
     /// We received an invalid value (either certificate or value) from a peer
-    InvalidValue(OutboundRequestId, PeerId, Ctx::Height),
+    InvalidValue(PeerId, Ctx::Height),
 
     /// An error occurred while processing a value
-    ValueProcessingError(OutboundRequestId, PeerId, Ctx::Height),
+    ValueProcessingError(PeerId, Ctx::Height),
 }
 
 impl<Ctx: Context> From<NetworkEvent<Ctx>> for Msg<Ctx> {
@@ -405,20 +405,16 @@ where
                 .await?;
             }
 
-            Msg::InvalidValue(request_id, peer, height) => {
-                self.process_input(
-                    &myself,
-                    state,
-                    sync::Input::InvalidValue(request_id, peer, height),
-                )
-                .await?
+            Msg::InvalidValue(peer, height) => {
+                self.process_input(&myself, state, sync::Input::InvalidValue(peer, height))
+                    .await?
             }
 
-            Msg::ValueProcessingError(request_id, peer, height) => {
+            Msg::ValueProcessingError(peer, height) => {
                 self.process_input(
                     &myself,
                     state,
-                    sync::Input::ValueProcessingError(request_id, peer, height),
+                    sync::Input::ValueProcessingError(peer, height),
                 )
                 .await?
             }

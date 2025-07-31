@@ -485,15 +485,8 @@ where
                         // Process values sequentially starting from the lowest height
                         let mut height = start_height;
                         for value in values.iter() {
-                            self.process_sync_response(
-                                &myself,
-                                state,
-                                request_id.clone(),
-                                peer,
-                                height,
-                                value,
-                            )
-                            .await?;
+                            self.process_sync_response(&myself, state, peer, height, value)
+                                .await?;
 
                             height = height.increment();
                         }
@@ -619,7 +612,6 @@ where
         &self,
         myself: &ActorRef<Msg<Ctx>>,
         state: &mut State<Ctx>,
-        request_id: malachitebft_sync::OutboundRequestId,
         peer: PeerId,
         height: <Ctx as Context>::Height,
         value: &malachitebft_sync::RawDecidedValue<Ctx>,
@@ -644,9 +636,8 @@ where
             )
             .await
         {
-            error!(%height, %request_id, "Error when processing received synced block: {e}");
+            error!(%height, "Error when processing received synced block: {e}");
 
-            let request_id = request_id.clone();
             if let ConsensusError::InvalidCommitCertificate(certificate, e) = e {
                 error!(
                     %peer,
@@ -655,10 +646,10 @@ where
                     "Invalid certificate received: {e}"
                 );
 
-                sync.cast(SyncMsg::InvalidValue(request_id, peer, certificate.height))
+                sync.cast(SyncMsg::InvalidValue(peer, certificate.height))
                     .map_err(|e| eyre!("Error when notifying sync of invalid certificate: {e}"))?;
             } else {
-                sync.cast(SyncMsg::ValueProcessingError(request_id, peer, height))
+                sync.cast(SyncMsg::ValueProcessingError(peer, height))
                     .map_err(|e| {
                         eyre!("Error when notifying sync of value processing error: {e}")
                     })?;
@@ -686,9 +677,7 @@ where
                 if proposed.validity == Validity::Invalid
                     || proposed.value.id() != certificate_value_id
                 {
-                    if let Err(e) =
-                        sync.cast(SyncMsg::InvalidValue(request_id, peer, certificate_height))
-                    {
+                    if let Err(e) = sync.cast(SyncMsg::InvalidValue(peer, certificate_height)) {
                         error!("Error when notifying sync of received proposed value: {e}");
                     }
                 }
