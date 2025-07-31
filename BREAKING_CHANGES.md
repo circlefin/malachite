@@ -18,8 +18,10 @@
 
 ### `malachitebft-core-consensus`
 
-- Rename `Effect::RebroadcastVote` to `Effect::RepublishVote` and `Effect::RebroadcastRoundCertificate` to `Effect::RepublishRoundCertificate` ([#1011](https://github.com/informalsystems/malachite/issues/1011))
-- Add new `Effect::SyncValue` variant to forward synced values to the application ([#1149](https://github.com/informalsystems/malachite/pull/1149))
+- Renamed `Effect::RebroadcastVote` to `Effect::RepublishVote` and `Effect::RebroadcastRoundCertificate` to `Effect::RepublishRoundCertificate` ([#1011](https://github.com/informalsystems/malachite/issues/1011))
+- Added new `Effect::SyncValue` variant to forward synced values to the application ([#1149](https://github.com/informalsystems/malachite/pull/1149))
+- Removed `Input::CommitCertificate` variant ([#1149](https://github.com/informalsystems/malachite/pull/1149))
+- Added new `Input::SyncValueResponse` variant to notify consensus of a sync value having been received via the sync protocol ([#1149](https://github.com/informalsystems/malachite/pull/1149))
 
 ## 0.4.0
 
