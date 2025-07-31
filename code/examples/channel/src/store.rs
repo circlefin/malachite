@@ -22,6 +22,7 @@ mod keys;
 use keys::{HeightKey, UndecidedValueKey};
 
 use crate::metrics::DbMetrics;
+use crate::store::keys::PendingValueKey;
 
 #[derive(Clone, Debug)]
 pub struct DecidedValue {
@@ -77,6 +78,9 @@ const DECIDED_VALUES_TABLE: redb::TableDefinition<HeightKey, Vec<u8>> =
 
 const UNDECIDED_PROPOSALS_TABLE: redb::TableDefinition<UndecidedValueKey, Vec<u8>> =
     redb::TableDefinition::new("undecided_values");
+
+const PENDING_PROPOSALS_TABLE: redb::TableDefinition<PendingValueKey, Vec<u8>> =
+    redb::TableDefinition::new("pending_values");
 
 struct Db {
     db: redb::Database,
@@ -250,6 +254,79 @@ impl Db {
         Ok(())
     }
 
+    fn get_pending_proposals(
+        &self,
+        height: Height,
+        round: Round,
+    ) -> Result<Vec<ProposedValue<TestContext>>, StoreError> {
+        let start = Instant::now();
+        let mut read_bytes = 0;
+
+        let tx = self.db.begin_read()?;
+        let table = tx.open_table(PENDING_PROPOSALS_TABLE)?;
+
+        let mut proposals = Vec::new();
+        for result in table.iter()? {
+            let (key, value) = result?;
+            let (h, r, _) = key.value();
+
+            if h == height && r == round {
+                let bytes = value.value();
+                read_bytes += bytes.len() as u64;
+
+                let proposal = ProtobufCodec
+                    .decode(Bytes::from(bytes))
+                    .map_err(StoreError::Protobuf)?;
+
+                proposals.push(proposal);
+            }
+        }
+
+        self.metrics.observe_read_time(start.elapsed());
+        self.metrics.add_read_bytes(read_bytes);
+        self.metrics.add_key_read_bytes(
+            size_of::<(Height, Round, ValueId)>() as u64 * proposals.len() as u64,
+        );
+
+        Ok(proposals)
+    }
+
+    fn remove_pending_proposal(
+        &self,
+        proposal: ProposedValue<TestContext>,
+    ) -> Result<(), StoreError> {
+        let key = (proposal.height, proposal.round, proposal.value.id());
+        let tx = self.db.begin_write()?;
+        {
+            let mut table = tx.open_table(PENDING_PROPOSALS_TABLE)?;
+            table.remove(key)?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    fn insert_pending_proposal(
+        &self,
+        proposal: ProposedValue<TestContext>,
+    ) -> Result<(), StoreError> {
+        let start = Instant::now();
+
+        let key = (proposal.height, proposal.round, proposal.value.id());
+        let value = ProtobufCodec.encode(&proposal)?;
+
+        let tx = self.db.begin_write()?;
+        {
+            let mut table = tx.open_table(PENDING_PROPOSALS_TABLE)?;
+            table.insert(key, value.to_vec())?;
+        }
+        tx.commit()?;
+
+        self.metrics.observe_write_time(start.elapsed());
+        self.metrics.add_write_bytes(value.len() as u64);
+
+        Ok(())
+    }
+
     fn prune(&self, current_height: Height, retain_height: Height) -> Result<(), StoreError> {
         let start = Instant::now();
 
@@ -259,6 +336,10 @@ impl Db {
             // Remove all undecided proposals with height <= current_height
             let mut undecided = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
             undecided.retain(|k, _| k.0 > current_height)?;
+
+            // Remove all pending proposals with height <= current_height
+            let mut pending = tx.open_table(PENDING_PROPOSALS_TABLE)?;
+            pending.retain(|k, _| k.0 > current_height)?;
 
             // Prune decided values and certificates up to the retain height
             let mut decided = tx.open_table(DECIDED_VALUES_TABLE)?;
@@ -305,6 +386,7 @@ impl Db {
         let _ = tx.open_table(DECIDED_VALUES_TABLE)?;
         let _ = tx.open_table(CERTIFICATES_TABLE)?;
         let _ = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
+        let _ = tx.open_table(PENDING_PROPOSALS_TABLE)?;
 
         tx.commit()?;
 
@@ -317,6 +399,27 @@ impl Db {
     ) -> Result<Option<ProposedValue<TestContext>>, StoreError> {
         let tx = self.db.begin_read()?;
         let table = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
+
+        for result in table.iter()? {
+            let (_, value) = result?;
+            let proposal: ProposedValue<TestContext> = ProtobufCodec
+                .decode(Bytes::from(value.value()))
+                .map_err(StoreError::Protobuf)?;
+
+            if proposal.value.id() == value_id {
+                return Ok(Some(proposal));
+            }
+        }
+
+        Ok(None)
+    }
+
+    fn get_pending_proposal_by_value_id(
+        &self,
+        value_id: ValueId,
+    ) -> Result<Option<ProposedValue<TestContext>>, StoreError> {
+        let tx = self.db.begin_read()?;
+        let table = tx.open_table(PENDING_PROPOSALS_TABLE)?;
 
         for result in table.iter()? {
             let (_, value) = result?;
@@ -433,6 +536,37 @@ impl Store {
         tokio::task::spawn_blocking(move || db.get_undecided_proposals(height, round)).await?
     }
 
+    /// Stores a pending proposal.
+    /// Called by the application when receiving new proposals from peers.
+    pub async fn store_pending_proposal(
+        &self,
+        value: ProposedValue<TestContext>,
+    ) -> Result<(), StoreError> {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.insert_pending_proposal(value)).await?
+    }
+
+    /// Retrieves all undecided proposals for a given height and round.
+    /// Called by the application when starting a new round and existing proposals need to be replayed.
+    pub async fn get_pending_proposals(
+        &self,
+        height: Height,
+        round: Round,
+    ) -> Result<Vec<ProposedValue<TestContext>>, StoreError> {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.get_pending_proposals(height, round)).await?
+    }
+
+    /// Removes a pending proposal.
+    /// Called by the application when a proposal is no longer valid.
+    pub async fn remove_pending_proposal(
+        &self,
+        value: ProposedValue<TestContext>,
+    ) -> Result<(), StoreError> {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.remove_pending_proposal(value)).await?
+    }
+
     /// Prunes the store by removing all undecided proposals and decided values up to the retain height.
     /// Called by the application to clean up old data and free up space. This is done when a new value is committed.
     pub async fn prune(
@@ -452,5 +586,15 @@ impl Store {
     ) -> Result<Option<ProposedValue<TestContext>>, StoreError> {
         let db = Arc::clone(&self.db);
         tokio::task::spawn_blocking(move || db.get_undecided_proposal_by_value_id(value_id)).await?
+    }
+
+    /// Retrieves a pending proposal by its value ID.
+    /// Called by the application when looking up a proposal by value ID.
+    pub async fn get_pending_proposal_by_value_id(
+        &self,
+        value_id: ValueId,
+    ) -> Result<Option<ProposedValue<TestContext>>, StoreError> {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.get_pending_proposal_by_value_id(value_id)).await?
     }
 }

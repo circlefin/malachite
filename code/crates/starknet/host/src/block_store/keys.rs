@@ -4,6 +4,7 @@ use malachitebft_core_types::Round;
 use malachitebft_starknet_p2p_types::{BlockHash, Height};
 
 pub type UndecidedValueKey = (HeightKey, RoundKey, BlockHashKey);
+pub type PendingValueKey = (HeightKey, RoundKey, BlockHashKey);
 
 #[derive(Copy, Clone, Debug)]
 pub struct HeightKey;
