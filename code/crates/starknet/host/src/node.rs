@@ -251,7 +251,7 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
         moniker: format!("starknet-{index}"),
         consensus: ConsensusConfig {
             value_payload: ValuePayload::PartsOnly,
-            queue_capacity: 100,
+            queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
@@ -347,7 +347,7 @@ fn make_distributed_config(
     Config {
         moniker: format!("starknet-{index}"),
         consensus: ConsensusConfig {
-            queue_capacity: 100,
+            queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`
             value_payload: ValuePayload::PartsOnly,
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
