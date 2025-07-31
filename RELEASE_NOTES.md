@@ -57,10 +57,6 @@
 This is the first release of the Malachite consensus engine intended for general use.
 This version introduces production-ready functionality with improved performance and reliability.
 
-### Changes
-
-See the full list of changes in the [CHANGELOG](CHANGELOG.md#0.1.0).
-
 ### Resources
 
 - [The tutorial][tutorial] for building a simple application on top of Malachite using the high-level channel-based API.
@@ -79,7 +75,3 @@ See the full list of changes in the [CHANGELOG](CHANGELOG.md#0.1.0).
 
 First open-source release of Malachite.
 This initial version provides the foundational consensus implementation but is not recommended for production use.
-
-### Changes
-
-See the full list of changes in the [CHANGELOG](CHANGELOG.md#0.0.1).
