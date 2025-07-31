@@ -18,7 +18,7 @@ use malachitebft_core_consensus::{
 };
 use malachitebft_core_types::{
     Context, Height, Proposal, Round, SigningProvider, SigningProviderExt, Timeout, TimeoutKind,
-    ValidatorSet, Validity, Value, ValueId, ValueOrigin, Vote,
+    ValidatorSet, Validity, Value, ValueId, ValueOrigin, ValueResponse as CoreValueResponse, Vote,
 };
 use malachitebft_metrics::Metrics;
 use malachitebft_sync::{self as sync, ValueResponse};
@@ -624,15 +624,24 @@ where
             return Ok(());
         };
 
-        let certificate_height = value.certificate.height;
-        let certificate_round = value.certificate.round;
-        let certificate_value_id = value.certificate.value_id.clone();
+        // Fetch the proposer for the round and height of the synced value
+        // Given that proposer selection is required be fully deterministic,
+        // we are guaranteed to get the proposer for that value.
+        let proposer = state
+            .consensus
+            .get_proposer(value.certificate.height, value.certificate.round)
+            .clone();
 
         if let Err(e) = self
             .process_input(
-                myself,
+                &myself,
                 state,
-                ConsensusInput::CommitCertificate(value.certificate.clone()),
+                ConsensusInput::SyncValueResponse(CoreValueResponse::new(
+                    peer,
+                    proposer,
+                    value.value_bytes.clone(),
+                    value.certificate.clone(),
+                )),
             )
             .await
         {
@@ -655,37 +664,6 @@ where
                     })?;
             }
         }
-
-        // Fetch the proposer for the round and height of the synced value
-        // Given that proposer selection is required be fully deterministic,
-        // we are guaranteed to get the proposer for that value.
-        let proposer = state
-            .consensus
-            .get_proposer(certificate_height, certificate_round)
-            .clone();
-
-        self.host.call_and_forward(
-            |reply_to| HostMsg::ProcessSyncedValue {
-                height: certificate_height,
-                round: certificate_round,
-                proposer,
-                value_bytes: value.value_bytes.clone(),
-                reply_to,
-            },
-            &myself,
-            move |proposed| {
-                if proposed.validity == Validity::Invalid
-                    || proposed.value.id() != certificate_value_id
-                {
-                    if let Err(e) = sync.cast(SyncMsg::InvalidValue(peer, certificate_height)) {
-                        error!("Error when notifying sync of received proposed value: {e}");
-                    }
-                }
-
-                Msg::<Ctx>::ReceivedProposedValue(proposed, ValueOrigin::Sync(peer))
-            },
-            None,
-        )?;
 
         Ok(())
     }
@@ -1256,6 +1234,42 @@ where
                         .map_err(|e| eyre!("Error when sending decided height to sync: {e:?}"))?;
                 }
 
+                Ok(r.resume_with(()))
+            }
+
+            Effect::SyncValue(value, r) => {
+                let certificate_height = value.certificate.height;
+                let certificate_round = value.certificate.round;
+
+                let Some(sync) = self.sync.clone() else {
+                    warn!("Received sync response but sync actor is not available");
+                    return Ok(r.resume_with(()));
+                };
+
+                self.host.call_and_forward(
+                    |reply_to| HostMsg::ProcessSyncedValue {
+                        height: certificate_height,
+                        round: certificate_round,
+                        proposer: value.proposer,
+                        value_bytes: value.value_bytes,
+                        reply_to,
+                    },
+                    myself,
+                    move |proposed| {
+                        if proposed.validity == Validity::Invalid
+                            || proposed.value.id() != value.certificate.value_id
+                        {
+                            if let Err(e) =
+                                sync.cast(SyncMsg::InvalidValue(value.peer, certificate_height))
+                            {
+                                error!("Error when notifying sync of received proposed value: {e}");
+                            }
+                        }
+
+                        Msg::<Ctx>::ReceivedProposedValue(proposed, ValueOrigin::Sync(value.peer))
+                    },
+                    None,
+                )?;
                 Ok(r.resume_with(()))
             }
 

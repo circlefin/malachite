@@ -19,6 +19,7 @@
 ### `malachitebft-core-consensus`
 
 - Rename `Effect::RebroadcastVote` to `Effect::RepublishVote` and `Effect::RebroadcastRoundCertificate` to `Effect::RepublishRoundCertificate` ([#1011](https://github.com/informalsystems/malachite/issues/1011))
+- Add new `Effect::SyncValue` variant to forward synced values to the application ([#1149](https://github.com/informalsystems/malachite/pull/1149))
 
 ### `malachitebft-sync`
 
