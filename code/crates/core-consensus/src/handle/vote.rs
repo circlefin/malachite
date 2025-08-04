@@ -76,16 +76,18 @@ where
 
     debug_assert_eq!(consensus_height, vote_height);
 
-    // Append the vote to the Write-ahead Log
-    perform!(
-        co,
-        Effect::WalAppend(
-            WalEntry::ConsensusMsg(SignedConsensusMsg::Vote(signed_vote.clone())),
-            Default::default()
-        )
-    );
+    // Only process this vote if we have not yet seen it.
+    if !state.driver.votes().has_vote(&signed_vote) {
+        perform!(
+            co,
+            Effect::WalAppend(
+                WalEntry::ConsensusMsg(SignedConsensusMsg::Vote(signed_vote.clone())),
+                Default::default()
+            )
+        );
 
-    apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote)).await?;
+        apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote)).await?;
+    }
 
     Ok(())
 }
