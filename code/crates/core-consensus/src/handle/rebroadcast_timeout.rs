@@ -41,7 +41,7 @@ where
             );
             perform!(
                 co,
-                Effect::RebroadcastRoundCertificate(cert.certificate.clone(), Default::default())
+                Effect::RepublishRoundCertificate(cert.certificate.clone(), Default::default())
             );
         }
     };

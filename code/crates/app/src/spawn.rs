@@ -72,7 +72,8 @@ pub async fn spawn_consensus_actor<Ctx>(
     initial_validator_set: Ctx::ValidatorSet,
     address: Ctx::Address,
     ctx: Ctx,
-    cfg: ConsensusConfig,
+    mut cfg: ConsensusConfig,
+    sync_cfg: &ValueSyncConfig,
     signing_provider: Box<dyn SigningProvider<Ctx>>,
     network: NetworkRef<Ctx>,
     host: HostRef<Ctx>,
@@ -99,6 +100,9 @@ where
         threshold_params: Default::default(),
         value_payload,
     };
+
+    // Derive the consensus queue capacity from `sync.parallel_requests`
+    cfg.queue_capacity = sync_cfg.parallel_requests;
 
     Consensus::spawn(
         ctx,

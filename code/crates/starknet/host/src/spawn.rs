@@ -181,7 +181,7 @@ async fn spawn_consensus_actor(
     initial_validator_set: ValidatorSet,
     address: Address,
     ctx: MockContext,
-    cfg: Config,
+    mut cfg: Config,
     signing_provider: Ed25519Provider,
     network: NetworkRef<MockContext>,
     host: HostRef<MockContext>,
@@ -198,6 +198,9 @@ async fn spawn_consensus_actor(
         threshold_params: Default::default(),
         value_payload: ValuePayload::PartsOnly,
     };
+
+    // Derive the consensus queue capacity from `sync.parallel_requests`
+    cfg.consensus.queue_capacity = cfg.value_sync.parallel_requests;
 
     Consensus::spawn(
         ctx,

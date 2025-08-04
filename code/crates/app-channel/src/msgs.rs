@@ -4,6 +4,7 @@ use bytes::Bytes;
 use derive_where::derive_where;
 use malachitebft_app::consensus::Role;
 use malachitebft_app::types::core::ValueOrigin;
+use malachitebft_engine::host::Next;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
@@ -34,7 +35,7 @@ pub struct Channels<Ctx: Context> {
 pub enum AppMsg<Ctx: Context> {
     /// Notifies the application that consensus is ready.
     ///
-    /// The application MAY reply with a message to instruct
+    /// The application MUST reply with a message to instruct
     /// consensus to start at a given height.
     ConsensusReady {
         /// Channel for sending back the height to start at
@@ -52,11 +53,14 @@ pub enum AppMsg<Ctx: Context> {
         proposer: Ctx::Address,
         /// Role that this node is playing in this round
         role: Role,
-        /// Channel for sending back previously received undecided values to consensus
+        /// Use this channel to send back any undecided values that were already seen for this round.
+        /// This is needed when recovering from a crash.
+        ///
+        /// The application MUST reply immediately with the values it has, or with an empty vector.
         reply_value: Reply<Vec<ProposedValue<Ctx>>>,
     },
 
-    /// Requests the application to build a value for consensus to run on.
+    /// Requests the application to build a value for consensus to propose.
     ///
     /// The application MUST reply to this message with the requested value
     /// within the specified timeout duration.
@@ -89,10 +93,15 @@ pub enum AppMsg<Ctx: Context> {
     /// If the vote extension is deemed invalid, the vote it was part of
     /// will be discarded altogether.
     VerifyVoteExtension {
+        /// The height for which the vote is.
         height: Ctx::Height,
+        /// The round for which the vote is.
         round: Round,
+        /// The ID of the value that the vote extension is for.
         value_id: ValueId<Ctx>,
+        /// The vote extension to verify.
         extension: Ctx::Extension,
+        /// Use this channel to send the result of the verification.
         reply: Reply<Result<(), VoteExtensionError>>,
     },
 
@@ -147,8 +156,10 @@ pub enum AppMsg<Ctx: Context> {
     /// and the aggregated signatures of the validators that committed to it.
     /// It also includes to the vote extensions received for that height.
     ///
-    /// In response to this message, the application MUST send a [`ConsensusMsg::StartHeight`]
-    /// message back to consensus, instructing it to start the next height.
+    /// In response to this message, the application MUST send a [`Next`]
+    /// message back to consensus, instructing it to either start the next height if
+    /// the application was able to commit the decided value, or to restart the current height
+    /// otherwise.
     ///
     /// If the application does not reply, consensus will stall.
     Decided {
@@ -159,7 +170,7 @@ pub enum AppMsg<Ctx: Context> {
         extensions: VoteExtensions<Ctx>,
 
         /// Channel for instructing consensus to start the next height, if desired
-        reply: Reply<ConsensusMsg<Ctx>>,
+        reply: Reply<Next<Ctx>>,
     },
 
     /// Requests a previously decided value from the application's storage.

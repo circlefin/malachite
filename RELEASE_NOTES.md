@@ -2,9 +2,17 @@
 
 ## Unreleased
 
-- Update libp2p to v0.56.x ([#1124](https://github.com/informalsystems/malachite/pull/1124))
-- Rename `Effect::RebroadcastVote` to `Effect::RepublishVote` ([#1011](https://github.com/informalsystems/malachite/issues/1011))
 - Fix bug in WAL recovery logic where a corrupted entry would not be detected in some circumstances ([#1127](https://github.com/informalsystems/malachite/pull/1127))
+
+## 0.5.0
+
+*July 31st, 2025*
+
+- Update libp2p to v0.56.x ([#1124](https://github.com/informalsystems/malachite/pull/1124))
+- Rename `Effect::RebroadcastVote` to `Effect::RepublishVote` and `Effect::RebroadcastRoundCertificate` to `Effect::RepublishRoundCertificate` ([#1011](https://github.com/informalsystems/malachite/issues/1011))
+- Decouple `Host` messages from the `Consensus` actor ([#1109](https://github.com/informalsystems/malachite/pull/1109))
+- Fix a bug where values synced from other peers were assigned the current node's address instead of their proposer's address ([#1141](https://github.com/informalsystems/malachite/pull/1141))
+- Buffer sync values for heights higher than current height in consensus and replay when running consensus for those heights ([#1149](https://github.com/informalsystems/malachite/pull/1149))
 
 ## 0.4.0
 
@@ -49,10 +57,6 @@
 This is the first release of the Malachite consensus engine intended for general use.
 This version introduces production-ready functionality with improved performance and reliability.
 
-### Changes
-
-See the full list of changes in the [CHANGELOG](CHANGELOG.md#0.1.0).
-
 ### Resources
 
 - [The tutorial][tutorial] for building a simple application on top of Malachite using the high-level channel-based API.
@@ -71,7 +75,3 @@ See the full list of changes in the [CHANGELOG](CHANGELOG.md#0.1.0).
 
 First open-source release of Malachite.
 This initial version provides the foundational consensus implementation but is not recommended for production use.
-
-### Changes
-
-See the full list of changes in the [CHANGELOG](CHANGELOG.md#0.0.1).

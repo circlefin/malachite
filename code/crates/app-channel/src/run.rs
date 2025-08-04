@@ -70,6 +70,7 @@ where
         address,
         ctx.clone(),
         cfg.consensus().clone(),
+        cfg.value_sync(),
         Box::new(signing_provider),
         network.clone(),
         connector.clone(),

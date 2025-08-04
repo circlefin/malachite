@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use eyre::eyre;
+use malachitebft_app_channel::app::engine::host::Next;
 use tokio::time::sleep;
 use tracing::{debug, error, info};
 
@@ -10,7 +11,7 @@ use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::{Round, Validity};
 use malachitebft_app_channel::app::types::sync::RawDecidedValue;
 use malachitebft_app_channel::app::types::{LocallyProposedValue, ProposedValue};
-use malachitebft_app_channel::{AppMsg, Channels, ConsensusMsg, NetworkMsg};
+use malachitebft_app_channel::{AppMsg, Channels, NetworkMsg};
 use malachitebft_test::codec::json::JsonCodec;
 use malachitebft_test::{Genesis, Height, TestContext};
 
@@ -66,9 +67,19 @@ pub async fn run(
                 state.current_round = round;
                 state.current_proposer = Some(proposer);
 
+                let pending = state.store.get_pending_proposals(height, round).await?;
+                info!(%height, %round, "Found {} pending proposals, validating...", pending.len());
+                for p in &pending {
+                    // TODO: check proposal validity
+                    state.store.store_undecided_proposal(p.clone()).await?;
+                    state.store.remove_pending_proposal(p.clone()).await?;
+                }
+
                 // If we have already built or seen values for this height and round,
                 // send them back to consensus. This may happen when we are restarting after a crash.
                 let proposals = state.store.get_undecided_proposals(height, round).await?;
+                info!(%height, %round, "Found {} undecided proposals", proposals.len());
+
                 if reply_value.send(proposals).is_err() {
                     error!("Failed to send undecided proposals");
                 }
@@ -207,10 +218,7 @@ pub async fn run(
                             .expect("Validator set should be available");
 
                         if reply
-                            .send(ConsensusMsg::StartHeight(
-                                state.current_height,
-                                validator_set,
-                            ))
+                            .send(Next::Start(state.current_height, validator_set))
                             .is_err()
                         {
                             error!("Failed to send StartHeight reply");
@@ -233,10 +241,7 @@ pub async fn run(
                             .expect("Validator set should be available");
 
                         if reply
-                            .send(ConsensusMsg::RestartHeight(
-                                state.current_height,
-                                validator_set,
-                            ))
+                            .send(Next::Restart(state.current_height, validator_set))
                             .is_err()
                         {
                             error!("Failed to send RestartHeight reply");
