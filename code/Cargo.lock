@@ -2182,7 +2182,9 @@ dependencies = [
  "informalsystems-malachitebft-app",
  "informalsystems-malachitebft-config",
  "informalsystems-malachitebft-engine",
+ "informalsystems-malachitebft-test",
  "ractor",
+ "rand 0.8.5",
  "tokio",
  "tracing",
 ]
