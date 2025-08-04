@@ -305,7 +305,14 @@ where
     // It is possible that this height has been already validated via consensus messages.
     // Therefore, we ignore the response status.
     if !state.is_pending_value_request_validated_by_id(&request_id) {
-        if let Some(height) = state.remove_pending_value_request_by_id(&request_id) {
+        if let Some((height, stored_peer)) = state.remove_pending_value_request_by_id(&request_id) {
+            if stored_peer != peer {
+                warn!(
+                    %request_id, peer.actual = %peer, peer.expected = %stored_peer,
+                    "Received response from different peer than expected"
+                );
+            }
+
             request_value_from_peer_except(co, state, metrics, height, peer).await?;
         }
     }

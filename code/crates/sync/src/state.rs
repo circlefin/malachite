@@ -182,16 +182,16 @@ where
         }
     }
 
-    /// Remove a pending decided value request by its ID and return the height it was associated with.
+    /// Remove a pending decided value request by its ID and return the height and peer it was associated with.
     pub fn remove_pending_value_request_by_id(
         &mut self,
         request_id: &OutboundRequestId,
-    ) -> Option<Ctx::Height> {
-        let height = self.height_per_request_id.remove(request_id)?;
+    ) -> Option<(Ctx::Height, PeerId)> {
+        let (height, peer_id) = self.height_per_request_id.remove(request_id)?;
 
-        self.pending_value_requests.remove(&height.0);
+        self.pending_value_requests.remove(&height);
 
-        Some(height.0)
+        Some((height, peer_id))
     }
 
     /// Check if there are any pending decided value requests for a given height.
