@@ -3,7 +3,7 @@
 FROM rust AS builder
 RUN apt-get update && apt-get install -y protobuf-compiler
 WORKDIR /mnt
-RUN --mount=type=bind,from=code,target=/mnt cargo build --release --target-dir /tmp
+RUN --mount=type=bind,from=code,target=/mnt,rw cargo build --release --target-dir /tmp
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y iproute2
