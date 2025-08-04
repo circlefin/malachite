@@ -131,6 +131,11 @@ where
         resume::Continue,
     ),
 
+    /// Notifies the application that consensus has received a value response.
+    ///
+    /// Resume with: [`resume::Continue`]
+    SyncValue(ValueResponse<Ctx>, resume::Continue),
+
     /// Notifies the application that consensus has decided on a value.
     ///
     /// This message includes a commit certificate containing the ID of

@@ -1,7 +1,7 @@
 use derive_where::derive_where;
 use malachitebft_core_types::{
-    CommitCertificate, Context, PolkaCertificate, RoundCertificate, SignedProposal, SignedVote,
-    Timeout, ValueOrigin,
+    Context, PolkaCertificate, RoundCertificate, SignedProposal, SignedVote, Timeout, ValueOrigin,
+    ValueResponse,
 };
 
 use crate::types::{LocallyProposedValue, ProposedValue};
@@ -43,6 +43,6 @@ where
     /// The origin denotes whether the value was received via consensus gossip or via the sync protocol.
     ProposedValue(ProposedValue<Ctx>, ValueOrigin),
 
-    /// We have received a commit certificate via the sync protocol.
-    CommitCertificate(CommitCertificate<Ctx>),
+    /// We have received a synced value via the sync protocol.
+    SyncValueResponse(ValueResponse<Ctx>),
 }

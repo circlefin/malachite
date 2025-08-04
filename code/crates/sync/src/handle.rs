@@ -173,7 +173,8 @@ where
     state.sync_height = height;
     state.tip_height = tip_height;
 
-    state.remove_pending_request_by_height(&tip_height);
+    let height_to_remove = if restart { &height } else { &tip_height };
+    state.remove_pending_request_by_height(height_to_remove);
 
     // Trigger potential requests if possible.
     request_values(co, state, metrics).await?;

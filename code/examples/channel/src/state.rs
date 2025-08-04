@@ -134,7 +134,7 @@ impl State {
                 part.height = %parts.height,
                 part.round = %parts.round,
                 part.sequence = %sequence,
-                "Received outdated proposal part, ignoring"
+                "Received outdated proposal, ignoring"
             );
 
             return Ok(None);
@@ -167,15 +167,18 @@ impl State {
             }
         }
 
+        let proposal_height = parts.height;
+
         // Re-assemble the proposal from its parts
         let value = assemble_value_from_parts(parts)?;
 
-        info!(
-            "Storing undecided proposal {} {}",
-            value.height, value.round
-        );
-
-        self.store.store_undecided_proposal(value.clone()).await?;
+        if proposal_height == self.current_height {
+            info!(%value.height, %value.round, "Storing undecided proposal");
+            self.store.store_undecided_proposal(value.clone()).await?;
+        } else {
+            info!(%value.height, %value.round, "Storing pending proposal");
+            self.store.store_pending_proposal(value.clone()).await?;
+        }
 
         Ok(Some(value))
     }
@@ -200,11 +203,17 @@ impl State {
 
         // Get the first proposal with the given value id. There may be multiple identical ones
         // if peers have restreamed at different rounds.
-        let Ok(Some(proposal)) = self
+        let mut proposal = self
             .store
             .get_undecided_proposal_by_value_id(value_id)
-            .await
-        else {
+            .await;
+
+        if !matches!(proposal, Ok(Some(_))) {
+            // If we didn't find an undecided proposal, try to get a pending one
+            proposal = self.store.get_pending_proposal_by_value_id(value_id).await
+        }
+
+        let Ok(Some(proposal)) = proposal else {
             return Err(eyre!(
                 "Trying to commit a value with value id {value_id} at height {height} and round {round} for which there is no proposal"
             ));

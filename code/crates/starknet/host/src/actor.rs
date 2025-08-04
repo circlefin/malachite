@@ -241,12 +241,22 @@ async fn on_started_round(
 
     info!(%height, %round, %proposer, ?role, "Started new round");
 
+    let pending = state.block_store.get_pending_values(height, round).await?;
+    info!(%height, %round, "Found {} pending proposals, validating...", pending.len());
+    for p in &pending {
+        // TODO: check proposal validity
+        state.block_store.store_undecided_value(p.clone()).await?;
+        state.block_store.remove_pending_value(p.clone()).await?;
+    }
+
     // If we have already built or seen one or more values for this height and round,
     // feed them back to consensus. This may happen when we are restarting after a crash.
     let undecided_values = state
         .block_store
         .get_undecided_values(height, round)
         .await?;
+
+    info!(%height, %round, "Found {} undecided values", undecided_values.len());
 
     reply_to.send(undecided_values)?;
 
@@ -556,7 +566,7 @@ async fn on_received_proposal_part(
             part.height = %parts.height,
             part.round = %parts.round,
             part.sequence = %sequence,
-            "Received outdated proposal part, ignoring"
+            "Received proposal part for past height, ignoring"
         );
 
         return Ok(());
@@ -577,22 +587,11 @@ async fn on_received_proposal_part(
             .build_value_from_part(&stream_id, parts.height, parts.round, part)
             .await
         {
-            debug!(
-                height = %value.height,
-                round = %value.round,
-                block_hash = %value.value,
-                validity = ?value.validity,
-                "Storing proposed value assembled from proposal parts"
-            );
-
-            if let Err(e) = state.block_store.store_undecided_value(value.clone()).await {
-                error!(
-                    %e, height = %value.height, round = %value.round, block_hash = %value.value,
-                    "Failed to store the proposed value"
-                );
+            if let Some(value) = store_proposed_value(state, parts.height, value).await? {
+                // Value is for current height, so we can send it to consensus
+                reply_to.send(value)?;
             }
 
-            reply_to.send(value)?;
             break;
         }
 
@@ -600,6 +599,47 @@ async fn on_received_proposal_part(
     }
 
     Ok(())
+}
+
+/// Store the proposed value in the block store.
+///
+/// If the height of the proposed value is greater than the current height,
+/// store it as a pending value and return `None`.
+///
+/// If the height is equal to the current height, store it as an undecided value and return
+/// `Some(value)`.
+async fn store_proposed_value(
+    state: &mut HostState,
+    height: Height,
+    value: ProposedValue<MockContext>,
+) -> Result<Option<ProposedValue<MockContext>>, ActorProcessingErr> {
+    debug!(
+        height = %value.height,
+        round = %value.round,
+        block_hash = %value.value,
+        validity = ?value.validity,
+        "Storing proposed value assembled from proposal parts"
+    );
+
+    if height > state.height {
+        if let Err(e) = state.block_store.store_pending_value(value.clone()).await {
+            error!(
+                %e, height = %value.height, round = %value.round, block_hash = %value.value,
+                "Failed to store the pending proposed value"
+            );
+        }
+
+        Ok(None)
+    } else {
+        if let Err(e) = state.block_store.store_undecided_value(value.clone()).await {
+            error!(
+                %e, height = %value.height, round = %value.round, block_hash = %value.value,
+                "Failed to store the undecided proposed value"
+            );
+        }
+
+        Ok(Some(value))
+    }
 }
 
 async fn on_decided(

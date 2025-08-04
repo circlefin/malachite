@@ -17,7 +17,7 @@ use proposal::on_proposal;
 use propose::on_propose;
 use proposed_value::on_proposed_value;
 use start_height::reset_and_start_height;
-use sync::on_commit_certificate;
+use sync::on_value_response;
 use timeout::on_timeout_elapsed;
 use vote::on_vote;
 
@@ -57,9 +57,7 @@ where
         Input::ProposedValue(value, origin) => {
             on_proposed_value(co, state, metrics, value, origin).await
         }
-        Input::CommitCertificate(certificate) => {
-            on_commit_certificate(co, state, metrics, certificate).await
-        }
+        Input::SyncValueResponse(value) => on_value_response(co, state, metrics, value).await,
         Input::PolkaCertificate(certificate) => {
             on_polka_certificate(co, state, metrics, certificate).await
         }
