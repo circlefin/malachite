@@ -210,8 +210,8 @@ where
 
     /// Check if a pending decided value request for a given request ID is in the `Validated` state.
     pub fn is_pending_value_request_validated_by_id(&self, request_id: &OutboundRequestId) -> bool {
-        if let Some(height) = self.height_per_request_id.get(request_id) {
-            self.is_pending_value_request_validated_by_height(&height.0)
+        if let Some((height, _)) = self.height_per_request_id.get(request_id) {
+            self.is_pending_value_request_validated_by_height(height)
         } else {
             false
         }
