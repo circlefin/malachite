@@ -233,7 +233,7 @@ where
 {
     debug!(%response.height, %request_id, %peer_id, "Received response");
 
-    if let Some(height) = state.get_height_for_request_id(&request_id) {
+    if let Some((height, stored_peer_id)) = state.get_height_for_request_id(&request_id) {
         if height != response.height {
             warn!(%request_id, "Received response for wrong height, expected {}, got {}", height, response.height);
 
@@ -281,7 +281,7 @@ where
                 );
             }
 
-            state.response_received(request_id, height);
+            state.response_received(request_id, height, stored_peer_id);
         }
     } else {
         warn!(%request_id, %peer_id, "Received response for unknown request ID");
@@ -499,7 +499,7 @@ where
 
     if let Some(request_id) = request_id {
         debug!(%request_id, %peer, "Sent value request to peer");
-        state.store_pending_value_request(height, request_id);
+        state.store_pending_value_request(height, request_id, peer);
     } else {
         warn!(height.sync = %height, %peer, "Failed to send value request to peer");
     }
