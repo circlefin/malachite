@@ -20,6 +20,7 @@ serde = ["dep:serde"]
 borsh = ["dep:borsh"]
 
 [dependencies]
+async-trait = { workspace = true }
 malachitebft-peer = { workspace = true, default-features = false }
 borsh = { workspace = true, optional = true }
 bytes = { workspace = true, default-features = false }

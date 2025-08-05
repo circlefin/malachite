@@ -979,7 +979,7 @@ where
             Effect::SignProposal(proposal, r) => {
                 let start = Instant::now();
 
-                let signed_proposal = self.signing_provider.sign_proposal(proposal);
+                let signed_proposal = self.signing_provider.sign_proposal(proposal).await;
 
                 self.metrics
                     .signature_signing_time
@@ -991,7 +991,7 @@ where
             Effect::SignVote(vote, r) => {
                 let start = Instant::now();
 
-                let signed_vote = self.signing_provider.sign_vote(vote);
+                let signed_vote = self.signing_provider.sign_vote(vote).await;
 
                 self.metrics
                     .signature_signing_time
@@ -1008,11 +1008,11 @@ where
                 let valid = match msg.message {
                     Msg::Vote(v) => {
                         self.signing_provider
-                            .verify_signed_vote(&v, &msg.signature, &pk)
+                            .verify_signed_vote(&v, &msg.signature, &pk).await
                     }
                     Msg::Proposal(p) => {
                         self.signing_provider
-                            .verify_signed_proposal(&p, &msg.signature, &pk)
+                            .verify_signed_proposal(&p, &msg.signature, &pk).await
                     }
                 };
 
@@ -1029,7 +1029,7 @@ where
                     &certificate,
                     &validator_set,
                     thresholds,
-                );
+                ).await;
 
                 Ok(r.resume_with(result))
             }
@@ -1040,7 +1040,7 @@ where
                     &certificate,
                     &validator_set,
                     thresholds,
-                );
+                ).await;
 
                 Ok(r.resume_with(result))
             }
@@ -1051,14 +1051,14 @@ where
                     &certificate,
                     &validator_set,
                     thresholds,
-                );
+                ).await;
 
                 Ok(r.resume_with(result))
             }
 
             Effect::ExtendVote(height, round, value_id, r) => {
                 if let Some(extension) = self.extend_vote(height, round, value_id).await? {
-                    let signed_extension = self.signing_provider.sign_vote_extension(extension);
+                    let signed_extension = self.signing_provider.sign_vote_extension(extension).await;
                     Ok(r.resume_with(Some(signed_extension)))
                 } else {
                     Ok(r.resume_with(None))
@@ -1070,7 +1070,7 @@ where
                     &signed_extension.message,
                     &signed_extension.signature,
                     &pk,
-                );
+                ).await;
 
                 if !valid {
                     return Ok(r.resume_with(Err(VoteExtensionError::InvalidSignature)));

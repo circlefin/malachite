@@ -18,6 +18,7 @@ pub mod types {
     pub use malachitebft_signing_ed25519::Signature;
 }
 
+use async_trait::async_trait;
 use types::*;
 
 use rand::Rng;
@@ -40,17 +41,18 @@ pub fn make_validators<const N: usize>(
     )
 }
 
+#[async_trait]
 pub trait CertificateBuilder {
     type Certificate;
 
-    fn build_certificate(
+    async fn build_certificate(
         height: Height,
         round: Round,
         value_id: Option<ValueId>,
         votes: Vec<SignedVote<TestContext>>,
     ) -> Self::Certificate;
 
-    fn verify_certificate(
+    async fn verify_certificate(
         ctx: &TestContext,
         signer: &Ed25519Provider,
         certificate: &Self::Certificate,
@@ -58,7 +60,7 @@ pub trait CertificateBuilder {
         threshold_params: ThresholdParams,
     ) -> Result<(), CertificateError<TestContext>>;
 
-    fn make_vote(
+    async fn make_vote(
         ctx: &TestContext,
         height: Height,
         round: Round,
@@ -139,21 +141,26 @@ where
     }
 
     /// Add votes to include in the certificate
-    pub fn with_votes(
+    pub async fn with_votes(
         mut self,
         indices: impl IntoIterator<Item = usize>,
         vote_type: VoteType,
     ) -> Self {
         for idx in indices {
             if idx < self.validators.len() {
-                let vote = self.signers[idx].sign_vote(C::make_vote(
-                    &self.ctx,
-                    self.height,
-                    self.round,
-                    NilOrVal::Val(self.value_id),
-                    vote_type,
-                    self.validators[idx].address,
-                ));
+                let vote = self.signers[idx]
+                    .sign_vote(
+                        C::make_vote(
+                            &self.ctx,
+                            self.height,
+                            self.round,
+                            NilOrVal::Val(self.value_id),
+                            vote_type,
+                            self.validators[idx].address,
+                        )
+                        .await,
+                    )
+                    .await;
 
                 self.votes.push(vote);
             }
@@ -162,21 +169,26 @@ where
     }
 
     /// Add nil votes to include in the certificate
-    pub fn with_nil_votes(
+    pub async fn with_nil_votes(
         mut self,
         indices: impl IntoIterator<Item = usize>,
         vote_type: VoteType,
     ) -> Self {
         for idx in indices {
             if idx < self.validators.len() {
-                let vote = self.signers[idx].sign_vote(C::make_vote(
-                    &self.ctx,
-                    self.height,
-                    self.round,
-                    NilOrVal::Nil,
-                    vote_type,
-                    self.validators[idx].address,
-                ));
+                let vote = self.signers[idx]
+                    .sign_vote(
+                        C::make_vote(
+                            &self.ctx,
+                            self.height,
+                            self.round,
+                            NilOrVal::Nil,
+                            vote_type,
+                            self.validators[idx].address,
+                        )
+                        .await,
+                    )
+                    .await;
 
                 self.votes.push(vote);
             }
@@ -185,16 +197,21 @@ where
     }
 
     /// Add a vote with different value to include in the certificate
-    pub fn with_different_value_vote(mut self, index: usize, vote_type: VoteType) -> Self {
+    pub async fn with_different_value_vote(mut self, index: usize, vote_type: VoteType) -> Self {
         if index < self.validators.len() {
-            let vote = self.signers[index].sign_vote(C::make_vote(
-                &self.ctx,
-                self.height,
-                self.round,
-                NilOrVal::Val(ValueId::new(85)),
-                vote_type,
-                self.validators[index].address,
-            ));
+            let vote = self.signers[index]
+                .sign_vote(
+                    C::make_vote(
+                        &self.ctx,
+                        self.height,
+                        self.round,
+                        NilOrVal::Val(ValueId::new(85)),
+                        vote_type,
+                        self.validators[index].address,
+                    )
+                    .await,
+                )
+                .await;
 
             self.votes.push(vote);
         }
@@ -203,7 +220,7 @@ where
 
     /// Add votes to include in the certificate with random types and values
     /// If vote_type_opt is Some, uses that vote type; otherwise picks one at random.
-    pub fn with_random_votes(
+    pub async fn with_random_votes(
         mut self,
         indices: impl IntoIterator<Item = usize>,
         vote_type_opt: Option<VoteType>,
@@ -226,9 +243,9 @@ where
 
                 // Randomly pick value kind: 0 = nil, 1 = same value, 2 = different value
                 match rng.gen_range(0..3) {
-                    0 => self = self.with_nil_votes([idx], vote_type),
-                    1 => self = self.with_votes([idx], vote_type),
-                    2 => self = self.with_different_value_vote(idx, vote_type),
+                    0 => self = self.with_nil_votes([idx], vote_type).await,
+                    1 => self = self.with_votes([idx], vote_type).await,
+                    2 => self = self.with_different_value_vote(idx, vote_type).await,
                     _ => unreachable!(),
                 };
             }
@@ -238,16 +255,21 @@ where
     }
 
     /// Add a vote with invalid height to include in the certificate
-    pub fn with_invalid_height_vote(mut self, index: usize, vote_type: VoteType) -> Self {
+    pub async fn with_invalid_height_vote(mut self, index: usize, vote_type: VoteType) -> Self {
         if index < self.validators.len() {
-            let vote = self.signers[index].sign_vote(C::make_vote(
-                &self.ctx,
-                self.height.increment(),
-                self.round,
-                NilOrVal::Val(self.value_id),
-                vote_type,
-                self.validators[index].address,
-            ));
+            let vote = self.signers[index]
+                .sign_vote(
+                    C::make_vote(
+                        &self.ctx,
+                        self.height.increment(),
+                        self.round,
+                        NilOrVal::Val(self.value_id),
+                        vote_type,
+                        self.validators[index].address,
+                    )
+                    .await,
+                )
+                .await;
 
             self.votes.push(vote);
         }
@@ -255,16 +277,21 @@ where
     }
 
     /// Add a vote with invalid round to include in the certificate
-    pub fn with_invalid_round_vote(mut self, index: usize, vote_type: VoteType) -> Self {
+    pub async fn with_invalid_round_vote(mut self, index: usize, vote_type: VoteType) -> Self {
         if index < self.validators.len() {
-            let vote = self.signers[index].sign_vote(C::make_vote(
-                &self.ctx,
-                self.height,
-                self.round.increment(),
-                NilOrVal::Val(self.value_id),
-                vote_type,
-                self.validators[index].address,
-            ));
+            let vote = self.signers[index]
+                .sign_vote(
+                    C::make_vote(
+                        &self.ctx,
+                        self.height,
+                        self.round.increment(),
+                        NilOrVal::Val(self.value_id),
+                        vote_type,
+                        self.validators[index].address,
+                    )
+                    .await,
+                )
+                .await;
 
             self.votes.push(vote);
         }
@@ -272,16 +299,21 @@ where
     }
 
     /// Add a vote with invalid signature to include in the certificate
-    pub fn with_invalid_signature_vote(mut self, index: usize, vote_type: VoteType) -> Self {
+    pub async fn with_invalid_signature_vote(mut self, index: usize, vote_type: VoteType) -> Self {
         if index < self.validators.len() {
-            let mut vote = self.signers[index].sign_vote(C::make_vote(
-                &self.ctx,
-                self.height,
-                self.round,
-                NilOrVal::Val(self.value_id),
-                vote_type,
-                self.validators[index].address,
-            ));
+            let mut vote = self.signers[index]
+                .sign_vote(
+                    C::make_vote(
+                        &self.ctx,
+                        self.height,
+                        self.round,
+                        NilOrVal::Val(self.value_id),
+                        vote_type,
+                        self.validators[index].address,
+                    )
+                    .await,
+                )
+                .await;
             vote.signature = Signature::test(); // Set an invalid signature
             self.votes.push(vote);
         }
@@ -289,16 +321,21 @@ where
     }
 
     /// Add a vote from external validator to include in the certificate
-    pub fn with_non_validator_vote(mut self, seed: u64, vote_type: VoteType) -> Self {
+    pub async fn with_non_validator_vote(mut self, seed: u64, vote_type: VoteType) -> Self {
         let ([validator], [signer]) = make_validators([0], seed);
-        let vote = signer.sign_vote(C::make_vote(
-            &self.ctx,
-            self.height,
-            self.round,
-            NilOrVal::Val(self.value_id),
-            vote_type,
-            validator.address,
-        ));
+        let vote = signer
+            .sign_vote(
+                C::make_vote(
+                    &self.ctx,
+                    self.height,
+                    self.round,
+                    NilOrVal::Val(self.value_id),
+                    vote_type,
+                    validator.address,
+                )
+                .await,
+            )
+            .await;
         self.votes.push(vote);
         self
     }
@@ -312,20 +349,21 @@ where
     }
 
     /// Build the certificate based on the configured settings
-    fn build_certificate(&self) -> (C::Certificate, ValidatorSet) {
+    async fn build_certificate(&self) -> (C::Certificate, ValidatorSet) {
         let validator_set = ValidatorSet::new(self.validators.clone());
         let certificate = C::build_certificate(
             self.height,
             self.round,
             Some(self.value_id),
             self.votes.clone(),
-        );
+        )
+        .await;
         (certificate, validator_set)
     }
 
     /// Verify that the certificate is valid
-    pub fn expect_valid(self) {
-        let (certificate, validator_set) = self.build_certificate();
+    pub async fn expect_valid(self) {
+        let (certificate, validator_set) = self.build_certificate().await;
 
         for signer in &self.signers {
             let result = C::verify_certificate(
@@ -334,7 +372,8 @@ where
                 &certificate,
                 &validator_set,
                 ThresholdParams::default(),
-            );
+            )
+            .await;
 
             assert!(
                 result.is_ok(),
@@ -345,8 +384,8 @@ where
     }
 
     /// Verify that the certificate is invalid with the expected error
-    pub fn expect_error(self, expected_error: CertificateError<TestContext>) {
-        let (certificate, validator_set) = self.build_certificate();
+    pub async fn expect_error(self, expected_error: CertificateError<TestContext>) {
+        let (certificate, validator_set) = self.build_certificate().await;
 
         for signer in &self.signers {
             let result = C::verify_certificate(
@@ -355,7 +394,8 @@ where
                 &certificate,
                 &validator_set,
                 ThresholdParams::default(),
-            );
+            )
+            .await;
 
             assert_eq!(
                 result.as_ref(),
