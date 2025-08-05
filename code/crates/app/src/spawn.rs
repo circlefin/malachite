@@ -14,7 +14,9 @@ use malachitebft_engine::node::{Node, NodeRef};
 use malachitebft_engine::sync::{Params as SyncParams, Sync, SyncCodec, SyncRef};
 use malachitebft_engine::util::events::TxEvent;
 use malachitebft_engine::wal::{Wal, WalCodec, WalRef};
-use malachitebft_network::{Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, Keypair};
+use malachitebft_network::{
+    ChannelNames, Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, Keypair,
+};
 use malachitebft_sync as sync;
 
 use crate::config::{ConsensusConfig, PubSubProtocol, ValueSyncConfig};
@@ -220,6 +222,7 @@ fn make_gossip_config(cfg: &ConsensusConfig) -> NetworkConfig {
             },
             PubSubProtocol::Broadcast => GossipSubConfig::default(),
         },
+        channel_names: ChannelNames::default(),
         rpc_max_size: cfg.p2p.rpc_max_size.as_u64() as usize,
         pubsub_max_size: cfg.p2p.pubsub_max_size.as_u64() as usize,
         enable_sync: true,

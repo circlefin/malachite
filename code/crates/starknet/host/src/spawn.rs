@@ -14,7 +14,7 @@ use malachitebft_engine::sync::{Params as SyncParams, Sync, SyncRef};
 use malachitebft_engine::util::events::TxEvent;
 use malachitebft_engine::wal::{Wal, WalRef};
 use malachitebft_metrics::{Metrics as ConsensusMetrics, SharedRegistry};
-use malachitebft_network::Keypair;
+use malachitebft_network::{ChannelNames, Keypair};
 use malachitebft_starknet_p2p_types::Ed25519Provider;
 use malachitebft_sync as sync;
 use malachitebft_test_mempool::Config as MempoolNetworkConfig;
@@ -271,6 +271,7 @@ async fn spawn_network_actor(
             },
             config::PubSubProtocol::Broadcast => gossip::GossipSubConfig::default(),
         },
+        channel_names: ChannelNames::default(),
         rpc_max_size: cfg.consensus.p2p.rpc_max_size.as_u64() as usize,
         pubsub_max_size: cfg.consensus.p2p.pubsub_max_size.as_u64() as usize,
         enable_sync: true,
