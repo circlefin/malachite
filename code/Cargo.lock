@@ -2223,6 +2223,7 @@ dependencies = [
  "informalsystems-malachitebft-test",
  "multiaddr",
  "thiserror 2.0.12",
+ "tokio",
  "tracing",
 ]
 
@@ -2484,6 +2485,7 @@ dependencies = [
 name = "informalsystems-malachitebft-starknet-p2p-types"
 version = "0.6.0-pre"
 dependencies = [
+ "async-trait",
  "bytes",
  "informalsystems-malachitebft-core-types",
  "informalsystems-malachitebft-proto",
