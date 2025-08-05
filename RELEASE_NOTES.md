@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-> Nothing yet
+- Make GossipSub topic names configurable ([#849](https://github.com/informalsystems/malachite/issues/849))
 
 ## 0.5.0
 
