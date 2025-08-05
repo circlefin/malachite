@@ -814,7 +814,7 @@ impl State {
             hasher.finalize()
         };
 
-        // Retrieve the the proposer
+        // Retrieve the proposer
         let validator_set = self.get_validator_set(self.current_height);
         let proposer = validator_set
             .get_by_address(&parts.proposer)

@@ -157,7 +157,7 @@ pub enum HostMsg<Ctx: Context> {
     /// If the application does not reply, consensus will stall.
     Decided {
         /// The commit certificate containing the ID of the value that was decided on,
-        /// the the height and round at which it was decided, and the aggregated signatures
+        /// the height and round at which it was decided, and the aggregated signatures
         /// of the validators that committed to it.
         certificate: CommitCertificate<Ctx>,
 

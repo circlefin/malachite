@@ -422,7 +422,7 @@ impl State {
             hasher.finalize()
         };
 
-        // Retrieve the the proposer
+        // Retrieve the proposer
         let proposer = self
             .get_validator_set()
             .get_by_address(&parts.proposer)
