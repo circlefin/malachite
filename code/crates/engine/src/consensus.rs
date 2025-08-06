@@ -1246,7 +1246,7 @@ where
                             }
                         }
 
-                        Msg::<Ctx>::ReceivedProposedValue(proposed, ValueOrigin::Sync(value.peer))
+                        Msg::<Ctx>::ReceivedProposedValue(proposed, ValueOrigin::Sync)
                     },
                     None,
                 )?;

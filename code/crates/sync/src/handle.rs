@@ -233,7 +233,7 @@ where
 {
     debug!(%response.height, %request_id, %peer_id, "Received response");
 
-    if let Some(height) = state.get_height_for_request_id(&request_id) {
+    if let Some((height, stored_peer_id)) = state.get_height_for_request_id(&request_id) {
         if height != response.height {
             warn!(%request_id, "Received response for wrong height, expected {}, got {}", height, response.height);
 
@@ -281,7 +281,7 @@ where
                 );
             }
 
-            state.response_received(request_id, height);
+            state.response_received(request_id, height, stored_peer_id);
         }
     } else {
         warn!(%request_id, %peer_id, "Received response for unknown request ID");
@@ -305,7 +305,14 @@ where
     // It is possible that this height has been already validated via consensus messages.
     // Therefore, we ignore the response status.
     if !state.is_pending_value_request_validated_by_id(&request_id) {
-        if let Some(height) = state.remove_pending_value_request_by_id(&request_id) {
+        if let Some((height, stored_peer)) = state.remove_pending_value_request_by_id(&request_id) {
+            if stored_peer != peer {
+                warn!(
+                    %request_id, peer.actual = %peer, peer.expected = %stored_peer,
+                    "Received response from different peer than expected"
+                );
+            }
+
             request_value_from_peer_except(co, state, metrics, height, peer).await?;
         }
     }
@@ -499,7 +506,7 @@ where
 
     if let Some(request_id) = request_id {
         debug!(%request_id, %peer, "Sent value request to peer");
-        state.store_pending_value_request(height, request_id);
+        state.store_pending_value_request(height, request_id, peer);
     } else {
         warn!(height.sync = %height, %peer, "Failed to send value request to peer");
     }
