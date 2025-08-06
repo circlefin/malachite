@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+> Nothing yet
+
+## 0.5.0
+
+*July 31st, 2025*
+
 - Update libp2p to v0.56.x ([#1124](https://github.com/informalsystems/malachite/pull/1124))
 - Rename `Effect::RebroadcastVote` to `Effect::RepublishVote` and `Effect::RebroadcastRoundCertificate` to `Effect::RepublishRoundCertificate` ([#1011](https://github.com/informalsystems/malachite/issues/1011))
 - Decouple `Host` messages from the `Consensus` actor ([#1109](https://github.com/informalsystems/malachite/pull/1109))
@@ -52,10 +58,6 @@
 This is the first release of the Malachite consensus engine intended for general use.
 This version introduces production-ready functionality with improved performance and reliability.
 
-### Changes
-
-See the full list of changes in the [CHANGELOG](CHANGELOG.md#0.1.0).
-
 ### Resources
 
 - [The tutorial][tutorial] for building a simple application on top of Malachite using the high-level channel-based API.
@@ -74,7 +76,3 @@ See the full list of changes in the [CHANGELOG](CHANGELOG.md#0.1.0).
 
 First open-source release of Malachite.
 This initial version provides the foundational consensus implementation but is not recommended for production use.
-
-### Changes
-
-See the full list of changes in the [CHANGELOG](CHANGELOG.md#0.0.1).

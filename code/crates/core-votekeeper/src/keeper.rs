@@ -4,7 +4,7 @@ use derive_where::derive_where;
 use thiserror::Error;
 
 use alloc::collections::{BTreeMap, BTreeSet};
-
+use alloc::vec::Vec;
 use malachitebft_core_types::{
     Context, NilOrVal, Round, SignedVote, Validator, ValidatorSet, ValueId, Vote, VoteType,
 };
@@ -49,7 +49,7 @@ where
     addresses_weights: RoundWeights<Ctx::Address>,
 
     /// All the votes received for this round.
-    received_votes: BTreeSet<SignedVote<Ctx>>,
+    received_votes: Vec<SignedVote<Ctx>>,
 
     /// The emitted outputs for this round.
     emitted_outputs: BTreeSet<Output<ValueId<Ctx>>>,
@@ -80,6 +80,15 @@ where
         Self::default()
     }
 
+    /// Create a new `PerRound` instance with pre-allocated capacity for the expected number of votes.
+    pub fn with_expected_number_of_votes(num_votes: usize) -> Self {
+        Self {
+            // pre-allocate capacity to avoid re-allocations during the addition of votes
+            received_votes: Vec::with_capacity(num_votes),
+            ..Self::default()
+        }
+    }
+
     /// Add a vote to the round, checking for conflicts.
     pub fn add(
         &mut self,
@@ -104,7 +113,7 @@ where
             .set_once(vote.validator_address(), weight);
 
         // Add the vote to the received votes
-        self.received_votes.insert(vote);
+        self.received_votes.push(vote);
 
         Ok(())
     }
@@ -126,7 +135,7 @@ where
     }
 
     /// Return the votes for this round.
-    pub fn received_votes(&self) -> &BTreeSet<SignedVote<Ctx>> {
+    pub fn received_votes(&self) -> &Vec<SignedVote<Ctx>> {
         &self.received_votes
     }
 
@@ -219,7 +228,12 @@ where
         round: Round,
     ) -> Option<Output<ValueId<Ctx>>> {
         let total_weight = self.total_weight();
-        let per_round = self.per_round.entry(vote.round()).or_default();
+        let per_round =
+            self.per_round
+                .entry(vote.round())
+                .or_insert(PerRound::with_expected_number_of_votes(
+                    self.validator_set.count(),
+                ));
 
         let Some(validator) = self.validator_set.get_by_address(vote.validator_address()) else {
             // Vote from unknown validator, let's discard it.

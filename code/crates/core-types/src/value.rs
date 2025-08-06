@@ -1,7 +1,5 @@
 use core::fmt::{Debug, Display};
 
-use malachitebft_peer::PeerId;
-
 /// Represents either `Nil` or a value of type `Value`.
 ///
 /// This type is isomorphic to `Option<Value>` but is more explicit about its intent.
@@ -136,7 +134,7 @@ impl ValuePayload {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ValueOrigin {
     /// Synchronization protocol
-    Sync(PeerId),
+    Sync,
 
     /// Consensus protocol
     Consensus,
@@ -145,7 +143,7 @@ pub enum ValueOrigin {
 impl ValueOrigin {
     /// Value was received from the synchronization protocol.
     pub fn is_sync(&self) -> bool {
-        matches!(self, Self::Sync(_))
+        matches!(self, Self::Sync)
     }
 
     /// Value was received from the consensus protocol.

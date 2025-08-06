@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+> Nothing yet
+
+## 0.5.0
+
+*July 31st, 2025*
+
 ### General
 
 - Updated libp2p to v0.56.x ([#1124](https://github.com/informalsystems/malachite/pull/1124))
@@ -32,6 +38,10 @@
   - Now it has as parameter a range of heights instead of one, and a list of decided values instead
     of one or zero.
 - Added new parameter to `SyncRequestTimedOut` in `Input`.
+- Renamed `Effect::RebroadcastVote` to `Effect::RepublishVote` and `Effect::RebroadcastRoundCertificate` to `Effect::RepublishRoundCertificate` ([#1011](https://github.com/informalsystems/malachite/issues/1011))
+- Added new `Effect::SyncValue` variant to forward synced values to the application ([#1149](https://github.com/informalsystems/malachite/pull/1149))
+- Removed `Input::CommitCertificate` variant ([#1149](https://github.com/informalsystems/malachite/pull/1149))
+- Added new `Input::SyncValueResponse` variant to notify consensus of a sync value having been received via the sync protocol ([#1149](https://github.com/informalsystems/malachite/pull/1149))
 
 ## 0.4.0
 

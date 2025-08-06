@@ -28,7 +28,7 @@ where
     pub sync_height: Ctx::Height,
 
     /// The requested range of heights.
-    pub pending_requests: BTreeMap<OutboundRequestId, RangeInclusive<Ctx::Height>>,
+    pub pending_requests: BTreeMap<OutboundRequestId, (RangeInclusive<Ctx::Height>, PeerId)>,
 
     /// The set of peers we are connected to in order to get values, certificates and votes.
     pub peers: BTreeMap<PeerId, Status<Ctx>>,
@@ -136,11 +136,11 @@ where
     /// Get the request that contains the given height.
     ///
     /// Assumes a height cannot be in multiple pending requests.
-    pub fn get_request_id_by(&self, height: Ctx::Height) -> Option<OutboundRequestId> {
+    pub fn get_request_id_by(&self, height: Ctx::Height) -> Option<(OutboundRequestId, PeerId)> {
         self.pending_requests
             .iter()
-            .find(|(_, range)| range.contains(&height))
-            .map(|(request_id, _)| request_id.clone())
+            .find(|(_, (range, _))| range.contains(&height))
+            .map(|(request_id, (_, stored_peer_id))| (request_id.clone(), *stored_peer_id))
     }
 
     /// Return a new range of heights, trimming from the beginning any height
@@ -157,6 +157,6 @@ where
     /// has been fully validated and it can be removed.
     pub fn remove_fully_validated_requests(&mut self) {
         self.pending_requests
-            .retain(|_, range| range.end() > &self.tip_height);
+            .retain(|_, (range, _)| range.end() > &self.tip_height);
     }
 }

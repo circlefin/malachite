@@ -83,7 +83,17 @@ where
             // Check if the response is valid. A valid response starts at the
             // requested height, has at least one value, and no more than the
             // requested range.
-            if let Some(requested_range) = state.pending_requests.get(&request_id) {
+            if let Some((requested_range, stored_peer_id)) = state.pending_requests.get(&request_id)
+            {
+                if stored_peer_id != &peer_id {
+                    warn!(
+                        %request_id, peer.actual = %peer_id, peer.expected = %stored_peer_id,
+                        "Received response from different peer than expected"
+                    );
+                    return on_invalid_value_response(co, state, metrics, request_id, peer_id)
+                        .await;
+                }
+
                 let is_valid = start.as_u64() == requested_range.start().as_u64()
                     && start.as_u64() <= end.as_u64()
                     && end.as_u64() <= requested_range.end().as_u64()
@@ -294,10 +304,16 @@ where
     }
 
     // If the response contains a prefix of the requested values, re-request the remaining values.
-    if let Some(requested_range) = state.pending_requests.get(&request_id) {
+    if let Some((requested_range, stored_peer_id)) = state.pending_requests.get(&request_id) {
+        if stored_peer_id != &peer_id {
+            warn!(
+                %request_id, peer.actual = %peer_id, peer.expected = %stored_peer_id,
+                "Received response from different peer than expected"
+            );
+        }
         let range_len = requested_range.end().as_u64() - requested_range.start().as_u64() + 1;
         if (response.values.len() as u64) < range_len {
-            re_request_values_from_peer(co, state, metrics, request_id, None).await?;
+            re_request_values_from_peer_except(co, state, metrics, request_id, None).await?;
         }
     }
 
@@ -320,7 +336,7 @@ where
 
     // We do not trust the response, so we remove the pending request and re-request
     // the whole range from another peer.
-    re_request_values_from_peer(co, state, metrics, request_id, Some(peer_id)).await?;
+    re_request_values_from_peer_except(co, state, metrics, request_id, Some(peer_id)).await?;
 
     Ok(())
 }
@@ -396,7 +412,8 @@ where
 
             metrics.value_request_timed_out(value_request.range.start().as_u64());
 
-            re_request_values_from_peer(co, state, metrics, request_id, Some(peer_id)).await?;
+            re_request_values_from_peer_except(co, state, metrics, request_id, Some(peer_id))
+                .await?;
         }
     };
 
@@ -418,8 +435,14 @@ where
 
     state.peer_scorer.update_score(peer_id, SyncResult::Failure);
 
-    if let Some(request_id) = state.get_request_id_by(height) {
-        re_request_values_from_peer(co, state, metrics, request_id, Some(peer_id)).await?;
+    if let Some((request_id, stored_peer_id)) = state.get_request_id_by(height) {
+        if stored_peer_id != peer_id {
+            warn!(
+                %request_id, peer.actual = %peer_id, peer.expected = %stored_peer_id,
+                "Received response from different peer than expected"
+            );
+        }
+        re_request_values_from_peer_except(co, state, metrics, request_id, Some(peer_id)).await?;
     } else {
         error!(%peer_id, %height, "Received height of invalid value for unknown request");
     }
@@ -442,8 +465,8 @@ where
     // NOTE: We do not update the peer score here, as this is an internal error
     //       and not a failure from the peer's side.
 
-    if let Some(request_id) = state.get_request_id_by(height) {
-        re_request_values_from_peer(co, state, metrics, request_id, None).await?;
+    if let Some((request_id, _)) = state.get_request_id_by(height) {
+        re_request_values_from_peer_except(co, state, metrics, request_id, None).await?;
     } else {
         error!(%peer_id, %height, "Received height of invalid value for unknown request");
     }
@@ -521,64 +544,56 @@ where
     // Store pending request and move the sync height.
     debug!(%request_id, range = %DisplayRange::<Ctx>(&range), %peer, "Sent sync request to peer");
     state.sync_height = max(state.sync_height, range.end().increment());
-    state.pending_requests.insert(request_id, range);
-
-    Ok(())
-}
-
-async fn request_values_from_peer_except<Ctx>(
-    co: Co<Ctx>,
-    state: &mut State<Ctx>,
-    metrics: &Metrics,
-    range: RangeInclusive<Ctx::Height>,
-    except: PeerId,
-) -> Result<(), Error<Ctx>>
-where
-    Ctx: Context,
-{
-    info!(range.sync = %DisplayRange::<Ctx>(&range), "Requesting sync from another peer");
-
-    if let Some((peer, range)) = state.random_peer_with_except(&range, Some(except)) {
-        request_values_from_peer(&co, state, metrics, range, peer).await?;
-    } else {
-        error!(range.sync = %DisplayRange::<Ctx>(&range), "No peer to request sync from");
-    }
+    state.pending_requests.insert(request_id, (range, peer));
 
     Ok(())
 }
 
 /// Remove the pending request and re-request the batch from another peer.
-async fn re_request_values_from_peer<Ctx>(
+/// If `except_peer_id` is provided, the request will be re-sent to a different peer than the one that sent the original request.
+async fn re_request_values_from_peer_except<Ctx>(
     co: Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
     request_id: OutboundRequestId,
-    except: Option<PeerId>,
+    except_peer_id: Option<PeerId>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
-    debug!(%request_id, ?except, "Re-requesting values from peer");
+    info!(%request_id, except_peer_id = ?except_peer_id, "Re-requesting values from peer");
 
-    if let Some(range) = state.pending_requests.remove(&request_id) {
-        // It is possible that a prefix or the whole range of values has been validated via consensus.
-        // Then, request only the missing values.
-        let range = state.trim_validated_heights(&range);
-        if range.is_empty() {
-            warn!(%request_id, "All values in range {} have been validated, skipping re-request", DisplayRange::<Ctx>(&range));
-            return Ok(());
-        }
-
-        if let Some(peer_id) = except {
-            request_values_from_peer_except(co, state, metrics, range, peer_id).await?;
-        } else if let Some((peer, range)) = state.random_peer_with(&range) {
-            request_values_from_peer(&co, state, metrics, range, peer).await?;
-        } else {
-            warn!("No peer to request sync");
-        }
-    } else {
+    let Some((range, stored_peer_id)) = state.pending_requests.remove(&request_id.clone()) else {
         warn!(%request_id, "Unknown request ID when re-requesting values");
+        return Ok(());
+    };
+
+    // It is possible that a prefix or the whole range of values has been validated via consensus.
+    // Then, request only the missing values.
+    let range = state.trim_validated_heights(&range);
+    if range.is_empty() {
+        warn!(%request_id, "All values in range {} have been validated, skipping re-request", DisplayRange::<Ctx>(&range));
+        return Ok(());
     }
+
+    let except_peer_id = match except_peer_id {
+        Some(peer_id) => {
+            if stored_peer_id == peer_id {
+                Some(peer_id)
+            } else {
+                warn!(%request_id, peer.actual = %peer_id, peer.expected = %stored_peer_id, "Received response from different peer than expected");
+                Some(stored_peer_id)
+            }
+        }
+        None => None,
+    };
+
+    let Some((peer, peer_range)) = state.random_peer_with_except(&range, except_peer_id) else {
+        error!(range.sync = %DisplayRange::<Ctx>(&range), "No peer to request sync from");
+        return Ok(());
+    };
+
+    request_values_from_peer(&co, state, metrics, peer_range, peer).await?;
 
     Ok(())
 }
