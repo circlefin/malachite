@@ -180,17 +180,14 @@ fn polka_certificate_with_mixed_valid_and_invalid_votes() {
     CertificateTest::<Polka>::new()
         .with_validators([10, 20, 30, 40])
         .with_votes(2..4, VoteType::Prevote)
-        .with_invalid_signature_vote(0, VoteType::Prevote)
-        // Invalid signature for validator 0
-        .with_invalid_signature_vote(1, VoteType::Prevote)
-        // Invalid signature for validator 1
+        .with_invalid_signature_vote(0, VoteType::Prevote) // Invalid signature for validator 0
+        .with_invalid_signature_vote(1, VoteType::Prevote) // Invalid signature for validator 1
         .expect_valid();
 
     CertificateTest::<Polka>::new()
         .with_validators([10, 20, 30, 40])
         .with_votes(0..2, VoteType::Prevote)
-        .with_invalid_signature_vote(2, VoteType::Prevote)
-        // Invalid signature for validator 2
+        .with_invalid_signature_vote(2, VoteType::Prevote) // Invalid signature for validator 2
         .with_invalid_signature_vote(3, VoteType::Prevote) // Invalid signature for validator 3
         .expect_error(CertificateError::NotEnoughVotingPower {
             signed: 30,
