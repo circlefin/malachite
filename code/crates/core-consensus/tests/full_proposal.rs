@@ -114,9 +114,8 @@ fn full_proposal_keeper_tests() {
 
     let c1 = Ed25519Provider::new(sk1);
     let c2 = Ed25519Provider::new(sk2);
-    block_on(async {
-        let tests =
-            vec![
+
+    let tests = vec![
         Test {
             desc: "BASIC: prop(0, 10, -1), val(0, 10, valid)",
             input: vec![
@@ -271,27 +270,26 @@ fn full_proposal_keeper_tests() {
         },
     ];
 
-        for s in tests {
-            println!("Step: {}", s.desc);
-            let mut keeper = FullProposalKeeper::<TestContext>::new();
+    for s in tests {
+        println!("Step: {}", s.desc);
+        let mut keeper = FullProposalKeeper::<TestContext>::new();
 
-            for m in s.input {
-                match m {
-                    Input::Proposal(p) => keeper.store_proposal(p),
-                    Input::ProposedValue(v, _) => keeper.store_value(&v),
-                    _ => continue,
-                }
+        for m in s.input {
+            match m {
+                Input::Proposal(p) => keeper.store_proposal(p),
+                Input::ProposedValue(v, _) => keeper.store_value(&v),
+                _ => continue,
             }
-            for (r, v) in s.some_fp_for_rv {
-                assert!(prop_at_round_and_value(&keeper, r, v).is_some());
-            }
-            for (r, v) in s.none_fp_for_rv {
-                assert!(prop_at_round_and_value(&keeper, r, v).is_none());
-            }
-            assert_eq!(
-                props_for_value(&keeper, &s.fps_for_value.0),
-                s.fps_for_value.1
-            )
         }
-    });
+        for (r, v) in s.some_fp_for_rv {
+            assert!(prop_at_round_and_value(&keeper, r, v).is_some());
+        }
+        for (r, v) in s.none_fp_for_rv {
+            assert!(prop_at_round_and_value(&keeper, r, v).is_none());
+        }
+        assert_eq!(
+            props_for_value(&keeper, &s.fps_for_value.0),
+            s.fps_for_value.1
+        )
+    }
 }
