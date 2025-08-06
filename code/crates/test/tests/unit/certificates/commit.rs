@@ -134,8 +134,7 @@ fn invalid_commit_certificate_invalid_signature_1() {
     CertificateTest::<Commit>::new()
         .with_validators([10, 10, 10])
         .with_votes(0..2, VoteType::Precommit)
-        .with_invalid_signature_vote(2, VoteType::Precommit)
-        // Validator 0 has invalid signature
+        .with_invalid_signature_vote(2, VoteType::Precommit) // Validator 0 has invalid signature
         .expect_error(CertificateError::NotEnoughVotingPower {
             signed: 20,
             total: 30,
@@ -148,8 +147,7 @@ fn invalid_commit_certificate_invalid_signature_1() {
 fn empty_commit_certificate() {
     CertificateTest::<Commit>::new()
         .with_validators([1, 1, 1])
-        .with_votes([], VoteType::Precommit)
-        // No signatures
+        .with_votes([], VoteType::Precommit) // No signatures
         .expect_error(CertificateError::NotEnoughVotingPower {
             signed: 0,
             total: 3,
@@ -163,19 +161,15 @@ fn commit_certificate_with_mixed_valid_and_invalid_votes() {
     CertificateTest::<Commit>::new()
         .with_validators([10, 20, 30, 40])
         .with_votes(2..4, VoteType::Precommit)
-        .with_invalid_signature_vote(0, VoteType::Precommit)
-        // Invalid signature for validator 0
-        .with_invalid_signature_vote(1, VoteType::Precommit)
-        // Invalid signature for validator 1
+        .with_invalid_signature_vote(0, VoteType::Precommit) // Invalid signature for validator 0
+        .with_invalid_signature_vote(1, VoteType::Precommit) // Invalid signature for validator 1
         .expect_valid();
 
     CertificateTest::<Commit>::new()
         .with_validators([10, 20, 30, 40])
         .with_votes(0..2, VoteType::Precommit)
-        .with_invalid_signature_vote(2, VoteType::Precommit)
-        // Invalid signature for validator 0
-        .with_invalid_signature_vote(3, VoteType::Precommit)
-        // Invalid signature for validator 1
+        .with_invalid_signature_vote(2, VoteType::Precommit) // Invalid signature for validator 0
+        .with_invalid_signature_vote(3, VoteType::Precommit) // Invalid signature for validator 1
         .expect_error(CertificateError::NotEnoughVotingPower {
             signed: 30,
             total: 100,
