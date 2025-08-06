@@ -634,7 +634,7 @@ where
 
         if let Err(e) = self
             .process_input(
-                &myself,
+                myself,
                 state,
                 ConsensusInput::SyncValueResponse(CoreValueResponse::new(
                     peer,

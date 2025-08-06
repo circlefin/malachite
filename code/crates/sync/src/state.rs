@@ -86,7 +86,7 @@ where
                     && *range.end() <= status.tip_height
                     && except.is_none_or(|p| p != **peer)
             })
-            .map(|(peer, _)| (peer.clone(), range.clone()))
+            .map(|(peer, _)| (*peer, range.clone()))
             .collect::<HashMap<_, _>>();
 
         // Prefer peers that have the whole range of values in their history.
@@ -100,7 +100,7 @@ where
                     status.history_min_height <= *range.start()
                         && except.is_none_or(|p| p != **peer)
                 })
-                .map(|(peer, status)| (peer.clone(), *range.start()..=status.tip_height))
+                .map(|(peer, status)| (*peer, *range.start()..=status.tip_height))
                 .filter(|(_, range)| !range.is_empty())
                 .collect::<HashMap<_, _>>()
         }

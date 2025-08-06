@@ -457,11 +457,11 @@ impl Default for ValueSyncConfig {
             status_update_interval: Duration::from_secs(10),
             request_timeout: Duration::from_secs(10),
             max_request_size: ByteSize::mib(1),
-            max_response_size: ByteSize::mib(512),
+            max_response_size: ByteSize::mib(10),
             parallel_requests: 5,
             scoring_strategy: ScoringStrategy::default(),
             inactive_threshold: Duration::from_secs(60),
-            batch_size: 100,
+            batch_size: 5,
         }
     }
 }

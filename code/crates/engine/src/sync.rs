@@ -396,11 +396,11 @@ where
                     .await?;
             }
 
-            Msg::GotDecidedValues(request_id, range, block) => {
+            Msg::GotDecidedValues(request_id, range, blocks) => {
                 self.process_input(
                     &myself,
                     state,
-                    sync::Input::GotDecidedValues(request_id, range, block),
+                    sync::Input::GotDecidedValues(request_id, range, blocks),
                 )
                 .await?;
             }
