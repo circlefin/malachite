@@ -1,3 +1,4 @@
+use futures::executor::block_on;
 use malachitebft_core_types::{Round, SignedProposal, SigningProvider, Validity, ValueOrigin};
 use malachitebft_test::utils::validators::make_validators;
 use malachitebft_test::{Address, Ed25519Provider, Proposal, Value};
@@ -33,7 +34,8 @@ async fn prop(
         Value::new(value),
         Round::from(pol_round),
         address,
-    ).await
+    )
+    .await
 }
 
 async fn prop_msg(
@@ -104,8 +106,8 @@ struct Test {
     fps_for_value: (ProposedValue<TestContext>, Vec<SignedProposal<TestContext>>),
 }
 
-#[tokio::test]
-async fn full_proposal_keeper_tests() {
+#[test]
+fn full_proposal_keeper_tests() {
     let [(v1, sk1), (v2, sk2)] = make_validators([1, 1]);
 
     let a1 = v1.address;
@@ -113,8 +115,9 @@ async fn full_proposal_keeper_tests() {
 
     let c1 = Ed25519Provider::new(sk1);
     let c2 = Ed25519Provider::new(sk2);
-
-    let tests = vec![
+    block_on(async {
+        let tests =
+            vec![
         Test {
             desc: "BASIC: prop(0, 10, -1), val(0, 10, valid)",
             input: vec![
@@ -269,26 +272,27 @@ async fn full_proposal_keeper_tests() {
         },
     ];
 
-    for s in tests {
-        println!("Step: {}", s.desc);
-        let mut keeper = FullProposalKeeper::<TestContext>::new();
+        for s in tests {
+            println!("Step: {}", s.desc);
+            let mut keeper = FullProposalKeeper::<TestContext>::new();
 
-        for m in s.input {
-            match m {
-                Input::Proposal(p) => keeper.store_proposal(p),
-                Input::ProposedValue(v, _) => keeper.store_value(&v),
-                _ => continue,
+            for m in s.input {
+                match m {
+                    Input::Proposal(p) => keeper.store_proposal(p),
+                    Input::ProposedValue(v, _) => keeper.store_value(&v),
+                    _ => continue,
+                }
             }
+            for (r, v) in s.some_fp_for_rv {
+                assert!(prop_at_round_and_value(&keeper, r, v).is_some());
+            }
+            for (r, v) in s.none_fp_for_rv {
+                assert!(prop_at_round_and_value(&keeper, r, v).is_none());
+            }
+            assert_eq!(
+                props_for_value(&keeper, &s.fps_for_value.0),
+                s.fps_for_value.1
+            )
         }
-        for (r, v) in s.some_fp_for_rv {
-            assert!(prop_at_round_and_value(&keeper, r, v).is_some());
-        }
-        for (r, v) in s.none_fp_for_rv {
-            assert!(prop_at_round_and_value(&keeper, r, v).is_none());
-        }
-        assert_eq!(
-            props_for_value(&keeper, &s.fps_for_value.0),
-            s.fps_for_value.1
-        )
-    }
+    });
 }

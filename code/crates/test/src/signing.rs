@@ -80,7 +80,10 @@ impl SigningProvider<TestContext> for Ed25519Provider {
             .is_ok()
     }
 
-    async fn sign_proposal_part(&self, proposal_part: ProposalPart) -> SignedProposalPart<TestContext> {
+    async fn sign_proposal_part(
+        &self,
+        proposal_part: ProposalPart,
+    ) -> SignedProposalPart<TestContext> {
         let signature = self.private_key.sign(&proposal_part.to_sign_bytes());
         SignedProposalPart::new(proposal_part, signature)
     }

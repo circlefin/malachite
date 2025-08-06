@@ -1008,11 +1008,13 @@ where
                 let valid = match msg.message {
                     Msg::Vote(v) => {
                         self.signing_provider
-                            .verify_signed_vote(&v, &msg.signature, &pk).await
+                            .verify_signed_vote(&v, &msg.signature, &pk)
+                            .await
                     }
                     Msg::Proposal(p) => {
                         self.signing_provider
-                            .verify_signed_proposal(&p, &msg.signature, &pk).await
+                            .verify_signed_proposal(&p, &msg.signature, &pk)
+                            .await
                     }
                 };
 
@@ -1024,41 +1026,36 @@ where
             }
 
             Effect::VerifyCommitCertificate(certificate, validator_set, thresholds, r) => {
-                let result = self.signing_provider.verify_commit_certificate(
-                    &self.ctx,
-                    &certificate,
-                    &validator_set,
-                    thresholds,
-                ).await;
+                let result = self
+                    .signing_provider
+                    .verify_commit_certificate(&self.ctx, &certificate, &validator_set, thresholds)
+                    .await;
 
                 Ok(r.resume_with(result))
             }
 
             Effect::VerifyPolkaCertificate(certificate, validator_set, thresholds, r) => {
-                let result = self.signing_provider.verify_polka_certificate(
-                    &self.ctx,
-                    &certificate,
-                    &validator_set,
-                    thresholds,
-                ).await;
+                let result = self
+                    .signing_provider
+                    .verify_polka_certificate(&self.ctx, &certificate, &validator_set, thresholds)
+                    .await;
 
                 Ok(r.resume_with(result))
             }
 
             Effect::VerifyRoundCertificate(certificate, validator_set, thresholds, r) => {
-                let result = self.signing_provider.verify_round_certificate(
-                    &self.ctx,
-                    &certificate,
-                    &validator_set,
-                    thresholds,
-                ).await;
+                let result = self
+                    .signing_provider
+                    .verify_round_certificate(&self.ctx, &certificate, &validator_set, thresholds)
+                    .await;
 
                 Ok(r.resume_with(result))
             }
 
             Effect::ExtendVote(height, round, value_id, r) => {
                 if let Some(extension) = self.extend_vote(height, round, value_id).await? {
-                    let signed_extension = self.signing_provider.sign_vote_extension(extension).await;
+                    let signed_extension =
+                        self.signing_provider.sign_vote_extension(extension).await;
                     Ok(r.resume_with(Some(signed_extension)))
                 } else {
                     Ok(r.resume_with(None))
@@ -1066,11 +1063,14 @@ where
             }
 
             Effect::VerifyVoteExtension(height, round, value_id, signed_extension, pk, r) => {
-                let valid = self.signing_provider.verify_signed_vote_extension(
-                    &signed_extension.message,
-                    &signed_extension.signature,
-                    &pk,
-                ).await;
+                let valid = self
+                    .signing_provider
+                    .verify_signed_vote_extension(
+                        &signed_extension.message,
+                        &signed_extension.signature,
+                        &pk,
+                    )
+                    .await;
 
                 if !valid {
                     return Ok(r.resume_with(Err(VoteExtensionError::InvalidSignature)));

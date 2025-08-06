@@ -63,7 +63,10 @@ impl SigningProvider<MockContext> for Ed25519Provider {
         true
     }
 
-    async fn sign_proposal_part(&self, proposal_part: ProposalPart) -> SignedProposalPart<MockContext> {
+    async fn sign_proposal_part(
+        &self,
+        proposal_part: ProposalPart,
+    ) -> SignedProposalPart<MockContext> {
         // Proposal parts are not signed for now
         SignedProposalPart::new(proposal_part, Signature::test())
     }

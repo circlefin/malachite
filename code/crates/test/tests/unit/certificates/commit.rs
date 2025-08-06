@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use futures::executor::block_on;
 use malachitebft_core_types::CommitCertificate;
 
 use super::{make_validators, types::*, CertificateBuilder, CertificateTest, DEFAULT_SEED};
@@ -34,99 +35,107 @@ impl CertificateBuilder for Commit {
 
 /// Tests the verification of a valid CommitCertificate with signatures from validators
 /// representing more than 2/3 of the total voting power.
-#[tokio::test]
-async fn valid_commit_certificate_with_sufficient_voting_power() {
-    CertificateTest::<Commit>::new()
-        .with_validators([20, 20, 30, 30])
-        .with_votes(0..4, VoteType::Precommit)
-        .await
-        .expect_valid()
-        .await;
+#[test]
+fn valid_commit_certificate_with_sufficient_voting_power() {
+    block_on(async {
+        CertificateTest::<Commit>::new()
+            .with_validators([20, 20, 30, 30])
+            .with_votes(0..4, VoteType::Precommit)
+            .await
+            .expect_valid()
+            .await;
 
-    CertificateTest::<Commit>::new()
-        .with_validators([20, 20, 30, 30])
-        .with_votes(0..3, VoteType::Precommit)
-        .await
-        .expect_valid()
-        .await;
+        CertificateTest::<Commit>::new()
+            .with_validators([20, 20, 30, 30])
+            .with_votes(0..3, VoteType::Precommit)
+            .await
+            .expect_valid()
+            .await;
+    });
 }
 
 /// Tests the verification of a certificate with signatures from validators
 /// representing exactly the threshold amount of voting power.
-#[tokio::test]
-async fn valid_commit_certificate_with_exact_threshold_voting_power() {
-    CertificateTest::<Commit>::new()
-        .with_validators([21, 22, 24, 30])
-        .with_votes(0..3, VoteType::Precommit)
-        .await
-        .expect_valid()
-        .await;
+#[test]
+fn valid_commit_certificate_with_exact_threshold_voting_power() {
+    block_on(async {
+        CertificateTest::<Commit>::new()
+            .with_validators([21, 22, 24, 30])
+            .with_votes(0..3, VoteType::Precommit)
+            .await
+            .expect_valid()
+            .await;
 
-    CertificateTest::<Commit>::new()
-        .with_validators([21, 22, 24, 0])
-        .with_votes(0..3, VoteType::Precommit)
-        .await
-        .expect_valid()
-        .await;
+        CertificateTest::<Commit>::new()
+            .with_validators([21, 22, 24, 0])
+            .with_votes(0..3, VoteType::Precommit)
+            .await
+            .expect_valid()
+            .await;
+    });
 }
 
 /// Tests the verification of a certificate with valid signatures but insufficient voting power.
-#[tokio::test]
-async fn invalid_commit_certificate_insufficient_voting_power() {
-    CertificateTest::<Commit>::new()
-        .with_validators([10, 20, 30, 40])
-        .with_votes(0..3, VoteType::Precommit)
-        .await
-        .expect_error(CertificateError::NotEnoughVotingPower {
-            signed: 60,
-            total: 100,
-            expected: 67,
-        })
-        .await;
+#[test]
+fn invalid_commit_certificate_insufficient_voting_power() {
+    block_on(async {
+        CertificateTest::<Commit>::new()
+            .with_validators([10, 20, 30, 40])
+            .with_votes(0..3, VoteType::Precommit)
+            .await
+            .expect_error(CertificateError::NotEnoughVotingPower {
+                signed: 60,
+                total: 100,
+                expected: 67,
+            })
+            .await;
 
-    CertificateTest::<Commit>::new()
-        .with_validators([10, 10, 30, 50])
-        .with_votes(0..2, VoteType::Precommit)
-        .await
-        .expect_error(CertificateError::NotEnoughVotingPower {
-            signed: 20,
-            total: 100,
-            expected: 67,
-        })
-        .await;
+        CertificateTest::<Commit>::new()
+            .with_validators([10, 10, 30, 50])
+            .with_votes(0..2, VoteType::Precommit)
+            .await
+            .expect_error(CertificateError::NotEnoughVotingPower {
+                signed: 20,
+                total: 100,
+                expected: 67,
+            })
+            .await;
 
-    CertificateTest::<Commit>::new()
-        .with_validators([10, 10, 30, 50])
-        .with_nil_votes(0..4, VoteType::Precommit)
-        .await
-        .expect_error(CertificateError::NotEnoughVotingPower {
-            signed: 0,
-            total: 100,
-            expected: 67,
-        })
-        .await;
+        CertificateTest::<Commit>::new()
+            .with_validators([10, 10, 30, 50])
+            .with_nil_votes(0..4, VoteType::Precommit)
+            .await
+            .expect_error(CertificateError::NotEnoughVotingPower {
+                signed: 0,
+                total: 100,
+                expected: 67,
+            })
+            .await;
+    });
 }
 
 /// Tests the verification of a certificate containing multiple votes from the same validator.
-#[tokio::test]
-async fn invalid_commit_certificate_duplicate_validator_vote() {
+#[test]
+fn invalid_commit_certificate_duplicate_validator_vote() {
     let validator_addr = {
         let (validators, _) = make_validators([10, 10, 10, 10], DEFAULT_SEED);
         validators[3].address
     };
 
-    CertificateTest::<Commit>::new()
-        .with_validators([10, 10, 10, 10])
-        .with_votes(0..4, VoteType::Precommit)
-        .await
-        .with_duplicate_last_vote() // Add duplicate last vote
-        .expect_error(CertificateError::DuplicateVote(validator_addr))
-        .await;
+    block_on(async {
+        CertificateTest::<Commit>::new()
+            .with_validators([10, 10, 10, 10])
+            .with_votes(0..4, VoteType::Precommit)
+            .await
+            .with_duplicate_last_vote() // Add duplicate last vote
+            .expect_error(CertificateError::DuplicateVote(validator_addr))
+            .await;
+    });
 }
 
 /// Tests the verification of a certificate containing a vote from a validator not in the validator set.
-#[tokio::test]
-async fn invalid_commit_certificate_unknown_validator() {
+#[test]
+fn invalid_commit_certificate_unknown_validator() {
     // Define the seed for generating the other validator twice
     let seed = 0xcafecafe;
 
@@ -135,74 +144,82 @@ async fn invalid_commit_certificate_unknown_validator() {
         validator.address
     };
 
-    CertificateTest::<Commit>::new()
-        .with_validators([10, 10, 10, 10])
-        .with_votes(0..3, VoteType::Precommit)
-        .await
-        .with_non_validator_vote(seed, VoteType::Precommit)
-        .await
-        .expect_error(CertificateError::UnknownValidator(external_validator_addr))
-        .await;
+    block_on(async {
+        CertificateTest::<Commit>::new()
+            .with_validators([10, 10, 10, 10])
+            .with_votes(0..3, VoteType::Precommit)
+            .await
+            .with_non_validator_vote(seed, VoteType::Precommit)
+            .await
+            .expect_error(CertificateError::UnknownValidator(external_validator_addr))
+            .await;
+    });
 }
 
 /// Tests the verification of a certificate containing a vote with an invalid signature.
-#[tokio::test]
-async fn invalid_commit_certificate_invalid_signature_1() {
-    CertificateTest::<Commit>::new()
-        .with_validators([10, 10, 10])
-        .with_votes(0..2, VoteType::Precommit)
-        .await
-        .with_invalid_signature_vote(2, VoteType::Precommit)
-        .await // Validator 0 has invalid signature
-        .expect_error(CertificateError::NotEnoughVotingPower {
-            signed: 20,
-            total: 30,
-            expected: 21,
-        })
-        .await;
+#[test]
+fn invalid_commit_certificate_invalid_signature_1() {
+    block_on(async {
+        CertificateTest::<Commit>::new()
+            .with_validators([10, 10, 10])
+            .with_votes(0..2, VoteType::Precommit)
+            .await
+            .with_invalid_signature_vote(2, VoteType::Precommit)
+            .await // Validator 0 has invalid signature
+            .expect_error(CertificateError::NotEnoughVotingPower {
+                signed: 20,
+                total: 30,
+                expected: 21,
+            })
+            .await;
+    });
 }
 
 /// Tests the verification of a certificate with no votes.
-#[tokio::test]
-async fn empty_commit_certificate() {
-    CertificateTest::<Commit>::new()
-        .with_validators([1, 1, 1])
-        .with_votes([], VoteType::Precommit)
-        .await // No signatures
-        .expect_error(CertificateError::NotEnoughVotingPower {
-            signed: 0,
-            total: 3,
-            expected: 3,
-        })
-        .await;
+#[test]
+fn empty_commit_certificate() {
+    block_on(async {
+        CertificateTest::<Commit>::new()
+            .with_validators([1, 1, 1])
+            .with_votes([], VoteType::Precommit)
+            .await // No signatures
+            .expect_error(CertificateError::NotEnoughVotingPower {
+                signed: 0,
+                total: 3,
+                expected: 3,
+            })
+            .await;
+    });
 }
 
 /// Tests the verification of a certificate containing both valid and invalid votes.
-#[tokio::test]
-async fn commit_certificate_with_mixed_valid_and_invalid_votes() {
-    CertificateTest::<Commit>::new()
-        .with_validators([10, 20, 30, 40])
-        .with_votes(2..4, VoteType::Precommit)
-        .await
-        .with_invalid_signature_vote(0, VoteType::Precommit)
-        .await // Invalid signature for validator 0
-        .with_invalid_signature_vote(1, VoteType::Precommit)
-        .await // Invalid signature for validator 1
-        .expect_valid()
-        .await;
+#[test]
+fn commit_certificate_with_mixed_valid_and_invalid_votes() {
+    block_on(async {
+        CertificateTest::<Commit>::new()
+            .with_validators([10, 20, 30, 40])
+            .with_votes(2..4, VoteType::Precommit)
+            .await
+            .with_invalid_signature_vote(0, VoteType::Precommit)
+            .await // Invalid signature for validator 0
+            .with_invalid_signature_vote(1, VoteType::Precommit)
+            .await // Invalid signature for validator 1
+            .expect_valid()
+            .await;
 
-    CertificateTest::<Commit>::new()
-        .with_validators([10, 20, 30, 40])
-        .with_votes(0..2, VoteType::Precommit)
-        .await
-        .with_invalid_signature_vote(2, VoteType::Precommit)
-        .await // Invalid signature for validator 0
-        .with_invalid_signature_vote(3, VoteType::Precommit)
-        .await // Invalid signature for validator 1
-        .expect_error(CertificateError::NotEnoughVotingPower {
-            signed: 30,
-            total: 100,
-            expected: 67,
-        })
-        .await;
+        CertificateTest::<Commit>::new()
+            .with_validators([10, 20, 30, 40])
+            .with_votes(0..2, VoteType::Precommit)
+            .await
+            .with_invalid_signature_vote(2, VoteType::Precommit)
+            .await // Invalid signature for validator 0
+            .with_invalid_signature_vote(3, VoteType::Precommit)
+            .await // Invalid signature for validator 1
+            .expect_error(CertificateError::NotEnoughVotingPower {
+                signed: 30,
+                total: 100,
+                expected: 67,
+            })
+            .await;
+    });
 }

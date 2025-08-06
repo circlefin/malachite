@@ -26,6 +26,7 @@ base64 = { workspace = true }
 bytes = { workspace = true }
 ed25519-consensus = { workspace = true }
 eyre = { workspace = true }
+futures = {workspace = true}
 hex = { workspace = true }
 prost = { workspace = true }
 prost-types = { workspace = true }
