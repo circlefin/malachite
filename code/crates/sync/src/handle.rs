@@ -102,7 +102,7 @@ where
                     return on_value_response(co, state, metrics, request_id, peer_id, response)
                         .await;
                 } else {
-                    warn!(%request_id, %peer_id, "Received request for wrong range of heights: expected {}..={} ({} values), got {}..={} ({} values)", 
+                    warn!(%request_id, %peer_id, "Received request for wrong range of heights: expected {}..={} ({} values), got {}..={} ({} values)",
                         requested_range.start().as_u64(), requested_range.end().as_u64(), range_len,
                         start.as_u64(), end.as_u64(), response.values.len() as u64);
                     return on_invalid_value_response(co, state, metrics, request_id, peer_id)
@@ -486,7 +486,13 @@ where
     let max_parallel_requests = max(1, state.config.parallel_requests);
 
     if state.pending_requests.len() as u64 >= max_parallel_requests {
-        info!(max_parallel_requests = %max_parallel_requests, pending_requests = %state.pending_requests.len(), "Maximum number of parallel requests reached, skipping request for values");
+        info!(
+            %max_parallel_requests,
+            pending_requests = %state.pending_requests.len(),
+            "Maximum number of parallel requests reached, skipping request for values"
+        );
+
+        return Ok(());
     };
 
     while (state.pending_requests.len() as u64) < max_parallel_requests {
@@ -498,7 +504,7 @@ where
 
         // Get a random peer that can provide the values in the range.
         let Some((peer, range)) = state.random_peer_with(&range) else {
-            debug!("No peer to request sync");
+            debug!("No peer to request sync from");
             // No connected peer reached this height yet, we can stop syncing here.
             break;
         };
@@ -576,25 +582,38 @@ where
     // It is possible that a prefix or the whole range of values has been validated via consensus.
     // Then, request only the missing values.
     let range = state.trim_validated_heights(&range);
+
     if range.is_empty() {
-        warn!(%request_id, "All values in range {} have been validated, skipping re-request", DisplayRange::<Ctx>(&range));
+        warn!(
+            %request_id,
+            "All values in range {} have been validated, skipping re-request",
+            DisplayRange::<Ctx>(&range)
+        );
+
         return Ok(());
     }
 
     let except_peer_id = match except_peer_id {
+        Some(peer_id) if stored_peer_id == peer_id => Some(peer_id),
         Some(peer_id) => {
-            if stored_peer_id == peer_id {
-                Some(peer_id)
-            } else {
-                warn!(%request_id, peer.actual = %peer_id, peer.expected = %stored_peer_id, "Received response from different peer than expected");
-                Some(stored_peer_id)
-            }
+            warn!(
+                %request_id,
+                peer.actual = %peer_id,
+                peer.expected = %stored_peer_id,
+                "Received response from different peer than expected"
+            );
+
+            Some(stored_peer_id)
         }
         None => None,
     };
 
     let Some((peer, peer_range)) = state.random_peer_with_except(&range, except_peer_id) else {
-        error!(range.sync = %DisplayRange::<Ctx>(&range), "No peer to request sync from");
+        error!(
+            range.sync = %DisplayRange::<Ctx>(&range),
+            "No peer to request sync from"
+        );
+
         return Ok(());
     };
 
