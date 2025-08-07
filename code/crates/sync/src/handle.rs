@@ -484,6 +484,11 @@ where
     Ctx: Context,
 {
     let max_parallel_requests = max(1, state.config.parallel_requests);
+
+    if state.pending_requests.len() as u64 >= max_parallel_requests {
+        info!(max_parallel_requests = %max_parallel_requests, pending_requests = %state.pending_requests.len(), "Maximum number of parallel requests reached, skipping request for values");
+    };
+
     while (state.pending_requests.len() as u64) < max_parallel_requests {
         // Build the next range of heights to request from a peer.
         let start_height = state.sync_height;
