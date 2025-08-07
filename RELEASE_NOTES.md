@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-> Nothing yet
+- Make SigningProvider trait methods async ([#1151](https://github.com/informalsystems/malachite/issues/1151))
 
 ## 0.5.0
 

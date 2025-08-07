@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-> Nothing yet
+### `malachitebft-core-types`
+
+- Changed methods of `SigningProvider` and `SigningProviderExt` traits to `async` ([#1151](https://github.com/informalsystems/malachite/issues/1151))
 
 ## 0.5.0
 
