@@ -67,7 +67,7 @@ impl Default for Config {
             enabled: true,
             request_timeout: Duration::from_secs(10),
             max_request_size: 1024 * 1024,       // 1 MiB
-            max_response_size: 10 * 1024 * 1024, // 512 MiB
+            max_response_size: 10 * 1024 * 1024, // 10 MiB
             parallel_requests: DEFAULT_PARALLEL_REQUESTS,
             scoring_strategy: Strategy::default(),
             inactive_threshold: None,
