@@ -144,7 +144,7 @@ where
     }
 
     /// Return a new range of heights, trimming from the beginning any height
-    /// that is not validated by consensus.
+    /// that is validated by consensus.
     pub fn trim_validated_heights(
         &mut self,
         range: &RangeInclusive<Ctx::Height>,
