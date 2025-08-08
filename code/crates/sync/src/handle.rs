@@ -222,6 +222,8 @@ where
     if restart {
         // Consensus is retrying the height, so we should sync starting from it.
         state.sync_height = height;
+        // Clear pending requests, as we are restarting the height.
+        state.pending_requests.clear();
     } else {
         // If consensus is voting on a height that is currently being synced from a peer, do not update the sync height.
         state.sync_height = max(state.sync_height, height);
