@@ -13,7 +13,7 @@ where
     Ctx: Context,
 {
     /// Start consensus for the given height with the given validator set
-    StartHeight(Ctx::Height, Ctx::ValidatorSet),
+    StartHeight(Ctx::Height, Ctx::ValidatorSet, bool),
 
     /// Process a vote received over the network.
     Vote(SignedVote<Ctx>),

@@ -326,9 +326,18 @@ where
     }
 
     #[async_recursion]
-    async fn process_buffered_msgs(&self, myself: &ActorRef<Msg<Ctx>>, state: &mut State<Ctx>) {
+    async fn process_buffered_msgs(
+        &self,
+        myself: &ActorRef<Msg<Ctx>>,
+        state: &mut State<Ctx>,
+        is_restart: bool,
+    ) {
         if state.msg_buffer.is_empty() {
             return;
+        }
+
+        if is_restart {
+            state.msg_buffer = MessageBuffer::new(MAX_BUFFER_SIZE);
         }
 
         info!(count = %state.msg_buffer.len(), "Replaying buffered messages");
@@ -385,7 +394,7 @@ where
                     .process_input(
                         &myself,
                         state,
-                        ConsensusInput::StartHeight(height, validator_set),
+                        ConsensusInput::StartHeight(height, validator_set, is_restart),
                     )
                     .await;
 
@@ -401,7 +410,7 @@ where
                 state.set_phase(Phase::Running);
 
                 // Process any buffered messages, now that we are in the `Running` phase
-                self.process_buffered_msgs(&myself, state).await;
+                self.process_buffered_msgs(&myself, state, is_restart).await;
 
                 Ok(())
             }
