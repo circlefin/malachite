@@ -81,8 +81,8 @@ where
             let range_len = end.as_u64() - start.as_u64() + 1;
 
             // Check if the response is valid. A valid response starts at the
-            // requested height, has at least one value, and no more than the
-            // requested range.
+            // requested start height, has at least one value, and no more than
+            // the requested range.
             if let Some((requested_range, stored_peer_id)) = state.pending_requests.get(&request_id)
             {
                 if stored_peer_id != &peer_id {
@@ -279,8 +279,6 @@ where
     Ok(())
 }
 
-/// Assumes that the range of values in the response matches the requested range
-/// or the response contains a single value.
 pub async fn on_value_response<Ctx>(
     co: Co<Ctx>,
     state: &mut State<Ctx>,
