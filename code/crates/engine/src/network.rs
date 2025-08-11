@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeSet, HashMap};
 use std::marker::PhantomData;
 
 use async_trait::async_trait;
@@ -17,7 +17,7 @@ use malachitebft_sync::{
 use malachitebft_codec as codec;
 use malachitebft_core_consensus::{LivenessMsg, SignedConsensusMsg};
 use malachitebft_core_types::{
-    Context, Height, PolkaCertificate, RoundCertificate, SignedProposal, SignedVote,
+    Context, PolkaCertificate, RoundCertificate, SignedProposal, SignedVote,
 };
 use malachitebft_metrics::SharedRegistry;
 use malachitebft_network::handle::CtrlHandle;
@@ -122,7 +122,7 @@ pub enum State<Ctx: Context> {
     Stopped,
     Running {
         listen_addrs: Vec<Multiaddr>,
-        peers: BTreeMap<PeerId, Status<Ctx>>,
+        peers: BTreeSet<PeerId>,
         output_port: OutputPort<NetworkEvent<Ctx>>,
         ctrl_handle: Box<CtrlHandle>,
         recv_task: JoinHandle<()>,
@@ -134,15 +134,6 @@ pub enum State<Ctx: Context> {
 pub struct Status<Ctx: Context> {
     pub tip_height: Ctx::Height,
     pub history_min_height: Ctx::Height,
-}
-
-impl<Ctx: Context> Default for Status<Ctx> {
-    fn default() -> Self {
-        Self {
-            tip_height: Ctx::Height::ZERO,
-            history_min_height: Ctx::Height::ZERO,
-        }
-    }
 }
 
 impl<Ctx: Context> Status<Ctx> {
@@ -221,7 +212,7 @@ where
 
         Ok(State::Running {
             listen_addrs: Vec::new(),
-            peers: BTreeMap::new(),
+            peers: BTreeSet::new(),
             output_port: OutputPort::with_capacity(128),
             ctrl_handle: Box::new(ctrl_handle),
             recv_task,
@@ -262,8 +253,8 @@ where
                     subscriber.send(NetworkEvent::Listening(addr.clone()));
                 }
 
-                for peer_id in peers.keys() {
-                    subscriber.send(NetworkEvent::PeerConnected(*peer_id));
+                for peer in peers.iter() {
+                    subscriber.send(NetworkEvent::PeerConnected(*peer));
                 }
 
                 subscriber.subscribe_to_port(output_port);
@@ -343,7 +334,7 @@ where
             }
 
             Msg::NewEvent(Event::PeerConnected(peer_id)) => {
-                peers.insert(peer_id, Status::default());
+                peers.insert(peer_id);
                 output_port.send(NetworkEvent::PeerConnected(peer_id));
             }
 
