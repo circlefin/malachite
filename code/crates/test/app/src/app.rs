@@ -11,7 +11,7 @@ use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::{Round, Validity};
 use malachitebft_app_channel::app::types::sync::RawDecidedValue;
 use malachitebft_app_channel::app::types::{LocallyProposedValue, ProposedValue};
-use malachitebft_app_channel::{AppMsg, Channels, NetworkMsg};
+use malachitebft_app_channel::{app_msg, AppMsg, Channels, NetworkMsg};
 use malachitebft_test::codec::json::JsonCodec;
 use malachitebft_test::{Genesis, Height, TestContext};
 
@@ -26,7 +26,7 @@ pub async fn run(
         match msg {
             // The first message to handle is the `ConsensusReady` message, signaling to the app
             // that Malachite is ready to start consensus
-            AppMsg::ConsensusReady { reply } => {
+            AppMsg::ConsensusReady(app_msg::ConsensusReady { reply }) => {
                 let start_height = state
                     .store
                     .max_decided_value_height()
@@ -53,13 +53,13 @@ pub async fn run(
 
             // The next message to handle is the `StartRound` message, signaling to the app
             // that consensus has entered a new round (including the initial round 0)
-            AppMsg::StartedRound {
+            AppMsg::StartedRound(app_msg::StartedRound {
                 height,
                 round,
                 proposer,
                 role,
                 reply_value,
-            } => {
+            }) => {
                 info!(%height, %round, %proposer, ?role, "Started round");
 
                 // We can use that opportunity to update our internal state
@@ -87,12 +87,12 @@ pub async fn run(
 
             // At some point, we may end up being the proposer for that round, and the engine
             // will then ask us for a value to propose to the other validators.
-            AppMsg::GetValue {
+            AppMsg::GetValue(app_msg::GetValue {
                 height,
                 round,
                 timeout: _,
                 reply,
-            } => {
+            }) => {
                 // NOTE: We can ignore the timeout as we are building the value right away.
                 // If we were let's say reaping as many txes from a mempool and executing them,
                 // then we would need to respect the timeout and stop at a certain point.
@@ -151,7 +151,7 @@ pub async fn run(
             // To this end, we store each part that we receive and assemble the full value once we
             // have all its constituent parts. Then we send that value back to consensus for it to
             // consider and vote for or against it (ie. vote `nil`), depending on its validity.
-            AppMsg::ReceivedProposalPart { from, part, reply } => {
+            AppMsg::ReceivedProposalPart(app_msg::ReceivedProposalPart { from, part, reply }) => {
                 let part_type = match &part.content {
                     StreamContent::Data(part) => part.get_type(),
                     StreamContent::Fin => "end of stream",
@@ -171,7 +171,7 @@ pub async fn run(
             // the engine may ask us for the validator set at that height.
             //
             // We send back the appropriate validator set for that height.
-            AppMsg::GetValidatorSet { height, reply } => {
+            AppMsg::GetValidatorSet(app_msg::GetValidatorSet { height, reply }) => {
                 let validator_set = state.ctx.middleware().get_validator_set(
                     &state.ctx,
                     state.current_height,
@@ -189,11 +189,11 @@ pub async fn run(
             // providing it with a commit certificate which contains the ID of the value
             // that was decided on as well as the set of commits for that value,
             // ie. the precommits together with their (aggregated) signatures.
-            AppMsg::Decided {
+            AppMsg::Decided(app_msg::Decided {
                 certificate,
                 extensions: _,
                 reply,
-            } => {
+            }) => {
                 info!(
                     height = %certificate.height,
                     round = %certificate.round,
@@ -257,13 +257,13 @@ pub async fn run(
             // for the heights in between the one we are currently at (included) and the one
             // that they are at. When the engine receives such a value, it will forward to the application
             // to decode it from its wire format and send back the decoded value to consensus.
-            AppMsg::ProcessSyncedValue {
+            AppMsg::ProcessSyncedValue(app_msg::ProcessSyncedValue {
                 height,
                 round,
                 proposer,
                 value_bytes,
                 reply,
-            } => {
+            }) => {
                 info!(%height, %round, "Processing synced value");
 
                 if let Some(value) = decode_value(value_bytes) {
@@ -294,7 +294,7 @@ pub async fn run(
             // then the engine might ask the application to provide with the value
             // that was decided at some lower height. In that case, we fetch it from our store
             // and send it to consensus.
-            AppMsg::GetDecidedValue { height, reply } => {
+            AppMsg::GetDecidedValue(app_msg::GetDecidedValue { height, reply }) => {
                 info!(%height, "Received sync request for decided value");
 
                 let decided_value = state.get_decided_value(height).await;
@@ -312,7 +312,7 @@ pub async fn run(
 
             // In order to figure out if we can help a peer that is lagging behind,
             // the engine may ask us for the height of the earliest available value in our store.
-            AppMsg::GetHistoryMinHeight { reply } => {
+            AppMsg::GetHistoryMinHeight(app_msg::GetHistoryMinHeight { reply }) => {
                 let min_height = state.get_earliest_height().await;
 
                 if reply.send(min_height).is_err() {
@@ -320,13 +320,13 @@ pub async fn run(
                 }
             }
 
-            AppMsg::RestreamProposal {
+            AppMsg::RestreamProposal(app_msg::RestreamProposal {
                 height,
                 round,
                 valid_round,
                 address: _,
                 value_id,
-            } => {
+            }) => {
                 info!(%height, %valid_round, "Restreaming existing proposal...");
 
                 //  Look for a proposal at valid_round or round(should be already stored)
@@ -362,13 +362,13 @@ pub async fn run(
                 }
             }
 
-            AppMsg::ExtendVote { reply, .. } => {
+            AppMsg::ExtendVote(app_msg::ExtendVote { reply, .. }) => {
                 if reply.send(None).is_err() {
                     error!("Failed to send ExtendVote reply");
                 }
             }
 
-            AppMsg::VerifyVoteExtension { reply, .. } => {
+            AppMsg::VerifyVoteExtension(app_msg::VerifyVoteExtension { reply, .. }) => {
                 if reply.send(Ok(())).is_err() {
                     error!("Failed to send VerifyVoteExtension reply");
                 }

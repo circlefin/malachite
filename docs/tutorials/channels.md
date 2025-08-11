@@ -1114,7 +1114,7 @@ We can simply respond by telling the engine to start consensus at the current he
 which is either 1 or the next height after the last decided value in the store (typically when recovering from a crash).
 
 ```rust
-            AppMsg::ConsensusReady { reply, .. } => {
+            AppMsg::ConsensusReady(app_msg::ConsensusReady { reply, .. }) => {
                 let start_height = state
                     .store
                     .max_decided_value_height()
@@ -1141,12 +1141,12 @@ that consensus has entered a new round (including the initial round 0).
 We can use that opportunity to update our internal state. Moreover, if we have already built or seen a value for this height and round, we can send it back to consensus. This may happen when we are restarting after a crash.
 
 ```rust
-            AppMsg::StartedRound {
+            AppMsg::StartedRound(app_msgs::StartedRound {
                 height,
                 round,
                 proposer,
                 reply_value,
-            } => {
+            }) => {
                 info!(%height, %round, %proposer, "Started round");
 
                 reload_log_level(height, round);
@@ -1201,12 +1201,12 @@ carry the block hash and the full block itself would be split into parts in orde
 avoid blowing up the bandwidth requirements by gossiping a single huge message.
 
 ```rust
-            AppMsg::GetValue {
+            AppMsg::GetValue(app_msg::GetValue {
                 height,
                 round,
                 timeout: _,
                 reply,
-            } => {
+            }) => {
                 info!(%height, %round, "Consensus is requesting a value to propose");
 
                 let proposal = match state.get_previously_built_value(height, round).await? {
@@ -1246,7 +1246,7 @@ have all its constituent parts. Then we send that value back to consensus for it
 consider and vote for or against it (ie. vote `nil`), depending on its validity.
 
 ```rust
-            AppMsg::ReceivedProposalPart { from, part, reply } => {
+            AppMsg::ReceivedProposalPart(app_msg::ReceivedProposalPart { from, part, reply }) => {
                 let part_type = match &part.content {
                     StreamContent::Data(part) => part.get_type(),
                     StreamContent::Fin => "end of stream",
@@ -1265,13 +1265,13 @@ consider and vote for or against it (ie. vote `nil`), depending on its validity.
 It is also possible that the application is requested to restream a proposal it has already seen.
 
 ```rust
-            AppMsg::RestreamProposal {
+            AppMsg::RestreamProposal(app_msgs::RestreamProposal {
                 height,
                 round,
                 valid_round,
                 address: _,
                 value_id,
-            } => {
+            }) => {
                 info!(%height, %valid_round, "Restreaming existing propos*al...");
 
                 let proposal = state
@@ -1304,12 +1304,12 @@ When consensus is preparing to send a pre-commit vote, it first calls `ExtendVot
 In our case, the vote extension is empty.
 
 ```rust
-            AppMsg::ExtendVote {
+            AppMsg::ExtendVote(app_msg::ExtendVote {
                 height: _,
                 round: _,
                 value_id: _,
                 reply,
-            } => {
+            }) => {
                 if reply.send(None).is_err() {
                     error!("Failed to send ExtendVote reply");
                 }
@@ -1319,13 +1319,13 @@ In our case, the vote extension is empty.
 The application is also responsible to verify a given vote extension. In our case, we simply return `OK(())`.
 
 ```rust
-            AppMsg::VerifyVoteExtension {
+            AppMsg::VerifyVoteExtension(app_msg::ExtendVote {
                 height: _,
                 round: _,
                 value_id: _,
                 extension: _,
                 reply,
-            } => {
+            }) => {
                 if reply.send(Ok(())).is_err() {
                     error!("Failed to send VerifyVoteExtension reply");
                 }
@@ -1340,7 +1340,7 @@ In our case, our validator set stays constant between heights so we can
 send back the validator set found in our genesis state.
 
 ```rust
-            AppMsg::GetValidatorSet { height, reply } => {
+            AppMsg::GetValidatorSet(app_msg::GetValidatorSet { height, reply }) => {
                 if reply.send(state.get_validator_set(height).clone()).is_err() {
                     error!("Failed to send GetValidatorSet reply");
                 }
@@ -1355,13 +1355,13 @@ that they are at. When the engine receives such a value, it will forward to the 
 to decode it from its wire format and send back the decoded value to consensus.
 
 ```rust
-            AppMsg::ProcessSyncedValue {
+            AppMsg::ProcessSyncedValue(app_msg::ProcessSyncedValue {
                 height,
                 round,
                 proposer,
                 value_bytes,
                 reply,
-            } => {
+            }) => {
                 info!(%height, %round, "Processing synced value");
 
                 let value = decode_value(value_bytes);
@@ -1403,11 +1403,11 @@ If `commit` fails we can re-run consensus for the same height.
 > 3. The application MUST reply to the Decided message by sending a `ConsensusMsg::StartHeight` message back to consensus, instructing it to start the next height. If the application does not reply, consensus will stall.
 
 ```rust
-    AppMsg::Decided {
+    AppMsg::Decided(app_msg::Decided {
         certificate,
         extensions,
         reply,
-    } => {
+    }) => {
         info!(
             height = %certificate.height,
             round = %certificate.round,
@@ -1454,7 +1454,7 @@ that was decided at some lower height. In that case, we fetch it from our store
 and send it to consensus.
 
 ```rust
-            AppMsg::GetDecidedValue { height, reply } => {
+            AppMsg::GetDecidedValue(app_msg::GetDecidedValue { height, reply }) => {
                 info!(%height, "Received sync request for decided value");
 
                 let decided_value = state.get_decided_value(height).await;
@@ -1475,7 +1475,7 @@ In order to figure out if we can help a peer that is lagging behind,
 the engine may ask us for the height of the earliest available value in our store.
 
 ```rust
-            AppMsg::GetHistoryMinHeight { reply } => {
+            AppMsg::GetHistoryMinHeight(app_msg::GetHistoryMinHeight { reply }) => {
                 let min_height = state.get_earliest_height().await;
 
                 if reply.send(min_height).is_err() {

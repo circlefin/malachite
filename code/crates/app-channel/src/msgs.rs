@@ -37,43 +37,16 @@ pub enum AppMsg<Ctx: Context> {
     ///
     /// The application MUST reply with a message to instruct
     /// consensus to start at a given height.
-    ConsensusReady {
-        /// Channel for sending back the height to start at
-        /// and the validator set for that height
-        reply: Reply<(Ctx::Height, Ctx::ValidatorSet)>,
-    },
+    ConsensusReady(ConsensusReady<Ctx>),
 
     /// Notifies the application that a new consensus round has begun.
-    StartedRound {
-        /// Current consensus height
-        height: Ctx::Height,
-        /// Round that was just started
-        round: Round,
-        /// Proposer for that round
-        proposer: Ctx::Address,
-        /// Role that this node is playing in this round
-        role: Role,
-        /// Use this channel to send back any undecided values that were already seen for this round.
-        /// This is needed when recovering from a crash.
-        ///
-        /// The application MUST reply immediately with the values it has, or with an empty vector.
-        reply_value: Reply<Vec<ProposedValue<Ctx>>>,
-    },
+    StartedRound(StartedRound<Ctx>),
 
     /// Requests the application to build a value for consensus to propose.
     ///
     /// The application MUST reply to this message with the requested value
     /// within the specified timeout duration.
-    GetValue {
-        /// Height for which the value is requested
-        height: Ctx::Height,
-        /// Round for which the value is requested
-        round: Round,
-        /// Maximum time allowed for the application to respond
-        timeout: Duration,
-        /// Channel for sending back the value just built to consensus
-        reply: Reply<LocallyProposedValue<Ctx>>,
-    },
+    GetValue(GetValue<Ctx>),
 
     /// ExtendVote allows the application to extend the pre-commit vote with arbitrary data.
     ///
@@ -81,73 +54,34 @@ pub enum AppMsg<Ctx: Context> {
     /// The application then returns a blob of data called a vote extension.
     /// This data is opaque to the consensus algorithm but can contain application-specific information.
     /// The proposer of the next block will receive all vote extensions along with the commit certificate.
-    ExtendVote {
-        height: Ctx::Height,
-        round: Round,
-        value_id: ValueId<Ctx>,
-        reply: Reply<Option<Ctx::Extension>>,
-    },
+    ExtendVote(ExtendVote<Ctx>),
 
     /// Verify a vote extension
     ///
     /// If the vote extension is deemed invalid, the vote it was part of
     /// will be discarded altogether.
-    VerifyVoteExtension {
-        /// The height for which the vote is.
-        height: Ctx::Height,
-        /// The round for which the vote is.
-        round: Round,
-        /// The ID of the value that the vote extension is for.
-        value_id: ValueId<Ctx>,
-        /// The vote extension to verify.
-        extension: Ctx::Extension,
-        /// Use this channel to send the result of the verification.
-        reply: Reply<Result<(), VoteExtensionError>>,
-    },
+    VerifyVoteExtension(VerifyVoteExtension<Ctx>),
 
     /// Requests the application to re-stream a proposal that it has already seen.
     ///
     /// The application MUST re-publish again all the proposal parts pertaining
     /// to that value by sending [`NetworkMsg::PublishProposalPart`] messages through
     /// the [`Channels::network`] channel.
-    RestreamProposal {
-        /// Height of the proposal
-        height: Ctx::Height,
-        /// Round of the proposal
-        round: Round,
-        /// Rround at which the proposal was locked on
-        valid_round: Round,
-        /// Address of the original proposer
-        address: Ctx::Address,
-        /// Unique identifier of the proposed value
-        value_id: ValueId<Ctx>,
-    },
+    RestreamProposal(RestreamProposal<Ctx>),
 
     /// Requests the earliest height available in the history maintained by the application.
     ///
     /// The application MUST respond with its earliest available height.
-    GetHistoryMinHeight { reply: Reply<Ctx::Height> },
+    GetHistoryMinHeight(GetHistoryMinHeight<Ctx>),
 
     /// Notifies the application that consensus has received a proposal part over the network.
     ///
     /// If this part completes the full proposal, the application MUST respond
     /// with the complete proposed value. Otherwise, it MUST respond with `None`.
-    ReceivedProposalPart {
-        /// Peer whom the proposal part was received from
-        from: PeerId,
-        /// Received proposal part, together with its stream metadata
-        part: StreamMessage<Ctx::ProposalPart>,
-        /// Channel for returning the complete value if the proposal is now complete
-        reply: Reply<Option<ProposedValue<Ctx>>>,
-    },
+    ReceivedProposalPart(ReceivedProposalPart<Ctx>),
 
     /// Requests the validator set for a specific height
-    GetValidatorSet {
-        /// Height of the validator set to retrieve
-        height: Ctx::Height,
-        /// Channel for sending back the validator set
-        reply: Reply<Option<Ctx::ValidatorSet>>,
-    },
+    GetValidatorSet(GetValidatorSet<Ctx>),
 
     /// Notifies the application that consensus has decided on a value.
     ///
@@ -162,45 +96,274 @@ pub enum AppMsg<Ctx: Context> {
     /// otherwise.
     ///
     /// If the application does not reply, consensus will stall.
-    Decided {
-        /// The certificate for the decided value
-        certificate: CommitCertificate<Ctx>,
-
-        /// The vote extensions received for that height
-        extensions: VoteExtensions<Ctx>,
-
-        /// Channel for instructing consensus to start the next height, if desired
-        reply: Reply<Next<Ctx>>,
-    },
+    Decided(Decided<Ctx>),
 
     /// Requests a previously decided value from the application's storage.
     ///
     /// The application MUST respond with that value if available, or `None` otherwise.
-    GetDecidedValue {
-        /// Height of the decided value to retrieve
-        height: Ctx::Height,
-        /// Channel for sending back the decided value
-        reply: Reply<Option<RawDecidedValue<Ctx>>>,
-    },
+    GetDecidedValue(GetDecidedValue<Ctx>),
 
     /// Notifies the application that a value has been synced from the network.
     /// This may happen when the node is catching up with the network.
     ///
     /// If a value can be decoded from the bytes provided, then the application MUST reply
     /// to this message with the decoded value. Otherwise, it MUST reply with `None`.
-    ProcessSyncedValue {
-        /// Height of the synced value
-        height: Ctx::Height,
-        /// Round of the synced value
-        round: Round,
-        /// Address of the original proposer
-        proposer: Ctx::Address,
-        /// Raw encoded value data
-        value_bytes: Bytes,
-        /// Channel for sending back the proposed value, if successfully decoded
-        /// or `None` if the value could not be decoded
-        reply: Reply<Option<ProposedValue<Ctx>>>,
-    },
+    ProcessSyncedValue(ProcessSyncedValue<Ctx>),
+}
+
+impl<Ctx: Context> From<ConsensusReady<Ctx>> for AppMsg<Ctx> {
+    fn from(value: ConsensusReady<Ctx>) -> Self {
+        Self::ConsensusReady(value)
+    }
+}
+
+impl<Ctx: Context> From<StartedRound<Ctx>> for AppMsg<Ctx> {
+    fn from(value: StartedRound<Ctx>) -> Self {
+        Self::StartedRound(value)
+    }
+}
+
+impl<Ctx: Context> From<GetValue<Ctx>> for AppMsg<Ctx> {
+    fn from(value: GetValue<Ctx>) -> Self {
+        Self::GetValue(value)
+    }
+}
+
+impl<Ctx: Context> From<ExtendVote<Ctx>> for AppMsg<Ctx> {
+    fn from(value: ExtendVote<Ctx>) -> Self {
+        Self::ExtendVote(value)
+    }
+}
+
+impl<Ctx: Context> From<VerifyVoteExtension<Ctx>> for AppMsg<Ctx> {
+    fn from(value: VerifyVoteExtension<Ctx>) -> Self {
+        Self::VerifyVoteExtension(value)
+    }
+}
+
+impl<Ctx: Context> From<RestreamProposal<Ctx>> for AppMsg<Ctx> {
+    fn from(value: RestreamProposal<Ctx>) -> Self {
+        Self::RestreamProposal(value)
+    }
+}
+
+impl<Ctx: Context> From<GetHistoryMinHeight<Ctx>> for AppMsg<Ctx> {
+    fn from(value: GetHistoryMinHeight<Ctx>) -> Self {
+        Self::GetHistoryMinHeight(value)
+    }
+}
+
+impl<Ctx: Context> From<ReceivedProposalPart<Ctx>> for AppMsg<Ctx> {
+    fn from(value: ReceivedProposalPart<Ctx>) -> Self {
+        Self::ReceivedProposalPart(value)
+    }
+}
+
+impl<Ctx: Context> From<GetValidatorSet<Ctx>> for AppMsg<Ctx> {
+    fn from(value: GetValidatorSet<Ctx>) -> Self {
+        Self::GetValidatorSet(value)
+    }
+}
+
+impl<Ctx: Context> From<Decided<Ctx>> for AppMsg<Ctx> {
+    fn from(value: Decided<Ctx>) -> Self {
+        Self::Decided(value)
+    }
+}
+
+impl<Ctx: Context> From<GetDecidedValue<Ctx>> for AppMsg<Ctx> {
+    fn from(value: GetDecidedValue<Ctx>) -> Self {
+        Self::GetDecidedValue(value)
+    }
+}
+
+impl<Ctx: Context> From<ProcessSyncedValue<Ctx>> for AppMsg<Ctx> {
+    fn from(value: ProcessSyncedValue<Ctx>) -> Self {
+        Self::ProcessSyncedValue(value)
+    }
+}
+
+/// Notifies the application that consensus is ready.
+///
+/// The application MUST reply with a message to instruct
+/// consensus to start at a given height.
+#[derive_where(Debug)]
+pub struct ConsensusReady<Ctx: Context> {
+    /// Channel for sending back the height to start at
+    /// and the validator set for that height
+    pub reply: Reply<(Ctx::Height, Ctx::ValidatorSet)>,
+}
+
+/// Notifies the application that a new consensus round has begun.
+#[derive_where(Debug)]
+pub struct StartedRound<Ctx: Context> {
+    /// Current consensus height
+    pub height: Ctx::Height,
+    /// Round that was just started
+    pub round: Round,
+    /// Proposer for that round
+    pub proposer: Ctx::Address,
+    /// Role that this node is playing in this round
+    pub role: Role,
+    /// Use this channel to send back any undecided values that were already seen for this round.
+    /// This is needed when recovering from a crash.
+    ///
+    /// The application MUST reply immediately with the values it has, or with an empty vector.
+    pub reply_value: Reply<Vec<ProposedValue<Ctx>>>,
+}
+
+/// Requests the application to build a value for consensus to propose.
+///
+/// The application MUST reply to this message with the requested value
+/// within the specified timeout duration.
+#[derive_where(Debug)]
+pub struct GetValue<Ctx: Context> {
+    /// Height for which the value is requested
+    pub height: Ctx::Height,
+    /// Round for which the value is requested
+    pub round: Round,
+    /// Maximum time allowed for the application to respond
+    pub timeout: Duration,
+    /// Channel for sending back the value just built to consensus
+    pub reply: Reply<LocallyProposedValue<Ctx>>,
+}
+
+/// ExtendVote allows the application to extend the pre-commit vote with arbitrary data.
+///
+/// When consensus is preparing to send a pre-commit vote, it first calls `ExtendVote`.
+/// The application then returns a blob of data called a vote extension.
+/// This data is opaque to the consensus algorithm but can contain application-specific information.
+/// The proposer of the next block will receive all vote extensions along with the commit certificate.
+#[derive_where(Debug)]
+pub struct ExtendVote<Ctx: Context> {
+    pub height: Ctx::Height,
+    pub round: Round,
+    pub value_id: ValueId<Ctx>,
+    pub reply: Reply<Option<Ctx::Extension>>,
+}
+
+/// Verify a vote extension
+///
+/// If the vote extension is deemed invalid, the vote it was part of
+/// will be discarded altogether.
+#[derive_where(Debug)]
+pub struct VerifyVoteExtension<Ctx: Context> {
+    /// The height for which the vote is.
+    pub height: Ctx::Height,
+    /// The round for which the vote is.
+    pub round: Round,
+    /// The ID of the value that the vote extension is for.
+    pub value_id: ValueId<Ctx>,
+    /// The vote extension to verify.
+    pub extension: Ctx::Extension,
+    /// Use this channel to send the result of the verification.
+    pub reply: Reply<Result<(), VoteExtensionError>>,
+}
+
+/// Requests the application to re-stream a proposal that it has already seen.
+///
+/// The application MUST re-publish again all the proposal parts pertaining
+/// to that value by sending [`NetworkMsg::PublishProposalPart`] messages through
+/// the [`Channels::network`] channel.
+#[derive_where(Debug)]
+pub struct RestreamProposal<Ctx: Context> {
+    /// Height of the proposal
+    pub height: Ctx::Height,
+    /// Round of the proposal
+    pub round: Round,
+    /// Rround at which the proposal was locked on
+    pub valid_round: Round,
+    /// Address of the original proposer
+    pub address: Ctx::Address,
+    /// Unique identifier of the proposed value
+    pub value_id: ValueId<Ctx>,
+}
+
+/// Requests the earliest height available in the history maintained by the application.
+///
+/// The application MUST respond with its earliest available height.
+#[derive_where(Debug)]
+pub struct GetHistoryMinHeight<Ctx: Context> {
+    pub reply: Reply<Ctx::Height>,
+}
+
+/// Notifies the application that consensus has received a proposal part over the network.
+///
+/// If this part completes the full proposal, the application MUST respond
+/// with the complete proposed value. Otherwise, it MUST respond with `None`.
+#[derive_where(Debug)]
+pub struct ReceivedProposalPart<Ctx: Context> {
+    /// Peer whom the proposal part was received from
+    pub from: PeerId,
+    /// Received proposal part, together with its stream metadata
+    pub part: StreamMessage<Ctx::ProposalPart>,
+    /// Channel for returning the complete value if the proposal is now complete
+    pub reply: Reply<Option<ProposedValue<Ctx>>>,
+}
+
+/// Requests the validator set for a specific height
+#[derive_where(Debug)]
+pub struct GetValidatorSet<Ctx: Context> {
+    /// Height of the validator set to retrieve
+    pub height: Ctx::Height,
+    /// Channel for sending back the validator set
+    pub reply: Reply<Option<Ctx::ValidatorSet>>,
+}
+
+/// Notifies the application that consensus has decided on a value.
+///
+/// This message includes a commit certificate containing the ID of
+/// the value that was decided on, the height and round at which it was decided,
+/// and the aggregated signatures of the validators that committed to it.
+/// It also includes to the vote extensions received for that height.
+///
+/// In response to this message, the application MUST send a [`Next`]
+/// message back to consensus, instructing it to either start the next height if
+/// the application was able to commit the decided value, or to restart the current height
+/// otherwise.
+///
+/// If the application does not reply, consensus will stall.
+#[derive_where(Debug)]
+pub struct Decided<Ctx: Context> {
+    /// The certificate for the decided value
+    pub certificate: CommitCertificate<Ctx>,
+
+    /// The vote extensions received for that height
+    pub extensions: VoteExtensions<Ctx>,
+
+    /// Channel for instructing consensus to start the next height, if desired
+    pub reply: Reply<Next<Ctx>>,
+}
+
+/// Requests a previously decided value from the application's storage.
+///
+/// The application MUST respond with that value if available, or `None` otherwise.
+#[derive_where(Debug)]
+pub struct GetDecidedValue<Ctx: Context> {
+    /// Height of the decided value to retrieve
+    pub height: Ctx::Height,
+    /// Channel for sending back the decided value
+    pub reply: Reply<Option<RawDecidedValue<Ctx>>>,
+}
+
+/// Notifies the application that a value has been synced from the network.
+/// This may happen when the node is catching up with the network.
+///
+/// If a value can be decoded from the bytes provided, then the application MUST reply
+/// to this message with the decoded value. Otherwise, it MUST reply with `None`.
+#[derive_where(Debug)]
+pub struct ProcessSyncedValue<Ctx: Context> {
+    /// Height of the synced value
+    pub height: Ctx::Height,
+    /// Round of the synced value
+    pub round: Round,
+    /// Address of the original proposer
+    pub proposer: Ctx::Address,
+    /// Raw encoded value data
+    pub value_bytes: Bytes,
+    /// Channel for sending back the proposed value, if successfully decoded
+    /// or `None` if the value could not be decoded
+    pub reply: Reply<Option<ProposedValue<Ctx>>>,
 }
 
 /// Messages sent from the application to consensus.

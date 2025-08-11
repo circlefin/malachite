@@ -59,7 +59,9 @@ where
         match msg {
             HostMsg::ConsensusReady { reply_to } => {
                 let (reply, rx) = oneshot::channel();
-                self.sender.send(AppMsg::ConsensusReady { reply }).await?;
+                self.sender
+                    .send(crate::msgs::ConsensusReady { reply }.into())
+                    .await?;
 
                 let (start_height, validator_set) = rx.await?;
                 reply_to.send((start_height, validator_set))?;
@@ -75,13 +77,16 @@ where
                 let (reply_value, rx_values) = oneshot::channel();
 
                 self.sender
-                    .send(AppMsg::StartedRound {
-                        height,
-                        round,
-                        proposer,
-                        role,
-                        reply_value,
-                    })
+                    .send(
+                        crate::msgs::StartedRound {
+                            height,
+                            round,
+                            proposer,
+                            role,
+                            reply_value,
+                        }
+                        .into(),
+                    )
                     .await?;
 
                 // Do not block processing of other messages while waiting for the values
@@ -103,12 +108,15 @@ where
                 let (reply, rx) = oneshot::channel();
 
                 self.sender
-                    .send(AppMsg::GetValue {
-                        height,
-                        round,
-                        timeout,
-                        reply,
-                    })
+                    .send(
+                        crate::msgs::GetValue {
+                            height,
+                            round,
+                            timeout,
+                            reply,
+                        }
+                        .into(),
+                    )
                     .await?;
 
                 reply_to.send(rx.await?)?;
@@ -123,12 +131,15 @@ where
                 let (reply, rx) = oneshot::channel();
 
                 self.sender
-                    .send(AppMsg::ExtendVote {
-                        height,
-                        round,
-                        value_id,
-                        reply,
-                    })
+                    .send(
+                        crate::msgs::ExtendVote {
+                            height,
+                            round,
+                            value_id,
+                            reply,
+                        }
+                        .into(),
+                    )
                     .await?;
 
                 reply_to.send(rx.await?)?;
@@ -144,13 +155,16 @@ where
                 let (reply, rx) = oneshot::channel();
 
                 self.sender
-                    .send(AppMsg::VerifyVoteExtension {
-                        height,
-                        round,
-                        value_id,
-                        extension,
-                        reply,
-                    })
+                    .send(
+                        crate::msgs::VerifyVoteExtension {
+                            height,
+                            round,
+                            value_id,
+                            extension,
+                            reply,
+                        }
+                        .into(),
+                    )
                     .await?;
 
                 reply_to.send(rx.await?)?;
@@ -164,13 +178,16 @@ where
                 value_id,
             } => {
                 self.sender
-                    .send(AppMsg::RestreamProposal {
-                        height,
-                        round,
-                        valid_round,
-                        address,
-                        value_id,
-                    })
+                    .send(
+                        crate::msgs::RestreamProposal {
+                            height,
+                            round,
+                            valid_round,
+                            address,
+                            value_id,
+                        }
+                        .into(),
+                    )
                     .await?
             }
 
@@ -178,7 +195,7 @@ where
                 let (reply, rx) = oneshot::channel();
 
                 self.sender
-                    .send(AppMsg::GetHistoryMinHeight { reply })
+                    .send(crate::msgs::GetHistoryMinHeight { reply }.into())
                     .await?;
 
                 reply_to.send(rx.await?)?;
@@ -192,7 +209,7 @@ where
                 let (reply, rx) = oneshot::channel();
 
                 self.sender
-                    .send(AppMsg::ReceivedProposalPart { from, part, reply })
+                    .send(crate::msgs::ReceivedProposalPart { from, part, reply }.into())
                     .await?;
 
                 if let Some(value) = rx.await? {
@@ -204,7 +221,7 @@ where
                 let (reply, rx) = oneshot::channel();
 
                 self.sender
-                    .send(AppMsg::GetValidatorSet { height, reply })
+                    .send(crate::msgs::GetValidatorSet { height, reply }.into())
                     .await?;
 
                 reply_to.send(rx.await?)?;
@@ -218,11 +235,14 @@ where
                 let (reply, rx) = oneshot::channel();
 
                 self.sender
-                    .send(AppMsg::Decided {
-                        certificate,
-                        extensions,
-                        reply,
-                    })
+                    .send(
+                        crate::msgs::Decided {
+                            certificate,
+                            extensions,
+                            reply,
+                        }
+                        .into(),
+                    )
                     .await?;
 
                 let next = rx.await?;
@@ -236,7 +256,7 @@ where
                 let (reply, rx) = oneshot::channel();
 
                 self.sender
-                    .send(AppMsg::GetDecidedValue { height, reply })
+                    .send(crate::msgs::GetDecidedValue { height, reply }.into())
                     .await?;
 
                 reply_to.send(rx.await?)?;
@@ -252,13 +272,16 @@ where
                 let (reply, rx) = oneshot::channel();
 
                 self.sender
-                    .send(AppMsg::ProcessSyncedValue {
-                        height,
-                        round,
-                        proposer,
-                        value_bytes,
-                        reply,
-                    })
+                    .send(
+                        crate::msgs::ProcessSyncedValue {
+                            height,
+                            round,
+                            proposer,
+                            value_bytes,
+                            reply,
+                        }
+                        .into(),
+                    )
                     .await?;
 
                 if let Some(value) = rx.await? {
