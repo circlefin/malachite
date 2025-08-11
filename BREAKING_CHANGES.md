@@ -4,7 +4,7 @@
 
 ### `malachitebft-app-channel`
 
-- Made all `AppMsg` variants unit-like and introduced new types for each ([#](https://github.com/informalsystems/malachite/pull/xxx))
+- Made all `AppMsg` variants unit-like and introduced new types for each ([#1167](https://github.com/informalsystems/malachite/pull/1167))
 
 ### `malachitebft-core-types`
 
