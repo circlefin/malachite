@@ -9,6 +9,34 @@ use serde::{Deserialize, Serialize};
 use malachitebft_core_types::{CommitCertificate, Context, Height};
 pub use malachitebft_peer::PeerId;
 
+/// Indicates whether the height is the start of a new height or a restart of the latest height
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum HeightStartType {
+    /// This is the start of a new height
+    Start,
+
+    /// This is a restart of the latest height
+    Restart,
+}
+
+impl HeightStartType {
+    pub const fn from_is_restart(is_restart: bool) -> Self {
+        if is_restart {
+            Self::Restart
+        } else {
+            Self::Start
+        }
+    }
+
+    pub const fn is_start(&self) -> bool {
+        matches!(self, Self::Start)
+    }
+
+    pub const fn is_restart(&self) -> bool {
+        matches!(self, Self::Restart)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Display)]
 #[displaydoc("{0}")]
 pub struct InboundRequestId(Arc<str>);

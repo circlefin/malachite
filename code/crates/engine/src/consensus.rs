@@ -21,7 +21,7 @@ use malachitebft_core_types::{
     ValidatorSet, Validity, Value, ValueId, ValueOrigin, ValueResponse as CoreValueResponse, Vote,
 };
 use malachitebft_metrics::Metrics;
-use malachitebft_sync::{self as sync, ValueResponse};
+use malachitebft_sync::{self as sync, HeightStartType, ValueResponse};
 
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, Next, ProposedValue};
 use crate::network::{NetworkEvent, NetworkMsg, NetworkRef};
@@ -384,7 +384,9 @@ where
 
                 // Notify the sync actor that we have started a new height
                 if let Some(sync) = &self.sync {
-                    if let Err(e) = sync.cast(SyncMsg::StartedHeight(height, is_restart)) {
+                    let start_type = HeightStartType::from_is_restart(is_restart);
+
+                    if let Err(e) = sync.cast(SyncMsg::StartedHeight(height, start_type)) {
                         error!(%height, "Error when notifying sync of started height: {e}")
                     }
                 }

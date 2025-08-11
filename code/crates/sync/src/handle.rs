@@ -9,8 +9,8 @@ use malachitebft_core_types::{Context, Height};
 use crate::co::Co;
 use crate::scoring::SyncResult;
 use crate::{
-    perform, Effect, Error, InboundRequestId, Metrics, OutboundRequestId, PeerId, RawDecidedValue,
-    Request, Resume, State, Status, ValueRequest, ValueResponse,
+    perform, Effect, Error, HeightStartType, InboundRequestId, Metrics, OutboundRequestId, PeerId,
+    RawDecidedValue, Request, Resume, State, Status, ValueRequest, ValueResponse,
 };
 
 #[derive_where(Debug)]
@@ -23,7 +23,7 @@ pub enum Input<Ctx: Context> {
 
     /// Consensus just started a new height.
     /// The boolean indicates whether this was a restart or a new start.
-    StartedHeight(Ctx::Height, bool),
+    StartedHeight(Ctx::Height, HeightStartType),
 
     /// Consensus just decided on a new value
     Decided(Ctx::Height),
@@ -204,12 +204,12 @@ pub async fn on_started_height<Ctx>(
     state: &mut State<Ctx>,
     metrics: &Metrics,
     height: Ctx::Height,
-    restart: bool,
+    start_type: HeightStartType,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
-    debug!(%height, %restart, "Consensus started new height");
+    debug!(%height, is_restart=%start_type.is_restart(), "Consensus started new height");
 
     state.started = true;
 
@@ -219,7 +219,7 @@ where
     // Garbage collect fully-validated requests.
     state.remove_fully_validated_requests();
 
-    if restart {
+    if start_type.is_restart() {
         // Consensus is retrying the height, so we should sync starting from it.
         state.sync_height = height;
         // Clear pending requests, as we are restarting the height.

@@ -16,8 +16,8 @@ use malachitebft_codec as codec;
 use malachitebft_core_consensus::PeerId;
 use malachitebft_core_types::{CommitCertificate, Context, Height};
 use malachitebft_sync::{
-    self as sync, InboundRequestId, OutboundRequestId, RawDecidedValue, Request, Response,
-    Resumable,
+    self as sync, HeightStartType, InboundRequestId, OutboundRequestId, RawDecidedValue, Request,
+    Response, Resumable,
 };
 
 use crate::host::{HostMsg, HostRef};
@@ -86,8 +86,9 @@ pub enum Msg<Ctx: Context> {
     Decided(Ctx::Height),
 
     /// Consensus has (re)started a new height.
-    /// The boolean indicates whether this is a restart or not.
-    StartedHeight(Ctx::Height, bool),
+    ///
+    /// The second argument indicates whether this is a restart or not.
+    StartedHeight(Ctx::Height, HeightStartType),
 
     /// Host has a response for the blocks request
     GotDecidedValues(
