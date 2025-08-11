@@ -9,7 +9,7 @@ use malachitebft_engine::host::HostMsg;
 
 use crate::app::metrics::Metrics;
 use crate::app::types::core::Context;
-use crate::msgs::AppMsg;
+use crate::AppMsg;
 
 /// Actor for bridging consensus and the application via a set of channels.
 ///
@@ -60,7 +60,7 @@ where
             HostMsg::ConsensusReady { reply_to } => {
                 let (reply, rx) = oneshot::channel();
                 self.sender
-                    .send(crate::msgs::ConsensusReady { reply }.into())
+                    .send(crate::app_msg::ConsensusReady { reply }.into())
                     .await?;
 
                 let (start_height, validator_set) = rx.await?;
@@ -78,7 +78,7 @@ where
 
                 self.sender
                     .send(
-                        crate::msgs::StartedRound {
+                        crate::app_msg::StartedRound {
                             height,
                             round,
                             proposer,
@@ -109,7 +109,7 @@ where
 
                 self.sender
                     .send(
-                        crate::msgs::GetValue {
+                        crate::app_msg::GetValue {
                             height,
                             round,
                             timeout,
@@ -132,7 +132,7 @@ where
 
                 self.sender
                     .send(
-                        crate::msgs::ExtendVote {
+                        crate::app_msg::ExtendVote {
                             height,
                             round,
                             value_id,
@@ -156,7 +156,7 @@ where
 
                 self.sender
                     .send(
-                        crate::msgs::VerifyVoteExtension {
+                        crate::app_msg::VerifyVoteExtension {
                             height,
                             round,
                             value_id,
@@ -179,7 +179,7 @@ where
             } => {
                 self.sender
                     .send(
-                        crate::msgs::RestreamProposal {
+                        crate::app_msg::RestreamProposal {
                             height,
                             round,
                             valid_round,
@@ -195,7 +195,7 @@ where
                 let (reply, rx) = oneshot::channel();
 
                 self.sender
-                    .send(crate::msgs::GetHistoryMinHeight { reply }.into())
+                    .send(crate::app_msg::GetHistoryMinHeight { reply }.into())
                     .await?;
 
                 reply_to.send(rx.await?)?;
@@ -209,7 +209,7 @@ where
                 let (reply, rx) = oneshot::channel();
 
                 self.sender
-                    .send(crate::msgs::ReceivedProposalPart { from, part, reply }.into())
+                    .send(crate::app_msg::ReceivedProposalPart { from, part, reply }.into())
                     .await?;
 
                 if let Some(value) = rx.await? {
@@ -221,7 +221,7 @@ where
                 let (reply, rx) = oneshot::channel();
 
                 self.sender
-                    .send(crate::msgs::GetValidatorSet { height, reply }.into())
+                    .send(crate::app_msg::GetValidatorSet { height, reply }.into())
                     .await?;
 
                 reply_to.send(rx.await?)?;
@@ -236,7 +236,7 @@ where
 
                 self.sender
                     .send(
-                        crate::msgs::Decided {
+                        crate::app_msg::Decided {
                             certificate,
                             extensions,
                             reply,
@@ -256,7 +256,7 @@ where
                 let (reply, rx) = oneshot::channel();
 
                 self.sender
-                    .send(crate::msgs::GetDecidedValue { height, reply }.into())
+                    .send(crate::app_msg::GetDecidedValue { height, reply }.into())
                     .await?;
 
                 reply_to.send(rx.await?)?;
@@ -273,7 +273,7 @@ where
 
                 self.sender
                     .send(
-                        crate::msgs::ProcessSyncedValue {
+                        crate::app_msg::ProcessSyncedValue {
                             height,
                             round,
                             proposer,
