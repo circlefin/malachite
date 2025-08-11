@@ -1,3 +1,4 @@
+use futures::executor::block_on;
 use malachitebft_core_types::PolkaCertificate;
 
 use super::{make_validators, types::*, CertificateBuilder, CertificateTest, DEFAULT_SEED};
@@ -24,7 +25,7 @@ impl CertificateBuilder for Polka {
         validator_set: &ValidatorSet,
         threshold_params: ThresholdParams,
     ) -> Result<(), CertificateError<TestContext>> {
-        signer.verify_polka_certificate(ctx, certificate, validator_set, threshold_params)
+        block_on(signer.verify_polka_certificate(ctx, certificate, validator_set, threshold_params))
     }
 }
 

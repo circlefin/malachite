@@ -27,11 +27,13 @@ malachitebft-peer.workspace = true
 
 async-recursion = { workspace = true }
 borsh = { workspace = true, optional = true }
+futures = { workspace = true }
 genawaiter = { workspace = true }
 derive-where = { workspace = true }
 multiaddr = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+tokio = { workspace = true }
 
 [lints]
 workspace = true

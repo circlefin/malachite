@@ -8,6 +8,7 @@ use crate::{
     PublicKey, RoundCertificate, RoundCertificateType, RoundSignature, Signature, SignedMessage,
     ThresholdParams, Validator, VoteType, VotingPower,
 };
+use async_trait::async_trait;
 
 /// A signing scheme that can be used to sign votes and verify such signatures.
 ///
@@ -49,16 +50,17 @@ where
 ///
 /// Implementers of this trait are responsible for managing the private keys used for signing
 /// and providing verification logic using the corresponding public keys.
+#[async_trait]
 pub trait SigningProvider<Ctx>
 where
     Ctx: Context,
     Self: Send + Sync + 'static,
 {
     /// Sign the given vote with our private key.
-    fn sign_vote(&self, vote: Ctx::Vote) -> SignedMessage<Ctx, Ctx::Vote>;
+    async fn sign_vote(&self, vote: Ctx::Vote) -> SignedMessage<Ctx, Ctx::Vote>;
 
     /// Verify the given vote's signature using the given public key.
-    fn verify_signed_vote(
+    async fn verify_signed_vote(
         &self,
         vote: &Ctx::Vote,
         signature: &Signature<Ctx>,
@@ -66,10 +68,10 @@ where
     ) -> bool;
 
     /// Sign the given proposal with our private key.
-    fn sign_proposal(&self, proposal: Ctx::Proposal) -> SignedMessage<Ctx, Ctx::Proposal>;
+    async fn sign_proposal(&self, proposal: Ctx::Proposal) -> SignedMessage<Ctx, Ctx::Proposal>;
 
     /// Verify the given proposal's signature using the given public key.
-    fn verify_signed_proposal(
+    async fn verify_signed_proposal(
         &self,
         proposal: &Ctx::Proposal,
         signature: &Signature<Ctx>,
@@ -77,13 +79,13 @@ where
     ) -> bool;
 
     /// Sign the proposal part with our private key.
-    fn sign_proposal_part(
+    async fn sign_proposal_part(
         &self,
         proposal_part: Ctx::ProposalPart,
     ) -> SignedMessage<Ctx, Ctx::ProposalPart>;
 
     /// Verify the given proposal part signature using the given public key.
-    fn verify_signed_proposal_part(
+    async fn verify_signed_proposal_part(
         &self,
         proposal_part: &Ctx::ProposalPart,
         signature: &Signature<Ctx>,
@@ -91,10 +93,13 @@ where
     ) -> bool;
 
     /// Sign the given vote extension with our private key.
-    fn sign_vote_extension(&self, extension: Ctx::Extension) -> SignedMessage<Ctx, Ctx::Extension>;
+    async fn sign_vote_extension(
+        &self,
+        extension: Ctx::Extension,
+    ) -> SignedMessage<Ctx, Ctx::Extension>;
 
     /// Verify the given vote extension's signature using the given public key.
-    fn verify_signed_vote_extension(
+    async fn verify_signed_vote_extension(
         &self,
         extension: &Ctx::Extension,
         signature: &Signature<Ctx>,
@@ -102,15 +107,16 @@ where
     ) -> bool;
 }
 
+#[async_trait]
 impl<Ctx> SigningProvider<Ctx> for Box<dyn SigningProvider<Ctx> + '_>
 where
     Ctx: Context,
 {
-    fn sign_vote(&self, vote: Ctx::Vote) -> SignedMessage<Ctx, Ctx::Vote> {
-        self.as_ref().sign_vote(vote)
+    async fn sign_vote(&self, vote: Ctx::Vote) -> SignedMessage<Ctx, Ctx::Vote> {
+        self.as_ref().sign_vote(vote).await
     }
 
-    fn verify_signed_vote(
+    async fn verify_signed_vote(
         &self,
         vote: &<Ctx as Context>::Vote,
         signature: &Signature<Ctx>,
@@ -118,13 +124,14 @@ where
     ) -> bool {
         self.as_ref()
             .verify_signed_vote(vote, signature, public_key)
+            .await
     }
 
-    fn sign_proposal(&self, proposal: Ctx::Proposal) -> SignedMessage<Ctx, Ctx::Proposal> {
-        self.as_ref().sign_proposal(proposal)
+    async fn sign_proposal(&self, proposal: Ctx::Proposal) -> SignedMessage<Ctx, Ctx::Proposal> {
+        self.as_ref().sign_proposal(proposal).await
     }
 
-    fn verify_signed_proposal(
+    async fn verify_signed_proposal(
         &self,
         proposal: &Ctx::Proposal,
         signature: &Signature<Ctx>,
@@ -132,16 +139,17 @@ where
     ) -> bool {
         self.as_ref()
             .verify_signed_proposal(proposal, signature, public_key)
+            .await
     }
 
-    fn sign_proposal_part(
+    async fn sign_proposal_part(
         &self,
         proposal_part: Ctx::ProposalPart,
     ) -> SignedMessage<Ctx, Ctx::ProposalPart> {
-        self.as_ref().sign_proposal_part(proposal_part)
+        self.as_ref().sign_proposal_part(proposal_part).await
     }
 
-    fn verify_signed_proposal_part(
+    async fn verify_signed_proposal_part(
         &self,
         proposal_part: &Ctx::ProposalPart,
         signature: &Signature<Ctx>,
@@ -149,13 +157,17 @@ where
     ) -> bool {
         self.as_ref()
             .verify_signed_proposal_part(proposal_part, signature, public_key)
+            .await
     }
 
-    fn sign_vote_extension(&self, extension: Ctx::Extension) -> SignedMessage<Ctx, Ctx::Extension> {
-        self.as_ref().sign_vote_extension(extension)
+    async fn sign_vote_extension(
+        &self,
+        extension: Ctx::Extension,
+    ) -> SignedMessage<Ctx, Ctx::Extension> {
+        self.as_ref().sign_vote_extension(extension).await
     }
 
-    fn verify_signed_vote_extension(
+    async fn verify_signed_vote_extension(
         &self,
         extension: &Ctx::Extension,
         signature: &Signature<Ctx>,
@@ -163,6 +175,7 @@ where
     ) -> bool {
         self.as_ref()
             .verify_signed_vote_extension(extension, signature, public_key)
+            .await
     }
 }
 
@@ -171,6 +184,7 @@ where
 /// This trait extends the base [`SigningProvider`] functionality with methods for verifying
 /// commit certificates against validator sets. It is automatically implemented for any type
 /// that implements [`SigningProvider`].
+#[async_trait]
 pub trait SigningProviderExt<Ctx>
 where
     Ctx: Context,
@@ -179,7 +193,7 @@ where
     ///
     /// ## Return
     /// Return the voting power of that validator if the signature is valid.
-    fn verify_commit_signature(
+    async fn verify_commit_signature(
         &self,
         ctx: &Ctx,
         certificate: &CommitCertificate<Ctx>,
@@ -191,7 +205,7 @@ where
     ///
     /// ## Return
     /// Return the voting power of that validator if the signature is valid.
-    fn verify_polka_signature(
+    async fn verify_polka_signature(
         &self,
         ctx: &Ctx,
         certificate: &PolkaCertificate<Ctx>,
@@ -203,7 +217,7 @@ where
     ///
     /// ## Return
     /// Return the voting power of that validator if the signature is valid.
-    fn verify_round_signature(
+    async fn verify_round_signature(
         &self,
         ctx: &Ctx,
         certificate: &RoundCertificate<Ctx>,
@@ -218,7 +232,7 @@ where
     /// - Check that we have 2/3+ of voting power has signed the certificate
     ///
     /// If any of those steps fail, return a [`CertificateError`].
-    fn verify_commit_certificate(
+    async fn verify_commit_certificate(
         &self,
         ctx: &Ctx,
         certificate: &CommitCertificate<Ctx>,
@@ -233,7 +247,7 @@ where
     /// - Check that we have 2/3+ of voting power has signed the certificate
     ///
     /// If any of those steps fail, return a [`CertificateError`].
-    fn verify_polka_certificate(
+    async fn verify_polka_certificate(
         &self,
         ctx: &Ctx,
         certificate: &PolkaCertificate<Ctx>,
@@ -250,7 +264,7 @@ where
     ///   - If `Skip`, ensure that 1/3+ of the voting power is represented.
     ///  
     /// Returns a [`CertificateError`] if any verification step fails.
-    fn verify_round_certificate(
+    async fn verify_round_certificate(
         &self,
         ctx: &Ctx,
         certificate: &RoundCertificate<Ctx>,
@@ -259,6 +273,7 @@ where
     ) -> Result<(), CertificateError<Ctx>>;
 }
 
+#[async_trait]
 impl<Ctx, P> SigningProviderExt<Ctx> for P
 where
     Ctx: Context,
@@ -268,7 +283,7 @@ where
     ///
     /// ## Return
     /// Return the voting power of that validator if the signature is valid.
-    fn verify_commit_signature(
+    async fn verify_commit_signature(
         &self,
         ctx: &Ctx,
         certificate: &CommitCertificate<Ctx>,
@@ -284,7 +299,10 @@ where
         );
 
         // Verify signature
-        if !self.verify_signed_vote(&vote, &commit_sig.signature, validator.public_key()) {
+        if !self
+            .verify_signed_vote(&vote, &commit_sig.signature, validator.public_key())
+            .await
+        {
             return Err(CertificateError::InvalidCommitSignature(commit_sig.clone()));
         }
 
@@ -295,7 +313,7 @@ where
     ///
     /// ## Return
     /// Return the voting power of that validator if the signature is valid.
-    fn verify_polka_signature(
+    async fn verify_polka_signature(
         &self,
         ctx: &Ctx,
         certificate: &PolkaCertificate<Ctx>,
@@ -311,7 +329,10 @@ where
         );
 
         // Verify signature
-        if !self.verify_signed_vote(&vote, &signature.signature, validator.public_key()) {
+        if !self
+            .verify_signed_vote(&vote, &signature.signature, validator.public_key())
+            .await
+        {
             return Err(CertificateError::InvalidPolkaSignature(signature.clone()));
         }
 
@@ -322,7 +343,7 @@ where
     ///
     /// ## Return
     /// Return the voting power of that validator if the signature is valid.
-    fn verify_round_signature(
+    async fn verify_round_signature(
         &self,
         ctx: &Ctx,
         certificate: &RoundCertificate<Ctx>,
@@ -346,7 +367,10 @@ where
         };
 
         // Verify signature
-        if !self.verify_signed_vote(&vote, &signature.signature, validator.public_key()) {
+        if !self
+            .verify_signed_vote(&vote, &signature.signature, validator.public_key())
+            .await
+        {
             return Err(CertificateError::InvalidRoundSignature(signature.clone()));
         }
 
@@ -360,7 +384,7 @@ where
     /// - Check that we have 2/3+ of voting power has signed the certificate
     ///
     /// If any of those steps fail, return a [`CertificateError`].
-    fn verify_commit_certificate(
+    async fn verify_commit_certificate(
         &self,
         ctx: &Ctx,
         certificate: &CommitCertificate<Ctx>,
@@ -387,8 +411,9 @@ where
                 .get_by_address(validator_address)
                 .ok_or_else(|| CertificateError::UnknownValidator(validator_address.clone()))?;
 
-            if let Ok(voting_power) =
-                self.verify_commit_signature(ctx, certificate, commit_sig, validator)
+            if let Ok(voting_power) = self
+                .verify_commit_signature(ctx, certificate, commit_sig, validator)
+                .await
             {
                 signed_voting_power += voting_power;
             }
@@ -419,7 +444,7 @@ where
     ///
     /// If any of those steps fail, return a [`CertificateError`].
     ///
-    fn verify_polka_certificate(
+    async fn verify_polka_certificate(
         &self,
         ctx: &Ctx,
         certificate: &PolkaCertificate<Ctx>,
@@ -448,8 +473,9 @@ where
                 .ok_or_else(|| CertificateError::UnknownValidator(validator_address.clone()))?;
 
             // Check that the vote signature is valid. Do this last and lazily as it is expensive.
-            if let Ok(voting_power) =
-                self.verify_polka_signature(ctx, certificate, signature, validator)
+            if let Ok(voting_power) = self
+                .verify_polka_signature(ctx, certificate, signature, validator)
+                .await
             {
                 signed_voting_power += voting_power;
             }
@@ -481,7 +507,7 @@ where
     ///   - If `Skip`, ensure that 1/3+ of the voting power is represented.
     ///  
     /// Returns a [`CertificateError`] if any verification step fails.
-    fn verify_round_certificate(
+    async fn verify_round_certificate(
         &self,
         ctx: &Ctx,
         certificate: &RoundCertificate<Ctx>,
@@ -517,8 +543,9 @@ where
             }
 
             // Check that the vote signature is valid. Do this last and lazily as it is expensive.
-            if let Ok(voting_power) =
-                self.verify_round_signature(ctx, certificate, signature, validator)
+            if let Ok(voting_power) = self
+                .verify_round_signature(ctx, certificate, signature, validator)
+                .await
             {
                 signed_voting_power += voting_power;
             }

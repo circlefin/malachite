@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use bytesize::ByteSize;
+
 use crate::{TestBuilder, TestParams};
 
 #[tokio::test]
@@ -159,6 +161,44 @@ pub async fn start_late() {
             Duration::from_secs(30),
             TestParams {
                 enable_value_sync: true,
+                ..Default::default()
+            },
+        )
+        .await
+}
+
+#[tokio::test]
+pub async fn start_late_parallel_requests_with_batching() {
+    const HEIGHT: u64 = 10;
+
+    let mut test = TestBuilder::<()>::new();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT * 2)
+        .success();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT * 2)
+        .success();
+
+    test.add_node()
+        .with_voting_power(0)
+        .start_after(1, Duration::from_secs(10))
+        .wait_until(HEIGHT)
+        .success();
+
+    test.build()
+        .run_with_params(
+            Duration::from_secs(60),
+            TestParams {
+                enable_value_sync: true,
+                parallel_requests: 2,
+                batch_size: 2,
+                block_size: ByteSize::kib(1),
                 ..Default::default()
             },
         )

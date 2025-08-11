@@ -17,12 +17,13 @@ message Status {
 message ValueRequest {
   uint64 block_number = 1;
   uint64 fork_id = 2;
+  optional uint64 end_block_number = 3;
 }
 
 message ValueResponse {
   uint64 block_number = 1;
   uint64 fork_id = 2;
-  SyncedValue value = 3;
+  repeated SyncedValue values = 3;
 }
 
 message SyncedValue {

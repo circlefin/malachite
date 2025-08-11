@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use bytes::Bytes;
 use malachitebft_core_types::{
     SignedExtension, SignedProposal, SignedProposalPart, SignedVote, SigningProvider,
@@ -30,13 +31,14 @@ impl Ed25519Provider {
     }
 }
 
+#[async_trait]
 impl SigningProvider<MockContext> for Ed25519Provider {
-    fn sign_vote(&self, vote: Vote) -> SignedVote<MockContext> {
+    async fn sign_vote(&self, vote: Vote) -> SignedVote<MockContext> {
         // Votes are not signed for now
         SignedVote::new(vote, Signature::test())
     }
 
-    fn verify_signed_vote(
+    async fn verify_signed_vote(
         &self,
         _vote: &Vote,
         _signature: &Signature,
@@ -46,12 +48,12 @@ impl SigningProvider<MockContext> for Ed25519Provider {
         true
     }
 
-    fn sign_proposal(&self, proposal: Proposal) -> SignedProposal<MockContext> {
+    async fn sign_proposal(&self, proposal: Proposal) -> SignedProposal<MockContext> {
         // Proposals are never sent over the network
         SignedProposal::new(proposal, Signature::test())
     }
 
-    fn verify_signed_proposal(
+    async fn verify_signed_proposal(
         &self,
         _proposal: &Proposal,
         _signature: &Signature,
@@ -61,12 +63,15 @@ impl SigningProvider<MockContext> for Ed25519Provider {
         true
     }
 
-    fn sign_proposal_part(&self, proposal_part: ProposalPart) -> SignedProposalPart<MockContext> {
+    async fn sign_proposal_part(
+        &self,
+        proposal_part: ProposalPart,
+    ) -> SignedProposalPart<MockContext> {
         // Proposal parts are not signed for now
         SignedProposalPart::new(proposal_part, Signature::test())
     }
 
-    fn verify_signed_proposal_part(
+    async fn verify_signed_proposal_part(
         &self,
         _proposal_part: &ProposalPart,
         _signature: &Signature,
@@ -76,12 +81,12 @@ impl SigningProvider<MockContext> for Ed25519Provider {
         true
     }
 
-    fn sign_vote_extension(&self, extension: Bytes) -> SignedExtension<MockContext> {
+    async fn sign_vote_extension(&self, extension: Bytes) -> SignedExtension<MockContext> {
         // Vote extensions are not enabled
         SignedExtension::new(extension, Signature::test())
     }
 
-    fn verify_signed_vote_extension(
+    async fn verify_signed_vote_extension(
         &self,
         _extension: &Bytes,
         _signature: &Signature,

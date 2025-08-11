@@ -18,6 +18,7 @@ pub mod types {
     pub use malachitebft_signing_ed25519::Signature;
 }
 
+use futures::executor::block_on;
 use types::*;
 
 use rand::Rng;
@@ -146,14 +147,14 @@ where
     ) -> Self {
         for idx in indices {
             if idx < self.validators.len() {
-                let vote = self.signers[idx].sign_vote(C::make_vote(
+                let vote = block_on(self.signers[idx].sign_vote(C::make_vote(
                     &self.ctx,
                     self.height,
                     self.round,
                     NilOrVal::Val(self.value_id),
                     vote_type,
                     self.validators[idx].address,
-                ));
+                )));
 
                 self.votes.push(vote);
             }
@@ -169,14 +170,14 @@ where
     ) -> Self {
         for idx in indices {
             if idx < self.validators.len() {
-                let vote = self.signers[idx].sign_vote(C::make_vote(
+                let vote = block_on(self.signers[idx].sign_vote(C::make_vote(
                     &self.ctx,
                     self.height,
                     self.round,
                     NilOrVal::Nil,
                     vote_type,
                     self.validators[idx].address,
-                ));
+                )));
 
                 self.votes.push(vote);
             }
@@ -187,14 +188,14 @@ where
     /// Add a vote with different value to include in the certificate
     pub fn with_different_value_vote(mut self, index: usize, vote_type: VoteType) -> Self {
         if index < self.validators.len() {
-            let vote = self.signers[index].sign_vote(C::make_vote(
+            let vote = block_on(self.signers[index].sign_vote(C::make_vote(
                 &self.ctx,
                 self.height,
                 self.round,
                 NilOrVal::Val(ValueId::new(85)),
                 vote_type,
                 self.validators[index].address,
-            ));
+            )));
 
             self.votes.push(vote);
         }
@@ -240,14 +241,14 @@ where
     /// Add a vote with invalid height to include in the certificate
     pub fn with_invalid_height_vote(mut self, index: usize, vote_type: VoteType) -> Self {
         if index < self.validators.len() {
-            let vote = self.signers[index].sign_vote(C::make_vote(
+            let vote = block_on(self.signers[index].sign_vote(C::make_vote(
                 &self.ctx,
                 self.height.increment(),
                 self.round,
                 NilOrVal::Val(self.value_id),
                 vote_type,
                 self.validators[index].address,
-            ));
+            )));
 
             self.votes.push(vote);
         }
@@ -257,14 +258,14 @@ where
     /// Add a vote with invalid round to include in the certificate
     pub fn with_invalid_round_vote(mut self, index: usize, vote_type: VoteType) -> Self {
         if index < self.validators.len() {
-            let vote = self.signers[index].sign_vote(C::make_vote(
+            let vote = block_on(self.signers[index].sign_vote(C::make_vote(
                 &self.ctx,
                 self.height,
                 self.round.increment(),
                 NilOrVal::Val(self.value_id),
                 vote_type,
                 self.validators[index].address,
-            ));
+            )));
 
             self.votes.push(vote);
         }
@@ -274,14 +275,14 @@ where
     /// Add a vote with invalid signature to include in the certificate
     pub fn with_invalid_signature_vote(mut self, index: usize, vote_type: VoteType) -> Self {
         if index < self.validators.len() {
-            let mut vote = self.signers[index].sign_vote(C::make_vote(
+            let mut vote = block_on(self.signers[index].sign_vote(C::make_vote(
                 &self.ctx,
                 self.height,
                 self.round,
                 NilOrVal::Val(self.value_id),
                 vote_type,
                 self.validators[index].address,
-            ));
+            )));
             vote.signature = Signature::test(); // Set an invalid signature
             self.votes.push(vote);
         }
@@ -291,14 +292,14 @@ where
     /// Add a vote from external validator to include in the certificate
     pub fn with_non_validator_vote(mut self, seed: u64, vote_type: VoteType) -> Self {
         let ([validator], [signer]) = make_validators([0], seed);
-        let vote = signer.sign_vote(C::make_vote(
+        let vote = block_on(signer.sign_vote(C::make_vote(
             &self.ctx,
             self.height,
             self.round,
             NilOrVal::Val(self.value_id),
             vote_type,
             validator.address,
-        ));
+        )));
         self.votes.push(vote);
         self
     }

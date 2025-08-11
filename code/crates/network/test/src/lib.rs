@@ -160,6 +160,7 @@ impl<const N: usize> Test<N> {
             transport: malachitebft_network::TransportProtocol::Quic,
             gossipsub: malachitebft_network::GossipSubConfig::default(),
             pubsub_protocol: malachitebft_network::PubSubProtocol::default(),
+            channel_names: malachitebft_network::ChannelNames::default(),
             rpc_max_size: 10 * 1024 * 1024,   // 10 MiB
             pubsub_max_size: 4 * 1024 * 1024, // 4 MiB
             enable_sync: false,

@@ -2149,7 +2149,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-app"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "async-trait",
  "derive-where",
@@ -2174,7 +2174,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-app-channel"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "bytes",
  "derive-where",
@@ -2191,14 +2191,14 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-codec"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "bytes",
 ]
 
 [[package]]
 name = "informalsystems-malachitebft-config"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "bytesize",
  "config",
@@ -2210,11 +2210,12 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-core-consensus"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "async-recursion",
  "borsh",
  "derive-where",
+ "futures",
  "genawaiter",
  "informalsystems-malachitebft-core-driver",
  "informalsystems-malachitebft-core-types",
@@ -2223,12 +2224,13 @@ dependencies = [
  "informalsystems-malachitebft-test",
  "multiaddr",
  "thiserror 2.0.12",
+ "tokio",
  "tracing",
 ]
 
 [[package]]
 name = "informalsystems-malachitebft-core-driver"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "derive-where",
  "informalsystems-malachitebft-core-state-machine",
@@ -2240,7 +2242,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-core-state-machine"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "derive-where",
  "displaydoc",
@@ -2250,8 +2252,9 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-core-types"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
+ "async-trait",
  "borsh",
  "bytes",
  "derive-where",
@@ -2262,7 +2265,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-core-votekeeper"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "derive-where",
  "informalsystems-malachitebft-core-types",
@@ -2272,7 +2275,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-discovery"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "either",
  "informalsystems-malachitebft-metrics",
@@ -2285,7 +2288,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-discovery-test"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "futures",
  "informalsystems-malachitebft-config",
@@ -2302,7 +2305,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-engine"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "async-recursion",
  "async-trait",
@@ -2328,7 +2331,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-example-channel"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "async-trait",
  "bytes",
@@ -2355,7 +2358,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-metrics"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "informalsystems-malachitebft-core-state-machine",
  "prometheus-client",
@@ -2363,7 +2366,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-network"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "bytes",
  "either",
@@ -2384,7 +2387,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-peer"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "borsh",
  "bs58",
@@ -2396,7 +2399,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-proto"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "prost",
  "prost-types",
@@ -2405,7 +2408,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-signing-ed25519"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "base64 0.22.1",
  "ed25519-consensus",
@@ -2417,7 +2420,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-starknet-app"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "clap",
  "color-eyre",
@@ -2432,7 +2435,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-starknet-host"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "async-trait",
  "bytes",
@@ -2472,7 +2475,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-starknet-p2p-proto"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "prost",
  "prost-build",
@@ -2481,8 +2484,9 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-starknet-p2p-types"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
+ "async-trait",
  "bytes",
  "informalsystems-malachitebft-core-types",
  "informalsystems-malachitebft-proto",
@@ -2497,7 +2501,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-starknet-test"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "async-trait",
  "axum",
@@ -2521,7 +2525,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-starknet-test-mbt"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "bytes",
  "glob",
@@ -2537,7 +2541,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-sync"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "arbtest",
  "async-trait",
@@ -2560,7 +2564,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-test"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -2568,6 +2572,7 @@ dependencies = [
  "bytesize",
  "ed25519-consensus",
  "eyre",
+ "futures",
  "hex",
  "informalsystems-malachitebft-app",
  "informalsystems-malachitebft-codec",
@@ -2597,7 +2602,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-test-app"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "async-trait",
  "bytes",
@@ -2625,7 +2630,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-test-cli"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "axum",
  "bytesize",
@@ -2650,7 +2655,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-test-framework"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "axum",
  "bytesize",
@@ -2674,7 +2679,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-test-mbt"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "glob",
  "informalsystems-malachitebft-core-state-machine",
@@ -2698,7 +2703,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-test-mempool"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "eyre",
  "futures",
@@ -2717,7 +2722,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-wal"
-version = "0.5.0-pre"
+version = "0.6.0-pre"
 dependencies = [
  "advisory-lock",
  "bytes",
@@ -4388,9 +4393,9 @@ dependencies = [
 
 [[package]]
 name = "redb"
-version = "2.6.1"
+version = "2.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fef838cd981b5c46e9e91e20e4623e43b29b5c251eb245b34da0cbd2da09ab27"
+checksum = "59b38b05028f398f08bea4691640503ec25fcb60b82fb61ce1f8fd1f4fccd3f7"
 dependencies = [
  "libc",
 ]

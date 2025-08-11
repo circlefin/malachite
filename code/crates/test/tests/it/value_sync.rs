@@ -1,9 +1,13 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use informalsystems_malachitebft_test::middleware::RotateEpochValidators;
-use malachitebft_config::ValuePayload;
-
 use crate::{TestBuilder, TestParams};
+use eyre::bail;
+use informalsystems_malachitebft_test::middleware::{Middleware, RotateEpochValidators};
+use informalsystems_malachitebft_test::TestContext;
+use malachitebft_config::ValuePayload;
+use malachitebft_core_consensus::ProposedValue;
+use malachitebft_core_types::CommitCertificate;
 
 pub async fn crash_restart_from_start(params: TestParams) {
     const HEIGHT: u64 = 6;
@@ -236,6 +240,43 @@ pub async fn start_late_parallel_requests() {
 }
 
 #[tokio::test]
+pub async fn start_late_parallel_requests_with_batching() {
+    const HEIGHT: u64 = 10;
+
+    let mut test = TestBuilder::<()>::new();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT * 2)
+        .success();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT * 2)
+        .success();
+
+    test.add_node()
+        .with_voting_power(0)
+        .start_after(1, Duration::from_secs(10))
+        .wait_until(HEIGHT)
+        .success();
+
+    test.build()
+        .run_with_params(
+            Duration::from_secs(30),
+            TestParams {
+                enable_value_sync: true,
+                parallel_requests: 2,
+                batch_size: 2,
+                ..Default::default()
+            },
+        )
+        .await
+}
+
+#[tokio::test]
 pub async fn start_late_rotate_epoch_validator_set() {
     const HEIGHT: u64 = 20;
 
@@ -296,6 +337,80 @@ pub async fn start_late_rotate_epoch_validator_set() {
             Duration::from_secs(30),
             TestParams {
                 enable_value_sync: true,
+                ..Default::default()
+            },
+        )
+        .await
+}
+
+#[derive(Debug)]
+struct ResetHeight {
+    reset_height: u64,
+    reset: AtomicBool,
+}
+
+impl ResetHeight {
+    fn new(reset_height: u64) -> Self {
+        Self {
+            reset_height,
+            reset: AtomicBool::new(false),
+        }
+    }
+}
+
+impl Middleware for ResetHeight {
+    fn on_commit(
+        &self,
+        _ctx: &TestContext,
+        certificate: &CommitCertificate<TestContext>,
+        proposal: &ProposedValue<TestContext>,
+    ) -> Result<(), eyre::Report> {
+        assert_eq!(certificate.height, proposal.height);
+
+        if certificate.height.as_u64() == self.reset_height
+            && !self.reset.swap(true, Ordering::SeqCst)
+        {
+            bail!("Simulating commit failure");
+        }
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+pub async fn reset_height() {
+    const HEIGHT: u64 = 10;
+    const RESET_HEIGHT: u64 = 1;
+    let mut test = TestBuilder::<()>::new();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT * 2)
+        .success();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT * 2)
+        .success();
+
+    test.add_node()
+        .with_voting_power(0)
+        .with_middleware(ResetHeight::new(RESET_HEIGHT))
+        .start_after(1, Duration::from_secs(10))
+        .wait_until(RESET_HEIGHT) // First time reaching height
+        .wait_until(RESET_HEIGHT)
+        .wait_until(HEIGHT)
+        .success();
+
+    test.build()
+        .run_with_params(
+            Duration::from_secs(30),
+            TestParams {
+                enable_value_sync: true,
+                parallel_requests: 3,
+                batch_size: 2,
                 ..Default::default()
             },
         )

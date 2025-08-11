@@ -14,7 +14,9 @@ use malachitebft_engine::node::{Node, NodeRef};
 use malachitebft_engine::sync::{Params as SyncParams, Sync, SyncCodec, SyncRef};
 use malachitebft_engine::util::events::TxEvent;
 use malachitebft_engine::wal::{Wal, WalCodec, WalRef};
-use malachitebft_network::{Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, Keypair};
+use malachitebft_network::{
+    ChannelNames, Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, Keypair,
+};
 use malachitebft_sync as sync;
 
 use crate::config::{ConsensusConfig, PubSubProtocol, ValueSyncConfig};
@@ -101,8 +103,8 @@ where
         value_payload,
     };
 
-    // Derive the consensus queue capacity from `sync.parallel_requests`
-    cfg.queue_capacity = sync_cfg.parallel_requests;
+    // Derive the consensus queue capacity from `sync.parallel_requests` and `sync.batch_size`
+    cfg.queue_capacity = sync_cfg.parallel_requests * sync_cfg.batch_size;
 
     Consensus::spawn(
         ctx,
@@ -173,6 +175,7 @@ where
         scoring_strategy,
         inactive_threshold: (!config.inactive_threshold.is_zero())
             .then_some(config.inactive_threshold),
+        batch_size: config.batch_size,
     };
 
     let metrics = sync::Metrics::register(registry);
@@ -220,6 +223,7 @@ fn make_gossip_config(cfg: &ConsensusConfig) -> NetworkConfig {
             },
             PubSubProtocol::Broadcast => GossipSubConfig::default(),
         },
+        channel_names: ChannelNames::default(),
         rpc_max_size: cfg.p2p.rpc_max_size.as_u64() as usize,
         pubsub_max_size: cfg.p2p.pubsub_max_size.as_u64() as usize,
         enable_sync: true,

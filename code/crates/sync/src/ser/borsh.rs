@@ -3,6 +3,7 @@ use {
     borsh::BorshSerialize,
     malachitebft_core_types::{CommitCertificate, Context},
     malachitebft_peer::PeerId,
+    std::ops::RangeInclusive,
 };
 
 impl<Ctx: Context> borsh::BorshSerialize for Status<Ctx>
@@ -39,7 +40,7 @@ where
 {
     fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
         match self {
-            Request::ValueRequest(value_request) => value_request.height.serialize(writer),
+            Request::ValueRequest(value_request) => value_request.range.serialize(writer),
         }
     }
 }
@@ -49,8 +50,8 @@ where
     Ctx::Height: borsh::BorshDeserialize,
 {
     fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
-        let height = Ctx::Height::deserialize_reader(reader)?;
-        Ok(Request::ValueRequest(ValueRequest::new(height)))
+        let range = RangeInclusive::<Ctx::Height>::deserialize_reader(reader)?;
+        Ok(Request::ValueRequest(ValueRequest::new(range)))
     }
 }
 
@@ -81,8 +82,8 @@ where
     RawDecidedValue<Ctx>: borsh::BorshSerialize,
 {
     fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
-        self.height.serialize(writer)?;
-        self.value.serialize(writer)?;
+        self.start_height.serialize(writer)?;
+        self.values.serialize(writer)?;
         Ok(())
     }
 }
@@ -93,9 +94,12 @@ where
     RawDecidedValue<Ctx>: borsh::BorshDeserialize,
 {
     fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
-        let height: <Ctx as Context>::Height = Ctx::Height::deserialize_reader(reader)?;
-        let value = Option::<RawDecidedValue<Ctx>>::deserialize_reader(reader)?;
-        Ok(ValueResponse { height, value })
+        let start_height = Ctx::Height::deserialize_reader(reader)?;
+        let values = Vec::<RawDecidedValue<Ctx>>::deserialize_reader(reader)?;
+        Ok(ValueResponse {
+            start_height,
+            values,
+        })
     }
 }
 

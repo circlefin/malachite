@@ -434,7 +434,7 @@ where
     /// * `Ok(Some(WalEntry))` - First entry exists and was retrieved
     /// * `Ok(None)` - WAL is empty
     /// * `Err` - If reading fails or WAL is invalid
-    pub fn first_entry(&mut self) -> io::Result<Option<LogEntry<S>>> {
+    pub fn first_entry(&mut self) -> io::Result<Option<LogEntry<'_, S>>> {
         // IF the file is empty, return an error
         if self.storage.size_bytes()? == 0 {
             return Err(io::Error::new(io::ErrorKind::NotFound, "Empty WAL"));
@@ -456,7 +456,7 @@ where
     /// # Returns
     /// * `Ok(LogIter)` - Iterator over WAL entries
     /// * `Err` - If reading fails
-    pub fn iter(&mut self) -> io::Result<LogIter<S>> {
+    pub fn iter(&mut self) -> io::Result<LogIter<'_, S>> {
         Ok(LogIter {
             next: self.first_entry()?,
         })

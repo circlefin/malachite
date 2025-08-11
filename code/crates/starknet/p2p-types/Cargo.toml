@@ -16,6 +16,7 @@ malachitebft-signing-ed25519 = { workspace = true, features = ["serde", "rand"] 
 starknet-core.workspace = true
 starknet-crypto.workspace = true
 
+async-trait.workspace = true
 bytes.workspace = true
 rand.workspace = true
 serde.workspace = true

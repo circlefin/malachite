@@ -111,38 +111,6 @@ where
         }
     }
 
-    #[allow(clippy::type_complexity)]
-    pub fn restore_votes(
-        &mut self,
-        height: Ctx::Height,
-        round: Round,
-    ) -> Option<(Vec<SignedVote<Ctx>>, Vec<PolkaCertificate<Ctx>>)> {
-        assert!(round.is_defined());
-
-        if height != self.driver.height() {
-            return None;
-        }
-
-        let mut votes = Vec::new();
-
-        let upper_round = self.driver.votes().max_round();
-        for r in round_range_inclusive(round, upper_round) {
-            let per_round = self.driver.votes().per_round(r)?;
-            votes.extend(per_round.received_votes().iter().cloned());
-        }
-
-        // Gather polka certificates for all rounds up to `round` included
-        let certificates = self
-            .driver
-            .polka_certificates()
-            .iter()
-            .filter(|c| c.round <= round && c.height == height)
-            .cloned()
-            .collect::<Vec<_>>();
-
-        Some((votes, certificates))
-    }
-
     pub fn polka_certificate_at_round(&self, round: Round) -> Option<PolkaCertificate<Ctx>> {
         // Get the polka certificate for the specified round if it exists
         self.driver
@@ -273,16 +241,4 @@ where
     pub fn round_certificate(&self) -> Option<&EnterRoundCertificate<Ctx>> {
         self.driver.round_certificate.as_ref()
     }
-}
-
-fn round_range_inclusive(from: Round, to: Round) -> Box<dyn Iterator<Item = Round>> {
-    if !from.is_defined() || !to.is_defined() || from > to {
-        return Box::new(std::iter::empty());
-    }
-
-    if from == to {
-        return Box::new(std::iter::once(from));
-    }
-
-    Box::new((from.as_u32().unwrap_or(0)..=to.as_u32().unwrap_or(0)).map(Round::new))
 }
