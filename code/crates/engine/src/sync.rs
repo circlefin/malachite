@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::RangeInclusive;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -13,10 +14,10 @@ use tracing::{debug, error, info, warn, Instrument};
 
 use malachitebft_codec as codec;
 use malachitebft_core_consensus::PeerId;
-use malachitebft_core_types::{CommitCertificate, Context};
+use malachitebft_core_types::{CommitCertificate, Context, Height};
 use malachitebft_sync::{
-    self as sync, InboundRequestId, OutboundRequestId, RawDecidedValue, Request, Response,
-    Resumable,
+    self as sync, HeightStartType, InboundRequestId, OutboundRequestId, RawDecidedValue, Request,
+    Response, Resumable,
 };
 
 use crate::host::{HostMsg, HostRef};
@@ -85,11 +86,16 @@ pub enum Msg<Ctx: Context> {
     Decided(Ctx::Height),
 
     /// Consensus has (re)started a new height.
-    /// The boolean indicates whether this is a restart or not.
-    StartedHeight(Ctx::Height, bool),
+    ///
+    /// The second argument indicates whether this is a restart or not.
+    StartedHeight(Ctx::Height, HeightStartType),
 
     /// Host has a response for the blocks request
-    GotDecidedValue(InboundRequestId, Ctx::Height, Option<RawDecidedValue<Ctx>>),
+    GotDecidedValues(
+        InboundRequestId,
+        RangeInclusive<Ctx::Height>,
+        Vec<RawDecidedValue<Ctx>>,
+    ),
 
     /// A timeout has elapsed
     TimeoutElapsed(TimeoutElapsed<Timeout>),
@@ -276,15 +282,30 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::GetDecidedValue(request_id, height, r) => {
-                self.host.call_and_forward(
-                    |reply_to| HostMsg::GetDecidedValue { height, reply_to },
-                    myself,
-                    move |synced_value| {
-                        Msg::<Ctx>::GotDecidedValue(request_id, height, synced_value)
-                    },
-                    None,
-                )?;
+            Effect::GetDecidedValues(request_id, range, r) => {
+                let mut values = Vec::new();
+                let mut height = *range.start();
+                while height <= *range.end() {
+                    let value = self
+                        .host
+                        .call(
+                            |reply_to| HostMsg::GetDecidedValue { height, reply_to },
+                            None,
+                        )
+                        .await?
+                        .success_or(eyre!("Failed to get decided value for height {height}"))?;
+
+                    if let Some(value) = value {
+                        values.push(value);
+                    } else {
+                        warn!("Decided value not found for height {height}");
+                        break;
+                    }
+
+                    height = height.increment();
+                }
+
+                myself.cast(Msg::<Ctx>::GotDecidedValues(request_id, range, values))?;
 
                 Ok(r.resume_with(()))
             }
@@ -376,11 +397,11 @@ where
                     .await?;
             }
 
-            Msg::GotDecidedValue(request_id, height, block) => {
+            Msg::GotDecidedValues(request_id, range, blocks) => {
                 self.process_input(
                     &myself,
                     state,
-                    sync::Input::GotDecidedValue(request_id, height, block),
+                    sync::Input::GotDecidedValues(request_id, range, blocks),
                 )
                 .await?;
             }
@@ -414,6 +435,7 @@ where
                                 &myself,
                                 state,
                                 sync::Input::SyncRequestTimedOut(
+                                    request_id,
                                     inflight.peer_id,
                                     inflight.request,
                                 ),

@@ -17,11 +17,11 @@ use malachitebft_core_consensus::{
     Effect, LivenessMsg, PeerId, Resumable, Resume, SignedConsensusMsg, VoteExtensionError,
 };
 use malachitebft_core_types::{
-    Context, Proposal, Round, SigningProvider, SigningProviderExt, Timeout, TimeoutKind,
+    Context, Height, Proposal, Round, SigningProvider, SigningProviderExt, Timeout, TimeoutKind,
     ValidatorSet, Validity, Value, ValueId, ValueOrigin, ValueResponse as CoreValueResponse, Vote,
 };
 use malachitebft_metrics::Metrics;
-use malachitebft_sync::{self as sync, ValueResponse};
+use malachitebft_sync::{self as sync, HeightStartType, ValueResponse};
 
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, Next, ProposedValue};
 use crate::network::{NetworkEvent, NetworkMsg, NetworkRef};
@@ -326,9 +326,18 @@ where
     }
 
     #[async_recursion]
-    async fn process_buffered_msgs(&self, myself: &ActorRef<Msg<Ctx>>, state: &mut State<Ctx>) {
+    async fn process_buffered_msgs(
+        &self,
+        myself: &ActorRef<Msg<Ctx>>,
+        state: &mut State<Ctx>,
+        is_restart: bool,
+    ) {
         if state.msg_buffer.is_empty() {
             return;
+        }
+
+        if is_restart {
+            state.msg_buffer = MessageBuffer::new(MAX_BUFFER_SIZE);
         }
 
         info!(count = %state.msg_buffer.len(), "Replaying buffered messages");
@@ -375,7 +384,9 @@ where
 
                 // Notify the sync actor that we have started a new height
                 if let Some(sync) = &self.sync {
-                    if let Err(e) = sync.cast(SyncMsg::StartedHeight(height, is_restart)) {
+                    let start_type = HeightStartType::from_is_restart(is_restart);
+
+                    if let Err(e) = sync.cast(SyncMsg::StartedHeight(height, start_type)) {
                         error!(%height, "Error when notifying sync of started height: {e}")
                     }
                 }
@@ -385,7 +396,7 @@ where
                     .process_input(
                         &myself,
                         state,
-                        ConsensusInput::StartHeight(height, validator_set),
+                        ConsensusInput::StartHeight(height, validator_set, is_restart),
                     )
                     .await;
 
@@ -401,7 +412,7 @@ where
                 state.set_phase(Phase::Running);
 
                 // Process any buffered messages, now that we are in the `Running` phase
-                self.process_buffered_msgs(&myself, state).await;
+                self.process_buffered_msgs(&myself, state, is_restart).await;
 
                 Ok(())
             }
@@ -470,65 +481,25 @@ where
                     NetworkEvent::SyncResponse(
                         request_id,
                         peer,
-                        Some(sync::Response::ValueResponse(ValueResponse { height, value })),
+                        Some(sync::Response::ValueResponse(ValueResponse {
+                            start_height,
+                            values,
+                        })),
                     ) => {
-                        debug!(%height, %request_id, "Received sync response");
+                        debug!(%start_height, %request_id, "Received sync response with {} values", values.len());
 
-                        let Some(sync) = self.sync.clone() else {
-                            warn!("Received sync response but sync actor is not available");
+                        if values.is_empty() {
+                            error!(%start_height, %request_id, "Received empty value sync response");
                             return Ok(());
                         };
 
-                        let Some(value) = value else {
-                            error!(%height, %request_id, "Received empty value sync response");
-                            return Ok(());
-                        };
+                        // Process values sequentially starting from the lowest height
+                        let mut height = start_height;
+                        for value in values.iter() {
+                            self.process_sync_response(&myself, state, peer, height, value)
+                                .await?;
 
-                        // Fetch the proposer for the round and height of the synced value
-                        // Given that proposer selection is required be fully deterministic,
-                        // we are guaranteed to get the proposer for that value.
-                        let proposer = state
-                            .consensus
-                            .get_proposer(value.certificate.height, value.certificate.round)
-                            .clone();
-
-                        if let Err(e) = self
-                            .process_input(
-                                &myself,
-                                state,
-                                ConsensusInput::SyncValueResponse(CoreValueResponse::new(
-                                    peer,
-                                    proposer,
-                                    value.value_bytes,
-                                    value.certificate,
-                                )),
-                            )
-                            .await
-                        {
-                            error!(%height, %request_id, "Error when processing received synced block: {e}");
-
-                            if let ConsensusError::InvalidCommitCertificate(certificate, e) = e {
-                                error!(
-                                    %peer,
-                                    %certificate.height,
-                                    %certificate.round,
-                                    "Invalid certificate received: {e}"
-                                );
-
-                                sync.cast(SyncMsg::InvalidValue(peer, certificate.height))
-                                    .map_err(|e| {
-                                        eyre!(
-                                            "Error when notifying sync of invalid certificate: {e}"
-                                        )
-                                    })?;
-                            } else {
-                                sync.cast(SyncMsg::ValueProcessingError(peer, height))
-                                    .map_err(|e| {
-                                        eyre!(
-                                        "Error when notifying sync of value processing error: {e}"
-                                    )
-                                    })?;
-                            }
+                            height = height.increment();
                         }
                     }
 
@@ -646,6 +617,66 @@ where
                 Ok(())
             }
         }
+    }
+
+    async fn process_sync_response(
+        &self,
+        myself: &ActorRef<Msg<Ctx>>,
+        state: &mut State<Ctx>,
+        peer: PeerId,
+        height: <Ctx as Context>::Height,
+        value: &malachitebft_sync::RawDecidedValue<Ctx>,
+    ) -> Result<(), ActorProcessingErr>
+    where
+        Ctx: Context,
+    {
+        let Some(sync) = self.sync.clone() else {
+            warn!("Received sync response but sync actor is not available");
+            return Ok(());
+        };
+
+        // Fetch the proposer for the round and height of the synced value
+        // Given that proposer selection is required be fully deterministic,
+        // we are guaranteed to get the proposer for that value.
+        let proposer = state
+            .consensus
+            .get_proposer(value.certificate.height, value.certificate.round)
+            .clone();
+
+        if let Err(e) = self
+            .process_input(
+                myself,
+                state,
+                ConsensusInput::SyncValueResponse(CoreValueResponse::new(
+                    peer,
+                    proposer,
+                    value.value_bytes.clone(),
+                    value.certificate.clone(),
+                )),
+            )
+            .await
+        {
+            error!(%height, "Error when processing received synced block: {e}");
+
+            if let ConsensusError::InvalidCommitCertificate(certificate, e) = e {
+                error!(
+                    %peer,
+                    %certificate.height,
+                    %certificate.round,
+                    "Invalid certificate received: {e}"
+                );
+
+                sync.cast(SyncMsg::InvalidValue(peer, certificate.height))
+                    .map_err(|e| eyre!("Error when notifying sync of invalid certificate: {e}"))?;
+            } else {
+                sync.cast(SyncMsg::ValueProcessingError(peer, height))
+                    .map_err(|e| {
+                        eyre!("Error when notifying sync of value processing error: {e}")
+                    })?;
+            }
+        }
+
+        Ok(())
     }
 
     async fn timeout_elapsed(
@@ -979,7 +1010,7 @@ where
             Effect::SignProposal(proposal, r) => {
                 let start = Instant::now();
 
-                let signed_proposal = self.signing_provider.sign_proposal(proposal);
+                let signed_proposal = self.signing_provider.sign_proposal(proposal).await;
 
                 self.metrics
                     .signature_signing_time
@@ -991,7 +1022,7 @@ where
             Effect::SignVote(vote, r) => {
                 let start = Instant::now();
 
-                let signed_vote = self.signing_provider.sign_vote(vote);
+                let signed_vote = self.signing_provider.sign_vote(vote).await;
 
                 self.metrics
                     .signature_signing_time
@@ -1009,10 +1040,12 @@ where
                     Msg::Vote(v) => {
                         self.signing_provider
                             .verify_signed_vote(&v, &msg.signature, &pk)
+                            .await
                     }
                     Msg::Proposal(p) => {
                         self.signing_provider
                             .verify_signed_proposal(&p, &msg.signature, &pk)
+                            .await
                     }
                 };
 
@@ -1024,41 +1057,36 @@ where
             }
 
             Effect::VerifyCommitCertificate(certificate, validator_set, thresholds, r) => {
-                let result = self.signing_provider.verify_commit_certificate(
-                    &self.ctx,
-                    &certificate,
-                    &validator_set,
-                    thresholds,
-                );
+                let result = self
+                    .signing_provider
+                    .verify_commit_certificate(&self.ctx, &certificate, &validator_set, thresholds)
+                    .await;
 
                 Ok(r.resume_with(result))
             }
 
             Effect::VerifyPolkaCertificate(certificate, validator_set, thresholds, r) => {
-                let result = self.signing_provider.verify_polka_certificate(
-                    &self.ctx,
-                    &certificate,
-                    &validator_set,
-                    thresholds,
-                );
+                let result = self
+                    .signing_provider
+                    .verify_polka_certificate(&self.ctx, &certificate, &validator_set, thresholds)
+                    .await;
 
                 Ok(r.resume_with(result))
             }
 
             Effect::VerifyRoundCertificate(certificate, validator_set, thresholds, r) => {
-                let result = self.signing_provider.verify_round_certificate(
-                    &self.ctx,
-                    &certificate,
-                    &validator_set,
-                    thresholds,
-                );
+                let result = self
+                    .signing_provider
+                    .verify_round_certificate(&self.ctx, &certificate, &validator_set, thresholds)
+                    .await;
 
                 Ok(r.resume_with(result))
             }
 
             Effect::ExtendVote(height, round, value_id, r) => {
                 if let Some(extension) = self.extend_vote(height, round, value_id).await? {
-                    let signed_extension = self.signing_provider.sign_vote_extension(extension);
+                    let signed_extension =
+                        self.signing_provider.sign_vote_extension(extension).await;
                     Ok(r.resume_with(Some(signed_extension)))
                 } else {
                     Ok(r.resume_with(None))
@@ -1066,11 +1094,14 @@ where
             }
 
             Effect::VerifyVoteExtension(height, round, value_id, signed_extension, pk, r) => {
-                let valid = self.signing_provider.verify_signed_vote_extension(
-                    &signed_extension.message,
-                    &signed_extension.signature,
-                    &pk,
-                );
+                let valid = self
+                    .signing_provider
+                    .verify_signed_vote_extension(
+                        &signed_extension.message,
+                        &signed_extension.signature,
+                        &pk,
+                    )
+                    .await;
 
                 if !valid {
                     return Ok(r.resume_with(Err(VoteExtensionError::InvalidSignature)));

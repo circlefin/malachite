@@ -487,10 +487,12 @@ async fn handle_swarm_event(
                         info.protocol_version
                     );
 
-                    let is_already_connected =
-                        state
-                            .discovery
-                            .handle_new_peer(swarm, connection_id, peer_id, info);
+                    let is_already_connected = state.discovery.handle_new_peer(
+                        swarm,
+                        connection_id,
+                        peer_id,
+                        info.clone(),
+                    );
 
                     if !is_already_connected {
                         if let Err(e) = tx_event

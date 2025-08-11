@@ -17,11 +17,12 @@ message Status {
 
 message ValueRequest {
     uint64 height = 1;
+    optional uint64 end_height = 2;
 }
 
 message ValueResponse {
-    uint64 height = 1;
-    SyncedValue value = 2;
+    uint64 start_height = 1;
+    repeated SyncedValue values = 2;
 }
 
 message SyncedValue {
@@ -62,4 +63,3 @@ message SyncResponse {
     ValueResponse value_response = 1;
   }
 }
-

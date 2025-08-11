@@ -1,3 +1,4 @@
+use futures::executor::block_on;
 use malachitebft_core_types::{Round, SignedProposal, SigningProvider, Validity, ValueOrigin};
 use malachitebft_test::utils::validators::make_validators;
 use malachitebft_test::{Address, Ed25519Provider, Proposal, Value};
@@ -16,7 +17,7 @@ fn signed_proposal_pol(
     address: Address,
 ) -> SignedProposal<TestContext> {
     let proposal1 = Proposal::new(height, round, value, pol_round, address);
-    signing_provider.sign_proposal(proposal1)
+    block_on(signing_provider.sign_proposal(proposal1))
 }
 
 fn prop(

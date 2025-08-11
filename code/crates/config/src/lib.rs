@@ -445,6 +445,9 @@ pub struct ValueSyncConfig {
     /// Threshold for considering a peer inactive
     #[serde(with = "humantime_serde")]
     pub inactive_threshold: Duration,
+
+    /// Maximum number of decided values to request in a single batch
+    pub batch_size: usize,
 }
 
 impl Default for ValueSyncConfig {
@@ -454,10 +457,11 @@ impl Default for ValueSyncConfig {
             status_update_interval: Duration::from_secs(10),
             request_timeout: Duration::from_secs(10),
             max_request_size: ByteSize::mib(1),
-            max_response_size: ByteSize::mib(512),
+            max_response_size: ByteSize::mib(10),
             parallel_requests: 5,
             scoring_strategy: ScoringStrategy::default(),
             inactive_threshold: Duration::from_secs(60),
+            batch_size: 5,
         }
     }
 }

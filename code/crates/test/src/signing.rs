@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use bytes::Bytes;
 
 use malachitebft_core_types::{
@@ -47,13 +48,14 @@ impl Ed25519Provider {
     }
 }
 
+#[async_trait]
 impl SigningProvider<TestContext> for Ed25519Provider {
-    fn sign_vote(&self, vote: Vote) -> SignedVote<TestContext> {
+    async fn sign_vote(&self, vote: Vote) -> SignedVote<TestContext> {
         let signature = self.sign(&vote.to_sign_bytes());
         SignedVote::new(vote, signature)
     }
 
-    fn verify_signed_vote(
+    async fn verify_signed_vote(
         &self,
         vote: &Vote,
         signature: &Signature,
@@ -62,12 +64,12 @@ impl SigningProvider<TestContext> for Ed25519Provider {
         public_key.verify(&vote.to_sign_bytes(), signature).is_ok()
     }
 
-    fn sign_proposal(&self, proposal: Proposal) -> SignedProposal<TestContext> {
+    async fn sign_proposal(&self, proposal: Proposal) -> SignedProposal<TestContext> {
         let signature = self.private_key.sign(&proposal.to_sign_bytes());
         SignedProposal::new(proposal, signature)
     }
 
-    fn verify_signed_proposal(
+    async fn verify_signed_proposal(
         &self,
         proposal: &Proposal,
         signature: &Signature,
@@ -78,12 +80,15 @@ impl SigningProvider<TestContext> for Ed25519Provider {
             .is_ok()
     }
 
-    fn sign_proposal_part(&self, proposal_part: ProposalPart) -> SignedProposalPart<TestContext> {
+    async fn sign_proposal_part(
+        &self,
+        proposal_part: ProposalPart,
+    ) -> SignedProposalPart<TestContext> {
         let signature = self.private_key.sign(&proposal_part.to_sign_bytes());
         SignedProposalPart::new(proposal_part, signature)
     }
 
-    fn verify_signed_proposal_part(
+    async fn verify_signed_proposal_part(
         &self,
         proposal_part: &ProposalPart,
         signature: &Signature,
@@ -94,12 +99,12 @@ impl SigningProvider<TestContext> for Ed25519Provider {
             .is_ok()
     }
 
-    fn sign_vote_extension(&self, extension: Bytes) -> SignedExtension<TestContext> {
+    async fn sign_vote_extension(&self, extension: Bytes) -> SignedExtension<TestContext> {
         let signature = self.private_key.sign(extension.as_ref());
         malachitebft_core_types::SignedMessage::new(extension, signature)
     }
 
-    fn verify_signed_vote_extension(
+    async fn verify_signed_vote_extension(
         &self,
         extension: &Bytes,
         signature: &Signature,

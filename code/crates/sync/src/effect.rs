@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, ops::RangeInclusive};
 
 use derive_where::derive_where;
 use thiserror::Error;
@@ -71,8 +71,12 @@ pub enum Effect<Ctx: Context> {
     /// Send a response to a ValueSync request
     SendValueResponse(InboundRequestId, ValueResponse<Ctx>, resume::Continue),
 
-    /// Retrieve a value from the application
-    GetDecidedValue(InboundRequestId, Ctx::Height, resume::Continue),
+    /// Retrieve a range of values from the application
+    GetDecidedValues(
+        InboundRequestId,
+        RangeInclusive<Ctx::Height>,
+        resume::Continue,
+    ),
 }
 
 pub mod resume {

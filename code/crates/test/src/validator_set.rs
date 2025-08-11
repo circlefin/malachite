@@ -91,7 +91,7 @@ impl ValidatorSet {
     }
 
     /// Iterate over the validators in the set
-    pub fn iter(&self) -> slice::Iter<Validator> {
+    pub fn iter(&self) -> slice::Iter<'_, Validator> {
         self.validators.iter()
     }
 

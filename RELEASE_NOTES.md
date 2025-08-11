@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Make SigningProvider trait methods async ([#1151](https://github.com/informalsystems/malachite/issues/1151))
 - Make GossipSub topic names configurable ([#849](https://github.com/informalsystems/malachite/issues/849))
 
 ## 0.5.0
@@ -13,6 +14,7 @@
 - Decouple `Host` messages from the `Consensus` actor ([#1109](https://github.com/informalsystems/malachite/pull/1109))
 - Fix a bug where values synced from other peers were assigned the current node's address instead of their proposer's address ([#1141](https://github.com/informalsystems/malachite/pull/1141))
 - Buffer sync values for heights higher than current height in consensus and replay when running consensus for those heights ([#1149](https://github.com/informalsystems/malachite/pull/1149))
+- Add value batching to sync messages ([#1070](https://github.com/informalsystems/malachite/issues/1070))
 
 ## 0.4.0
 
