@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### `malachitebft-app-channel`
+
+- Made all `AppMsg` variants unit-like and introduced new types for each ([#](https://github.com/informalsystems/malachite/pull/xxx))
+
 ### `malachitebft-core-types`
 
 - Changed methods of `SigningProvider` and `SigningProviderExt` traits to `async` ([#1151](https://github.com/informalsystems/malachite/issues/1151))

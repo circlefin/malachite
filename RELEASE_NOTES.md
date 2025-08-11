@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Made all `AppMsg` variants unit-like ([#](https://github.com/informalsystems/malachite/pull/xxx))
 - Make SigningProvider trait methods async ([#1151](https://github.com/informalsystems/malachite/issues/1151))
 - Make GossipSub topic names configurable ([#849](https://github.com/informalsystems/malachite/issues/849))
 - Fix bug in WAL recovery logic where a corrupted entry would not be detected in some circumstances ([#1127](https://github.com/informalsystems/malachite/pull/1127))
