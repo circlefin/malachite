@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-> Nothing yet
+### `malachitebft-config`
+
+- Added field `channel_names: ChannelNames` to `NetworkConfig` struct ([#849](https://github.com/informalsystems/malachite/pull/849))
 
 ## 0.5.0
 
