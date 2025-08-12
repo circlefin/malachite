@@ -322,7 +322,9 @@ where
             // values are fully processed.
             // To tackle this, we first update the current pending request with the range of values
             // it provides we received, and then issue a new request with the remaining values.
-            let new_start = requested_range.start().increment_by(response.values.len() as u64);
+            let new_start = requested_range
+                .start()
+                .increment_by(response.values.len() as u64);
             let end = *requested_range.end();
 
             if response.values.is_empty() {
@@ -330,7 +332,9 @@ where
             } else {
                 // the response of this request only provided `response.values.len()` values, so update the pending request accordingly
                 let updated_range = *requested_range.start()..=new_start.decrement().unwrap();
-                state.pending_requests.insert(request_id.clone(), (updated_range, peer_id));
+                state
+                    .pending_requests
+                    .insert(request_id.clone(), (updated_range, peer_id));
             }
 
             // issue a new request to the same peer for the remaining values
