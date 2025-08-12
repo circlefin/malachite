@@ -311,9 +311,31 @@ where
                 "Received response from different peer than expected"
             );
         }
+
         let range_len = requested_range.end().as_u64() - requested_range.start().as_u64() + 1;
         if (response.values.len() as u64) < range_len {
-            re_request_values_from_peer_except(co, state, metrics, request_id, None).await?;
+            // **NOTE** We cannot simply call `re_request_values_from_peer_except` here.
+            // Although we received some values from the peer, these values have not yet been processed
+            // by the consensus engine. If we called `re_request_values_from_peer_except`, we would
+            // end up re-requesting the entire original range (including values we already received),
+            // causing the syncing peer to repeatedly send multiple requests until the already-received
+            // values are fully processed.
+            // To tackle this, we first update the current pending request with the range of values
+            // it provides we received, and then issue a new request with the remaining values.
+            let new_start = requested_range.start().increment_by(response.values.len() as u64);
+            let end = *requested_range.end();
+
+            if response.values.is_empty() {
+                error!(%request_id, %peer_id, "Received response contains no values");
+            } else {
+                // the response of this request only provided `response.values.len()` values, so update the pending request accordingly
+                let updated_range = *requested_range.start()..=new_start.decrement().unwrap();
+                state.pending_requests.insert(request_id.clone(), (updated_range, peer_id));
+            }
+
+            // issue a new request to the same peer for the remaining values
+            let new_range = new_start..=end;
+            request_values_from_peer(&co, state, metrics, new_range, peer_id).await?;
         }
     }
 
@@ -360,7 +382,7 @@ where
     // Validate response from host
     let batch_size = end.as_u64() - start.as_u64() + 1;
     if batch_size != values.len() as u64 {
-        error!(
+        warn!(
             "Received {} values from host, expected {batch_size}",
             values.len()
         )
