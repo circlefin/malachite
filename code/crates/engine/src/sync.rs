@@ -283,8 +283,20 @@ where
             }
 
             Effect::GetDecidedValues(request_id, range, r) => {
+                // For simplicity, to avoid asking the application for the exact size of addresses, signatures, etc.
+                // we assume some maximum byte sizes for an address and a signature in order to calculate
+                // an **approximate** total size per value, so that we only send at most `self.sync_config.max_response_size`
+                // to another peer.
+                const MAX_BYTES_PER_ADDRESS: usize = 32;
+                const MAX_BYTES_PER_SIGNATURE: usize = 100;
+
+                // a `CommitSignature` consists of an address and a signature
+                const MAX_BYTES_PER_COMMIT_SIGNATURE: usize = MAX_BYTES_PER_ADDRESS + MAX_BYTES_PER_SIGNATURE;
+
                 let mut values = Vec::new();
                 let mut height = *range.start();
+
+                let mut response_size_bytes =  0;
                 while height <= *range.end() {
                     let value = self
                         .host
@@ -296,6 +308,21 @@ where
                         .success_or(eyre!("Failed to get decided value for height {height}"))?;
 
                     if let Some(value) = value {
+                        let value_size_bytes = value.value_bytes.len();
+
+                        let num_commit_signature = value.certificate.commit_signatures.len();
+                        let certificate_size_estimate = num_commit_signature * MAX_BYTES_PER_COMMIT_SIGNATURE;
+
+                        let total_value_size_bytes = value_size_bytes + certificate_size_estimate;
+
+                        // check if adding this value would exceed the max-response limit
+                        if response_size_bytes + total_value_size_bytes > self.sync_config.max_response_size {
+                            warn!("Maximum byte size limit ({} bytes) would be exceeded (current: {}, value + certificate estimate: {}), stopping at height {}",
+                              self.sync_config.max_response_size, response_size_bytes, total_value_size_bytes, height);
+                            break;
+                        }
+
+                        response_size_bytes += total_value_size_bytes;
                         values.push(value);
                     } else {
                         warn!("Decided value not found for height {height}");
