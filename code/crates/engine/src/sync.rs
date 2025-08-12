@@ -291,12 +291,13 @@ where
                 const MAX_BYTES_PER_SIGNATURE: usize = 100;
 
                 // a `CommitSignature` consists of an address and a signature
-                const MAX_BYTES_PER_COMMIT_SIGNATURE: usize = MAX_BYTES_PER_ADDRESS + MAX_BYTES_PER_SIGNATURE;
+                const MAX_BYTES_PER_COMMIT_SIGNATURE: usize =
+                    MAX_BYTES_PER_ADDRESS + MAX_BYTES_PER_SIGNATURE;
 
                 let mut values = Vec::new();
                 let mut height = *range.start();
 
-                let mut response_size_bytes =  0;
+                let mut response_size_bytes = 0;
                 while height <= *range.end() {
                     let value = self
                         .host
@@ -311,12 +312,15 @@ where
                         let value_size_bytes = value.value_bytes.len();
 
                         let num_commit_signature = value.certificate.commit_signatures.len();
-                        let certificate_size_estimate = num_commit_signature * MAX_BYTES_PER_COMMIT_SIGNATURE;
+                        let certificate_size_estimate =
+                            num_commit_signature * MAX_BYTES_PER_COMMIT_SIGNATURE;
 
                         let total_value_size_bytes = value_size_bytes + certificate_size_estimate;
 
                         // check if adding this value would exceed the max-response limit
-                        if response_size_bytes + total_value_size_bytes > self.sync_config.max_response_size {
+                        if response_size_bytes + total_value_size_bytes
+                            > self.sync_config.max_response_size
+                        {
                             warn!("Maximum byte size limit ({} bytes) would be exceeded (current: {}, value + certificate estimate: {}), stopping at height {}",
                               self.sync_config.max_response_size, response_size_bytes, total_value_size_bytes, height);
                             break;
