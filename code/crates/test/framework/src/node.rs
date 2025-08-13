@@ -12,6 +12,7 @@ use malachitebft_test::middleware::{DefaultMiddleware, Middleware};
 use crate::Expected;
 
 pub type NodeId = usize;
+pub type ConfigCustomizer<Config> = Arc<dyn Fn(&mut Config) + Send + Sync>;
 
 pub enum Step<Ctx, S>
 where
@@ -48,6 +49,7 @@ where
     pub steps: Vec<Step<Ctx, State>>,
     pub state: State,
     pub middleware: Arc<dyn Middleware>,
+    pub config_customizer: Option<ConfigCustomizer<malachitebft_test_app::config::Config>>,
 }
 
 impl<Ctx, State> TestNode<Ctx, State>
@@ -70,6 +72,7 @@ where
             steps: vec![],
             state,
             middleware: Arc::new(DefaultMiddleware),
+            config_customizer: None,
         }
     }
 
@@ -308,6 +311,13 @@ where
 
     pub fn full_node(&mut self) -> &mut Self {
         self.voting_power = 0;
+        self
+    }
+
+    pub fn with_consensus_disabled(&mut self) -> &mut Self {
+        self.config_customizer = Some(Arc::new(|config| {
+            config.consensus.enabled = false;
+        }));
         self
     }
 

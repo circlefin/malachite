@@ -343,6 +343,47 @@ pub async fn start_late_rotate_epoch_validator_set() {
         .await
 }
 
+#[tokio::test]
+pub async fn sync_only_fullnode_without_consensus() {
+    const HEIGHT: u64 = 8;
+
+    let mut test = TestBuilder::<()>::new();
+
+    // First two nodes are normal validators that will drive consensus
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .success();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .success();
+
+    // Third node is a sync-only full node (0 voting power, consensus disabled)
+    // It should be able to sync values but not participate in consensus
+    test.add_node()
+        .with_voting_power(0) // Non-validator
+        .with_consensus_disabled() // Use the new per-node consensus disable
+        .start_after(1, Duration::from_secs(5)) // Start late to force syncing
+        .wait_until(HEIGHT)
+        .success();
+
+    test.build()
+        .run_with_params(
+            Duration::from_secs(45),
+            TestParams {
+                enable_value_sync: true,
+                // consensus_enabled defaults to true for other nodes
+                parallel_requests: 3,
+                ..Default::default()
+            },
+        )
+        .await
+}
+
 #[derive(Debug)]
 struct ResetHeight {
     reset_height: u64,
