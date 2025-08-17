@@ -269,8 +269,8 @@ where
     /// Check if this node is an active validator.
     ///
     /// Returns true only if:
-    /// 1. Consensus is enabled in the configuration
-    /// 2. This node is present in the current validator set
+    /// - Consensus is enabled in the configuration, AND
+    /// - This node is present in the current validator set
     pub fn is_active_validator(&self) -> bool {
         self.params.enabled && self.is_validator()
     }
