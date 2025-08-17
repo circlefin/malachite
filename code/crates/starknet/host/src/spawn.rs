@@ -198,6 +198,7 @@ async fn spawn_consensus_actor(
         address,
         threshold_params: Default::default(),
         value_payload: ValuePayload::PartsOnly,
+        enabled: cfg.consensus.enabled,
     };
 
     // Derive the consensus queue capacity from `sync.parallel_requests` and `sync.batch_size`
