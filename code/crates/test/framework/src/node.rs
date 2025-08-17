@@ -49,7 +49,7 @@ where
     pub steps: Vec<Step<Ctx, State>>,
     pub state: State,
     pub middleware: Arc<dyn Middleware>,
-    pub config_customizer: Option<ConfigCustomizer<malachitebft_test_app::config::Config>>,
+    pub config_customizer: ConfigCustomizer<malachitebft_test_app::config::Config>,
 }
 
 impl<Ctx, State> TestNode<Ctx, State>
@@ -72,7 +72,7 @@ where
             steps: vec![],
             state,
             middleware: Arc::new(DefaultMiddleware),
-            config_customizer: None,
+            config_customizer: Arc::new(|_config| {}),
         }
     }
 
@@ -315,9 +315,9 @@ where
     }
 
     pub fn with_consensus_disabled(&mut self) -> &mut Self {
-        self.config_customizer = Some(Arc::new(|config| {
+        self.config_customizer = Arc::new(|config| {
             config.consensus.enabled = false;
-        }));
+        });
         self
     }
 
