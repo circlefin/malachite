@@ -80,7 +80,7 @@ pub struct StateDump<Ctx: Context> {
     /// The certificate that justifies moving to the `enter_round` specified in the certificate
     pub round_certificate: Option<EnterRoundCertificate<Ctx>>,
 
-    /// A queue of inputs that were received before the driver started.
+    /// A queue of inputs for higher heights, buffered for future processing
     pub input_queue: BoundedQueue<Ctx::Height, ConsensusInput<Ctx>>,
 }
 
