@@ -85,23 +85,6 @@ pub struct StateDump<Ctx: Context> {
 }
 
 impl<Ctx: Context> StateDump<Ctx> {
-    /// The height that consensus is currently at
-    pub fn height(&self) -> Ctx::Height {
-        self.consensus.height
-    }
-
-    /// The round that consensus is currently at
-    pub fn round(&self) -> Round {
-        self.consensus.round
-    }
-
-    /// The step that consensus is currently at
-    pub fn step(&self) -> Step {
-        self.consensus.step
-    }
-}
-
-impl<Ctx: Context> StateDump<Ctx> {
     pub fn new(state: &super::ConsensusState<Ctx>) -> Self {
         Self {
             consensus: state.driver.round_state().clone(),
