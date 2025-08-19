@@ -4,6 +4,7 @@ use bytes::Bytes;
 use derive_where::derive_where;
 use malachitebft_app::consensus::Role;
 use malachitebft_app::types::core::ValueOrigin;
+use malachitebft_engine::consensus::state_dump::StateDump;
 use malachitebft_engine::host::Next;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
@@ -20,6 +21,11 @@ use crate::app::types::{LocallyProposedValue, PeerId, ProposedValue};
 
 pub type Reply<T> = oneshot::Sender<T>;
 
+pub enum ConsensusRequest<Ctx: Context> {
+    /// Request a state dump from consensus
+    DumpState(Reply<StateDump<Ctx>>),
+}
+
 /// Channels created for application consumption
 pub struct Channels<Ctx: Context> {
     /// Channel for receiving messages from consensus
@@ -28,6 +34,8 @@ pub struct Channels<Ctx: Context> {
     pub network: mpsc::Sender<NetworkMsg<Ctx>>,
     /// Receiver of events, call `subscribe` to receive them
     pub events: TxEvent<Ctx>,
+    /// Channel for sending requests to consensus
+    pub requests: mpsc::Sender<ConsensusRequest<Ctx>>,
 }
 
 /// Messages sent from consensus to the application.

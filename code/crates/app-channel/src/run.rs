@@ -3,7 +3,9 @@
 
 use eyre::Result;
 
+use malachitebft_engine::consensus::{ConsensusMsg, ConsensusRef};
 use malachitebft_engine::util::events::TxEvent;
+use tokio::sync::mpsc::Receiver;
 
 use crate::app::metrics::{Metrics, SharedRegistry};
 use crate::app::node::{self, EngineHandle, NodeConfig};
@@ -12,6 +14,7 @@ use crate::app::spawn::{
 };
 use crate::app::types::codec;
 use crate::app::types::core::Context;
+use crate::msgs::ConsensusRequest;
 use crate::spawn::{spawn_host_actor, spawn_network_actor};
 use crate::Channels;
 
@@ -81,12 +84,17 @@ where
     )
     .await?;
 
-    let (node, handle) = spawn_node_actor(ctx, network, consensus, wal, sync, connector).await?;
+    let (node, handle) =
+        spawn_node_actor(ctx, network, consensus.clone(), wal, sync, connector).await?;
+
+    let (tx_request, rx_request) = tokio::sync::mpsc::channel(100);
+    spawn_request_task(rx_request, consensus);
 
     let channels = Channels {
         consensus: rx_consensus,
         network: tx_network,
         events: tx_event,
+        requests: tx_request,
     };
 
     let handle = EngineHandle {
@@ -95,4 +103,23 @@ where
     };
 
     Ok((channels, handle))
+}
+
+fn spawn_request_task<Ctx>(
+    mut rx_request: Receiver<ConsensusRequest<Ctx>>,
+    consensus: ConsensusRef<Ctx>,
+) where
+    Ctx: Context,
+{
+    tokio::spawn(async move {
+        while let Some(msg) = rx_request.recv().await {
+            match msg {
+                ConsensusRequest::DumpState(reply) => {
+                    if let Err(e) = consensus.cast(ConsensusMsg::DumpState(reply.into())) {
+                        tracing::error!("Failed to send state dump request: {e}");
+                    }
+                }
+            }
+        }
+    });
 }
