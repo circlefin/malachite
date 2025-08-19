@@ -625,7 +625,7 @@ where
             }
 
             Msg::DumpState(reply_to) => {
-                let dump = StateDump::from(&state.consensus);
+                let dump = StateDump::new(&state.consensus);
 
                 if let Err(e) = reply_to.send(dump) {
                     error!("Failed to reply with state dump: {e}");

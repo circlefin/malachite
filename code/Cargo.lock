@@ -2317,6 +2317,7 @@ dependencies = [
  "informalsystems-malachitebft-codec",
  "informalsystems-malachitebft-config",
  "informalsystems-malachitebft-core-consensus",
+ "informalsystems-malachitebft-core-driver",
  "informalsystems-malachitebft-core-state-machine",
  "informalsystems-malachitebft-core-types",
  "informalsystems-malachitebft-core-votekeeper",
