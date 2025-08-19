@@ -202,6 +202,11 @@ where
         self.proposal_keeper.evidence()
     }
 
+    /// Return the proposer address for the current round, if any.
+    pub fn proposer_address(&self) -> Option<&Ctx::Address> {
+        self.proposer.as_ref()
+    }
+
     /// Return the proposer for the current round.
     pub fn get_proposer(&self) -> Result<&Ctx::Validator, Error<Ctx>> {
         if let Some(proposer) = &self.proposer {
