@@ -2,15 +2,16 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use derive_where::derive_where;
-use malachitebft_app::consensus::Role;
-use malachitebft_app::types::core::ValueOrigin;
-use malachitebft_engine::consensus::state_dump::StateDump;
-use malachitebft_engine::host::Next;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
+use tracing::error;
 
+use malachitebft_app::consensus::Role;
 use malachitebft_app::consensus::VoteExtensionError;
+use malachitebft_app::types::core::ValueOrigin;
+use malachitebft_engine::consensus::state_dump::StateDump;
 use malachitebft_engine::consensus::Msg as ConsensusActorMsg;
+use malachitebft_engine::host::Next;
 use malachitebft_engine::network::Msg as NetworkActorMsg;
 use malachitebft_engine::util::events::TxEvent;
 
@@ -24,6 +25,27 @@ pub type Reply<T> = oneshot::Sender<T>;
 pub enum ConsensusRequest<Ctx: Context> {
     /// Request a state dump from consensus
     DumpState(Reply<StateDump<Ctx>>),
+}
+
+impl<Ctx: Context> ConsensusRequest<Ctx> {
+    pub async fn dump_state(
+        tx_request: &mpsc::Sender<ConsensusRequest<Ctx>>,
+    ) -> Option<StateDump<Ctx>> {
+        let (tx, rx) = oneshot::channel();
+
+        tx_request
+            .send(Self::DumpState(tx))
+            .await
+            .inspect_err(|e| error!("Failed to send DumpState request to consensus: {e}"))
+            .ok()?;
+
+        let dump = rx
+            .await
+            .inspect_err(|e| error!("Failed to receive DumpState response from consensus: {e}",))
+            .ok()?;
+
+        Some(dump)
+    }
 }
 
 /// Channels created for application consumption
