@@ -47,20 +47,20 @@ pub struct ProposalKeeperState<Ctx: Context> {
 /// A dump of the current state of the consensus engine.
 #[derive_where(Debug, Clone)]
 pub struct StateDump<Ctx: Context> {
+    /// The state of the core state machine
+    pub consensus: State<Ctx>,
+
     /// The address of the node
     pub address: Ctx::Address,
 
     /// The proposer for the current round, None for round nil
     pub proposer: Option<Ctx::Address>,
 
-    /// The validator set at the current height
-    pub validator_set: Ctx::ValidatorSet,
-
     /// The consensus parameters
     pub params: ConsensusParams<Ctx>,
 
-    /// The state of the core state machine
-    pub consensus: State<Ctx>,
+    /// The validator set at the current height
+    pub validator_set: Ctx::ValidatorSet,
 
     /// The state of the vote keeper
     pub vote_keeper: VoteKeeperState<Ctx>,
@@ -104,11 +104,11 @@ impl<Ctx: Context> StateDump<Ctx> {
 impl<Ctx: Context> StateDump<Ctx> {
     pub fn new(state: &super::ConsensusState<Ctx>) -> Self {
         Self {
-            address: state.address().clone(),
-            params: state.params.clone(),
             consensus: state.driver.round_state().clone(),
-            validator_set: state.validator_set().clone(),
+            address: state.address().clone(),
             proposer: state.driver.proposer_address().cloned(),
+            params: state.params.clone(),
+            validator_set: state.validator_set().clone(),
             vote_keeper: VoteKeeperState {
                 votes: state.driver.votes().all_rounds().clone(),
                 evidence: state.driver.votes().evidence().clone(),
