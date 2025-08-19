@@ -34,7 +34,7 @@ pub struct VoteKeeperState<Ctx: Context> {
     pub evidence: VoteEvidenceMap<Ctx>,
 }
 
-/// The state of the proposal keeper, which keeps track of proposals and misbehavior evidence.
+/// The state of the proposal keeper, which keeps track of proposals and proposal-related misbehavior evidence.
 #[derive_where(Debug, Clone)]
 pub struct ProposalKeeperState<Ctx: Context> {
     /// The proposals that were received in each round so far
