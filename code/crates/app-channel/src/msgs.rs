@@ -77,7 +77,7 @@ impl<Ctx: Context> ConsensusRequest<Ctx> {
 
         let dump = rx
             .await
-            .inspect_err(|e| error!("Failed to receive DumpState response from consensus: {e}",))
+            .inspect_err(|e| error!("Failed to receive DumpState response from consensus: {e}"))
             .ok()?;
 
         Some(dump)
