@@ -3,7 +3,7 @@ use std::time::Duration;
 use eyre::eyre;
 use malachitebft_app_channel::app::engine::host::Next;
 use tokio::time::sleep;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 // use malachitebft_app_channel::app::config::ValuePayload;
 use malachitebft_app_channel::app::streaming::StreamContent;
@@ -70,9 +70,26 @@ pub async fn run(
                 let pending = state.store.get_pending_proposals(height, round).await?;
                 info!(%height, %round, "Found {} pending proposals, validating...", pending.len());
                 for p in &pending {
-                    // TODO: check proposal validity
-                    state.store.store_undecided_proposal(p.clone()).await?;
-                    state.store.remove_pending_proposal(p.clone()).await?;
+                    // Check if proposer matches current proposer
+                    if p.proposer == proposer {
+                        state.store.store_undecided_proposal(p.clone()).await?;
+                        state.store.remove_pending_proposal(p.clone()).await?;
+                        info!(
+                            height = %p.height,
+                            round = %p.round,
+                            proposer = %p.proposer,
+                            "Moved valid pending proposal to undecided"
+                        );
+                    } else {
+                        state.store.remove_pending_proposal(p.clone()).await?;
+                        warn!(
+                            height = %p.height,
+                            round = %p.round,
+                            actual_proposer = %p.proposer,
+                            expected_proposer = %proposer,
+                            "Removed invalid pending proposal - wrong proposer"
+                        );
+                    }
                 }
 
                 // If we have already built or seen values for this height and round,
@@ -254,9 +271,9 @@ pub async fn run(
             // It may happen that our node is lagging behind its peers. In that case,
             // a synchronization mechanism will automatically kick to try and catch up to
             // our peers. When that happens, some of these peers will send us decided values
-            // for the heights in between the one we are currently at (included) and the one
-            // that they are at. When the engine receives such a value, it will forward to the application
-            // to decode it from its wire format and send back the decoded value to consensus.
+            // for the current height only (not for future heights). When the engine receives
+            // such a value, it will forward to the application to decode it from its wire format
+            // and send back the decoded value to consensus.
             AppMsg::ProcessSyncedValue {
                 height,
                 round,
@@ -276,6 +293,7 @@ pub async fn run(
                         validity: Validity::Valid,
                     };
 
+                    // TODO: Should we do some validation at the app side for these synced values?
                     state.store_synced_value(proposal.clone()).await?;
 
                     if reply.send(Some(proposal)).is_err() {

@@ -117,6 +117,9 @@ impl State {
         }
 
         // Verify the proposal signature
+        // TODO: Here we assume that we can check the signature of the proposal always because the validator set is fixed
+        // In a real application, we would need to delay this verification until we know the actual validator set for this height
+
         match self.verify_proposal_signature(&parts) {
             Ok(()) => {
                 // Signature verified successfully, continue processing
@@ -144,17 +147,46 @@ impl State {
         }
 
         let proposal_height = parts.height;
+        let proposal_round = parts.round;
 
-        // Re-assemble the proposal from its parts
-        let value = assemble_value_from_parts(parts)?;
+        // For current height AND round, check proposer and store in undecided
+        if proposal_height == self.current_height && proposal_round == self.current_round {
+            // Check if proposer matches current proposer
+            match self.current_proposer {
+                Some(expected_proposer) if parts.proposer != expected_proposer => {
+                    error!(
+                        height = %proposal_height,
+                        round = %proposal_round,
+                        actual_proposer = %parts.proposer,
+                        expected_proposer = %expected_proposer,
+                        "Proposal not from expected proposer for current round"
+                    );
+                    return Ok(None);
+                }
+                None => {
+                    error!(
+                        height = %proposal_height,
+                        round = %proposal_round,
+                        proposer = %parts.proposer,
+                        "Received proposal but no current proposer is set"
+                    );
+                    return Ok(None);
+                }
+                _ => {
+                    // Proposer matches, proceed
+                }
+            }
 
-        if proposal_height == self.current_height {
+            // Re-assemble the proposal and store in undecided
+            let value = assemble_value_from_parts(parts)?;
             self.store.store_undecided_proposal(value.clone()).await?;
+            Ok(Some(value))
         } else {
+            // For other height/round, store in pending and return None
+            let value = assemble_value_from_parts(parts)?;
             self.store.store_pending_proposal(value.clone()).await?;
+            Ok(None)
         }
-
-        Ok(Some(value))
     }
 
     /// Retrieves a decided block at the given height
