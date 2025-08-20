@@ -295,8 +295,6 @@ impl<Ctx: Context> EnterRoundCertificate<Ctx> {
 pub struct ValueResponse<Ctx: Context> {
     /// The peer that sent the value response
     pub peer: PeerId,
-    /// The proposer of the value
-    pub proposer: Ctx::Address,
     /// The raw bytes of the value
     pub value_bytes: Bytes,
     /// The commit certificate proving the value was decided
@@ -305,15 +303,9 @@ pub struct ValueResponse<Ctx: Context> {
 
 impl<Ctx: Context> ValueResponse<Ctx> {
     /// Creates a new `ValueResponse` from the raw bytes of the value and the commit certificate.
-    pub fn new(
-        peer: PeerId,
-        proposer: Ctx::Address,
-        value_bytes: Bytes,
-        certificate: CommitCertificate<Ctx>,
-    ) -> Self {
+    pub fn new(peer: PeerId, value_bytes: Bytes, certificate: CommitCertificate<Ctx>) -> Self {
         Self {
             peer,
-            proposer,
             value_bytes,
             certificate,
         }
