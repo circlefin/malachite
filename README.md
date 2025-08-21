@@ -31,6 +31,8 @@
 
 Malachite is a Byzantine-fault tolerant (BFT) consensus engine implemented in Rust.
 
+The Malachite team from Informal Systems has officially joined Circle, bringing their expertise and IP to help build Arc, an open Layer-1 blockchain purpose-built for stablecoin finance. Visit [arcnetwork.xyz](https://arcnetwork.xyz) for more information.
+
 Malachite `/ˈmæl.ə.kaɪt/` is pronounced as follows: __"Mala"__ (like in Malaysia) + __"kite"__ (like the flying toy).
 
 > [!IMPORTANT]
@@ -39,8 +41,7 @@ Malachite `/ˈmæl.ə.kaɪt/` is pronounced as follows: __"Mala"__ (like in Mala
 
 ### Goals
 
-The goal is for Malachite to enable developers to decentralize whatever the future may bring—sequencers, social networks, Layer 1s, etc.
-Therefore, Malachite addresses a particular void in the market: The lack of flexible, reliable, and high-performance distributed systems foundations, such as BFT consensus libraries.
+Malachite aims to empower developers building decentralized systems—including sequencers, social networks, and Layer-1 blockchains—by offering a flexible, reliable, and high-performance BFT consensus engine. It now serves as the consensus foundation for [Arc](http://arcnetwork.xyz), a new purpose-built blockchain developed by Circle.
 
 ### Features
 
@@ -55,19 +56,10 @@ Malachite addresses numerous points of technical debt in the design of consensus
 #### Reliability and Performance
 Parts of Malachite were co-designed with their formal specification and model checking, notably for the Tendermint algorithm, which improved the confidence and reliability of this core library.
 
-Early [experiments][announcement] with Malachite show an average finalization latency of 780 ms at a scale of 100 validators with 1MB blocks.
+Early experiments with Malachite show an average finalization latency of 780 ms at a scale of 100 validators with 1MB blocks.
 Depending on the setup, Malachite can clear up to 2.5 blocks per second or finalize up to 13.5 MB/s (around 50,000 transactions per second).
 
-We publish regular performance benchmarks on the [dashboard][website-dashboard].
-
-#### Use-cases
-Malachite originated as a consensus core for the Starknet L2 decentralized sequencer.
-It will serve as the core consensus library in the [Madara][madara] and [Pathfinder][pathfinder] Starknet clients.
-Malachite is also being used for Farcaster’s newest backend layer called [Snapchain](https://github.com/farcasterxyz/snapchain-v0/).
-Thanks to its flexible design, Malachite is amenable to a broad range of environments, and a number of other teams are building and exploring in private.
-Please [reach-out if interested][tg-url], we would love to speak with more teams.
-
-To follow-up with use-cases and more general announcements, see the [blog][website-announcements].
+Future performance benchmarks will be maintained and published as part of Arc’s open-source documentation at a future date.
 
 ## Overview
 
@@ -129,14 +121,6 @@ We invite all contributors.
 - Rust v1.82+ ([rustup.rs](https://rustup.rs))
 - Quint v0.22+ ([github.com](https://github.com/informalsystems/quint))
 
-## Join Us
-
-Malachite is developed by [Informal Systems](https://informal.systems).
-
-If you'd like to work full-time on challenging problems of distributed systems and decentralization,
-[we're always looking for talented people to join](https://informal.systems/careers)!
-
-
 ## Acknowledgements
 
 Malachite would not have been possible without the kind support of the Starknet ecosystem.
@@ -145,9 +129,11 @@ We are grateful to StarkWare Industries for prompting the initial discussions of
 We are also thankful for the collaboration with Farcaster.
 This led to further refinements and maturing of the Malachite codebase, and their approach to building complex systems and shipping valuable products is an inspiration for us.
 
+These collaborations reflect work completed prior to the Malachite team joining Circle.
+
 ## License
 
-Copyright © 2024 Informal Systems Inc.
+Copyright © 2025 Circle Internet Group, Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use the files in this repository except in compliance with the License. You may obtain a copy of the License at
 
@@ -157,12 +143,12 @@ Unless required by applicable law or agreed to in writing, software distributed 
 
 [docs-main-image]: https://img.shields.io/badge/docs-main-blue?logo=googledocs&logoColor=white
 [docs-main-link]: https://informalsystems.github.io/malachite/
-[build-image]: https://github.com/informalsystems/malachite/actions/workflows/rust.yml/badge.svg
-[build-link]: https://github.com/informalsystems/malachite/actions/workflows/rust.yml
-[quint-image]: https://github.com/informalsystems/malachite/actions/workflows/quint.yml/badge.svg
-[quint-link]: https://github.com/informalsystems/malachite/actions/workflows/quint.yml
-[mbt-test-image]: https://github.com/informalsystems/malachite/actions/workflows/mbt.yml/badge.svg
-[mbt-test-link]: https://github.com/informalsystems/malachite/actions/workflows/mbt.yml
+[build-image]: https://github.com/circlefin/malachite/actions/workflows/rust.yml/badge.svg
+[build-link]: https://github.com/circlefin/malachite/actions/workflows/rust.yml
+[quint-image]: https://github.com/circlefin/malachite/actions/workflows/quint.yml/badge.svg
+[quint-link]: https://github.com/circlefin/malachite/actions/workflows/quint.yml
+[mbt-test-image]: https://github.com/circlefin/malachite/actions/workflows/mbt.yml/badge.svg
+[mbt-test-link]: https://github.com/circlefin/malachite/actions/workflows/mbt.yml
 [coverage-image]: https://codecov.io/gh/informalsystems/malachite/graph/badge.svg?token=B9KY7B6DJF
 [coverage-link]: https://codecov.io/gh/informalsystems/malachite
 [license-image]: https://img.shields.io/badge/license-Apache_2.0-blue.svg

@@ -14,8 +14,6 @@ If you contribute to this project, your contributions will be made to the projec
 
 ## Code of Conduct
 
-### Contact: conduct@informal.systems
-
 The Malachite project adheres to the [Rust Code of Conduct][rust-coc]. This code of conduct describes the minimum behavior expected from all contributors.
 
 Violations of this Code of Conduct can be reported by contacting the team at above mentioned contact email.
@@ -64,7 +62,7 @@ _Adapted from the CometBFT and Reth contributing guides._
 
 [rust-coc]: https://www.rust-lang.org/en-US/conduct.html
 [tg]: https://t.me/MalachiteEngine
-[new-issue]: https://github.com/informalsystems/malachite/issues/new
-[existing-issues]: https://github.com/informalsystems/malachite/issues
-[open-discussion]: https://github.com/informalsystems/malachite/discussions/new/choose
-[discussions-board]: https://github.com/informalsystems/malachite/discussions
+[new-issue]: https://github.com/circlefin/malachite/issues/new
+[existing-issues]: https://github.com/circlefin/malachite/issues
+[open-discussion]: https://github.com/circlefin/malachite/discussions/new/choose
+[discussions-board]: https://github.com/circlefin/malachite/discussions
