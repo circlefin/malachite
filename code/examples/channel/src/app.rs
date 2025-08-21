@@ -3,7 +3,7 @@ use std::time::Duration;
 use eyre::eyre;
 use malachitebft_app_channel::app::engine::host::Next;
 use tokio::time::sleep;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 use malachitebft_app_channel::app::streaming::StreamContent;
 use malachitebft_app_channel::app::types::core::{Height as _, Round, Validity};
@@ -57,28 +57,43 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 state.current_round = round;
                 state.current_proposer = Some(proposer);
 
-                let pending = state.store.get_pending_proposals(height, round).await?;
-                info!(%height, %round, "Found {} pending proposals, validating...", pending.len());
-                for p in &pending {
-                    // Check if proposer matches current proposer
-                    if p.proposer == proposer {
-                        state.store.store_undecided_proposal(p.clone()).await?;
-                        state.store.remove_pending_proposal(p.clone()).await?;
-                        info!(
-                            height = %p.height,
-                            round = %p.round,
-                            proposer = %p.proposer,
-                            "Moved valid pending proposal to undecided"
-                        );
-                    } else {
-                        state.store.remove_pending_proposal(p.clone()).await?;
-                        warn!(
-                            height = %p.height,
-                            round = %p.round,
-                            actual_proposer = %p.proposer,
-                            expected_proposer = %proposer,
-                            "Removed invalid pending proposal - wrong proposer"
-                        );
+                let pending_parts = state
+                    .store
+                    .get_pending_proposal_parts(height, round)
+                    .await?;
+                info!(%height, %round, "Found {} pending proposal parts, validating...", pending_parts.len());
+
+                for parts in &pending_parts {
+                    match state.validate_proposal(parts) {
+                        Ok(()) => {
+                            // Validation passed - convert to ProposedValue and move to undecided
+                            let value = State::assemble_value_from_parts(parts.clone())?;
+                            state.store.store_undecided_proposal(value).await?;
+                            state
+                                .store
+                                .remove_pending_proposal_parts(parts.clone())
+                                .await?;
+                            info!(
+                                height = %parts.height,
+                                round = %parts.round,
+                                proposer = %parts.proposer,
+                                "Moved valid pending proposal to undecided after validation"
+                            );
+                        }
+                        Err(error) => {
+                            // Validation failed - remove invalid proposal
+                            state
+                                .store
+                                .remove_pending_proposal_parts(parts.clone())
+                                .await?;
+                            error!(
+                                height = %parts.height,
+                                round = %parts.round,
+                                proposer = %parts.proposer,
+                                error = ?error,
+                                "Removed invalid pending proposal"
+                            );
+                        }
                     }
                 }
 
