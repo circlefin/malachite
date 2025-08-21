@@ -67,6 +67,15 @@ where
         self.peers.insert(status.peer_id, status);
     }
 
+    pub fn update_request(
+        &mut self,
+        request_id: OutboundRequestId,
+        peer_id: PeerId,
+        range: RangeInclusive<Ctx::Height>,
+    ) {
+        self.pending_requests.insert(request_id, (range, peer_id));
+    }
+
     /// Filter peers to only include those that can provide the given range of values, or at least a prefix of the range.
     ///
     /// If there is no peer with all requested values, select a peer that has a tip at or above the start of the range.
