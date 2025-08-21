@@ -338,9 +338,9 @@ where
                 state.update_request(request_id, peer_id, updated_range);
             }
 
-            // issue a new request to the same peer for the remaining values
+            // Issue a new request to any peer, not necessarily the same one, for the remaining values
             let new_range = new_start..=end;
-            request_values_from_peer(&co, state, metrics, new_range, peer_id).await?;
+            request_values_range(co, state, metrics, new_range).await?;
         }
     }
 
@@ -538,6 +538,41 @@ where
 
         request_values_from_peer(&co, state, metrics, range, peer).await?;
     }
+
+    Ok(())
+}
+
+/// Request multiple batches of values in parallel.
+async fn request_values_range<Ctx>(
+    co: Co<Ctx>,
+    state: &mut State<Ctx>,
+    metrics: &Metrics,
+    range: RangeInclusive<Ctx::Height>,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    let max_parallel_requests = state.max_parallel_requests();
+
+    if state.pending_requests.len() as u64 >= max_parallel_requests {
+        info!(
+            %max_parallel_requests,
+            pending_requests = %state.pending_requests.len(),
+            range = %DisplayRange::<Ctx>(&range),
+            "Maximum number of parallel requests reached, skipping request for values"
+        );
+
+        return Ok(());
+    };
+
+    // Get a random peer that can provide the values in the range.
+    let Some((peer, range)) = state.random_peer_with(&range) else {
+        // No connected peer reached this height yet, we can stop syncing here.
+        debug!(range = %DisplayRange::<Ctx>(&range), "No peer to request sync from");
+        return Ok(());
+    };
+
+    request_values_from_peer(&co, state, metrics, range, peer).await?;
 
     Ok(())
 }
