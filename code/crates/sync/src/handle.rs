@@ -313,8 +313,9 @@ where
         }
 
         let range_len = requested_range.end().as_u64() - requested_range.start().as_u64() + 1;
-        if (response.values.len() as u64) < range_len {
-            // **NOTE** We cannot simply call `re_request_values_from_peer_except` here.
+
+        if response.values.len() < range_len as usize {
+            // NOTE: We cannot simply call `re_request_values_from_peer_except` here.
             // Although we received some values from the peer, these values have not yet been processed
             // by the consensus engine. If we called `re_request_values_from_peer_except`, we would
             // end up re-requesting the entire original range (including values we already received),
