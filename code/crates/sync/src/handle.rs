@@ -326,16 +326,16 @@ where
             let new_start = requested_range
                 .start()
                 .increment_by(response.values.len() as u64);
+
             let end = *requested_range.end();
 
             if response.values.is_empty() {
                 error!(%request_id, %peer_id, "Received response contains no values");
             } else {
-                // the response of this request only provided `response.values.len()` values, so update the pending request accordingly
+                // The response of this request only provided `response.values.len()` values,
+                // so update the pending request accordingly
                 let updated_range = *requested_range.start()..=new_start.decrement().unwrap();
-                state
-                    .pending_requests
-                    .insert(request_id.clone(), (updated_range, peer_id));
+                state.update_request(request_id, peer_id, updated_range);
             }
 
             // issue a new request to the same peer for the remaining values
