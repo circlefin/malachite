@@ -510,7 +510,7 @@ async fn request_values<Ctx>(
 where
     Ctx: Context,
 {
-    let max_parallel_requests = max(1, state.config.parallel_requests);
+    let max_parallel_requests = state.max_parallel_requests();
 
     if state.pending_requests.len() as u64 >= max_parallel_requests {
         info!(

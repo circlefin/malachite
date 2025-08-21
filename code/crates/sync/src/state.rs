@@ -63,6 +63,12 @@ where
         }
     }
 
+    /// The maximum number of parallel requests that can be made to peers.
+    /// If the configuration is set to 0, it defaults to 1.
+    pub fn max_parallel_requests(&self) -> u64 {
+        max(1, self.config.parallel_requests)
+    }
+
     pub fn update_status(&mut self, status: Status<Ctx>) {
         self.peers.insert(status.peer_id, status);
     }
