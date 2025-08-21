@@ -1262,7 +1262,7 @@ where
                     |reply_to| HostMsg::ProcessSyncedValue {
                         height: certificate_height,
                         round: certificate_round,
-                        proposer: proposer.clone(),
+                        proposer,
                         value_bytes: value.value_bytes,
                         reply_to,
                     },
