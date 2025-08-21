@@ -8,7 +8,7 @@ use eyre::eyre;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use sha3::Digest;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 use malachitebft_app_channel::app::consensus::{ProposedValue, Role};
 use malachitebft_app_channel::app::streaming::{StreamContent, StreamId, StreamMessage};
@@ -45,6 +45,30 @@ pub struct State {
     signing_provider: Ed25519Provider,
     streams_map: PartStreamsMap,
     rng: StdRng,
+}
+
+/// Represents errors that can occur during the verification of a proposal's signature.
+#[derive(Debug)]
+pub enum SignatureVerificationError {
+    /// Indicates that the `Init` part of the proposal is unexpectedly missing.
+    MissingInitPart,
+    /// Indicates that the `Fin` part of the proposal is unexpectedly missing.
+    MissingFinPart,
+    /// Indicates that the proposer was not found in the validator set.
+    ProposerNotFound,
+    /// Indicates that the signature in the `Fin` part is invalid.
+    InvalidSignature,
+}
+
+/// Represents errors that can occur during proposal validation
+#[derive(Debug)]
+// To suppress warning about unused SignatureVerificationError, we use it via derive(Debug)
+#[allow(dead_code)]
+pub enum ProposalValidationError {
+    /// Proposer doesn't match the expected proposer for the given round
+    WrongProposer,
+    /// Signature verification errors
+    Signature(SignatureVerificationError),
 }
 
 impl State {
@@ -88,6 +112,75 @@ impl State {
             .unwrap_or_default()
     }
 
+    /// Validates a proposal by checking both proposer and signature
+    pub fn validate_proposal(&self, parts: &ProposalParts) -> Result<(), ProposalValidationError> {
+        let height = parts.height;
+        let round = parts.round;
+
+        // Get the expected proposer for this height and round
+        let validator_set = self.get_validator_set();
+        let expected_proposer = self
+            .ctx
+            .select_proposer(&validator_set, height, round)
+            .address;
+
+        // Check if the proposer matches the expected proposer
+        if parts.proposer != expected_proposer {
+            return Err(ProposalValidationError::WrongProposer);
+        }
+
+        // If proposer is correct, verify the signature
+        self.verify_proposal_signature(parts)
+            .map_err(ProposalValidationError::Signature)?;
+
+        Ok(())
+    }
+
+    /// Verify proposal signature
+    fn verify_proposal_signature(
+        &self,
+        parts: &ProposalParts,
+    ) -> Result<(), SignatureVerificationError> {
+        let mut hasher = sha3::Keccak256::new();
+
+        let init = parts
+            .init()
+            .ok_or(SignatureVerificationError::MissingInitPart)?;
+
+        let fin = parts
+            .fin()
+            .ok_or(SignatureVerificationError::MissingFinPart)?;
+
+        let hash = {
+            hasher.update(init.height.as_u64().to_be_bytes());
+            hasher.update(init.round.as_i64().to_be_bytes());
+
+            // The correctness of the hash computation relies on the parts being ordered by sequence
+            // number, which is guaranteed by the `PartStreamsMap`.
+            for part in parts.parts.iter().filter_map(|part| part.as_data()) {
+                hasher.update(part.factor.to_be_bytes());
+            }
+
+            hasher.finalize()
+        };
+
+        // Retrieve the proposer from the validator set for the given height
+        let validator_set = self.get_validator_set();
+        let proposer = validator_set
+            .get_by_address(&parts.proposer)
+            .ok_or(SignatureVerificationError::ProposerNotFound)?;
+
+        // Verify the signature
+        if !self
+            .signing_provider
+            .verify(&hash, &fin.signature, &proposer.public_key)
+        {
+            return Err(SignatureVerificationError::InvalidSignature);
+        }
+
+        Ok(())
+    }
+
     /// Processes and adds a new proposal to the state if it's valid
     /// Returns Some(ProposedValue) if the proposal was accepted, None otherwise
     pub async fn received_proposal_part(
@@ -112,80 +205,36 @@ impl State {
                 part.sequence = %sequence,
                 "Received outdated proposal, ignoring"
             );
-
             return Ok(None);
         }
 
-        // Verify the proposal signature
-        // TODO: Here we assume that we can check the signature of the proposal always because the validator set is fixed
-        // In a real application, we would need to delay this verification until we know the actual validator set for this height
-
-        match self.verify_proposal_signature(&parts) {
-            Ok(()) => {
-                // Signature verified successfully, continue processing
-            }
-            Err(SignatureVerificationError::MissingInitPart) => {
-                return Err(eyre!(
-                    "Expected to have full proposal but `Init` proposal part is missing for proposer: {}",
-                    parts.proposer
-                ));
-            }
-            Err(SignatureVerificationError::MissingFinPart) => {
-                return Err(eyre!(
-                    "Expected to have full proposal but `Fin` proposal part is missing for proposer: {}",
-                    parts.proposer
-                ));
-            }
-            Err(SignatureVerificationError::ProposerNotFound) => {
-                error!(proposer = %parts.proposer, "Proposer not found in validator set");
-                return Ok(None);
-            }
-            Err(SignatureVerificationError::InvalidSignature) => {
-                error!(proposer = %parts.proposer, "Invalid signature in Fin part");
-                return Ok(None);
-            }
+        // Store future proposals parts in pending without validation
+        if parts.height > self.current_height {
+            info!(%parts.height, %parts.round, "Storing proposal parts for a future height in pending");
+            self.store.store_pending_proposal_parts(parts).await?;
+            return Ok(None);
         }
 
-        let proposal_height = parts.height;
-        let proposal_round = parts.round;
-
-        // For current height AND round, check proposer and store in undecided
-        if proposal_height == self.current_height && proposal_round == self.current_round {
-            // Check if proposer matches current proposer
-            match self.current_proposer {
-                Some(expected_proposer) if parts.proposer != expected_proposer => {
-                    error!(
-                        height = %proposal_height,
-                        round = %proposal_round,
-                        actual_proposer = %parts.proposer,
-                        expected_proposer = %expected_proposer,
-                        "Proposal not from expected proposer for current round"
-                    );
-                    return Ok(None);
-                }
-                None => {
-                    error!(
-                        height = %proposal_height,
-                        round = %proposal_round,
-                        proposer = %parts.proposer,
-                        "Received proposal but no current proposer is set"
-                    );
-                    return Ok(None);
-                }
-                _ => {
-                    // Proposer matches, proceed
-                }
+        // For current height, validate proposal (proposer + signature)
+        match self.validate_proposal(&parts) {
+            Ok(()) => {
+                // Validation passed - assemble and store as undecided
+                let value = Self::assemble_value_from_parts(parts)?;
+                info!(%value.height, %value.round, %value.proposer, "Storing validated proposal as undecided");
+                self.store.store_undecided_proposal(value.clone()).await?;
+                Ok(Some(value))
             }
-
-            // Re-assemble the proposal and store in undecided
-            let value = assemble_value_from_parts(parts)?;
-            self.store.store_undecided_proposal(value.clone()).await?;
-            Ok(Some(value))
-        } else {
-            // For other height/round, store in pending and return None
-            let value = assemble_value_from_parts(parts)?;
-            self.store.store_pending_proposal(value.clone()).await?;
-            Ok(None)
+            Err(error) => {
+                // Any validation error indicates invalid proposal - log and reject
+                error!(
+                    height = %parts.height,
+                    round = %parts.round,
+                    proposer = %parts.proposer,
+                    error = ?error,
+                    "Rejecting invalid proposal"
+                );
+                Ok(None)
+            }
         }
     }
 
@@ -425,73 +474,29 @@ impl State {
         parts
     }
 
-    /// Verifies the signature of the proposal.
-    /// Returns `Ok(())` if the signature is valid, or an appropriate `SignatureVerificationError`.
-    fn verify_proposal_signature(
-        &self,
-        parts: &ProposalParts,
-    ) -> Result<(), SignatureVerificationError> {
-        let mut hasher = sha3::Keccak256::new();
+    /// Re-assemble a [`ProposedValue`] from its [`ProposalParts`].
+    ///
+    /// This is done by multiplying all the factors in the parts.
+    pub fn assemble_value_from_parts(
+        parts: ProposalParts,
+    ) -> eyre::Result<ProposedValue<TestContext>> {
+        let init = parts.init().ok_or_else(|| eyre!("Missing Init part"))?;
 
-        let init = parts
-            .init()
-            .ok_or(SignatureVerificationError::MissingInitPart)?;
+        let value = parts
+            .parts
+            .iter()
+            .filter_map(|part| part.as_data())
+            .fold(1, |acc, data| acc * data.factor);
 
-        let fin = parts
-            .fin()
-            .ok_or(SignatureVerificationError::MissingFinPart)?;
-
-        let hash = {
-            hasher.update(init.height.as_u64().to_be_bytes());
-            hasher.update(init.round.as_i64().to_be_bytes());
-
-            // The correctness of the hash computation relies on the parts being ordered by sequence
-            // number, which is guaranteed by the `PartStreamsMap`.
-            for part in parts.parts.iter().filter_map(|part| part.as_data()) {
-                hasher.update(part.factor.to_be_bytes());
-            }
-
-            hasher.finalize()
-        };
-
-        // Retrieve the the proposer
-        let proposer = self
-            .get_validator_set()
-            .get_by_address(&parts.proposer)
-            .ok_or(SignatureVerificationError::ProposerNotFound)?;
-
-        // Verify the signature
-        if !self
-            .signing_provider
-            .verify(&hash, &fin.signature, &proposer.public_key)
-        {
-            return Err(SignatureVerificationError::InvalidSignature);
-        }
-
-        Ok(())
+        Ok(ProposedValue {
+            height: parts.height,
+            round: parts.round,
+            valid_round: init.pol_round,
+            proposer: parts.proposer,
+            value: Value::new(value),
+            validity: Validity::Valid, // TODO: Check signature in Fin part
+        })
     }
-}
-
-/// Re-assemble a [`ProposedValue`] from its [`ProposalParts`].
-///
-/// This is done by multiplying all the factors in the parts.
-fn assemble_value_from_parts(parts: ProposalParts) -> eyre::Result<ProposedValue<TestContext>> {
-    let init = parts.init().ok_or_else(|| eyre!("Missing Init part"))?;
-
-    let value = parts
-        .parts
-        .iter()
-        .filter_map(|part| part.as_data())
-        .fold(1, |acc, data| acc * data.factor);
-
-    Ok(ProposedValue {
-        height: parts.height,
-        round: parts.round,
-        valid_round: init.pol_round,
-        proposer: parts.proposer,
-        value: Value::new(value),
-        validity: Validity::Valid, // TODO: Check signature in Fin part
-    })
 }
 
 /// Encode a value to its byte representation
@@ -528,20 +533,4 @@ fn factor_value(value: Value) -> Vec<u64> {
     }
 
     factors
-}
-
-/// Represents errors that can occur during the verification of a proposal's signature.
-#[derive(Debug)]
-enum SignatureVerificationError {
-    /// Indicates that the `Init` part of the proposal is unexpectedly missing.
-    MissingInitPart,
-
-    /// Indicates that the `Fin` part of the proposal is unexpectedly missing.
-    MissingFinPart,
-
-    /// Indicates that the proposer was not found in the validator set.
-    ProposerNotFound,
-
-    /// Indicates that the signature in the `Fin` part is invalid.
-    InvalidSignature,
 }

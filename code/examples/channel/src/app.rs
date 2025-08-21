@@ -64,15 +64,17 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 info!(%height, %round, "Found {} pending proposal parts, validating...", pending_parts.len());
 
                 for parts in &pending_parts {
+                    // Remove the parts from pending
+                    state
+                        .store
+                        .remove_pending_proposal_parts(parts.clone())
+                        .await?;
+
                     match state.validate_proposal(parts) {
                         Ok(()) => {
                             // Validation passed - convert to ProposedValue and move to undecided
                             let value = State::assemble_value_from_parts(parts.clone())?;
                             state.store.store_undecided_proposal(value).await?;
-                            state
-                                .store
-                                .remove_pending_proposal_parts(parts.clone())
-                                .await?;
                             info!(
                                 height = %parts.height,
                                 round = %parts.round,
@@ -81,11 +83,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                             );
                         }
                         Err(error) => {
-                            // Validation failed - remove invalid proposal
-                            state
-                                .store
-                                .remove_pending_proposal_parts(parts.clone())
-                                .await?;
+                            // Validation failed, log error
                             error!(
                                 height = %parts.height,
                                 round = %parts.round,
