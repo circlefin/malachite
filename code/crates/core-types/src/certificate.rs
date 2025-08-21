@@ -1,3 +1,4 @@
+use alloc::string::ToString;
 use alloc::vec::Vec;
 use bytes::Bytes;
 use derive_where::derive_where;
@@ -5,7 +6,7 @@ use malachitebft_peer::PeerId;
 use thiserror::Error;
 
 use crate::{
-    Context, NilOrVal, Round, Signature, SignedVote, ValueId, Vote, VoteType, VotingPower,
+    BoxError, Context, NilOrVal, Round, Signature, SignedVote, ValueId, Vote, VoteType, VotingPower,
 };
 
 /// Represents a signature for a commit certificate, with the address of the validator that produced it.
@@ -136,7 +137,7 @@ impl<Ctx: Context> PolkaCertificate<Ctx> {
 
 /// Represents an error that can occur when verifying a certificate.
 #[derive(Error)]
-#[derive_where(Clone, Debug, PartialEq, Eq)]
+#[derive_where(Debug, PartialEq)]
 pub enum CertificateError<Ctx: Context> {
     /// One of the commit signatures is invalid.
     #[error("Invalid commit signature: {0:?}")]
@@ -175,6 +176,10 @@ pub enum CertificateError<Ctx: Context> {
     /// A Prevote was incorrectly included in a Precommit round certificate.
     #[error("Prevote received in precommit round certificate from validator: {0}")]
     InvalidVoteType(Ctx::Address),
+
+    /// An error occurred while verifying the certificate.
+    #[error("Signature verification error: {}", .0.as_ref().map(|e| e.to_string()).unwrap_or_default())]
+    VerificationError(Option<BoxError>),
 }
 
 /// Represents a signature for a round certificate, with the address of the validator that produced it.
