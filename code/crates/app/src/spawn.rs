@@ -17,11 +17,12 @@ use malachitebft_engine::wal::{Wal, WalCodec, WalRef};
 use malachitebft_network::{
     ChannelNames, Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, Keypair,
 };
+use malachitebft_signing::SigningProvider;
 use malachitebft_sync as sync;
 
 use crate::config::{ConsensusConfig, PubSubProtocol, ValueSyncConfig};
 use crate::metrics::{Metrics, SharedRegistry};
-use crate::types::core::{Context, SigningProvider};
+use crate::types::core::Context;
 use crate::types::ValuePayload;
 
 pub async fn spawn_node_actor<Ctx>(

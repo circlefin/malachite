@@ -40,3 +40,4 @@ workspace = true
 
 [dev-dependencies]
 malachitebft-test = { workspace = true }
+malachitebft-signing = { workspace = true }

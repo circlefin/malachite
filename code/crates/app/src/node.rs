@@ -11,9 +11,9 @@ use tokio::task::JoinHandle;
 use malachitebft_config::{
     ConsensusConfig, DiscoveryConfig, RuntimeConfig, TransportProtocol, ValueSyncConfig,
 };
-use malachitebft_core_types::SigningProvider;
 use malachitebft_engine::node::NodeRef;
 use malachitebft_engine::util::events::RxEvent;
+use malachitebft_signing::SigningProvider;
 
 use crate::types::core::{Context, PrivateKey, PublicKey, VotingPower};
 use crate::types::Keypair;
