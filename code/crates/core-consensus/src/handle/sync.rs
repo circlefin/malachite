@@ -37,10 +37,10 @@ where
 
     let effect = process_commit_certificate(co, state, metrics, value.certificate.clone())
         .await
-        .map(|_| Effect::SyncValue(value, proposer, Default::default()))
+        .map(|_| Effect::ValidSyncValue(value, proposer, Default::default()))
         .unwrap_or_else(|e| {
             error!("Error when processing commit certificate: {e}");
-            Effect::InvalidValue(peer, cert_height, e, Default::default())
+            Effect::InvalidSyncValue(peer, cert_height, e, Default::default())
         });
 
     perform!(co, effect);

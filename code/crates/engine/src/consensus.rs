@@ -1220,7 +1220,7 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::InvalidValue(peer, height, error, r) => {
+            Effect::InvalidSyncValue(peer, height, error, r) => {
                 if let Some(sync) = &self.sync {
                     if let ConsensusError::InvalidCommitCertificate(certificate, e) = error {
                         error!(
@@ -1245,7 +1245,7 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::SyncValue(value, proposer, r) => {
+            Effect::ValidSyncValue(value, proposer, r) => {
                 // NOTE: The state.height is not yet updated if this is an effect that is triggered by the
                 // Msg::StartHeight(height), with buffered sync value for height `height`. So this will panic.
                 // assert_eq!(value.certificate.height, state.height);
