@@ -475,6 +475,8 @@ where
 
         match &output {
             VKOutput::PolkaValue(val) => self.store_polka_certificate(vote_round, val),
+            // TODO: Can we have a scenario where this event is generated for a lower round
+            // and we set our round certificate for a certificate from a lower round?
             VKOutput::PrecommitAny => self.store_precommit_any_round_certificate(vote_round),
             VKOutput::SkipRound(round) => self.store_skip_round_certificate(*round),
             _ => (),
