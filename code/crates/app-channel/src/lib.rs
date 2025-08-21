@@ -16,7 +16,7 @@ mod connector;
 mod spawn;
 
 mod msgs;
-pub use msgs::{AppMsg, Channels, ConsensusMsg, NetworkMsg, Reply};
+pub use msgs::{AppMsg, Channels, ConsensusMsg, ConsensusRequest, NetworkMsg, Reply};
 
 mod run;
 pub use run::start_engine;

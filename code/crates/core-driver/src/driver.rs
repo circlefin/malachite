@@ -17,7 +17,7 @@ use malachitebft_core_votekeeper::keeper::VoteKeeper;
 
 use crate::input::Input;
 use crate::output::Output;
-use crate::proposal_keeper::{EvidenceMap, ProposalKeeper};
+use crate::proposal_keeper::ProposalKeeper;
 use crate::Error;
 use crate::ThresholdParams;
 
@@ -174,6 +174,11 @@ where
         &self.vote_keeper
     }
 
+    /// Return a reference to the proposal keeper
+    pub fn proposals(&self) -> &ProposalKeeper<Ctx> {
+        &self.proposal_keeper
+    }
+
     /// Return the state for the current round.
     pub fn round_state(&self) -> &RoundState<Ctx> {
         &self.round_state
@@ -197,9 +202,9 @@ where
         &self.validator_set
     }
 
-    /// Return recorded evidence of equivocation for this height.
-    pub fn evidence(&self) -> &EvidenceMap<Ctx> {
-        self.proposal_keeper.evidence()
+    /// Return the proposer address for the current round, if any.
+    pub fn proposer_address(&self) -> Option<&Ctx::Address> {
+        self.proposer.as_ref()
     }
 
     /// Return the proposer for the current round.

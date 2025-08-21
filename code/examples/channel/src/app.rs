@@ -1,20 +1,41 @@
 use std::time::Duration;
 
 use eyre::eyre;
-use malachitebft_app_channel::app::engine::host::Next;
+use tokio::sync::mpsc;
 use tokio::time::sleep;
 use tracing::{error, info};
 
+use malachitebft_app_channel::app::engine::host::Next;
 use malachitebft_app_channel::app::streaming::StreamContent;
 use malachitebft_app_channel::app::types::core::{Height as _, Round, Validity};
 use malachitebft_app_channel::app::types::sync::RawDecidedValue;
 use malachitebft_app_channel::app::types::{LocallyProposedValue, ProposedValue};
-use malachitebft_app_channel::{AppMsg, Channels, NetworkMsg};
+use malachitebft_app_channel::{AppMsg, Channels, ConsensusRequest, NetworkMsg};
 use malachitebft_test::{Height, TestContext};
 
 use crate::state::{decode_value, encode_value, State};
 
+/// Periodically request a state dump from consensus and print it to the console
+fn monitor_state(tx_request: mpsc::Sender<ConsensusRequest<TestContext>>) {
+    tokio::spawn(async move {
+        loop {
+            if let Some(dump) = ConsensusRequest::dump_state(&tx_request).await {
+                tracing::debug!("State dump: {dump:#?}");
+            } else {
+                tracing::debug!("Failed to dump state");
+            }
+
+            sleep(Duration::from_secs(1)).await;
+        }
+    });
+}
+
 pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyre::Result<()> {
+    // If the MALACHITE_MONITOR_STATE env var is set, start monitoring the consensus state
+    if std::env::var("MALACHITE_MONITOR_STATE").is_ok() {
+        monitor_state(channels.requests.clone());
+    }
+
     while let Some(msg) = channels.consensus.recv().await {
         match msg {
             // The first message to handle is the `ConsensusReady` message, signaling to the app
