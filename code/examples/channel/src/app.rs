@@ -70,7 +70,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         .remove_pending_proposal_parts(parts.clone())
                         .await?;
 
-                    match state.validate_proposal(parts) {
+                    match state.validate_proposal_parts(parts) {
                         Ok(()) => {
                             // Validation passed - convert to ProposedValue and move to undecided
                             let value = State::assemble_value_from_parts(parts.clone())?;
