@@ -20,6 +20,7 @@ mod keys;
 use keys::{HeightKey, UndecidedValueKey};
 
 use crate::store::keys::PendingValueKey;
+use crate::streaming::ProposalParts;
 
 #[derive(Clone, Debug)]
 pub struct DecidedValue {
@@ -59,6 +60,9 @@ pub enum StoreError {
 
     #[error("Failed to join on task: {0}")]
     TaskJoin(#[from] tokio::task::JoinError),
+
+    #[error("Failed to serialize/deserialize JSON: {0}")]
+    Serialization(#[from] serde_json::Error),
 }
 
 impl From<redb::TransactionError> for StoreError {
@@ -76,8 +80,8 @@ const DECIDED_VALUES_TABLE: redb::TableDefinition<HeightKey, Vec<u8>> =
 const UNDECIDED_PROPOSALS_TABLE: redb::TableDefinition<UndecidedValueKey, Vec<u8>> =
     redb::TableDefinition::new("undecided_values");
 
-const PENDING_PROPOSALS_TABLE: redb::TableDefinition<PendingValueKey, Vec<u8>> =
-    redb::TableDefinition::new("pending_values");
+const PENDING_PROPOSAL_PARTS_TABLE: redb::TableDefinition<PendingValueKey, Vec<u8>> =
+    redb::TableDefinition::new("pending_proposal_parts");
 
 struct Db {
     db: redb::Database,
@@ -191,42 +195,13 @@ impl Db {
         Ok(())
     }
 
-    fn insert_pending_proposal(
-        &self,
-        proposal: ProposedValue<TestContext>,
-    ) -> Result<(), StoreError> {
-        let key = (proposal.height, proposal.round, proposal.value.id());
-        let value = ProtobufCodec.encode(&proposal)?;
-        let tx = self.db.begin_write()?;
-        {
-            let mut table = tx.open_table(PENDING_PROPOSALS_TABLE)?;
-            table.insert(key, value.to_vec())?;
-        }
-        tx.commit()?;
-        Ok(())
-    }
-
-    fn remove_pending_proposal(
-        &self,
-        proposal: ProposedValue<TestContext>,
-    ) -> Result<(), StoreError> {
-        let key = (proposal.height, proposal.round, proposal.value.id());
-        let tx = self.db.begin_write()?;
-        {
-            let mut table = tx.open_table(PENDING_PROPOSALS_TABLE)?;
-            table.remove(&key)?;
-        }
-        tx.commit()?;
-        Ok(())
-    }
-
-    fn get_pending_proposals(
+    fn get_pending_proposal_parts(
         &self,
         height: Height,
         round: Round,
-    ) -> Result<Vec<ProposedValue<TestContext>>, StoreError> {
+    ) -> Result<Vec<ProposalParts>, StoreError> {
         let tx = self.db.begin_read()?;
-        let table = tx.open_table(PENDING_PROPOSALS_TABLE)?;
+        let table = tx.open_table(PENDING_PROPOSAL_PARTS_TABLE)?;
 
         let mut proposals = Vec::new();
         for result in table.iter()? {
@@ -236,15 +211,73 @@ impl Db {
             if h == height && r == round {
                 let bytes = value.value();
 
-                let proposal = ProtobufCodec
-                    .decode(Bytes::from(bytes))
-                    .map_err(StoreError::Protobuf)?;
+                let parts: ProposalParts = serde_json::from_slice(&bytes)?;
 
-                proposals.push(proposal);
+                proposals.push(parts);
             }
         }
 
         Ok(proposals)
+    }
+
+    fn remove_pending_proposal_parts(&self, parts: ProposalParts) -> Result<(), StoreError> {
+        let key = (
+            parts.height,
+            parts.round,
+            Self::generate_value_id_from_parts(&parts),
+        );
+        let tx = self.db.begin_write()?;
+        {
+            let mut table = tx.open_table(PENDING_PROPOSAL_PARTS_TABLE)?;
+            table.remove(key)?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    fn insert_pending_proposal_parts(&self, parts: ProposalParts) -> Result<(), StoreError> {
+        let key = (
+            parts.height,
+            parts.round,
+            Self::generate_value_id_from_parts(&parts),
+        );
+        let value = serde_json::to_vec(&parts)?;
+
+        let tx = self.db.begin_write()?;
+        {
+            let mut table = tx.open_table(PENDING_PROPOSAL_PARTS_TABLE)?;
+            table.insert(key, value.clone())?;
+        }
+        tx.commit()?;
+
+        Ok(())
+    }
+
+    // Helper method to generate a unique ValueId from proposal parts
+    pub fn generate_value_id_from_parts(parts: &ProposalParts) -> ValueId {
+        use sha3::{Digest, Keccak256};
+
+        let mut hasher = Keccak256::new();
+
+        // Hash height, round, and proposer
+        hasher.update(parts.height.as_u64().to_be_bytes());
+        hasher.update(parts.round.as_i64().to_be_bytes());
+        hasher.update(parts.proposer.into_inner());
+
+        // Hash all the proposal parts content
+        for part in &parts.parts {
+            if let Some(data) = part.as_data() {
+                hasher.update(data.factor.to_be_bytes());
+            }
+        }
+
+        // In the generate_value_id_from_parts method:
+        let hash = hasher.finalize();
+
+        // Use first 8 bytes of hash to create ValueId
+        let mut bytes = [0u8; 8];
+        bytes.copy_from_slice(&hash[..8]);
+        ValueId::new(u64::from_be_bytes(bytes))
     }
 
     fn prune(&self, current_height: Height, retain_height: Height) -> Result<(), StoreError> {
@@ -255,7 +288,7 @@ impl Db {
             undecided.retain(|(height, _, _), _| height > current_height)?;
 
             // Remove all pending proposals with height <= current_height
-            let mut pending = tx.open_table(PENDING_PROPOSALS_TABLE)?;
+            let mut pending = tx.open_table(PENDING_PROPOSAL_PARTS_TABLE)?;
             pending.retain(|(height, _, _), _| height > current_height)?;
 
             // Prune decided values and certificates up to the retain height
@@ -292,7 +325,7 @@ impl Db {
         let _ = tx.open_table(DECIDED_VALUES_TABLE)?;
         let _ = tx.open_table(CERTIFICATES_TABLE)?;
         let _ = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
-        let _ = tx.open_table(PENDING_PROPOSALS_TABLE)?;
+        let _ = tx.open_table(PENDING_PROPOSAL_PARTS_TABLE)?;
         tx.commit()?;
         Ok(())
     }
@@ -381,14 +414,6 @@ impl Store {
         tokio::task::spawn_blocking(move || db.insert_undecided_proposal(value)).await?
     }
 
-    pub async fn remove_pending_proposal(
-        &self,
-        value: ProposedValue<TestContext>,
-    ) -> Result<(), StoreError> {
-        let db = Arc::clone(&self.db);
-        tokio::task::spawn_blocking(move || db.remove_pending_proposal(value)).await?
-    }
-
     pub async fn get_undecided_proposal(
         &self,
         height: Height,
@@ -409,21 +434,35 @@ impl Store {
         tokio::task::spawn_blocking(move || db.get_undecided_proposals(height, round)).await?
     }
 
-    pub async fn store_pending_proposal(
+    /// Stores a pending proposal parts.
+    /// Called by the application when receiving new proposals from peers.
+    pub async fn store_pending_proposal_parts(
         &self,
-        value: ProposedValue<TestContext>,
+        value: ProposalParts,
     ) -> Result<(), StoreError> {
         let db = Arc::clone(&self.db);
-        tokio::task::spawn_blocking(move || db.insert_pending_proposal(value)).await?
+        tokio::task::spawn_blocking(move || db.insert_pending_proposal_parts(value)).await?
     }
 
-    pub async fn get_pending_proposals(
+    /// Retrieves all pendingproposal parts for a given height and round.
+    /// Called by the application when starting a new round and existing proposals need to be replayed.
+    pub async fn get_pending_proposal_parts(
         &self,
         height: Height,
         round: Round,
-    ) -> Result<Vec<ProposedValue<TestContext>>, StoreError> {
+    ) -> Result<Vec<ProposalParts>, StoreError> {
         let db = Arc::clone(&self.db);
-        tokio::task::spawn_blocking(move || db.get_pending_proposals(height, round)).await?
+        tokio::task::spawn_blocking(move || db.get_pending_proposal_parts(height, round)).await?
+    }
+
+    /// Removes a pending proposal parts.
+    /// Called by the application when a proposal is no longer valid.
+    pub async fn remove_pending_proposal_parts(
+        &self,
+        value: ProposalParts,
+    ) -> Result<(), StoreError> {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.remove_pending_proposal_parts(value)).await?
     }
 
     pub async fn prune(

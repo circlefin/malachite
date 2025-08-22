@@ -480,7 +480,14 @@ where
 
         match &output {
             VKOutput::PolkaValue(val) => self.store_polka_certificate(vote_round, val),
-            VKOutput::PrecommitAny => self.store_precommit_any_round_certificate(vote_round),
+            // Only store PrecommitAny certificates for the current round:
+            // - Lower round PrecommitAny is ignored
+            // - Higher round PrecommitAny cannot occur because receiving 2f+1
+            //   Precommit votes for a higher round would first generate a SkipRound certificate,
+            //   advancing the node to that round before the PrecommitAny is processed
+            VKOutput::PrecommitAny if this_round == vote_round => {
+                self.store_precommit_any_round_certificate(vote_round)
+            }
             VKOutput::SkipRound(round) => self.store_skip_round_certificate(*round),
             _ => (),
         }
