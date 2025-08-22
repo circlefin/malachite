@@ -135,7 +135,7 @@ impl State {
     }
 
     /// Validates a proposal by checking both proposer and signature
-    pub fn validate_proposal(&self, parts: &ProposalParts) -> Result<(), ProposalValidationError> {
+    pub fn validate_proposal_parts(&self, parts: &ProposalParts) -> Result<(), ProposalValidationError> {
         let height = parts.height;
         let round = parts.round;
 
