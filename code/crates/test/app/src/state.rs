@@ -132,7 +132,10 @@ impl State {
     }
 
     /// Validates a proposal by checking both proposer and signature
-    pub fn validate_proposal(&self, parts: &ProposalParts) -> Result<(), ProposalValidationError> {
+    pub fn validate_proposal_parts(
+        &self,
+        parts: &ProposalParts,
+    ) -> Result<(), ProposalValidationError> {
         let height = parts.height;
         let round = parts.round;
 
@@ -154,14 +157,14 @@ impl State {
         }
 
         // If proposer is correct, verify the signature
-        self.verify_proposal_signature(parts)
+        self.verify_proposal_parts_signature(parts)
             .map_err(ProposalValidationError::Signature)?;
 
         Ok(())
     }
 
     /// Verify proposal signature
-    fn verify_proposal_signature(
+    fn verify_proposal_parts_signature(
         &self,
         parts: &ProposalParts,
     ) -> Result<(), SignatureVerificationError> {
@@ -242,7 +245,7 @@ impl State {
         }
 
         // For current height, validate proposal (proposer + signature)
-        match self.validate_proposal(&parts) {
+        match self.validate_proposal_parts(&parts) {
             Ok(()) => {
                 // Validation passed - assemble and store as undecided
                 let value = Self::assemble_value_from_parts(parts)?;
@@ -523,7 +526,7 @@ impl State {
             valid_round: init.pol_round,
             proposer: parts.proposer,
             value: Value::new(value),
-            validity: Validity::Valid, // TODO: Check signature in Fin part
+            validity: Validity::Valid,
         })
     }
 }

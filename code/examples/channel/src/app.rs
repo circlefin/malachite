@@ -293,7 +293,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         validity: Validity::Valid,
                     };
 
-                    // TODO: Should we do some validation at the app side for these synced values?
+                    // TODO: We plan to add some validation here in the future.
                     state
                         .store
                         .store_undecided_proposal(proposed_value.clone())

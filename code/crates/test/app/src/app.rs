@@ -13,15 +13,11 @@ use malachitebft_app_channel::app::types::sync::RawDecidedValue;
 use malachitebft_app_channel::app::types::{LocallyProposedValue, ProposedValue};
 use malachitebft_app_channel::{AppMsg, Channels, NetworkMsg};
 use malachitebft_test::codec::json::JsonCodec;
-use malachitebft_test::{Genesis, Height, TestContext};
+use malachitebft_test::{Height, TestContext};
 
 use crate::state::{decode_value, State};
 
-pub async fn run(
-    _genesis: Genesis,
-    state: &mut State,
-    channels: &mut Channels<TestContext>,
-) -> eyre::Result<()> {
+pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyre::Result<()> {
     while let Some(msg) = channels.consensus.recv().await {
         match msg {
             // The first message to handle is the `ConsensusReady` message, signaling to the app
@@ -78,7 +74,7 @@ pub async fn run(
                         .remove_pending_proposal_parts(parts.clone())
                         .await?;
 
-                    match state.validate_proposal(parts) {
+                    match state.validate_proposal_parts(parts) {
                         Ok(()) => {
                             // Validation passed - convert to ProposedValue and move to undecided
                             let value = State::assemble_value_from_parts(parts.clone())?;
@@ -285,7 +281,7 @@ pub async fn run(
                         validity: Validity::Valid,
                     };
 
-                    // TODO: Should we do some validation at the app side for these synced values?
+                    // TODO: We plan to add some validation here in the future.
                     state.store_synced_value(proposal.clone()).await?;
 
                     if reply.send(Some(proposal)).is_err() {
