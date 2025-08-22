@@ -308,7 +308,7 @@ where
                 // Prune all votes and certificates for the previous rounds as we know we are not going to use them anymore.
                 state.driver.prune_votes_and_certificates(vote.round());
 
-                if state.driver.round() >= HIDDEN_LOCK_ROUND {
+                if state.driver.round() >= HIDDEN_LOCK_ROUND && state.is_active_validator() {
                     if let Some((signed_proposal, Validity::Valid)) = state
                         .driver
                         .proposal_and_validity_for_round_and_value(vote.round(), value_id.clone())
