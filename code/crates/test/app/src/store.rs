@@ -61,8 +61,8 @@ pub enum StoreError {
     #[error("Failed to join on task: {0}")]
     TaskJoin(#[from] tokio::task::JoinError),
 
-    #[error("Serialization error: {0}")]
-    Serialization(String),
+    #[error("Failed to serialize/deserialize JSON: {0}")]
+    Serialization(#[from] serde_json::Error),
 }
 
 impl From<redb::TransactionError> for StoreError {
@@ -211,8 +211,7 @@ impl Db {
             if h == height && r == round {
                 let bytes = value.value();
 
-                let parts: ProposalParts = serde_json::from_slice(&bytes)
-                    .map_err(|e| StoreError::Serialization(e.to_string()))?;
+                let parts: ProposalParts = serde_json::from_slice(&bytes)?;
 
                 proposals.push(parts);
             }
@@ -242,8 +241,7 @@ impl Db {
             parts.round,
             Self::generate_value_id_from_parts(&parts),
         );
-        let value =
-            serde_json::to_vec(&parts).map_err(|e| StoreError::Serialization(e.to_string()))?;
+        let value = serde_json::to_vec(&parts)?;
 
         let tx = self.db.begin_write()?;
         {

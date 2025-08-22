@@ -18,7 +18,7 @@ use malachitebft_test::{Genesis, Height, TestContext};
 use crate::state::{decode_value, State};
 
 pub async fn run(
-    genesis: Genesis,
+    _genesis: Genesis,
     state: &mut State,
     channels: &mut Channels<TestContext>,
 ) -> eyre::Result<()> {
@@ -41,9 +41,7 @@ pub async fn run(
                 // We can simply respond by telling the engine to start consensus
                 // at the next height, and provide it with the appropriate validator set
                 let validator_set = state
-                    .ctx
-                    .middleware()
-                    .get_validator_set(&state.ctx, start_height, start_height, &genesis)
+                    .get_validator_set(start_height)
                     .expect("Validator set should be available");
 
                 if reply.send((start_height, validator_set)).is_err() {
@@ -202,12 +200,7 @@ pub async fn run(
             //
             // We send back the appropriate validator set for that height.
             AppMsg::GetValidatorSet { height, reply } => {
-                let validator_set = state.ctx.middleware().get_validator_set(
-                    &state.ctx,
-                    state.current_height,
-                    height,
-                    &genesis,
-                );
+                let validator_set = state.get_validator_set(height);
 
                 if reply.send(validator_set).is_err() {
                     error!("Failed to send GetValidatorSet reply");
@@ -237,14 +230,7 @@ pub async fn run(
                     Ok(_) => {
                         // And then we instruct consensus to start the next height
                         let validator_set = state
-                            .ctx
-                            .middleware()
-                            .get_validator_set(
-                                &state.ctx,
-                                state.current_height,
-                                state.current_height,
-                                &genesis,
-                            )
+                            .get_validator_set(state.current_height)
                             .expect("Validator set should be available");
 
                         if reply
@@ -260,14 +246,7 @@ pub async fn run(
                         error!("Restarting height {}", state.current_height);
 
                         let validator_set = state
-                            .ctx
-                            .middleware()
-                            .get_validator_set(
-                                &state.ctx,
-                                state.current_height,
-                                state.current_height,
-                                &genesis,
-                            )
+                            .get_validator_set(state.current_height)
                             .expect("Validator set should be available");
 
                         if reply

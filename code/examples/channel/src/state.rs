@@ -2,6 +2,7 @@
 //! A regular application would have mempool implemented, a proper database and input methods like RPC.
 
 use std::collections::HashMap;
+use std::fmt;
 use std::time::Duration;
 
 use bytes::{Bytes, BytesMut};
@@ -68,9 +69,22 @@ pub enum SignatureVerificationError {
 #[allow(dead_code)]
 pub enum ProposalValidationError {
     /// Proposer doesn't match the expected proposer for the given round
-    WrongProposer,
+    WrongProposer { actual: Address, expected: Address },
     /// Signature verification errors
     Signature(SignatureVerificationError),
+}
+
+impl fmt::Display for ProposalValidationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ProposalValidationError::WrongProposer { actual, expected } => {
+                write!(f, "Wrong proposer: got {}, expected {}", actual, expected)
+            }
+            ProposalValidationError::Signature(err) => {
+                write!(f, "Signature verification failed: {:?}", err)
+            }
+        }
+    }
 }
 
 /// Make up a seed for the rng based on our address and instance id.
@@ -134,7 +148,10 @@ impl State {
 
         // Check if the proposer matches the expected proposer
         if parts.proposer != expected_proposer {
-            return Err(ProposalValidationError::WrongProposer);
+            return Err(ProposalValidationError::WrongProposer {
+                actual: parts.proposer,
+                expected: expected_proposer,
+            });
         }
 
         // If proposer is correct, verify the signature

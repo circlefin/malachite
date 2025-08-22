@@ -2,6 +2,7 @@
 //! A regular application would have mempool implemented, a proper database and input methods like RPC.
 
 use std::collections::HashSet;
+use std::fmt;
 
 use bytes::Bytes;
 use eyre::eyre;
@@ -66,9 +67,22 @@ pub enum SignatureVerificationError {
 #[allow(dead_code)]
 pub enum ProposalValidationError {
     /// Proposer doesn't match the expected proposer for the given round
-    WrongProposer,
+    WrongProposer { actual: Address, expected: Address },
     /// Signature verification errors
     Signature(SignatureVerificationError),
+}
+
+impl fmt::Display for ProposalValidationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ProposalValidationError::WrongProposer { actual, expected } => {
+                write!(f, "Wrong proposer: got {}, expected {}", actual, expected)
+            }
+            ProposalValidationError::Signature(err) => {
+                write!(f, "Signature verification failed: {:?}", err)
+            }
+        }
+    }
 }
 
 impl State {
@@ -99,9 +113,14 @@ impl State {
         }
     }
 
-    /// Returns the set of validators.
-    pub fn get_validator_set(&self) -> &ValidatorSet {
-        &self.genesis.validator_set
+    /// Returns the set of validators for the given height.
+    pub fn get_validator_set(&self, height: Height) -> Option<ValidatorSet> {
+        self.ctx.middleware().get_validator_set(
+            &self.ctx,
+            self.current_height,
+            height,
+            &self.genesis,
+        )
     }
 
     /// Returns the earliest height available in the state
@@ -118,7 +137,9 @@ impl State {
         let round = parts.round;
 
         // Get the expected proposer for this height and round
-        let validator_set = self.get_validator_set();
+        let validator_set = self
+            .get_validator_set(height)
+            .expect("Validator set should be available");
         let expected_proposer = self
             .ctx
             .select_proposer(&validator_set, height, round)
@@ -126,7 +147,10 @@ impl State {
 
         // Check if the proposer matches the expected proposer
         if parts.proposer != expected_proposer {
-            return Err(ProposalValidationError::WrongProposer);
+            return Err(ProposalValidationError::WrongProposer {
+                actual: parts.proposer,
+                expected: expected_proposer,
+            });
         }
 
         // If proposer is correct, verify the signature
@@ -165,7 +189,9 @@ impl State {
         };
 
         // Retrieve the proposer from the validator set for the given height
-        let validator_set = self.get_validator_set();
+        let validator_set = self
+            .get_validator_set(parts.height)
+            .expect("Validator set should be available");
         let proposer = validator_set
             .get_by_address(&parts.proposer)
             .ok_or(SignatureVerificationError::ProposerNotFound)?;
