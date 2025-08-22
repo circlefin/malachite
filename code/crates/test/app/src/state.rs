@@ -503,6 +503,9 @@ impl State {
     /// Re-assemble a [`ProposedValue`] from its [`ProposalParts`].
     ///
     /// This is done by multiplying all the factors in the parts.
+    ///
+    /// ## Important
+    /// This method assumes that the proposal parts have already been validated by `validate_proposal_parts`
     pub fn assemble_value_from_parts(
         parts: ProposalParts,
     ) -> eyre::Result<ProposedValue<TestContext>> {
