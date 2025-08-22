@@ -7,7 +7,7 @@ use async_recursion::async_recursion;
 use async_trait::async_trait;
 use derive_where::derive_where;
 use eyre::eyre;
-use ractor::{Actor, ActorProcessingErr, ActorRef};
+use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::time::Instant;
 use tracing::{debug, error, error_span, info, warn};
 
@@ -36,6 +36,9 @@ use crate::wal::{Msg as WalMsg, WalEntry, WalRef};
 pub use malachitebft_core_consensus::Error as ConsensusError;
 pub use malachitebft_core_consensus::Params as ConsensusParams;
 pub use malachitebft_core_consensus::State as ConsensusState;
+
+pub mod state_dump;
+use state_dump::StateDump;
 
 /// Codec for consensus messages.
 ///
@@ -112,6 +115,9 @@ pub enum Msg<Ctx: Context> {
     /// 2. Since consensus resets its write-ahead log, the node may equivocate on proposals and votes
     ///    for the restarted height, potentially violating protocol safety
     RestartHeight(Ctx::Height, Ctx::ValidatorSet),
+
+    /// Request to dump the current consensus state
+    DumpState(RpcReplyPort<StateDump<Ctx>>),
 }
 
 impl<Ctx: Context> fmt::Display for Msg<Ctx> {
@@ -148,6 +154,7 @@ impl<Ctx: Context> fmt::Display for Msg<Ctx> {
                 value.height, value.round
             ),
             Msg::RestartHeight(height, _) => write!(f, "RestartHeight(height={height})"),
+            Msg::DumpState(_) => write!(f, "DumpState"),
         }
     }
 }
@@ -612,6 +619,16 @@ where
 
                 if let Err(e) = result {
                     error!("Error when processing ReceivedProposedValue message: {e}");
+                }
+
+                Ok(())
+            }
+
+            Msg::DumpState(reply_to) => {
+                let dump = StateDump::new(&state.consensus);
+
+                if let Err(e) = reply_to.send(dump) {
+                    error!("Failed to reply with state dump: {e}");
                 }
 
                 Ok(())
