@@ -1247,8 +1247,7 @@ where
 
             Effect::ValidSyncValue(value, proposer, r) => {
                 // NOTE: The state.height is not yet updated if this is an effect that is triggered by the
-                // Msg::StartHeight(height), with buffered sync value for height `height`. So this will panic.
-                // assert_eq!(value.certificate.height, state.height);
+                // Msg::StartHeight(height), with buffered sync value for height `height`.
 
                 let certificate_height = value.certificate.height;
                 let certificate_round = value.certificate.round;
