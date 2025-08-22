@@ -12,8 +12,17 @@ pub async fn on_value_response<Ctx>(
 where
     Ctx: Context,
 {
-    let consensus_height = state.driver.height();
+    let consensus_height = state.height();
     let cert_height = value.certificate.height;
+
+    if consensus_height > cert_height {
+        debug!(
+            %consensus_height,
+            %cert_height,
+            "Received value response for lower height, ignoring"
+        );
+        return Ok(());
+    }
 
     if consensus_height < cert_height {
         debug!(%consensus_height, %cert_height, "Received value response for higher height, queuing for later");
