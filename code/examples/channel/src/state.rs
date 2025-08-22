@@ -162,7 +162,7 @@ impl State {
     }
 
     /// Verify proposal signature
-    fn verify_proposal_signature(
+    fn verify_proposal_parts_signature(
         &self,
         parts: &ProposalParts,
     ) -> Result<(), SignatureVerificationError> {
