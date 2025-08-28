@@ -306,10 +306,13 @@ where
     // If the response contains a prefix of the requested values, re-request the remaining values.
     if let Some((requested_range, stored_peer_id)) = state.pending_requests.get(&request_id) {
         if stored_peer_id != &peer_id {
-            warn!(
+            // Defensive check: This should never happen because this check is already performed in
+            // the handler of `Input::ValueResponse`.
+            error!(
                 %request_id, peer.actual = %peer_id, peer.expected = %stored_peer_id,
                 "Received response from different peer than expected"
             );
+            return on_invalid_value_response(co, state, metrics, request_id, peer_id).await;
         }
 
         let range_len = requested_range.end().as_u64() - requested_range.start().as_u64() + 1;
