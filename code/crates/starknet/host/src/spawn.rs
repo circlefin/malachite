@@ -28,20 +28,17 @@ use crate::mempool::{Mempool, MempoolRef};
 use crate::mempool_load::{MempoolLoad, MempoolLoadRef, Params};
 use crate::metrics::Metrics as AppMetrics;
 use crate::types::MockContext;
-use crate::types::{Address, Height, PrivateKey, ValidatorSet};
+use crate::types::{Address, PrivateKey, ValidatorSet};
 
 pub async fn spawn_node_actor(
     cfg: Config,
     home_dir: PathBuf,
     initial_validator_set: ValidatorSet,
     private_key: PrivateKey,
-    start_height: Option<Height>,
     tx_event: TxEvent<MockContext>,
     span: tracing::Span,
 ) -> (NodeRef, JoinHandle<()>) {
     let ctx = MockContext::new();
-
-    let start_height = start_height.unwrap_or(Height::new(1, 1));
 
     let registry = SharedRegistry::global().with_moniker(cfg.moniker.as_str());
     let consensus_metrics = ConsensusMetrics::register(&registry);
@@ -88,8 +85,6 @@ pub async fn spawn_node_actor(
 
     // Spawn consensus
     let consensus = spawn_consensus_actor(
-        start_height,
-        initial_validator_set,
         address,
         ctx,
         cfg,
@@ -179,8 +174,6 @@ async fn spawn_sync_actor(
 
 #[allow(clippy::too_many_arguments)]
 async fn spawn_consensus_actor(
-    initial_height: Height,
-    initial_validator_set: ValidatorSet,
     address: Address,
     ctx: MockContext,
     mut cfg: Config,
@@ -194,8 +187,6 @@ async fn spawn_consensus_actor(
     span: &tracing::Span,
 ) -> ConsensusRef<MockContext> {
     let consensus_params = ConsensusParams {
-        initial_height,
-        initial_validator_set,
         address,
         threshold_params: Default::default(),
         value_payload: ValuePayload::PartsOnly,

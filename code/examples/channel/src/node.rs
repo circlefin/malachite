@@ -122,7 +122,6 @@ impl Node for App {
         let ctx = TestContext::new();
 
         let genesis = self.load_genesis()?;
-        let initial_validator_set = genesis.validator_set.clone();
 
         let (mut channels, engine_handle) = malachitebft_app_channel::start_engine(
             ctx.clone(),
@@ -130,8 +129,6 @@ impl Node for App {
             config.clone(),
             ProtobufCodec, // WAL codec
             ProtobufCodec, // Network codec
-            self.start_height,
-            initial_validator_set,
         )
         .await?;
 

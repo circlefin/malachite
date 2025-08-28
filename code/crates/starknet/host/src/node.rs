@@ -20,7 +20,7 @@ use malachitebft_starknet_p2p_types::Ed25519Provider;
 
 use crate::config::{load_config, Config};
 use crate::spawn::spawn_node_actor;
-use crate::types::{Address, Height, MockContext, PrivateKey, PublicKey, Validator, ValidatorSet};
+use crate::types::{Address, MockContext, PrivateKey, PublicKey, Validator, ValidatorSet};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Genesis {
@@ -160,14 +160,11 @@ impl Node for StarknetNode {
         let genesis = self.load_genesis()?;
         let tx_event = TxEvent::new();
 
-        let start_height = self.start_height.map(|height| Height::new(height, 1));
-
         let (actor, handle) = spawn_node_actor(
             config.clone(),
             self.home_dir.clone(),
             genesis.validator_set,
             private_key,
-            start_height,
             tx_event.clone(),
             span.clone(),
         )
