@@ -1,13 +1,13 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
-
 use crate::{TestBuilder, TestParams};
+use bytesize::ByteSize;
 use eyre::bail;
 use informalsystems_malachitebft_test::middleware::{Middleware, RotateEpochValidators};
 use informalsystems_malachitebft_test::TestContext;
 use malachitebft_config::ValuePayload;
 use malachitebft_core_consensus::ProposedValue;
 use malachitebft_core_types::CommitCertificate;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 
 pub async fn crash_restart_from_start(params: TestParams) {
     const HEIGHT: u64 = 6;
@@ -415,4 +415,54 @@ pub async fn reset_height() {
             },
         )
         .await
+}
+
+#[tokio::test]
+pub async fn response_size_limit_exceeded() {
+    const HEIGHT: u64 = 5;
+
+    let mut test = TestBuilder::<()>::new();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .success();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .success();
+
+    // Node 3 starts with 5 voting power, in parallel with node 1 and 2.
+    test.add_node()
+        .with_voting_power(5)
+        .start()
+        // Wait until the node reaches height 2...
+        .wait_until(2)
+        // ...and then kills it
+        .crash()
+        // Reset the database so that the node has to do Sync from height 1
+        .reset_db()
+        // After that, it waits 5 seconds before restarting the node
+        .restart_after(Duration::from_secs(5))
+        // Wait until the node reached the expected height
+        .wait_until(HEIGHT)
+        // Record a successful test for this node
+        .success();
+
+    test.build()
+        .run_with_params(
+            Duration::from_secs(60),
+            TestParams {
+                enable_value_sync: true,
+                // Values are around ~900 bytes, so this `max_response_size` in combination
+                // with a `batch_size` of 2 leads to having a syncing peer sending partial responses.
+                max_response_size: ByteSize::b(1000),
+                batch_size: 2,
+                parallel_requests: 1,
+                ..Default::default()
+            },
+        ).await
 }
