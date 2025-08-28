@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use tracing::{warn};
+use tracing::warn;
 
 /// A data structure that maintains a queue of values associated with monotonically increasing indices.
 ///
