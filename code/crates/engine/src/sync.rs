@@ -12,18 +12,18 @@ use rand::SeedableRng;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, warn, Instrument};
 
-use malachitebft_codec as codec;
-use malachitebft_core_consensus::PeerId;
-use malachitebft_core_types::{CommitCertificate, Context, Height};
-use malachitebft_sync::{
-    self as sync, HeightStartType, InboundRequestId, OutboundRequestId, RawDecidedValue, Request,
-    Response, Resumable,
-};
-use malachitebft_sync::Response::ValueResponse;
 use crate::host::{HostMsg, HostRef};
 use crate::network::{NetworkEvent, NetworkMsg, NetworkRef, Status};
 use crate::util::ticker::ticker;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
+use malachitebft_codec as codec;
+use malachitebft_core_consensus::PeerId;
+use malachitebft_core_types::{CommitCertificate, Context, Height};
+use malachitebft_sync::Response::ValueResponse;
+use malachitebft_sync::{
+    self as sync, HeightStartType, InboundRequestId, OutboundRequestId, RawDecidedValue, Request,
+    Response, Resumable,
+};
 
 /// Codec for sync protocol messages
 ///
@@ -298,16 +298,17 @@ where
                         .success_or(eyre!("Failed to get decided value for height {height}"))?;
 
                     if let Some(value) = value {
-                        let value_response = ValueResponse(sync::ValueResponse::new(*range.start(), vec![value.clone()]));
+                        let value_response = ValueResponse(sync::ValueResponse::new(
+                            *range.start(),
+                            vec![value.clone()],
+                        ));
 
                         let result = ractor::call!(self.gossip, move |reply_to| {
                             NetworkMsg::GetResponseSize(value_response.clone(), reply_to)
                         });
 
                         let total_value_size_bytes = match result {
-                            Ok(value_in_bytes) => {
-                                value_in_bytes
-                            }
+                            Ok(value_in_bytes) => value_in_bytes,
                             Err(e) => {
                                 error!("Failed to get response size for value, stopping at for height {}: {:?}", height, e);
                                 break;
@@ -332,7 +333,6 @@ where
 
                     height = height.increment();
                 }
-
 
                 myself.cast(Msg::<Ctx>::GotDecidedValues(request_id, range, values))?;
 

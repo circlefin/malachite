@@ -10,7 +10,9 @@ use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
 use tracing::{error, trace};
 
-use malachitebft_sync::{self as sync, InboundRequestId, OutboundRequestId, RawMessage, Request, Response};
+use malachitebft_sync::{
+    self as sync, InboundRequestId, OutboundRequestId, RawMessage, Request, Response,
+};
 
 use malachitebft_codec as codec;
 use malachitebft_core_consensus::{LivenessMsg, SignedConsensusMsg};

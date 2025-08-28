@@ -464,5 +464,6 @@ pub async fn response_size_limit_exceeded() {
                 parallel_requests: 1,
                 ..Default::default()
             },
-        ).await
+        )
+        .await
 }
