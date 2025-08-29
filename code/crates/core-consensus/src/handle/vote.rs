@@ -62,6 +62,8 @@ where
         return Ok(());
     }
 
+    debug_assert_eq!(consensus_height, vote_height);
+
     if !verify_signed_vote(co, state, &signed_vote).await? {
         return Ok(());
     }
@@ -73,8 +75,6 @@ where
         message = %PrettyVote::<Ctx>(&signed_vote.message),
         "Received vote",
     );
-
-    debug_assert_eq!(consensus_height, vote_height);
 
     // Only process this vote if we have not yet seen it.
     if !state.driver.votes().has_vote(&signed_vote) {
