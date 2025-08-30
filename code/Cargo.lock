@@ -2206,6 +2206,8 @@ dependencies = [
  "informalsystems-malachitebft-core-types",
  "multiaddr",
  "serde",
+ "serde_json",
+ "toml",
 ]
 
 [[package]]

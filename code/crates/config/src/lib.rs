@@ -840,4 +840,140 @@ mod tests {
             "plaintext json"
         );
     }
+
+    #[test]
+    fn protocol_names_default() {
+        let protocol_names = ProtocolNames::default();
+        assert_eq!(
+            protocol_names.consensus_protocol,
+            "/malachitebft-core-consensus/v1beta1"
+        );
+        assert_eq!(
+            protocol_names.discovery_kad_protocol,
+            "/malachitebft-discovery/kad/v1beta1"
+        );
+        assert_eq!(
+            protocol_names.discovery_regres_protocol,
+            "/malachitebft-discovery/reqres/v1beta1"
+        );
+        assert_eq!(protocol_names.sync_protocol, "/malachitebft-sync/v1beta1");
+    }
+
+    #[test]
+    fn protocol_names_serde() {
+        use serde_json;
+
+        // Test serialization
+        let protocol_names = ProtocolNames {
+            consensus_protocol: "/custom-consensus/v1".to_string(),
+            discovery_kad_protocol: "/custom-discovery/kad/v1".to_string(),
+            discovery_regres_protocol: "/custom-discovery/reqres/v1".to_string(),
+            sync_protocol: "/custom-sync/v1".to_string(),
+        };
+
+        let json = serde_json::to_string(&protocol_names).unwrap();
+
+        // Test deserialization
+        let deserialized: ProtocolNames = serde_json::from_str(&json).unwrap();
+        assert_eq!(protocol_names, deserialized);
+    }
+
+    #[test]
+    fn p2p_config_with_protocol_names() {
+        let config = P2pConfig::default();
+
+        // Verify protocol_names field exists and has defaults
+        assert_eq!(config.protocol_names, ProtocolNames::default());
+
+        // Test with custom protocol names
+        let custom_protocol_names = ProtocolNames {
+            consensus_protocol: "/test-network/consensus/v1".to_string(),
+            discovery_kad_protocol: "/test-network/discovery/kad/v1".to_string(),
+            discovery_regres_protocol: "/test-network/discovery/reqres/v1".to_string(),
+            sync_protocol: "/test-network/sync/v1".to_string(),
+        };
+
+        let config_with_custom = P2pConfig {
+            protocol_names: custom_protocol_names.clone(),
+            ..Default::default()
+        };
+
+        assert_eq!(config_with_custom.protocol_names, custom_protocol_names);
+    }
+
+    #[test]
+    fn protocol_names_toml_deserialization() {
+        let toml_content = r#"
+        timeout_propose = "3s"
+        timeout_propose_delta = "500ms"
+        timeout_prevote = "1s"
+        timeout_prevote_delta = "500ms"
+        timeout_precommit = "1s"
+        timeout_precommit_delta = "500ms"
+        timeout_rebroadcast = "5s"
+        value_payload = "parts-only"
+        
+        [p2p]
+        listen_addr = "/ip4/0.0.0.0/tcp/0"
+        persistent_peers = []
+        pubsub_max_size = "4 MiB"
+        rpc_max_size = "10 MiB"
+        
+        [p2p.protocol_names]
+        consensus_protocol = "/custom-network/consensus/v2"
+        discovery_kad_protocol = "/custom-network/discovery/kad/v2"
+        discovery_regres_protocol = "/custom-network/discovery/reqres/v2"
+        sync_protocol = "/custom-network/sync/v2"
+        
+        [p2p.protocol]
+        type = "gossipsub"
+        "#;
+
+        let config: ConsensusConfig = toml::from_str(toml_content).unwrap();
+
+        assert_eq!(
+            config.p2p.protocol_names.consensus_protocol,
+            "/custom-network/consensus/v2"
+        );
+        assert_eq!(
+            config.p2p.protocol_names.discovery_kad_protocol,
+            "/custom-network/discovery/kad/v2"
+        );
+        assert_eq!(
+            config.p2p.protocol_names.discovery_regres_protocol,
+            "/custom-network/discovery/reqres/v2"
+        );
+        assert_eq!(
+            config.p2p.protocol_names.sync_protocol,
+            "/custom-network/sync/v2"
+        );
+    }
+
+    #[test]
+    fn protocol_names_toml_defaults_when_missing() {
+        let toml_content = r#"
+        timeout_propose = "3s"
+        timeout_propose_delta = "500ms"
+        timeout_prevote = "1s"
+        timeout_prevote_delta = "500ms"
+        timeout_precommit = "1s"
+        timeout_precommit_delta = "500ms"
+        timeout_rebroadcast = "5s"
+        value_payload = "parts-only"
+        
+        [p2p]
+        listen_addr = "/ip4/0.0.0.0/tcp/0"
+        persistent_peers = []
+        pubsub_max_size = "4 MiB"
+        rpc_max_size = "10 MiB"
+        
+        [p2p.protocol]
+        type = "gossipsub"
+        "#;
+
+        let config: ConsensusConfig = toml::from_str(toml_content).unwrap();
+
+        // Should use defaults when protocol_names section is missing
+        assert_eq!(config.p2p.protocol_names, ProtocolNames::default());
+    }
 }
