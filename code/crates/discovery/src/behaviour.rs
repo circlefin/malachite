@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use either::Either;
 use eyre::Result;
+use serde::{Deserialize, Serialize};
 use libp2p::identity::Keypair;
 use libp2p::kad::store::MemoryStore;
 use libp2p::kad::{Addresses, KBucketKey, KBucketRef, Mode, RoutingUpdate};
@@ -11,7 +12,6 @@ use libp2p::request_response::{self, OutboundRequestId, ProtocolSupport, Respons
 use libp2p::swarm::behaviour::toggle::Toggle;
 use libp2p::swarm::NetworkBehaviour;
 use libp2p::{kad, Multiaddr, PeerId, StreamProtocol};
-use serde::{Deserialize, Serialize};
 
 use crate::config::BootstrapProtocol;
 use crate::Config;
