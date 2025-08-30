@@ -180,18 +180,12 @@ pub async fn spawn(
     keypair: Keypair,
     config: Config,
     registry: SharedRegistry,
-    protocol_names: ProtocolNames,
 ) -> Result<Handle, eyre::Report> {
     let swarm = registry.with_prefix(METRICS_PREFIX, |registry| -> Result<_, eyre::Report> {
         let builder = SwarmBuilder::with_existing_identity(keypair.clone()).with_tokio();
         match config.transport {
             TransportProtocol::Tcp => {
-                let behaviour = Behaviour::new_with_metrics(
-                    &config,
-                    &keypair,
-                    registry,
-                    protocol_names.clone(),
-                )?;
+                let behaviour = Behaviour::new_with_metrics(&config, &keypair, registry)?;
                 Ok(builder
                     .with_tcp(
                         libp2p::tcp::Config::new().nodelay(true), // Disable Nagle's algorithm
@@ -205,12 +199,7 @@ pub async fn spawn(
                     .build())
             }
             TransportProtocol::Quic => {
-                let behaviour = Behaviour::new_with_metrics(
-                    &config,
-                    &keypair,
-                    registry,
-                    protocol_names.clone(),
-                )?;
+                let behaviour = Behaviour::new_with_metrics(&config, &keypair, registry)?;
                 Ok(builder
                     .with_quic_config(|cfg| config.apply_to_quic(cfg))
                     .with_dns()?

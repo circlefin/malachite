@@ -184,7 +184,6 @@ impl<const N: usize> Test<N> {
                     self.keypairs[i].clone(),
                     config.clone(),
                     SharedRegistry::global().with_moniker(moniker),
-                    config.protocol_names.clone(),
                 )
                 .await
                 .unwrap();

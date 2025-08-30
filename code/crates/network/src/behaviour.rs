@@ -11,7 +11,6 @@ pub use libp2p::{Multiaddr, PeerId};
 use libp2p_broadcast as broadcast;
 
 use crate::{Config, GossipSubConfig};
-use malachitebft_config::ProtocolNames;
 use malachitebft_discovery as discovery;
 use malachitebft_metrics::Registry;
 use malachitebft_sync as sync;
@@ -153,10 +152,9 @@ impl Behaviour {
         config: &Config,
         keypair: &Keypair,
         registry: &mut Registry,
-        protocol_names: ProtocolNames,
     ) -> Result<Self> {
         let identify = identify::Behaviour::new(identify::Config::new(
-            protocol_names.consensus.clone(),
+            config.protocol_names.consensus.clone(),
             keypair.public(),
         ));
 
@@ -187,7 +185,7 @@ impl Behaviour {
         let sync = if config.enable_sync {
             Some(sync::Behaviour::new_with_metrics(
                 sync::Config::default().with_max_response_size(config.rpc_max_size),
-                protocol_names.sync.clone(),
+                config.protocol_names.sync.clone(),
                 registry.sub_registry_with_prefix("sync"),
             )?)
         } else {
@@ -198,7 +196,7 @@ impl Behaviour {
             Some(discovery::Behaviour::new_with_protocols(
                 keypair,
                 config.discovery,
-                &protocol_names,
+                &config.protocol_names,
             )?)
         } else {
             None

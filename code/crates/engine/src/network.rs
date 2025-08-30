@@ -83,7 +83,6 @@ where
             keypair,
             config: config.clone(),
             metrics,
-            protocol_names: config.protocol_names.clone(),
         };
 
         let (actor_ref, _) = Actor::spawn(None, Self::new(codec, span), args).await?;
@@ -95,7 +94,6 @@ pub struct Args {
     pub keypair: Keypair,
     pub config: Config,
     pub metrics: SharedRegistry,
-    pub protocol_names: malachitebft_config::ProtocolNames,
 }
 
 #[derive_where(Clone, Debug, PartialEq, Eq)]
@@ -199,13 +197,7 @@ where
         myself: ActorRef<Msg<Ctx>>,
         args: Args,
     ) -> Result<Self::State, ActorProcessingErr> {
-        let handle = malachitebft_network::spawn(
-            args.keypair,
-            args.config,
-            args.metrics,
-            args.protocol_names,
-        )
-        .await?;
+        let handle = malachitebft_network::spawn(args.keypair, args.config, args.metrics).await?;
 
         let (mut recv_handle, ctrl_handle) = handle.split();
 
