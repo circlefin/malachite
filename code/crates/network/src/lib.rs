@@ -9,6 +9,7 @@ use libp2p::request_response::{InboundRequestId, OutboundRequestId};
 use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, quic, SwarmBuilder};
 use libp2p_broadcast as broadcast;
+use malachitebft_config::ProtocolNames;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, error_span, info, trace, warn, Instrument};
 
@@ -33,7 +34,6 @@ pub use channel::{Channel, ChannelNames};
 use behaviour::{Behaviour, NetworkEvent};
 use handle::Handle;
 
-const PROTOCOL: &str = "/malachitebft-core-consensus/v1beta1";
 const METRICS_PREFIX: &str = "malachitebft_network";
 const DISCOVERY_METRICS_PREFIX: &str = "malachitebft_discovery";
 
@@ -96,6 +96,7 @@ pub struct Config {
     pub rpc_max_size: usize,
     pub pubsub_max_size: usize,
     pub enable_sync: bool,
+    pub protocol_names: ProtocolNames,
 }
 
 impl Config {
@@ -179,28 +180,45 @@ pub async fn spawn(
     keypair: Keypair,
     config: Config,
     registry: SharedRegistry,
+    protocol_names: ProtocolNames,
 ) -> Result<Handle, eyre::Report> {
     let swarm = registry.with_prefix(METRICS_PREFIX, |registry| -> Result<_, eyre::Report> {
-        let builder = SwarmBuilder::with_existing_identity(keypair).with_tokio();
+        let builder = SwarmBuilder::with_existing_identity(keypair.clone()).with_tokio();
         match config.transport {
-            TransportProtocol::Tcp => Ok(builder
-                .with_tcp(
-                    libp2p::tcp::Config::new().nodelay(true), // Disable Nagle's algorithm
-                    libp2p::noise::Config::new,
-                    libp2p::yamux::Config::default,
-                )?
-                .with_dns()?
-                .with_bandwidth_metrics(registry)
-                .with_behaviour(|kp| Behaviour::new_with_metrics(&config, kp, registry))?
-                .with_swarm_config(|cfg| config.apply_to_swarm(cfg))
-                .build()),
-            TransportProtocol::Quic => Ok(builder
-                .with_quic_config(|cfg| config.apply_to_quic(cfg))
-                .with_dns()?
-                .with_bandwidth_metrics(registry)
-                .with_behaviour(|kp| Behaviour::new_with_metrics(&config, kp, registry))?
-                .with_swarm_config(|cfg| config.apply_to_swarm(cfg))
-                .build()),
+            TransportProtocol::Tcp => {
+                let behaviour = Behaviour::new_with_metrics(
+                    &config,
+                    &keypair,
+                    registry,
+                    protocol_names.clone(),
+                )?;
+                Ok(builder
+                    .with_tcp(
+                        libp2p::tcp::Config::new().nodelay(true), // Disable Nagle's algorithm
+                        libp2p::noise::Config::new,
+                        libp2p::yamux::Config::default,
+                    )?
+                    .with_dns()?
+                    .with_bandwidth_metrics(registry)
+                    .with_behaviour(|_| behaviour)?
+                    .with_swarm_config(|cfg| config.apply_to_swarm(cfg))
+                    .build())
+            }
+            TransportProtocol::Quic => {
+                let behaviour = Behaviour::new_with_metrics(
+                    &config,
+                    &keypair,
+                    registry,
+                    protocol_names.clone(),
+                )?;
+                Ok(builder
+                    .with_quic_config(|cfg| config.apply_to_quic(cfg))
+                    .with_dns()?
+                    .with_bandwidth_metrics(registry)
+                    .with_behaviour(|_| behaviour)?
+                    .with_swarm_config(|cfg| config.apply_to_swarm(cfg))
+                    .build())
+            }
         }
     })?;
 

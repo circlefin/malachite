@@ -8,6 +8,28 @@ use malachitebft_core_types::TimeoutKind;
 use multiaddr::Multiaddr;
 use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProtocolNames {
+    pub consensus_protocol: String,
+
+    pub discovery_kad_protocol: String,
+
+    pub discovery_regres_protocol: String,
+
+    pub sync_protocol: String,
+}
+
+impl Default for ProtocolNames {
+    fn default() -> Self {
+        Self {
+            consensus_protocol: "/malachitebft-core-consensus/v1beta1".to_string(),
+            discovery_kad_protocol: "/malachitebft-discovery/kad/v1beta1".to_string(),
+            discovery_regres_protocol: "/malachitebft-discovery/reqres/v1beta1".to_string(),
+            sync_protocol: "/malachitebft-sync/v1beta1".to_string(),
+        }
+    }
+}
+
 /// P2P configuration options
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct P2pConfig {
@@ -29,6 +51,10 @@ pub struct P2pConfig {
 
     /// The maximum size of messages to send over RPC
     pub rpc_max_size: ByteSize,
+
+    /// Protocol name configuration
+    #[serde(default)]
+    pub protocol_names: ProtocolNames,
 }
 
 impl Default for P2pConfig {
@@ -40,6 +66,7 @@ impl Default for P2pConfig {
             protocol: Default::default(),
             rpc_max_size: ByteSize::mib(10),
             pubsub_max_size: ByteSize::mib(4),
+            protocol_names: Default::default(),
         }
     }
 }

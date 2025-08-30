@@ -2278,6 +2278,8 @@ name = "informalsystems-malachitebft-discovery"
 version = "0.6.0-pre"
 dependencies = [
  "either",
+ "eyre",
+ "informalsystems-malachitebft-config",
  "informalsystems-malachitebft-metrics",
  "libp2p",
  "rand 0.8.5",
@@ -2375,6 +2377,7 @@ dependencies = [
  "either",
  "eyre",
  "futures",
+ "informalsystems-malachitebft-config",
  "informalsystems-malachitebft-discovery",
  "informalsystems-malachitebft-metrics",
  "informalsystems-malachitebft-peer",

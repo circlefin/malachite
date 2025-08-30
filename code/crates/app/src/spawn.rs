@@ -227,5 +227,6 @@ fn make_gossip_config(cfg: &ConsensusConfig) -> NetworkConfig {
         rpc_max_size: cfg.p2p.rpc_max_size.as_u64() as usize,
         pubsub_max_size: cfg.p2p.pubsub_max_size.as_u64() as usize,
         enable_sync: true,
+        protocol_names: cfg.p2p.protocol_names.clone(),
     }
 }

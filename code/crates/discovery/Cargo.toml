@@ -16,9 +16,11 @@ workspace = true
 
 [dependencies]
 malachitebft-metrics = { workspace = true }
+malachitebft-config = {workspace = true}
 libp2p = { workspace = true }
 serde = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true }
 either = { workspace = true }
 rand = { workspace = true }
+eyre = {workspace = true}
