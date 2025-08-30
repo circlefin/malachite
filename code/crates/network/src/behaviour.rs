@@ -196,7 +196,8 @@ impl Behaviour {
             Some(discovery::Behaviour::new_with_protocols(
                 keypair,
                 config.discovery,
-                &config.protocol_names,
+                config.protocol_names.discovery_kad.clone(),
+                config.protocol_names.discovery_regres.clone(),
             )?)
         } else {
             None

@@ -13,8 +13,6 @@ use libp2p::swarm::NetworkBehaviour;
 use libp2p::{kad, Multiaddr, PeerId, StreamProtocol};
 use serde::{Deserialize, Serialize};
 
-use malachitebft_config::ProtocolNames;
-
 use crate::config::BootstrapProtocol;
 use crate::Config;
 
@@ -94,9 +92,10 @@ impl Behaviour {
     pub fn new_with_protocols(
         keypair: &Keypair,
         config: Config,
-        protocols: &ProtocolNames,
+        discovery_kad_protocol: String,
+        discovery_regres_protocol: String,
     ) -> Result<Self> {
-        let kademlia_config = kademlia_config(protocols.discovery_kad.clone())?;
+        let kademlia_config = kademlia_config(discovery_kad_protocol)?;
         let kademlia = Toggle::from(
             (config.enabled && config.bootstrap_protocol == BootstrapProtocol::Kademlia).then(
                 || {
@@ -114,7 +113,7 @@ impl Behaviour {
         );
 
         let request_response = request_response::cbor::Behaviour::new(
-            request_response_protocol(protocols.discovery_regres.clone())?,
+            request_response_protocol(discovery_regres_protocol)?,
             request_response_config(),
         );
 

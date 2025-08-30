@@ -9,7 +9,6 @@ use libp2p::request_response::{InboundRequestId, OutboundRequestId};
 use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, quic, SwarmBuilder};
 use libp2p_broadcast as broadcast;
-use malachitebft_config::ProtocolNames;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, error_span, info, trace, warn, Instrument};
 
@@ -36,6 +35,25 @@ use handle::Handle;
 
 const METRICS_PREFIX: &str = "malachitebft_network";
 const DISCOVERY_METRICS_PREFIX: &str = "malachitebft_discovery";
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProtocolNames {
+    pub consensus: String,
+    pub discovery_kad: String,
+    pub discovery_regres: String,
+    pub sync: String,
+}
+
+impl Default for ProtocolNames {
+    fn default() -> Self {
+        Self {
+            consensus: "/malachitebft-core-consensus/v1beta1".to_string(),
+            discovery_kad: "/malachitebft-discovery/kad/v1beta1".to_string(),
+            discovery_regres: "/malachitebft-discovery/reqres/v1beta1".to_string(),
+            sync: "/malachitebft-sync/v1beta1".to_string(),
+        }
+    }
+}
 
 #[derive(Copy, Clone, Debug, Default)]
 pub enum PubSubProtocol {
