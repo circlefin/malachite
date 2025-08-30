@@ -193,7 +193,7 @@ impl Behaviour {
         };
 
         let discovery = if config.discovery.enabled {
-            Some(discovery::Behaviour::new_with_protocols(
+            Some(discovery::Behaviour::new(
                 keypair,
                 config.discovery,
                 config.protocol_names.discovery_kad.clone(),
