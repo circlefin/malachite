@@ -13,8 +13,8 @@ use libp2p_broadcast as broadcast;
 use malachitebft_discovery as discovery;
 use malachitebft_metrics::Registry;
 use malachitebft_sync as sync;
-use crate::{Config, GossipSubConfig};
 
+use crate::{Config, GossipSubConfig};
 #[derive(Debug)]
 pub enum NetworkEvent {
     Identify(Box<identify::Event>),
