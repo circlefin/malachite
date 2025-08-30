@@ -2558,6 +2558,7 @@ dependencies = [
  "dashmap",
  "derive-where",
  "displaydoc",
+ "eyre",
  "genawaiter",
  "informalsystems-malachitebft-core-types",
  "informalsystems-malachitebft-metrics",

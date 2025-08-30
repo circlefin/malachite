@@ -2,7 +2,7 @@ use core::fmt;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use libp2p_identity::PeerId;
-use malachitebft_config::TransportProtocol;
+use malachitebft_config::{ProtocolNames, TransportProtocol};
 use malachitebft_metrics::SharedRegistry;
 use malachitebft_network::{spawn, Config, DiscoveryConfig, Keypair, PeerIdExt};
 use malachitebft_starknet_host::types::PrivateKey;
@@ -164,6 +164,7 @@ impl<const N: usize> Test<N> {
             rpc_max_size: 10 * 1024 * 1024,   // 10 MiB
             pubsub_max_size: 4 * 1024 * 1024, // 4 MiB
             enable_sync: false,
+            protocol_names: ProtocolNames::default(),
         })
     }
 
@@ -183,6 +184,7 @@ impl<const N: usize> Test<N> {
                     self.keypairs[i].clone(),
                     config.clone(),
                     SharedRegistry::global().with_moniker(moniker),
+                    config.protocol_names.clone(),
                 )
                 .await
                 .unwrap();

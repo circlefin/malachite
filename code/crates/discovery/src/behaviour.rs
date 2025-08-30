@@ -1,3 +1,7 @@
+use std::collections::HashSet;
+use std::iter;
+use std::time::Duration;
+
 use either::Either;
 use eyre::Result;
 use libp2p::identity::Keypair;
@@ -7,11 +11,9 @@ use libp2p::request_response::{self, OutboundRequestId, ProtocolSupport, Respons
 use libp2p::swarm::behaviour::toggle::Toggle;
 use libp2p::swarm::NetworkBehaviour;
 use libp2p::{kad, Multiaddr, PeerId, StreamProtocol};
-use malachitebft_config::ProtocolNames;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
-use std::iter;
-use std::time::Duration;
+
+use malachitebft_config::ProtocolNames;
 
 use crate::config::BootstrapProtocol;
 use crate::Config;
@@ -94,7 +96,7 @@ impl Behaviour {
         config: Config,
         protocols: &ProtocolNames,
     ) -> Result<Self> {
-        let kademlia_config = kademlia_config(protocols.discovery_kad_protocol.clone())?;
+        let kademlia_config = kademlia_config(protocols.discovery_kad.clone())?;
         let kademlia = Toggle::from(
             (config.enabled && config.bootstrap_protocol == BootstrapProtocol::Kademlia).then(
                 || {
@@ -112,7 +114,7 @@ impl Behaviour {
         );
 
         let request_response = request_response::cbor::Behaviour::new(
-            request_response_protocol(protocols.discovery_regres_protocol.clone())?,
+            request_response_protocol(protocols.discovery_regres.clone())?,
             request_response_config(),
         );
 

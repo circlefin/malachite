@@ -499,7 +499,7 @@ async fn handle_swarm_event(
                     info.protocol_version
                 );
 
-                if info.protocol_version == PROTOCOL {
+                if info.protocol_version == config.protocol_names.consensus {
                     trace!(
                         "Peer {peer_id} is using compatible protocol version: {:?}",
                         info.protocol_version

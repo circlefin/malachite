@@ -83,7 +83,7 @@ where
             keypair,
             config: config.clone(),
             metrics,
-            protocol_names: config.protocol_names,
+            protocol_names: config.protocol_names.clone(),
         };
 
         let (actor_ref, _) = Actor::spawn(None, Self::new(codec, span), args).await?;

@@ -10,22 +10,22 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProtocolNames {
-    pub consensus_protocol: String,
+    pub consensus: String,
 
-    pub discovery_kad_protocol: String,
+    pub discovery_kad: String,
 
-    pub discovery_regres_protocol: String,
+    pub discovery_regres: String,
 
-    pub sync_protocol: String,
+    pub sync: String,
 }
 
 impl Default for ProtocolNames {
     fn default() -> Self {
         Self {
-            consensus_protocol: "/malachitebft-core-consensus/v1beta1".to_string(),
-            discovery_kad_protocol: "/malachitebft-discovery/kad/v1beta1".to_string(),
-            discovery_regres_protocol: "/malachitebft-discovery/reqres/v1beta1".to_string(),
-            sync_protocol: "/malachitebft-sync/v1beta1".to_string(),
+            consensus: "/malachitebft-core-consensus/v1beta1".to_string(),
+            discovery_kad: "/malachitebft-discovery/kad/v1beta1".to_string(),
+            discovery_regres: "/malachitebft-discovery/reqres/v1beta1".to_string(),
+            sync: "/malachitebft-sync/v1beta1".to_string(),
         }
     }
 }
@@ -845,18 +845,18 @@ mod tests {
     fn protocol_names_default() {
         let protocol_names = ProtocolNames::default();
         assert_eq!(
-            protocol_names.consensus_protocol,
+            protocol_names.consensus,
             "/malachitebft-core-consensus/v1beta1"
         );
         assert_eq!(
-            protocol_names.discovery_kad_protocol,
+            protocol_names.discovery_kad,
             "/malachitebft-discovery/kad/v1beta1"
         );
         assert_eq!(
-            protocol_names.discovery_regres_protocol,
+            protocol_names.discovery_regres,
             "/malachitebft-discovery/reqres/v1beta1"
         );
-        assert_eq!(protocol_names.sync_protocol, "/malachitebft-sync/v1beta1");
+        assert_eq!(protocol_names.sync, "/malachitebft-sync/v1beta1");
     }
 
     #[test]
@@ -865,10 +865,10 @@ mod tests {
 
         // Test serialization
         let protocol_names = ProtocolNames {
-            consensus_protocol: "/custom-consensus/v1".to_string(),
-            discovery_kad_protocol: "/custom-discovery/kad/v1".to_string(),
-            discovery_regres_protocol: "/custom-discovery/reqres/v1".to_string(),
-            sync_protocol: "/custom-sync/v1".to_string(),
+            consensus: "/custom-consensus/v1".to_string(),
+            discovery_kad: "/custom-discovery/kad/v1".to_string(),
+            discovery_regres: "/custom-discovery/reqres/v1".to_string(),
+            sync: "/custom-sync/v1".to_string(),
         };
 
         let json = serde_json::to_string(&protocol_names).unwrap();
@@ -887,10 +887,10 @@ mod tests {
 
         // Test with custom protocol names
         let custom_protocol_names = ProtocolNames {
-            consensus_protocol: "/test-network/consensus/v1".to_string(),
-            discovery_kad_protocol: "/test-network/discovery/kad/v1".to_string(),
-            discovery_regres_protocol: "/test-network/discovery/reqres/v1".to_string(),
-            sync_protocol: "/test-network/sync/v1".to_string(),
+            consensus: "/test-network/consensus/v1".to_string(),
+            discovery_kad: "/test-network/discovery/kad/v1".to_string(),
+            discovery_regres: "/test-network/discovery/reqres/v1".to_string(),
+            sync: "/test-network/sync/v1".to_string(),
         };
 
         let config_with_custom = P2pConfig {
@@ -920,10 +920,10 @@ mod tests {
         rpc_max_size = "10 MiB"
         
         [p2p.protocol_names]
-        consensus_protocol = "/custom-network/consensus/v2"
-        discovery_kad_protocol = "/custom-network/discovery/kad/v2"
-        discovery_regres_protocol = "/custom-network/discovery/reqres/v2"
-        sync_protocol = "/custom-network/sync/v2"
+        consensus = "/custom-network/consensus/v2"
+        discovery_kad = "/custom-network/discovery/kad/v2"
+        discovery_regres = "/custom-network/discovery/reqres/v2"
+        sync = "/custom-network/sync/v2"
         
         [p2p.protocol]
         type = "gossipsub"
@@ -932,21 +932,18 @@ mod tests {
         let config: ConsensusConfig = toml::from_str(toml_content).unwrap();
 
         assert_eq!(
-            config.p2p.protocol_names.consensus_protocol,
+            config.p2p.protocol_names.consensus,
             "/custom-network/consensus/v2"
         );
         assert_eq!(
-            config.p2p.protocol_names.discovery_kad_protocol,
+            config.p2p.protocol_names.discovery_kad,
             "/custom-network/discovery/kad/v2"
         );
         assert_eq!(
-            config.p2p.protocol_names.discovery_regres_protocol,
+            config.p2p.protocol_names.discovery_regres,
             "/custom-network/discovery/reqres/v2"
         );
-        assert_eq!(
-            config.p2p.protocol_names.sync_protocol,
-            "/custom-network/sync/v2"
-        );
+        assert_eq!(config.p2p.protocol_names.sync, "/custom-network/sync/v2");
     }
 
     #[test]

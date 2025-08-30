@@ -156,7 +156,7 @@ impl Behaviour {
         protocol_names: ProtocolNames,
     ) -> Result<Self> {
         let identify = identify::Behaviour::new(identify::Config::new(
-            protocol_names.consensus_protocol.clone(),
+            protocol_names.consensus.clone(),
             keypair.public(),
         ));
 
@@ -184,12 +184,15 @@ impl Behaviour {
             )
         });
 
-        let sync = config.enable_sync.then(|| {
-            sync::Behaviour::new_with_metrics(
+        let sync = if config.enable_sync {
+            Some(sync::Behaviour::new_with_metrics(
                 sync::Config::default().with_max_response_size(config.rpc_max_size),
+                protocol_names.sync.clone(),
                 registry.sub_registry_with_prefix("sync"),
-            )
-        });
+            )?)
+        } else {
+            None
+        };
 
         let discovery = if config.discovery.enabled {
             Some(discovery::Behaviour::new_with_protocols(
