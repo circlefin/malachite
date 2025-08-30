@@ -89,6 +89,15 @@ fn request_response_config() -> request_response::Config {
 }
 
 impl Behaviour {
+    pub fn new(keypair: &Keypair, config: Config) -> Result<Self> {
+        Self::new_with_protocols(
+            keypair,
+            config,
+            "/malachitebft-discovery/kad/v1beta1".to_string(),
+            "/malachitebft-discovery/reqres/v1beta1".to_string(),
+        )
+    }
+
     pub fn new_with_protocols(
         keypair: &Keypair,
         config: Config,
