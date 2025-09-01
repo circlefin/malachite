@@ -70,6 +70,22 @@ impl Round {
             Round::Some(r) => Round::new(r + 1),
         }
     }
+
+    /// Return `self` if it is defined, otherwise return `round`.
+    pub fn or(&self, round: Round) -> Round {
+        match self {
+            Round::Nil => round,
+            Round::Some(_) => *self,
+        }
+    }
+
+    /// Return `self` if it is defined, otherwise compute and return the result of `f`.
+    pub fn or_else(&self, f: impl FnOnce() -> Round) -> Round {
+        match self {
+            Round::Nil => f(),
+            Round::Some(_) => *self,
+        }
+    }
 }
 
 impl From<u32> for Round {
