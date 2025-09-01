@@ -157,7 +157,7 @@ protox             = "0.8.0"
 ractor             = { version = "0.14.6", default-features = false, features = ["async-trait", "tokio_runtime"] }
 rand               = { version = "0.8.5", features = ["std_rng", "small_rng"] }
 rand_chacha        = "0.3.1"
-redb               = "2.6.2"
+redb               = "2.6.3"
 seahash            = "4.1"
 serde              = { version = "1.0", default-features = false }
 serde_json         = "1.0"
