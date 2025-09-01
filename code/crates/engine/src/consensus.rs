@@ -528,11 +528,34 @@ where
                             return Ok(());
                         }
 
+                        let proposal_clone = proposal.clone();
+
                         if let Err(e) = self
                             .process_input(&myself, state, ConsensusInput::Proposal(proposal))
                             .await
                         {
                             error!(%from, "Error when processing proposal: {e}");
+                        }
+
+                        if state.consensus.params.value_payload.proposal_only() {
+                            self.host
+                                .call_and_forward(
+                                    |reply_to| HostMsg::ReceivedProposal {
+                                        proposer: proposal_clone.validator_address().clone(),
+                                        height: proposal_clone.height(),
+                                        round: proposal_clone.round(),
+                                        value: proposal_clone.value().clone(),
+                                        reply_to,
+                                    },
+                                    &myself,
+                                    |value| {
+                                        Msg::ReceivedProposedValue(value, ValueOrigin::Consensus)
+                                    },
+                                    None,
+                                )
+                                .map_err(|e| {
+                                    eyre!("Error when forwarding proposal to host: {e}")
+                                })?;
                         }
                     }
 

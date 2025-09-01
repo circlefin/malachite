@@ -397,6 +397,10 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     }
                 }
             }
+
+            AppMsg::ReceivedProposal { .. } => {
+                panic!("ReceivedProposal should not be called in the channel app example");
+            }
         }
     }
 

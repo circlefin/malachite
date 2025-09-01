@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package p2p;
+
+message Hash {
+    bytes elements = 1;
+}
+
+message Address {
+    bytes value = 1;
+}
+
+message ConsensusTransaction {
+    bytes tx = 1;
+    bytes hash = 2;
+}
+
+message TransactionBatch {
+    repeated ConsensusTransaction transactions = 1;
+}

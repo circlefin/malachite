@@ -37,6 +37,8 @@ members = [
 
   # Examples
   "examples/channel",
+  "examples/actor/proposal",
+  "examples/actor/test",
 ]
 
 [workspace.package]

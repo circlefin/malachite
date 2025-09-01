@@ -1,0 +1,61 @@
+[package]
+name = "informalsystems_malachitebft_actor_app_proposal"
+version = "0.3.0-pre"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "actor-app-proposal"
+path = "app/src/main.rs"
+
+[dependencies]
+malachitebft-test-cli = { workspace = true }
+malachitebft-engine = { workspace = true }
+malachitebft-app = { workspace = true }
+malachitebft-codec = { workspace = true }
+malachitebft-config = { workspace = true }
+malachitebft-core-consensus = { workspace = true, features = ["debug"] }
+malachitebft-core-types = { workspace = true }
+malachitebft-network = { workspace = true }
+malachitebft-metrics = { workspace = true }
+malachitebft-proto = { workspace = true }
+malachitebft-signing-ed25519 = { workspace = true, features = ["serde", "rand"] }
+malachitebft-sync = { workspace = true }
+malachitebft-test-mempool = { workspace = true }
+malachitebft-wal = { workspace = true }
+
+async-trait = { workspace = true }
+bytes = { workspace = true, features = ["serde"] }
+bytesize = { workspace = true }
+color-eyre = { workspace = true }
+config = { workspace = true }
+derive-where = { workspace = true }
+eyre = { workspace = true }
+itertools = { workspace = true }
+libp2p-identity = { workspace = true }
+prost = { workspace = true }
+ractor = { workspace = true }
+rand = { workspace = true }
+redb = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha3 = { workspace = true }
+toml = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+hex = { version = "0.4", features = ["serde"] }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tempfile = { workspace = true }
+clap = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+tikv-jemallocator = { workspace = true, features = ["background_threads"] }
+
+[build-dependencies]
+prost-build = { workspace = true }
+protox = { workspace = true }

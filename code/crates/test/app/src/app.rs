@@ -379,6 +379,10 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     error!("Failed to send VerifyVoteExtension reply");
                 }
             }
+
+            AppMsg::ReceivedProposal { .. } => {
+                panic!("ReceivedProposal should not be called in test app");
+            }
         }
     }
 

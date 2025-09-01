@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+import "common.proto";
+import "consensus.proto";
+import "liveness.proto";
+import "block.proto";
+
+package p2p;
+
+message PeerId {
+    bytes id = 1;
+}
+
+message Status {
+    PeerId peer_id = 1;
+    uint64 height = 2;
+    uint64 earliest_height = 3;
+}
+
+message ValueRequest {
+    uint64 height = 1;
+}
+
+message ValueResponse {
+    uint64 height = 1;
+    Block value = 2;
+    CommitCertificate certificate = 3;
+}
+
+message CommitSignature {
+    // TODO: Add flag (no vote, nil, value?)
+    Address validator_address = 1;
+    Signature signature = 2;
+}
+
+message CommitCertificate {
+    uint64 height = 1;
+    uint32 round = 2;
+    ValueId value_id = 3;
+    repeated CommitSignature signatures = 4;
+}
+
+message SyncRequest {
+  ValueRequest value_request = 1;
+}
+
+message SyncResponse {
+  ValueResponse value_response = 1;
+}
+
+message ProposedValue {
+    uint64 height = 1;
+    uint32 round = 2;
+    optional uint32 valid_round = 3;
+    Address proposer = 4;
+    Value value = 5;
+    bool validity = 6;
+}
+

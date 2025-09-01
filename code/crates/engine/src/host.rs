@@ -136,7 +136,16 @@ pub enum HostMsg<Ctx: Context> {
         reply_to: RpcReplyPort<ProposedValue<Ctx>>,
     },
 
-    /// Requests the validator set for a specific height
+    /// Received a proposal from a validator
+    ReceivedProposal {
+        proposer: Ctx::Address,
+        height: Ctx::Height,
+        round: Round,
+        value: Ctx::Value,
+        reply_to: RpcReplyPort<ProposedValue<Ctx>>,
+    },
+
+    /// Get the validator set at a given height
     GetValidatorSet {
         height: Ctx::Height,
         reply_to: RpcReplyPort<Option<Ctx::ValidatorSet>>,

@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package p2p;
+
+import "common.proto";
+
+message Block {
+  uint64 height = 1;
+  TransactionBatch transactions = 2;
+  Hash block_hash = 3;
+}

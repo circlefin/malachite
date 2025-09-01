@@ -8,10 +8,12 @@ use async_trait::async_trait;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
+use informalsystems_malachitebft_actor_app_proposal::config::Config;
+use informalsystems_malachitebft_actor_app_proposal::node::{ActorNode, ConfigSource, Handle};
+use informalsystems_malachitebft_actor_app_proposal::types::{
+    Height, MockContext, PrivateKey, Validator, ValidatorSet,
+};
 use malachitebft_config::mempool_load::UniformLoadConfig;
-use malachitebft_starknet_host::config::Config;
-use malachitebft_starknet_host::node::{ConfigSource, Handle, StarknetNode};
-use malachitebft_starknet_host::types::{Height, MockContext, PrivateKey, Validator, ValidatorSet};
 use malachitebft_test_framework::HasTestRunner;
 use malachitebft_test_framework::{NodeRunner, TestNode};
 
@@ -47,7 +49,7 @@ pub struct TestRunner {
 }
 
 fn temp_dir(id: NodeId) -> PathBuf {
-    TempDir::with_prefix(format!("malachitebft-test-app-{id}-"))
+    TempDir::with_prefix(format!("malachitebft-test-actor-{id}-"))
         .unwrap()
         .keep()
 }
@@ -90,11 +92,11 @@ impl NodeRunner<MockContext> for TestRunner {
     async fn spawn(&self, id: NodeId) -> eyre::Result<Handle> {
         let home_dir = &self.home_dir[&id].clone();
 
-        let app = StarknetNode {
-            home_dir: home_dir.clone(),
-            config_source: ConfigSource::Value(Box::new(self.generate_config(id))),
-            start_height: Some(self.start_height[&id].as_u64()),
-        };
+        let app = ActorNode::new(
+            home_dir.clone(),
+            ConfigSource::Value(Box::new(self.generate_config(id))),
+            Some(self.start_height[&id].as_u64()),
+        );
 
         let validators = self
             .validator_set
@@ -142,11 +144,11 @@ impl TestRunner {
         let i = node - 1;
 
         Config {
-            moniker: format!("node-{node}"),
+            moniker: format!("actor-node-{node}"),
             logging: LoggingConfig::default(),
             consensus: ConsensusConfig {
-                value_payload: ValuePayload::PartsOnly,
-                queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`
+                value_payload: ValuePayload::ProposalOnly,
+                queue_capacity: 100,
                 timeouts: TimeoutConfig::default(),
                 p2p: P2pConfig {
                     protocol,
@@ -229,13 +231,11 @@ fn make_validators<S>(
 }
 
 fn apply_params(config: &mut Config, params: &TestParams) {
-    config.consensus.value_payload = ValuePayload::PartsOnly;
+    config.consensus.value_payload = ValuePayload::ProposalOnly;
     config.value_sync.enabled = params.enable_value_sync;
-    config.value_sync.parallel_requests = params.parallel_requests;
-    config.value_sync.batch_size = params.batch_size;
     config.consensus.p2p.protocol = params.protocol;
     config.test.max_block_size = params.block_size;
-    config.test.txs_per_part = params.txs_per_part;
+    config.test.txs_per_part = 0;
     config.test.vote_extensions.enabled = params.vote_extensions.is_some();
     config.test.vote_extensions.size = params.vote_extensions.unwrap_or_default();
     config.test.max_retain_blocks = params.max_retain_blocks;

@@ -160,6 +160,26 @@ where
         })
     }
 
+    pub fn expect_wal_replay_at_crash_height<F>(&mut self, get_height: F) -> &mut Self
+    where
+        F: Fn(&State) -> Option<u64> + Send + Sync + 'static,
+    {
+        self.on_event(move |event, state| {
+            let Event::WalReplayBegin(height, count) = event else {
+                return Ok(HandlerResult::WaitForNextEvent);
+            };
+
+            let expected_height = get_height(state).expect("Should have recorded crash height");
+            info!("Replaying WAL at height {height} with {count} messages");
+
+            if height.as_u64() != expected_height {
+                bail!("Unexpected WAL replay at height {height}, expected {expected_height}")
+            }
+
+            Ok(HandlerResult::ContinueTest)
+        })
+    }
+
     pub fn expect_vote_rebroadcast(
         &mut self,
         at_height: u64,

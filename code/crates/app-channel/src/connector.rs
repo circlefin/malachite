@@ -200,6 +200,28 @@ where
                 }
             }
 
+            HostMsg::ReceivedProposal {
+                proposer,
+                height,
+                round,
+                value,
+                reply_to,
+            } => {
+                let (reply, rx) = oneshot::channel();
+
+                self.sender
+                    .send(AppMsg::ReceivedProposal {
+                        proposer,
+                        height,
+                        round,
+                        value,
+                        reply,
+                    })
+                    .await?;
+
+                reply_to.send(rx.await?)?;
+            }
+
             HostMsg::GetValidatorSet { height, reply_to } => {
                 let (reply, rx) = oneshot::channel();
 

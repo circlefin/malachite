@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package p2p;
+
+import "common.proto";
+import "block.proto";
+
+message Value {
+    Block value = 1;
+}
+
+message ValueId {
+    optional Hash value = 1;
+}
+
+message Signature {
+    bytes bytes = 1;
+}
+
+enum VoteType {
+   PREVOTE = 0;
+   PRECOMMIT = 1;
+}
+
+message Vote {
+    VoteType vote_type = 1;
+    uint64 height = 2;
+    uint32 round = 3;
+    ValueId value = 4;
+    Address validator_address = 5;
+}
+
+message SignedMessage {
+    oneof message {
+        Proposal proposal = 1;
+        Vote vote = 2;
+    }
+    Signature signature = 3;
+}
+
+message Proposal {
+    uint64 height = 1;
+    uint32 round = 2;
+    Value value = 3;
+    optional uint32 pol_round = 4;
+    Address validator_address = 5;
+}
+
+message ProposalData {
+    Block block = 1;
+}
