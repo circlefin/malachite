@@ -275,6 +275,7 @@ async fn spawn_network_actor(
         channel_names: ChannelNames::default(),
         rpc_max_size: cfg.consensus.p2p.rpc_max_size.as_u64() as usize,
         pubsub_max_size: cfg.consensus.p2p.pubsub_max_size.as_u64() as usize,
+        enable_consensus: cfg.consensus.enabled,
         enable_sync: true,
         protocol_names: gossip::ProtocolNames {
             consensus: cfg.consensus.p2p.protocol_names.consensus.clone(),
