@@ -16,6 +16,7 @@ pub struct TestParams {
     pub value_payload: ValuePayload,
     pub max_retain_blocks: usize,
     pub stable_block_times: bool,
+    pub max_response_size: ByteSize,
 }
 
 impl Default for TestParams {
@@ -32,6 +33,7 @@ impl Default for TestParams {
             value_payload: ValuePayload::ProposalAndParts,
             max_retain_blocks: 50,
             stable_block_times: true,
+            max_response_size: ByteSize::mib(1),
         }
     }
 }
@@ -41,6 +43,7 @@ impl TestParams {
         config.value_sync.enabled = self.enable_value_sync;
         config.value_sync.parallel_requests = self.parallel_requests;
         config.value_sync.batch_size = self.batch_size;
+        config.value_sync.max_response_size = self.max_response_size;
         config.consensus.p2p.protocol = self.protocol;
         config.consensus.value_payload = self.value_payload;
         config.test.max_block_size = self.block_size;

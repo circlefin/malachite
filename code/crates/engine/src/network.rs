@@ -167,6 +167,9 @@ pub enum Msg<Ctx: Context> {
     /// Send a response for a request to a peer
     OutgoingResponse(InboundRequestId, Response<Ctx>),
 
+    /// Request the total number of bytes that are to be transmitted for this response
+    GetResponseSize(Response<Ctx>, RpcReplyPort<usize>),
+
     /// Request for number of peers from gossip
     GetState { reply: RpcReplyPort<usize> },
 
@@ -323,6 +326,20 @@ where
                     }
                     Err(e) => {
                         error!(%request_id, "Failed to encode response message: {e:?}");
+                        return Ok(());
+                    }
+                };
+            }
+
+            Msg::GetResponseSize(response, reply_to) => {
+                let encoded = self.codec.encode(&response);
+
+                match encoded {
+                    Ok(data) => {
+                        reply_to.send(data.len())?;
+                    }
+                    Err(e) => {
+                        error!(?response, "Failed to encode response message: {e:?}");
                         return Ok(());
                     }
                 };
