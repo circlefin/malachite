@@ -326,6 +326,15 @@ where
 
                         response_size_bytes += total_value_size_bytes;
                         values.push(value);
+
+                        if response_size_bytes == self.sync_config.max_response_size {
+                            info!(
+                                "Reached maximum byte size limit ({} bytes) exactly at height {}",
+                                self.sync_config.max_response_size, height
+                            );
+
+                            break;
+                        }
                     } else {
                         warn!("Decided value not found for height {height}");
                         break;
