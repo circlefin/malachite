@@ -47,7 +47,7 @@ where
     let validity = verify_polka_certificate(
         co,
         certificate.clone(),
-        validator_set.into_owned(),
+        validator_set.clone(),
         state.params.threshold_params,
     )
     .await?;
@@ -144,7 +144,7 @@ where
     let validity = verify_round_certificate(
         co,
         certificate.clone(),
-        validator_set.into_owned(),
+        validator_set.clone(),
         state.params.threshold_params,
     )
     .await?;
