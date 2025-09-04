@@ -851,19 +851,6 @@ where
         Ok(())
     }
 
-    async fn get_validator_set(
-        &self,
-        height: Ctx::Height,
-    ) -> Result<Option<Ctx::ValidatorSet>, ActorProcessingErr> {
-        let validator_set = ractor::call!(self.host, |reply_to| HostMsg::GetValidatorSet {
-            height,
-            reply_to
-        })
-        .map_err(|e| eyre!("Failed to get validator set at height {height}: {e:?}"))?;
-
-        Ok(validator_set)
-    }
-
     async fn extend_vote(
         &self,
         height: Ctx::Height,
@@ -1176,18 +1163,6 @@ where
                     })?;
 
                 Ok(r.resume_with(()))
-            }
-
-            Effect::GetValidatorSet(height, r) => {
-                let validator_set = self
-                    .get_validator_set(height)
-                    .await
-                    .map_err(|e| {
-                        warn!("Error while asking application for the validator set at height {height}: {e:?}")
-                    })
-                    .ok(); // If call fails, send back `None` to consensus
-
-                Ok(r.resume_with(validator_set.unwrap_or_default()))
             }
 
             Effect::RestreamProposal(height, round, valid_round, address, value_id, r) => {

@@ -79,7 +79,7 @@ where
     if let Err(e) = verify_commit_certificate(
         co,
         certificate.clone(),
-        validator_set.as_ref().clone(),
+        validator_set.clone(),
         state.params.threshold_params,
     )
     .await?
