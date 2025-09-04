@@ -101,10 +101,13 @@ where
             Msg::Append(height, entry, reply_to) => {
                 if height != state.height {
                     warn!(wal.height = %state.height, entry.height = %height, "Ignoring append, mismatched height");
-                    return Ok(());
-                }
 
-                self.write_log(state, entry, reply_to).await?;
+                    reply_to
+                        .send(Ok(()))
+                        .map_err(|e| eyre!("Failed to send reply: {e}"))?;
+                } else {
+                    self.write_log(state, entry, reply_to).await?;
+                }
             }
 
             Msg::Flush(reply_to) => {
