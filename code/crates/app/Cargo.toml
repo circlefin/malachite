@@ -24,6 +24,7 @@ malachitebft-engine.workspace = true
 malachitebft-metrics.workspace = true
 malachitebft-network.workspace = true
 malachitebft-peer.workspace = true
+malachitebft-signing.workspace = true
 malachitebft-sync.workspace = true
 malachitebft-wal.workspace = true
 
