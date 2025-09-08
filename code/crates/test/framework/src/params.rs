@@ -10,6 +10,7 @@ pub struct TestParams {
     pub parallel_requests: usize,
     pub batch_size: usize,
     pub protocol: PubSubProtocol,
+    pub rpc_max_size: ByteSize,
     pub block_size: ByteSize,
     pub tx_size: ByteSize,
     pub txs_per_part: usize,
@@ -32,6 +33,7 @@ impl Default for TestParams {
             parallel_requests: 1,
             batch_size: 1,
             protocol: PubSubProtocol::default(),
+            rpc_max_size: ByteSize::mib(2),
             block_size: ByteSize::mib(1),
             tx_size: ByteSize::kib(1),
             txs_per_part: 256,
@@ -54,6 +56,7 @@ impl TestParams {
         config.value_sync.max_response_size = self.max_response_size;
         config.consensus.enabled = self.consensus_enabled;
         config.consensus.p2p.protocol = self.protocol;
+        config.consensus.p2p.rpc_max_size = self.rpc_max_size;
         config.consensus.value_payload = self.value_payload;
         config.consensus.p2p.discovery.enabled = self.enable_discovery;
         // When discovery is enabled, set reasonable defaults for outbound peers
