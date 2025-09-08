@@ -50,6 +50,7 @@ where
         state.buffer_input(
             proposed_value.height,
             Input::ProposedValue(proposed_value, origin),
+            metrics,
         );
 
         return Ok(());

@@ -57,7 +57,7 @@ where
     // Queue proposals for heights higher than the current height.
     if proposal_height > consensus_height {
         debug!("Received proposal for higher height {proposal_height}, queuing for later",);
-        state.buffer_input(proposal_height, Input::Proposal(signed_proposal));
+        state.buffer_input(proposal_height, Input::Proposal(signed_proposal), metrics);
 
         return Ok(());
     }
@@ -69,7 +69,7 @@ where
     // Drop all others.
     if state.driver.round() == Round::Nil {
         debug!("Received proposal at round -1, queuing for later");
-        state.buffer_input(proposal_height, Input::Proposal(signed_proposal));
+        state.buffer_input(proposal_height, Input::Proposal(signed_proposal), metrics);
 
         return Ok(());
     }

@@ -43,7 +43,7 @@ where
             "Received vote for higher height, queuing for later"
         );
 
-        state.buffer_input(vote_height, Input::Vote(signed_vote));
+        state.buffer_input(vote_height, Input::Vote(signed_vote), metrics);
 
         return Ok(());
     }
@@ -59,7 +59,7 @@ where
             "Received vote at round -1, queuing for later"
         );
 
-        state.buffer_input(vote_height, Input::Vote(signed_vote));
+        state.buffer_input(vote_height, Input::Vote(signed_vote), metrics);
 
         return Ok(());
     }
