@@ -72,6 +72,22 @@ impl Round {
     }
 
     /// Return `self` if it is defined, otherwise return `round`.
+    ///
+    /// ```rust
+    /// use informalsystems_malachitebft_core_types::Round;
+    ///
+    /// let nil = Round::Nil;
+    /// let some = Round::Some(2);
+    ///
+    /// assert_eq!(nil.or(Round::Some(5)), Round::Some(5));
+    /// assert_eq!(some.or(Round::Some(5)), Round::Some(2));
+    ///
+    /// assert_eq!(nil.or(Round::Nil), Round::Nil);
+    /// assert_eq!(some.or(Round::Nil), Round::Some(2));
+    ///
+    /// assert_eq!(nil.or(Round::new(10)), Round::new(10));
+    /// assert_eq!(some.or(Round::new(10)), Round::Some(2));
+    /// ```
     pub fn or(&self, round: Round) -> Round {
         match self {
             Round::Nil => round,
@@ -80,6 +96,22 @@ impl Round {
     }
 
     /// Return `self` if it is defined, otherwise compute and return the result of `f`.
+    ///
+    /// ```rust
+    /// use informalsystems_malachitebft_core_types::Round;
+    ///
+    /// let nil = Round::Nil;
+    /// let some = Round::Some(2);
+    ///
+    /// assert_eq!(nil.or_else(|| Round::Some(5)), Round::Some(5));
+    /// assert_eq!(some.or_else(|| Round::Some(5)), Round::Some(2));
+    ///
+    /// assert_eq!(nil.or_else(|| Round::Nil), Round::Nil);
+    /// assert_eq!(some.or_else(|| Round::Nil), Round::Some(2));
+    ///
+    /// assert_eq!(nil.or_else(|| Round::new(10)), Round::new(10));
+    /// assert_eq!(some.or_else(|| Round::new(10)), Round::Some(2));
+    /// ```
     pub fn or_else(&self, f: impl FnOnce() -> Round) -> Round {
         match self {
             Round::Nil => f(),
