@@ -19,7 +19,7 @@ borsh = ["dep:borsh", "malachitebft-peer/borsh"]
 malachitebft-core-types = { workspace = true }
 malachitebft-metrics = { workspace = true }
 malachitebft-peer = { workspace = true }
-
+eyre = {workspace = true}
 async-trait = { workspace = true }
 borsh = { workspace = true, optional = true }
 bytes = { workspace = true, features = ["serde"] }

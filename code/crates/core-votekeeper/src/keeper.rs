@@ -199,6 +199,11 @@ where
         self.per_round.get(&round)
     }
 
+    /// Return votes for all rounds we have seen so far.
+    pub fn all_rounds(&self) -> &BTreeMap<Round, PerRound<Ctx>> {
+        &self.per_round
+    }
+
     /// Return how many rounds we have seen votes for so far.
     pub fn rounds(&self) -> usize {
         self.per_round.len()

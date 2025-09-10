@@ -2,14 +2,16 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use derive_where::derive_where;
-use malachitebft_app::consensus::Role;
-use malachitebft_app::types::core::ValueOrigin;
-use malachitebft_engine::host::Next;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
+use tracing::error;
 
+use malachitebft_app::consensus::Role;
 use malachitebft_app::consensus::VoteExtensionError;
+use malachitebft_app::types::core::ValueOrigin;
+use malachitebft_engine::consensus::state_dump::StateDump;
 use malachitebft_engine::consensus::Msg as ConsensusActorMsg;
+use malachitebft_engine::host::Next;
 use malachitebft_engine::network::Msg as NetworkActorMsg;
 use malachitebft_engine::util::events::TxEvent;
 
@@ -20,6 +22,68 @@ use crate::app::types::{LocallyProposedValue, PeerId, ProposedValue};
 
 pub type Reply<T> = oneshot::Sender<T>;
 
+/// Represents requests that can be sent to the consensus engine by the application.
+///
+/// Each variant corresponds to a specific operation or query that the consensus engine can perform.
+/// To send a request, use the `requests` channel provided in [`Channels`].
+/// Responses are delivered via oneshot channels included in the request variants.
+///
+/// ## Example
+///
+/// ```rust,ignore
+/// pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyre::Result<()> {
+///     // If the MALACHITE_MONITOR_STATE env var is set, start monitoring the consensus state
+///     if std::env::var("MALACHITE_MONITOR_STATE").is_ok() {
+///         monitor_state(channels.requests.clone());
+///     }
+///
+///     // ...
+/// }
+///
+/// /// Periodically request a state dump from consensus and print it to the console
+/// fn monitor_state(tx_request: mpsc::Sender<ConsensusRequest<TestContext>>) {
+///     tokio::spawn(async move {
+///         loop {
+///             if let Some(dump) = ConsensusRequest::dump_state(&tx_request).await {
+///                 tracing::debug!("State dump: {dump:#?}");
+///             } else {
+///                 tracing::debug!("Failed to dump state");
+///             }
+///
+///             sleep(Duration::from_secs(1)).await;
+///         }
+///     });
+/// }
+/// ```
+pub enum ConsensusRequest<Ctx: Context> {
+    /// Request a state dump from consensus
+    DumpState(Reply<StateDump<Ctx>>),
+}
+
+impl<Ctx: Context> ConsensusRequest<Ctx> {
+    /// Request a state dump from consensus.
+    ///
+    /// If the request fails, `None` is returned.
+    pub async fn dump_state(
+        tx_request: &mpsc::Sender<ConsensusRequest<Ctx>>,
+    ) -> Option<StateDump<Ctx>> {
+        let (tx, rx) = oneshot::channel();
+
+        tx_request
+            .send(Self::DumpState(tx))
+            .await
+            .inspect_err(|e| error!("Failed to send DumpState request to consensus: {e}"))
+            .ok()?;
+
+        let dump = rx
+            .await
+            .inspect_err(|e| error!("Failed to receive DumpState response from consensus: {e}"))
+            .ok()?;
+
+        Some(dump)
+    }
+}
+
 /// Channels created for application consumption
 pub struct Channels<Ctx: Context> {
     /// Channel for receiving messages from consensus
@@ -28,6 +92,8 @@ pub struct Channels<Ctx: Context> {
     pub network: mpsc::Sender<NetworkMsg<Ctx>>,
     /// Receiver of events, call `subscribe` to receive them
     pub events: TxEvent<Ctx>,
+    /// Channel for sending requests to consensus
+    pub requests: mpsc::Sender<ConsensusRequest<Ctx>>,
 }
 
 /// Messages sent from consensus to the application.

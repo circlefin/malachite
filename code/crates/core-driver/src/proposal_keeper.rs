@@ -26,8 +26,9 @@ where
     },
 }
 
+/// The proposals received in a given round, if any.
 #[derive_where(Clone, Debug, PartialEq, Eq, Default)]
-struct PerRound<Ctx>
+pub struct PerRound<Ctx>
 where
     Ctx: Context,
 {
@@ -149,6 +150,11 @@ where
             .get(&round)
             .map(PerRound::get_proposals_and_validities)
             .unwrap_or(&[])
+    }
+
+    /// Returns all proposals and their validities for all rounds.
+    pub fn all_rounds(&self) -> &BTreeMap<Round, PerRound<Ctx>> {
+        &self.per_round
     }
 
     /// Return the evidence of equivocation.

@@ -277,6 +277,12 @@ async fn spawn_network_actor(
         pubsub_max_size: cfg.consensus.p2p.pubsub_max_size.as_u64() as usize,
         enable_consensus: cfg.consensus.enabled,
         enable_sync: true,
+        protocol_names: gossip::ProtocolNames {
+            consensus: cfg.consensus.p2p.protocol_names.consensus.clone(),
+            discovery_kad: cfg.consensus.p2p.protocol_names.discovery_kad.clone(),
+            discovery_regres: cfg.consensus.p2p.protocol_names.discovery_regres.clone(),
+            sync: cfg.consensus.p2p.protocol_names.sync.clone(),
+        },
     };
 
     let keypair = make_keypair(private_key);

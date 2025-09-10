@@ -3,6 +3,7 @@ use std::iter;
 use std::time::Duration;
 
 use either::Either;
+use eyre::Result;
 use libp2p::identity::Keypair;
 use libp2p::kad::store::MemoryStore;
 use libp2p::kad::{Addresses, KBucketKey, KBucketRef, Mode, RoutingUpdate};
@@ -14,9 +15,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::BootstrapProtocol;
 use crate::Config;
-
-const DISCOVERY_KAD_PROTOCOL: &str = "/malachitebft-discovery/kad/v1beta1";
-const DISCOVERY_REQRES_PROTOCOL: &str = "/malachitebft-discovery/reqres/v1beta1";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Request {
@@ -68,20 +66,22 @@ pub struct Behaviour {
     pub request_response: request_response::cbor::Behaviour<Request, Response>,
 }
 
-fn kademlia_config() -> kad::Config {
-    let mut config = kad::Config::new(StreamProtocol::new(DISCOVERY_KAD_PROTOCOL));
+fn kademlia_config(name: String) -> Result<kad::Config> {
+    let mut config = kad::Config::new(StreamProtocol::try_from_owned(name)?);
 
     // In production, one might set this to a high value to keep a fresh view of the network
     config.set_periodic_bootstrap_interval(None);
 
-    config
+    Ok(config)
 }
 
-fn request_response_protocol() -> iter::Once<(StreamProtocol, ProtocolSupport)> {
-    iter::once((
-        StreamProtocol::new(DISCOVERY_REQRES_PROTOCOL),
+fn request_response_protocol(
+    protocol_name: String,
+) -> Result<iter::Once<(StreamProtocol, ProtocolSupport)>> {
+    Ok(iter::once((
+        StreamProtocol::try_from_owned(protocol_name)?,
         ProtocolSupport::Full,
-    ))
+    )))
 }
 
 fn request_response_config() -> request_response::Config {
@@ -89,14 +89,34 @@ fn request_response_config() -> request_response::Config {
 }
 
 impl Behaviour {
-    pub fn new(keypair: &Keypair, config: Config) -> Self {
+    pub fn new(
+        keypair: &Keypair,
+        config: Config,
+        discovery_kad_protocol: String,
+        discovery_regres_protocol: String,
+    ) -> Result<Self> {
+        Self::new_with_protocols(
+            keypair,
+            config,
+            discovery_kad_protocol,
+            discovery_regres_protocol,
+        )
+    }
+
+    pub fn new_with_protocols(
+        keypair: &Keypair,
+        config: Config,
+        discovery_kad_protocol: String,
+        discovery_regres_protocol: String,
+    ) -> Result<Self> {
+        let kademlia_config = kademlia_config(discovery_kad_protocol)?;
         let kademlia = Toggle::from(
             (config.enabled && config.bootstrap_protocol == BootstrapProtocol::Kademlia).then(
                 || {
                     let mut kademlia = kad::Behaviour::with_config(
                         keypair.public().to_peer_id(),
                         MemoryStore::new(keypair.public().to_peer_id()),
-                        kademlia_config(),
+                        kademlia_config,
                     );
 
                     kademlia.set_mode(Some(Mode::Server));
@@ -107,14 +127,14 @@ impl Behaviour {
         );
 
         let request_response = request_response::cbor::Behaviour::new(
-            request_response_protocol(),
+            request_response_protocol(discovery_regres_protocol)?,
             request_response_config(),
         );
 
-        Self {
+        Ok(Self {
             kademlia,
             request_response,
-        }
+        })
     }
 }
 

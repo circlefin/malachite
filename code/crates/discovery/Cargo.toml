@@ -22,3 +22,4 @@ tracing = { workspace = true }
 tokio = { workspace = true }
 either = { workspace = true }
 rand = { workspace = true }
+eyre = {workspace = true}

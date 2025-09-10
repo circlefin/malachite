@@ -4,9 +4,10 @@ use malachitebft_test::utils::validators::make_validators;
 use malachitebft_test::{Address, Ed25519Provider, Proposal, Value};
 use malachitebft_test::{Height, TestContext};
 
-use informalsystems_malachitebft_core_consensus::{
-    FullProposal, FullProposalKeeper, Input, ProposedValue,
+use informalsystems_malachitebft_core_consensus::full_proposal::{
+    FullProposal, FullProposalKeeper,
 };
+use informalsystems_malachitebft_core_consensus::{Input, ProposedValue};
 
 fn signed_proposal_pol(
     signing_provider: &Ed25519Provider,

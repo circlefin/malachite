@@ -166,7 +166,7 @@ impl Node for App {
 
         let app_handle = tokio::spawn(
             async move {
-                if let Err(e) = crate::app::run(genesis, &mut state, &mut channels).await {
+                if let Err(e) = crate::app::run(&mut state, &mut channels).await {
                     tracing::error!("Application has failed with an error: {e}");
                 }
             }

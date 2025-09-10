@@ -1,20 +1,41 @@
 use std::time::Duration;
 
 use eyre::eyre;
-use malachitebft_app_channel::app::engine::host::Next;
+use tokio::sync::mpsc;
 use tokio::time::sleep;
 use tracing::{error, info};
 
+use malachitebft_app_channel::app::engine::host::Next;
 use malachitebft_app_channel::app::streaming::StreamContent;
 use malachitebft_app_channel::app::types::core::{Height as _, Round, Validity};
 use malachitebft_app_channel::app::types::sync::RawDecidedValue;
 use malachitebft_app_channel::app::types::{LocallyProposedValue, ProposedValue};
-use malachitebft_app_channel::{AppMsg, Channels, NetworkMsg};
+use malachitebft_app_channel::{AppMsg, Channels, ConsensusRequest, NetworkMsg};
 use malachitebft_test::{Height, TestContext};
 
 use crate::state::{decode_value, encode_value, State};
 
+/// Periodically request a state dump from consensus and print it to the console
+fn monitor_state(tx_request: mpsc::Sender<ConsensusRequest<TestContext>>) {
+    tokio::spawn(async move {
+        loop {
+            if let Some(dump) = ConsensusRequest::dump_state(&tx_request).await {
+                tracing::debug!("State dump: {dump:#?}");
+            } else {
+                tracing::debug!("Failed to dump state");
+            }
+
+            sleep(Duration::from_secs(1)).await;
+        }
+    });
+}
+
 pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyre::Result<()> {
+    // If the MALACHITE_MONITOR_STATE env var is set, start monitoring the consensus state
+    if std::env::var("MALACHITE_MONITOR_STATE").is_ok() {
+        monitor_state(channels.requests.clone());
+    }
+
     while let Some(msg) = channels.consensus.recv().await {
         match msg {
             // The first message to handle is the `ConsensusReady` message, signaling to the app
@@ -57,12 +78,42 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 state.current_round = round;
                 state.current_proposer = Some(proposer);
 
-                let pending = state.store.get_pending_proposals(height, round).await?;
-                info!(%height, %round, "Found {} pending proposals, validating...", pending.len());
-                for p in &pending {
-                    // TODO: check proposal validity
-                    state.store.store_undecided_proposal(p.clone()).await?;
-                    state.store.remove_pending_proposal(p.clone()).await?;
+                let pending_parts = state
+                    .store
+                    .get_pending_proposal_parts(height, round)
+                    .await?;
+                info!(%height, %round, "Found {} pending proposal parts, validating...", pending_parts.len());
+
+                for parts in &pending_parts {
+                    // Remove the parts from pending
+                    state
+                        .store
+                        .remove_pending_proposal_parts(parts.clone())
+                        .await?;
+
+                    match state.validate_proposal_parts(parts) {
+                        Ok(()) => {
+                            // Validation passed - convert to ProposedValue and move to undecided
+                            let value = State::assemble_value_from_parts(parts.clone())?;
+                            state.store.store_undecided_proposal(value).await?;
+                            info!(
+                                height = %parts.height,
+                                round = %parts.round,
+                                proposer = %parts.proposer,
+                                "Moved valid pending proposal to undecided after validation"
+                            );
+                        }
+                        Err(error) => {
+                            // Validation failed, log error
+                            error!(
+                                height = %parts.height,
+                                round = %parts.round,
+                                proposer = %parts.proposer,
+                                error = ?error,
+                                "Removed invalid pending proposal"
+                            );
+                        }
+                    }
                 }
 
                 // If we have already built or seen values for this height and round,
@@ -241,9 +292,9 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             // It may happen that our node is lagging behind its peers. In that case,
             // a synchronization mechanism will automatically kick to try and catch up to
             // our peers. When that happens, some of these peers will send us decided values
-            // for the heights in between the one we are currently at (included) and the one
-            // that they are at. When the engine receives such a value, it will forward to the application
-            // to decode it from its wire format and send back the decoded value to consensus.
+            // for the current height only (not for future heights). When the engine receives
+            // such a value, it will forward to the application to decode it from its wire format
+            // and send back the decoded value to consensus.
             AppMsg::ProcessSyncedValue {
                 height,
                 round,
@@ -263,6 +314,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         validity: Validity::Valid,
                     };
 
+                    // TODO: We plan to add some validation here in the future.
                     state
                         .store
                         .store_undecided_proposal(proposed_value.clone())

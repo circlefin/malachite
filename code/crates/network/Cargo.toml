@@ -19,7 +19,6 @@ malachitebft-discovery = { workspace = true }
 malachitebft-metrics = { workspace = true }
 malachitebft-peer = { workspace = true }
 malachitebft-sync = { workspace = true }
-
 bytes = { workspace = true }
 either = { workspace = true }
 eyre = { workspace = true }

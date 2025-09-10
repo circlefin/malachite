@@ -33,18 +33,6 @@ where
         return Ok(());
     }
 
-    if !verify_signed_vote(co, state, &signed_vote).await? {
-        return Ok(());
-    }
-
-    info!(
-        height = %consensus_height,
-        %vote_height,
-        address = %validator_address,
-        message = %PrettyVote::<Ctx>(&signed_vote.message),
-        "Received vote",
-    );
-
     // Queue messages if driver is not initialized, or if they are for higher height.
     // Process messages received for the current height.
     // Drop all others.
@@ -75,6 +63,18 @@ where
     }
 
     debug_assert_eq!(consensus_height, vote_height);
+
+    if !verify_signed_vote(co, state, &signed_vote).await? {
+        return Ok(());
+    }
+
+    info!(
+        height = %consensus_height,
+        %vote_height,
+        address = %validator_address,
+        message = %PrettyVote::<Ctx>(&signed_vote.message),
+        "Received vote",
+    );
 
     // Only process this vote if we have not yet seen it.
     if !state.driver.votes().has_vote(&signed_vote) {

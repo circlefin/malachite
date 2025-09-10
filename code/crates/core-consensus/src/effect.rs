@@ -3,7 +3,7 @@ use derive_where::derive_where;
 use malachitebft_core_types::*;
 
 use crate::types::{LivenessMsg, SignedConsensusMsg};
-use crate::{ConsensusMsg, Role, VoteExtensionError, WalEntry};
+use crate::{ConsensusMsg, Error, PeerId, Role, VoteExtensionError, WalEntry};
 
 /// Provides a way to construct the appropriate [`Resume`] value to
 /// resume execution after handling an [`Effect`].
@@ -131,10 +131,31 @@ where
         resume::Continue,
     ),
 
-    /// Notifies the application that consensus has received a value response.
+    /// Notifies the application that consensus has received a valid sync value response.
     ///
     /// Resume with: [`resume::Continue`]
-    SyncValue(ValueResponse<Ctx>, resume::Continue),
+    ValidSyncValue(
+        /// The value response
+        ValueResponse<Ctx>,
+        /// The proposer for that value
+        Ctx::Address,
+        /// How to resume
+        resume::Continue,
+    ),
+
+    /// Notifies the engine that consensus has received an invalid sync value response.
+    ///
+    /// Resume with: [`resume::Continue`]
+    InvalidSyncValue(
+        /// The peer that sent the invalid response
+        PeerId,
+        /// The height for which the response was sent
+        Ctx::Height,
+        /// The error that was encountered
+        Error<Ctx>,
+        /// How to resume
+        resume::Continue,
+    ),
 
     /// Notifies the application that consensus has decided on a value.
     ///

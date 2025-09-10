@@ -81,7 +81,7 @@ where
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
         let args = Args {
             keypair,
-            config,
+            config: config.clone(),
             metrics,
         };
 

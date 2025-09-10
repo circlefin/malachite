@@ -13,15 +13,11 @@ use malachitebft_app_channel::app::types::sync::RawDecidedValue;
 use malachitebft_app_channel::app::types::{LocallyProposedValue, ProposedValue};
 use malachitebft_app_channel::{AppMsg, Channels, NetworkMsg};
 use malachitebft_test::codec::json::JsonCodec;
-use malachitebft_test::{Genesis, Height, TestContext};
+use malachitebft_test::{Height, TestContext};
 
 use crate::state::{decode_value, State};
 
-pub async fn run(
-    genesis: Genesis,
-    state: &mut State,
-    channels: &mut Channels<TestContext>,
-) -> eyre::Result<()> {
+pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyre::Result<()> {
     while let Some(msg) = channels.consensus.recv().await {
         match msg {
             // The first message to handle is the `ConsensusReady` message, signaling to the app
@@ -41,9 +37,7 @@ pub async fn run(
                 // We can simply respond by telling the engine to start consensus
                 // at the next height, and provide it with the appropriate validator set
                 let validator_set = state
-                    .ctx
-                    .middleware()
-                    .get_validator_set(&state.ctx, start_height, start_height, &genesis)
+                    .get_validator_set(start_height)
                     .expect("Validator set should be available");
 
                 if reply.send((start_height, validator_set)).is_err() {
@@ -67,12 +61,42 @@ pub async fn run(
                 state.current_round = round;
                 state.current_proposer = Some(proposer);
 
-                let pending = state.store.get_pending_proposals(height, round).await?;
-                info!(%height, %round, "Found {} pending proposals, validating...", pending.len());
-                for p in &pending {
-                    // TODO: check proposal validity
-                    state.store.store_undecided_proposal(p.clone()).await?;
-                    state.store.remove_pending_proposal(p.clone()).await?;
+                let pending_parts = state
+                    .store
+                    .get_pending_proposal_parts(height, round)
+                    .await?;
+                info!(%height, %round, "Found {} pending proposal parts, validating...", pending_parts.len());
+
+                for parts in &pending_parts {
+                    // Remove the parts from pending
+                    state
+                        .store
+                        .remove_pending_proposal_parts(parts.clone())
+                        .await?;
+
+                    match state.validate_proposal_parts(parts) {
+                        Ok(()) => {
+                            // Validation passed - convert to ProposedValue and move to undecided
+                            let value = State::assemble_value_from_parts(parts.clone())?;
+                            state.store.store_undecided_proposal(value).await?;
+                            info!(
+                                height = %parts.height,
+                                round = %parts.round,
+                                proposer = %parts.proposer,
+                                "Moved valid pending proposal to undecided after validation"
+                            );
+                        }
+                        Err(error) => {
+                            // Validation failed, log error
+                            error!(
+                                height = %parts.height,
+                                round = %parts.round,
+                                proposer = %parts.proposer,
+                                error = ?error,
+                                "Removed invalid pending proposal"
+                            );
+                        }
+                    }
                 }
 
                 // If we have already built or seen values for this height and round,
@@ -172,12 +196,7 @@ pub async fn run(
             //
             // We send back the appropriate validator set for that height.
             AppMsg::GetValidatorSet { height, reply } => {
-                let validator_set = state.ctx.middleware().get_validator_set(
-                    &state.ctx,
-                    state.current_height,
-                    height,
-                    &genesis,
-                );
+                let validator_set = state.get_validator_set(height);
 
                 if reply.send(validator_set).is_err() {
                     error!("Failed to send GetValidatorSet reply");
@@ -207,14 +226,7 @@ pub async fn run(
                     Ok(_) => {
                         // And then we instruct consensus to start the next height
                         let validator_set = state
-                            .ctx
-                            .middleware()
-                            .get_validator_set(
-                                &state.ctx,
-                                state.current_height,
-                                state.current_height,
-                                &genesis,
-                            )
+                            .get_validator_set(state.current_height)
                             .expect("Validator set should be available");
 
                         if reply
@@ -230,14 +242,7 @@ pub async fn run(
                         error!("Restarting height {}", state.current_height);
 
                         let validator_set = state
-                            .ctx
-                            .middleware()
-                            .get_validator_set(
-                                &state.ctx,
-                                state.current_height,
-                                state.current_height,
-                                &genesis,
-                            )
+                            .get_validator_set(state.current_height)
                             .expect("Validator set should be available");
 
                         if reply
@@ -254,9 +259,9 @@ pub async fn run(
             // It may happen that our node is lagging behind its peers. In that case,
             // a synchronization mechanism will automatically kick to try and catch up to
             // our peers. When that happens, some of these peers will send us decided values
-            // for the heights in between the one we are currently at (included) and the one
-            // that they are at. When the engine receives such a value, it will forward to the application
-            // to decode it from its wire format and send back the decoded value to consensus.
+            // for the current height only (not for future heights). When the engine receives
+            // such a value, it will forward to the application to decode it from its wire format
+            // and send back the decoded value to consensus.
             AppMsg::ProcessSyncedValue {
                 height,
                 round,
@@ -276,6 +281,7 @@ pub async fn run(
                         validity: Validity::Valid,
                     };
 
+                    // TODO: We plan to add some validation here in the future.
                     state.store_synced_value(proposal.clone()).await?;
 
                     if reply.send(Some(proposal)).is_err() {

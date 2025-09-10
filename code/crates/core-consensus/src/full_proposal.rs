@@ -33,7 +33,7 @@ impl<Ctx: Context> FullProposal<Ctx> {
 
 /// An entry in the keeper.
 #[derive_where(Clone, Debug)]
-enum Entry<Ctx: Context> {
+pub enum Entry<Ctx: Context> {
     /// The full proposal has been received,i.e. both the value and the proposal.
     Full(FullProposal<Ctx>),
 

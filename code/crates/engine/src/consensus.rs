@@ -7,7 +7,7 @@ use async_recursion::async_recursion;
 use async_trait::async_trait;
 use derive_where::derive_where;
 use eyre::eyre;
-use ractor::{Actor, ActorProcessingErr, ActorRef};
+use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::time::Instant;
 use tracing::{debug, error, error_span, info, warn};
 
@@ -36,6 +36,9 @@ use crate::wal::{Msg as WalMsg, WalEntry, WalRef};
 pub use malachitebft_core_consensus::Error as ConsensusError;
 pub use malachitebft_core_consensus::Params as ConsensusParams;
 pub use malachitebft_core_consensus::State as ConsensusState;
+
+pub mod state_dump;
+use state_dump::StateDump;
 
 /// Codec for consensus messages.
 ///
@@ -112,6 +115,9 @@ pub enum Msg<Ctx: Context> {
     /// 2. Since consensus resets its write-ahead log, the node may equivocate on proposals and votes
     ///    for the restarted height, potentially violating protocol safety
     RestartHeight(Ctx::Height, Ctx::ValidatorSet),
+
+    /// Request to dump the current consensus state
+    DumpState(RpcReplyPort<StateDump<Ctx>>),
 }
 
 impl<Ctx: Context> fmt::Display for Msg<Ctx> {
@@ -148,6 +154,7 @@ impl<Ctx: Context> fmt::Display for Msg<Ctx> {
                 value.height, value.round
             ),
             Msg::RestartHeight(height, _) => write!(f, "RestartHeight(height={height})"),
+            Msg::DumpState(_) => write!(f, "DumpState"),
         }
     }
 }
@@ -307,6 +314,9 @@ where
         input: ConsensusInput<Ctx>,
     ) -> Result<(), ConsensusError<Ctx>> {
         let height = state.height();
+
+        // By the time the effect is processed the state height might have changed.
+        // This happens for input Msg::StartHeight(height), so height is potentially stale.
 
         malachitebft_core_consensus::process!(
             input: input,
@@ -616,6 +626,16 @@ where
 
                 Ok(())
             }
+
+            Msg::DumpState(reply_to) => {
+                let dump = StateDump::new(&state.consensus);
+
+                if let Err(e) = reply_to.send(dump) {
+                    error!("Failed to reply with state dump: {e}");
+                }
+
+                Ok(())
+            }
         }
     }
 
@@ -630,26 +650,12 @@ where
     where
         Ctx: Context,
     {
-        let Some(sync) = self.sync.clone() else {
-            warn!("Received sync response but sync actor is not available");
-            return Ok(());
-        };
-
-        // Fetch the proposer for the round and height of the synced value
-        // Given that proposer selection is required be fully deterministic,
-        // we are guaranteed to get the proposer for that value.
-        let proposer = state
-            .consensus
-            .get_proposer(value.certificate.height, value.certificate.round)
-            .clone();
-
         if let Err(e) = self
             .process_input(
                 myself,
                 state,
                 ConsensusInput::SyncValueResponse(CoreValueResponse::new(
                     peer,
-                    proposer,
                     value.value_bytes.clone(),
                     value.certificate.clone(),
                 )),
@@ -657,23 +663,6 @@ where
             .await
         {
             error!(%height, "Error when processing received synced block: {e}");
-
-            if let ConsensusError::InvalidCommitCertificate(certificate, e) = e {
-                error!(
-                    %peer,
-                    %certificate.height,
-                    %certificate.round,
-                    "Invalid certificate received: {e}"
-                );
-
-                sync.cast(SyncMsg::InvalidValue(peer, certificate.height))
-                    .map_err(|e| eyre!("Error when notifying sync of invalid certificate: {e}"))?;
-            } else {
-                sync.cast(SyncMsg::ValueProcessingError(peer, height))
-                    .map_err(|e| {
-                        eyre!("Error when notifying sync of value processing error: {e}")
-                    })?;
-            }
         }
 
         Ok(())
@@ -1248,7 +1237,35 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::SyncValue(value, r) => {
+            Effect::InvalidSyncValue(peer, height, error, r) => {
+                if let Some(sync) = &self.sync {
+                    if let ConsensusError::InvalidCommitCertificate(certificate, e) = error {
+                        error!(
+                            %peer,
+                            %certificate.height,
+                            %certificate.round,
+                            "Invalid certificate received: {e}"
+                        );
+
+                        sync.cast(SyncMsg::InvalidValue(peer, certificate.height))
+                            .map_err(|e| {
+                                eyre!("Error when notifying sync of invalid certificate: {e}")
+                            })?;
+                    } else {
+                        sync.cast(SyncMsg::ValueProcessingError(peer, height))
+                            .map_err(|e| {
+                                eyre!("Error when notifying sync of value processing error: {e}")
+                            })?;
+                    }
+                }
+
+                Ok(r.resume_with(()))
+            }
+
+            Effect::ValidSyncValue(value, proposer, r) => {
+                // NOTE: The state.height is not yet updated if this is an effect that is triggered by the
+                // Msg::StartHeight(height), with buffered sync value for height `height`.
+
                 let certificate_height = value.certificate.height;
                 let certificate_round = value.certificate.round;
 
@@ -1261,7 +1278,7 @@ where
                     |reply_to| HostMsg::ProcessSyncedValue {
                         height: certificate_height,
                         round: certificate_round,
-                        proposer: value.proposer,
+                        proposer,
                         value_bytes: value.value_bytes,
                         reply_to,
                     },

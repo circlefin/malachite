@@ -12,28 +12,49 @@ pub async fn on_value_response<Ctx>(
 where
     Ctx: Context,
 {
-    debug!(
-        value.certificate.height = %value.certificate.height,
-        signatures = value.certificate.commit_signatures.len(),
-        "Processing value response"
-    );
+    let consensus_height = state.height();
+    let cert_height = value.certificate.height;
 
-    if state.driver.height() < value.certificate.height {
-        debug!("Received value response for higher height, queuing for later");
+    if consensus_height > cert_height {
+        debug!(
+            %consensus_height,
+            %cert_height,
+            "Received value response for lower height, ignoring"
+        );
+        return Ok(());
+    }
 
-        state.buffer_input(value.certificate.height, Input::SyncValueResponse(value));
+    if consensus_height < cert_height {
+        debug!(%consensus_height, %cert_height, "Received value response for higher height, queuing for later");
+
+        state.buffer_input(cert_height, Input::SyncValueResponse(value));
 
         return Ok(());
     }
 
-    if let Err(e) = process_commit_certificate(co, state, metrics, value.certificate.clone()).await
-    {
-        error!("Error when processing commit certificate: {e}");
-        Err(e)
-    } else {
-        perform!(co, Effect::SyncValue(value, Default::default()));
-        Ok(())
-    }
+    info!(
+        value.certificate.height = %cert_height,
+        signatures = value.certificate.commit_signatures.len(),
+        "Processing value response"
+    );
+
+    let proposer = state
+        .get_proposer(cert_height, value.certificate.round)
+        .clone();
+
+    let peer = value.peer;
+
+    let effect = process_commit_certificate(co, state, metrics, value.certificate.clone())
+        .await
+        .map(|_| Effect::ValidSyncValue(value, proposer, Default::default()))
+        .unwrap_or_else(|e| {
+            error!("Error when processing commit certificate: {e}");
+            Effect::InvalidSyncValue(peer, cert_height, e, Default::default())
+        });
+
+    perform!(co, effect);
+
+    Ok(())
 }
 
 async fn process_commit_certificate<Ctx>(
