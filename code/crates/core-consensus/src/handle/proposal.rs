@@ -42,6 +42,7 @@ where
     let proposal_round = signed_proposal.round();
     let proposer_address = signed_proposal.validator_address();
 
+    // Discard proposals for heights lower than the current height.
     if proposal_height < consensus_height {
         warn!(
             consensus.height = %consensus_height,
@@ -53,24 +54,25 @@ where
         return Ok(());
     }
 
-    // Queue messages if driver is not initialized, or if they are for higher height.
-    // Process messages received for the current height.
-    // Drop all others.
-    if state.driver.round() == Round::Nil {
-        debug!("Received proposal at round -1, queuing for later");
-        state.buffer_input(proposal_height, Input::Proposal(signed_proposal));
-
-        return Ok(());
-    }
-
+    // Queue proposals for heights higher than the current height.
     if proposal_height > consensus_height {
         debug!("Received proposal for higher height {proposal_height}, queuing for later",);
-        state.buffer_input(proposal_height, Input::Proposal(signed_proposal));
+        state.buffer_input(proposal_height, Input::Proposal(signed_proposal), metrics);
 
         return Ok(());
     }
 
     debug_assert_eq!(proposal_height, consensus_height);
+
+    // Queue messages if driver is not initialized.
+    // Process messages received for the current height.
+    // Drop all others.
+    if state.driver.round() == Round::Nil {
+        debug!("Received proposal at round -1, queuing for later");
+        state.buffer_input(proposal_height, Input::Proposal(signed_proposal), metrics);
+
+        return Ok(());
+    }
 
     if !verify_signed_proposal(co, state, &signed_proposal).await? {
         return Ok(());

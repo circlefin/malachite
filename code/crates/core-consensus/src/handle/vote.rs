@@ -22,6 +22,7 @@ where
     let vote_height = signed_vote.height();
     let validator_address = signed_vote.validator_address();
 
+    // Discard votes for heights lower than the current height.
     if consensus_height > vote_height {
         debug!(
             consensus.height = %consensus_height,
@@ -33,7 +34,21 @@ where
         return Ok(());
     }
 
-    // Queue messages if driver is not initialized, or if they are for higher height.
+    // Queue votes for heights higher than the current height.
+    if consensus_height < vote_height {
+        trace!(
+            consensus.height = %consensus_height,
+            vote.height = %vote_height,
+            validator = %validator_address,
+            "Received vote for higher height, queuing for later"
+        );
+
+        state.buffer_input(vote_height, Input::Vote(signed_vote), metrics);
+
+        return Ok(());
+    }
+
+    // Queue messages if driver is not initialized
     // Process messages received for the current height.
     // Drop all others.
     if consensus_round == Round::Nil {
@@ -44,20 +59,7 @@ where
             "Received vote at round -1, queuing for later"
         );
 
-        state.buffer_input(vote_height, Input::Vote(signed_vote));
-
-        return Ok(());
-    }
-
-    if consensus_height < vote_height {
-        trace!(
-            consensus.height = %consensus_height,
-            vote.height = %vote_height,
-            validator = %validator_address,
-            "Received vote for higher height, queuing for later"
-        );
-
-        state.buffer_input(vote_height, Input::Vote(signed_vote));
+        state.buffer_input(vote_height, Input::Vote(signed_vote), metrics);
 
         return Ok(());
     }
