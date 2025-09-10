@@ -288,6 +288,11 @@ async fn run(
         };
     }
 
+    // Timer to periodically try reconnecting to persistent peers
+    // TODO: Using 1 second for now, for faster reconnection during testing
+    // Maybe adjust via config in the future
+    let mut persistent_peer_timer = tokio::time::interval(std::time::Duration::from_secs(1));
+
     loop {
         let result = tokio::select! {
             event = swarm.select_next_some() => {
@@ -316,6 +321,12 @@ async fn run(
 
             Some(ctrl) = rx_ctrl.recv() => {
                 handle_ctrl_msg(&mut swarm, &mut state, &config, ctrl).await
+            }
+
+            _ = persistent_peer_timer.tick() => {
+                // Periodically attempt to reconnect to persistent peers
+                state.discovery.reconnect_to_persistent_peers(&mut swarm);
+                ControlFlow::Continue(())
             }
         };
 
