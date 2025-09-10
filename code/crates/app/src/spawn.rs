@@ -227,5 +227,11 @@ fn make_gossip_config(cfg: &ConsensusConfig) -> NetworkConfig {
         rpc_max_size: cfg.p2p.rpc_max_size.as_u64() as usize,
         pubsub_max_size: cfg.p2p.pubsub_max_size.as_u64() as usize,
         enable_sync: true,
+        protocol_names: malachitebft_network::ProtocolNames {
+            consensus: cfg.p2p.protocol_names.consensus.clone(),
+            discovery_kad: cfg.p2p.protocol_names.discovery_kad.clone(),
+            discovery_regres: cfg.p2p.protocol_names.discovery_regres.clone(),
+            sync: cfg.p2p.protocol_names.sync.clone(),
+        },
     }
 }

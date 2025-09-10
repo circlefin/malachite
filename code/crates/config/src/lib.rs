@@ -8,6 +8,28 @@ use malachitebft_core_types::TimeoutKind;
 use multiaddr::Multiaddr;
 use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProtocolNames {
+    pub consensus: String,
+
+    pub discovery_kad: String,
+
+    pub discovery_regres: String,
+
+    pub sync: String,
+}
+
+impl Default for ProtocolNames {
+    fn default() -> Self {
+        Self {
+            consensus: "/malachitebft-core-consensus/v1beta1".to_string(),
+            discovery_kad: "/malachitebft-discovery/kad/v1beta1".to_string(),
+            discovery_regres: "/malachitebft-discovery/reqres/v1beta1".to_string(),
+            sync: "/malachitebft-sync/v1beta1".to_string(),
+        }
+    }
+}
+
 /// P2P configuration options
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct P2pConfig {
@@ -29,6 +51,10 @@ pub struct P2pConfig {
 
     /// The maximum size of messages to send over RPC
     pub rpc_max_size: ByteSize,
+
+    /// Protocol name configuration
+    #[serde(default)]
+    pub protocol_names: ProtocolNames,
 }
 
 impl Default for P2pConfig {
@@ -40,6 +66,7 @@ impl Default for P2pConfig {
             protocol: Default::default(),
             rpc_max_size: ByteSize::mib(10),
             pubsub_max_size: ByteSize::mib(4),
+            protocol_names: Default::default(),
         }
     }
 }
@@ -812,5 +839,138 @@ mod tests {
             format!("{} {}", LogFormat::Plaintext, LogFormat::Json),
             "plaintext json"
         );
+    }
+
+    #[test]
+    fn protocol_names_default() {
+        let protocol_names = ProtocolNames::default();
+        assert_eq!(
+            protocol_names.consensus,
+            "/malachitebft-core-consensus/v1beta1"
+        );
+        assert_eq!(
+            protocol_names.discovery_kad,
+            "/malachitebft-discovery/kad/v1beta1"
+        );
+        assert_eq!(
+            protocol_names.discovery_regres,
+            "/malachitebft-discovery/reqres/v1beta1"
+        );
+        assert_eq!(protocol_names.sync, "/malachitebft-sync/v1beta1");
+    }
+
+    #[test]
+    fn protocol_names_serde() {
+        use serde_json;
+
+        // Test serialization
+        let protocol_names = ProtocolNames {
+            consensus: "/custom-consensus/v1".to_string(),
+            discovery_kad: "/custom-discovery/kad/v1".to_string(),
+            discovery_regres: "/custom-discovery/reqres/v1".to_string(),
+            sync: "/custom-sync/v1".to_string(),
+        };
+
+        let json = serde_json::to_string(&protocol_names).unwrap();
+
+        // Test deserialization
+        let deserialized: ProtocolNames = serde_json::from_str(&json).unwrap();
+        assert_eq!(protocol_names, deserialized);
+    }
+
+    #[test]
+    fn p2p_config_with_protocol_names() {
+        let config = P2pConfig::default();
+
+        // Verify protocol_names field exists and has defaults
+        assert_eq!(config.protocol_names, ProtocolNames::default());
+
+        // Test with custom protocol names
+        let custom_protocol_names = ProtocolNames {
+            consensus: "/test-network/consensus/v1".to_string(),
+            discovery_kad: "/test-network/discovery/kad/v1".to_string(),
+            discovery_regres: "/test-network/discovery/reqres/v1".to_string(),
+            sync: "/test-network/sync/v1".to_string(),
+        };
+
+        let config_with_custom = P2pConfig {
+            protocol_names: custom_protocol_names.clone(),
+            ..Default::default()
+        };
+
+        assert_eq!(config_with_custom.protocol_names, custom_protocol_names);
+    }
+
+    #[test]
+    fn protocol_names_toml_deserialization() {
+        let toml_content = r#"
+        timeout_propose = "3s"
+        timeout_propose_delta = "500ms"
+        timeout_prevote = "1s"
+        timeout_prevote_delta = "500ms"
+        timeout_precommit = "1s"
+        timeout_precommit_delta = "500ms"
+        timeout_rebroadcast = "5s"
+        value_payload = "parts-only"
+        
+        [p2p]
+        listen_addr = "/ip4/0.0.0.0/tcp/0"
+        persistent_peers = []
+        pubsub_max_size = "4 MiB"
+        rpc_max_size = "10 MiB"
+        
+        [p2p.protocol_names]
+        consensus = "/custom-network/consensus/v2"
+        discovery_kad = "/custom-network/discovery/kad/v2"
+        discovery_regres = "/custom-network/discovery/reqres/v2"
+        sync = "/custom-network/sync/v2"
+        
+        [p2p.protocol]
+        type = "gossipsub"
+        "#;
+
+        let config: ConsensusConfig = toml::from_str(toml_content).unwrap();
+
+        assert_eq!(
+            config.p2p.protocol_names.consensus,
+            "/custom-network/consensus/v2"
+        );
+        assert_eq!(
+            config.p2p.protocol_names.discovery_kad,
+            "/custom-network/discovery/kad/v2"
+        );
+        assert_eq!(
+            config.p2p.protocol_names.discovery_regres,
+            "/custom-network/discovery/reqres/v2"
+        );
+        assert_eq!(config.p2p.protocol_names.sync, "/custom-network/sync/v2");
+    }
+
+    #[test]
+    fn protocol_names_toml_defaults_when_missing() {
+        let toml_content = r#"
+        timeout_propose = "3s"
+        timeout_propose_delta = "500ms"
+        timeout_prevote = "1s"
+        timeout_prevote_delta = "500ms"
+        timeout_precommit = "1s"
+        timeout_precommit_delta = "500ms"
+        timeout_rebroadcast = "5s"
+        value_payload = "parts-only"
+        
+        [p2p]
+        listen_addr = "/ip4/0.0.0.0/tcp/0"
+        persistent_peers = []
+        pubsub_max_size = "4 MiB"
+        rpc_max_size = "10 MiB"
+        
+        [p2p.protocol]
+        type = "gossipsub"
+        "#;
+
+        let config: ConsensusConfig = toml::from_str(toml_content).unwrap();
+
+        // Should use defaults when protocol_names section is missing
+        assert_eq!(config.p2p.protocol_names, ProtocolNames::default());
     }
 }

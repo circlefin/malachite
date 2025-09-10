@@ -4,7 +4,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use libp2p_identity::PeerId;
 use malachitebft_config::TransportProtocol;
 use malachitebft_metrics::SharedRegistry;
-use malachitebft_network::{spawn, Config, DiscoveryConfig, Keypair, PeerIdExt};
+use malachitebft_network::{spawn, Config, DiscoveryConfig, Keypair, PeerIdExt, ProtocolNames};
 use malachitebft_starknet_host::types::PrivateKey;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use tokio::time::sleep;
@@ -164,6 +164,7 @@ impl<const N: usize> Test<N> {
             rpc_max_size: 10 * 1024 * 1024,   // 10 MiB
             pubsub_max_size: 4 * 1024 * 1024, // 4 MiB
             enable_sync: false,
+            protocol_names: ProtocolNames::default(),
         })
     }
 

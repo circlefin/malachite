@@ -1,4 +1,5 @@
 use bytes::Bytes;
+use eyre::Result;
 use libp2p::metrics::Registry;
 use libp2p::request_response::{self as rpc, OutboundRequestId, ProtocolSupport};
 use libp2p::swarm::NetworkBehaviour;
@@ -20,27 +21,34 @@ pub struct Behaviour {
 pub type Event = rpc::Event<RawRequest, RawResponse>;
 
 impl Behaviour {
-    pub const PROTOCOL: [(StreamProtocol, ProtocolSupport); 1] = [(
-        StreamProtocol::new("/malachitebft-sync/v1beta1"),
-        ProtocolSupport::Full,
-    )];
-
-    pub fn new(config: Config) -> Self {
+    pub fn new(config: Config, sync_protocol: String) -> Result<Self> {
+        let protocol = [(
+            StreamProtocol::try_from_owned(sync_protocol)?,
+            ProtocolSupport::Full,
+        )];
         let rpc_config = rpc::Config::default().with_request_timeout(config.request_timeout);
 
-        Self {
-            rpc: rpc::Behaviour::with_codec(Codec::new(config), Self::PROTOCOL, rpc_config),
+        Ok(Self {
+            rpc: rpc::Behaviour::with_codec(Codec::new(config), protocol, rpc_config),
             // metrics: None,
-        }
+        })
     }
 
-    pub fn new_with_metrics(config: Config, _registry: &mut Registry) -> Self {
+    pub fn new_with_metrics(
+        config: Config,
+        sync_protocol: String,
+        _registry: &mut Registry,
+    ) -> Result<Self> {
+        let protocol = [(
+            StreamProtocol::try_from_owned(sync_protocol)?,
+            ProtocolSupport::Full,
+        )];
         let rpc_config = rpc::Config::default().with_request_timeout(config.request_timeout);
 
-        Self {
-            rpc: rpc::Behaviour::with_codec(Codec::new(config), Self::PROTOCOL, rpc_config),
+        Ok(Self {
+            rpc: rpc::Behaviour::with_codec(Codec::new(config), protocol, rpc_config),
             // metrics: Some(Metrics::new(registry)),
-        }
+        })
     }
 
     pub fn send_response(&mut self, channel: ResponseChannel, data: Bytes) -> Result<(), Error> {
@@ -63,8 +71,23 @@ pub enum Error {
     SendRequest,
 }
 
+impl Behaviour {
+    pub fn with_default_protocol(config: Config) -> Self {
+        // Infallible constructor using hardcoded default protocol
+        let protocol = [(
+            StreamProtocol::new("/malachitebft-sync/v1beta1"),
+            ProtocolSupport::Full,
+        )];
+        let rpc_config = rpc::Config::default().with_request_timeout(config.request_timeout);
+
+        Self {
+            rpc: rpc::Behaviour::with_codec(Codec::new(config), protocol, rpc_config),
+        }
+    }
+}
+
 impl Default for Behaviour {
     fn default() -> Self {
-        Self::new(Config::default())
+        Self::with_default_protocol(Config::default())
     }
 }

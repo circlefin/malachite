@@ -53,19 +53,6 @@ where
         return Ok(());
     }
 
-    if !verify_signed_proposal(co, state, &signed_proposal).await? {
-        return Ok(());
-    }
-
-    info!(
-        consensus.height = %consensus_height,
-        proposal.height = %proposal_height,
-        proposal.round = %proposal_round,
-        proposer = %proposer_address,
-        message = %PrettyProposal::<Ctx>(&signed_proposal.message),
-        "Received proposal"
-    );
-
     // Queue messages if driver is not initialized, or if they are for higher height.
     // Process messages received for the current height.
     // Drop all others.
@@ -84,6 +71,19 @@ where
     }
 
     debug_assert_eq!(proposal_height, consensus_height);
+
+    if !verify_signed_proposal(co, state, &signed_proposal).await? {
+        return Ok(());
+    }
+
+    info!(
+        consensus.height = %consensus_height,
+        proposal.height = %proposal_height,
+        proposal.round = %proposal_round,
+        proposer = %proposer_address,
+        message = %PrettyProposal::<Ctx>(&signed_proposal.message),
+        "Received proposal"
+    );
 
     // Store the proposal in the full proposal keeper
     state.store_proposal(signed_proposal.clone());

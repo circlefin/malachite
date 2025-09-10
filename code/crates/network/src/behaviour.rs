@@ -1,21 +1,20 @@
 use std::time::Duration;
 
+use eyre::Result;
+pub use libp2p::identity::Keypair;
 use libp2p::kad::{Addresses, KBucketKey, KBucketRef};
 use libp2p::request_response::{OutboundRequestId, ResponseChannel};
 use libp2p::swarm::behaviour::toggle::Toggle;
 use libp2p::swarm::NetworkBehaviour;
 use libp2p::{gossipsub, identify, ping};
-use libp2p_broadcast as broadcast;
-
-pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
+use libp2p_broadcast as broadcast;
 
 use malachitebft_discovery as discovery;
 use malachitebft_metrics::Registry;
 use malachitebft_sync as sync;
 
-use crate::{Config, GossipSubConfig, PROTOCOL};
-
+use crate::{Config, GossipSubConfig};
 #[derive(Debug)]
 pub enum NetworkEvent {
     Identify(Box<identify::Event>),
@@ -149,9 +148,13 @@ fn gossipsub_config(config: GossipSubConfig, max_transmit_size: usize) -> gossip
 }
 
 impl Behaviour {
-    pub fn new_with_metrics(config: &Config, keypair: &Keypair, registry: &mut Registry) -> Self {
+    pub fn new_with_metrics(
+        config: &Config,
+        keypair: &Keypair,
+        registry: &mut Registry,
+    ) -> Result<Self> {
         let identify = identify::Behaviour::new(identify::Config::new(
-            PROTOCOL.to_string(),
+            config.protocol_names.consensus.clone(),
             keypair.public(),
         ));
 
@@ -179,25 +182,34 @@ impl Behaviour {
             )
         });
 
-        let sync = config.enable_sync.then(|| {
-            sync::Behaviour::new_with_metrics(
+        let sync = if config.enable_sync {
+            Some(sync::Behaviour::new_with_metrics(
                 sync::Config::default().with_max_response_size(config.rpc_max_size),
+                config.protocol_names.sync.clone(),
                 registry.sub_registry_with_prefix("sync"),
-            )
-        });
+            )?)
+        } else {
+            None
+        };
 
-        let discovery = config
-            .discovery
-            .enabled
-            .then(|| discovery::Behaviour::new(keypair, config.discovery));
+        let discovery = if config.discovery.enabled {
+            Some(discovery::Behaviour::new(
+                keypair,
+                config.discovery,
+                config.protocol_names.discovery_kad.clone(),
+                config.protocol_names.discovery_regres.clone(),
+            )?)
+        } else {
+            None
+        };
 
-        Self {
+        Ok(Self {
             identify,
             ping,
             sync: Toggle::from(sync),
             gossipsub: Toggle::from(gossipsub),
             broadcast: Toggle::from(broadcast),
             discovery: Toggle::from(discovery),
-        }
+        })
     }
 }

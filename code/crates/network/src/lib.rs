@@ -33,9 +33,27 @@ pub use channel::{Channel, ChannelNames};
 use behaviour::{Behaviour, NetworkEvent};
 use handle::Handle;
 
-const PROTOCOL: &str = "/malachitebft-core-consensus/v1beta1";
 const METRICS_PREFIX: &str = "malachitebft_network";
 const DISCOVERY_METRICS_PREFIX: &str = "malachitebft_discovery";
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProtocolNames {
+    pub consensus: String,
+    pub discovery_kad: String,
+    pub discovery_regres: String,
+    pub sync: String,
+}
+
+impl Default for ProtocolNames {
+    fn default() -> Self {
+        Self {
+            consensus: "/malachitebft-core-consensus/v1beta1".to_string(),
+            discovery_kad: "/malachitebft-discovery/kad/v1beta1".to_string(),
+            discovery_regres: "/malachitebft-discovery/reqres/v1beta1".to_string(),
+            sync: "/malachitebft-sync/v1beta1".to_string(),
+        }
+    }
+}
 
 #[derive(Copy, Clone, Debug, Default)]
 pub enum PubSubProtocol {
@@ -96,6 +114,7 @@ pub struct Config {
     pub rpc_max_size: usize,
     pub pubsub_max_size: usize,
     pub enable_sync: bool,
+    pub protocol_names: ProtocolNames,
 }
 
 impl Config {
@@ -181,26 +200,32 @@ pub async fn spawn(
     registry: SharedRegistry,
 ) -> Result<Handle, eyre::Report> {
     let swarm = registry.with_prefix(METRICS_PREFIX, |registry| -> Result<_, eyre::Report> {
-        let builder = SwarmBuilder::with_existing_identity(keypair).with_tokio();
+        let builder = SwarmBuilder::with_existing_identity(keypair.clone()).with_tokio();
         match config.transport {
-            TransportProtocol::Tcp => Ok(builder
-                .with_tcp(
-                    libp2p::tcp::Config::new().nodelay(true), // Disable Nagle's algorithm
-                    libp2p::noise::Config::new,
-                    libp2p::yamux::Config::default,
-                )?
-                .with_dns()?
-                .with_bandwidth_metrics(registry)
-                .with_behaviour(|kp| Behaviour::new_with_metrics(&config, kp, registry))?
-                .with_swarm_config(|cfg| config.apply_to_swarm(cfg))
-                .build()),
-            TransportProtocol::Quic => Ok(builder
-                .with_quic_config(|cfg| config.apply_to_quic(cfg))
-                .with_dns()?
-                .with_bandwidth_metrics(registry)
-                .with_behaviour(|kp| Behaviour::new_with_metrics(&config, kp, registry))?
-                .with_swarm_config(|cfg| config.apply_to_swarm(cfg))
-                .build()),
+            TransportProtocol::Tcp => {
+                let behaviour = Behaviour::new_with_metrics(&config, &keypair, registry)?;
+                Ok(builder
+                    .with_tcp(
+                        libp2p::tcp::Config::new().nodelay(true), // Disable Nagle's algorithm
+                        libp2p::noise::Config::new,
+                        libp2p::yamux::Config::default,
+                    )?
+                    .with_dns()?
+                    .with_bandwidth_metrics(registry)
+                    .with_behaviour(|_| behaviour)?
+                    .with_swarm_config(|cfg| config.apply_to_swarm(cfg))
+                    .build())
+            }
+            TransportProtocol::Quic => {
+                let behaviour = Behaviour::new_with_metrics(&config, &keypair, registry)?;
+                Ok(builder
+                    .with_quic_config(|cfg| config.apply_to_quic(cfg))
+                    .with_dns()?
+                    .with_bandwidth_metrics(registry)
+                    .with_behaviour(|_| behaviour)?
+                    .with_swarm_config(|cfg| config.apply_to_swarm(cfg))
+                    .build())
+            }
         }
     })?;
 
@@ -481,7 +506,7 @@ async fn handle_swarm_event(
                     info.protocol_version
                 );
 
-                if info.protocol_version == PROTOCOL {
+                if info.protocol_version == config.protocol_names.consensus {
                     trace!(
                         "Peer {peer_id} is using compatible protocol version: {:?}",
                         info.protocol_version
