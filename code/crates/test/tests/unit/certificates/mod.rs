@@ -13,8 +13,9 @@ pub mod types {
     };
     pub use malachitebft_core_types::{
         CertificateError, Context, NilOrVal, Round, RoundCertificateType, SignedVote,
-        SigningProvider, SigningProviderExt, ThresholdParams, VoteType, VotingPower,
+        ThresholdParams, VoteType, VotingPower,
     };
+    pub use malachitebft_signing::{SigningProvider, SigningProviderExt};
     pub use malachitebft_signing_ed25519::Signature;
 }
 
@@ -154,7 +155,8 @@ where
                     NilOrVal::Val(self.value_id),
                     vote_type,
                     self.validators[idx].address,
-                )));
+                )))
+                .unwrap();
 
                 self.votes.push(vote);
             }
@@ -177,7 +179,8 @@ where
                     NilOrVal::Nil,
                     vote_type,
                     self.validators[idx].address,
-                )));
+                )))
+                .unwrap();
 
                 self.votes.push(vote);
             }
@@ -195,7 +198,8 @@ where
                 NilOrVal::Val(ValueId::new(85)),
                 vote_type,
                 self.validators[index].address,
-            )));
+            )))
+            .unwrap();
 
             self.votes.push(vote);
         }
@@ -248,7 +252,8 @@ where
                 NilOrVal::Val(self.value_id),
                 vote_type,
                 self.validators[index].address,
-            )));
+            )))
+            .unwrap();
 
             self.votes.push(vote);
         }
@@ -265,7 +270,8 @@ where
                 NilOrVal::Val(self.value_id),
                 vote_type,
                 self.validators[index].address,
-            )));
+            )))
+            .unwrap();
 
             self.votes.push(vote);
         }
@@ -282,7 +288,8 @@ where
                 NilOrVal::Val(self.value_id),
                 vote_type,
                 self.validators[index].address,
-            )));
+            )))
+            .unwrap();
             vote.signature = Signature::test(); // Set an invalid signature
             self.votes.push(vote);
         }
@@ -299,7 +306,8 @@ where
             NilOrVal::Val(self.value_id),
             vote_type,
             validator.address,
-        )));
+        )))
+        .unwrap();
         self.votes.push(vote);
         self
     }
