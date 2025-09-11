@@ -2,7 +2,7 @@ use bytes::Bytes;
 use prost::Message;
 
 use malachitebft_app::engine::util::streaming::{StreamContent, StreamId, StreamMessage};
-use malachitebft_codec::Codec;
+use malachitebft_codec::{Codec, HasEncodedLen};
 use malachitebft_core_consensus::{LivenessMsg, ProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{
     CommitCertificate, CommitSignature, NilOrVal, PolkaCertificate, PolkaSignature, Round,
@@ -391,6 +391,18 @@ impl Codec<sync::Response<TestContext>> for ProtobufCodec {
 
     fn encode(&self, response: &sync::Response<TestContext>) -> Result<Bytes, Self::Error> {
         encode_sync_response(response).map(|proto| proto.encode_to_vec().into())
+    }
+}
+
+impl HasEncodedLen<sync::Response<TestContext>> for ProtobufCodec {
+    fn encoded_len(
+        &self,
+        response: &sync::Response<TestContext>,
+    ) -> Result<usize, <Self as Codec<sync::Response<TestContext>>>::Error> {
+        // The main cost of encoding "big" responses stems from calling `encode_to_vec` (see `encode` method)
+        // on `proto::SyncResponse`. We do NOT do this here. We simply call `encoded_len` on the `proto::SyncResponse`
+        // to quickly retrieve the length of the encoded data without first encoding the response.
+        Ok(encode_sync_response(response)?.encoded_len())
     }
 }
 

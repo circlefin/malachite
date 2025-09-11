@@ -1,13 +1,5 @@
 //! Utility functions for spawning the actor system and connecting it to the application.
 
-use eyre::Result;
-use tokio::sync::mpsc;
-
-use malachitebft_engine::consensus::ConsensusCodec;
-use malachitebft_engine::host::HostRef;
-use malachitebft_engine::network::NetworkRef;
-use malachitebft_engine::sync::SyncCodec;
-
 use crate::app;
 use crate::app::config::ConsensusConfig;
 use crate::app::metrics::Metrics;
@@ -16,6 +8,14 @@ use crate::app::types::core::Context;
 use crate::app::types::Keypair;
 use crate::connector::Connector;
 use crate::{AppMsg, NetworkMsg};
+use eyre::Result;
+use malachitebft_app::types::codec::HasEncodedLen;
+use malachitebft_app::types::sync;
+use malachitebft_engine::consensus::ConsensusCodec;
+use malachitebft_engine::host::HostRef;
+use malachitebft_engine::network::NetworkRef;
+use malachitebft_engine::sync::SyncCodec;
+use tokio::sync::mpsc;
 
 pub async fn spawn_host_actor<Ctx>(
     metrics: Metrics,
@@ -38,6 +38,7 @@ where
     Ctx: Context,
     Codec: ConsensusCodec<Ctx>,
     Codec: SyncCodec<Ctx>,
+    Codec: HasEncodedLen<sync::Response<Ctx>>,
 {
     let (tx, mut rx) = mpsc::channel::<NetworkMsg<Ctx>>(1);
 
