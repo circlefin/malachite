@@ -69,11 +69,6 @@ where
     /// Resume with: [`resume::Continue`]
     ScheduleTimeout(Timeout, resume::Continue),
 
-    /// Get the validator set at the given height, if known.
-    ///
-    /// Resume with: [`resume::ValidatorSet`]
-    GetValidatorSet(Ctx::Height, resume::ValidatorSet),
-
     /// Consensus is starting a new round with the given proposer
     ///
     /// Resume with: [`resume::Continue`]
@@ -307,17 +302,6 @@ pub mod resume {
 
         fn resume_with(self, _: ()) -> Resume<Ctx> {
             Resume::Continue
-        }
-    }
-
-    #[derive(Debug, Default)]
-    pub struct ValidatorSet;
-
-    impl<Ctx: Context> Resumable<Ctx> for ValidatorSet {
-        type Value = Option<Ctx::ValidatorSet>;
-
-        fn resume_with(self, value: Self::Value) -> Resume<Ctx> {
-            Resume::ValidatorSet(value)
         }
     }
 
