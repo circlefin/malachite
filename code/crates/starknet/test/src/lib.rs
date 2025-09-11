@@ -145,6 +145,7 @@ impl TestRunner {
             moniker: format!("node-{node}"),
             logging: LoggingConfig::default(),
             consensus: ConsensusConfig {
+                enabled: true,
                 value_payload: ValuePayload::PartsOnly,
                 queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`
                 timeouts: TimeoutConfig::default(),

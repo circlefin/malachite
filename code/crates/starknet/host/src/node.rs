@@ -250,6 +250,7 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
     Config {
         moniker: format!("starknet-{index}"),
         consensus: ConsensusConfig {
+            enabled: true,
             value_payload: ValuePayload::PartsOnly,
             queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`
             timeouts: TimeoutConfig::default(),
@@ -347,6 +348,7 @@ fn make_distributed_config(
     Config {
         moniker: format!("starknet-{index}"),
         consensus: ConsensusConfig {
+            enabled: true,
             queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`
             value_payload: ValuePayload::PartsOnly,
             timeouts: TimeoutConfig::default(),

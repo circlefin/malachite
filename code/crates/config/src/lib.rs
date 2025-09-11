@@ -522,6 +522,13 @@ impl FromStr for ScoringStrategy {
 /// Consensus configuration options
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ConsensusConfig {
+    /// Enable consensus protocol participation
+    ///
+    /// When disabled, the node only runs the synchronization protocol
+    /// and does not subscribe to consensus-related topics
+    #[serde(default)]
+    pub enabled: bool,
+
     /// Timeouts
     #[serde(flatten)]
     pub timeouts: TimeoutConfig,
