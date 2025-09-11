@@ -662,23 +662,20 @@ where
     where
         Ctx: Context,
     {
-        if let Err(e) = self
-            .process_input(
-                myself,
-                state,
-                ConsensusInput::SyncValueResponse(CoreValueResponse::new(
-                    peer,
-                    value.value_bytes.clone(),
-                    value.certificate.clone(),
-                )),
-            )
-            .await
-        {
-            error!(%height, "Error when processing received synced block: {e}");
-            return Err(e.into());
-        }
-
-        Ok(())
+        self.process_input(
+            myself,
+            state,
+            ConsensusInput::SyncValueResponse(CoreValueResponse::new(
+                peer,
+                value.value_bytes.clone(),
+                value.certificate.clone(),
+            )),
+        )
+        .await
+        .map_err(|e| {
+            error!(%height, error = ?e, "Error when processing received synced block");
+            e.into()
+        })
     }
 
     async fn timeout_elapsed(
