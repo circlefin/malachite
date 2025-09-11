@@ -75,11 +75,6 @@ pub trait Protobuf: Sized {
         Ok(Bytes::from(proto.encode_to_vec()))
     }
 
-    fn encoded_len(&self) -> Result<usize, Error> {
-        let proto = self.to_proto()?;
-        Ok(proto.encoded_len())
-    }
-
     fn from_any(any: &Any) -> Result<Self, Error> {
         Self::from_proto(any.to_msg::<Self::Proto>()?)
     }
