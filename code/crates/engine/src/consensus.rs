@@ -506,8 +506,20 @@ where
                         // Process values sequentially starting from the lowest height
                         let mut height = start_height;
                         for value in values.iter() {
-                            self.process_sync_response(&myself, state, peer, height, value)
-                                .await?;
+                            if let Err(e) = self
+                                .process_sync_response(&myself, state, peer, height, value)
+                                .await
+                            {
+                                // At this point, `process_sync_response` has already sent a message
+                                // about an invalid value, etc. to the sync actor. The sync actor
+                                // will then, re-request this range again from some peer.
+                                // Because of this, in case of failing to process the response, we need
+                                // to exit early this loop to avoid issuing multiple parallel requests
+                                // for the same range of values. There's also no benefit in processing
+                                // the rest of the values.
+                                error!(%start_height, %height, %request_id, "Failed to process sync response:{e:?}");
+                                break;
+                            }
 
                             height = height.increment();
                         }
@@ -650,22 +662,20 @@ where
     where
         Ctx: Context,
     {
-        if let Err(e) = self
-            .process_input(
-                myself,
-                state,
-                ConsensusInput::SyncValueResponse(CoreValueResponse::new(
-                    peer,
-                    value.value_bytes.clone(),
-                    value.certificate.clone(),
-                )),
-            )
-            .await
-        {
-            error!(%height, "Error when processing received synced block: {e}");
-        }
-
-        Ok(())
+        self.process_input(
+            myself,
+            state,
+            ConsensusInput::SyncValueResponse(CoreValueResponse::new(
+                peer,
+                value.value_bytes.clone(),
+                value.certificate.clone(),
+            )),
+        )
+        .await
+        .map_err(|e| {
+            error!(%height, error = ?e, "Error when processing received synced block");
+            e.into()
+        })
     }
 
     async fn timeout_elapsed(

@@ -1,12 +1,11 @@
-use std::collections::{BTreeSet, HashMap};
-use std::marker::PhantomData;
-
 use async_trait::async_trait;
 use derive_where::derive_where;
 use eyre::eyre;
 use libp2p::identity::Keypair;
 use libp2p::request_response;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
+use std::collections::{BTreeSet, HashMap};
+use std::marker::PhantomData;
 use tokio::task::JoinHandle;
 use tracing::{error, trace};
 
@@ -71,6 +70,7 @@ where
     Ctx: Context,
     Codec: ConsensusCodec<Ctx>,
     Codec: SyncCodec<Ctx>,
+    Codec: codec::HasEncodedLen<sync::Response<Ctx>>,
 {
     pub async fn spawn(
         keypair: Keypair,
@@ -167,6 +167,9 @@ pub enum Msg<Ctx: Context> {
     /// Send a response for a request to a peer
     OutgoingResponse(InboundRequestId, Response<Ctx>),
 
+    /// Request the total number of bytes that are to be transmitted for this response
+    GetResponseSize(Response<Ctx>, RpcReplyPort<usize>),
+
     /// Request for number of peers from gossip
     GetState { reply: RpcReplyPort<usize> },
 
@@ -187,6 +190,7 @@ where
     Codec: codec::Codec<sync::Request<Ctx>>,
     Codec: codec::Codec<sync::Response<Ctx>>,
     Codec: codec::Codec<LivenessMsg<Ctx>>,
+    Codec: codec::HasEncodedLen<sync::Response<Ctx>>,
 {
     type Msg = Msg<Ctx>;
     type State = State<Ctx>;
@@ -323,6 +327,20 @@ where
                     }
                     Err(e) => {
                         error!(%request_id, "Failed to encode response message: {e:?}");
+                        return Ok(());
+                    }
+                };
+            }
+
+            Msg::GetResponseSize(response, reply_to) => {
+                let encoded_len = self.codec.encoded_len(&response);
+
+                match encoded_len {
+                    Ok(size) => {
+                        reply_to.send(size)?;
+                    }
+                    Err(e) => {
+                        error!(?response, "Failed to encode response message: {e:?}");
                         return Ok(());
                     }
                 };

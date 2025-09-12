@@ -4,9 +4,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use eyre::Result;
-use tokio::task::JoinHandle;
-use tracing::Span;
-
+use malachitebft_codec::HasEncodedLen;
 use malachitebft_engine::consensus::{Consensus, ConsensusCodec, ConsensusParams, ConsensusRef};
 use malachitebft_engine::host::HostRef;
 use malachitebft_engine::network::{Network, NetworkRef};
@@ -18,6 +16,8 @@ use malachitebft_network::{
     ChannelNames, Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, Keypair,
 };
 use malachitebft_sync as sync;
+use tokio::task::JoinHandle;
+use tracing::Span;
 
 use crate::config::{ConsensusConfig, PubSubProtocol, ValueSyncConfig};
 use crate::metrics::{Metrics, SharedRegistry};
@@ -60,6 +60,7 @@ where
     Ctx: Context,
     Codec: ConsensusCodec<Ctx>,
     Codec: SyncCodec<Ctx>,
+    Codec: HasEncodedLen<sync::Response<Ctx>>,
 {
     let config = make_gossip_config(cfg);
 
