@@ -556,9 +556,19 @@ async fn request_values_range<Ctx>(
 where
     Ctx: Context,
 {
-    // NOTE: We do not perform a `max_parallel_requests` check here in contrast to what is done, for
-    // example in `request_values`. This is because `request_values_range` is only called for retrieving
-    // partial responses, which means the original request is not on the wire anymore.
+    // NOTE: We do not perform a `max_parallel_requests` check and return here in contrast to what is done, for
+    // example, in `request_values`. This is because `request_values_range` is only called for retrieving
+    // partial responses, which means the original request is not on the wire anymore. Nevertheless,
+    // we log here because seeing this log frequently implies that we keep getting partial responses
+    // from peers and hints to potential reconfiguration.
+    let max_parallel_requests = state.max_parallel_requests();
+    if state.pending_requests.len() as u64 >= max_parallel_requests {
+        info!(
+            %max_parallel_requests,
+            pending_requests = %state.pending_requests.len(),
+            "Maximum number of pending requests reached when re-requesting a partial range of values"
+        );
+    };
 
     // Get a random peer that can provide the values in the range.
     let Some((peer, range)) = state.random_peer_with(&range) else {
