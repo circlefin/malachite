@@ -207,14 +207,6 @@ pub enum AppMsg<Ctx: Context> {
         reply: Reply<Option<ProposedValue<Ctx>>>,
     },
 
-    /// Requests the validator set for a specific height
-    GetValidatorSet {
-        /// Height of the validator set to retrieve
-        height: Ctx::Height,
-        /// Channel for sending back the validator set
-        reply: Reply<Option<Ctx::ValidatorSet>>,
-    },
-
     /// Notifies the application that consensus has decided on a value.
     ///
     /// This message includes a commit certificate containing the ID of
