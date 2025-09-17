@@ -29,6 +29,7 @@ where
 {
     info!(%certificate.height, %certificate.round, "Received polka certificate");
 
+    // Discard certificates for heights that do not match the current height.
     if certificate.height != state.height() {
         warn!(
             %certificate.height,
@@ -101,6 +102,7 @@ where
         "Received round certificate"
     );
 
+    // Discard certificates for heights that do not match the current height.
     if certificate.height != state.height() {
         warn!(
             %certificate.height,
