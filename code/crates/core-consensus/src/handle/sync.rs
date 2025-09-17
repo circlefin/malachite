@@ -1,6 +1,5 @@
 use crate::handle::driver::apply_driver_input;
 use crate::handle::signature::verify_commit_certificate;
-use crate::handle::validator_set::get_validator_set;
 use crate::prelude::*;
 
 pub async fn on_value_response<Ctx>(
@@ -72,9 +71,9 @@ where
         "Processing certificate"
     );
 
-    let Some(validator_set) = get_validator_set(co, state, certificate.height).await? else {
-        return Err(Error::ValidatorSetNotFound(certificate.height));
-    };
+    assert_eq!(certificate.height, state.height());
+
+    let validator_set = state.validator_set();
 
     if let Err(e) = verify_commit_certificate(
         co,
