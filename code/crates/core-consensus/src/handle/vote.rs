@@ -16,8 +16,8 @@ pub async fn on_vote<Ctx>(
 where
     Ctx: Context,
 {
-    let consensus_height = state.driver.height();
-    let consensus_round = state.driver.round();
+    let consensus_height = state.height();
+    let consensus_round = state.round();
     let vote_height = signed_vote.height();
     let validator_address = signed_vote.validator_address();
 
@@ -172,7 +172,7 @@ where
 
     if let Err(e) = result {
         warn!(
-            consensus.height = %state.driver.height(),
+            consensus.height = %state.height(),
             vote.height = %vote.height(),
             vote.round = %vote.round(),
             validator = %validator.address(),

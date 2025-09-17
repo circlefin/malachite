@@ -9,7 +9,7 @@ pub async fn on_rebroadcast_timeout<Ctx>(
 where
     Ctx: Context,
 {
-    let (height, round) = (state.driver.height(), state.driver.round());
+    let (height, round) = (state.height(), state.round());
 
     if let Some(vote) = state.last_signed_prevote.as_ref() {
         warn!(
