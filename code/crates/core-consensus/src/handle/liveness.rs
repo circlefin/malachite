@@ -1,5 +1,4 @@
 use crate::handle::driver::apply_driver_input;
-use crate::handle::validator_set::get_validator_set;
 use crate::prelude::*;
 
 use super::signature::{verify_polka_certificate, verify_round_certificate};
@@ -41,14 +40,12 @@ where
         return Ok(());
     }
 
-    let validator_set = get_validator_set(co, state, certificate.height)
-        .await?
-        .ok_or_else(|| Error::ValidatorSetNotFound(certificate.height))?;
+    let validator_set = state.validator_set();
 
     let validity = verify_polka_certificate(
         co,
         certificate.clone(),
-        validator_set.into_owned(),
+        validator_set.clone(),
         state.params.threshold_params,
     )
     .await?;
@@ -139,14 +136,14 @@ where
         }
     }
 
-    let validator_set = get_validator_set(co, state, certificate.height)
-        .await?
-        .ok_or_else(|| Error::ValidatorSetNotFound(certificate.height))?;
+    assert_eq!(certificate.height, state.height());
+
+    let validator_set = state.validator_set();
 
     let validity = verify_round_certificate(
         co,
         certificate.clone(),
-        validator_set.into_owned(),
+        validator_set.clone(),
         state.params.threshold_params,
     )
     .await?;

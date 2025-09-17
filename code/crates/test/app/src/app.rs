@@ -190,19 +190,6 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 }
             }
 
-            // In some cases, e.g. to verify the signature of a vote received at a higher height
-            // than the one we are at (e.g. because we are lagging behind a little bit),
-            // the engine may ask us for the validator set at that height.
-            //
-            // We send back the appropriate validator set for that height.
-            AppMsg::GetValidatorSet { height, reply } => {
-                let validator_set = state.get_validator_set(height);
-
-                if reply.send(validator_set).is_err() {
-                    error!("Failed to send GetValidatorSet reply");
-                }
-            }
-
             // After some time, consensus will finally reach a decision on the value
             // to commit for the current height, and will notify the application,
             // providing it with a commit certificate which contains the ID of the value

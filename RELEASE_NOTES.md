@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Remove `Effect::GetValidatorSet`, `AppMsg::GetValidatorSet` and `HostMsg::GetValidatorSet` ([#1189](https://github.com/circlefin/malachite/pull/1189))
 - Introduce `malachitebft-signing` crate for exposing the `SigningProvider` and `SigningProviderExt` traits ([#1191](https://github.com/informalsystems/malachite/pull/1191))
 - Make `SigningProvider` trait methods fallible ([#1191](https://github.com/informalsystems/malachite/pull/1191))
 - Make `SigningProvider` trait methods async ([#1151](https://github.com/informalsystems/malachite/issues/1151))

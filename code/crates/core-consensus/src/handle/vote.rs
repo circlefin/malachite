@@ -2,7 +2,6 @@ use tracing::trace;
 
 use crate::handle::driver::apply_driver_input;
 use crate::handle::signature::verify_signature;
-use crate::handle::validator_set::get_validator_set;
 use crate::input::Input;
 use crate::prelude::*;
 use crate::types::{ConsensusMsg, SignedConsensusMsg, WalEntry};
@@ -17,8 +16,8 @@ pub async fn on_vote<Ctx>(
 where
     Ctx: Context,
 {
-    let consensus_height = state.driver.height();
-    let consensus_round = state.driver.round();
+    let consensus_height = state.height();
+    let consensus_round = state.round();
     let vote_height = signed_vote.height();
     let validator_address = signed_vote.validator_address();
 
@@ -102,22 +101,14 @@ pub async fn verify_signed_vote<Ctx>(
 where
     Ctx: Context,
 {
-    let consensus_height = state.driver.height();
+    let consensus_height = state.height();
     let vote_height = signed_vote.height();
     let vote_round = signed_vote.round();
     let validator_address = signed_vote.validator_address();
 
-    let Some(validator_set) = get_validator_set(co, state, signed_vote.height()).await? else {
-        debug!(
-            consensus.height = %consensus_height,
-            vote.height = %vote_height,
-            vote.round = %vote_round,
-            validator = %validator_address,
-            "Received vote for height without known validator set, dropping"
-        );
+    assert_eq!(vote_height, consensus_height);
 
-        return Ok(false);
-    };
+    let validator_set = state.validator_set();
 
     let Some(validator) = validator_set.get_by_address(validator_address) else {
         warn!(
@@ -183,7 +174,7 @@ where
 
     if let Err(e) = result {
         warn!(
-            consensus.height = %state.driver.height(),
+            consensus.height = %state.height(),
             vote.height = %vote.height(),
             vote.round = %vote.round(),
             validator = %validator.address(),
