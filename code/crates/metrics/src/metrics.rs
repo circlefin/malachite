@@ -258,6 +258,10 @@ impl Metrics {
 
         *guard = (Step::Unstarted, Instant::now());
     }
+
+    pub fn step_reset(&self) {
+        self.step_start(Step::Unstarted);
+    }
 }
 
 impl Default for Metrics {
