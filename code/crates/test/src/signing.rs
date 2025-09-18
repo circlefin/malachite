@@ -1,9 +1,8 @@
 use async_trait::async_trait;
 use bytes::Bytes;
 
-use malachitebft_core_types::{
-    SignedExtension, SignedProposal, SignedProposalPart, SignedVote, SigningProvider,
-};
+use malachitebft_core_types::{SignedExtension, SignedProposal, SignedProposalPart, SignedVote};
+use malachitebft_signing::{Error, SigningProvider, VerificationResult};
 
 use crate::{Proposal, ProposalPart, TestContext, Vote};
 
@@ -50,9 +49,9 @@ impl Ed25519Provider {
 
 #[async_trait]
 impl SigningProvider<TestContext> for Ed25519Provider {
-    async fn sign_vote(&self, vote: Vote) -> SignedVote<TestContext> {
+    async fn sign_vote(&self, vote: Vote) -> Result<SignedVote<TestContext>, Error> {
         let signature = self.sign(&vote.to_sign_bytes());
-        SignedVote::new(vote, signature)
+        Ok(SignedVote::new(vote, signature))
     }
 
     async fn verify_signed_vote(
@@ -60,13 +59,18 @@ impl SigningProvider<TestContext> for Ed25519Provider {
         vote: &Vote,
         signature: &Signature,
         public_key: &PublicKey,
-    ) -> bool {
-        public_key.verify(&vote.to_sign_bytes(), signature).is_ok()
+    ) -> Result<VerificationResult, Error> {
+        Ok(VerificationResult::from_bool(
+            public_key.verify(&vote.to_sign_bytes(), signature).is_ok(),
+        ))
     }
 
-    async fn sign_proposal(&self, proposal: Proposal) -> SignedProposal<TestContext> {
+    async fn sign_proposal(
+        &self,
+        proposal: Proposal,
+    ) -> Result<SignedProposal<TestContext>, Error> {
         let signature = self.private_key.sign(&proposal.to_sign_bytes());
-        SignedProposal::new(proposal, signature)
+        Ok(SignedProposal::new(proposal, signature))
     }
 
     async fn verify_signed_proposal(
@@ -74,18 +78,20 @@ impl SigningProvider<TestContext> for Ed25519Provider {
         proposal: &Proposal,
         signature: &Signature,
         public_key: &PublicKey,
-    ) -> bool {
-        public_key
-            .verify(&proposal.to_sign_bytes(), signature)
-            .is_ok()
+    ) -> Result<VerificationResult, Error> {
+        Ok(VerificationResult::from_bool(
+            public_key
+                .verify(&proposal.to_sign_bytes(), signature)
+                .is_ok(),
+        ))
     }
 
     async fn sign_proposal_part(
         &self,
         proposal_part: ProposalPart,
-    ) -> SignedProposalPart<TestContext> {
+    ) -> Result<SignedProposalPart<TestContext>, Error> {
         let signature = self.private_key.sign(&proposal_part.to_sign_bytes());
-        SignedProposalPart::new(proposal_part, signature)
+        Ok(SignedProposalPart::new(proposal_part, signature))
     }
 
     async fn verify_signed_proposal_part(
@@ -93,15 +99,22 @@ impl SigningProvider<TestContext> for Ed25519Provider {
         proposal_part: &ProposalPart,
         signature: &Signature,
         public_key: &PublicKey,
-    ) -> bool {
-        public_key
-            .verify(&proposal_part.to_sign_bytes(), signature)
-            .is_ok()
+    ) -> Result<VerificationResult, Error> {
+        Ok(VerificationResult::from_bool(
+            public_key
+                .verify(&proposal_part.to_sign_bytes(), signature)
+                .is_ok(),
+        ))
     }
 
-    async fn sign_vote_extension(&self, extension: Bytes) -> SignedExtension<TestContext> {
+    async fn sign_vote_extension(
+        &self,
+        extension: Bytes,
+    ) -> Result<SignedExtension<TestContext>, Error> {
         let signature = self.private_key.sign(extension.as_ref());
-        malachitebft_core_types::SignedMessage::new(extension, signature)
+        Ok(malachitebft_core_types::SignedMessage::new(
+            extension, signature,
+        ))
     }
 
     async fn verify_signed_vote_extension(
@@ -109,7 +122,9 @@ impl SigningProvider<TestContext> for Ed25519Provider {
         extension: &Bytes,
         signature: &Signature,
         public_key: &PublicKey,
-    ) -> bool {
-        public_key.verify(extension.as_ref(), signature).is_ok()
+    ) -> Result<VerificationResult, Error> {
+        Ok(VerificationResult::from_bool(
+            public_key.verify(extension.as_ref(), signature).is_ok(),
+        ))
     }
 }

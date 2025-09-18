@@ -4,6 +4,12 @@
 
 ### `malachitebft-core-types`
 
+- Move `SigningProvider` and `SigningProviderExt` traits into new `malachitebft-signing` crate ([#1191](https://github.com/informalsystems/malachite/pull/1191))
+
+### `malachitebft-signing`
+
+- New crate exposing the `SigningProvider` trait ([#1191](https://github.com/informalsystems/malachite/pull/1191))
+- Make methods of `SigningProvider` and `SigningProviderExt` traits fallible ([#1191](https://github.com/informalsystems/malachite/pull/1191))
 - Changed methods of `SigningProvider` and `SigningProviderExt` traits to `async` ([#1151](https://github.com/informalsystems/malachite/issues/1151))
 
 ### `malachitebft-core-consensus`

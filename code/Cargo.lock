@@ -2162,6 +2162,7 @@ dependencies = [
  "informalsystems-malachitebft-metrics",
  "informalsystems-malachitebft-network",
  "informalsystems-malachitebft-peer",
+ "informalsystems-malachitebft-signing",
  "informalsystems-malachitebft-sync",
  "informalsystems-malachitebft-wal",
  "libp2p-identity",
@@ -2223,6 +2224,7 @@ dependencies = [
  "informalsystems-malachitebft-core-types",
  "informalsystems-malachitebft-metrics",
  "informalsystems-malachitebft-peer",
+ "informalsystems-malachitebft-signing",
  "informalsystems-malachitebft-test",
  "multiaddr",
  "thiserror 2.0.16",
@@ -2326,6 +2328,7 @@ dependencies = [
  "informalsystems-malachitebft-core-votekeeper",
  "informalsystems-malachitebft-metrics",
  "informalsystems-malachitebft-network",
+ "informalsystems-malachitebft-signing",
  "informalsystems-malachitebft-sync",
  "informalsystems-malachitebft-wal",
  "libp2p",
@@ -2413,6 +2416,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "informalsystems-malachitebft-signing"
+version = "0.6.0-pre"
+dependencies = [
+ "async-trait",
+ "informalsystems-malachitebft-core-types",
+ "signature",
+]
+
+[[package]]
 name = "informalsystems-malachitebft-signing-ed25519"
 version = "0.6.0-pre"
 dependencies = [
@@ -2496,6 +2508,7 @@ dependencies = [
  "bytes",
  "informalsystems-malachitebft-core-types",
  "informalsystems-malachitebft-proto",
+ "informalsystems-malachitebft-signing",
  "informalsystems-malachitebft-signing-ed25519",
  "informalsystems-malachitebft-starknet-p2p-proto",
  "rand 0.8.5",
@@ -2589,6 +2602,7 @@ dependencies = [
  "informalsystems-malachitebft-engine",
  "informalsystems-malachitebft-peer",
  "informalsystems-malachitebft-proto",
+ "informalsystems-malachitebft-signing",
  "informalsystems-malachitebft-signing-ed25519",
  "informalsystems-malachitebft-sync",
  "informalsystems-malachitebft-test-app",
