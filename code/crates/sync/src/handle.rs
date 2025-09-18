@@ -306,14 +306,44 @@ where
     // If the response contains a prefix of the requested values, re-request the remaining values.
     if let Some((requested_range, stored_peer_id)) = state.pending_requests.get(&request_id) {
         if stored_peer_id != &peer_id {
-            warn!(
+            // Defensive check: This should never happen because this check is already performed in
+            // the handler of `Input::ValueResponse`.
+            error!(
                 %request_id, peer.actual = %peer_id, peer.expected = %stored_peer_id,
                 "Received response from different peer than expected"
             );
+            return on_invalid_value_response(co, state, metrics, request_id, peer_id).await;
         }
+
         let range_len = requested_range.end().as_u64() - requested_range.start().as_u64() + 1;
-        if (response.values.len() as u64) < range_len {
-            re_request_values_from_peer_except(co, state, metrics, request_id, None).await?;
+
+        if response.values.len() < range_len as usize {
+            // NOTE: We cannot simply call `re_request_values_from_peer_except` here.
+            // Although we received some values from the peer, these values have not yet been processed
+            // by the consensus engine. If we called `re_request_values_from_peer_except`, we would
+            // end up re-requesting the entire original range (including values we already received),
+            // causing the syncing peer to repeatedly send multiple requests until the already-received
+            // values are fully processed.
+            // To tackle this, we first update the current pending request with the range of values
+            // it provides we received, and then issue a new request with the remaining values.
+            let new_start = requested_range
+                .start()
+                .increment_by(response.values.len() as u64);
+
+            let end = *requested_range.end();
+
+            if response.values.is_empty() {
+                error!(%request_id, %peer_id, "Received response contains no values");
+            } else {
+                // The response of this request only provided `response.values.len()` values,
+                // so update the pending request accordingly
+                let updated_range = *requested_range.start()..=new_start.decrement().unwrap();
+                state.update_request(request_id, peer_id, updated_range);
+            }
+
+            // Issue a new request to any peer, not necessarily the same one, for the remaining values
+            let new_range = new_start..=end;
+            request_values_range(co, state, metrics, new_range).await?;
         }
     }
 
@@ -360,7 +390,7 @@ where
     // Validate response from host
     let batch_size = end.as_u64() - start.as_u64() + 1;
     if batch_size != values.len() as u64 {
-        error!(
+        warn!(
             "Received {} values from host, expected {batch_size}",
             values.len()
         )
@@ -483,7 +513,7 @@ async fn request_values<Ctx>(
 where
     Ctx: Context,
 {
-    let max_parallel_requests = max(1, state.config.parallel_requests);
+    let max_parallel_requests = state.max_parallel_requests();
 
     if state.pending_requests.len() as u64 >= max_parallel_requests {
         info!(
@@ -511,6 +541,43 @@ where
 
         request_values_from_peer(&co, state, metrics, range, peer).await?;
     }
+
+    Ok(())
+}
+
+/// Request values for this specific range from a peer.
+/// Should only be used when re-requesting a partial range of values from a peer.
+async fn request_values_range<Ctx>(
+    co: Co<Ctx>,
+    state: &mut State<Ctx>,
+    metrics: &Metrics,
+    range: RangeInclusive<Ctx::Height>,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    // NOTE: We do not perform a `max_parallel_requests` check and return here in contrast to what is done, for
+    // example, in `request_values`. This is because `request_values_range` is only called for retrieving
+    // partial responses, which means the original request is not on the wire anymore. Nevertheless,
+    // we log here because seeing this log frequently implies that we keep getting partial responses
+    // from peers and hints to potential reconfiguration.
+    let max_parallel_requests = state.max_parallel_requests();
+    if state.pending_requests.len() as u64 >= max_parallel_requests {
+        info!(
+            %max_parallel_requests,
+            pending_requests = %state.pending_requests.len(),
+            "Maximum number of pending requests reached when re-requesting a partial range of values"
+        );
+    };
+
+    // Get a random peer that can provide the values in the range.
+    let Some((peer, range)) = state.random_peer_with(&range) else {
+        // No connected peer reached this height yet, we can stop syncing here.
+        debug!(range = %DisplayRange::<Ctx>(&range), "No peer to request sync from");
+        return Ok(());
+    };
+
+    request_values_from_peer(&co, state, metrics, range, peer).await?;
 
     Ok(())
 }

@@ -63,8 +63,23 @@ where
         }
     }
 
+    /// The maximum number of parallel requests that can be made to peers.
+    /// If the configuration is set to 0, it defaults to 1.
+    pub fn max_parallel_requests(&self) -> u64 {
+        max(1, self.config.parallel_requests)
+    }
+
     pub fn update_status(&mut self, status: Status<Ctx>) {
         self.peers.insert(status.peer_id, status);
+    }
+
+    pub fn update_request(
+        &mut self,
+        request_id: OutboundRequestId,
+        peer_id: PeerId,
+        range: RangeInclusive<Ctx::Height>,
+    ) {
+        self.pending_requests.insert(request_id, (range, peer_id));
     }
 
     /// Filter peers to only include those that can provide the given range of values, or at least a prefix of the range.
