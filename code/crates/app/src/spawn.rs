@@ -101,6 +101,7 @@ where
         address,
         threshold_params: Default::default(),
         value_payload,
+        enabled: cfg.enabled,
     };
 
     // Derive the consensus queue capacity from `sync.parallel_requests` and `sync.batch_size`
