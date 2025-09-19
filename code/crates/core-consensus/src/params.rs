@@ -25,4 +25,7 @@ pub struct Params<Ctx: Context> {
 
     /// The messages required to deliver proposals
     pub value_payload: ValuePayload,
+
+    /// Whether consensus is enabled for this node
+    pub enabled: bool,
 }
