@@ -70,8 +70,6 @@ where
 
 #[allow(clippy::too_many_arguments)]
 pub async fn spawn_consensus_actor<Ctx>(
-    initial_height: Ctx::Height,
-    initial_validator_set: Ctx::ValidatorSet,
     address: Ctx::Address,
     ctx: Ctx,
     mut cfg: ConsensusConfig,
@@ -96,8 +94,6 @@ where
     };
 
     let consensus_params = ConsensusParams {
-        initial_height,
-        initial_validator_set,
         address,
         threshold_params: Default::default(),
         value_payload,

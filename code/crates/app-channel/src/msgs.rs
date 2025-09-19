@@ -57,7 +57,7 @@ pub type Reply<T> = oneshot::Sender<T>;
 /// ```
 pub enum ConsensusRequest<Ctx: Context> {
     /// Request a state dump from consensus
-    DumpState(Reply<StateDump<Ctx>>),
+    DumpState(Reply<Option<StateDump<Ctx>>>),
 }
 
 impl<Ctx: Context> ConsensusRequest<Ctx> {
@@ -75,12 +75,9 @@ impl<Ctx: Context> ConsensusRequest<Ctx> {
             .inspect_err(|e| error!("Failed to send DumpState request to consensus: {e}"))
             .ok()?;
 
-        let dump = rx
-            .await
+        rx.await
             .inspect_err(|e| error!("Failed to receive DumpState response from consensus: {e}"))
-            .ok()?;
-
-        Some(dump)
+            .ok()?
     }
 }
 
