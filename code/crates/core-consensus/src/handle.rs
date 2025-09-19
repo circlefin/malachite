@@ -9,7 +9,6 @@ mod signature;
 mod start_height;
 mod sync;
 mod timeout;
-mod validator_set;
 mod vote;
 
 use liveness::{on_polka_certificate, on_round_certificate};

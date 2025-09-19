@@ -9,7 +9,7 @@ pub async fn on_rebroadcast_timeout<Ctx>(
 where
     Ctx: Context,
 {
-    let (height, round) = (state.driver.height(), state.driver.round());
+    let (height, round) = (state.height(), state.round());
 
     // Only rebroadcast if we're an active validator
     if state.is_active_validator() {

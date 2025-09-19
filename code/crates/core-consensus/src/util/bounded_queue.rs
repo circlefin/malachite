@@ -82,6 +82,21 @@ where
     pub fn is_full(&self) -> bool {
         self.queue.len() >= self.capacity
     }
+
+    /// Returns true if the queue is empty.
+    pub fn is_empty(&self) -> bool {
+        self.queue.is_empty()
+    }
+
+    /// Returns the current number of unique indices in the queue.
+    pub fn len(&self) -> usize {
+        self.queue.len()
+    }
+
+    /// Returns the total number of values stored in the queue across all indices.
+    pub fn size(&self) -> usize {
+        self.queue.values().map(|v| v.len()).sum()
+    }
 }
 
 #[cfg(test)]

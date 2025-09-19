@@ -1,4 +1,5 @@
 use std::ops::ControlFlow;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::thread::JoinHandle;
 use std::{io, thread};
 
@@ -34,16 +35,24 @@ where
     Codec: WalCodec<Ctx>,
 {
     thread::spawn(move || {
-        while let Some(msg) = rx.blocking_recv() {
-            match process_msg(msg, &span, &mut log, &codec) {
-                Ok(ControlFlow::Continue(())) => continue,
-                Ok(ControlFlow::Break(())) => break,
-                Err(e) => error!("WAL task failed: {e}"),
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            while let Some(msg) = rx.blocking_recv() {
+                match process_msg(msg, &span, &mut log, &codec) {
+                    Ok(ControlFlow::Continue(())) => continue,
+                    Ok(ControlFlow::Break(())) => break,
+                    Err(e) => error!("WAL task failed: {e}"),
+                }
             }
-        }
 
-        // Task finished normally, stop the thread
-        drop(log);
+            info!("WAL thread exiting");
+
+            // Task finished normally, stop the thread
+            drop(log);
+        }));
+
+        if let Err(e) = result {
+            error!("WAL thread panicked: {e:?}");
+        }
     })
 }
 
@@ -65,7 +74,6 @@ where
 {
     match msg {
         WalMsg::StartedHeight(height, reply) => {
-            // FIXME: Ensure this works even with fork_id
             let sequence = height.as_u64();
 
             if sequence == log.sequence() {

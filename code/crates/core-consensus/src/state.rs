@@ -6,6 +6,7 @@ use malachitebft_core_types::*;
 use crate::full_proposal::{FullProposal, FullProposalKeeper};
 use crate::input::Input;
 use crate::params::Params;
+use crate::prelude::*;
 use crate::types::ProposedValue;
 use crate::util::bounded_queue::BoundedQueue;
 
@@ -184,8 +185,33 @@ where
     }
 
     /// Queue an input for later processing, only keep inputs for the highest height seen so far.
-    pub fn buffer_input(&mut self, height: Ctx::Height, input: Input<Ctx>) {
+    pub fn buffer_input(&mut self, height: Ctx::Height, input: Input<Ctx>, _metrics: &Metrics) {
         self.input_queue.push(height, input);
+
+        #[cfg(feature = "metrics")]
+        {
+            _metrics.queue_heights.set(self.input_queue.len() as i64);
+            _metrics.queue_size.set(self.input_queue.size() as i64);
+        }
+    }
+
+    /// Take all inputs that are pending for the specified height and remove from the input queue.
+    pub fn take_pending_inputs(&mut self, _metrics: &Metrics) -> Vec<Input<Ctx>>
+    where
+        Ctx: Context,
+    {
+        let inputs = self
+            .input_queue
+            .shift_and_take(&self.height())
+            .collect::<Vec<_>>();
+
+        #[cfg(feature = "metrics")]
+        {
+            _metrics.queue_heights.set(self.input_queue.len() as i64);
+            _metrics.queue_size.set(self.input_queue.size() as i64);
+        }
+
+        inputs
     }
 
     pub fn print_state(&self) {

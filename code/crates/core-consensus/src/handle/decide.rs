@@ -11,8 +11,8 @@ where
 {
     assert!(state.driver.step_is_commit());
 
-    let height = state.driver.height();
-    let consensus_round = state.driver.round();
+    let height = state.height();
+    let consensus_round = state.round();
 
     let Some((proposal_round, decided_value)) = state.decided_value() else {
         return Err(Error::DecisionNotFound(height, consensus_round));

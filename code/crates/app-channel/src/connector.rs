@@ -200,16 +200,6 @@ where
                 }
             }
 
-            HostMsg::GetValidatorSet { height, reply_to } => {
-                let (reply, rx) = oneshot::channel();
-
-                self.sender
-                    .send(AppMsg::GetValidatorSet { height, reply })
-                    .await?;
-
-                reply_to.send(rx.await?)?;
-            }
-
             HostMsg::Decided {
                 certificate,
                 extensions,

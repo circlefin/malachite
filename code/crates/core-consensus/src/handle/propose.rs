@@ -89,17 +89,17 @@ fn verify_propose_value<Ctx>(
 where
     Ctx: Context,
 {
-    if state.driver.height() != local_value.height {
+    if state.height() != local_value.height {
         warn!(
             "Ignoring value for height {}, current height: {}",
             local_value.height,
-            state.driver.height()
+            state.height()
         );
 
         return Ok(false);
     }
 
-    if state.driver.round() != local_value.round {
+    if state.round() != local_value.round {
         warn!(
             "Ignoring value for round {}, current round: {}",
             local_value.round,

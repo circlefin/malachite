@@ -1,6 +1,5 @@
 use crate::handle::driver::apply_driver_input;
 use crate::handle::signature::verify_commit_certificate;
-use crate::handle::validator_set::get_validator_set;
 use crate::prelude::*;
 
 pub async fn on_value_response<Ctx>(
@@ -27,7 +26,7 @@ where
     if consensus_height < cert_height {
         debug!(%consensus_height, %cert_height, "Received value response for higher height, queuing for later");
 
-        state.buffer_input(cert_height, Input::SyncValueResponse(value));
+        state.buffer_input(cert_height, Input::SyncValueResponse(value), metrics);
 
         return Ok(());
     }
@@ -72,14 +71,14 @@ where
         "Processing certificate"
     );
 
-    let Some(validator_set) = get_validator_set(co, state, certificate.height).await? else {
-        return Err(Error::ValidatorSetNotFound(certificate.height));
-    };
+    assert_eq!(certificate.height, state.height());
+
+    let validator_set = state.validator_set();
 
     if let Err(e) = verify_commit_certificate(
         co,
         certificate.clone(),
-        validator_set.as_ref().clone(),
+        validator_set.clone(),
         state.params.threshold_params,
     )
     .await?

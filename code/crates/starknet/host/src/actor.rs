@@ -2,9 +2,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use bytes::Bytes;
-use eyre::eyre;
 use itertools::Itertools;
-use malachitebft_sync::RawDecidedValue;
 use ractor::{async_trait, Actor, ActorProcessingErr, RpcReplyPort, SpawnErr};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
@@ -16,6 +14,7 @@ use malachitebft_core_types::{CommitCertificate, Round, Validity, ValueId};
 use malachitebft_engine::host::{LocallyProposedValue, Next, ProposedValue};
 use malachitebft_engine::network::{NetworkMsg, NetworkRef};
 use malachitebft_engine::util::streaming::{StreamContent, StreamMessage};
+use malachitebft_sync::RawDecidedValue;
 
 use crate::host::state::HostState;
 use crate::host::{Host as _, StarknetHost};
@@ -187,10 +186,6 @@ impl Host {
                 reply_to,
             } => on_received_proposal_part(state, part, from, reply_to).await,
 
-            HostMsg::GetValidatorSet { height, reply_to } => {
-                on_get_validator_set(state, height, reply_to).await
-            }
-
             HostMsg::Decided {
                 certificate,
                 reply_to,
@@ -270,19 +265,6 @@ async fn on_get_history_min_height(
     let history_min_height = state.block_store.first_height().await.unwrap_or_default();
     reply_to.send(history_min_height)?;
 
-    Ok(())
-}
-
-async fn on_get_validator_set(
-    state: &mut HostState,
-    height: Height,
-    reply_to: RpcReplyPort<Option<ValidatorSet>>,
-) -> Result<(), ActorProcessingErr> {
-    let Some(validators) = state.host.validators(height).await else {
-        return Err(eyre!("No validator set found for the given height {height}").into());
-    };
-
-    reply_to.send(Some(ValidatorSet::new(validators)))?;
     Ok(())
 }
 
