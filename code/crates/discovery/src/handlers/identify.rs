@@ -1,9 +1,26 @@
-use libp2p::{identify, swarm::ConnectionId, PeerId, Swarm};
+use libp2p::{identify, multiaddr::Protocol, swarm::ConnectionId, PeerId, Swarm};
 use tracing::{debug, info, warn};
 
 use crate::config::BootstrapProtocol;
 use crate::OutboundState;
 use crate::{request::RequestData, Discovery, DiscoveryClient, State};
+
+/// Helper function to filter out loopback addresses from a list of multiaddrs.
+/// This prevents cross-contamination between bootstrap_nodes entries when nodes
+/// advertise the same loopback addresses (e.g. 127.0.0.1, ::1) due to 0.0.0.0 binding.
+fn filter_loopback_addresses(addresses: &[libp2p::Multiaddr]) -> Vec<libp2p::Multiaddr> {
+    addresses
+        .iter()
+        .filter(|addr| {
+            !addr.iter().any(|protocol| match protocol {
+                Protocol::Ip4(ip) => ip.is_loopback(),
+                Protocol::Ip6(ip) => ip.is_loopback(),
+                _ => false,
+            })
+        })
+        .cloned()
+        .collect()
+}
 
 impl<C> Discovery<C>
 where
@@ -57,9 +74,11 @@ where
                 // If at least one listen address belongs to a bootstrap node, save the peer id
                 if let Some(bootstrap_node) =
                     self.bootstrap_nodes.iter_mut().find(|(_, listen_addrs)| {
+                        // Filter out loopback addresses
+                        let non_loopback_advertised = filter_loopback_addresses(&info.listen_addrs);
                         listen_addrs
                             .iter()
-                            .any(|addr| info.listen_addrs.contains(addr))
+                            .any(|addr| non_loopback_advertised.contains(addr))
                     })
                 {
                     *bootstrap_node = (Some(peer_id), info.listen_addrs.clone());
