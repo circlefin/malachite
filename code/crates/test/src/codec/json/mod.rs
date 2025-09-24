@@ -1,7 +1,8 @@
 pub mod raw;
 
 use bytes::Bytes;
-use malachitebft_codec::Codec;
+use malachitebft_codec::{Codec, HasEncodedLen};
+use tracing::warn;
 
 use malachitebft_core_consensus::{LivenessMsg, SignedConsensusMsg};
 use malachitebft_engine::util::streaming::StreamMessage;
@@ -97,6 +98,17 @@ impl Codec<Response<TestContext>> for JsonCodec {
 
     fn encode(&self, msg: &Response<TestContext>) -> Result<Bytes, Self::Error> {
         serde_json::to_vec(&RawResponse::from(msg.clone())).map(Bytes::from)
+    }
+}
+
+impl HasEncodedLen<Response<TestContext>> for JsonCodec {
+    fn encoded_len(
+        &self,
+        msg: &Response<TestContext>,
+    ) -> Result<usize, <Self as Codec<Response<TestContext>>>::Error> {
+        warn!("encoded_len serializes the data to compute the length; consider using ProtobufCodec if \
+        you want to compute the length of the encoded data without encoding them");
+        serde_json::to_vec(&RawResponse::from(msg.clone())).map(|b| b.len())
     }
 }
 
