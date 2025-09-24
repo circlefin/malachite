@@ -85,7 +85,7 @@ where
     /// Periodically attempt to reconnect to the disconnected persistent peers
     pub fn reconnect_to_persistent_peers(&mut self, swarm: &mut Swarm<C>) {
         for (peer_id, listen_addrs) in &self.bootstrap_nodes.clone() {
-            let should_reconnect = peer_id.is_none_or(|id| !swarm.is_connected(&id));
+            let should_reconnect = peer_id.is_some_and(|id| !swarm.is_connected(&id));
 
             if should_reconnect {
                 // Dial persistent peers directly
