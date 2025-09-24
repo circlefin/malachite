@@ -139,8 +139,6 @@ impl Node for App {
             config.clone(),
             ProtobufCodec, // WAL codec
             JsonCodec,     // Network codec
-            self.start_height,
-            self.validator_set.clone(),
         )
         .await?;
 
