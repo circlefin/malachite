@@ -1,4 +1,4 @@
-use std::cmp::max;
+use std::cmp::{max, min};
 use std::ops::RangeInclusive;
 
 use derive_where::derive_where;
@@ -498,8 +498,23 @@ where
     while (state.pending_requests.len() as u64) < max_parallel_requests {
         // Build the next range of heights to request from a peer.
         let start_height = state.sync_height;
-        let batch_size = max(1, state.config.batch_size as u64);
-        let end_height = start_height.increment_by(batch_size - 1);
+        let max_batch_size = max(1, state.config.batch_size as u64);
+
+        // Find the largest (up to max_batch_size) contiguous uncovered range starting from start_height
+        let mut end_height = start_height;
+        for _ in 1..max_batch_size {
+            let next_height = end_height.increment();
+            // Stop if the next height is already covered by a pending request
+            if state
+                .pending_requests
+                .values()
+                .any(|(range, _)| range.contains(&next_height))
+            {
+                break;
+            }
+            end_height = next_height;
+        }
+
         let range = start_height..=end_height;
 
         // Get a random peer that can provide the values in the range.
@@ -554,8 +569,22 @@ where
 
     // Store pending request and move the sync height.
     debug!(%request_id, range = %DisplayRange::<Ctx>(&range), %peer, "Sent sync request to peer");
-    state.sync_height = max(state.sync_height, range.end().increment());
-    state.pending_requests.insert(request_id, (range, peer));
+
+    // Store the pending request first so we can check against all pending requests
+    state
+        .pending_requests
+        .insert(request_id, (range.clone(), peer));
+
+    // Find the next height that's not covered by any pending request
+    let mut next_sync_height = max(state.sync_height, range.end().increment());
+    while let Some((covered_range, _)) = state
+        .pending_requests
+        .values()
+        .find(|(r, _)| r.contains(&next_sync_height))
+    {
+        next_sync_height = covered_range.end().increment();
+    }
+    state.sync_height = next_sync_height;
 
     Ok(())
 }
@@ -611,9 +640,13 @@ where
     let Some((peer, peer_range)) = state.random_peer_with_except(&range, except_peer_id) else {
         error!(
             range.sync = %DisplayRange::<Ctx>(&range),
+            %state.sync_height,
+            %state.tip_height,
+            pending_requests = %state.pending_requests.len(),
             "No peer to request sync from"
         );
-
+        // Reset the sync height to the start of the range.
+        state.sync_height = min(state.sync_height, *range.start());
         return Ok(());
     };
 
