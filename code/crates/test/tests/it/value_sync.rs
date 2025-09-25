@@ -365,7 +365,7 @@ pub async fn sync_only_fullnode_without_consensus() {
     // Third node is a sync-only full node (0 voting power, consensus disabled)
     // It should be able to sync values but not participate in consensus
     test.add_node()
-        .with_voting_power(0) // Non-validator
+        .full_node()
         .with_consensus_disabled() // Use the new per-node consensus disable
         .start_after(1, Duration::from_secs(5)) // Start late to force syncing
         .wait_until(HEIGHT)
