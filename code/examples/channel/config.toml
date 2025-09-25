@@ -28,6 +28,12 @@ log_format = "plaintext"
 #######################################################
 [consensus]
 
+# Enable consensus protocol participation
+# When disabled, the node will only run synchronization protocol 
+# and will not subscribe to consensus-related topics
+# Override with MALACHITE__CONSENSUS__ENABLED env variable
+enabled = true
+
 ## Timeouts
 
 # How long we wait for a proposal block before prevoting nil

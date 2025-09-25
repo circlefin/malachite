@@ -11,40 +11,43 @@ where
 {
     let (height, round) = (state.height(), state.round());
 
-    if let Some(vote) = state.last_signed_prevote.as_ref() {
-        warn!(
-            %height, %round, vote_height = %vote.height(), vote_round = %vote.round(),
-            "Rebroadcasting vote at {:?} step",
-            state.driver.step()
-        );
-
-        perform!(co, Effect::RepublishVote(vote.clone(), Default::default()));
-    };
-
-    if let Some(vote) = state.last_signed_precommit.as_ref() {
-        warn!(
-            %height, %round, vote_height = %vote.height(), vote_round = %vote.round(),
-            "Rebroadcasting vote at {:?} step",
-            state.driver.step()
-        );
-        perform!(co, Effect::RepublishVote(vote.clone(), Default::default()));
-    };
-
-    if let Some(cert) = state.round_certificate() {
-        if cert.enter_round == round {
+    // Only rebroadcast if we're an active validator
+    if state.is_active_validator() {
+        if let Some(vote) = state.last_signed_prevote.as_ref() {
             warn!(
-                %cert.certificate.height,
-                %round,
-                %cert.certificate.round,
-                number_of_votes = cert.certificate.round_signatures.len(),
-                "Rebroadcasting round certificate"
+                %height, %round, vote_height = %vote.height(), vote_round = %vote.round(),
+                "Rebroadcasting vote at {:?} step",
+                state.driver.step()
             );
-            perform!(
-                co,
-                Effect::RepublishRoundCertificate(cert.certificate.clone(), Default::default())
+
+            perform!(co, Effect::RepublishVote(vote.clone(), Default::default()));
+        };
+
+        if let Some(vote) = state.last_signed_precommit.as_ref() {
+            warn!(
+                %height, %round, vote_height = %vote.height(), vote_round = %vote.round(),
+                "Rebroadcasting vote at {:?} step",
+                state.driver.step()
             );
-        }
-    };
+            perform!(co, Effect::RepublishVote(vote.clone(), Default::default()));
+        };
+
+        if let Some(cert) = state.round_certificate() {
+            if cert.enter_round == round {
+                warn!(
+                    %cert.certificate.height,
+                    %round,
+                    %cert.certificate.round,
+                    number_of_votes = cert.certificate.round_signatures.len(),
+                    "Rebroadcasting round certificate"
+                );
+                perform!(
+                    co,
+                    Effect::RepublishRoundCertificate(cert.certificate.clone(), Default::default())
+                );
+            }
+        };
+    }
 
     #[cfg(feature = "metrics")]
     metrics.rebroadcast_timeouts.inc();
