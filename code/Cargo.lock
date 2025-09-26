@@ -2574,6 +2574,7 @@ dependencies = [
  "informalsystems-malachitebft-core-types",
  "informalsystems-malachitebft-metrics",
  "informalsystems-malachitebft-peer",
+ "informalsystems-malachitebft-test",
  "libp2p",
  "rand 0.8.5",
  "serde",
