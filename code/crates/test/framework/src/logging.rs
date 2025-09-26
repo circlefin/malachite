@@ -15,7 +15,7 @@ pub fn init_logging() {
         ("it", "debug"), // Name of the integration test crate
         ("informalsystems_malachitebft_test", "debug"),
         ("informalsystems_malachitebft_test_app", "debug"),
-        ("informalsystems_malachitebft_discovery", "error"),
+        ("informalsystems_malachitebft_discovery", "info"),
         ("libp2p", "warn"),
         ("ractor", "warn"),
     ];
