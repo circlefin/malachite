@@ -1,4 +1,5 @@
 use std::cmp::{max, min};
+use std::collections::BTreeMap;
 use std::ops::RangeInclusive;
 
 use derive_where::derive_where;
@@ -496,26 +497,13 @@ where
     };
 
     while (state.pending_requests.len() as u64) < max_parallel_requests {
-        // Build the next range of heights to request from a peer.
-        let start_height = state.sync_height;
-        let max_batch_size = max(1, state.config.batch_size as u64);
-
-        // Find the largest (up to max_batch_size) contiguous uncovered range starting from start_height
-        let mut end_height = start_height;
-        for _ in 1..max_batch_size {
-            let next_height = end_height.increment();
-            // Stop if the next height is already covered by a pending request
-            if state
-                .pending_requests
-                .values()
-                .any(|(range, _)| range.contains(&next_height))
-            {
-                break;
-            }
-            end_height = next_height;
-        }
-
-        let range = start_height..=end_height;
+        // Find the next uncovered range starting from current sync_height
+        let initial_height = state.sync_height;
+        let range = find_next_uncovered_range_from::<Ctx>(
+            initial_height,
+            state.config.batch_size as u64,
+            &state.pending_requests,
+        );
 
         // Get a random peer that can provide the values in the range.
         let Some((peer, range)) = state.random_peer_with(&range) else {
@@ -524,19 +512,36 @@ where
             break;
         };
 
-        request_values_from_peer(&co, state, metrics, range, peer).await?;
+        // Send the request
+        let Some((request_id, final_range)) =
+            send_request_to_peer(&co, state, metrics, range, peer).await?
+        else {
+            continue; // Request was skipped (empty range, etc.), try next iteration
+        };
+
+        // Store the pending request
+        state
+            .pending_requests
+            .insert(request_id, (final_range.clone(), peer));
+
+        // Update sync_height to the next uncovered height after this range
+        let starting_height = final_range.end().increment();
+        state.sync_height =
+            find_next_uncovered_height::<Ctx>(starting_height, &state.pending_requests);
     }
 
     Ok(())
 }
 
-async fn request_values_from_peer<Ctx>(
+/// Send a value request to a peer. Returns the request_id and final range if successful.
+/// The calling function is responsible for storing the request and updating state.
+async fn send_request_to_peer<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
     range: RangeInclusive<Ctx::Height>,
     peer: PeerId,
-) -> Result<(), Error<Ctx>>
+) -> Result<Option<(OutboundRequestId, RangeInclusive<Ctx::Height>)>, Error<Ctx>>
 where
     Ctx: Context,
 {
@@ -544,7 +549,7 @@ where
 
     if range.is_empty() {
         warn!(range.sync = %DisplayRange::<Ctx>(&range), %peer, "Range is empty, skipping request");
-        return Ok(());
+        return Ok(None);
     }
 
     // Skip over any heights in the range that are not waiting for a response
@@ -552,7 +557,7 @@ where
     let range = state.trim_validated_heights(&range);
     if range.is_empty() {
         warn!(%peer, "All values in range {} have been validated, skipping request", DisplayRange::<Ctx>(&range));
-        return Ok(());
+        return Ok(None);
     }
 
     // Send request to peer
@@ -562,31 +567,13 @@ where
         Resume::ValueRequestId(id) => id,
     ) else {
         warn!(range = %DisplayRange::<Ctx>(&range), %peer, "Failed to send sync request to peer");
-        return Ok(());
+        return Ok(None);
     };
 
     metrics.value_request_sent(range.start().as_u64());
-
-    // Store pending request and move the sync height.
     debug!(%request_id, range = %DisplayRange::<Ctx>(&range), %peer, "Sent sync request to peer");
 
-    // Store the pending request first so we can check against all pending requests
-    state
-        .pending_requests
-        .insert(request_id, (range.clone(), peer));
-
-    // Find the next height that's not covered by any pending request
-    let mut next_sync_height = max(state.sync_height, range.end().increment());
-    while let Some((covered_range, _)) = state
-        .pending_requests
-        .values()
-        .find(|(r, _)| r.contains(&next_sync_height))
-    {
-        next_sync_height = covered_range.end().increment();
-    }
-    state.sync_height = next_sync_height;
-
-    Ok(())
+    Ok(Some((request_id, range)))
 }
 
 /// Remove the pending request and re-request the batch from another peer.
@@ -608,20 +595,6 @@ where
         return Ok(());
     };
 
-    // It is possible that a prefix or the whole range of values has been validated via consensus.
-    // Then, request only the missing values.
-    let range = state.trim_validated_heights(&range);
-
-    if range.is_empty() {
-        warn!(
-            %request_id,
-            "All values in range {} have been validated, skipping re-request",
-            DisplayRange::<Ctx>(&range)
-        );
-
-        return Ok(());
-    }
-
     let except_peer_id = match except_peer_id {
         Some(peer_id) if stored_peer_id == peer_id => Some(peer_id),
         Some(peer_id) => {
@@ -638,19 +611,23 @@ where
     };
 
     let Some((peer, peer_range)) = state.random_peer_with_except(&range, except_peer_id) else {
-        error!(
-            range.sync = %DisplayRange::<Ctx>(&range),
-            %state.sync_height,
-            %state.tip_height,
-            pending_requests = %state.pending_requests.len(),
-            "No peer to request sync from"
-        );
+        debug!("No peer to re-request sync from");
         // Reset the sync height to the start of the range.
         state.sync_height = min(state.sync_height, *range.start());
         return Ok(());
     };
 
-    request_values_from_peer(&co, state, metrics, peer_range, peer).await?;
+    // Send the request
+    let Some((request_id, final_range)) =
+        send_request_to_peer(&co, state, metrics, peer_range, peer).await?
+    else {
+        return Ok(()); // Request was skipped (empty range, etc.)
+    };
+
+    // Store the pending request (replacing the removed one)
+    state
+        .pending_requests
+        .insert(request_id, (final_range.clone(), peer));
 
     Ok(())
 }
@@ -660,5 +637,455 @@ struct DisplayRange<'a, Ctx: Context>(&'a RangeInclusive<Ctx::Height>);
 impl<'a, Ctx: Context> core::fmt::Display for DisplayRange<'a, Ctx> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}..={}", self.0.start(), self.0.end())
+    }
+}
+
+/// Find the next uncovered range starting from initial_height.
+///
+/// Builds a contiguous range of the specified max_size from initial_height.
+///
+/// # Assumptions
+/// - All ranges in pending_requests are disjoint (non-overlapping)
+/// - initial_height is not covered by any pending request (maintained by caller)
+///
+/// # Panics
+/// Panics if initial_height is already covered by a pending request (indicates a bug in the logic).
+///
+/// Returns the range that should be requested.
+fn find_next_uncovered_range_from<Ctx>(
+    initial_height: Ctx::Height,
+    max_range_size: u64,
+    pending_requests: &BTreeMap<OutboundRequestId, (RangeInclusive<Ctx::Height>, PeerId)>,
+) -> RangeInclusive<Ctx::Height>
+where
+    Ctx: Context,
+{
+    let max_batch_size = max(1, max_range_size);
+
+    // Find the pending request with the smallest range.start where range.end >= initial_height
+    let next_range = pending_requests
+        .values()
+        .map(|(range, _)| range)
+        .filter(|range| *range.end() >= initial_height)
+        .min_by_key(|range| range.start());
+
+    // Start with the full max_batch_size range
+    let mut end_height = initial_height.increment_by(max_batch_size - 1);
+
+    // If there's a range in pending, constrain to that boundary
+    if let Some(range) = next_range {
+        // Check if initial_height is covered by this earliest range
+        if range.contains(&initial_height) {
+            panic!(
+                "Bug: initial_height {} is already covered by a pending request. This should never happen.",
+                initial_height.as_u64()
+            );
+        }
+
+        // Constrain to the blocking boundary
+        let boundary_end = range
+            .start()
+            .decrement()
+            .expect("range.start() should be decrementable since it's > initial_height");
+        end_height = min(end_height, boundary_end);
+    }
+
+    initial_height..=end_height
+}
+
+/// Find the next height that's not covered by any pending request starting from starting_height.
+fn find_next_uncovered_height<Ctx>(
+    starting_height: Ctx::Height,
+    pending_requests: &BTreeMap<OutboundRequestId, (RangeInclusive<Ctx::Height>, PeerId)>,
+) -> Ctx::Height
+where
+    Ctx: Context,
+{
+    let mut next_height = starting_height;
+    while let Some((covered_range, _)) = pending_requests
+        .values()
+        .find(|(r, _)| r.contains(&next_height))
+    {
+        next_height = covered_range.end().increment();
+    }
+    next_height
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use informalsystems_malachitebft_test::{Height, TestContext};
+    use std::collections::BTreeMap;
+
+    type TestPendingRequests = BTreeMap<OutboundRequestId, (RangeInclusive<Height>, PeerId)>;
+
+    // Tests for the unified function find_next_uncovered_range_from_sync_height
+
+    #[test]
+    fn test_find_next_uncovered_range_from_no_pending_requests() {
+        let pending_requests = TestPendingRequests::new();
+
+        let result =
+            find_next_uncovered_range_from::<TestContext>(Height::new(10), 5, &pending_requests);
+
+        assert_eq!(result, Height::new(10)..=Height::new(14));
+    }
+
+    #[test]
+    fn test_find_next_uncovered_range_from_max_size_one() {
+        let pending_requests = TestPendingRequests::new();
+
+        let result =
+            find_next_uncovered_range_from::<TestContext>(Height::new(10), 1, &pending_requests);
+
+        assert_eq!(result, Height::new(10)..=Height::new(10));
+    }
+
+    #[test]
+    fn test_find_next_uncovered_range_from_with_blocking_request() {
+        let mut pending_requests = TestPendingRequests::new();
+        let peer = PeerId::random();
+
+        // Add a pending request that blocks at height 12
+        pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            (Height::new(12)..=Height::new(15), peer),
+        );
+
+        let result =
+            find_next_uncovered_range_from::<TestContext>(Height::new(10), 5, &pending_requests);
+
+        // Should stop at height 11 because 12 is blocked
+        assert_eq!(result, Height::new(10)..=Height::new(11));
+    }
+
+    #[test]
+    fn test_find_next_uncovered_range_from_zero_max_size_becomes_one() {
+        let pending_requests = TestPendingRequests::new();
+
+        let result = find_next_uncovered_range_from::<TestContext>(
+            Height::new(10),
+            0, // Should be treated as 1
+            &pending_requests,
+        );
+
+        assert_eq!(result, Height::new(10)..=Height::new(10));
+    }
+
+    #[test]
+    fn test_find_next_uncovered_range_from_range_starts_immediately_after() {
+        let mut pending_requests = TestPendingRequests::new();
+        let peer = PeerId::random();
+
+        // Add a pending request that starts immediately after initial_height
+        pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            (Height::new(16)..=Height::new(20), peer),
+        );
+
+        let result =
+            find_next_uncovered_range_from::<TestContext>(Height::new(15), 5, &pending_requests);
+
+        // Should build only up to height 15 (boundary_end = 16 - 1 = 15, max_end would be 19)
+        // min(19, 15) = 15
+        assert_eq!(result, Height::new(15)..=Height::new(15));
+    }
+
+    #[test]
+    fn test_find_next_uncovered_range_from_height_zero_with_range_starting_at_one() {
+        let mut pending_requests = TestPendingRequests::new();
+        let peer = PeerId::random();
+
+        // Add a pending request that covers 1..=5
+        pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            (Height::new(1)..=Height::new(5), peer),
+        );
+
+        let result =
+            find_next_uncovered_range_from::<TestContext>(Height::new(0), 3, &pending_requests);
+
+        // Should build only height 0 (boundary_end = 1 - 1 = 0, max_end would be 2)
+        // min(2, 0) = 0
+        assert_eq!(result, Height::new(0)..=Height::new(0));
+    }
+
+    #[test]
+    fn test_find_next_uncovered_range_from_sync_height_just_at_range_end() {
+        let mut pending_requests = TestPendingRequests::new();
+        let peer = PeerId::random();
+
+        // Add a pending request 5..=10, sync_height = 11
+        pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            (Height::new(5)..=Height::new(10), peer),
+        );
+
+        let result =
+            find_next_uncovered_range_from::<TestContext>(Height::new(11), 4, &pending_requests);
+
+        // Should build full range since no constraints (range 5..=10 has start=5 which is < 11)
+        // max_end = 11 + 4 - 1 = 14
+        assert_eq!(result, Height::new(11)..=Height::new(14));
+    }
+
+    #[test]
+    fn test_find_next_uncovered_range_from_fill_gap_between_ranges() {
+        let mut pending_requests = TestPendingRequests::new();
+        let peer1 = PeerId::random();
+        let peer2 = PeerId::random();
+
+        // Add ranges before and after sync_height: 5..=10 and 20..=25, sync_height = 12
+        pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            (Height::new(5)..=Height::new(10), peer1),
+        );
+        pending_requests.insert(
+            OutboundRequestId::new("req2"),
+            (Height::new(20)..=Height::new(25), peer2),
+        );
+
+        let result =
+            find_next_uncovered_range_from::<TestContext>(Height::new(12), 6, &pending_requests);
+
+        // Should fill gap up to range starting at 20
+        // max_end = 12 + 6 - 1 = 17, boundary_end = 20 - 1 = 19
+        // min(17, 19) = 17
+        assert_eq!(result, Height::new(12)..=Height::new(17));
+    }
+
+    // Panic tests - initial_height is covered (indicates design bugs)
+
+    #[test]
+    #[should_panic(expected = "Bug: initial_height 12 is already covered by a pending request")]
+    fn test_find_next_uncovered_range_from_sync_height_covered() {
+        let mut pending_requests = TestPendingRequests::new();
+        let peer = PeerId::random();
+
+        // Add a pending request that covers the sync_height
+        pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            (Height::new(10)..=Height::new(15), peer),
+        );
+
+        // This should panic since initial_height 12 is covered by the range 10..=15
+        find_next_uncovered_range_from::<TestContext>(Height::new(12), 3, &pending_requests);
+    }
+
+    #[test]
+    #[should_panic(expected = "Bug: initial_height 15 is already covered by a pending request")]
+    fn test_find_next_uncovered_range_from_initial_height_equals_range_start() {
+        let mut pending_requests = TestPendingRequests::new();
+        let peer = PeerId::random();
+
+        // Add a pending request that starts exactly at initial_height
+        pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            (Height::new(15)..=Height::new(20), peer),
+        );
+
+        // This should panic since initial_height 15 equals range.start()
+        find_next_uncovered_range_from::<TestContext>(Height::new(15), 5, &pending_requests);
+    }
+
+    #[test]
+    #[should_panic(expected = "Bug: initial_height 15 is already covered by a pending request")]
+    fn test_find_next_uncovered_range_from_sync_height_equals_range_end() {
+        let mut pending_requests = TestPendingRequests::new();
+        let peer = PeerId::random();
+
+        // Add a pending request 10..=15, sync_height = 15 (equals range end)
+        pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            (Height::new(10)..=Height::new(15), peer),
+        );
+
+        // This should panic since initial_height 15 is contained in range 10..=15 (inclusive)
+        find_next_uncovered_range_from::<TestContext>(Height::new(15), 3, &pending_requests);
+    }
+
+    #[test]
+    #[should_panic(expected = "Bug: initial_height 16 is already covered by a pending request")]
+    fn test_find_next_uncovered_range_from_multiple_consecutive_blocks() {
+        let mut pending_requests = TestPendingRequests::new();
+        let peer1 = PeerId::random();
+        let peer2 = PeerId::random();
+
+        // Add consecutive pending requests
+        pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            (Height::new(10)..=Height::new(15), peer1),
+        );
+        pending_requests.insert(
+            OutboundRequestId::new("req2"),
+            (Height::new(16)..=Height::new(20), peer2),
+        );
+
+        // This should panic since initial_height 16 is covered by the range 16..=20
+        find_next_uncovered_range_from::<TestContext>(Height::new(16), 3, &pending_requests);
+    }
+
+    #[test]
+    #[should_panic(expected = "Bug: initial_height 0 is already covered by a pending request")]
+    fn test_find_next_uncovered_range_from_sync_height_zero_with_range_starting_at_zero() {
+        let mut pending_requests = TestPendingRequests::new();
+        let peer = PeerId::random();
+
+        // Add a pending request that covers 0..=5
+        pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            (Height::new(0)..=Height::new(5), peer),
+        );
+
+        // This should panic since initial_height 0 is contained in range 0..=5
+        find_next_uncovered_range_from::<TestContext>(Height::new(0), 3, &pending_requests);
+    }
+
+    // Tests for the helper function find_next_uncovered_height (used for sync_height updates)
+
+    #[test]
+    fn test_find_next_uncovered_height_no_pending_requests() {
+        let pending_requests = TestPendingRequests::new();
+
+        let result = find_next_uncovered_height::<TestContext>(Height::new(10), &pending_requests);
+
+        assert_eq!(result, Height::new(10));
+    }
+
+    #[test]
+    fn test_find_next_uncovered_height_starting_height_covered() {
+        let mut pending_requests = TestPendingRequests::new();
+        let peer = PeerId::random();
+
+        // Add a pending request that covers the starting height
+        pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            (Height::new(10)..=Height::new(15), peer),
+        );
+
+        let result = find_next_uncovered_height::<TestContext>(Height::new(12), &pending_requests);
+
+        // Should return the height after the covered range
+        assert_eq!(result, Height::new(16));
+    }
+
+    #[test]
+    fn test_find_next_uncovered_height_starting_height_match_request_start() {
+        let mut pending_requests = TestPendingRequests::new();
+        let peer = PeerId::random();
+
+        // Add a pending request that covers the starting height
+        pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            (Height::new(10)..=Height::new(15), peer),
+        );
+
+        let result = find_next_uncovered_height::<TestContext>(Height::new(10), &pending_requests);
+
+        // Should return the height after the covered range
+        assert_eq!(result, Height::new(16));
+    }
+
+    #[test]
+    fn test_find_next_uncovered_height_starting_height_match_request_end() {
+        let mut pending_requests = TestPendingRequests::new();
+        let peer = PeerId::random();
+
+        // Add a pending request that covers the starting height
+        pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            (Height::new(10)..=Height::new(15), peer),
+        );
+
+        let result = find_next_uncovered_height::<TestContext>(Height::new(15), &pending_requests);
+
+        // Should return the height after the covered range
+        assert_eq!(result, Height::new(16));
+    }
+
+    #[test]
+    fn test_find_next_uncovered_height_starting_height_just_before_request_start() {
+        let mut pending_requests = TestPendingRequests::new();
+        let peer = PeerId::random();
+
+        // Add a pending request that covers the starting height
+        pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            (Height::new(10)..=Height::new(15), peer),
+        );
+
+        let result = find_next_uncovered_height::<TestContext>(Height::new(9), &pending_requests);
+
+        // Should return the height after the covered range
+        assert_eq!(result, Height::new(9));
+    }
+
+    #[test]
+    fn test_find_next_uncovered_height_multiple_consecutive_ranges() {
+        let mut pending_requests = TestPendingRequests::new();
+        let peer1 = PeerId::random();
+        let peer2 = PeerId::random();
+
+        // Add consecutive pending requests
+        pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            (Height::new(10)..=Height::new(15), peer1),
+        );
+        pending_requests.insert(
+            OutboundRequestId::new("req2"),
+            (Height::new(16)..=Height::new(20), peer2),
+        );
+
+        let result = find_next_uncovered_height::<TestContext>(Height::new(10), &pending_requests);
+
+        // Should skip over all consecutive ranges
+        assert_eq!(result, Height::new(21));
+    }
+
+    #[test]
+    fn test_find_next_uncovered_height_multiple_consecutive_ranges_with_a_gap() {
+        let mut pending_requests = TestPendingRequests::new();
+        let peer1 = PeerId::random();
+        let peer2 = PeerId::random();
+
+        // Add consecutive pending requests
+        pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            (Height::new(10)..=Height::new(15), peer1),
+        );
+        pending_requests.insert(
+            OutboundRequestId::new("req2"),
+            (Height::new(16)..=Height::new(20), peer2),
+        );
+        pending_requests.insert(
+            OutboundRequestId::new("req3"),
+            (Height::new(24)..=Height::new(30), peer2),
+        );
+
+        let result = find_next_uncovered_height::<TestContext>(Height::new(10), &pending_requests);
+
+        // Should skip over all consecutive ranges
+        assert_eq!(result, Height::new(21));
+    }
+
+    #[test]
+    fn test_find_next_uncovered_height_starting_height_covered_nultiple() {
+        let mut pending_requests = TestPendingRequests::new();
+        let peer = PeerId::random();
+
+        // Add a pending request that covers the starting height
+        pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            (Height::new(10)..=Height::new(15), peer),
+        );
+        pending_requests.insert(
+            OutboundRequestId::new("req2"),
+            (Height::new(15)..=Height::new(20), peer),
+        );
+
+        let result = find_next_uncovered_height::<TestContext>(Height::new(12), &pending_requests);
+
+        // Should return the height after the covered range
+        assert_eq!(result, Height::new(21));
     }
 }
