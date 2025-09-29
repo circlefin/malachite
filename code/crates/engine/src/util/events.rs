@@ -47,6 +47,7 @@ pub enum Event<Ctx: Context> {
     StartedHeight(Ctx::Height, bool),
     StartedRound(Ctx::Height, Round, Ctx::Address, Role),
     Published(SignedConsensusMsg<Ctx>),
+    Received(SignedConsensusMsg<Ctx>),
     ProposedValue(LocallyProposedValue<Ctx>),
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
     Decided(CommitCertificate<Ctx>),
@@ -70,6 +71,7 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
                 write!(f, "StartedRound(height: {height}, round: {round}, proposer: {proposer}, role: {role:?})")
             }
             Event::Published(msg) => write!(f, "Published(msg: {msg:?})"),
+            Event::Received(msg) => write!(f, "Received(msg: {msg:?})"),
             Event::ProposedValue(value) => write!(f, "ProposedValue(value: {value:?})"),
             Event::ReceivedProposedValue(value, origin) => {
                 write!(

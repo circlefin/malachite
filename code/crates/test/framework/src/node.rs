@@ -52,6 +52,7 @@ where
     pub state: State,
     pub middleware: Arc<dyn Middleware>,
     pub config_modifier: ConfigModifier<Cfg>,
+    pub consensus_enabled: bool,
 }
 
 impl<Ctx, State, Cfg> TestNode<Ctx, State, Cfg>
@@ -76,6 +77,7 @@ where
             state,
             middleware: Arc::new(DefaultMiddleware),
             config_modifier: Arc::new(|_config| {}),
+            consensus_enabled: true,
         }
     }
 
@@ -350,6 +352,8 @@ where
     Cfg: NodeConfig + 'static,
 {
     pub fn disable_consensus(&mut self) -> &mut Self {
+        self.consensus_enabled = false;
+
         self.add_config_modifier(|config| {
             config.consensus_mut().enabled = false;
         })
