@@ -366,7 +366,7 @@ pub async fn sync_only_fullnode_without_consensus() {
     // It should be able to sync values but not participate in consensus
     test.add_node()
         .full_node()
-        .with_consensus_disabled() // Use the new per-node consensus disable
+        .disable_consensus()
         .start_after(1, Duration::from_secs(5)) // Start late to force syncing
         .wait_until(HEIGHT)
         .success();
@@ -374,9 +374,9 @@ pub async fn sync_only_fullnode_without_consensus() {
     test.build()
         .run_with_params(
             Duration::from_secs(45),
+            // NOTE: consensus is enabled by default for other nodes
             TestParams {
                 enable_value_sync: true,
-                // consensus_enabled defaults to true for other nodes
                 parallel_requests: 3,
                 ..Default::default()
             },

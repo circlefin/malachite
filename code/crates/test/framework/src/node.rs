@@ -349,7 +349,7 @@ where
     Ctx: Context,
     Cfg: NodeConfig + 'static,
 {
-    pub fn with_consensus_disabled(&mut self) -> &mut Self {
+    pub fn disable_consensus(&mut self) -> &mut Self {
         self.add_config_modifier(|config| {
             config.consensus_mut().enabled = false;
         })
