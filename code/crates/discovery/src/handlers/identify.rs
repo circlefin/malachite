@@ -1,31 +1,92 @@
-use libp2p::{identify, multiaddr::Protocol, swarm::ConnectionId, PeerId, Swarm};
+use libp2p::{identify, swarm::ConnectionId, PeerId, Swarm};
 use tracing::{debug, info, warn};
 
 use crate::config::BootstrapProtocol;
 use crate::OutboundState;
 use crate::{request::RequestData, Discovery, DiscoveryClient, State};
 
-/// Helper function to filter out loopback addresses from a list of multiaddrs.
-/// This prevents cross-contamination between bootstrap_nodes entries when nodes
-/// advertise the same loopback addresses (e.g. 127.0.0.1, ::1) due to 0.0.0.0 binding.
-fn filter_loopback_addresses(addresses: &[libp2p::Multiaddr]) -> Vec<libp2p::Multiaddr> {
-    addresses
-        .iter()
-        .filter(|addr| {
-            !addr.iter().any(|protocol| match protocol {
-                Protocol::Ip4(ip) => ip.is_loopback(),
-                Protocol::Ip6(ip) => ip.is_loopback(),
-                _ => false,
-            })
-        })
-        .cloned()
-        .collect()
-}
-
 impl<C> Discovery<C>
 where
     C: DiscoveryClient,
 {
+    /// Update bootstrap node with peer_id if this peer matches a bootstrap node's addresses
+    ///
+    /// ## Bootstrap Discovery Flow:
+    /// - Bootstrap configuration: bootstrap nodes configured with addresses but `peer_id = None`
+    ///    ```rust
+    ///    bootstrap_nodes:
+    ///      [
+    ///       (None, ["/ip4/1.2.3.4/tcp/8000", "/ip4/5.6.7.8/tcp/8000"]),
+    ///       (None, ["/ip4/8.7.6.5/tcp/8000", "/ip4/4.3.2.1/tcp/8000"]),..
+    ///      ]
+    ///    ```
+    /// - Initial dial: create `DialData` with `peer_id = None` and dial the **first** address
+    ///    ```rust
+    ///    DialData::new(None, vec![multiaddr]) // peer_id initially unknown
+    ///    ```
+    /// - Connection established: `handle_connection()` called with the actual `peer_id`
+    ///    - Updates `dial_data.set_peer_id(peer_id)` via `dial_add_peer_id_to_dial_data()`
+    /// - Identify protocol: peer sends identity information including supported protocols
+    /// - Protocol check: only compatible peers reach `handle_new_peer()`
+    /// - Bootstrap matching: **This function** matches the peer against bootstrap nodes:
+    ///    - Check if peer's advertised addresses match any bootstrap node addresses
+    ///    - If match found: update `bootstrap_nodes[i].0 = Some(peer_id)`
+    ///
+    /// Called after connection is established but before peer is added to active_connections
+    fn update_bootstrap_node_peer_id(&mut self, peer_id: PeerId) {
+        debug!(
+            "Checking peer {} against {} bootstrap nodes",
+            peer_id,
+            self.bootstrap_nodes.len()
+        );
+
+        // Skip if peer is already identified (avoid duplicate work)
+        if self
+            .bootstrap_nodes
+            .iter()
+            .any(|(existing_peer_id, _)| existing_peer_id == &Some(peer_id))
+        {
+            debug!(
+                "Peer {} already identified in bootstrap_nodes - skipping",
+                peer_id
+            );
+            return;
+        }
+
+        // Find the dial_data that was updated in handle_connection
+        // This dial_data originally had peer_id=None but now should have peer_id=Some(peer_id)
+        let Some((_, dial_data)) = self
+            .controller
+            .dial
+            .get_in_progress_iter()
+            .find(|(_, dial_data)| dial_data.peer_id() == Some(peer_id))
+        else {
+            // This happens for incoming connections (peers that dialed this node)
+            // since no dial_data was created for them
+            return;
+        };
+
+        // Match dial addresses against bootstrap node configurations
+        for (maybe_peer_id, listen_addrs) in self.bootstrap_nodes.iter_mut() {
+            // Check if this bootstrap node is unidentified and addresses match
+            if maybe_peer_id.is_none()
+                && dial_data
+                    .listen_addrs()
+                    .iter()
+                    .any(|dial_addr| listen_addrs.contains(dial_addr))
+            {
+                // Bootstrap discovery completed: None -> Some(peer_id)
+                info!("Bootstrap peer {} successfully identified", peer_id);
+                *maybe_peer_id = Some(peer_id);
+                return;
+            }
+        }
+
+        // This is only debug because some dialed peers (e.g. with discovery enabled)
+        // are not one of the locally configured bootstrap nodes
+        debug!("Failed to identify peer as bootstrap {}", peer_id);
+    }
+
     pub fn handle_new_peer(
         &mut self,
         swarm: &mut Swarm<C>,
@@ -44,6 +105,9 @@ where
         {
             return is_already_connected;
         }
+
+        // Match peer against bootstrap nodes
+        self.update_bootstrap_node_peer_id(peer_id);
 
         if self
             .controller
@@ -70,19 +134,6 @@ where
                 );
 
                 self.metrics.increment_total_discovered();
-
-                // If at least one listen address belongs to a bootstrap node, save the peer id
-                if let Some(bootstrap_node) =
-                    self.bootstrap_nodes.iter_mut().find(|(_, listen_addrs)| {
-                        // Filter out loopback addresses
-                        let non_loopback_advertised = filter_loopback_addresses(&info.listen_addrs);
-                        listen_addrs
-                            .iter()
-                            .any(|addr| non_loopback_advertised.contains(addr))
-                    })
-                {
-                    *bootstrap_node = (Some(peer_id), info.listen_addrs.clone());
-                }
             }
         }
 

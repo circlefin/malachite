@@ -264,8 +264,6 @@ async fn run(
         return;
     }
 
-    state.discovery.dial_bootstrap_nodes(&swarm);
-
     if let Err(e) = pubsub::subscribe(
         &mut swarm,
         config.pubsub_protocol,
@@ -324,8 +322,8 @@ async fn run(
             }
 
             _ = persistent_peer_timer.tick() => {
-                // Periodically attempt to reconnect to persistent peers
-                state.discovery.reconnect_to_persistent_peers(&mut swarm);
+                // Periodically attempt to dial bootstrap nodes
+                state.discovery.dial_bootstrap_nodes(&swarm);
                 ControlFlow::Continue(())
             }
         };

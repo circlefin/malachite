@@ -1,5 +1,5 @@
 use libp2p::{swarm::ConnectionId, PeerId, Swarm};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, warn};
 
 use crate::{request::RequestData, Discovery, DiscoveryClient, OutboundState};
 
@@ -78,23 +78,6 @@ where
                     (peer_id, connection_id),
                     Some(self.config.ephemeral_connection_timeout),
                 );
-            }
-        }
-    }
-
-    /// Periodically attempt to reconnect to the disconnected persistent peers
-    pub fn reconnect_to_persistent_peers(&mut self, swarm: &mut Swarm<C>) {
-        for (peer_id, listen_addrs) in &self.bootstrap_nodes.clone() {
-            let should_reconnect = peer_id.is_none_or(|id| !swarm.is_connected(&id));
-
-            if should_reconnect {
-                // Dial persistent peers directly
-                listen_addrs
-                    .iter()
-                    .for_each(|addr| match swarm.dial(addr.clone()) {
-                        Ok(()) => info!("Successfully initiated dial {peer_id:?} to {addr}"),
-                        Err(e) => error!("Failed to dial persistent peer at {addr}: {e}"),
-                    });
             }
         }
     }
