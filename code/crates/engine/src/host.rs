@@ -136,12 +136,6 @@ pub enum HostMsg<Ctx: Context> {
         reply_to: RpcReplyPort<ProposedValue<Ctx>>,
     },
 
-    /// Requests the validator set for a specific height
-    GetValidatorSet {
-        height: Ctx::Height,
-        reply_to: RpcReplyPort<Option<Ctx::ValidatorSet>>,
-    },
-
     /// Notifies the application that consensus has decided on a value.
     ///
     /// This message includes a commit certificate containing the ID of

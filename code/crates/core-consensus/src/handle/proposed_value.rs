@@ -39,12 +39,12 @@ pub async fn on_proposed_value<Ctx>(
 where
     Ctx: Context,
 {
-    if state.driver.height() > proposed_value.height {
+    if state.height() > proposed_value.height {
         debug!("Received value for lower height, dropping");
         return Ok(());
     }
 
-    if state.driver.height() < proposed_value.height {
+    if state.height() < proposed_value.height {
         debug!("Received value for higher height, queuing for later");
 
         state.buffer_input(

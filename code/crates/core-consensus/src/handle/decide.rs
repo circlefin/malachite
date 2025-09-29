@@ -11,8 +11,8 @@ where
 {
     assert!(state.driver.step_is_commit());
 
-    let height = state.driver.height();
-    let consensus_round = state.driver.round();
+    let height = state.height();
+    let consensus_round = state.round();
 
     let Some((proposal_round, decided_value)) = state.decided_value() else {
         return Err(Error::DecisionNotFound(height, consensus_round));
@@ -64,15 +64,15 @@ where
     assert_eq!(full_proposal.validity, Validity::Valid);
 
     // The certificate must be valid in Commit step
-    assert_eq!(
+    assert!(
         verify_commit_certificate(
             co,
             certificate.clone(),
             state.driver.validator_set().clone(),
             state.params.threshold_params,
         )
-        .await?,
-        Ok(()),
+        .await?
+        .is_ok(),
         "Commit certificate is not valid"
     );
 
