@@ -2,18 +2,19 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use eyre::bail;
+use malachitebft_app::node::NodeConfig;
 use tracing::info;
 
 use malachitebft_core_consensus::{LocallyProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{Context, Height, SignedVote, Vote, VoteType, VotingPower};
 use malachitebft_engine::util::events::Event;
 use malachitebft_test::middleware::{DefaultMiddleware, Middleware};
-use malachitebft_test_app::config::Config;
+use malachitebft_test_app::config::Config as TestConfig;
 
 use crate::Expected;
 
 pub type NodeId = usize;
-pub type ConfigModifier = Arc<dyn Fn(&mut Config) + Send + Sync>;
+pub type ConfigModifier<Config> = Arc<dyn Fn(&mut Config) + Send + Sync>;
 
 pub enum Step<Ctx, S>
 where
@@ -39,7 +40,7 @@ pub enum HandlerResult {
 pub type EventHandler<Ctx, S> =
     Box<dyn Fn(Event<Ctx>, &mut S) -> Result<HandlerResult, eyre::Report> + Send + Sync>;
 
-pub struct TestNode<Ctx, State = ()>
+pub struct TestNode<Ctx, State = (), Cfg = TestConfig>
 where
     Ctx: Context,
 {
@@ -50,12 +51,13 @@ where
     pub steps: Vec<Step<Ctx, State>>,
     pub state: State,
     pub middleware: Arc<dyn Middleware>,
-    pub config_modifier: ConfigModifier,
+    pub config_modifier: ConfigModifier<Cfg>,
 }
 
-impl<Ctx, State> TestNode<Ctx, State>
+impl<Ctx, State, Cfg> TestNode<Ctx, State, Cfg>
 where
     Ctx: Context,
+    Cfg: 'static,
 {
     pub fn new(id: usize) -> Self
     where
@@ -315,12 +317,6 @@ where
         self
     }
 
-    pub fn with_consensus_disabled(&mut self) -> &mut Self {
-        self.add_config_modifier(|config| {
-            config.consensus.enabled = false;
-        })
-    }
-
     pub fn is_full_node(&self) -> bool {
         self.voting_power == 0
     }
@@ -332,7 +328,7 @@ where
 
     pub fn add_config_modifier<F>(&mut self, f: F) -> &mut Self
     where
-        F: Fn(&mut Config) + Send + Sync + 'static,
+        F: Fn(&mut Cfg) + Send + Sync + 'static,
     {
         let existing = Arc::clone(&self.config_modifier);
 
@@ -345,5 +341,17 @@ where
         });
 
         self
+    }
+}
+
+impl<Ctx, State, Cfg> TestNode<Ctx, State, Cfg>
+where
+    Ctx: Context,
+    Cfg: NodeConfig + 'static,
+{
+    pub fn with_consensus_disabled(&mut self) -> &mut Self {
+        self.add_config_modifier(|config| {
+            config.consensus_mut().enabled = false;
+        })
     }
 }

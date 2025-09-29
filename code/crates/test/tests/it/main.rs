@@ -64,7 +64,7 @@ pub struct NodeInfo {
     start_height: Height,
     home_dir: PathBuf,
     middleware: Arc<dyn Middleware>,
-    config_modifier: ConfigModifier,
+    config_modifier: ConfigModifier<Config>,
 }
 
 #[async_trait]
