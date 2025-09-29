@@ -1,0 +1,117 @@
+networks:
+  internal_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.100.0/24
+  
+  external_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.0.1.0/24
+
+services:
+  # NAT Gateway to route between networks
+  nat_gateway:
+    image: ubuntu:22.04
+    container_name: nat_gateway
+    networks:
+      internal_net:
+        ipv4_address: 192.168.100.254
+      external_net:
+        ipv4_address: 10.0.1.254
+    cap_add:
+      - NET_ADMIN
+    sysctls:
+      - net.ipv4.ip_forward=1
+    command: >
+      sh -c "
+        apt-get update -y &&
+        apt-get install -y socat &&
+        echo 'Starting port forwarding...' &&
+        socat TCP-LISTEN:27000,fork TCP:192.168.100.10:27000 &
+        socat TCP-LISTEN:27001,fork TCP:192.168.100.11:27000 &
+        socat TCP-LISTEN:27002,fork TCP:192.168.100.12:27000 &
+        echo 'NAT gateway ready' &&
+        wait
+      "
+    restart: unless-stopped
+
+  # Validators behind "NAT" (internal network)
+  node0:
+    image: ubuntu:22.04
+    platform: linux/amd64
+    container_name: malachite_node0
+    networks:
+      internal_net:
+        ipv4_address: 192.168.100.10
+    volumes:
+      - ./target/x86_64-unknown-linux-gnu/release/informalsystems-malachitebft-example-channel:/usr/local/bin/malachite:ro
+      - ./nat-configs/node0-config.toml:/app/node/config/config.toml:ro
+      - ./deployments/volumes/malachite/0:/app/node
+    ports:
+      - "29000:29000"   # This simulates port forwarding through NAT
+      - "27000:27000"
+    environment:
+      - RUST_LOG=debug,libp2p_swarm::handler=off,libp2p_swarm=info
+    command: /usr/local/bin/malachite start --home /app/node
+    restart: unless-stopped
+
+  node1:
+    image: ubuntu:22.04
+    platform: linux/amd64
+    container_name: malachite_node1
+    networks:
+      internal_net:
+        ipv4_address: 192.168.100.11
+    volumes:
+      - ./target/x86_64-unknown-linux-gnu/release/informalsystems-malachitebft-example-channel:/usr/local/bin/malachite:ro
+      - ./nat-configs/node1-config.toml:/app/node/config/config.toml:ro
+      - ./deployments/volumes/malachite/1:/app/node
+    ports:
+      - "29001:29000"
+      - "27001:27000"
+    environment:
+      - RUST_LOG=debug,libp2p_swarm::handler=off,libp2p_swarm=info
+    command: /usr/local/bin/malachite start --home /app/node
+    restart: unless-stopped
+
+  node2:
+    image: ubuntu:22.04
+    platform: linux/amd64
+    container_name: malachite_node2
+    networks:
+      internal_net:
+        ipv4_address: 192.168.100.12
+    volumes:
+      - ./target/x86_64-unknown-linux-gnu/release/informalsystems-malachitebft-example-channel:/usr/local/bin/malachite:ro
+      - ./nat-configs/node2-config.toml:/app/node/config/config.toml:ro
+      - ./deployments/volumes/malachite/2:/app/node
+    ports:
+      - "29002:29000"
+      - "27002:27000"
+    environment:
+      - RUST_LOG=debug,libp2p_swarm::handler=off,libp2p_swarm=info
+    command: /usr/local/bin/malachite start --home /app/node
+    restart: unless-stopped
+
+  # Node3 on "external" network (simulating internet peer)
+  node3:
+    image: ubuntu:22.04
+    platform: linux/amd64
+    container_name: malachite_node3
+    networks:
+      external_net:
+        ipv4_address: 10.0.1.13
+    volumes:
+      - ./target/x86_64-unknown-linux-gnu/release/informalsystems-malachitebft-example-channel:/usr/local/bin/malachite:ro
+      - ./nat-configs/node3-config.toml:/app/node/config/config.toml:ro
+      - ./deployments/volumes/malachite/3:/app/node
+    ports:
+      - "29003:29000"
+      - "27003:27000"
+    environment:
+      - RUST_LOG=debug,libp2p_swarm::handler=off,libp2p_swarm=info
+    command: /usr/local/bin/malachite start --home /app/node
+    restart: unless-stopped

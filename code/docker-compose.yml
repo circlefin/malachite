@@ -1,0 +1,83 @@
+networks:
+  testnet:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+services:
+  node0:
+    image: ubuntu:22.04
+    platform: linux/amd64
+    container_name: malachite_node0
+    networks:
+      testnet:
+        ipv4_address: 172.20.0.10
+    volumes:
+      - ./target/x86_64-unknown-linux-gnu/release/informalsystems-malachitebft-example-channel:/usr/local/bin/malachite:ro
+      - ./deployments/volumes/malachite/0:/app/node
+    ports:
+      - "29000:29000"
+      - "27000:27000"
+    environment:
+      - RUST_LOG=debug,libp2p_swarm::handler=off,libp2p_swarm=info
+      - RUST_BACKTRACE=1
+    command: /usr/local/bin/malachite start --home /app/node
+    restart: unless-stopped
+
+  node1:
+    image: ubuntu:22.04
+    platform: linux/amd64
+    container_name: malachite_node1
+    networks:
+      testnet:
+        ipv4_address: 172.20.0.11
+    volumes:
+      - ./target/x86_64-unknown-linux-gnu/release/informalsystems-malachitebft-example-channel:/usr/local/bin/malachite:ro
+      - ./deployments/volumes/malachite/1:/app/node
+    ports:
+      - "29001:29000"
+      - "27001:27000"
+    environment:
+      - RUST_LOG=debug,libp2p_swarm::handler=off,libp2p_swarm=info
+      - RUST_BACKTRACE=1
+    command: /usr/local/bin/malachite start --home /app/node
+    restart: unless-stopped
+
+  node2:
+    image: ubuntu:22.04
+    platform: linux/amd64
+    container_name: malachite_node2
+    networks:
+      testnet:
+        ipv4_address: 172.20.0.12
+    volumes:
+      - ./target/x86_64-unknown-linux-gnu/release/informalsystems-malachitebft-example-channel:/usr/local/bin/malachite:ro
+      - ./deployments/volumes/malachite/2:/app/node
+    ports:
+      - "29002:29000"
+      - "27002:27000"
+    environment:
+      - RUST_LOG=debug,libp2p_swarm::handler=off,libp2p_swarm=info
+      - RUST_BACKTRACE=1
+    command: /usr/local/bin/malachite start --home /app/node
+    restart: unless-stopped
+
+  node3:
+    image: ubuntu:22.04
+    platform: linux/amd64
+    container_name: malachite_node3
+    networks:
+      testnet:
+        ipv4_address: 172.20.0.13
+    volumes:
+      - ./target/x86_64-unknown-linux-gnu/release/informalsystems-malachitebft-example-channel:/usr/local/bin/malachite:ro
+      - ./deployments/volumes/malachite/3:/app/node
+    ports:
+      - "29003:29000"
+      - "27003:27000"
+    environment:
+      - RUST_LOG=debug,libp2p_swarm::handler=off,libp2p_swarm=info
+      - RUST_BACKTRACE=1
+    command: /usr/local/bin/malachite start --home /app/node
+    restart: unless-stopped
