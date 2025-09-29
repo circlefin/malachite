@@ -1,9 +1,9 @@
 # Testnet Scenarios
 
-Testnet scenarios built for validating P2P bootstrap discovery in differnt networking environments.
+Testnet scenarios built for validating P2P bootstrap discovery in different networking environments.
 
 ## Overview
- There are 3 distinct testnet scenarios that test the bootstrap discovery:
+There are 3 distinct testnet scenarios that test the bootstrap discovery:
 
 1. **Single Network + Host IP** (`make testnet`) - Docker port mapping scenario
 2. **Multi-Network Address Mismatch** (`make testnet-multi`) - Enterprise network segments
@@ -208,12 +208,12 @@ NAT-based environments where:
 ---
 
 
-## 🛠️ Usage
+## Usage
 
 ### Commands:
 ```bash
 make testnet          # Single network + host IP scenario
-make testnet-mixed    # Single network + host IP scenario + nixed binaries
+make testnet-mixed    # Single network + host IP scenario + mixed binaries
 make testnet-multi    # Multi-network address mismatch
 make testnet-nat      # True NAT with gateway
 make testnet-mixed    # Mixed version testing
@@ -237,7 +237,7 @@ docker compose -f docker-compose-nat.yml logs node3            # NAT scenario
 ### Structure:
 ```
 code/
-├── makefile-scripts/          # Scripts for tesnet setup and monitoring 
+├── makefile-scripts/          # Scripts for testnet setup and monitoring
 ├── single-network-configs/    # Standard single network scenario
 ├── multi-net-configs/         # Multi-network address mismatch
 ├── nat-configs/               # True NAT with gateway
