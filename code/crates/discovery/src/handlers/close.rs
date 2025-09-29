@@ -1,5 +1,5 @@
 use libp2p::{swarm::ConnectionId, PeerId, Swarm};
-use tracing::{debug, error, warn};
+use tracing::{debug, warn};
 
 use crate::{Discovery, DiscoveryClient, State};
 
@@ -33,19 +33,9 @@ where
             return;
         }
 
-        if self
-            .active_connections
-            .get(&peer_id)
-            .is_some_and(|connections| connections.contains(&connection_id))
-        {
-            if swarm.close_connection(connection_id) {
-                debug!("Closing connection {connection_id} to peer {peer_id}");
-            } else {
-                error!("Error closing connection {connection_id} to peer {peer_id}");
-            }
-        } else {
-            warn!("Tried to close an unknown connection {connection_id} to peer {peer_id}");
-        }
+        debug!("Closing connection {connection_id} to peer {peer_id}");
+        // Close the connection even if it is not active
+        swarm.close_connection(connection_id);
     }
 
     pub fn handle_closed_connection(
@@ -95,6 +85,28 @@ where
             }
         }
 
+        // Clean up discovered peers when all connections are closed
+        if was_last_connection {
+            self.cleanup_peer_on_disconnect(peer_id);
+        }
+
         self.update_discovery_metrics();
+    }
+
+    /// Clean up peer state and dial history when the last connection to a peer is closed
+    fn cleanup_peer_on_disconnect(&mut self, peer_id: PeerId) {
+        let peer_info = self.discovered_peers.remove(&peer_id);
+
+        if let Some((_, listen_addrs)) = self
+            .bootstrap_nodes
+            .iter()
+            .find(|(bootstrap_peer_id, _)| bootstrap_peer_id == &Some(peer_id))
+        {
+            self.controller
+                .dial_clear_done_for_peer(peer_id, listen_addrs);
+        } else if !self.is_enabled() {
+            let addrs = peer_info.map(|info| info.listen_addrs).unwrap_or_default();
+            self.controller.dial_clear_done_for_peer(peer_id, &addrs);
+        }
     }
 }
