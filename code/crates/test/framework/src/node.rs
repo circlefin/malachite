@@ -316,10 +316,9 @@ where
     }
 
     pub fn with_consensus_disabled(&mut self) -> &mut Self {
-        self.config_modifier = Arc::new(|config| {
+        self.add_config_modifier(|config| {
             config.consensus.enabled = false;
-        });
-        self
+        })
     }
 
     pub fn is_full_node(&self) -> bool {
@@ -328,6 +327,23 @@ where
 
     pub fn with(&mut self, f: impl FnOnce(&mut Self)) -> &mut Self {
         f(self);
+        self
+    }
+
+    pub fn add_config_modifier<F>(&mut self, f: F) -> &mut Self
+    where
+        F: Fn(&mut Config) + Send + Sync + 'static,
+    {
+        let existing = Arc::clone(&self.config_modifier);
+
+        self.config_modifier = Arc::new(move |config| {
+            // Apply existing customizations first.
+            (existing)(config);
+
+            // Then apply the new customization.
+            f(config);
+        });
+
         self
     }
 }
