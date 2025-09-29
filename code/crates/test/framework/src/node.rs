@@ -8,11 +8,12 @@ use malachitebft_core_consensus::{LocallyProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{Context, Height, SignedVote, Vote, VoteType, VotingPower};
 use malachitebft_engine::util::events::Event;
 use malachitebft_test::middleware::{DefaultMiddleware, Middleware};
+use malachitebft_test_app::config::Config;
 
 use crate::Expected;
 
 pub type NodeId = usize;
-pub type ConfigCustomizer<Config> = Arc<dyn Fn(&mut Config) + Send + Sync>;
+pub type ConfigModifier = Arc<dyn Fn(&mut Config) + Send + Sync>;
 
 pub enum Step<Ctx, S>
 where
@@ -49,7 +50,7 @@ where
     pub steps: Vec<Step<Ctx, State>>,
     pub state: State,
     pub middleware: Arc<dyn Middleware>,
-    pub config_customizer: ConfigCustomizer<malachitebft_test_app::config::Config>,
+    pub config_modifier: ConfigModifier,
 }
 
 impl<Ctx, State> TestNode<Ctx, State>
@@ -72,7 +73,7 @@ where
             steps: vec![],
             state,
             middleware: Arc::new(DefaultMiddleware),
-            config_customizer: Arc::new(|_config| {}),
+            config_modifier: Arc::new(|_config| {}),
         }
     }
 
@@ -315,7 +316,7 @@ where
     }
 
     pub fn with_consensus_disabled(&mut self) -> &mut Self {
-        self.config_customizer = Arc::new(|config| {
+        self.config_modifier = Arc::new(|config| {
             config.consensus.enabled = false;
         });
         self

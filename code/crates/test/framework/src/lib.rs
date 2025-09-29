@@ -21,7 +21,7 @@ mod logging;
 use logging::init_logging;
 
 mod node;
-pub use node::{ConfigCustomizer, HandlerResult, NodeId, TestNode};
+pub use node::{ConfigModifier, HandlerResult, NodeId, TestNode};
 
 mod params;
 pub use params::TestParams;
