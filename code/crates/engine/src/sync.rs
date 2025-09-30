@@ -12,18 +12,18 @@ use rand::SeedableRng;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, warn, Instrument};
 
-use malachitebft_codec as codec;
-use malachitebft_core_consensus::PeerId;
-use malachitebft_core_types::{CommitCertificate, Context, Height};
-use malachitebft_sync::{
-    self as sync, HeightStartType, InboundRequestId, OutboundRequestId, RawDecidedValue, Request,
-    Response, Resumable,
-};
-
 use crate::host::{HostMsg, HostRef};
 use crate::network::{NetworkEvent, NetworkMsg, NetworkRef, Status};
 use crate::util::ticker::ticker;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
+use malachitebft_codec as codec;
+use malachitebft_core_consensus::PeerId;
+use malachitebft_core_types::{CommitCertificate, Context, Height};
+use malachitebft_sync::Response::ValueResponse;
+use malachitebft_sync::{
+    self as sync, HeightStartType, InboundRequestId, OutboundRequestId, RawDecidedValue, Request,
+    Response, Resumable,
+};
 
 /// Codec for sync protocol messages
 ///
@@ -285,6 +285,8 @@ where
             Effect::GetDecidedValues(request_id, range, r) => {
                 let mut values = Vec::new();
                 let mut height = *range.start();
+
+                let mut response_size_bytes = 0;
                 while height <= *range.end() {
                     let value = self
                         .host
@@ -296,7 +298,43 @@ where
                         .success_or(eyre!("Failed to get decided value for height {height}"))?;
 
                     if let Some(value) = value {
+                        let value_response = ValueResponse(sync::ValueResponse::new(
+                            *range.start(),
+                            vec![value.clone()],
+                        ));
+
+                        let result = ractor::call!(self.gossip, move |reply_to| {
+                            NetworkMsg::GetResponseSize(value_response.clone(), reply_to)
+                        });
+
+                        let total_value_size_bytes = match result {
+                            Ok(value_in_bytes) => value_in_bytes,
+                            Err(e) => {
+                                error!("Failed to get response size for value, stopping at for height {}: {:?}", height, e);
+                                break;
+                            }
+                        };
+
+                        // check if adding this value would exceed the max-response limit
+                        if response_size_bytes + total_value_size_bytes
+                            > self.sync_config.max_response_size
+                        {
+                            warn!("Maximum byte size limit ({} bytes) would be exceeded (current: {} + upcoming value: {}), stopping at height {}",
+                              self.sync_config.max_response_size, response_size_bytes, total_value_size_bytes, height);
+                            break;
+                        }
+
+                        response_size_bytes += total_value_size_bytes;
                         values.push(value);
+
+                        if response_size_bytes == self.sync_config.max_response_size {
+                            info!(
+                                "Reached maximum byte size limit ({} bytes) exactly at height {}",
+                                self.sync_config.max_response_size, height
+                            );
+
+                            break;
+                        }
                     } else {
                         warn!("Decided value not found for height {height}");
                         break;

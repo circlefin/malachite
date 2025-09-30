@@ -3,10 +3,6 @@
 
 use eyre::Result;
 
-use malachitebft_engine::consensus::{ConsensusMsg, ConsensusRef};
-use malachitebft_engine::util::events::TxEvent;
-use tokio::sync::mpsc::Receiver;
-
 use crate::app::metrics::{Metrics, SharedRegistry};
 use crate::app::node::{self, EngineHandle, NodeConfig};
 use crate::app::spawn::{
@@ -17,6 +13,10 @@ use crate::app::types::core::Context;
 use crate::msgs::ConsensusRequest;
 use crate::spawn::{spawn_host_actor, spawn_network_actor};
 use crate::Channels;
+use malachitebft_app::types::sync;
+use malachitebft_engine::consensus::{ConsensusMsg, ConsensusRef};
+use malachitebft_engine::util::events::TxEvent;
+use tokio::sync::mpsc::Receiver;
 
 pub async fn start_engine<Node, Ctx, WalCodec, NetCodec>(
     ctx: Ctx,
@@ -33,6 +33,7 @@ where
     WalCodec: codec::WalCodec<Ctx> + Clone,
     NetCodec: codec::ConsensusCodec<Ctx>,
     NetCodec: codec::SyncCodec<Ctx>,
+    NetCodec: codec::HasEncodedLen<sync::Response<Ctx>>,
 {
     let start_height = start_height.unwrap_or_default();
 
