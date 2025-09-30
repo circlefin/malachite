@@ -97,14 +97,23 @@ where
     fn cleanup_peer_on_disconnect(&mut self, peer_id: PeerId) {
         let peer_info = self.discovered_peers.remove(&peer_id);
 
-        if let Some((_, listen_addrs)) = self
-            .bootstrap_nodes
-            .iter()
-            .find(|(bootstrap_peer_id, _)| bootstrap_peer_id == &Some(peer_id))
-        {
-            self.controller
-                .dial_clear_done_for_peer(peer_id, listen_addrs);
-        } else if !self.is_enabled() {
+        // Find and reset the bootstrap node peer_id to allow re-identification
+        // This handles the case where a bootstrap node restarts with a different peer_id
+        for bootstrap_node in self.bootstrap_nodes.iter_mut() {
+            if bootstrap_node.0 == Some(peer_id) {
+                warn!(
+                    "Resetting bootstrap node peer_id {} to allow re-identification",
+                    peer_id
+                );
+                bootstrap_node.0 = None; // Reset to None so it can be re-identified
+                self.controller
+                    .dial_clear_done_for_peer(peer_id, &bootstrap_node.1);
+                return;
+            }
+        }
+
+        // Handle non-bootstrap peers when discovery is disabled
+        if !self.is_enabled() {
             let addrs = peer_info.map(|info| info.listen_addrs).unwrap_or_default();
             self.controller.dial_clear_done_for_peer(peer_id, &addrs);
         }
