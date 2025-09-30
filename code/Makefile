@@ -63,11 +63,11 @@ testnet: testnet-clean ## Start testnet with 4 malachite containers (single netw
 		--nodes 4 \
 		--home ./deployments/volumes/malachite
 
-	@echo "Copying single-network configs..."
-	@cp ./single-network-configs/node0-config.toml ./deployments/volumes/malachite/0/config/config.toml
-	@cp ./single-network-configs/node1-config.toml ./deployments/volumes/malachite/1/config/config.toml
-	@cp ./single-network-configs/node2-config.toml ./deployments/volumes/malachite/2/config/config.toml
-	@cp ./single-network-configs/node3-config.toml ./deployments/volumes/malachite/3/config/config.toml
+	@echo "Copying single-net configs..."
+	@cp ./single-net-configs/node0-config.toml ./deployments/volumes/malachite/0/config/config.toml
+	@cp ./single-net-configs/node1-config.toml ./deployments/volumes/malachite/1/config/config.toml
+	@cp ./single-net-configs/node2-config.toml ./deployments/volumes/malachite/2/config/config.toml
+	@cp ./single-net-configs/node3-config.toml ./deployments/volumes/malachite/3/config/config.toml
 
 	@echo "Starting single-network testnet..."
 	@docker compose up -d
