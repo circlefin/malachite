@@ -479,6 +479,10 @@ async fn handle_swarm_event(
             cause,
             ..
         } => {
+            debug!(
+                "SwarmEvent::ConnectionClosed: peer_id={}, connection_id={}, num_established={}",
+                peer_id, connection_id, num_established
+            );
             if let Some(cause) = cause {
                 warn!("Connection closed with {peer_id}, reason: {cause}");
             } else {
