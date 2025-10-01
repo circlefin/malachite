@@ -59,7 +59,7 @@ where
 
             let role = if state.address() == proposer {
                 Role::Proposer
-            } else if state.is_validator() {
+            } else if state.is_active_validator() {
                 Role::Validator
             } else {
                 Role::None
