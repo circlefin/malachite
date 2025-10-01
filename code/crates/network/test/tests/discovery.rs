@@ -135,6 +135,48 @@ pub async fn discovery_disabled() {
     test.run().await
 }
 
+// Test with jitter to reproduce CI timing issues locally
+#[tokio::test]
+pub async fn discovery_disabled_with_jitter() {
+    let test = Test::new(
+        [
+            TestNode::correct(0, vec![]),
+            TestNode::correct(1, vec![0]),
+            TestNode::correct(2, vec![0, 1]),
+            TestNode::correct(3, vec![1, 2]),
+            TestNode::correct(4, vec![2, 3]),
+            TestNode::correct(5, vec![3, 4]),
+            TestNode::correct(6, vec![4, 5]),
+            TestNode::correct(7, vec![5, 6]),
+            TestNode::correct(8, vec![6, 7]),
+            TestNode::correct(9, vec![7, 8]),
+            TestNode::correct(10, vec![8, 9]),
+        ],
+        [
+            Expected::Exactly(vec![1, 2]),
+            Expected::Exactly(vec![0, 2]),
+            Expected::Exactly(vec![0, 1]),
+            Expected::Exactly(vec![4, 5]),
+            Expected::Exactly(vec![3, 5]),
+            Expected::Exactly(vec![3, 4]),
+            Expected::Exactly(vec![7, 8]),
+            Expected::Exactly(vec![6, 8]),
+            Expected::Exactly(vec![6, 7]),
+            Expected::Exactly(vec![10]),
+            Expected::Exactly(vec![9]),
+        ],
+        Duration::from_millis(500 + rand::random::<u64>() % 1000), // Random 0.5-1.5s spawn delay
+        Duration::from_secs(8), // Shorter timeout to increase pressure
+        DiscoveryConfig {
+            enabled: false,
+            num_inbound_peers: 2,
+            ..Default::default()
+        },
+    );
+
+    test.run().await
+}
+
 // Ensuring that the discovery protocol can handle concurrent dials between nodes.
 #[tokio::test]
 pub async fn discovery_concurrent_dial() {
