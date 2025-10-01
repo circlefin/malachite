@@ -69,13 +69,19 @@ testnet: testnet-clean ## Start testnet with 4 malachite containers (single netw
 	@cp ./single-net-configs/node2-config.toml ./deployments/volumes/malachite/2/config/config.toml
 	@cp ./single-net-configs/node3-config.toml ./deployments/volumes/malachite/3/config/config.toml
 
+	@echo "Detecting host IP address..."
+	@HOST_IP=$$(hostname -I 2>/dev/null | awk '{print $$1}' || ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo "127.0.0.1"); \
+	echo "Using host IP: $$HOST_IP"; \
+	sed -i.bak "s|persistent_peers = \[.*\]|persistent_peers = [\"/ip4/$$HOST_IP/tcp/27000\", \"/ip4/$$HOST_IP/tcp/27001\", \"/ip4/$$HOST_IP/tcp/27002\"]|" ./deployments/volumes/malachite/3/config/config.toml && \
+	rm -f ./deployments/volumes/malachite/3/config/config.toml.bak
+
 	@echo "Starting single-network testnet..."
 	@docker compose up -d
 
 	@echo "Single-network testnet started!"
 	@echo "  Network topology:"
 	@echo "    All nodes: Single network (172.20.0.x)"
-	@echo "    Node3: Connects via host IP (192.168.1.147) to test port mapping scenario"
+	@echo "    Node3: Connects via host IP to test port mapping scenario"
 
 testnet-mixed: testnet-clean ## Start mixed-version testnet with old and new binaries
 	@echo "Setting up mixed-version testnet..."
