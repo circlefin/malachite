@@ -135,3 +135,35 @@ pub async fn discovery_disabled() {
 
     test.run().await
 }
+
+// Ensuring that the discovery protocol can handle concurrent dials between nodes.
+#[tokio::test]
+pub async fn discovery_concurrent_dial() {
+    const N: usize = 10;
+
+    let mut nodes = Vec::with_capacity(N);
+    let mut expected = Vec::with_capacity(N);
+    for i in 0..N {
+        let bootstrap = (0..N).filter(|&j| j != i).collect::<Vec<_>>();
+        nodes.push(TestNode::correct(i, bootstrap));
+        expected.push(Expected::Exactly(
+            (0..N).filter(|&j| j != i).collect::<Vec<_>>(),
+        ));
+    }
+
+    let test: Test<N> = Test::new(
+        nodes.try_into().expect("Expected a Vec of length {N}"),
+        expected.try_into().expect("Expected a Vec of length {N}"),
+        Duration::from_secs(0),
+        Duration::from_secs(10),
+        DiscoveryConfig {
+            enabled: true,
+            bootstrap_protocol: BootstrapProtocol::Full,
+            selector: Selector::Random,
+            ephemeral_connection_timeout: Duration::from_secs(3),
+            ..Default::default()
+        },
+    );
+
+    test.run().await
+}
