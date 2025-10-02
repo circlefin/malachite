@@ -76,10 +76,7 @@ where
     Ctx: Context,
 {
     // Take all inputs that are pending for the current height.
-    let pending_inputs = state
-        .input_queue
-        .shift_and_take(&state.height())
-        .collect::<Vec<_>>();
+    let pending_inputs = state.take_pending_inputs(metrics);
 
     if is_restart {
         return Ok(());

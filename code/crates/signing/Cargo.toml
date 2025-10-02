@@ -1,0 +1,24 @@
+[package]
+name = "informalsystems-malachitebft-signing"
+description = "Signing provider abstraction for the Malachite BFT consensus engine"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+readme = "../../../README.md"
+
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+
+[dependencies]
+malachitebft-core-types = { workspace = true }
+
+async-trait = { workspace = true }
+signature = { workspace = true }
+
+[lints]
+workspace = true

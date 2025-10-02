@@ -18,7 +18,7 @@ jobs:
         with:
           cache-workspaces: "code"
       - name: Publish crates
-        uses: katyo/publish-crates@v2
+        uses: step-security/publish-crates@v2
         with:
           registry-token: ${{ secrets.CRATES_TOKEN }}
           path: code

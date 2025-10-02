@@ -12,8 +12,7 @@ pub async fn on_timeout_elapsed<Ctx>(
 where
     Ctx: Context,
 {
-    let height = state.driver.height();
-    let round = state.driver.round();
+    let (height, round) = (state.height(), state.round());
 
     if timeout.round != round {
         debug!(
