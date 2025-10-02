@@ -459,6 +459,59 @@ pub async fn reset_height() {
 }
 
 #[tokio::test]
+pub async fn full_node_sync_after_all_persistent_peer_restart() {
+    const HEIGHT: u64 = 10;
+
+    let mut test = TestBuilder::<()>::new();
+
+    // Node 1-3: validators that will restart
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .crash()
+        .restart_after(Duration::from_secs(4))
+        .wait_until(HEIGHT + 5)
+        .success();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .crash()
+        .restart_after(Duration::from_secs(4))
+        .wait_until(HEIGHT + 5)
+        .success();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .crash()
+        .restart_after(Duration::from_secs(4))
+        .wait_until(HEIGHT + 5)
+        .success();
+
+    // Node 4: full node that syncs and should resume syncing all validators have restarted
+    test.add_node()
+        .full_node()
+        .start_after(1, Duration::from_secs(3))
+        .wait_until(HEIGHT + 5)
+        .success();
+
+    test.build()
+        .run_with_params(
+            Duration::from_secs(30),
+            TestParams {
+                enable_value_sync: true,
+                parallel_requests: 3,
+                ..Default::default()
+            },
+        )
+        .await
+}
+
+#[tokio::test]
 pub async fn validator_persistent_peer_reconnection_discovery_enabled() {
     const HEIGHT: u64 = 10;
 

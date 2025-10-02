@@ -519,14 +519,18 @@ impl FromStr for ScoringStrategy {
     }
 }
 
+fn default_consensus_enabled() -> bool {
+    true
+}
+
 /// Consensus configuration options
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ConsensusConfig {
     /// Enable consensus protocol participation
     ///
     /// When disabled, the node only runs the synchronization protocol
     /// and does not subscribe to consensus-related topics
-    #[serde(default)]
+    #[serde(default = "default_consensus_enabled")]
     pub enabled: bool,
 
     /// Timeouts
@@ -546,6 +550,18 @@ pub struct ConsensusConfig {
     /// The queue capacity is now derived from the `sync.parallel_requests` setting.
     #[serde(default)]
     pub queue_capacity: usize,
+}
+
+impl Default for ConsensusConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            timeouts: TimeoutConfig::default(),
+            p2p: P2pConfig::default(),
+            value_payload: ValuePayload::default(),
+            queue_capacity: 0,
+        }
+    }
 }
 
 /// Message types required by consensus to deliver the value being proposed
