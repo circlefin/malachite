@@ -234,6 +234,7 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
     Config {
         moniker: format!("test-{index}"),
         consensus: ConsensusConfig {
+            enabled: true,
             // Current test app does not support proposal-only value payload properly as Init does not include valid_round
             value_payload: ValuePayload::ProposalAndParts,
             queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`

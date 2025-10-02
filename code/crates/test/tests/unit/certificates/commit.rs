@@ -1,5 +1,6 @@
 use futures::executor::block_on;
 use malachitebft_core_types::CommitCertificate;
+use malachitebft_signing::SigningProviderExt;
 
 use super::{make_validators, types::*, CertificateBuilder, CertificateTest, DEFAULT_SEED};
 

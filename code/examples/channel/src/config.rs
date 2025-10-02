@@ -42,8 +42,16 @@ impl NodeConfig for Config {
         &self.consensus
     }
 
+    fn consensus_mut(&mut self) -> &mut ConsensusConfig {
+        &mut self.consensus
+    }
+
     fn value_sync(&self) -> &ValueSyncConfig {
         &self.value_sync
+    }
+
+    fn value_sync_mut(&mut self) -> &mut ValueSyncConfig {
+        &mut self.value_sync
     }
 }
 

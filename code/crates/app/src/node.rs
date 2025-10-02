@@ -11,9 +11,9 @@ use tokio::task::JoinHandle;
 use malachitebft_config::{
     ConsensusConfig, DiscoveryConfig, RuntimeConfig, TransportProtocol, ValueSyncConfig,
 };
-use malachitebft_core_types::SigningProvider;
 use malachitebft_engine::node::NodeRef;
 use malachitebft_engine::util::events::RxEvent;
+use malachitebft_signing::SigningProvider;
 
 use crate::types::core::{Context, PrivateKey, PublicKey, VotingPower};
 use crate::types::Keypair;
@@ -35,8 +35,12 @@ where
 
 pub trait NodeConfig {
     fn moniker(&self) -> &str;
+
     fn consensus(&self) -> &ConsensusConfig;
+    fn consensus_mut(&mut self) -> &mut ConsensusConfig;
+
     fn value_sync(&self) -> &ValueSyncConfig;
+    fn value_sync_mut(&mut self) -> &mut ValueSyncConfig;
 }
 
 #[async_trait]

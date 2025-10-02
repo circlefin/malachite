@@ -113,6 +113,7 @@ pub struct Config {
     pub channel_names: ChannelNames,
     pub rpc_max_size: usize,
     pub pubsub_max_size: usize,
+    pub enable_consensus: bool,
     pub enable_sync: bool,
     pub protocol_names: ProtocolNames,
 }
@@ -266,15 +267,17 @@ async fn run(
 
     state.discovery.dial_bootstrap_nodes(&swarm);
 
-    if let Err(e) = pubsub::subscribe(
-        &mut swarm,
-        config.pubsub_protocol,
-        Channel::consensus(),
-        config.channel_names,
-    ) {
-        error!("Error subscribing to consensus channels: {e}");
-        return;
-    };
+    if config.enable_consensus {
+        if let Err(e) = pubsub::subscribe(
+            &mut swarm,
+            config.pubsub_protocol,
+            Channel::consensus(),
+            config.channel_names,
+        ) {
+            error!("Error subscribing to consensus channels: {e}");
+            return;
+        };
+    }
 
     if config.enable_sync {
         if let Err(e) = pubsub::subscribe(

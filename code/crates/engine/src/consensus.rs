@@ -17,10 +17,11 @@ use malachitebft_core_consensus::{
     Effect, LivenessMsg, PeerId, Resumable, Resume, SignedConsensusMsg, VoteExtensionError,
 };
 use malachitebft_core_types::{
-    Context, Height, Proposal, Round, SigningProvider, SigningProviderExt, Timeout, TimeoutKind,
-    ValidatorSet, Validity, Value, ValueId, ValueOrigin, ValueResponse as CoreValueResponse, Vote,
+    Context, Height, Proposal, Round, Timeout, TimeoutKind, ValidatorSet, Validity, Value, ValueId,
+    ValueOrigin, ValueResponse as CoreValueResponse, Vote,
 };
 use malachitebft_metrics::Metrics;
+use malachitebft_signing::{SigningProvider, SigningProviderExt};
 use malachitebft_sync::{self as sync, HeightStartType, ValueResponse};
 
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, Next, ProposedValue};
@@ -514,6 +515,9 @@ where
                     }
 
                     NetworkEvent::Vote(from, vote) => {
+                        self.tx_event
+                            .send(|| Event::Received(SignedConsensusMsg::Vote(vote.clone())));
+
                         if let Err(e) = self
                             .process_input(&myself, state, ConsensusInput::Vote(vote))
                             .await
@@ -523,6 +527,10 @@ where
                     }
 
                     NetworkEvent::Proposal(from, proposal) => {
+                        self.tx_event.send(|| {
+                            Event::Received(SignedConsensusMsg::Proposal(proposal.clone()))
+                        });
+
                         if state.consensus.params.value_payload.parts_only() {
                             error!(%from, "Properly configured peer should never send proposal messages in BlockPart mode");
                             return Ok(());
@@ -986,7 +994,7 @@ where
             Effect::SignProposal(proposal, r) => {
                 let start = Instant::now();
 
-                let signed_proposal = self.signing_provider.sign_proposal(proposal).await;
+                let signed_proposal = self.signing_provider.sign_proposal(proposal).await?;
 
                 self.metrics
                     .signature_signing_time
@@ -998,7 +1006,7 @@ where
             Effect::SignVote(vote, r) => {
                 let start = Instant::now();
 
-                let signed_vote = self.signing_provider.sign_vote(vote).await;
+                let signed_vote = self.signing_provider.sign_vote(vote).await?;
 
                 self.metrics
                     .signature_signing_time
@@ -1012,16 +1020,16 @@ where
 
                 let start = Instant::now();
 
-                let valid = match msg.message {
+                let result = match msg.message {
                     Msg::Vote(v) => {
                         self.signing_provider
                             .verify_signed_vote(&v, &msg.signature, &pk)
-                            .await
+                            .await?
                     }
                     Msg::Proposal(p) => {
                         self.signing_provider
                             .verify_signed_proposal(&p, &msg.signature, &pk)
-                            .await
+                            .await?
                     }
                 };
 
@@ -1029,7 +1037,7 @@ where
                     .signature_verification_time
                     .observe(start.elapsed().as_secs_f64());
 
-                Ok(r.resume_with(valid))
+                Ok(r.resume_with(result.is_valid()))
             }
 
             Effect::VerifyCommitCertificate(certificate, validator_set, thresholds, r) => {
@@ -1061,25 +1069,32 @@ where
 
             Effect::ExtendVote(height, round, value_id, r) => {
                 if let Some(extension) = self.extend_vote(height, round, value_id).await? {
-                    let signed_extension =
-                        self.signing_provider.sign_vote_extension(extension).await;
-                    Ok(r.resume_with(Some(signed_extension)))
+                    let signed_extension = self
+                        .signing_provider
+                        .sign_vote_extension(extension)
+                        .await
+                        .inspect_err(|e| {
+                            error!("Failed to sign vote extension: {e}");
+                        })
+                        .ok(); // Discard the vote extension if signing fails
+
+                    Ok(r.resume_with(signed_extension))
                 } else {
                     Ok(r.resume_with(None))
                 }
             }
 
             Effect::VerifyVoteExtension(height, round, value_id, signed_extension, pk, r) => {
-                let valid = self
+                let result = self
                     .signing_provider
                     .verify_signed_vote_extension(
                         &signed_extension.message,
                         &signed_extension.signature,
                         &pk,
                     )
-                    .await;
+                    .await?;
 
-                if !valid {
+                if result.is_invalid() {
                     return Ok(r.resume_with(Err(VoteExtensionError::InvalidSignature)));
                 }
 
