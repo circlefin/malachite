@@ -28,7 +28,7 @@ use malachitebft_app::node::Node;
 use malachitebft_signing_ed25519::PrivateKey;
 use malachitebft_test_app::node::{App, Handle};
 use malachitebft_test_framework::HasTestRunner;
-use malachitebft_test_framework::{NodeRunner, TestNode};
+use malachitebft_test_framework::{ConfigModifier, NodeRunner, TestNode};
 
 pub use malachitebft_test_framework::TestBuilder as GenTestBuilder;
 pub use malachitebft_test_framework::{HandlerResult, NodeId, TestParams};
@@ -64,6 +64,7 @@ pub struct NodeInfo {
     start_height: Height,
     home_dir: PathBuf,
     middleware: Arc<dyn Middleware>,
+    config_modifier: ConfigModifier<Config>,
 }
 
 #[async_trait]
@@ -85,6 +86,7 @@ impl NodeRunner<TestContext> for TestRunner {
                         start_height: node.start_height,
                         home_dir: temp_dir(node.id),
                         middleware: Arc::clone(&node.middleware),
+                        config_modifier: Arc::clone(&node.config_modifier),
                     },
                 )
             })
@@ -127,6 +129,11 @@ impl TestRunner {
     fn generate_config(&self, node: NodeId) -> Config {
         let mut config = self.generate_default_config(node);
         self.params.apply_to_config(&mut config);
+
+        // Apply node-specific config customizations
+        let node_info = &self.nodes_info[&node];
+        (node_info.config_modifier)(&mut config);
+
         config
     }
 
@@ -142,6 +149,7 @@ impl TestRunner {
             moniker: format!("node-{node}"),
             logging: LoggingConfig::default(),
             consensus: ConsensusConfig {
+                enabled: true,
                 // Current test app does not support proposal-only value payload properly as Init does not include valid_round
                 value_payload: ValuePayload::ProposalAndParts,
                 queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`

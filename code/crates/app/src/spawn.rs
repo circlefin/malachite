@@ -102,6 +102,7 @@ where
         address,
         threshold_params: Default::default(),
         value_payload,
+        enabled: cfg.enabled,
     };
 
     // Derive the consensus queue capacity from `sync.parallel_requests` and `sync.batch_size`
@@ -227,6 +228,7 @@ fn make_gossip_config(cfg: &ConsensusConfig) -> NetworkConfig {
         channel_names: ChannelNames::default(),
         rpc_max_size: cfg.p2p.rpc_max_size.as_u64() as usize,
         pubsub_max_size: cfg.p2p.pubsub_max_size.as_u64() as usize,
+        enable_consensus: cfg.enabled,
         enable_sync: true,
         protocol_names: malachitebft_network::ProtocolNames {
             consensus: cfg.p2p.protocol_names.consensus.clone(),

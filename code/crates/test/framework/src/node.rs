@@ -2,16 +2,19 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use eyre::bail;
+use malachitebft_app::node::NodeConfig;
 use tracing::info;
 
 use malachitebft_core_consensus::{LocallyProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{Context, Height, SignedVote, Vote, VoteType, VotingPower};
 use malachitebft_engine::util::events::Event;
 use malachitebft_test::middleware::{DefaultMiddleware, Middleware};
+use malachitebft_test_app::config::Config as TestConfig;
 
 use crate::Expected;
 
 pub type NodeId = usize;
+pub type ConfigModifier<Config> = Arc<dyn Fn(&mut Config) + Send + Sync>;
 
 pub enum Step<Ctx, S>
 where
@@ -37,7 +40,7 @@ pub enum HandlerResult {
 pub type EventHandler<Ctx, S> =
     Box<dyn Fn(Event<Ctx>, &mut S) -> Result<HandlerResult, eyre::Report> + Send + Sync>;
 
-pub struct TestNode<Ctx, State = ()>
+pub struct TestNode<Ctx, State = (), Cfg = TestConfig>
 where
     Ctx: Context,
 {
@@ -48,11 +51,14 @@ where
     pub steps: Vec<Step<Ctx, State>>,
     pub state: State,
     pub middleware: Arc<dyn Middleware>,
+    pub config_modifier: ConfigModifier<Cfg>,
+    pub consensus_enabled: bool,
 }
 
-impl<Ctx, State> TestNode<Ctx, State>
+impl<Ctx, State, Cfg> TestNode<Ctx, State, Cfg>
 where
     Ctx: Context,
+    Cfg: 'static,
 {
     pub fn new(id: usize) -> Self
     where
@@ -70,6 +76,8 @@ where
             steps: vec![],
             state,
             middleware: Arc::new(DefaultMiddleware),
+            config_modifier: Arc::new(|_config| {}),
+            consensus_enabled: true,
         }
     }
 
@@ -318,5 +326,36 @@ where
     pub fn with(&mut self, f: impl FnOnce(&mut Self)) -> &mut Self {
         f(self);
         self
+    }
+
+    pub fn add_config_modifier<F>(&mut self, f: F) -> &mut Self
+    where
+        F: Fn(&mut Cfg) + Send + Sync + 'static,
+    {
+        let existing = Arc::clone(&self.config_modifier);
+
+        self.config_modifier = Arc::new(move |config| {
+            // Apply existing customizations first.
+            (existing)(config);
+
+            // Then apply the new customization.
+            f(config);
+        });
+
+        self
+    }
+}
+
+impl<Ctx, State, Cfg> TestNode<Ctx, State, Cfg>
+where
+    Ctx: Context,
+    Cfg: NodeConfig + 'static,
+{
+    pub fn disable_consensus(&mut self) -> &mut Self {
+        self.consensus_enabled = false;
+
+        self.add_config_modifier(|config| {
+            config.consensus_mut().enabled = false;
+        })
     }
 }

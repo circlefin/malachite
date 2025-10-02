@@ -515,6 +515,9 @@ where
                     }
 
                     NetworkEvent::Vote(from, vote) => {
+                        self.tx_event
+                            .send(|| Event::Received(SignedConsensusMsg::Vote(vote.clone())));
+
                         if let Err(e) = self
                             .process_input(&myself, state, ConsensusInput::Vote(vote))
                             .await
@@ -524,6 +527,10 @@ where
                     }
 
                     NetworkEvent::Proposal(from, proposal) => {
+                        self.tx_event.send(|| {
+                            Event::Received(SignedConsensusMsg::Proposal(proposal.clone()))
+                        });
+
                         if state.consensus.params.value_payload.parts_only() {
                             error!(%from, "Properly configured peer should never send proposal messages in BlockPart mode");
                             return Ok(());
