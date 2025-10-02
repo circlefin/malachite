@@ -1,6 +1,10 @@
 #!/bin/bash
 
+# Default wait time is 10 seconds
+T=${1:-10}
+
 echo "Restarting validator nodes (0, 1, 2) while keeping node 3 running..."
+echo "Wait time before restart: ${T} seconds"
 echo ""
 
 
@@ -8,8 +12,13 @@ echo ""
 echo "Stopping validator nodes..."
 docker compose stop node0 node1 node2
 
-echo "Waiting 2 seconds after stopping..."
+# Wait for containers to fully stop
 sleep 2
+
+echo "Validators stopped at: $(date '+%H:%M:%S')"
+echo "Waiting ${T} seconds before restart..."
+sleep ${T}
+echo "${T} seconds elapsed at: $(date '+%H:%M:%S')"
 
 echo "Socket status after stopping validators:"
 echo "Socket connections:"
@@ -24,11 +33,11 @@ done
 echo ""
 
 # Start all validator nodes in parallel
-echo "Starting validator nodes..."
+echo "Starting validator nodes at: $(date '+%H:%M:%S')"
 docker compose start node0 node1 node2
 
-echo "Waiting for nodes to start..."
-sleep 3
+echo "Waiting for nodes to fully initialize..."
+sleep 5
 
 # Check startup status
 for node in node0 node1 node2; do

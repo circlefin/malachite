@@ -128,8 +128,8 @@ testnet-clean: testnet-down ## Remove testnet artifacts
 	@rm -rf ./test-nodes/
 	@rm -f node_*.log
 
-restart-validators: ## Restart validator nodes (0,1,2) while keeping node 3 running
-	@./makefile-scripts/restart-validator-nodes.sh
+restart-validators: ## Restart validator nodes (0,1,2) while keeping node 3 running (use T=N to customize wait time, default 10s)
+	@./makefile-scripts/restart-validator-nodes.sh $(T)
 
 test-integration: ## Full integration test: start testnet, check sockets, restart validators, check sockets
 	@echo "Starting comprehensive testnet test..."
@@ -139,7 +139,7 @@ test-integration: ## Full integration test: start testnet, check sockets, restar
 	@echo "  2. Wait for initial connections (15s)"
 	@echo "  3. Check socket status"
 	@echo "  4. Restart validators (nodes 0,1,2)"
-	@echo "  5. Wait for reconnections (10s)"
+	@echo "  5. Wait for reconnections"
 	@echo "  6. Final socket status check"
 	@echo ""
 	@$(MAKE) testnet
