@@ -25,17 +25,19 @@ services:
       - NET_ADMIN
     sysctls:
       - net.ipv4.ip_forward=1
-    command: >
-      sh -c "
-        apt-get update -y &&
-        apt-get install -y socat &&
-        echo 'Starting port forwarding...' &&
-        socat TCP-LISTEN:27000,fork TCP:192.168.100.10:27000 &
-        socat TCP-LISTEN:27001,fork TCP:192.168.100.11:27000 &
-        socat TCP-LISTEN:27002,fork TCP:192.168.100.12:27000 &
-        echo 'NAT gateway ready' &&
-        wait
-      "
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        apt-get update -y
+        apt-get install -y socat
+        echo 'Starting port forwarding...'
+        socat TCP-LISTEN:27000,fork,reuseaddr TCP:192.168.100.10:27000 &
+        socat TCP-LISTEN:27001,fork,reuseaddr TCP:192.168.100.11:27000 &
+        socat TCP-LISTEN:27002,fork,reuseaddr TCP:192.168.100.12:27000 &
+        sleep 1
+        echo 'NAT gateway ready - forwarding ports 27000, 27001, 27002'
+        ps aux | grep socat | grep -v grep
+        tail -f /dev/null
     restart: unless-stopped
 
   # Validators behind "NAT" (internal network)

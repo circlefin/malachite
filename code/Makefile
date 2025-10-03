@@ -241,3 +241,6 @@ testnet-nat: testnet-clean ## Start NAT testnet scenario
 	@echo "  Test scenario: NAT traversal and bootstrap identification"
 	@echo "    - Node3 connects via host IP (10.0.1.1) to reach validators"
 	@echo "    - Validators have internal IPs but are reachable via port mapping"
+
+testnet-nat-down: ## Stop NAT testnet
+	@docker compose -f docker-compose-nat.yml down > /dev/null 2>&1 || true
