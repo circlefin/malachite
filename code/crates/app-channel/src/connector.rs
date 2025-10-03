@@ -208,11 +208,14 @@ where
                     })
                     .await?;
 
-                let next = rx.await?;
-
-                if let Err(e) = reply_to.send(next) {
-                    error!("Failed to send next height and validator set: {e}");
-                }
+                // Do not block processing of other messages while waiting for the next height
+                tokio::spawn(async move {
+                    if let Ok(next) = rx.await {
+                        if let Err(e) = reply_to.send(next) {
+                            error!("Failed to send next height and validator set: {e}");
+                        }
+                    }
+                });
             }
 
             HostMsg::GetDecidedValue { height, reply_to } => {
