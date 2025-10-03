@@ -198,15 +198,6 @@ where
 
     pub fn dial_bootstrap_nodes(&mut self, swarm: &Swarm<C>) {
         for (peer_id, listen_addrs) in &self.bootstrap_nodes.clone() {
-            let dial_data = DialData::new(*peer_id, listen_addrs.clone());
-
-            // Skip if already connected
-            if let Some(id) = peer_id {
-                if swarm.is_connected(id) {
-                    continue;
-                }
-            }
-
             // For bootstrap nodes, check if already attempted (done_on flag)
             // This prevents overlapping Fibonacci retry sequences since done_on is only cleared
             // after all retries are exhausted
@@ -219,12 +210,10 @@ where
             });
 
             if already_attempted {
-                debug!(
-                    "Skipping bootstrap node dial - retry chain in progress: addrs={:?}",
-                    listen_addrs
-                );
                 continue;
             }
+
+            let dial_data = DialData::new(*peer_id, listen_addrs.clone());
 
             // For bootstrap nodes, always attempt to dial even if previously failed
             // This ensures persistent peers are retried indefinitely
