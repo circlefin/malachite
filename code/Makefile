@@ -166,7 +166,7 @@ test-integration: ## Full integration test: start testnet, check sockets, restar
 .PHONY: monitor-sockets logs logs-node3 status
 
 monitor-sockets: ## Monitor socket connections in real-time
-	@./makefile-scripts/check-socket-leaks-simple.sh monitor
+	@./makefile-scripts/monitor-sockets.sh monitor
 
 logs: ## Show logs from all nodes
 	@docker compose logs node0 node1 node2 node3
