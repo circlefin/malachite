@@ -259,11 +259,17 @@ where
         }
     }
 
-    /// Check if we are a validator node, i.e. we are present in the current validator set.
-    pub fn is_validator(&self) -> bool {
-        self.validator_set()
-            .get_by_address(self.address())
-            .is_some()
+    /// Check if this node is an active validator.
+    ///
+    /// Returns true only if:
+    /// - Consensus is enabled in the configuration, AND
+    /// - This node is present in the current validator set
+    pub fn is_active_validator(&self) -> bool {
+        self.params.enabled
+            && self
+                .validator_set()
+                .get_by_address(self.address())
+                .is_some()
     }
 
     pub fn round_certificate(&self) -> Option<&EnterRoundCertificate<Ctx>> {

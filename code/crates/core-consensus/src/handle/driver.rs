@@ -37,7 +37,7 @@ where
             // presence of asynchrony or Byzantine behavior. Moreover,
             // it guarantees that after GST, all correct replicas will receive
             // the round certificate and enter the same round within bounded time.
-            if round > &Round::new(0) {
+            if round > &Round::new(0) && state.is_active_validator() {
                 if let Some(cert) = state.driver.round_certificate() {
                     if cert.enter_round == *round {
                         info!(
@@ -59,7 +59,7 @@ where
 
             let role = if state.address() == proposer {
                 Role::Proposer
-            } else if state.is_validator() {
+            } else if state.is_active_validator() {
                 Role::Validator
             } else {
                 Role::None
@@ -230,8 +230,8 @@ where
                 "Proposing value"
             );
 
-            // Only sign and publish if we're in the validator set
-            if state.is_validator() {
+            // Only sign and publish if we're an active validator
+            if state.is_active_validator() {
                 let signed_proposal = sign_proposal(co, proposal.clone()).await?;
 
                 if signed_proposal.pol_round().is_defined() {
@@ -308,7 +308,7 @@ where
                 // Prune all votes and certificates for the previous rounds as we know we are not going to use them anymore.
                 state.driver.prune_votes_and_certificates(vote.round());
 
-                if state.driver.round() >= HIDDEN_LOCK_ROUND {
+                if state.driver.round() >= HIDDEN_LOCK_ROUND && state.is_active_validator() {
                     if let Some((signed_proposal, Validity::Valid)) = state
                         .driver
                         .proposal_and_validity_for_round_and_value(vote.round(), value_id.clone())
@@ -355,7 +355,7 @@ where
                 }
             }
 
-            if state.is_validator() {
+            if state.is_active_validator() {
                 info!(
                     vote_type = ?vote.vote_type(),
                     value = %PrettyVal(vote.value().as_ref()),
@@ -408,25 +408,28 @@ where
         }
 
         DriverOutput::GetValue(height, round, timeout) => {
-            if let Some(full_proposal) =
-                state.full_proposal_at_round_and_proposer(&height, round, state.address())
-            {
-                info!(%height, %round, "Using already existing value");
+            // Only request values if we're an active validator
+            if state.is_active_validator() {
+                if let Some(full_proposal) =
+                    state.full_proposal_at_round_and_proposer(&height, round, state.address())
+                {
+                    info!(%height, %round, "Using already existing value");
 
-                let local_value = LocallyProposedValue {
-                    height: full_proposal.proposal.height(),
-                    round: full_proposal.proposal.round(),
-                    value: full_proposal.builder_value.clone(),
-                };
+                    let local_value = LocallyProposedValue {
+                        height: full_proposal.proposal.height(),
+                        round: full_proposal.proposal.round(),
+                        value: full_proposal.builder_value.clone(),
+                    };
 
-                on_propose(co, state, metrics, local_value).await?;
-            } else {
-                info!(%height, %round, "Requesting value from application");
+                    on_propose(co, state, metrics, local_value).await?;
+                } else {
+                    info!(%height, %round, "Requesting value from application");
 
-                perform!(
-                    co,
-                    Effect::GetValue(height, round, timeout, Default::default())
-                );
+                    perform!(
+                        co,
+                        Effect::GetValue(height, round, timeout, Default::default())
+                    );
+                }
             }
 
             Ok(())

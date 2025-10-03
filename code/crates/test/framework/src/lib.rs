@@ -21,7 +21,7 @@ mod logging;
 use logging::init_logging;
 
 mod node;
-pub use node::{HandlerResult, NodeId, TestNode};
+pub use node::{ConfigModifier, HandlerResult, NodeId, TestNode};
 
 mod params;
 pub use params::TestParams;
@@ -218,6 +218,7 @@ where
     let current_height = Arc::new(AtomicUsize::new(0));
     let failure = Arc::new(Mutex::new(None));
     let is_full_node = node.is_full_node();
+    let consensus_enabled = node.consensus_enabled;
 
     let spawn_event_monitor = |mut rx: RxEvent<Ctx>| {
         tokio::spawn({
@@ -238,6 +239,18 @@ where
                             error!("Full node unexpectedly published a consensus message: {msg:?}");
                             *failure.lock().await = Some(format!(
                                 "Full node unexpectedly published a consensus message: {msg:?}"
+                            ));
+                        }
+                        Event::Published(msg) if !consensus_enabled => {
+                            error!("Node with consensus disabled unexpectedly published a consensus message: {msg:?}");
+                            *failure.lock().await = Some(format!(
+                                "Node with consensus disabled unexpectedly published a consensus message: {msg:?}"
+                            ));
+                        }
+                        Event::Received(msg) if !consensus_enabled => {
+                            error!("Node with consensus disabled unexpectedly received a consensus message: {msg:?}");
+                            *failure.lock().await = Some(format!(
+                                "Node with consensus disabled unexpectedly received a consensus message: {msg:?}"
                             ));
                         }
                         Event::WalReplayError(e) => {
