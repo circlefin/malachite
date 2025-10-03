@@ -1,0 +1,78 @@
+moniker = "fullnode-3"
+
+[logging]
+log_level = "debug"
+log_format = "plaintext"
+
+[consensus]
+timeout_propose = "3s"
+timeout_propose_delta = "500ms"
+timeout_prevote = "1s"
+timeout_prevote_delta = "500ms"
+timeout_precommit = "1s"
+timeout_precommit_delta = "500ms"
+timeout_rebroadcast = "5s"
+value_payload = "proposal-and-parts"
+queue_capacity = 100
+
+[consensus.p2p]
+listen_addr = "/ip4/0.0.0.0/tcp/27000"
+# Node3 connects to validators via Docker host gateway (through NAT/port mapping)
+# These are the addresses that actually work for reaching validators from external network
+persistent_peers = [
+    "/ip4/10.0.1.254/tcp/27000",  # Reaches validator-0 via NAT gateway
+    "/ip4/10.0.1.254/tcp/27001",  # Reaches validator-1 via NAT gateway  
+    "/ip4/10.0.1.254/tcp/27002"   # Reaches validator-2 via NAT gateway
+]
+pubsub_max_size = "4.2 MB"
+rpc_max_size = "10.5 MB"
+
+[consensus.p2p.discovery]
+enabled = false
+bootstrap_protocol = "full"
+selector = "random" 
+num_outbound_peers = 20
+num_inbound_peers = 20
+max_connections_per_peer = 5
+ephemeral_connection_timeout = "5s"
+# IMPORTANT: Bootstrap nodes are the SAME addresses as persistent_peers
+# This creates the test scenario where:
+# - We dial using 10.0.1.254 addresses (NAT gateway - what actually works)
+# - But validators advertise 192.168.100.x addresses in identify  
+# - Bootstrap matching should use dial_data (10.0.1.254) not identify info (192.168.100.x)
+bootstrap_nodes = [
+    "/ip4/10.0.1.254/tcp/27000",
+    "/ip4/10.0.1.254/tcp/27001", 
+    "/ip4/10.0.1.254/tcp/27002"
+]
+
+[consensus.p2p.protocol]
+type = "gossipsub"
+mesh_n = 6
+mesh_n_high = 12
+mesh_n_low = 4
+mesh_outbound_min = 2
+
+[consensus.p2p.protocol_names]
+consensus = "/malachitebft-core-consensus/v1beta1"
+discovery_kad = "/malachitebft-discovery/kad/v1beta1"
+discovery_regres = "/malachitebft-discovery/reqres/v1beta1"
+sync = "/malachitebft-sync/v1beta1"
+
+[value_sync]
+enabled = true
+status_update_interval = "10s"
+request_timeout = "10s"
+max_request_size = "1048.6 KB"
+max_response_size = "10.5 MB"
+parallel_requests = 5
+scoring_strategy = "ema"
+inactive_threshold = "1m"
+batch_size = 5
+
+[metrics]
+enabled = true
+listen_addr = "0.0.0.0:29000"
+
+[runtime]
+flavor = "single_threaded"

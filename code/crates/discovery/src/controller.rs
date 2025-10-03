@@ -78,6 +78,10 @@ where
         self.done_on.contains(key)
     }
 
+    pub(crate) fn remove_done_on(&mut self, key: &T) -> bool {
+        self.done_on.remove(key)
+    }
+
     pub(crate) fn can_perform(&self) -> bool {
         self.in_progress.len() < self.concurrent_factor
     }
@@ -149,6 +153,16 @@ impl Controller {
                 .listen_addrs()
                 .iter()
                 .any(|addr| self.dial.is_done_on(&PeerData::Multiaddr(addr.clone())))
+    }
+
+    pub(crate) fn dial_clear_done_for_peer(&mut self, peer_id: PeerId, listen_addrs: &[Multiaddr]) {
+        // Clear dial history for this peer ID
+        self.dial.remove_done_on(&PeerData::PeerId(peer_id));
+
+        // Clear dial history for all associated addresses
+        for addr in listen_addrs {
+            self.dial.remove_done_on(&PeerData::Multiaddr(addr.clone()));
+        }
     }
 
     pub(crate) fn dial_add_peer_id_to_dial_data(

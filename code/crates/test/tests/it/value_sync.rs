@@ -510,3 +510,234 @@ pub async fn full_node_sync_after_all_persistent_peer_restart() {
         )
         .await
 }
+
+#[tokio::test]
+pub async fn validator_persistent_peer_reconnection_discovery_enabled() {
+    const HEIGHT: u64 = 10;
+
+    let mut test = TestBuilder::<()>::new();
+
+    // Node 1: validator that stays up initially
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        // Stop this node to simulate network partition
+        .crash()
+        // Wait before restarting to test reconnection
+        .restart_after(Duration::from_secs(3))
+        .wait_until(HEIGHT + 5) // Continue after restart
+        .success();
+
+    // Node 2: validator that stays up initially
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        // Stop this node to simulate network partition
+        .crash()
+        // Wait before restarting to test reconnection
+        .restart_after(Duration::from_secs(3))
+        .wait_until(HEIGHT + 5) // Continue after restart
+        .success();
+
+    // Node 3: validator that stays up initially
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        // Stop this node to simulate network partition
+        .crash()
+        // Wait before restarting to test reconnection
+        .restart_after(Duration::from_secs(3))
+        .wait_until(HEIGHT + 5) // Continue after restart
+        .success();
+
+    // Node 4: validator that that syncs and needs to reconnect after all validators have restarted
+    test.add_node()
+        .with_voting_power(5)
+        .start_after(1, Duration::from_secs(12))
+        // This node should reconnect to peers when they restart and continue syncing
+        .wait_until(HEIGHT + 5)
+        .success();
+
+    test.build()
+        .run_with_params(
+            Duration::from_secs(30),
+            TestParams {
+                enable_value_sync: true,
+                parallel_requests: 3,
+                enable_discovery: true,
+                exclude_from_persistent_peers: vec![4], // Node 4 is a new validator, others don't have it as persistent peer
+                ..Default::default()
+            },
+        )
+        .await
+}
+
+#[tokio::test]
+pub async fn validator_persistent_peer_reconnection_discovery_disabled() {
+    const HEIGHT: u64 = 10;
+
+    let mut test = TestBuilder::<()>::new();
+
+    // Node 1-3: validators that will restart
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .crash()
+        .restart_after(Duration::from_secs(3))
+        .wait_until(HEIGHT + 5)
+        .success();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .crash()
+        .restart_after(Duration::from_secs(3))
+        .wait_until(HEIGHT + 5)
+        .success();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .crash()
+        .restart_after(Duration::from_secs(3))
+        .wait_until(HEIGHT + 5)
+        .success();
+
+    // Node 4: validator that that syncs and needs to reconnect after all validators have restarted
+    test.add_node()
+        .with_voting_power(5)
+        .start_after(1, Duration::from_secs(12))
+        .wait_until(HEIGHT + 5)
+        .success();
+
+    test.build()
+        .run_with_params(
+            Duration::from_secs(30),
+            TestParams {
+                enable_value_sync: true,
+                parallel_requests: 1,
+                enable_discovery: false,
+                exclude_from_persistent_peers: vec![4], // Node 4 is a new validator, others don't have it as persistent peer
+                ..Default::default()
+            },
+        )
+        .await
+}
+
+#[tokio::test]
+pub async fn full_node_persistent_peer_reconnection_discovery_enabled() {
+    const HEIGHT: u64 = 10;
+
+    let mut test = TestBuilder::<()>::new();
+
+    // Node 1-3: validators that will restart
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .crash()
+        .restart_after(Duration::from_secs(3))
+        .wait_until(HEIGHT + 5)
+        .success();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .crash()
+        .restart_after(Duration::from_secs(3))
+        .wait_until(HEIGHT + 5)
+        .success();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .crash()
+        .restart_after(Duration::from_secs(3))
+        .wait_until(HEIGHT + 5)
+        .success();
+
+    // Node 4: full node that that syncs and needs to reconnect after all validators have restarted
+    test.add_node()
+        .full_node()
+        .start_after(1, Duration::from_secs(3))
+        .wait_until(HEIGHT + 5)
+        .success();
+
+    test.build()
+        .run_with_params(
+            Duration::from_secs(30),
+            TestParams {
+                enable_value_sync: true,
+                parallel_requests: 3,
+                enable_discovery: true,
+                // Node 4 is a full node, other validators don't have it as persistent peer
+                exclude_from_persistent_peers: vec![4],
+                ..Default::default()
+            },
+        )
+        .await
+}
+
+#[tokio::test]
+pub async fn full_node_persistent_peer_reconnection_discovery_disabled() {
+    const HEIGHT: u64 = 10;
+
+    let mut test = TestBuilder::<()>::new();
+
+    // Node 1-3: validators that will restart
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .crash()
+        .restart_after(Duration::from_secs(3))
+        .wait_until(HEIGHT + 5)
+        .success();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .crash()
+        .restart_after(Duration::from_secs(3))
+        .wait_until(HEIGHT + 5)
+        .success();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .crash()
+        .restart_after(Duration::from_secs(3))
+        .wait_until(HEIGHT + 5)
+        .success();
+
+    // Node 4: full node that syncs and needs to reconnect after all validators have restarted
+    test.add_node()
+        .full_node()
+        .start_after(1, Duration::from_secs(3))
+        .wait_until(HEIGHT + 5)
+        .success();
+
+    test.build()
+        .run_with_params(
+            Duration::from_secs(30),
+            TestParams {
+                enable_value_sync: true,
+                parallel_requests: 3,
+                enable_discovery: false,
+                // Node 4 is a full node, other validators don't have it as persistent peer
+                exclude_from_persistent_peers: vec![4],
+                ..Default::default()
+            },
+        )
+        .await
+}

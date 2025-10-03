@@ -94,6 +94,7 @@ pub async fn circular_graph_n() {
 // Testing correctness when discovery is disabled. Especially, the nodes should
 // not accept more connections than the defined number of inbound peers in the
 // configuration.
+// With discovery disabled all peers are considered inbound.
 #[tokio::test]
 pub async fn discovery_disabled() {
     let test = Test::new(
@@ -111,23 +112,23 @@ pub async fn discovery_disabled() {
             TestNode::correct(10, vec![8, 9]),
         ],
         [
-            Expected::Exactly(vec![1, 2]),
-            Expected::Exactly(vec![0, 2]),
-            Expected::Exactly(vec![0, 1]),
-            Expected::Exactly(vec![4, 5]),
-            Expected::Exactly(vec![3, 5]),
-            Expected::Exactly(vec![3, 4]),
-            Expected::Exactly(vec![7, 8]),
-            Expected::Exactly(vec![6, 8]),
-            Expected::Exactly(vec![6, 7]),
-            Expected::Exactly(vec![10]),
-            Expected::Exactly(vec![9]),
+            Expected::Exactly(vec![1, 2]),        // node 0
+            Expected::Exactly(vec![0, 2, 3]),     // node 1
+            Expected::Exactly(vec![0, 1, 3, 4]),  // node 2
+            Expected::Exactly(vec![1, 2, 4, 5]),  // node 3
+            Expected::Exactly(vec![2, 3, 5, 6]),  // node 4
+            Expected::Exactly(vec![3, 4, 6, 7]),  // node 5
+            Expected::Exactly(vec![4, 5, 7, 8]),  // node 6
+            Expected::Exactly(vec![5, 6, 8, 9]),  // node 7
+            Expected::Exactly(vec![6, 7, 9, 10]), // node 8
+            Expected::Exactly(vec![7, 8, 10]),    // node 9
+            Expected::Exactly(vec![8, 9]),        // node 10
         ],
         Duration::from_secs(1),
         Duration::from_secs(10),
         DiscoveryConfig {
             enabled: false,
-            num_inbound_peers: 2,
+            num_inbound_peers: 4,
             ..Default::default()
         },
     );

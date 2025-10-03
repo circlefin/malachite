@@ -265,8 +265,6 @@ async fn run(
         return;
     }
 
-    state.discovery.dial_bootstrap_nodes(&swarm);
-
     if config.enable_consensus {
         if let Err(e) = pubsub::subscribe(
             &mut swarm,
@@ -290,6 +288,11 @@ async fn run(
             return;
         };
     }
+
+    // Timer to periodically try reconnecting to persistent peers
+    // TODO: Using 1 second for now, for faster reconnection during testing
+    // Maybe adjust via config in the future
+    let mut persistent_peer_timer = tokio::time::interval(std::time::Duration::from_secs(1));
 
     loop {
         let result = tokio::select! {
@@ -319,6 +322,12 @@ async fn run(
 
             Some(ctrl) = rx_ctrl.recv() => {
                 handle_ctrl_msg(&mut swarm, &mut state, &config, ctrl).await
+            }
+
+            _ = persistent_peer_timer.tick() => {
+                // Periodically attempt to dial bootstrap nodes
+                state.discovery.dial_bootstrap_nodes(&swarm);
+                ControlFlow::Continue(())
             }
         };
 
@@ -473,6 +482,10 @@ async fn handle_swarm_event(
             cause,
             ..
         } => {
+            debug!(
+                "SwarmEvent::ConnectionClosed: peer_id={}, connection_id={}, num_established={}",
+                peer_id, connection_id, num_established
+            );
             if let Some(cause) = cause {
                 warn!("Connection closed with {peer_id}, reason: {cause}");
             } else {

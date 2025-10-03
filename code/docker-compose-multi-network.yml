@@ -1,0 +1,107 @@
+networks:
+  validators_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+  
+  fullnode_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.22.0.0/16
+  
+  # Bridge network to allow some connectivity
+  public_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.23.0.0/16
+
+services:
+  # Validators on their own network (simulating internal cluster)
+  node0:
+    image: ubuntu:22.04
+    platform: linux/amd64
+    container_name: malachite_node0
+    networks:
+      validators_net:
+        ipv4_address: 172.21.0.10
+      public_net:
+        ipv4_address: 172.23.0.10  # "Public" IP for bootstrap
+    volumes:
+      - ./target/x86_64-unknown-linux-gnu/release/informalsystems-malachitebft-example-channel:/usr/local/bin/malachite:ro
+      - ./multi-net-configs/node0-config.toml:/app/node/config/config.toml:ro
+      - ./deployments/volumes/malachite/0:/app/node
+    ports:
+      - "29100:29000"
+      - "27100:27000"
+    environment:
+      - RUST_LOG=debug,libp2p_swarm::handler=off,libp2p_swarm=info
+    command: /usr/local/bin/malachite start --home /app/node
+    restart: unless-stopped
+
+  node1:
+    image: ubuntu:22.04
+    platform: linux/amd64
+    container_name: malachite_node1
+    networks:
+      validators_net:
+        ipv4_address: 172.21.0.11
+      public_net:
+        ipv4_address: 172.23.0.11
+    volumes:
+      - ./target/x86_64-unknown-linux-gnu/release/informalsystems-malachitebft-example-channel:/usr/local/bin/malachite:ro
+      - ./multi-net-configs/node1-config.toml:/app/node/config/config.toml:ro
+      - ./deployments/volumes/malachite/1:/app/node
+    ports:
+      - "29101:29000"
+      - "27101:27000"
+    environment:
+      - RUST_LOG=debug,libp2p_swarm::handler=off,libp2p_swarm=info
+    command: /usr/local/bin/malachite start --home /app/node
+    restart: unless-stopped
+
+  node2:
+    image: ubuntu:22.04
+    platform: linux/amd64
+    container_name: malachite_node2
+    networks:
+      validators_net:
+        ipv4_address: 172.21.0.12
+      public_net:
+        ipv4_address: 172.23.0.12
+    volumes:
+      - ./target/x86_64-unknown-linux-gnu/release/informalsystems-malachitebft-example-channel:/usr/local/bin/malachite:ro
+      - ./multi-net-configs/node2-config.toml:/app/node/config/config.toml:ro
+      - ./deployments/volumes/malachite/2:/app/node
+    ports:
+      - "29102:29000"
+      - "27102:27000"
+    environment:
+      - RUST_LOG=debug,libp2p_swarm::handler=off,libp2p_swarm=info
+    command: /usr/local/bin/malachite start --home /app/node
+    restart: unless-stopped
+
+  # Node3 on completely separate network (simulating external fullnode)
+  node3:
+    image: ubuntu:22.04
+    platform: linux/amd64
+    container_name: malachite_node3
+    networks:
+      fullnode_net:
+        ipv4_address: 172.22.0.13
+      public_net:
+        ipv4_address: 172.23.0.13  # "Public" IP for connectivity
+    volumes:
+      - ./target/x86_64-unknown-linux-gnu/release/informalsystems-malachitebft-example-channel:/usr/local/bin/malachite:ro
+      - ./multi-net-configs/node3-config.toml:/app/node/config/config.toml:ro
+      - ./deployments/volumes/malachite/3:/app/node
+    ports:
+      - "29103:29000"
+      - "27103:27000"
+    environment:
+      - RUST_LOG=debug,libp2p_swarm::handler=off,libp2p_swarm=info
+    command: /usr/local/bin/malachite start --home /app/node
+    restart: unless-stopped
+

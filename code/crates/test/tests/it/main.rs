@@ -158,10 +158,19 @@ impl TestRunner {
                     protocol,
                     discovery: DiscoveryConfig::default(),
                     listen_addr: transport.multiaddr("127.0.0.1", self.consensus_base_port + i),
-                    persistent_peers: (0..self.nodes_info.len())
-                        .filter(|j| i != *j)
-                        .map(|j| transport.multiaddr("127.0.0.1", self.consensus_base_port + j))
-                        .collect(),
+                    persistent_peers: {
+                        (0..self.nodes_info.len())
+                            .filter(|j|
+                                // Don't connect to self or nodes that are excluded from persistent peers.
+                                // Simulates validators or full nodes that joined after initial network setup
+                                i != *j &&
+                                    !self
+                                        .params
+                                        .exclude_from_persistent_peers
+                                        .contains(&((*j + 1) as u64)))
+                            .map(|j| transport.multiaddr("127.0.0.1", self.consensus_base_port + j))
+                            .collect()
+                    },
                     ..Default::default()
                 },
             },
