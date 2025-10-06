@@ -50,7 +50,7 @@ tests: ## Run all the tests.
 
 ##@ Testnet
 
-.PHONY: testnet testnet-mixed testnet-build testnet-down testnet-clean restart-validators test-integration
+.PHONY: testnet testnet-build testnet-down testnet-clean restart-validators test-integration
 
 testnet: testnet-clean ## Start testnet with 4 malachite containers (single network)
 	@echo "Setting up single-network testnet..."
@@ -84,34 +84,6 @@ testnet: testnet-clean ## Start testnet with 4 malachite containers (single netw
 	@echo "  Network topology:"
 	@echo "    All nodes: Single network (172.20.0.x)"
 	@echo "    Node3: Connects via host IP to test port mapping scenario"
-
-testnet-mixed: testnet-clean ## Start mixed-version testnet with old and new binaries
-	@echo "Setting up mixed-version testnet..."
-	@echo "Creating deployment directories..."
-	@mkdir -p ./deployments/volumes/malachite
-
-	@echo "Generating base testnet structure (genesis, keys, etc.)..."
-	@cargo run --bin informalsystems-malachitebft-example-channel -- \
-		testnet \
-		--nodes 4 \
-		--home ./deployments/volumes/malachite
-
-	@echo "Copying single-network configs..."
-	@cp ./single-net-configs/node0-config.toml ./deployments/volumes/malachite/0/config/config.toml
-	@cp ./single-net-configs/node1-config.toml ./deployments/volumes/malachite/1/config/config.toml
-	@cp ./single-net-configs/node2-config.toml ./deployments/volumes/malachite/2/config/config.toml
-	@cp ./single-net-configs/node3-config.toml ./deployments/volumes/malachite/3/config/config.toml
-
-	@echo "Building mixed-version binaries..."
-	@./makefile-scripts/setup-mixed-testnet.sh
-
-	@echo "Starting mixed-version testnet..."
-	@docker compose -f docker-compose-mixed.yml up -d
-
-	@echo "Mixed-version testnet started!"
-	@echo "  Network topology: Same as single-network testnet"
-	@echo "  Nodes 0,1,2: Old version binaries"
-	@echo "  Node 3: Latest version (current HEAD)"
 
 testnet-build: ## Build the testnet binary and Docker images
 	@echo "Building Linux binary for containers..."
