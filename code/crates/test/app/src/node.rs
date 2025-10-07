@@ -238,7 +238,6 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
             // Current test app does not support proposal-only value payload properly as Init does not include valid_round
             value_payload: ValuePayload::ProposalAndParts,
             queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`
-            timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
                 listen_addr: settings.transport.multiaddr("127.0.0.1", consensus_port),

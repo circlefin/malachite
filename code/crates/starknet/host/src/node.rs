@@ -253,7 +253,6 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
             enabled: true,
             value_payload: ValuePayload::PartsOnly,
             queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`
-            timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
                 listen_addr: settings.transport.multiaddr("127.0.0.1", consensus_port),
@@ -351,7 +350,6 @@ fn make_distributed_config(
             enabled: true,
             queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`
             value_payload: ValuePayload::PartsOnly,
-            timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
                 listen_addr: settings.transport.multiaddr(&machine, consensus_port),

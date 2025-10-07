@@ -1737,7 +1737,6 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
             vote_sync: VoteSyncConfig {
                 mode: VoteSyncMode::RequestResponse,
             },
-            timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
                 listen_addr: settings.transport.multiaddr("127.0.0.1", consensus_port),

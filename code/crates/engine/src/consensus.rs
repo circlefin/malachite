@@ -12,7 +12,7 @@ use tokio::time::Instant;
 use tracing::{debug, error, error_span, info, warn};
 
 use malachitebft_codec as codec;
-use malachitebft_config::{ConsensusConfig, TimeoutConfig};
+use malachitebft_config::ConsensusConfig;
 use malachitebft_core_consensus::{
     Effect, LivenessMsg, PeerId, Resumable, Resume, SignedConsensusMsg, VoteExtensionError,
 };
@@ -40,6 +40,9 @@ pub use malachitebft_core_consensus::State as ConsensusState;
 
 pub mod state_dump;
 use state_dump::StateDump;
+
+pub mod timeouts;
+pub use timeouts::Timeouts;
 
 /// Codec for consensus messages.
 ///
@@ -176,34 +179,25 @@ impl<Ctx: Context> From<TimeoutElapsed<Timeout>> for Msg<Ctx> {
 
 type Timers = TimerScheduler<Timeout>;
 
-struct Timeouts {
-    config: TimeoutConfig,
+struct TimeoutsState {
+    timeouts: Timeouts,
 }
 
-impl Timeouts {
-    pub fn new(config: TimeoutConfig) -> Self {
-        Self { config }
+impl TimeoutsState {
+    pub fn new(timeouts: Timeouts) -> Self {
+        Self { timeouts }
     }
 
-    fn reset(&mut self, config: TimeoutConfig) {
-        self.config = config;
+    fn reset(&mut self, timeouts: Timeouts) {
+        self.timeouts = timeouts;
     }
 
     fn duration_for(&self, step: TimeoutKind) -> Duration {
-        match step {
-            TimeoutKind::Propose => self.config.timeout_propose,
-            TimeoutKind::Prevote => self.config.timeout_prevote,
-            TimeoutKind::Precommit => self.config.timeout_precommit,
-            TimeoutKind::Rebroadcast => {
-                self.config.timeout_propose
-                    + self.config.timeout_prevote
-                    + self.config.timeout_precommit
-            }
-        }
+        self.timeouts.timeout_duration(step)
     }
 
     fn increase_timeout(&mut self, step: TimeoutKind) {
-        let c = &mut self.config;
+        let c = &mut self.timeouts;
         match step {
             TimeoutKind::Propose => c.timeout_propose += c.timeout_propose_delta,
             TimeoutKind::Prevote => c.timeout_prevote += c.timeout_prevote_delta,
@@ -233,7 +227,7 @@ pub struct State<Ctx: Context> {
     timers: Timers,
 
     /// Timeouts configuration
-    timeouts: Timeouts,
+    timeouts: TimeoutsState,
 
     /// The state of the consensus state machine
     consensus: ConsensusState<Ctx>,
@@ -269,7 +263,7 @@ struct HandlerState<'a, Ctx: Context> {
     phase: Phase,
     height: Ctx::Height,
     timers: &'a mut Timers,
-    timeouts: &'a mut Timeouts,
+    timeouts: &'a mut TimeoutsState,
 }
 
 impl<Ctx> Consensus<Ctx>
@@ -948,7 +942,7 @@ where
     ) -> Result<Resume<Ctx>, ActorProcessingErr> {
         match effect {
             Effect::ResetTimeouts(r) => {
-                state.timeouts.reset(self.consensus_config.timeouts);
+                state.timeouts.reset(Timeouts::default());
                 Ok(r.resume_with(()))
             }
 
@@ -1325,7 +1319,7 @@ where
 
         Ok(State {
             timers: Timers::new(Box::new(myself)),
-            timeouts: Timeouts::new(self.consensus_config.timeouts),
+            timeouts: TimeoutsState::new(Timeouts::default()),
             consensus: ConsensusState::new(
                 self.ctx.clone(),
                 self.params.clone(),
