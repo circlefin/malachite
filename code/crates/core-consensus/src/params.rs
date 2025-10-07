@@ -1,6 +1,6 @@
 use derive_where::derive_where;
 
-use malachitebft_core_types::{Context, Round, ValuePayload};
+use malachitebft_core_types::{Context, Round, Timeouts, ValuePayload};
 
 /// The round from which we enable the hidden lock mitigation mechanism
 pub const HIDDEN_LOCK_ROUND: Round = Round::new(10);
@@ -16,6 +16,9 @@ pub struct Params<Ctx: Context> {
 
     /// The initial validator set
     pub initial_validator_set: Ctx::ValidatorSet,
+
+    /// The initial timeouts
+    pub initial_timeouts: Timeouts,
 
     /// The address of this validator
     pub address: Ctx::Address,

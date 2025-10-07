@@ -1,9 +1,13 @@
-use std::time::Duration;
+use core::fmt::Debug;
+use core::time::Duration;
 
-use malachitebft_core_types::TimeoutKind;
+use crate::TimeoutKind;
 
-/// Timeouts
-#[derive(Copy, Clone, Debug, PartialEq)]
+/// Timeouts configuration.
+///
+/// Timeouts control how long the consensus engine waits for various steps
+/// in the consensus protocol.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Timeouts {
     /// How long we wait for a proposal block before prevoting nil
     pub timeout_propose: Duration,
@@ -29,6 +33,7 @@ pub struct Timeouts {
 }
 
 impl Timeouts {
+    /// Get the timeout duration for a specific step.
     pub fn timeout_duration(&self, step: TimeoutKind) -> Duration {
         match step {
             TimeoutKind::Propose => self.timeout_propose,
@@ -40,6 +45,7 @@ impl Timeouts {
         }
     }
 
+    /// Get the delta duration for a specific step.
     pub fn delta_duration(&self, step: TimeoutKind) -> Option<Duration> {
         match step {
             TimeoutKind::Propose => Some(self.timeout_propose_delta),

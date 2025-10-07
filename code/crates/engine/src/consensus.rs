@@ -17,8 +17,8 @@ use malachitebft_core_consensus::{
     Effect, LivenessMsg, PeerId, Resumable, Resume, SignedConsensusMsg, VoteExtensionError,
 };
 use malachitebft_core_types::{
-    Context, Height, Proposal, Round, Timeout, TimeoutKind, ValidatorSet, Validity, Value, ValueId,
-    ValueOrigin, ValueResponse as CoreValueResponse, Vote,
+    Context, Height, Proposal, Round, Timeout, TimeoutKind, Timeouts, ValidatorSet, Validity,
+    Value, ValueId, ValueOrigin, ValueResponse as CoreValueResponse, Vote,
 };
 use malachitebft_metrics::Metrics;
 use malachitebft_signing::{SigningProvider, SigningProviderExt};
@@ -40,9 +40,6 @@ pub use malachitebft_core_consensus::State as ConsensusState;
 
 pub mod state_dump;
 use state_dump::StateDump;
-
-pub mod timeouts;
-pub use timeouts::Timeouts;
 
 /// Codec for consensus messages.
 ///
@@ -942,7 +939,8 @@ where
     ) -> Result<Resume<Ctx>, ActorProcessingErr> {
         match effect {
             Effect::ResetTimeouts(r) => {
-                state.timeouts.reset(Timeouts::default());
+                let timeouts = self.params.initial_timeouts;
+                state.timeouts.reset(timeouts);
                 Ok(r.resume_with(()))
             }
 
@@ -1317,9 +1315,44 @@ where
         self.network
             .cast(NetworkMsg::Subscribe(Box::new(myself.clone())))?;
 
+        // Convert Ctx::Timeouts to engine::Timeouts
+        let timeouts = Timeouts {
+            timeout_propose: self
+                .params
+                .initial_timeouts
+                .timeout_duration(TimeoutKind::Propose),
+            timeout_propose_delta: self
+                .params
+                .initial_timeouts
+                .delta_duration(TimeoutKind::Propose)
+                .unwrap_or(Duration::ZERO),
+            timeout_prevote: self
+                .params
+                .initial_timeouts
+                .timeout_duration(TimeoutKind::Prevote),
+            timeout_prevote_delta: self
+                .params
+                .initial_timeouts
+                .delta_duration(TimeoutKind::Prevote)
+                .unwrap_or(Duration::ZERO),
+            timeout_precommit: self
+                .params
+                .initial_timeouts
+                .timeout_duration(TimeoutKind::Precommit),
+            timeout_precommit_delta: self
+                .params
+                .initial_timeouts
+                .delta_duration(TimeoutKind::Precommit)
+                .unwrap_or(Duration::ZERO),
+            timeout_rebroadcast: self
+                .params
+                .initial_timeouts
+                .timeout_duration(TimeoutKind::Rebroadcast),
+        };
+
         Ok(State {
             timers: Timers::new(Box::new(myself)),
-            timeouts: TimeoutsState::new(Timeouts::default()),
+            timeouts: TimeoutsState::new(timeouts),
             consensus: ConsensusState::new(
                 self.ctx.clone(),
                 self.params.clone(),
