@@ -4,7 +4,6 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use bytesize::ByteSize;
-use malachitebft_core_types::TimeoutKind;
 use multiaddr::Multiaddr;
 use serde::{Deserialize, Serialize};
 
@@ -533,10 +532,6 @@ pub struct ConsensusConfig {
     #[serde(default = "default_consensus_enabled")]
     pub enabled: bool,
 
-    /// Timeouts
-    #[serde(flatten)]
-    pub timeouts: TimeoutConfig,
-
     /// P2P configuration options
     pub p2p: P2pConfig,
 
@@ -556,7 +551,6 @@ impl Default for ConsensusConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            timeouts: TimeoutConfig::default(),
             p2p: P2pConfig::default(),
             value_payload: ValuePayload::default(),
             queue_capacity: 0,
@@ -586,80 +580,6 @@ impl ValuePayload {
         match self {
             Self::PartsOnly => false,
             Self::ProposalOnly | Self::ProposalAndParts => true,
-        }
-    }
-}
-
-/// Timeouts
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct TimeoutConfig {
-    /// How long we wait for a proposal block before prevoting nil
-    #[serde(with = "humantime_serde")]
-    pub timeout_propose: Duration,
-
-    /// How much timeout_propose increases with each round
-    #[serde(with = "humantime_serde")]
-    pub timeout_propose_delta: Duration,
-
-    /// How long we wait after receiving +2/3 prevotes for “anything” (ie. not a single block or nil)
-    #[serde(with = "humantime_serde")]
-    pub timeout_prevote: Duration,
-
-    /// How much the timeout_prevote increases with each round
-    #[serde(with = "humantime_serde")]
-    pub timeout_prevote_delta: Duration,
-
-    /// How long we wait after receiving +2/3 precommits for “anything” (ie. not a single block or nil)
-    #[serde(with = "humantime_serde")]
-    pub timeout_precommit: Duration,
-
-    /// How much the timeout_precommit increases with each round
-    #[serde(with = "humantime_serde")]
-    pub timeout_precommit_delta: Duration,
-
-    /// How long we wait after entering a round before starting
-    /// the rebroadcast liveness protocol
-    #[serde(with = "humantime_serde")]
-    pub timeout_rebroadcast: Duration,
-}
-
-impl TimeoutConfig {
-    pub fn timeout_duration(&self, step: TimeoutKind) -> Duration {
-        match step {
-            TimeoutKind::Propose => self.timeout_propose,
-            TimeoutKind::Prevote => self.timeout_prevote,
-            TimeoutKind::Precommit => self.timeout_precommit,
-            TimeoutKind::Rebroadcast => {
-                self.timeout_propose + self.timeout_prevote + self.timeout_precommit
-            }
-        }
-    }
-
-    pub fn delta_duration(&self, step: TimeoutKind) -> Option<Duration> {
-        match step {
-            TimeoutKind::Propose => Some(self.timeout_propose_delta),
-            TimeoutKind::Prevote => Some(self.timeout_prevote_delta),
-            TimeoutKind::Precommit => Some(self.timeout_precommit_delta),
-            TimeoutKind::Rebroadcast => None,
-        }
-    }
-}
-
-impl Default for TimeoutConfig {
-    fn default() -> Self {
-        let timeout_propose = Duration::from_secs(3);
-        let timeout_prevote = Duration::from_secs(1);
-        let timeout_precommit = Duration::from_secs(1);
-        let timeout_rebroadcast = timeout_propose + timeout_prevote + timeout_precommit;
-
-        Self {
-            timeout_propose,
-            timeout_propose_delta: Duration::from_millis(500),
-            timeout_prevote,
-            timeout_prevote_delta: Duration::from_millis(500),
-            timeout_precommit,
-            timeout_precommit_delta: Duration::from_millis(500),
-            timeout_rebroadcast,
         }
     }
 }
@@ -823,17 +743,6 @@ mod tests {
             LogFormat::from_str("yaml"),
             Err("Invalid log format: yaml".to_string())
         )
-    }
-
-    #[test]
-    fn timeout_durations() {
-        let t = TimeoutConfig::default();
-        assert_eq!(t.timeout_duration(TimeoutKind::Propose), t.timeout_propose);
-        assert_eq!(t.timeout_duration(TimeoutKind::Prevote), t.timeout_prevote);
-        assert_eq!(
-            t.timeout_duration(TimeoutKind::Precommit),
-            t.timeout_precommit
-        );
     }
 
     #[test]

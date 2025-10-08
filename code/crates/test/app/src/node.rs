@@ -16,7 +16,7 @@ use malachitebft_app_channel::app::node::{
     CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, EngineHandle,
     MakeConfigSettings, Node, NodeHandle,
 };
-use malachitebft_app_channel::app::types::core::VotingPower;
+use malachitebft_app_channel::app::types::core::{Timeouts, VotingPower};
 use malachitebft_app_channel::app::types::Keypair;
 
 use malachitebft_test::middleware::{DefaultMiddleware, Middleware};
@@ -141,6 +141,7 @@ impl Node for App {
             JsonCodec,     // Network codec
             self.start_height,
             self.validator_set.clone(),
+            Timeouts::default(),
         )
         .await?;
 
@@ -238,7 +239,6 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
             // Current test app does not support proposal-only value payload properly as Init does not include valid_round
             value_payload: ValuePayload::ProposalAndParts,
             queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`
-            timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
                 listen_addr: settings.transport.multiaddr("127.0.0.1", consensus_port),

@@ -46,6 +46,7 @@ where
             ctx.clone(),
             params.initial_height,
             params.initial_validator_set.clone(),
+            params.initial_timeouts,
             params.address.clone(),
             params.threshold_params,
         );
@@ -75,6 +76,10 @@ where
 
     pub fn validator_set(&self) -> &Ctx::ValidatorSet {
         self.driver.validator_set()
+    }
+
+    pub fn timeouts(&self) -> &Timeouts {
+        self.driver.timeouts()
     }
 
     pub fn get_proposer(&self, height: Ctx::Height, round: Round) -> &Ctx::Address {
@@ -171,12 +176,13 @@ where
         &mut self,
         height: Ctx::Height,
         validator_set: Ctx::ValidatorSet,
+        timeouts: Option<Timeouts>,
     ) {
         self.full_proposal_keeper.clear();
         self.last_signed_prevote = None;
         self.last_signed_precommit = None;
 
-        self.driver.move_to_height(height, validator_set);
+        self.driver.move_to_height(height, validator_set, timeouts);
     }
 
     /// Return the round and value id of the decided value.

@@ -10,7 +10,7 @@ use malachitebft_core_state_machine::state_machine::Info;
 use malachitebft_core_types::{
     CommitCertificate, Context, EnterRoundCertificate, NilOrVal, PolkaCertificate, PolkaSignature,
     Proposal, Round, RoundCertificateType, SignedProposal, SignedVote, Timeout, TimeoutKind,
-    Validator, ValidatorSet, Validity, Value, ValueId, Vote, VoteType,
+    Timeouts, Validator, ValidatorSet, Validity, Value, ValueId, Vote, VoteType,
 };
 use malachitebft_core_votekeeper::keeper::Output as VKOutput;
 use malachitebft_core_votekeeper::keeper::VoteKeeper;
@@ -39,6 +39,9 @@ where
 
     /// The validator set at the current height
     validator_set: Ctx::ValidatorSet,
+
+    /// The timeouts at the current height
+    timeouts: Timeouts,
 
     /// The proposer for the current round, None for round nil.
     proposer: Option<Ctx::Address>,
@@ -81,6 +84,7 @@ where
         ctx: Ctx,
         height: Ctx::Height,
         validator_set: Ctx::ValidatorSet,
+        timeouts: Timeouts,
         address: Ctx::Address,
         threshold_params: ThresholdParams,
     ) -> Self {
@@ -93,6 +97,7 @@ where
             address,
             threshold_params,
             validator_set,
+            timeouts,
             proposal_keeper,
             vote_keeper,
             round_state,
@@ -107,8 +112,13 @@ where
     }
 
     /// Reset votes, round state, pending input
-    /// and move to new height with the given validator set.
-    pub fn move_to_height(&mut self, height: Ctx::Height, validator_set: Ctx::ValidatorSet) {
+    /// and move to new height with the given validator set and optional timeouts.
+    pub fn move_to_height(
+        &mut self,
+        height: Ctx::Height,
+        validator_set: Ctx::ValidatorSet,
+        timeouts: Option<Timeouts>,
+    ) {
         // Reset the proposal keeper
         let proposal_keeper = ProposalKeeper::new();
 
@@ -117,6 +127,10 @@ where
 
         // Reset the round state
         let round_state = RoundState::new(height, Round::Nil);
+
+        if let Some(timeouts) = timeouts {
+            self.timeouts = timeouts;
+        }
 
         self.validator_set = validator_set;
         self.proposal_keeper = proposal_keeper;
@@ -200,6 +214,11 @@ where
     /// Return the validator set for this height.
     pub fn validator_set(&self) -> &Ctx::ValidatorSet {
         &self.validator_set
+    }
+
+    /// Return the timeouts for this height.
+    pub fn timeouts(&self) -> &Timeouts {
+        &self.timeouts
     }
 
     /// Return the proposer address for the current round, if any.

@@ -1,7 +1,7 @@
 use derive_where::derive_where;
 use malachitebft_core_types::{
-    Context, PolkaCertificate, RoundCertificate, SignedProposal, SignedVote, Timeout, ValueOrigin,
-    ValueResponse,
+    Context, PolkaCertificate, RoundCertificate, SignedProposal, SignedVote, Timeout, Timeouts,
+    ValueOrigin, ValueResponse,
 };
 
 use crate::types::{LocallyProposedValue, ProposedValue};
@@ -13,7 +13,7 @@ where
     Ctx: Context,
 {
     /// Start consensus for the given height with the given validator set
-    StartHeight(Ctx::Height, Ctx::ValidatorSet, bool),
+    StartHeight(Ctx::Height, Ctx::ValidatorSet, bool, Option<Timeouts>),
 
     /// Process a vote received over the network.
     Vote(SignedVote<Ctx>),

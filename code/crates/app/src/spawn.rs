@@ -7,6 +7,7 @@ use eyre::Result;
 use tokio::task::JoinHandle;
 use tracing::Span;
 
+use malachitebft_core_types::Timeouts;
 use malachitebft_engine::consensus::{Consensus, ConsensusCodec, ConsensusParams, ConsensusRef};
 use malachitebft_engine::host::HostRef;
 use malachitebft_engine::network::{Network, NetworkRef};
@@ -73,6 +74,7 @@ where
 pub async fn spawn_consensus_actor<Ctx>(
     initial_height: Ctx::Height,
     initial_validator_set: Ctx::ValidatorSet,
+    initial_timeouts: Timeouts,
     address: Ctx::Address,
     ctx: Ctx,
     mut cfg: ConsensusConfig,
@@ -99,6 +101,7 @@ where
     let consensus_params = ConsensusParams {
         initial_height,
         initial_validator_set,
+        initial_timeouts,
         address,
         threshold_params: Default::default(),
         value_payload,

@@ -14,7 +14,7 @@ use malachitebft_app::node::{
 };
 use malachitebft_app::types::Keypair;
 use malachitebft_config::mempool_load::UniformLoadConfig;
-use malachitebft_core_types::VotingPower;
+use malachitebft_core_types::{Timeouts, VotingPower};
 use malachitebft_engine::node::NodeRef;
 use malachitebft_starknet_p2p_types::Ed25519Provider;
 
@@ -166,6 +166,7 @@ impl Node for StarknetNode {
             config.clone(),
             self.home_dir.clone(),
             genesis.validator_set,
+            Timeouts::default(),
             private_key,
             start_height,
             tx_event.clone(),
@@ -253,7 +254,6 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
             enabled: true,
             value_payload: ValuePayload::PartsOnly,
             queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`
-            timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
                 listen_addr: settings.transport.multiaddr("127.0.0.1", consensus_port),
@@ -351,7 +351,6 @@ fn make_distributed_config(
             enabled: true,
             queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`
             value_payload: ValuePayload::PartsOnly,
-            timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
                 listen_addr: settings.transport.multiaddr(&machine, consensus_port),
