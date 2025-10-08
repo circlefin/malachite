@@ -158,6 +158,29 @@ where
 
                 self.metrics.increment_total_failed_dials();
 
+                // For bootstrap nodes, clear the done_on flag so they can be retried
+                // by the periodic timer. We check and clear by address since bootstrap
+                // nodes may not have peer_id
+                let is_bootstrap = self.bootstrap_nodes.iter().any(|(_, addrs)| {
+                    dial_data
+                        .listen_addrs()
+                        .iter()
+                        .any(|dial_addr| addrs.contains(dial_addr))
+                });
+
+                if is_bootstrap {
+                    // Clear done_on by address
+                    for addr in dial_data.listen_addrs() {
+                        self.controller
+                            .dial
+                            .remove_done_on(&crate::controller::PeerData::Multiaddr(addr));
+                    }
+                    debug!(
+                        "Cleared dial history for bootstrap node addrs={:?} - will be retried by timer",
+                        dial_data.listen_addrs()
+                    );
+                }
+
                 self.make_extension_step(swarm);
             }
         }
@@ -175,7 +198,35 @@ where
 
     pub fn dial_bootstrap_nodes(&mut self, swarm: &Swarm<C>) {
         for (peer_id, listen_addrs) in &self.bootstrap_nodes.clone() {
-            self.add_to_dial_queue(swarm, DialData::new(*peer_id, listen_addrs.clone()));
+            // For bootstrap nodes, check if already attempted (done_on flag)
+            // This prevents overlapping Fibonacci retry sequences since done_on is only cleared
+            // after all retries are exhausted
+            // The Fibonacci retry sequence is started when a connection fails, see handle_failed_connection()
+            // We check by address since bootstrap nodes may not have peer_id
+            let already_attempted = listen_addrs.iter().any(|addr| {
+                self.controller
+                    .dial
+                    .is_done_on(&crate::controller::PeerData::Multiaddr(addr.clone()))
+            });
+
+            if already_attempted {
+                continue;
+            }
+
+            let dial_data = DialData::new(*peer_id, listen_addrs.clone());
+
+            // For bootstrap nodes, always attempt to dial even if previously failed
+            // This ensures persistent peers are retried indefinitely
+            if self.should_dial(swarm, &dial_data, false) {
+                debug!(
+                    "Adding bootstrap node to dial queue: peer_id={:?}, queue_len_before={}, in_progress_len={}",
+                    dial_data.peer_id(),
+                    self.controller.dial.queue_len(),
+                    self.controller.dial.is_idle().1
+                );
+                self.controller.dial_register_done_on(&dial_data);
+                self.controller.dial.add_to_queue(dial_data, None);
+            }
         }
     }
 }
