@@ -104,9 +104,13 @@ pub enum AppMsg<Ctx: Context> {
     /// The application MUST reply with a message to instruct
     /// consensus to start at a given height.
     ConsensusReady {
-        /// Channel for sending back the height to start at
-        /// and the validator set for that height
-        reply: Reply<(Ctx::Height, Ctx::ValidatorSet)>,
+        /// Channel for sending back the height to start at,
+        /// the validator set for that height, and optionally the timeouts
+        reply: Reply<(
+            Ctx::Height,
+            Ctx::ValidatorSet,
+            Option<malachitebft_app::types::core::Timeouts>,
+        )>,
     },
 
     /// Notifies the application that a new consensus round has begun.
@@ -265,26 +269,34 @@ pub enum AppMsg<Ctx: Context> {
 #[derive_where(Debug)]
 pub enum ConsensusMsg<Ctx: Context> {
     /// Instructs consensus to start a new height with the given validator set.
-    StartHeight(Ctx::Height, Ctx::ValidatorSet),
+    StartHeight(
+        Ctx::Height,
+        Ctx::ValidatorSet,
+        Option<malachitebft_app::types::core::Timeouts>,
+    ),
 
     /// Previousuly received value proposed by a validator
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
 
     /// Instructs consensus to restart at a given height with the given validator set.
-    RestartHeight(Ctx::Height, Ctx::ValidatorSet),
+    RestartHeight(
+        Ctx::Height,
+        Ctx::ValidatorSet,
+        Option<malachitebft_app::types::core::Timeouts>,
+    ),
 }
 
 impl<Ctx: Context> From<ConsensusMsg<Ctx>> for ConsensusActorMsg<Ctx> {
     fn from(msg: ConsensusMsg<Ctx>) -> ConsensusActorMsg<Ctx> {
         match msg {
-            ConsensusMsg::StartHeight(height, validator_set) => {
-                ConsensusActorMsg::StartHeight(height, validator_set)
+            ConsensusMsg::StartHeight(height, validator_set, timeouts) => {
+                ConsensusActorMsg::StartHeight(height, validator_set, timeouts)
             }
             ConsensusMsg::ReceivedProposedValue(value, origin) => {
                 ConsensusActorMsg::ReceivedProposedValue(value, origin)
             }
-            ConsensusMsg::RestartHeight(height, validator_set) => {
-                ConsensusActorMsg::RestartHeight(height, validator_set)
+            ConsensusMsg::RestartHeight(height, validator_set, timeouts) => {
+                ConsensusActorMsg::RestartHeight(height, validator_set, timeouts)
             }
         }
     }

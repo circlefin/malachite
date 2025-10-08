@@ -68,6 +68,7 @@ pub async fn spawn_node_actor(
         &address,
         &private_key,
         &initial_validator_set,
+        initial_timeouts,
         mempool,
         mempool_load,
         network.clone(),
@@ -366,6 +367,7 @@ async fn spawn_host_actor(
     address: &Address,
     private_key: &PrivateKey,
     initial_validator_set: &ValidatorSet,
+    initial_timeouts: Timeouts,
     mempool: MempoolRef,
     mempool_load: MempoolLoadRef,
     network: NetworkRef<MockContext>,
@@ -395,6 +397,7 @@ async fn spawn_host_actor(
         *address,
         private_key.clone(),
         initial_validator_set.clone(),
+        initial_timeouts,
     );
 
     Host::spawn(
