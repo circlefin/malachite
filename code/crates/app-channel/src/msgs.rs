@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use derive_where::derive_where;
+use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tracing::error;
@@ -21,6 +22,35 @@ use crate::app::types::sync::RawDecidedValue;
 use crate::app::types::{LocallyProposedValue, PeerId, ProposedValue};
 
 pub type Reply<T> = oneshot::Sender<T>;
+
+/// Errors that can occur when sending a request to consensus or receiving its response.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Error)]
+pub enum ConsensusRequestError {
+    /// The request channel is closed (typically because consensus has stopped)
+    #[error("The request channel is closed")]
+    Closed,
+    /// The request channel is full (there are more requests than consensus can process)
+    #[error("The request channel is full")]
+    Full,
+    /// Failed to receive the response (consensus went down before sending a reply or something else went wrong)
+    #[error("Failed to receive the response")]
+    Recv,
+}
+
+impl<T> From<mpsc::error::TrySendError<T>> for ConsensusRequestError {
+    fn from(err: mpsc::error::TrySendError<T>) -> Self {
+        match err {
+            mpsc::error::TrySendError::Closed(_) => Self::Closed,
+            mpsc::error::TrySendError::Full(_) => Self::Full,
+        }
+    }
+}
+
+impl From<oneshot::error::RecvError> for ConsensusRequestError {
+    fn from(_: oneshot::error::RecvError) -> Self {
+        Self::Recv
+    }
+}
 
 /// Represents requests that can be sent to the consensus engine by the application.
 ///
@@ -44,10 +74,19 @@ pub type Reply<T> = oneshot::Sender<T>;
 /// fn monitor_state(tx_request: mpsc::Sender<ConsensusRequest<TestContext>>) {
 ///     tokio::spawn(async move {
 ///         loop {
-///             if let Some(dump) = ConsensusRequest::dump_state(&tx_request).await {
-///                 tracing::debug!("State dump: {dump:#?}");
-///             } else {
-///                 tracing::debug!("Failed to dump state");
+///             match ConsensusRequest::dump_state(&tx_request).await {
+///                 Ok(dump) => {
+///                     tracing::debug!("State dump: {dump:#?}");
+///                 }
+///                 Err(ConsensusRequestError::Recv) => {
+///                     tracing::error!("Failed to receive state dump from consensus");
+///                 }
+///                 Err(ConsensusRequestError::Full) => {
+///                     tracing::error!("Consensus request channel full");
+///                 }
+///                 Err(ConsensusRequestError::Closed) => {
+///                     tracing::error!("Consensus request channel closed");
+///                 }
 ///             }
 ///
 ///             sleep(Duration::from_secs(1)).await;
@@ -66,21 +105,18 @@ impl<Ctx: Context> ConsensusRequest<Ctx> {
     /// If the request fails, `None` is returned.
     pub async fn dump_state(
         tx_request: &mpsc::Sender<ConsensusRequest<Ctx>>,
-    ) -> Option<StateDump<Ctx>> {
+    ) -> Result<StateDump<Ctx>, ConsensusRequestError> {
         let (tx, rx) = oneshot::channel();
 
         tx_request
-            .send(Self::DumpState(tx))
-            .await
-            .inspect_err(|e| error!("Failed to send DumpState request to consensus: {e}"))
-            .ok()?;
+            .try_send(Self::DumpState(tx))
+            .inspect_err(|e| error!("Failed to send DumpState request to consensus: {e}"))?;
 
         let dump = rx
             .await
-            .inspect_err(|e| error!("Failed to receive DumpState response from consensus: {e}"))
-            .ok()?;
+            .inspect_err(|e| error!("Failed to receive DumpState response from consensus: {e}"))?;
 
-        Some(dump)
+        Ok(dump)
     }
 }
 
