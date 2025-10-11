@@ -105,8 +105,8 @@ Malachite provides implementations for the consensus core, engine and networking
 
 * Consensus core - See [ADR-004][adr-004]
 * Engine without networking - [Snapchain](https://github.com/farcasterxyz/snapchain)
-* Engine with networking (channel-based) - [Example application](https://github.com/informalsystems/malachite/tree/main/code/examples/channel)
-* Engine with networking (actor-based) - [Starknet test application](https://github.com/informalsystems/malachite/tree/main/code/crates/starknet)
+* Engine with networking (channel-based) - [Example application](https://github.com/circlefin/malachite/tree/main/code/examples/channel)
+* Engine with networking (actor-based) - [Starknet test application](https://github.com/circlefin/malachite/tree/main/code/crates/starknet)
 
 #### Changes to Tendermint
 
