@@ -105,6 +105,14 @@ impl<Ctx: Context> WalEntry<Ctx> {
         }
     }
 
+    pub fn height(&self) -> Option<Ctx::Height> {
+        match self {
+            WalEntry::ConsensusMsg(msg) => Some(msg.height()),
+            WalEntry::Timeout(_) => None,
+            WalEntry::ProposedValue(value) => Some(value.height),
+        }
+    }
+
     pub fn as_consensus_msg(&self) -> Option<&SignedConsensusMsg<Ctx>> {
         match self {
             WalEntry::ConsensusMsg(msg) => Some(msg),

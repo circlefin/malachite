@@ -100,7 +100,11 @@ where
 
             Msg::Append(height, entry, reply_to) => {
                 if height != state.height {
-                    warn!(wal.height = %state.height, entry.height = %height, "Ignoring append, mismatched height");
+                    debug!(
+                        wal.height = %state.height,
+                        entry.height = %entry.height().unwrap_or(height),
+                        "Ignoring append, mismatched height"
+                    );
 
                     reply_to
                         .send(Ok(()))

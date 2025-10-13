@@ -901,7 +901,10 @@ where
             return Ok(());
         }
 
-        debug!(%height, "Appending entry to WAL: {}", entry.get_type());
+        debug!(
+            state.height = %height, entry.height = ?entry.height(),
+            "Appending entry to WAL: {}", entry.get_type()
+        );
 
         let result = ractor::call!(self.wal, WalMsg::Append, height, entry);
 
