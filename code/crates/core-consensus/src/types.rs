@@ -97,6 +97,14 @@ pub enum WalEntry<Ctx: Context> {
 }
 
 impl<Ctx: Context> WalEntry<Ctx> {
+    pub fn get_type(&self) -> &'static str {
+        match self {
+            WalEntry::ConsensusMsg(_) => "ConsensusMsg",
+            WalEntry::Timeout(_) => "Timeout",
+            WalEntry::ProposedValue(_) => "ProposedValue",
+        }
+    }
+
     pub fn as_consensus_msg(&self) -> Option<&SignedConsensusMsg<Ctx>> {
         match self {
             WalEntry::ConsensusMsg(msg) => Some(msg),
