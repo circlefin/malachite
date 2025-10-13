@@ -99,10 +99,21 @@ where
             }
 
             Msg::Append(height, entry, reply_to) => {
-                if height != state.height {
+                if entry.height() != Some(height) {
+                    error!(
+                        wal.height = %state.height,
+                        state.height = %height,
+                        entry.height = ?entry.height(),
+                        "Wrong append, mismatched entry height"
+                    );
+                }
+
+                let entry_height = entry.height().unwrap_or(height);
+
+                if entry_height != state.height {
                     debug!(
                         wal.height = %state.height,
-                        entry.height = %entry.height().unwrap_or(height),
+                        entry.height = %entry_height,
                         "Ignoring append, mismatched height"
                     );
 
