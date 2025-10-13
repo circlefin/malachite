@@ -14,7 +14,7 @@ where
     // Only rebroadcast if we're an active validator
     if state.is_active_validator() {
         if let Some(vote) = state.last_signed_prevote.as_ref() {
-            warn!(
+            info!(
                 %height, %round, vote_height = %vote.height(), vote_round = %vote.round(),
                 "Rebroadcasting vote at {:?} step",
                 state.driver.step()
@@ -24,7 +24,7 @@ where
         };
 
         if let Some(vote) = state.last_signed_precommit.as_ref() {
-            warn!(
+            info!(
                 %height, %round, vote_height = %vote.height(), vote_round = %vote.round(),
                 "Rebroadcasting vote at {:?} step",
                 state.driver.step()
@@ -34,7 +34,7 @@ where
 
         if let Some(cert) = state.round_certificate() {
             if cert.enter_round == round {
-                warn!(
+                info!(
                     %cert.certificate.height,
                     %round,
                     %cert.certificate.round,

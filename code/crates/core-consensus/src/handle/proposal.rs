@@ -42,7 +42,7 @@ where
 
     // Discard proposals for heights lower than the current height.
     if proposal_height < consensus_height {
-        warn!(
+        debug!(
             consensus.height = %consensus_height,
             proposal.height = %proposal_height,
             proposer = %proposer_address,

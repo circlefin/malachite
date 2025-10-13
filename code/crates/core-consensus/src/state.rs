@@ -1,4 +1,4 @@
-use tracing::warn;
+use tracing::info;
 
 use malachitebft_core_driver::Driver;
 use malachitebft_core_types::*;
@@ -216,43 +216,43 @@ where
 
     pub fn print_state(&self) {
         if let Some(per_round) = self.driver.votes().per_round(self.driver.round()) {
-            warn!(
+            info!(
                 "Number of validators having voted: {} / {}",
                 per_round.addresses_weights().get_inner().len(),
                 self.driver.validator_set().count()
             );
-            warn!(
+            info!(
                 "Total voting power of validators: {}",
                 self.driver.validator_set().total_voting_power()
             );
-            warn!(
+            info!(
                 "Voting power required: {}",
                 self.params
                     .threshold_params
                     .quorum
                     .min_expected(self.driver.validator_set().total_voting_power())
             );
-            warn!(
+            info!(
                 "Total voting power of validators having voted: {}",
                 per_round.addresses_weights().sum()
             );
-            warn!(
+            info!(
                 "Total voting power of validators having prevoted nil: {}",
                 per_round
                     .votes()
                     .get_weight(VoteType::Prevote, &NilOrVal::Nil)
             );
-            warn!(
+            info!(
                 "Total voting power of validators having precommited nil: {}",
                 per_round
                     .votes()
                     .get_weight(VoteType::Precommit, &NilOrVal::Nil)
             );
-            warn!(
+            info!(
                 "Total weight of prevotes: {}",
                 per_round.votes().weight_sum(VoteType::Prevote)
             );
-            warn!(
+            info!(
                 "Total weight of precommits: {}",
                 per_round.votes().weight_sum(VoteType::Precommit)
             );

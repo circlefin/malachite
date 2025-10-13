@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use malachitebft_core_types::Context;
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::consensus::ConsensusMsg;
 
@@ -24,7 +24,7 @@ impl<Ctx: Context> MessageBuffer<Ctx> {
             self.messages.push_back(msg);
             true
         } else {
-            warn!("Buffer is full, dropping message: {msg:?}");
+            info!("Buffer is full, dropping message: {msg:?}");
             false
         }
     }

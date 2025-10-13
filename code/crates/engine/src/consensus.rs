@@ -686,7 +686,7 @@ where
             timeout.kind,
             TimeoutKind::Prevote | TimeoutKind::Precommit | TimeoutKind::Rebroadcast
         ) {
-            warn!(step = ?timeout.kind, "Timeout elapsed");
+            info!(step = ?timeout.kind, "Timeout elapsed");
             state.consensus.print_state();
         }
 

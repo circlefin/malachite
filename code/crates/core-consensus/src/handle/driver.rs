@@ -93,7 +93,7 @@ where
 
         DriverInput::Proposal(proposal, _validity) => {
             if proposal.height() != state.driver.height() {
-                warn!(
+                debug!(
                     "Ignoring proposal for height {}, current height: {}",
                     proposal.height(),
                     state.driver.height()
@@ -105,7 +105,7 @@ where
 
         DriverInput::Vote(vote) => {
             if vote.height() != state.driver.height() {
-                warn!(
+                debug!(
                     "Ignoring vote for height {}, current height: {}",
                     vote.height(),
                     state.driver.height()
@@ -117,7 +117,7 @@ where
 
         DriverInput::CommitCertificate(certificate) => {
             if certificate.height != state.driver.height() {
-                warn!(
+                debug!(
                     "Ignoring commit certificate for height {}, current height: {}",
                     certificate.height,
                     state.driver.height()
@@ -129,7 +129,7 @@ where
 
         DriverInput::PolkaCertificate(certificate) => {
             if certificate.height != state.driver.height() {
-                warn!(
+                debug!(
                     "Ignoring polka certificate for height {}, current height: {}",
                     certificate.height,
                     state.driver.height()

@@ -104,7 +104,7 @@ where
 
     // Discard certificates for heights that do not match the current height.
     if certificate.height != state.height() {
-        warn!(
+        debug!(
             %certificate.height,
             consensus.height = %state.height(),
             "Round certificate height mismatch"
@@ -116,7 +116,7 @@ where
     match certificate.cert_type {
         RoundCertificateType::Precommit => {
             if certificate.round < state.round() {
-                warn!(
+                debug!(
                     %certificate.round,
                     consensus.round = %state.round(),
                     "Precommit round certificate from older round"
@@ -126,7 +126,7 @@ where
         }
         RoundCertificateType::Skip => {
             if certificate.round <= state.round() {
-                warn!(
+                debug!(
                     %certificate.round,
                     consensus.round = %state.round(),
                     "Skip round certificate from same or older round"

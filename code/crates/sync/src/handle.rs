@@ -185,7 +185,7 @@ where
     }
 
     if peer_height >= state.sync_height {
-        warn!(
+        info!(
             height.tip = %state.tip_height,
             height.sync = %state.sync_height,
             height.peer = %peer_height,

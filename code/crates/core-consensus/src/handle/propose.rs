@@ -91,7 +91,7 @@ where
     Ctx: Context,
 {
     if state.height() != local_value.height {
-        warn!(
+        debug!(
             "Ignoring value for height {}, current height: {}",
             local_value.height,
             state.height()
@@ -101,7 +101,7 @@ where
     }
 
     if state.round() != local_value.round {
-        warn!(
+        debug!(
             "Ignoring value for round {}, current round: {}",
             local_value.round,
             state.driver.round()
