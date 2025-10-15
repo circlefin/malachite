@@ -108,11 +108,6 @@ where
                         .send(Ok(()))
                         .map_err(|e| eyre!("Failed to send reply: {e}"))?;
                 } else {
-                    debug!(
-                        wal.height = %state.height, entry.height = %height,
-                        "Appending entry to WAL: {entry:?}"
-                    );
-
                     self.write_log(state, entry, reply_to).await?;
                 }
             }
