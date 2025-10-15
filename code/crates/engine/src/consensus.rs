@@ -265,9 +265,8 @@ where
     }
 }
 
-struct HandlerState<'a, Ctx: Context> {
+struct HandlerState<'a> {
     phase: Phase,
-    height: Ctx::Height,
     timers: &'a mut Timers,
     timeouts: &'a mut Timeouts,
 }
@@ -314,11 +313,6 @@ where
         state: &mut State<Ctx>,
         input: ConsensusInput<Ctx>,
     ) -> Result<(), ConsensusError<Ctx>> {
-        let height = state.height();
-
-        // By the time the effect is processed the state height might have changed.
-        // This happens for input Msg::StartHeight(height), so height is potentially stale.
-
         malachitebft_core_consensus::process!(
             input: input,
             state: &mut state.consensus,
@@ -326,7 +320,6 @@ where
             with: effect => {
                 let handler_state = HandlerState {
                     phase: state.phase,
-                    height,
                     timers: &mut state.timers,
                     timeouts: &mut state.timeouts,
                 };
@@ -943,7 +936,7 @@ where
     async fn handle_effect(
         &self,
         myself: &ActorRef<Msg<Ctx>>,
-        state: HandlerState<'_, Ctx>,
+        state: HandlerState<'_>,
         effect: Effect<Ctx>,
     ) -> Result<Resume<Ctx>, ActorProcessingErr> {
         match effect {
@@ -1291,8 +1284,8 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::WalAppend(entry, r) => {
-                self.wal_append(state.height, entry, state.phase).await?;
+            Effect::WalAppend(height, entry, r) => {
+                self.wal_append(height, entry, state.phase).await?;
                 Ok(r.resume_with(()))
             }
         }

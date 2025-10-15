@@ -82,6 +82,7 @@ where
         perform!(
             co,
             Effect::WalAppend(
+                signed_vote.height(),
                 WalEntry::ConsensusMsg(SignedConsensusMsg::Vote(signed_vote.clone())),
                 Default::default()
             )

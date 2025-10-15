@@ -94,6 +94,7 @@ where
         perform!(
             co,
             Effect::WalAppend(
+                signed_proposal.height(),
                 WalEntry::ConsensusMsg(SignedConsensusMsg::Proposal(signed_proposal.clone())),
                 Default::default()
             )

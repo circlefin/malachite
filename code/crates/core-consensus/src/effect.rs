@@ -217,9 +217,10 @@ where
     ),
 
     /// Append an entry to the Write-Ahead Log for crash recovery
+    /// If the WAL is not at the given height, the entry should be ignored.
     ///
     /// Resume with: [`resume::Continue`]`
-    WalAppend(WalEntry<Ctx>, resume::Continue),
+    WalAppend(Ctx::Height, WalEntry<Ctx>, resume::Continue),
 
     /// Allows the application to extend the pre-commit vote with arbitrary data.
     ///

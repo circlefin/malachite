@@ -52,6 +52,7 @@ where
         perform!(
             co,
             Effect::WalAppend(
+                proposed_value.height,
                 WalEntry::ProposedValue(proposed_value.clone()),
                 Default::default()
             )
