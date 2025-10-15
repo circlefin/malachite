@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use eyre::eyre;
 use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, RpcReplyPort, SpawnErr};
 use tokio::sync::{mpsc, oneshot};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use malachitebft_core_types::{Context, Height};
 use malachitebft_metrics::SharedRegistry;
@@ -99,7 +99,7 @@ where
 
             Msg::Append(height, entry, reply_to) => {
                 if height != state.height {
-                    debug!(
+                    warn!(
                         wal.height = %state.height, entry.height = %height,
                         "Ignoring append, mismatched height: {entry:?}"
                     );
