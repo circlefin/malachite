@@ -91,8 +91,8 @@ where
     Ctx: Context,
 {
     if state.height() != local_value.height {
-        debug!(
-            "Ignoring value for height {}, current height: {}",
+        warn!(
+            "Received locally proposed value for wrong height {}, current height: {}",
             local_value.height,
             state.height()
         );

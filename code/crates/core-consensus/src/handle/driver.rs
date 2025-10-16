@@ -93,8 +93,8 @@ where
 
         DriverInput::Proposal(proposal, _validity) => {
             if proposal.height() != state.driver.height() {
-                debug!(
-                    "Ignoring proposal for height {}, current height: {}",
+                warn!(
+                    "Received proposal for wrong height {}, current height: {}",
                     proposal.height(),
                     state.driver.height()
                 );
@@ -105,8 +105,8 @@ where
 
         DriverInput::Vote(vote) => {
             if vote.height() != state.driver.height() {
-                debug!(
-                    "Ignoring vote for height {}, current height: {}",
+                warn!(
+                    "Received vote for wrong height {}, current height: {}",
                     vote.height(),
                     state.driver.height()
                 );
@@ -117,8 +117,8 @@ where
 
         DriverInput::CommitCertificate(certificate) => {
             if certificate.height != state.driver.height() {
-                debug!(
-                    "Ignoring commit certificate for height {}, current height: {}",
+                warn!(
+                    "Received commit certificate for wrong height {}, current height: {}",
                     certificate.height,
                     state.driver.height()
                 );
@@ -129,8 +129,8 @@ where
 
         DriverInput::PolkaCertificate(certificate) => {
             if certificate.height != state.driver.height() {
-                debug!(
-                    "Ignoring polka certificate for height {}, current height: {}",
+                warn!(
+                    "Received polka certificate for wrong height {}, current height: {}",
                     certificate.height,
                     state.driver.height()
                 );
@@ -159,7 +159,7 @@ where
 
         if let Some(valid) = &state.driver.valid_value() {
             if state.driver.step_is_propose() {
-                info!(
+                debug!(
                     round = %valid.round,
                     "Entering Propose step with a valid value"
                 );
@@ -226,6 +226,7 @@ where
         DriverOutput::Propose(proposal) => {
             info!(
                 id = %proposal.value().id(),
+                height = %proposal.height(),
                 round = %proposal.round(),
                 "Proposing value"
             );
