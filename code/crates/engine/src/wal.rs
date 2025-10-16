@@ -4,14 +4,7 @@ use std::path::PathBuf;
 use eyre::eyre;
 use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, RpcReplyPort, SpawnErr};
 use tokio::sync::{mpsc, oneshot};
-<<<<<<< HEAD
 use tracing::{debug, error, info, warn};
-||||||| parent of 26e1d7b2 (Lower some warnings to debug or info)
-use tracing::warn;
-use tracing::{debug, error, info};
-=======
-use tracing::{debug, error, info};
->>>>>>> 26e1d7b2 (Lower some warnings to debug or info)
 
 use malachitebft_core_types::{Context, Height};
 use malachitebft_metrics::SharedRegistry;
