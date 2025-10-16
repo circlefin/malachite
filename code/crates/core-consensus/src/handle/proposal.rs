@@ -36,6 +36,7 @@ where
     Ctx: Context,
 {
     let consensus_height = state.height();
+    let consensus_round = state.round();
     let proposal_height = signed_proposal.height();
     let proposal_round = signed_proposal.round();
     let proposer_address = signed_proposal.validator_address();
@@ -44,6 +45,7 @@ where
     if proposal_height < consensus_height {
         debug!(
             consensus.height = %consensus_height,
+            consensus.round = %consensus_round,
             proposal.height = %proposal_height,
             proposer = %proposer_address,
             "Received proposal for lower height, dropping"
@@ -78,10 +80,11 @@ where
 
     info!(
         consensus.height = %consensus_height,
+        consensus.round = %consensus_round,
         proposal.height = %proposal_height,
         proposal.round = %proposal_round,
+        proposal.msg = %PrettyProposal::<Ctx>(&signed_proposal.message),
         proposer = %proposer_address,
-        message = %PrettyProposal::<Ctx>(&signed_proposal.message),
         "Received proposal"
     );
 
