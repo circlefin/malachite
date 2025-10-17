@@ -159,7 +159,7 @@ where
 
         if let Some(valid) = &state.driver.valid_value() {
             if state.driver.step_is_propose() {
-                debug!(
+                info!(
                     round = %valid.round,
                     "Entering Propose step with a valid value"
                 );
