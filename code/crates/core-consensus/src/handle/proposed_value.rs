@@ -45,7 +45,11 @@ where
     }
 
     if state.height() < proposed_value.height {
-        debug!("Received value for higher height, queuing for later");
+        debug!(
+            consensus.height = %state.height(),
+            value.height = %proposed_value.height,
+            "Received value for higher height, queuing for later"
+        );
 
         state.buffer_input(
             proposed_value.height,

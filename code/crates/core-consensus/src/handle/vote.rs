@@ -38,7 +38,7 @@ where
 
     // Queue votes for heights higher than the current height.
     if consensus_height < vote_height {
-        trace!(
+        debug!(
             consensus.height = %consensus_height,
             consensus.round = %consensus_round,
             vote.height = %vote_height,
@@ -56,7 +56,7 @@ where
     // Process messages received for the current height.
     // Drop all others.
     if consensus_round == Round::Nil {
-        trace!(
+        debug!(
             consensus.height = %consensus_height,
             consensus.round = %consensus_round,
             vote.height = %vote_height,
