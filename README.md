@@ -129,6 +129,9 @@ We are grateful to StarkWare Industries for prompting the initial discussions of
 We are also thankful for the collaboration with Farcaster.
 This led to further refinements and maturing of the Malachite codebase, and their approach to building complex systems and shipping valuable products is an inspiration for us.
 
+We are grateful as well for our collaboration with the Shielded Labs team.
+Their Crosslink system, a PoS + PoW hybrid design for upgrading Zcash, has helped deepen our understanding of BFT system design and push the limits of what Malachite is capable of supporting in terms of novel decentralized systems.
+
 These collaborations reflect work completed prior to the Malachite team joining Circle.
 
 ## License
