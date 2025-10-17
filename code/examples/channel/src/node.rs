@@ -14,7 +14,7 @@ use malachitebft_app_channel::app::node::{
     CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, EngineHandle,
     MakeConfigSettings, Node, NodeHandle,
 };
-use malachitebft_app_channel::app::types::core::{Height as _, VotingPower};
+use malachitebft_app_channel::app::types::core::{Height as _, Timeouts, VotingPower};
 use malachitebft_app_channel::app::types::Keypair;
 
 // Use the same types used for integration tests.
@@ -132,6 +132,7 @@ impl Node for App {
             ProtobufCodec, // Network codec
             self.start_height,
             initial_validator_set,
+            Timeouts::default(),
         )
         .await?;
 
@@ -228,7 +229,6 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
             // Current channel app does not support parts-only value payload properly as Init does not include valid_round
             value_payload: ValuePayload::ProposalAndParts,
             queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`
-            timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
                 listen_addr: settings.transport.multiaddr("127.0.0.1", consensus_port),
