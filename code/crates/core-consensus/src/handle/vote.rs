@@ -1,5 +1,3 @@
-use tracing::trace;
-
 use crate::handle::driver::apply_driver_input;
 use crate::handle::signature::verify_signature;
 use crate::input::Input;
