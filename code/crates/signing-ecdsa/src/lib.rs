@@ -80,8 +80,6 @@ pub trait CurveConfig: Copy + Debug + PartialEq + Eq {
 
 /// ECDSA signature wrapper parameterized by a curve configuration.
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(transparent))]
 pub struct Signature<C: CurveConfig = DefaultCurve>(C::Signature);
 
 impl<C: CurveConfig> Signature<C> {
@@ -243,5 +241,42 @@ impl<C: CurveConfig> SigningScheme for Ecdsa<C> {
 
     fn decode_signature(bytes: &[u8]) -> Result<Self::Signature, Self::DecodingError> {
         Signature::from_slice(bytes)
+    }
+}
+
+#[cfg(all(test, feature = "serde", feature = "k256"))]
+mod tests {
+    use super::{PrivateKey, PublicKey, Signature};
+    use crate::K256Config;
+
+    use serde_json::{from_str, to_string};
+
+    #[test]
+    fn k256_serialization_roundtrip() {
+        let private_key_bytes = [0x11u8; 32];
+        let private_key = PrivateKey::<K256Config>::from_slice(&private_key_bytes)
+            .expect("construct k256 private key");
+
+        let serialized_private = to_string(&private_key).expect("serialize private key");
+        let decoded_private: PrivateKey<K256Config> =
+            from_str(&serialized_private).expect("deserialize private key");
+        assert_eq!(private_key.to_vec(), decoded_private.to_vec());
+
+        let public_key = decoded_private.public_key();
+        let serialized_public = to_string(&public_key).expect("serialize public key");
+        let decoded_public: PublicKey<K256Config> =
+            from_str(&serialized_public).expect("deserialize public key");
+        assert_eq!(public_key.to_vec(), decoded_public.to_vec());
+
+        let message = b"malachite-k256-test";
+        let signature = decoded_private.sign(message);
+        let serialized_signature = to_string(&signature).expect("serialize signature");
+        let decoded_signature: Signature<K256Config> =
+            from_str(&serialized_signature).expect("deserialize signature");
+        assert_eq!(signature.to_vec(), decoded_signature.to_vec());
+
+        decoded_public
+            .verify(message, &decoded_signature)
+            .expect("signature verifies against round-tripped key");
     }
 }
