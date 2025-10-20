@@ -12,12 +12,15 @@ use core::fmt::Debug;
 use core::marker::PhantomData;
 
 use malachitebft_core_types::SigningScheme;
-use signature::{Error as SignatureError, Keypair, Signer, Verifier};
+use signature::{Keypair, Signer, Verifier};
+
+pub use signature::Error as SignatureError;
 
 #[cfg(feature = "rand")]
 use rand::{CryptoRng, RngCore};
 
 #[cfg(feature = "serde")]
+#[cfg_attr(coverage_nightly, coverage(off))]
 pub mod serializers;
 
 mod curve;
@@ -77,6 +80,8 @@ pub trait CurveConfig: Copy + Debug + PartialEq + Eq {
 
 /// ECDSA signature wrapper parameterized by a curve configuration.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
 pub struct Signature<C: CurveConfig = DefaultCurve>(C::Signature);
 
 impl<C: CurveConfig> Signature<C> {
@@ -86,6 +91,10 @@ impl<C: CurveConfig> Signature<C> {
 
     pub fn inner(&self) -> &C::Signature {
         &self.0
+    }
+
+    pub fn into_inner(self) -> C::Signature {
+        self.0
     }
 
     pub fn to_vec(&self) -> Vec<u8> {
