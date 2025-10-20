@@ -1,0 +1,37 @@
+[package]
+name = "informalsystems-malachitebft-signing-ecdsa"
+description = "Generic ECDSA signing scheme utilities for the Malachite BFT consensus engine"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+readme = "../../../README.md"
+
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+default = ["k256"]
+std = []
+serde = ["dep:serde", "dep:base64"]
+rand = ["dep:rand"]
+k256 = ["dep:k256"]
+p256 = ["dep:p256"]
+p384 = ["dep:p384"]
+
+[dependencies]
+malachitebft-core-types = { workspace = true }
+signature = { workspace = true }
+k256 = { workspace = true, optional = true, features = ["ecdsa"] }
+p256 = { workspace = true, optional = true, features = ["ecdsa"] }
+p384 = { workspace = true, optional = true, features = ["ecdsa"] }
+
+# Optional dependencies
+rand = { workspace = true, optional = true }
+serde = { workspace = true, optional = true, features = ["derive", "alloc"] }
+base64 = { workspace = true, optional = true }
+
+[lints]
+workspace = true
