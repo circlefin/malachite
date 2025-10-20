@@ -3,9 +3,6 @@
 
 extern crate alloc;
 
-#[cfg(not(any(feature = "k256", feature = "p256", feature = "p384")))]
-compile_error!("at least one ECDSA curve feature must be enabled");
-
 use alloc::vec::Vec;
 use core::cmp::Ordering;
 use core::fmt::Debug;
@@ -80,7 +77,7 @@ pub trait CurveConfig: Copy + Debug + PartialEq + Eq {
 
 /// ECDSA signature wrapper parameterized by a curve configuration.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Signature<C: CurveConfig = DefaultCurve>(C::Signature);
+pub struct Signature<C: CurveConfig>(C::Signature);
 
 impl<C: CurveConfig> Signature<C> {
     pub fn new(inner: C::Signature) -> Self {
@@ -118,7 +115,7 @@ impl<C: CurveConfig> Ord for Signature<C> {
 
 /// ECDSA signing key wrapper parameterized by a curve configuration.
 #[derive(Clone, Debug)]
-pub struct PrivateKey<C: CurveConfig = DefaultCurve>(C::SigningKey);
+pub struct PrivateKey<C: CurveConfig>(C::SigningKey);
 
 impl<C: CurveConfig> PrivateKey<C> {
     #[cfg(feature = "rand")]
@@ -167,7 +164,7 @@ impl<C: CurveConfig> Keypair for PrivateKey<C> {
 
 /// ECDSA verifying key wrapper parameterized by a curve configuration.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PublicKey<C: CurveConfig = DefaultCurve>(C::VerifyingKey);
+pub struct PublicKey<C: CurveConfig>(C::VerifyingKey);
 
 impl<C: CurveConfig> PublicKey<C> {
     pub fn new(key: impl Into<C::VerifyingKey>) -> Self {
@@ -211,7 +208,7 @@ impl<C: CurveConfig> Verifier<Signature<C>> for PublicKey<C> {
 
 /// Generic ECDSA signing scheme parameterized by the chosen curve configuration.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct Ecdsa<C: CurveConfig = DefaultCurve>(PhantomData<C>);
+pub struct Ecdsa<C: CurveConfig>(PhantomData<C>);
 
 impl<C: CurveConfig> Default for Ecdsa<C> {
     fn default() -> Self {
