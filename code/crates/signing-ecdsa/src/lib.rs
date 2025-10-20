@@ -36,13 +36,6 @@ pub type P256 = Ecdsa<P256Config>;
 #[cfg(feature = "p384")]
 pub type P384 = Ecdsa<P384Config>;
 
-#[cfg(feature = "k256")]
-pub type DefaultCurve = K256Config;
-#[cfg(all(not(feature = "k256"), feature = "p256"))]
-pub type DefaultCurve = P256Config;
-#[cfg(all(not(feature = "k256"), not(feature = "p256"), feature = "p384"))]
-pub type DefaultCurve = P384Config;
-
 /// Describes how to interact with a specific ECDSA curve implementation.
 pub trait CurveConfig: Copy + Debug + PartialEq + Eq {
     type Signature: Clone + Debug + Eq + Send + Sync;
