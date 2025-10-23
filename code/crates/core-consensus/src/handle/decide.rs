@@ -23,7 +23,7 @@ where
     // Look for an existing certificate
     let (certificate, extensions) = state
         .driver
-        .commit_certificate(proposal_round, decided_id.clone())
+        .commit_certificate(proposal_round, &decided_id)
         .cloned()
         .map(|certificate| (certificate, VoteExtensions::default()))
         .unwrap_or_else(|| {

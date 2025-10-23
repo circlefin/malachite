@@ -226,16 +226,22 @@ where
     pub fn commit_certificate(
         &self,
         round: Round,
-        value_id: ValueId<Ctx>,
+        value_id: &ValueId<Ctx>,
     ) -> Option<&CommitCertificate<Ctx>> {
         self.commit_certificates
             .iter()
-            .find(|c| c.round == round && c.value_id == value_id)
+            .find(|c| &c.value_id == value_id && c.round == round && c.height == self.height())
     }
 
-    /// Get all polka certificates
-    pub fn polka_certificates(&self) -> &[PolkaCertificate<Ctx>] {
-        &self.polka_certificates
+    /// Get the polka certificates at the current height for the specified round and value, if it exists
+    pub fn polka_certificate(
+        &self,
+        round: Round,
+        value_id: &ValueId<Ctx>,
+    ) -> Option<&PolkaCertificate<Ctx>> {
+        self.polka_certificates
+            .iter()
+            .find(|c| &c.value_id == value_id && c.round == round && c.height == self.height())
     }
 
     /// Get the round certificate for the current round.

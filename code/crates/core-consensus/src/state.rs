@@ -120,13 +120,13 @@ where
         }
     }
 
-    pub fn polka_certificate_at_round(&self, round: Round) -> Option<PolkaCertificate<Ctx>> {
-        // Get the polka certificate for the specified round if it exists
-        self.driver
-            .polka_certificates()
-            .iter()
-            .find(|c| c.round == round && c.height == self.driver.height())
-            .cloned()
+    /// Get the polka certificate at the current height for the specified round and value, if it exists
+    pub fn polka_certificate(
+        &self,
+        round: Round,
+        value_id: &ValueId<Ctx>,
+    ) -> Option<&PolkaCertificate<Ctx>> {
+        self.driver.polka_certificate(round, value_id)
     }
 
     pub fn full_proposal_at_round_and_value(

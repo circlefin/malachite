@@ -1,7 +1,7 @@
 use derive_where::derive_where;
 
 use malachitebft_core_driver::Error as DriverError;
-use malachitebft_core_types::{CertificateError, CommitCertificate, Context, Round};
+use malachitebft_core_types::{CertificateError, CommitCertificate, Context, Round, ValueId};
 
 use crate::effect::Resume;
 
@@ -46,4 +46,7 @@ where
     /// The certificate is invalid.
     #[error("Invalid certificate: {1}")]
     InvalidCommitCertificate(CommitCertificate<Ctx>, CertificateError<Ctx>),
+
+    #[error("Missing polka certificate at height {0}, round {1}, value {2}, for {3}")]
+    MissingPolkaCertificate(Ctx::Height, Round, ValueId<Ctx>, &'static str),
 }

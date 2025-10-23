@@ -263,23 +263,27 @@ where
                     );
                 };
 
-                // Publishing the polka certificate of the re-proposed value
+                // When the proposed value is a re-proposal (i.e., it has a pol_round),
+                // publishing the polka certificate of the re-proposed value
                 // ensures all validators receive it, which is necessary for
                 // them to accept the re-proposed value.
                 if proposal.pol_round().is_defined() {
-                    // Broadcast the polka certificate at pol_round
-                    let Some(polka_certificate) =
-                        state.polka_certificate_at_round(proposal.pol_round())
-                    else {
-                        panic!(
-                            "Missing polka certificate for pol_round {}",
-                            proposal.pol_round()
-                        );
-                    };
+                    let polka_certificate = state
+                        .polka_certificate(proposal.pol_round(), &proposal.value().id())
+                        .ok_or_else(|| {
+                            Error::MissingPolkaCertificate(
+                                state.driver.height(),
+                                proposal.pol_round(),
+                                proposal.value().id().clone(),
+                                "reproposal (safety)",
+                            )
+                        })?;
+
+                    // Publish the polka certificate at pol_round for the re-proposed value
                     perform!(
                         co,
                         Effect::PublishLivenessMsg(
-                            LivenessMsg::PolkaCertificate(polka_certificate),
+                            LivenessMsg::PolkaCertificate(polka_certificate.clone()),
                             Default::default()
                         )
                     );
@@ -336,19 +340,21 @@ where
                             );
                         }
 
-                        let Some(polka_certificate) =
-                            state.polka_certificate_at_round(vote.round())
-                        else {
-                            panic!(
-                                "Missing polka certificate for Precommit({:?}) at round {}",
-                                vote.value(),
-                                vote.round()
-                            );
-                        };
+                        let polka_certificate = state
+                            .polka_certificate(vote.round(), value_id)
+                            .ok_or_else(|| {
+                                Error::MissingPolkaCertificate(
+                                    state.driver.height(),
+                                    vote.round(),
+                                    value_id.clone(),
+                                    "precommit (liveness)",
+                                )
+                            })?;
+
                         perform!(
                             co,
                             Effect::PublishLivenessMsg(
-                                LivenessMsg::PolkaCertificate(polka_certificate),
+                                LivenessMsg::PolkaCertificate(polka_certificate.clone()),
                                 Default::default()
                             )
                         );
