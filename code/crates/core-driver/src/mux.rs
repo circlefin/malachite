@@ -372,11 +372,17 @@ where
                     }
                 }
 
-                Step::Prevote if has_polka_value(&self.vote_keeper, round, proposal) => result
-                    .push(self.multiplex_vote_threshold(
+                Step::Prevote
+                    if has_polka_value(&self.vote_keeper, round, proposal)
+                        || self
+                            .polka_certificate(round, &proposal.value().id())
+                            .is_some() =>
+                {
+                    result.push(self.multiplex_vote_threshold(
                         VKOutput::PolkaValue(proposal.value().id()),
                         round,
-                    )),
+                    ))
+                }
 
                 _ => {}
             }
