@@ -9,6 +9,7 @@ publish = false
 
 [dependencies]
 malachitebft-core-types.workspace = true
+malachitebft-engine.workspace = true
 malachitebft-proto.workspace = true
 malachitebft-starknet-p2p-proto.workspace = true
 malachitebft-signing.workspace = true

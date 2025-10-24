@@ -5,7 +5,7 @@ use tokio::task::JoinHandle;
 use tracing::warn;
 
 use malachitebft_config::{self as config, MempoolConfig, MempoolLoadConfig, ValueSyncConfig};
-use malachitebft_core_types::ValuePayload;
+use malachitebft_core_types::{Timeouts, ValuePayload};
 use malachitebft_engine::consensus::{Consensus, ConsensusParams, ConsensusRef};
 use malachitebft_engine::host::HostRef;
 use malachitebft_engine::network::{Network, NetworkRef};
@@ -30,10 +30,12 @@ use crate::metrics::Metrics as AppMetrics;
 use crate::types::MockContext;
 use crate::types::{Address, Height, PrivateKey, ValidatorSet};
 
+#[allow(clippy::too_many_arguments)]
 pub async fn spawn_node_actor(
     cfg: Config,
     home_dir: PathBuf,
     initial_validator_set: ValidatorSet,
+    initial_timeouts: Timeouts,
     private_key: PrivateKey,
     start_height: Option<Height>,
     tx_event: TxEvent<MockContext>,
@@ -66,6 +68,7 @@ pub async fn spawn_node_actor(
         &address,
         &private_key,
         &initial_validator_set,
+        initial_timeouts,
         mempool,
         mempool_load,
         network.clone(),
@@ -90,6 +93,7 @@ pub async fn spawn_node_actor(
     let consensus = spawn_consensus_actor(
         start_height,
         initial_validator_set,
+        initial_timeouts,
         address,
         ctx,
         cfg,
@@ -180,6 +184,7 @@ async fn spawn_sync_actor(
 async fn spawn_consensus_actor(
     initial_height: Height,
     initial_validator_set: ValidatorSet,
+    initial_timeouts: Timeouts,
     address: Address,
     ctx: MockContext,
     mut cfg: Config,
@@ -195,6 +200,7 @@ async fn spawn_consensus_actor(
     let consensus_params = ConsensusParams {
         initial_height,
         initial_validator_set,
+        initial_timeouts,
         address,
         threshold_params: Default::default(),
         value_payload: ValuePayload::PartsOnly,
@@ -361,6 +367,7 @@ async fn spawn_host_actor(
     address: &Address,
     private_key: &PrivateKey,
     initial_validator_set: &ValidatorSet,
+    initial_timeouts: Timeouts,
     mempool: MempoolRef,
     mempool_load: MempoolLoadRef,
     network: NetworkRef<MockContext>,
@@ -390,6 +397,7 @@ async fn spawn_host_actor(
         *address,
         private_key.clone(),
         initial_validator_set.clone(),
+        initial_timeouts,
     );
 
     Host::spawn(

@@ -209,14 +209,22 @@ impl Host {
 
 async fn on_consensus_ready(
     state: &mut HostState,
-    reply_to: RpcReplyPort<(Height, ValidatorSet)>,
+    reply_to: RpcReplyPort<(
+        Height,
+        ValidatorSet,
+        Option<malachitebft_core_types::Timeouts>,
+    )>,
 ) -> Result<(), ActorProcessingErr> {
     let latest_block_height = state.block_store.last_height().await.unwrap_or_default();
     let start_height = latest_block_height.increment();
 
     tokio::time::sleep(Duration::from_millis(200)).await;
 
-    reply_to.send((start_height, state.host.validator_set.clone()))?;
+    reply_to.send((
+        start_height,
+        state.host.validator_set.clone(),
+        Some(state.host.timeouts),
+    ))?;
 
     Ok(())
 }
@@ -688,6 +696,7 @@ async fn on_decided(
     reply_to.send(Next::Start(
         state.height.increment(),
         state.host.validator_set.clone(),
+        Some(state.host.timeouts),
     ))?;
 
     Ok(())

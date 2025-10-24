@@ -40,7 +40,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     .get_validator_set(start_height)
                     .expect("Validator set should be available");
 
-                if reply.send((start_height, validator_set)).is_err() {
+                if reply.send((start_height, validator_set, None)).is_err() {
                     error!("Failed to send ConsensusReady reply");
                 }
             }
@@ -217,7 +217,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                             .expect("Validator set should be available");
 
                         if reply
-                            .send(Next::Start(state.current_height, validator_set))
+                            .send(Next::Start(state.current_height, validator_set, None))
                             .is_err()
                         {
                             error!("Failed to send StartHeight reply");
@@ -233,7 +233,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                             .expect("Validator set should be available");
 
                         if reply
-                            .send(Next::Restart(state.current_height, validator_set))
+                            .send(Next::Restart(state.current_height, validator_set, None))
                             .is_err()
                         {
                             error!("Failed to send RestartHeight reply");

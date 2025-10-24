@@ -64,7 +64,11 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 sleep(Duration::from_millis(200)).await;
 
                 if reply
-                    .send((start_height, state.get_validator_set(start_height).clone()))
+                    .send((
+                        start_height,
+                        state.get_validator_set(start_height).clone(),
+                        None,
+                    ))
                     .is_err()
                 {
                     error!("Failed to send ConsensusReady reply");
@@ -260,6 +264,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                             .send(Next::Start(
                                 state.current_height,
                                 state.get_validator_set(state.current_height).clone(),
+                                None,
                             ))
                             .is_err()
                         {
@@ -276,6 +281,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                             .send(Next::Restart(
                                 height,
                                 state.get_validator_set(height).clone(),
+                                None,
                             ))
                             .is_err()
                         {
