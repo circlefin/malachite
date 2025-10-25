@@ -20,7 +20,7 @@ use malachitebft_network::{
 use malachitebft_signing::SigningProvider;
 use malachitebft_sync as sync;
 
-use crate::config::{ConsensusConfig, PubSubProtocol, ValueSyncConfig};
+use crate::config::{ConsensusConfig, ValueSyncConfig};
 use crate::metrics::{Metrics, SharedRegistry};
 use crate::types::core::Context;
 use crate::types::ValuePayload;
@@ -62,7 +62,7 @@ where
     Codec: ConsensusCodec<Ctx>,
     Codec: SyncCodec<Ctx>,
 {
-    let config = make_gossip_config(cfg);
+    let config = make_network_config(cfg);
 
     Network::spawn(keypair, config, registry.clone(), codec, Span::current())
         .await
@@ -195,41 +195,59 @@ where
     Ok(Some(actor_ref))
 }
 
-fn make_gossip_config(cfg: &ConsensusConfig) -> NetworkConfig {
+fn make_network_config(cfg: &ConsensusConfig) -> NetworkConfig {
+    use malachitebft_config as config;
+    use malachitebft_network as network;
+
     NetworkConfig {
         listen_addr: cfg.p2p.listen_addr.clone(),
         persistent_peers: cfg.p2p.persistent_peers.clone(),
         discovery: DiscoveryConfig {
             enabled: cfg.p2p.discovery.enabled,
-            ..Default::default()
+            bootstrap_protocol: match cfg.p2p.discovery.bootstrap_protocol {
+                config::BootstrapProtocol::Kademlia => network::BootstrapProtocol::Kademlia,
+                config::BootstrapProtocol::Full => network::BootstrapProtocol::Full,
+            },
+            selector: match cfg.p2p.discovery.selector {
+                config::Selector::Kademlia => network::Selector::Kademlia,
+                config::Selector::Random => network::Selector::Random,
+            },
+            num_outbound_peers: cfg.p2p.discovery.num_outbound_peers,
+            num_inbound_peers: cfg.p2p.discovery.num_inbound_peers,
+            max_connections_per_peer: cfg.p2p.discovery.max_connections_per_peer,
+            ephemeral_connection_timeout: cfg.p2p.discovery.ephemeral_connection_timeout,
+            dial_max_retries: 5,
+            request_max_retries: 5,
+            connect_request_max_retries: 0,
         },
         idle_connection_timeout: Duration::from_secs(15 * 60),
-        transport: malachitebft_network::TransportProtocol::from_multiaddr(&cfg.p2p.listen_addr)
-            .unwrap_or_else(|| {
+        transport: network::TransportProtocol::from_multiaddr(&cfg.p2p.listen_addr).unwrap_or_else(
+            || {
                 panic!(
                     "No valid transport protocol found in listen address: {}",
                     cfg.p2p.listen_addr
                 )
-            }),
+            },
+        ),
         pubsub_protocol: match cfg.p2p.protocol {
-            PubSubProtocol::GossipSub(_) => malachitebft_network::PubSubProtocol::GossipSub,
-            PubSubProtocol::Broadcast => malachitebft_network::PubSubProtocol::Broadcast,
+            config::PubSubProtocol::GossipSub(_) => network::PubSubProtocol::GossipSub,
+            config::PubSubProtocol::Broadcast => network::PubSubProtocol::Broadcast,
         },
         gossipsub: match cfg.p2p.protocol {
-            PubSubProtocol::GossipSub(config) => GossipSubConfig {
+            config::PubSubProtocol::GossipSub(config) => GossipSubConfig {
                 mesh_n: config.mesh_n(),
                 mesh_n_high: config.mesh_n_high(),
                 mesh_n_low: config.mesh_n_low(),
                 mesh_outbound_min: config.mesh_outbound_min(),
             },
-            PubSubProtocol::Broadcast => GossipSubConfig::default(),
+            config::PubSubProtocol::Broadcast => GossipSubConfig::default(),
         },
         channel_names: ChannelNames::default(),
         rpc_max_size: cfg.p2p.rpc_max_size.as_u64() as usize,
         pubsub_max_size: cfg.p2p.pubsub_max_size.as_u64() as usize,
         enable_consensus: cfg.enabled,
         enable_sync: true,
-        protocol_names: malachitebft_network::ProtocolNames {
+        protocol_names: network::ProtocolNames {
             consensus: cfg.p2p.protocol_names.consensus.clone(),
             discovery_kad: cfg.p2p.protocol_names.discovery_kad.clone(),
             discovery_regres: cfg.p2p.protocol_names.discovery_regres.clone(),

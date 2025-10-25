@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-const DEFAULT_NUM_OUTBOUND_PEERS: usize = 20;
-const DEFAULT_NUM_INBOUND_PEERS: usize = 20;
+const DEFAULT_NUM_OUTBOUND_PEERS: usize = 50;
+const DEFAULT_NUM_INBOUND_PEERS: usize = 50;
 
 const DEFAULT_MAX_CONNECTIONS_PER_PEER: usize = 5;
 

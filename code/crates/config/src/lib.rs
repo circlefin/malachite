@@ -109,8 +109,8 @@ impl Default for DiscoveryConfig {
             enabled: false,
             bootstrap_protocol: Default::default(),
             selector: Default::default(),
-            num_outbound_peers: 0,
-            num_inbound_peers: 20,
+            num_outbound_peers: 50,
+            num_inbound_peers: 50,
             max_connections_per_peer: 5,
             ephemeral_connection_timeout: Default::default(),
         }
