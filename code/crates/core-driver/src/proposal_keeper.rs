@@ -167,7 +167,7 @@ where
     pub fn store_proposal(&mut self, proposal: SignedProposal<Ctx>, validity: Validity) {
         let per_round = self.per_round.entry(proposal.round()).or_default();
 
-        match per_round.add(proposal.clone(), validity) {
+        match per_round.add(proposal, validity) {
             Ok(()) => (),
 
             Err(RecordProposalError::ConflictingProposal {
@@ -175,10 +175,10 @@ where
                 conflicting,
             }) => {
                 // This is an equivocating proposal
-                self.evidence.add(existing.clone(), conflicting);
+                self.evidence.add(existing, conflicting);
                 warn!(
-                    "received equivocating proposal {:?}, existing {:?}",
-                    proposal, existing
+                    "Received equivocating proposal {:?}, existing {:?}",
+                    conflicting, existing
                 );
             }
         }
