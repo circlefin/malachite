@@ -175,11 +175,11 @@ where
                 conflicting,
             }) => {
                 // This is an equivocating proposal
-                self.evidence.add(existing, conflicting);
                 warn!(
                     "Received equivocating proposal {:?}, existing {:?}",
                     conflicting, existing
                 );
+                self.evidence.add(existing, conflicting);
             }
         }
     }

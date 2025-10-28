@@ -253,11 +253,11 @@ where
                 conflicting,
             }) => {
                 // This is an equivocating vote
-                self.evidence.add(existing.clone(), conflicting);
                 warn!(
                     "Received equivocating vote {:?}, existing {:?}",
-                    vote, existing
+                    conflicting, existing
                 );
+                self.evidence.add(existing, conflicting);
                 return None;
             }
         }
