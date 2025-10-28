@@ -2,6 +2,7 @@
 
 use derive_where::derive_where;
 use thiserror::Error;
+use tracing::warn;
 
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::vec::Vec;
@@ -253,7 +254,10 @@ where
             }) => {
                 // This is an equivocating vote
                 self.evidence.add(existing.clone(), conflicting);
-                //panic!("Equivocating vote {:?}, existing {:?}", &vote, &existing);
+                warn!(
+                    "received equivocating vote {:?}, existing {:?}",
+                    vote, existing
+                );
                 return None;
             }
         }
