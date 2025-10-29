@@ -275,7 +275,7 @@ where
                                 state.driver.height(),
                                 proposal.pol_round(),
                                 proposal.value().id().clone(),
-                                "reproposal (safety)",
+                                "reproposal",
                             )
                         })?;
 
@@ -347,7 +347,7 @@ where
                                     state.driver.height(),
                                     vote.round(),
                                     value_id.clone(),
-                                    "precommit (liveness)",
+                                    "precommit",
                                 )
                             })?;
 
