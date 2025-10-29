@@ -264,9 +264,18 @@ where
     Ok(())
 }
 
+#[tracing::instrument(
+    name = "on_value_request",
+    skip_all,
+    fields(
+        peer_id = %peer_id,
+        request_id = %request_id,
+        range = %DisplayRange::<Ctx>(&request.range)
+    )
+)]
 pub async fn on_value_request<Ctx>(
     co: Co<Ctx>,
-    _state: &mut State<Ctx>,
+    state: &mut State<Ctx>,
     metrics: &Metrics,
     request_id: InboundRequestId,
     peer_id: PeerId,
@@ -275,16 +284,91 @@ pub async fn on_value_request<Ctx>(
 where
     Ctx: Context,
 {
-    debug!(range = %DisplayRange::<Ctx>(&request.range), %peer_id, "Received request for values");
+    debug!("Received request for values");
+
+    if !validate_request_range::<Ctx>(&request.range, state.tip_height, state.config.batch_size) {
+        debug!("Sending empty response to peer");
+
+        perform!(
+            co,
+            Effect::SendValueResponse(
+                request_id.clone(),
+                ValueResponse::new(*request.range.start(), vec![]),
+                Default::default()
+            )
+        );
+
+        return Ok(());
+    }
 
     metrics.value_request_received(request.range.start().as_u64());
 
+    let range = clamp_request_range::<Ctx>(&request.range, state.tip_height);
+
+    if range != request.range {
+        debug!(
+            requested = %DisplayRange::<Ctx>(&request.range),
+            clamped = %DisplayRange::<Ctx>(&range),
+            "Clamped request range to our tip height"
+        );
+    }
+
     perform!(
         co,
-        Effect::GetDecidedValues(request_id, request.range, Default::default())
+        Effect::GetDecidedValues(request_id, range, Default::default())
     );
 
     Ok(())
+}
+
+fn validate_request_range<Ctx>(
+    range: &RangeInclusive<Ctx::Height>,
+    tip_height: Ctx::Height,
+    batch_size: usize,
+) -> bool
+where
+    Ctx: Context,
+{
+    if range.is_empty() {
+        debug!("Received request for empty range of values");
+        return false;
+    }
+
+    if range.start() > range.end() {
+        debug!("Received request for invalid range of values");
+        return false;
+    }
+
+    if range.start() > &tip_height {
+        debug!("Received request for values beyond our tip height {tip_height}");
+        return false;
+    }
+
+    let len = (range.end().as_u64() - range.start().as_u64()).saturating_add(1) as usize;
+    if len > batch_size {
+        warn!("Received request for too many values: requested {len}, max is {batch_size}");
+        return false;
+    }
+
+    true
+}
+
+fn clamp_request_range<Ctx>(
+    range: &RangeInclusive<Ctx::Height>,
+    tip_height: Ctx::Height,
+) -> RangeInclusive<Ctx::Height>
+where
+    Ctx: Context,
+{
+    assert!(!range.is_empty(), "Cannot clamp an empty range");
+    assert!(
+        *range.start() <= tip_height,
+        "Cannot clamp range starting above tip height"
+    );
+
+    let start = *range.start();
+    let end = min(*range.end(), tip_height);
+    start..=end
 }
 
 pub async fn on_value_response<Ctx>(
@@ -406,7 +490,7 @@ where
 
     // Validate the height of each received value
     let mut height = *start;
-    for value in values.clone() {
+    for value in &values {
         if value.certificate.height != height {
             error!(
                 "Received from host value for height {}, expected for height {height}",
@@ -1095,5 +1179,55 @@ mod tests {
                 case.name
             );
         }
+    }
+
+    #[test]
+    fn test_validate_request_range() {
+        let validate = validate_request_range::<TestContext>;
+
+        let tip_height = Height::new(20);
+        let batch_size = 5;
+
+        // Valid range
+        let range = Height::new(15)..=Height::new(19);
+        assert!(validate(&range, tip_height, batch_size));
+
+        // Start greater than end
+        let range = Height::new(18)..=Height::new(17);
+        assert!(!validate(&range, tip_height, batch_size));
+
+        // Start greater than tip height
+        let range = Height::new(21)..=Height::new(25);
+        assert!(!validate(&range, tip_height, batch_size));
+
+        // Exceeds batch size
+        let range = Height::new(10)..=Height::new(16);
+        assert!(!validate(&range, tip_height, batch_size));
+
+        // No overflow
+        let range = Height::new(0)..=Height::new(u64::MAX);
+        assert!(!validate(&range, tip_height, batch_size));
+    }
+
+    #[test]
+    fn test_clamp_request_range() {
+        let clamp = clamp_request_range::<TestContext>;
+
+        let tip_height = Height::new(20);
+
+        // Range within tip height
+        let range = Height::new(15)..=Height::new(18);
+        let clamped = clamp(&range, tip_height);
+        assert_eq!(clamped, range);
+
+        // Range exceeding tip height
+        let range = Height::new(18)..=Height::new(25);
+        let clamped = clamp(&range, tip_height);
+        assert_eq!(clamped, Height::new(18)..=tip_height);
+
+        // Range starting at tip height
+        let range = tip_height..=Height::new(25);
+        let clamped = clamp(&range, tip_height);
+        assert_eq!(clamped, tip_height..=tip_height);
     }
 }
