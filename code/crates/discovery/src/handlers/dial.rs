@@ -89,11 +89,17 @@ where
         endpoint: ConnectedPoint,
     ) {
         match endpoint {
-            ConnectedPoint::Dialer { .. } => {
-                debug!(peer = %peer_id, %connection_id, "Connected to peer");
+            d @ ConnectedPoint::Dialer { .. } => {
+                debug!(
+                    peer = %peer_id, %connection_id, remote_address = %d.get_remote_address(),
+                    "Connected to peer"
+                );
             }
-            ConnectedPoint::Listener { .. } => {
-                debug!(peer = %peer_id, %connection_id, "Accepted incoming connection from peer");
+            l @ ConnectedPoint::Listener { .. } => {
+                debug!(
+                    peer = %peer_id, %connection_id, remote_address = %l.get_remote_address(),
+                    "Accepted incoming connection from peer"
+                );
             }
         }
 
