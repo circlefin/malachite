@@ -16,6 +16,11 @@ jobs:
     name: Check PR title
     runs-on: ubuntu-latest
     steps:
-      - uses: step-security/action-semantic-pull-request@v5
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
+      - uses: step-security/action-semantic-pull-request@9142b539761b0ed6761de569f3a5020a7462a7f3 # v5.5.6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
