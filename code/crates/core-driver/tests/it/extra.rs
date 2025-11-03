@@ -2918,6 +2918,84 @@ fn prevote_and_precommit_upon_proposal_and_polka_cert() {
     run_steps(&mut driver, steps);
 }
 
+// A Proposal for an invalid value in round 1 with POL round 0 is received, then a matching polka
+// certificate is received. Despite the global validation, the process should prevote nil. Before
+// that we receive a non matching polka certificate, for round 1, that should be ignored.
+#[test]
+fn proposal_invalid_value_and_matching_pol_certificate() {
+    let value_v = Value::new(9999);
+
+    let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
+
+    let height = Height::new(1);
+    let ctx = TestContext::new();
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
+
+    let steps = vec![
+        TestStep {
+            desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
+            input: new_round_input(Round::new(0), v1.address),
+            expected_outputs: vec![start_propose_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "v2 sends vote for round 2, we get f+1 votes, move to round 2",
+            input: prevote_input_at(Round::new(2), Value::new(7777), &v2.address),
+            expected_outputs: vec![new_round_output(Round::new(2))],
+            expected_round: Round::new(2),
+            new_state: new_round(Round::new(2)),
+        },
+        TestStep {
+            desc: "Start round 2, we, v3, are not the proposer, start timeout propose",
+            input: new_round_input(Round::new(2), v2.address),
+            expected_outputs: vec![start_propose_timer_output(Round::new(2))],
+            expected_round: Round::new(2),
+            new_state: propose_state(Round::new(2)),
+        },
+        TestStep {
+            desc: "Receive invalid proposal for v with POL round 0, stays in propose, no vote",
+            input: proposal_input(
+                Round::new(2),
+                value_v.clone(),
+                Round::new(0),
+                Validity::Invalid,
+                v2.address,
+            ),
+            expected_round: Round::new(2),
+            expected_outputs: vec![],
+            new_state: propose_state(Round::new(2)),
+        },
+        TestStep {
+            desc: "Receive a Polka for v in round 1, ignore",
+            input: polka_certificate_input_at(
+                Round::new(1),
+                value_v.clone(),
+                &[v1.address, v2.address],
+            ),
+            expected_round: Round::new(2),
+            expected_outputs: vec![],
+            new_state: propose_state(Round::new(2)),
+        },
+        TestStep {
+            desc: "Receive a Polka for v in round 0, prevote nil",
+            input: polka_certificate_input_at(
+                Round::new(0),
+                value_v.clone(),
+                &[v1.address, v2.address],
+            ),
+            expected_round: Round::new(2),
+            expected_outputs: vec![prevote_nil_output(Round::new(2), &my_addr)],
+            new_state: prevote_state(Round::new(2)),
+        },
+    ];
+
+    run_steps(&mut driver, steps);
+}
+
 fn run_steps(driver: &mut Driver<TestContext>, steps: Vec<TestStep>) {
     for step in steps {
         println!("Step: {}", step.desc);

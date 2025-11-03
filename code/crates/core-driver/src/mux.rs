@@ -273,6 +273,11 @@ where
                 } else {
                     None
                 }
+            } else if proposal.pol_round() == certificate_round {
+                Some((
+                    proposal.round(),
+                    RoundInput::InvalidProposalAndPolkaPrevious(proposal.clone()),
+                ))
             } else {
                 None
             }
