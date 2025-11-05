@@ -158,6 +158,7 @@ impl Node for App {
             start_height,
             store,
             signing_provider,
+            self.middleware.clone(),
         );
 
         let tx_event = channels.events.clone();

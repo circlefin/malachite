@@ -80,27 +80,30 @@ where
         state.store_proposal(signed_proposal);
     }
 
-    // If this is the first time we see this value, append it to the WAL, so it can be used for recovery.
-    if !state.value_exists(&proposed_value) {
-        perform!(
-            co,
-            Effect::WalAppend(
-                proposed_value.height,
-                WalEntry::ProposedValue(proposed_value.clone()),
-                Default::default()
-            )
-        );
-    }
+    // We may consider in the future some optimization to avoid multiple identical entries in the
+    // WAL, in the case of multiple node restarts. For now we write every ProposedValue to it.
+    perform!(
+        co,
+        Effect::WalAppend(
+            proposed_value.height,
+            WalEntry::ProposedValue(proposed_value.clone()),
+            Default::default()
+        )
+    );
 
-    state.store_value(&proposed_value);
+    // We MUST stick to the stored validity, which may have been updated
+    // when storing the value (e.g., from Invalid to Valid).
+    let validity = state.store_value(&proposed_value);
 
-    let validity = proposed_value.validity;
+    // Get all proposals we have for this value.
     let proposals = state.proposals_for_value(&proposed_value);
 
+    // Apply all proposals we have for this value, with the stored validity.
     for signed_proposal in proposals {
         debug!(
             proposal.height = %signed_proposal.height(),
             proposal.round = %signed_proposal.round(),
+            validity = ?validity,
             "We have a full proposal for this round, checking..."
         );
 

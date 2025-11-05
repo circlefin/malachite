@@ -2,7 +2,8 @@
 
 use malachitebft_core_state_machine::state::{RoundValue, State, Step};
 use malachitebft_core_types::{
-    NilOrVal, PolkaCertificate, Round, SignedProposal, SignedVote, Timeout, Validity,
+    CommitCertificate, NilOrVal, PolkaCertificate, Round, SignedProposal, SignedVote, Timeout,
+    Validity,
 };
 use malachitebft_test::{Address, Height, Proposal, Signature, TestContext, Value, Vote};
 
@@ -26,6 +27,10 @@ pub fn proposal_output(
     Output::Propose(proposal)
 }
 
+pub fn proposal_input_from_proposal(proposal: Proposal, validity: Validity) -> Input<TestContext> {
+    Input::Proposal(SignedProposal::new(proposal, Signature::test()), validity)
+}
+
 pub fn proposal_input(
     round: Round,
     value: Value,
@@ -34,7 +39,7 @@ pub fn proposal_input(
     address: Address,
 ) -> Input<TestContext> {
     let proposal = Proposal::new(Height::new(1), round, value, locked_round, address);
-    Input::Proposal(SignedProposal::new(proposal, Signature::test()), validity)
+    proposal_input_from_proposal(proposal, validity)
 }
 
 pub fn prevote_output(round: Round, value: Value, addr: &Address) -> Output<TestContext> {
@@ -139,6 +144,27 @@ pub fn polka_certificate_input_at(
         .collect();
 
     Input::PolkaCertificate(PolkaCertificate::new(height, round, value_id, votes))
+}
+
+pub fn commit_certificate_input_at(
+    round: Round,
+    value: Value,
+    voters: &[Address],
+) -> Input<TestContext> {
+    let height = Height::new(1);
+    let value_id = value.id();
+
+    let votes: Vec<SignedVote<TestContext>> = voters
+        .iter()
+        .map(|addr| {
+            SignedVote::new(
+                Vote::new_precommit(height, round, NilOrVal::Val(value_id), *addr),
+                Signature::test(),
+            )
+        })
+        .collect();
+
+    Input::CommitCertificate(CommitCertificate::new(height, round, value_id, votes))
 }
 
 pub fn decide_output(round: Round, proposal: Proposal) -> Output<TestContext> {

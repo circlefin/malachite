@@ -78,12 +78,25 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     match state.validate_proposal_parts(parts) {
                         Ok(()) => {
                             // Validation passed - convert to ProposedValue and move to undecided
-                            let value = State::assemble_value_from_parts(parts.clone())?;
+                            let mut value = State::assemble_value_from_parts(parts.clone())?;
+
+                            // Use middleware to determine validity
+                            if let Some(middleware) = &state.middleware {
+                                value.validity = middleware.get_validity(
+                                    &state.ctx,
+                                    value.height,
+                                    value.round,
+                                    &value.value,
+                                );
+                            }
+
+                            let validity = value.validity;
                             state.store.store_undecided_proposal(value).await?;
                             info!(
                                 height = %parts.height,
                                 round = %parts.round,
                                 proposer = %parts.proposer,
+                                validity = ?validity,
                                 "Moved valid pending proposal to undecided after validation"
                             );
                         }

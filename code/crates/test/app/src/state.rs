@@ -3,6 +3,7 @@
 
 use std::collections::HashSet;
 use std::fmt;
+use std::sync::Arc;
 
 use bytes::Bytes;
 use eyre::eyre;
@@ -17,6 +18,7 @@ use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::{CommitCertificate, Round, Validity};
 use malachitebft_app_channel::app::types::{LocallyProposedValue, PeerId};
 use malachitebft_test::codec::json::JsonCodec;
+use malachitebft_test::middleware::Middleware;
 use malachitebft_test::{
     Address, Ed25519Provider, Genesis, Height, LinearTimeouts, ProposalData, ProposalFin,
     ProposalInit, ProposalPart, TestContext, ValidatorSet, Value, ValueId,
@@ -42,6 +44,7 @@ pub struct State {
     pub current_role: Role,
     pub peers: HashSet<PeerId>,
     pub store: Store,
+    pub middleware: Option<Arc<dyn Middleware>>,
 
     signing_provider: Ed25519Provider,
     streams_map: PartStreamsMap,
@@ -87,6 +90,7 @@ impl fmt::Display for ProposalValidationError {
 
 impl State {
     /// Creates a new State instance with the given validator address and starting height
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         ctx: TestContext,
         config: Config,
@@ -95,6 +99,7 @@ impl State {
         height: Height,
         store: Store,
         signing_provider: Ed25519Provider,
+        middleware: Option<Arc<dyn Middleware>>,
     ) -> Self {
         Self {
             ctx,
@@ -103,6 +108,7 @@ impl State {
             address,
             store,
             signing_provider,
+            middleware,
             current_height: height,
             current_round: Round::new(0),
             current_proposer: None,
@@ -252,8 +258,17 @@ impl State {
         match self.validate_proposal_parts(&parts) {
             Ok(()) => {
                 // Validation passed - assemble and store as undecided
-                let value = Self::assemble_value_from_parts(parts)?;
-                info!(%value.height, %value.round, %value.proposer, "Storing validated proposal as undecided");
+                let mut value = Self::assemble_value_from_parts(parts)?;
+
+                // Use middleware to determine validity (allows testing custom validation logic)
+                if let Some(middleware) = &self.middleware {
+                    let new_validity =
+                        middleware.get_validity(&self.ctx, value.height, value.round, &value.value);
+                    info!(%value.height, "Middleware returned validity: {:?}", new_validity);
+                    value.validity = new_validity;
+                }
+
+                info!(%value.height, %value.round, %value.proposer, validity = ?value.validity, "Storing validated proposal as undecided");
                 self.store.store_undecided_proposal(value.clone()).await?;
                 Ok(Some(value))
             }

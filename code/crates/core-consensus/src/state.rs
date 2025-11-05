@@ -161,16 +161,22 @@ where
         self.full_proposal_keeper.store_proposal(new_proposal)
     }
 
-    pub fn value_exists(&mut self, new_value: &ProposedValue<Ctx>) -> bool {
-        self.full_proposal_keeper.value_exists(new_value)
-    }
-
-    pub fn store_value(&mut self, new_value: &ProposedValue<Ctx>) {
+    /// Store the proposed value and return its validity,
+    /// which may be now be different from the one provided.
+    pub fn store_value(&mut self, new_value: &ProposedValue<Ctx>) -> Validity {
         // Values for higher height should have been cached for future processing
         assert_eq!(new_value.height, self.driver.height());
 
         // Store the value at both round and valid_round
         self.full_proposal_keeper.store_value(new_value);
+
+        // Retrieve the validity after storing, as it may have changed (e.g., from Invalid to Valid)
+        let (_value, validity) = self
+            .full_proposal_keeper
+            .get_value(&new_value.height, new_value.round, &new_value.value)
+            .expect("We just stored the entry, so it should be there");
+
+        validity
     }
 
     pub fn reset_and_start_height(

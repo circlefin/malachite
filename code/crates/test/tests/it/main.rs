@@ -8,6 +8,7 @@ mod n3f1;
 mod reset;
 mod timeout_updates;
 mod validator_set;
+mod validity_change_on_restart;
 mod value_sync;
 mod vote_rebroadcast;
 mod wal;
