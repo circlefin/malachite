@@ -393,10 +393,9 @@ where
             }
         }
 
-        if let Some(threshold) = find_non_value_threshold(&self.vote_keeper, round) {
+        for threshold in find_non_value_threshold(&self.vote_keeper, round) {
             result.push(self.multiplex_vote_threshold(threshold, round))
         }
-
         result
     }
 }
@@ -404,19 +403,20 @@ where
 fn find_non_value_threshold<Ctx>(
     votekeeper: &VoteKeeper<Ctx>,
     round: Round,
-) -> Option<VKOutput<ValueId<Ctx>>>
+) -> Vec<VKOutput<ValueId<Ctx>>>
 where
     Ctx: Context,
 {
-    if has_precommit_any(votekeeper, round) {
-        Some(VKOutput::PrecommitAny)
-    } else if has_polka_nil(votekeeper, round) {
-        Some(VKOutput::PolkaNil)
+    let mut outputs = Vec::new();
+    if has_polka_nil(votekeeper, round) {
+        outputs.push(VKOutput::PolkaNil)
     } else if has_polka_any(votekeeper, round) {
-        Some(VKOutput::PolkaAny)
-    } else {
-        None
+        outputs.push(VKOutput::PolkaAny)
     }
+    if has_precommit_any(votekeeper, round) {
+        outputs.push(VKOutput::PrecommitAny)
+    }
+    outputs
 }
 
 /// Check if we have a polka for a value

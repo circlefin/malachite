@@ -2918,6 +2918,364 @@ fn prevote_and_precommit_upon_proposal_and_polka_cert() {
     run_steps(&mut driver, steps);
 }
 
+// Upon receiving 2f + 1 prevotes for nil, a process should precommit nil once it reaches the
+// prevote step. This `PolkaNil` condition, however, can be produced during the propose step; once
+// the prevote step is reached, the pending `PolkaNil` must be consumed.
+#[test]
+fn polka_nil_and_prevote_step_precommit_nil() {
+    let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
+
+    let height = Height::new(1);
+    let ctx = TestContext::new();
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
+
+    let steps = vec![
+        TestStep {
+            desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
+            input: new_round_input(Round::new(0), v1.address),
+            expected_outputs: vec![start_propose_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Prevote from v2 while in propose step",
+            input: prevote_nil_input(&v2.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Prevote from v3, we have PolkaNil, not triggered in propose step",
+            input: prevote_nil_input(&v3.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Precommit from v2",
+            input: precommit_nil_input(Round::new(0), &v2.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Precommit from v3, quorum of precommits, timeout to be scheduled",
+            input: precommit_nil_input(Round::new(0), &v3.address),
+            expected_outputs: vec![start_precommit_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Timeout propose, prevote nil; since we have PolkaNil, also precommit nil",
+            input: timeout_propose_input(Round::new(0)),
+            expected_outputs: vec![
+                prevote_nil_output(Round::new(0), &my_addr),
+                precommit_nil_output(Round::new(0), &my_addr),
+                start_precommit_timer_output(Round::new(0)),
+                start_precommit_timer_output(Round::new(0)),
+            ],
+            expected_round: Round::new(0),
+            new_state: precommit_state(Round::new(0)),
+        },
+    ];
+
+    run_steps(&mut driver, steps);
+}
+
+// Upon receiving 2f + 1 prevotes for different values, a process should schedule a prevote timeout
+// once it reaches the prevote step. This `PolkaAny` condition, however, can be produced during the
+// propose step; once the prevote step is reached, the pending `PolkaAny` must be consumed.
+#[test]
+fn polka_any_and_prevote_step_timeout_prevote() {
+    let value = Value::new(9999);
+
+    let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
+
+    let height = Height::new(1);
+    let ctx = TestContext::new();
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
+
+    let steps = vec![
+        TestStep {
+            desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
+            input: new_round_input(Round::new(0), v1.address),
+            expected_outputs: vec![start_propose_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Prevote from v2 while in propose step",
+            input: prevote_nil_input(&v2.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Prevote from v3, we have Polka, not triggered in propose step",
+            input: prevote_input_at(Round::new(0), value.clone(), &v3.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Precommit from v2",
+            input: precommit_nil_input(Round::new(0), &v2.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Precommit from v3, quorum of precommits, timeout to be scheduled",
+            input: precommit_nil_input(Round::new(0), &v3.address),
+            expected_outputs: vec![start_precommit_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Timeout propose, prevote nil; since we have PolkaAny, schedule timeout prevote",
+            input: timeout_propose_input(Round::new(0)),
+            expected_outputs: vec![
+                prevote_nil_output(Round::new(0), &my_addr),
+                start_prevote_timer_output(Round::new(0)),
+                start_precommit_timer_output(Round::new(0)),
+            ],
+            expected_round: Round::new(0),
+            new_state: prevote_state(Round::new(0)),
+        },
+    ];
+
+    run_steps(&mut driver, steps);
+}
+
+// A pending `PolkaAny` can also be produced upon receiving 2f + 1 prevotes for a value, whose
+// associated proposal is missing. This `PolkaAny` condition, however, can be produced during the
+// propose step; once the prevote step is reached, the pending `PolkaAny` must be consumed.
+#[test]
+fn polka_value_no_proposal_and_prevote_step_timeout_prevote() {
+    let value = Value::new(9999);
+
+    let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
+
+    let height = Height::new(1);
+    let ctx = TestContext::new();
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
+
+    let steps = vec![
+        TestStep {
+            desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
+            input: new_round_input(Round::new(0), v1.address),
+            expected_outputs: vec![start_propose_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Prevote from v2 while in propose step",
+            input: prevote_input_at(Round::new(0), value.clone(), &v2.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Prevote from v3, we have PolkaValue(v) but not Proposal(v)",
+            input: prevote_input_at(Round::new(0), value.clone(), &v3.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Precommit from v2",
+            input: precommit_nil_input(Round::new(0), &v2.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Precommit from v3, quorum of precommits, timeout to be scheduled",
+            input: precommit_nil_input(Round::new(0), &v3.address),
+            expected_outputs: vec![start_precommit_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Timeout propose, prevote nil; since the Polka is incomplete, schedule timeout prevote",
+            input: timeout_propose_input(Round::new(0)),
+            expected_outputs: vec![
+                prevote_nil_output(Round::new(0), &my_addr),
+                start_prevote_timer_output(Round::new(0)),
+                start_precommit_timer_output(Round::new(0)),
+            ],
+            expected_round: Round::new(0),
+            new_state: prevote_state(Round::new(0)),
+        },
+    ];
+
+    run_steps(&mut driver, steps);
+}
+
+// Before actually starting round 1, a process receives 2f + 1 prevotes and 2f + 1 precomits of
+// round 1. The first event leads to a round skip. Once round 1 is started and timeout propose
+// expires, the pending `PolkaAny` event should lead to the scheduling of a timeout prevote.
+#[test]
+fn polka_any_precommit_any_future_round() {
+    let value = Value::new(9999);
+
+    let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
+
+    let height = Height::new(1);
+    let ctx = TestContext::new();
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
+
+    let steps = vec![
+        TestStep {
+            desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
+            input: new_round_input(Round::new(0), v1.address),
+            expected_outputs: vec![start_propose_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Prevote from v3 in round 1",
+            input: prevote_input_at(Round::new(1), value.clone(), &v3.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Precommit from v3 in round 1",
+            input: precommit_nil_input(Round::new(1), &v3.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Precommit from v2 in round 1, we have PrecommitAny(1)",
+            input: precommit_nil_input(Round::new(1), &v2.address),
+            expected_outputs: vec![new_round_output(Round::new(1))],
+            expected_round: Round::new(1),
+            new_state: new_round(Round::new(1)),
+        },
+        TestStep {
+            desc: "Prevote from v2 in round 1, we have PolkaValue(1, v)",
+            input: prevote_input_at(Round::new(1), value.clone(), &v2.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(1),
+            new_state: new_round(Round::new(1)),
+        },
+        TestStep {
+            desc: "Start round 1 and start timeout propose and commit",
+            input: new_round_input(Round::new(1), v1.address),
+            expected_outputs: vec![
+                start_propose_timer_output(Round::new(1)),
+                start_precommit_timer_output(Round::new(1)),
+            ],
+            expected_round: Round::new(1),
+            new_state: propose_state(Round::new(1)),
+        },
+        TestStep {
+            desc: "Timeout propose, goes to prevote, start timeout prevote",
+            input: timeout_propose_input(Round::new(1)),
+            expected_outputs: vec![
+                prevote_nil_output(Round::new(1), &my_addr),
+                start_prevote_timer_output(Round::new(1)),
+                start_precommit_timer_output(Round::new(1)),
+            ],
+            expected_round: Round::new(1),
+            new_state: prevote_state(Round::new(1)),
+        },
+    ];
+
+    run_steps(&mut driver, steps);
+}
+
+// Before actually starting round 1, a process receives 2f + 1 prevotes and 2f + 1 precomits of
+// precomits of round 1. The first event leads to a round skip. Once round 1 is started and timeout
+// propose expires, the pending `PolkaNil` event should lead the process to precommit nil.
+#[test]
+fn polka_nil_precommit_any_future_round() {
+    let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
+
+    let height = Height::new(1);
+    let ctx = TestContext::new();
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
+
+    let steps = vec![
+        TestStep {
+            desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
+            input: new_round_input(Round::new(0), v1.address),
+            expected_outputs: vec![start_propose_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Prevote from v3 in round 1",
+            input: prevote_nil_input_at(Round::new(1), &v3.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Precommit from v3 in round 1",
+            input: precommit_nil_input(Round::new(1), &v3.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Precommit from v2 in round 1, we have PrecommitAny(1)",
+            input: precommit_nil_input(Round::new(1), &v2.address),
+            expected_outputs: vec![new_round_output(Round::new(1))],
+            expected_round: Round::new(1),
+            new_state: new_round(Round::new(1)),
+        },
+        TestStep {
+            desc: "Prevote from v2 in round 1, we have PolkaValue(1, v)",
+            input: prevote_nil_input_at(Round::new(1), &v2.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(1),
+            new_state: new_round(Round::new(1)),
+        },
+        TestStep {
+            desc: "Start round 1 and start timeout propose and commit",
+            input: new_round_input(Round::new(1), v1.address),
+            expected_outputs: vec![
+                start_propose_timer_output(Round::new(1)),
+                start_precommit_timer_output(Round::new(1)),
+            ],
+            expected_round: Round::new(1),
+            new_state: propose_state(Round::new(1)),
+        },
+        TestStep {
+            desc: "Timeout propose, goes to prevote, precommit nil",
+            input: timeout_propose_input(Round::new(1)),
+            expected_outputs: vec![
+                prevote_nil_output(Round::new(1), &my_addr),
+                precommit_nil_output(Round::new(1), &my_addr),
+                start_precommit_timer_output(Round::new(1)),
+                start_precommit_timer_output(Round::new(1)), // :'(
+            ],
+            expected_round: Round::new(1),
+            new_state: precommit_state(Round::new(1)),
+        },
+    ];
+
+    run_steps(&mut driver, steps);
+}
+
 // A Proposal for an invalid value in round 1 with POL round 0 is received, then a matching polka
 // certificate is received. Despite the global validation, the process should prevote nil. Before
 // that we receive a non matching polka certificate, for round 1, that should be ignored.

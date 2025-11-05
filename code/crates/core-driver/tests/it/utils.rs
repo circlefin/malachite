@@ -72,11 +72,15 @@ pub fn prevote_input(value: Value, addr: &Address) -> Input<TestContext> {
     ))
 }
 
-pub fn prevote_nil_input(addr: &Address) -> Input<TestContext> {
+pub fn prevote_nil_input_at(round: Round, addr: &Address) -> Input<TestContext> {
     Input::Vote(SignedVote::new(
-        Vote::new_prevote(Height::new(1), Round::new(0), NilOrVal::Nil, *addr),
+        Vote::new_prevote(Height::new(1), round, NilOrVal::Nil, *addr),
         Signature::test(),
     ))
+}
+
+pub fn prevote_nil_input(addr: &Address) -> Input<TestContext> {
+    prevote_nil_input_at(Round::new(0), addr)
 }
 
 pub fn prevote_input_at(round: Round, value: Value, addr: &Address) -> Input<TestContext> {
