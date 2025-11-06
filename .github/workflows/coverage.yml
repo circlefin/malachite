@@ -20,14 +20,16 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: read
+      id-token: write
     outputs:
       code: ${{ steps.filter.outputs.code }}
       specs: ${{ steps.filter.outputs.specs }}
     steps:
-      - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+      - name: Harden the runner
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
-          egress-policy: audit
+          egress-policy: block
+          policy: global-allowed-endpoints-policy
 
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
@@ -51,11 +53,14 @@ jobs:
         working-directory: code
     env:
       CARGO_TERM_COLOR: always
+    permissions:
+      id-token: write
     steps:
-      - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+      - name: Harden the runner
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
-          egress-policy: audit
+          egress-policy: block
+          policy: global-allowed-endpoints-policy
 
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -106,11 +111,14 @@ jobs:
         working-directory: code
     env:
       CARGO_TERM_COLOR: always
+    permissions:
+      id-token: write
     steps:
-      - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+      - name: Harden the runner
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
-          egress-policy: audit
+          egress-policy: block
+          policy: global-allowed-endpoints-policy
 
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -160,11 +168,14 @@ jobs:
     needs: [changes, integration, mbt]
     runs-on: ubuntu-latest
     if: ${{ !cancelled() && (needs.changes.outputs.code == 'true' || needs.changes.outputs.specs == 'true' || needs.changes.outputs.codecov == 'true' || github.ref == 'refs/heads/main') }}
+    permissions:
+      id-token: write
     steps:
-      - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+      - name: Harden the runner
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
-          egress-policy: audit
+          egress-policy: block
+          policy: global-allowed-endpoints-policy
 
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0

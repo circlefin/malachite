@@ -15,11 +15,14 @@ jobs:
   lint:
     name: Check PR title
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
     steps:
-      - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+      - name: Harden the runner
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
-          egress-policy: audit
+          egress-policy: block
+          policy: global-allowed-endpoints-policy
 
       - uses: step-security/action-semantic-pull-request@9142b539761b0ed6761de569f3a5020a7462a7f3 # v5.5.6
         env:
