@@ -41,7 +41,7 @@ where
         // Time-limit and rebroadcast timeouts are not persisted because they only occur when consensus is stuck.
         perform!(
             co,
-            Effect::WalAppend(WalEntry::Timeout(timeout), Default::default())
+            Effect::WalAppend(height, WalEntry::Timeout(timeout), Default::default())
         );
     }
 

@@ -10,7 +10,9 @@ use malachitebft_app_channel::app::streaming::StreamContent;
 use malachitebft_app_channel::app::types::core::{Height as _, Round, Validity};
 use malachitebft_app_channel::app::types::sync::RawDecidedValue;
 use malachitebft_app_channel::app::types::{LocallyProposedValue, ProposedValue};
-use malachitebft_app_channel::{AppMsg, Channels, ConsensusRequest, NetworkMsg};
+use malachitebft_app_channel::{
+    AppMsg, Channels, ConsensusRequest, ConsensusRequestError, NetworkMsg,
+};
 use malachitebft_test::{Height, TestContext};
 
 use crate::state::{decode_value, encode_value, State};
@@ -19,10 +21,19 @@ use crate::state::{decode_value, encode_value, State};
 fn monitor_state(tx_request: mpsc::Sender<ConsensusRequest<TestContext>>) {
     tokio::spawn(async move {
         loop {
-            if let Some(dump) = ConsensusRequest::dump_state(&tx_request).await {
-                tracing::debug!("State dump: {dump:#?}");
-            } else {
-                tracing::debug!("Failed to dump state");
+            match ConsensusRequest::dump_state(&tx_request).await {
+                Ok(dump) => {
+                    tracing::debug!("State dump: {dump:#?}");
+                }
+                Err(ConsensusRequestError::Recv) => {
+                    tracing::error!("Failed to receive state dump from consensus");
+                }
+                Err(ConsensusRequestError::Full) => {
+                    tracing::error!("Consensus request channel full");
+                }
+                Err(ConsensusRequestError::Closed) => {
+                    tracing::error!("Consensus request channel closed");
+                }
             }
 
             sleep(Duration::from_secs(1)).await;

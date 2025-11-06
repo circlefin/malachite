@@ -52,6 +52,7 @@ where
         perform!(
             co,
             Effect::WalAppend(
+                proposed_value.height,
                 WalEntry::ProposedValue(proposed_value.clone()),
                 Default::default()
             )
@@ -91,7 +92,7 @@ where
 {
     if state.height() != local_value.height {
         warn!(
-            "Ignoring value for height {}, current height: {}",
+            "Received locally proposed value for wrong height {}, current height: {}",
             local_value.height,
             state.height()
         );
@@ -100,7 +101,7 @@ where
     }
 
     if state.round() != local_value.round {
-        warn!(
+        debug!(
             "Ignoring value for round {}, current round: {}",
             local_value.round,
             state.driver.round()

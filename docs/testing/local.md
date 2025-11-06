@@ -12,7 +12,7 @@
 1. Clone Malachite
 
 ```
-$ git clone https://github.com/informalsystems/malachite.git
+$ git clone https://github.com/circlefin/malachite.git
 $ cd malachite
 ```
 

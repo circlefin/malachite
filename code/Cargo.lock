@@ -2186,6 +2186,7 @@ dependencies = [
  "informalsystems-malachitebft-test",
  "ractor",
  "rand 0.8.5",
+ "thiserror 2.0.16",
  "tokio",
  "tracing",
 ]
@@ -2242,6 +2243,7 @@ dependencies = [
  "informalsystems-malachitebft-core-votekeeper",
  "informalsystems-malachitebft-test",
  "thiserror 2.0.16",
+ "tracing",
 ]
 
 [[package]]
@@ -2275,6 +2277,7 @@ dependencies = [
  "informalsystems-malachitebft-core-types",
  "informalsystems-malachitebft-test",
  "thiserror 2.0.16",
+ "tracing",
 ]
 
 [[package]]

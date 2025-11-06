@@ -4,8 +4,7 @@ use std::path::PathBuf;
 use eyre::eyre;
 use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, RpcReplyPort, SpawnErr};
 use tokio::sync::{mpsc, oneshot};
-use tracing::warn;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use malachitebft_core_types::{Context, Height};
 use malachitebft_metrics::SharedRegistry;
@@ -85,7 +84,10 @@ where
         match msg {
             Msg::StartedHeight(height, reply_to) => {
                 if state.height == height {
-                    debug!(%height, "WAL already at height, ignoring");
+                    debug!(%height, "WAL already at height, returning empty entries");
+                    reply_to
+                        .send(Ok(None))
+                        .map_err(|e| eyre!("Failed to send reply: {e}"))?;
                     return Ok(());
                 }
 
@@ -100,7 +102,10 @@ where
 
             Msg::Append(height, entry, reply_to) => {
                 if height != state.height {
-                    warn!(wal.height = %state.height, entry.height = %height, "Ignoring append, mismatched height");
+                    warn!(
+                        wal.height = %state.height, entry.height = %height,
+                        "Ignoring append, mismatched height: {entry:?}"
+                    );
 
                     reply_to
                         .send(Ok(()))

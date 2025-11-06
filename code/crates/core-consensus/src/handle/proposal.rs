@@ -36,14 +36,16 @@ where
     Ctx: Context,
 {
     let consensus_height = state.height();
+    let consensus_round = state.round();
     let proposal_height = signed_proposal.height();
     let proposal_round = signed_proposal.round();
     let proposer_address = signed_proposal.validator_address();
 
     // Discard proposals for heights lower than the current height.
     if proposal_height < consensus_height {
-        warn!(
+        debug!(
             consensus.height = %consensus_height,
+            consensus.round = %consensus_round,
             proposal.height = %proposal_height,
             proposer = %proposer_address,
             "Received proposal for lower height, dropping"
@@ -54,7 +56,12 @@ where
 
     // Queue proposals for heights higher than the current height.
     if proposal_height > consensus_height {
-        debug!("Received proposal for higher height {proposal_height}, queuing for later",);
+        debug!(
+            consensus.height = %consensus_height,
+            proposal.height = %proposal_height,
+            "Received proposal for higher height {proposal_height}, queuing for later"
+        );
+
         state.buffer_input(proposal_height, Input::Proposal(signed_proposal), metrics);
 
         return Ok(());
@@ -66,7 +73,12 @@ where
     // Process messages received for the current height.
     // Drop all others.
     if state.driver.round() == Round::Nil {
-        debug!("Received proposal at round -1, queuing for later");
+        debug!(
+            consensus.height = %consensus_height,
+            proposal.height = %proposal_height,
+            "Received proposal at round -1, queuing for later"
+        );
+
         state.buffer_input(proposal_height, Input::Proposal(signed_proposal), metrics);
 
         return Ok(());
@@ -78,10 +90,11 @@ where
 
     info!(
         consensus.height = %consensus_height,
+        consensus.round = %consensus_round,
         proposal.height = %proposal_height,
         proposal.round = %proposal_round,
+        proposal.msg = %PrettyProposal::<Ctx>(&signed_proposal.message),
         proposer = %proposer_address,
-        message = %PrettyProposal::<Ctx>(&signed_proposal.message),
         "Received proposal"
     );
 
@@ -94,6 +107,7 @@ where
         perform!(
             co,
             Effect::WalAppend(
+                signed_proposal.height(),
                 WalEntry::ConsensusMsg(SignedConsensusMsg::Proposal(signed_proposal.clone())),
                 Default::default()
             )

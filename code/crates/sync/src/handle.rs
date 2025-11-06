@@ -91,6 +91,7 @@ where
                         %request_id, peer.actual = %peer_id, peer.expected = %stored_peer_id,
                         "Received response from different peer than expected"
                     );
+
                     return on_invalid_value_response(co, state, metrics, request_id, peer_id)
                         .await;
                 }
@@ -103,9 +104,13 @@ where
                     return on_value_response(co, state, metrics, request_id, peer_id, response)
                         .await;
                 } else {
-                    warn!(%request_id, %peer_id, "Received request for wrong range of heights: expected {}..={} ({} values), got {}..={} ({} values)",
+                    warn!(
+                        %request_id, %peer_id,
+                        "Received request for wrong range of heights: expected {}..={} ({} values), got {}..={} ({} values)",
                         requested_range.start().as_u64(), requested_range.end().as_u64(), range_len,
-                        start.as_u64(), end.as_u64(), response.values.len() as u64);
+                        start.as_u64(), end.as_u64(), response.values.len() as u64
+                    );
+
                     return on_invalid_value_response(co, state, metrics, request_id, peer_id)
                         .await;
                 }
@@ -185,7 +190,7 @@ where
     }
 
     if peer_height >= state.sync_height {
-        warn!(
+        info!(
             height.tip = %state.tip_height,
             height.sync = %state.sync_height,
             height.peer = %peer_height,
@@ -407,7 +412,7 @@ where
 {
     match request {
         Request::ValueRequest(value_request) => {
-            warn!(%peer_id, range = %DisplayRange::<Ctx>(&value_request.range), "Sync request timed out");
+            info!(%peer_id, range = %DisplayRange::<Ctx>(&value_request.range), "Sync request timed out");
 
             state.peer_scorer.update_score(peer_id, SyncResult::Timeout);
 
@@ -545,20 +550,25 @@ async fn send_request_to_peer<Ctx>(
 where
     Ctx: Context,
 {
-    info!(range = %DisplayRange::<Ctx>(&range), peer.id = %peer, "Requesting sync from peer");
-
     if range.is_empty() {
-        warn!(range.sync = %DisplayRange::<Ctx>(&range), %peer, "Range is empty, skipping request");
+        debug!(%peer, "Range is empty, skipping request");
         return Ok(None);
     }
 
     // Skip over any heights in the range that are not waiting for a response
     // (meaning that they have been validated by consensus or a peer).
     let range = state.trim_validated_heights(&range);
+
     if range.is_empty() {
-        warn!(%peer, "All values in range {} have been validated, skipping request", DisplayRange::<Ctx>(&range));
+        warn!(
+            range = %DisplayRange::<Ctx>(&range), %peer,
+            "All values in range have been validated, skipping request"
+        );
+
         return Ok(None);
     }
+
+    info!(range = %DisplayRange::<Ctx>(&range), %peer, "Requesting sync from peer");
 
     // Send request to peer
     let Some(request_id) = perform!(

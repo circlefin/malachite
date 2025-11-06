@@ -1,5 +1,3 @@
-use tracing::trace;
-
 use crate::handle::driver::apply_driver_input;
 use crate::handle::signature::verify_signature;
 use crate::input::Input;
@@ -19,13 +17,16 @@ where
     let consensus_height = state.height();
     let consensus_round = state.round();
     let vote_height = signed_vote.height();
+    let vote_round = signed_vote.round();
     let validator_address = signed_vote.validator_address();
 
     // Discard votes for heights lower than the current height.
     if consensus_height > vote_height {
         debug!(
             consensus.height = %consensus_height,
+            consensus.round = %consensus_round,
             vote.height = %vote_height,
+            vote.round = %vote_round,
             validator = %validator_address,
             "Received vote for lower height, dropping"
         );
@@ -35,9 +36,11 @@ where
 
     // Queue votes for heights higher than the current height.
     if consensus_height < vote_height {
-        trace!(
+        debug!(
             consensus.height = %consensus_height,
+            consensus.round = %consensus_round,
             vote.height = %vote_height,
+            vote.round = %vote_round,
             validator = %validator_address,
             "Received vote for higher height, queuing for later"
         );
@@ -51,9 +54,11 @@ where
     // Process messages received for the current height.
     // Drop all others.
     if consensus_round == Round::Nil {
-        trace!(
+        debug!(
             consensus.height = %consensus_height,
+            consensus.round = %consensus_round,
             vote.height = %vote_height,
+            vote.round = %vote_round,
             validator = %validator_address,
             "Received vote at round -1, queuing for later"
         );
@@ -70,10 +75,12 @@ where
     }
 
     info!(
-        height = %consensus_height,
-        %vote_height,
-        address = %validator_address,
-        message = %PrettyVote::<Ctx>(&signed_vote.message),
+        consensus.height = %consensus_height,
+        consensus.round = %consensus_round,
+        vote.height = %vote_height,
+        vote.round = %vote_round,
+        vote.msg = %PrettyVote::<Ctx>(&signed_vote.message),
+        validator = %validator_address,
         "Received vote",
     );
 
@@ -82,6 +89,7 @@ where
         perform!(
             co,
             Effect::WalAppend(
+                signed_vote.height(),
                 WalEntry::ConsensusMsg(SignedConsensusMsg::Vote(signed_vote.clone())),
                 Default::default()
             )

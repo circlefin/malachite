@@ -16,15 +16,19 @@ where
 
     if consensus_height > cert_height {
         debug!(
-            %consensus_height,
-            %cert_height,
+            consensus.height = %consensus_height,
+            certificate.height = %cert_height,
             "Received value response for lower height, ignoring"
         );
         return Ok(());
     }
 
     if consensus_height < cert_height {
-        debug!(%consensus_height, %cert_height, "Received value response for higher height, queuing for later");
+        debug!(
+            consensus.height = %consensus_height,
+            certificate.height = %cert_height,
+            "Received value response for higher height, queuing for later"
+        );
 
         state.buffer_input(cert_height, Input::SyncValueResponse(value), metrics);
 
@@ -32,7 +36,7 @@ where
     }
 
     info!(
-        value.certificate.height = %cert_height,
+        certificate.height = %cert_height,
         signatures = value.certificate.commit_signatures.len(),
         "Processing value response"
     );

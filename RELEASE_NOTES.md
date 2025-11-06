@@ -10,6 +10,7 @@
 - Fix bug in WAL recovery logic where a corrupted entry would not be detected in some circumstances ([#1127](https://github.com/informalsystems/malachite/pull/1127))
 - Add facility for app to request a consensus state dump at any time ([#1176](https://github.com/informalsystems/malachite/pull/1176))
 - Make libp2p protocol names configurable ([#1161](https://github.com/informalsystems/malachite/issues/1161))
+- Fix mismatched height of WAL entries emitted when processing `StartHeight` input ([#1232](https://github.com/circlefin/malachite/issues/1232))
 
 ## 0.5.0
 
