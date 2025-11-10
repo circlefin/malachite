@@ -12,6 +12,7 @@
 - Make libp2p protocol names configurable ([#1161](https://github.com/informalsystems/malachite/issues/1161))
 - Fix mismatched height of WAL entries emitted when processing `StartHeight` input ([#1232](https://github.com/circlefin/malachite/issues/1232))
 - Allow dynamic adjustment of timeout parameters ([#1227](https://github.com/circlefin/malachite/pull/1227))
+- Make providing the validator set optional in `StartHeight`, `RestartHeight` and `ConsensusReady` reply ([#1227](https://github.com/circlefin/malachite/pull/1227))
 
 ## 0.5.0
 
