@@ -166,6 +166,7 @@ async fn spawn_sync_actor(
         network,
         host,
         params,
+        ProtobufCodec,
         sync_config,
         sync_metrics,
         span.clone(),

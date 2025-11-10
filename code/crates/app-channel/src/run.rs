@@ -13,7 +13,6 @@ use crate::app::types::core::Context;
 use crate::msgs::ConsensusRequest;
 use crate::spawn::{spawn_host_actor, spawn_network_actor};
 use crate::Channels;
-use malachitebft_app::types::sync;
 use malachitebft_engine::consensus::{ConsensusMsg, ConsensusRef};
 use malachitebft_engine::util::events::TxEvent;
 use tokio::sync::mpsc::Receiver;
@@ -31,9 +30,9 @@ where
     Ctx: Context,
     Node: node::Node<Context = Ctx>,
     WalCodec: codec::WalCodec<Ctx> + Clone,
+    NetCodec: Clone,
     NetCodec: codec::ConsensusCodec<Ctx>,
     NetCodec: codec::SyncCodec<Ctx>,
-    NetCodec: codec::HasEncodedLen<sync::Response<Ctx>>,
 {
     let start_height = start_height.unwrap_or_default();
 
@@ -49,7 +48,7 @@ where
 
     // Spawn consensus gossip
     let (network, tx_network) =
-        spawn_network_actor(cfg.consensus(), keypair, &registry, net_codec).await?;
+        spawn_network_actor(cfg.consensus(), keypair, &registry, net_codec.clone()).await?;
 
     let wal = spawn_wal_actor(&ctx, wal_codec, &node.get_home_dir(), &registry).await?;
 
@@ -60,6 +59,7 @@ where
         ctx.clone(),
         network.clone(),
         connector.clone(),
+        net_codec,
         cfg.value_sync(),
         &registry,
     )

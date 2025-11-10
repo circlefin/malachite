@@ -37,6 +37,7 @@ where
     Self: codec::Codec<sync::Status<Ctx>>,
     Self: codec::Codec<sync::Request<Ctx>>,
     Self: codec::Codec<sync::Response<Ctx>>,
+    Self: codec::HasEncodedLen<sync::Response<Ctx>>,
 {
 }
 
@@ -46,6 +47,7 @@ where
     Codec: codec::Codec<sync::Status<Ctx>>,
     Codec: codec::Codec<sync::Request<Ctx>>,
     Codec: codec::Codec<sync::Response<Ctx>>,
+    Codec: codec::HasEncodedLen<sync::Response<Ctx>>,
 {
 }
 
@@ -149,25 +151,33 @@ pub struct State<Ctx: Context> {
 }
 
 #[allow(dead_code)]
-pub struct Sync<Ctx: Context> {
+pub struct Sync<Ctx, Codec>
+where
+    Ctx: Context,
+    Codec: SyncCodec<Ctx>,
+{
     ctx: Ctx,
     gossip: NetworkRef<Ctx>,
     host: HostRef<Ctx>,
     params: Params,
+    sync_codec: Codec,
     sync_config: sync::Config,
     metrics: sync::Metrics,
     span: tracing::Span,
 }
 
-impl<Ctx> Sync<Ctx>
+impl<Ctx, Codec> Sync<Ctx, Codec>
 where
     Ctx: Context,
+    Codec: SyncCodec<Ctx>,
 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         ctx: Ctx,
         gossip: NetworkRef<Ctx>,
         host: HostRef<Ctx>,
         params: Params,
+        sync_codec: Codec,
         sync_config: sync::Config,
         metrics: sync::Metrics,
         span: tracing::Span,
@@ -177,22 +187,34 @@ where
             gossip,
             host,
             params,
+            sync_codec,
             sync_config,
             metrics,
             span,
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn spawn(
         ctx: Ctx,
         gossip: NetworkRef<Ctx>,
         host: HostRef<Ctx>,
         params: Params,
+        sync_codec: Codec,
         sync_config: sync::Config,
         metrics: sync::Metrics,
         span: tracing::Span,
     ) -> Result<SyncRef<Ctx>, ractor::SpawnErr> {
-        let actor = Self::new(ctx, gossip, host, params, sync_config, metrics, span);
+        let actor = Self::new(
+            ctx,
+            gossip,
+            host,
+            params,
+            sync_codec,
+            sync_config,
+            metrics,
+            span,
+        );
         let (actor_ref, _) = Actor::spawn(None, actor, ()).await?;
         Ok(actor_ref)
     }
@@ -303,14 +325,13 @@ where
                             vec![value.clone()],
                         ));
 
-                        let result = ractor::call!(self.gossip, move |reply_to| {
-                            NetworkMsg::GetResponseSize(value_response.clone(), reply_to)
-                        });
-
-                        let total_value_size_bytes = match result {
+                        let total_value_size_bytes = match self
+                            .sync_codec
+                            .encoded_len(&value_response)
+                        {
                             Ok(value_in_bytes) => value_in_bytes,
                             Err(e) => {
-                                error!("Failed to get response size for value, stopping at for height {}: {:?}", height, e);
+                                error!("Failed to get response size for value, stopping at height {height}: {e}");
                                 break;
                             }
                         };
@@ -492,9 +513,10 @@ where
 }
 
 #[async_trait]
-impl<Ctx> Actor for Sync<Ctx>
+impl<Ctx, Codec> Actor for Sync<Ctx, Codec>
 where
     Ctx: Context,
+    Codec: SyncCodec<Ctx> + Send + std::marker::Sync + 'static,
 {
     type Msg = Msg<Ctx>;
     type State = State<Ctx>;
