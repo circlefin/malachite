@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use prost::Message;
 
-use malachitebft_codec::Codec;
+use malachitebft_codec::{Codec, HasEncodedLen};
 use malachitebft_core_consensus::{LivenessMsg, PeerId, ProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{
     CommitCertificate, CommitSignature, NilOrVal, PolkaCertificate, PolkaSignature, Round,
@@ -219,6 +219,15 @@ impl Codec<sync::Request<MockContext>> for ProtobufCodec {
 
     fn encode(&self, request: &sync::Request<MockContext>) -> Result<Bytes, Self::Error> {
         encode_sync_request(request).map(|proto| proto.encode_to_bytes())
+    }
+}
+
+impl HasEncodedLen<sync::Response<MockContext>> for ProtobufCodec {
+    fn encoded_len(
+        &self,
+        response: &sync::Response<MockContext>,
+    ) -> Result<usize, <Self as Codec<sync::Response<MockContext>>>::Error> {
+        Ok(encode_sync_response(response)?.encoded_len())
     }
 }
 

@@ -2,10 +2,10 @@
 //! Provides the application with a channel for receiving messages from consensus.
 
 use eyre::Result;
+use tokio::sync::mpsc::Receiver;
 
 use malachitebft_engine::consensus::{ConsensusMsg, ConsensusRef};
 use malachitebft_engine::util::events::TxEvent;
-use tokio::sync::mpsc::Receiver;
 
 use crate::app::metrics::{Metrics, SharedRegistry};
 use crate::app::node::{self, EngineHandle, NodeConfig};
@@ -33,6 +33,7 @@ where
     Ctx: Context,
     Node: node::Node<Context = Ctx>,
     WalCodec: codec::WalCodec<Ctx> + Clone,
+    NetCodec: Clone,
     NetCodec: codec::ConsensusCodec<Ctx>,
     NetCodec: codec::SyncCodec<Ctx>,
 {
@@ -50,7 +51,7 @@ where
 
     // Spawn consensus gossip
     let (network, tx_network) =
-        spawn_network_actor(cfg.consensus(), keypair, &registry, net_codec).await?;
+        spawn_network_actor(cfg.consensus(), keypair, &registry, net_codec.clone()).await?;
 
     let wal = spawn_wal_actor(&ctx, wal_codec, &node.get_home_dir(), &registry).await?;
 
@@ -61,6 +62,7 @@ where
         ctx.clone(),
         network.clone(),
         connector.clone(),
+        net_codec,
         cfg.value_sync(),
         &registry,
     )
