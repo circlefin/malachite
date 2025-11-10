@@ -6,7 +6,9 @@ use crate::{Context, Round, TimeoutKind};
 /// Timeouts control how long the consensus engine waits for various steps
 /// in the consensus protocol.
 ///
-/// The default implementation is [`LinearTimeouts`].
+/// The standard implementation is [`LinearTimeouts`], which should be used
+/// unless you have specific requirements for custom timeout behavior. See
+/// [`LinearTimeouts::default`] for the default values.
 pub trait Timeouts<Ctx>
 where
     Self: Clone + Debug + Eq + Send + Sync + Copy,

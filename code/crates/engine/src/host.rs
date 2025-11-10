@@ -34,6 +34,7 @@ pub enum HostMsg<Ctx: Context> {
     /// consensus to start at a given height.
     ConsensusReady {
         /// Use this reply port to instruct consensus to start the first height.
+        #[allow(clippy::type_complexity)]
         reply_to: RpcReplyPort<(Ctx::Height, Ctx::ValidatorSet, Option<Ctx::Timeouts>)>,
     },
 

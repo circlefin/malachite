@@ -142,6 +142,7 @@ pub enum AppMsg<Ctx: Context> {
     ConsensusReady {
         /// Channel for sending back the height to start at,
         /// the validator set for that height, and optionally the timeouts
+        #[allow(clippy::type_complexity)]
         reply: Reply<(Ctx::Height, Ctx::ValidatorSet, Option<Ctx::Timeouts>)>,
     },
 

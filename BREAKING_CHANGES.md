@@ -5,6 +5,9 @@
 ### `malachitebft-core-types`
 
 - Move `SigningProvider` and `SigningProviderExt` traits into new `malachitebft-signing` crate ([#1191](https://github.com/informalsystems/malachite/pull/1191))
+- Added new `Timeouts` trait to control consensus timeouts duration based on step and round
+- Added new `LinearTimeouts` struct as default implementation of the `Timeouts` trait
+- Added new associated type `Timeouts` to the `Context` trait (required for all implementors)
 
 ### `malachitebft-signing`
 
@@ -15,19 +18,28 @@
 ### `malachitebft-core-consensus`
 
 - Remove `GetValidatorSet` effect ([#1189](https://github.com/circlefin/malachite/pull/1189))
+- Changed `Input::StartHeight` to take an additional `Option<Ctx::Timeouts>` parameter as the fourth argument
 
 ### `malachitebft-engine`
 
 - Remove `HostMsg::GetValidatorSet` ([#1189](https://github.com/circlefin/malachite/pull/1189))
+- Changed `Next::Start` variant to include `Option<Ctx::Timeouts>` as third parameter
+- Changed `Next::Restart` variant to include `Option<Ctx::Timeouts>` as third parameter
+- Changed `HostMsg::ConsensusReady` reply type from `(Ctx::Height, Ctx::ValidatorSet)` to `(Ctx::Height, Ctx::ValidatorSet, Option<Ctx::Timeouts>)`
 
 ### `malachitebft-config`
 
 - Added field `channel_names: ChannelNames` to `NetworkConfig` struct ([#849](https://github.com/informalsystems/malachite/pull/849))
+- Removed `TimeoutConfig` struct
+- Removed `timeouts` field from `ConsensusConfig` struct (timeouts are now managed via `Context::Timeouts` associated type)
 
 ### `malachitebft-app-channel`
 
 - Remove `AppMsg::GetValidatorSet` ([#1189](https://github.com/circlefin/malachite/pull/1189))
 - Added field `requests: tokio::sync::mpsc::Sender<ConsensusRequest<Ctx>>` to `Channels` struct ([#1176](https://github.com/circlefin/malachite/pull/1176))
+- Changed `AppMsg::ConsensusReady` reply type from `(Ctx::Height, Ctx::ValidatorSet)` to `(Ctx::Height, Ctx::ValidatorSet, Option<Ctx::Timeouts>)`
+- Changed `ConsensusMsg::StartHeight` to include `Option<Ctx::Timeouts>` as third parameter
+- Changed `ConsensusMsg::RestartHeight` to include `Option<Ctx::Timeouts>` as third parameter
 
 
 ## 0.5.0
