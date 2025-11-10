@@ -33,10 +33,7 @@ fn move_to_height_preserves_validator_set_when_none() {
 
     // Move to next height with None validator_set - should preserve the existing one
     let next_height = Height::new(2);
-    let updates = HeightUpdates {
-        validator_set: None,
-        timeouts: None,
-    };
+    let updates = HeightUpdates::default();
 
     driver.move_to_height(next_height, updates);
 
@@ -121,10 +118,7 @@ fn move_to_height_preserves_timeouts_when_none() {
 
     // Move to next height with None timeouts - should preserve the existing ones
     let next_height = Height::new(2);
-    let updates = HeightUpdates {
-        validator_set: None,
-        timeouts: None,
-    };
+    let updates = HeightUpdates::default();
 
     driver.move_to_height(next_height, updates);
 
@@ -177,10 +171,7 @@ fn move_to_height_updates_timeouts_when_some() {
 
     // Move to next height with new timeouts
     let next_height = Height::new(2);
-    let updates = HeightUpdates {
-        validator_set: None,
-        timeouts: Some(new_timeouts),
-    };
+    let updates = HeightUpdates::default().with_timeouts(new_timeouts);
 
     driver.move_to_height(next_height, updates);
 
