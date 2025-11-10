@@ -7,7 +7,6 @@ use eyre::Result;
 use tokio::task::JoinHandle;
 use tracing::Span;
 
-use malachitebft_codec::HasEncodedLen;
 use malachitebft_engine::consensus::{Consensus, ConsensusCodec, ConsensusParams, ConsensusRef};
 use malachitebft_engine::host::HostRef;
 use malachitebft_engine::network::{Network, NetworkRef};
@@ -62,7 +61,6 @@ where
     Ctx: Context,
     Codec: ConsensusCodec<Ctx>,
     Codec: SyncCodec<Ctx>,
-    Codec: HasEncodedLen<sync::Response<Ctx>>,
 {
     let config = make_gossip_config(cfg);
 
