@@ -600,7 +600,7 @@ where
         return Ok(());
     };
 
-    request_values_from_peer(&co, state, metrics, range, peer).await?;
+    send_request_to_peer(&co, state, metrics, range, peer).await?;
 
     Ok(())
 }
