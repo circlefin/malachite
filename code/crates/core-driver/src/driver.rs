@@ -10,7 +10,7 @@ use malachitebft_core_state_machine::state_machine::Info;
 use malachitebft_core_types::{
     CommitCertificate, Context, EnterRoundCertificate, NilOrVal, PolkaCertificate, PolkaSignature,
     Proposal, Round, RoundCertificateType, SignedProposal, SignedVote, Timeout, TimeoutKind,
-    Timeouts, Validator, ValidatorSet, Validity, Value, ValueId, Vote, VoteType,
+    Validator, ValidatorSet, Validity, Value, ValueId, Vote, VoteType,
 };
 use malachitebft_core_votekeeper::keeper::Output as VKOutput;
 use malachitebft_core_votekeeper::keeper::VoteKeeper;
@@ -41,7 +41,7 @@ where
     validator_set: Ctx::ValidatorSet,
 
     /// The timeouts at the current height
-    timeouts: Timeouts,
+    timeouts: Ctx::Timeouts,
 
     /// The proposer for the current round, None for round nil.
     proposer: Option<Ctx::Address>,
@@ -84,7 +84,7 @@ where
         ctx: Ctx,
         height: Ctx::Height,
         validator_set: Ctx::ValidatorSet,
-        timeouts: Timeouts,
+        timeouts: Ctx::Timeouts,
         address: Ctx::Address,
         threshold_params: ThresholdParams,
     ) -> Self {
@@ -117,7 +117,7 @@ where
         &mut self,
         height: Ctx::Height,
         validator_set: Ctx::ValidatorSet,
-        timeouts: Option<Timeouts>,
+        timeouts: Option<Ctx::Timeouts>,
     ) {
         // Reset the proposal keeper
         let proposal_keeper = ProposalKeeper::new();
@@ -217,7 +217,7 @@ where
     }
 
     /// Return the timeouts for this height.
-    pub fn timeouts(&self) -> &Timeouts {
+    pub fn timeouts(&self) -> &Ctx::Timeouts {
         &self.timeouts
     }
 

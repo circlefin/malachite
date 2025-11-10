@@ -78,7 +78,7 @@ where
         self.driver.validator_set()
     }
 
-    pub fn timeouts(&self) -> &Timeouts {
+    pub fn timeouts(&self) -> &Ctx::Timeouts {
         self.driver.timeouts()
     }
 
@@ -176,7 +176,7 @@ where
         &mut self,
         height: Ctx::Height,
         validator_set: Ctx::ValidatorSet,
-        timeouts: Option<Timeouts>,
+        timeouts: Option<Ctx::Timeouts>,
     ) {
         self.full_proposal_keeper.clear();
         self.last_signed_prevote = None;

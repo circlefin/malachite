@@ -5,7 +5,7 @@ use tokio::task::JoinHandle;
 use tracing::warn;
 
 use malachitebft_config::{self as config, MempoolConfig, MempoolLoadConfig, ValueSyncConfig};
-use malachitebft_core_types::{Timeouts, ValuePayload};
+use malachitebft_core_types::{LinearTimeouts, ValuePayload};
 use malachitebft_engine::consensus::{Consensus, ConsensusParams, ConsensusRef};
 use malachitebft_engine::host::HostRef;
 use malachitebft_engine::network::{Network, NetworkRef};
@@ -35,7 +35,7 @@ pub async fn spawn_node_actor(
     cfg: Config,
     home_dir: PathBuf,
     initial_validator_set: ValidatorSet,
-    initial_timeouts: Timeouts,
+    initial_timeouts: LinearTimeouts,
     private_key: PrivateKey,
     start_height: Option<Height>,
     tx_event: TxEvent<MockContext>,
@@ -184,7 +184,7 @@ async fn spawn_sync_actor(
 async fn spawn_consensus_actor(
     initial_height: Height,
     initial_validator_set: ValidatorSet,
-    initial_timeouts: Timeouts,
+    initial_timeouts: LinearTimeouts,
     address: Address,
     ctx: MockContext,
     mut cfg: Config,
@@ -367,7 +367,7 @@ async fn spawn_host_actor(
     address: &Address,
     private_key: &PrivateKey,
     initial_validator_set: &ValidatorSet,
-    initial_timeouts: Timeouts,
+    initial_timeouts: LinearTimeouts,
     mempool: MempoolRef,
     mempool_load: MempoolLoadRef,
     network: NetworkRef<MockContext>,

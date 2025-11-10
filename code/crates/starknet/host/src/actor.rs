@@ -212,7 +212,7 @@ async fn on_consensus_ready(
     reply_to: RpcReplyPort<(
         Height,
         ValidatorSet,
-        Option<malachitebft_core_types::Timeouts>,
+        Option<malachitebft_core_types::LinearTimeouts>,
     )>,
 ) -> Result<(), ActorProcessingErr> {
     let latest_block_height = state.block_store.last_height().await.unwrap_or_default();

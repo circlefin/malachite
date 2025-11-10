@@ -92,7 +92,7 @@ pub type ConsensusMsg<Ctx> = Msg<Ctx>;
 #[derive_where(Debug)]
 pub enum Msg<Ctx: Context> {
     /// Start consensus for the given height with the given validator set
-    StartHeight(Ctx::Height, Ctx::ValidatorSet, Option<Timeouts>),
+    StartHeight(Ctx::Height, Ctx::ValidatorSet, Option<Ctx::Timeouts>),
 
     /// Received an event from the gossip layer
     NetworkEvent(NetworkEvent<Ctx>),
@@ -115,7 +115,7 @@ pub enum Msg<Ctx: Context> {
     /// 1. The application must clean all state associated with the height for which commit has failed
     /// 2. Since consensus resets its write-ahead log, the node may equivocate on proposals and votes
     ///    for the restarted height, potentially violating protocol safety
-    RestartHeight(Ctx::Height, Ctx::ValidatorSet, Option<Timeouts>),
+    RestartHeight(Ctx::Height, Ctx::ValidatorSet, Option<Ctx::Timeouts>),
 
     /// Request to dump the current consensus state
     DumpState(RpcReplyPort<StateDump<Ctx>>),
@@ -176,34 +176,21 @@ impl<Ctx: Context> From<TimeoutElapsed<Timeout>> for Msg<Ctx> {
 
 type Timers = TimerScheduler<Timeout>;
 
-struct TimeoutsState {
-    timeouts: Timeouts,
+struct TimeoutsState<Ctx: Context> {
+    timeouts: Ctx::Timeouts,
 }
 
-impl TimeoutsState {
-    pub fn new(timeouts: Timeouts) -> Self {
+impl<Ctx: Context> TimeoutsState<Ctx> {
+    pub fn new(timeouts: Ctx::Timeouts) -> Self {
         Self { timeouts }
     }
 
-    fn reset(&mut self, timeouts: Timeouts) {
+    fn reset(&mut self, timeouts: Ctx::Timeouts) {
         self.timeouts = timeouts;
     }
 
-    fn duration_for(&self, step: TimeoutKind) -> Duration {
-        self.timeouts.timeout_duration(step)
-    }
-
-    fn increase_timeout(&mut self, step: TimeoutKind) {
-        let c = &mut self.timeouts;
-        match step {
-            TimeoutKind::Propose => c.timeout_propose += c.timeout_propose_delta,
-            TimeoutKind::Prevote => c.timeout_prevote += c.timeout_prevote_delta,
-            TimeoutKind::Precommit => c.timeout_precommit += c.timeout_precommit_delta,
-            TimeoutKind::Rebroadcast => {
-                c.timeout_rebroadcast +=
-                    c.timeout_propose_delta + c.timeout_prevote_delta + c.timeout_precommit_delta
-            }
-        };
+    fn duration_for(&self, step: TimeoutKind, round: Round) -> Duration {
+        self.timeouts.duration_for(step, round)
     }
 }
 
@@ -224,7 +211,7 @@ pub struct State<Ctx: Context> {
     timers: Timers,
 
     /// The state of the timeouts
-    timeouts: TimeoutsState,
+    timeouts: TimeoutsState<Ctx>,
 
     /// The state of the consensus state machine
     consensus: ConsensusState<Ctx>,
@@ -256,10 +243,10 @@ where
     }
 }
 
-struct HandlerState<'a> {
+struct HandlerState<'a, Ctx: Context> {
     phase: Phase,
     timers: &'a mut Timers,
-    timeouts: &'a mut TimeoutsState,
+    timeouts: &'a mut TimeoutsState<Ctx>,
 }
 
 impl<Ctx> Consensus<Ctx>
@@ -663,9 +650,6 @@ where
         // Make sure the associated timer is cancelled
         state.timers.cancel(&timeout);
 
-        // Increase the timeout for the next round
-        state.timeouts.increase_timeout(timeout.kind);
-
         // Print debug information if the timeout is for a prevote or precommit
         if matches!(
             timeout.kind,
@@ -921,7 +905,7 @@ where
     async fn handle_effect(
         &self,
         myself: &ActorRef<Msg<Ctx>>,
-        state: HandlerState<'_>,
+        state: HandlerState<'_, Ctx>,
         effect: Effect<Ctx>,
     ) -> Result<Resume<Ctx>, ActorProcessingErr> {
         match effect {
@@ -942,7 +926,7 @@ where
             }
 
             Effect::ScheduleTimeout(timeout, r) => {
-                let duration = state.timeouts.duration_for(timeout.kind);
+                let duration = state.timeouts.duration_for(timeout.kind, timeout.round);
                 state.timers.start_timer(timeout, duration);
 
                 Ok(r.resume_with(()))
@@ -1149,7 +1133,7 @@ where
             }
 
             Effect::GetValue(height, round, timeout, r) => {
-                let timeout_duration = state.timeouts.duration_for(timeout.kind);
+                let timeout_duration = state.timeouts.duration_for(timeout.kind, timeout.round);
 
                 self.get_value(myself, height, round, timeout_duration)
                     .map_err(|e| {

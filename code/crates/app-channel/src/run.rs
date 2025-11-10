@@ -13,7 +13,7 @@ use crate::app::spawn::{
     spawn_consensus_actor, spawn_node_actor, spawn_sync_actor, spawn_wal_actor,
 };
 use crate::app::types::codec;
-use crate::app::types::core::{Context, Timeouts};
+use crate::app::types::core::Context;
 use crate::msgs::ConsensusRequest;
 use crate::spawn::{spawn_host_actor, spawn_network_actor};
 use crate::Channels;
@@ -27,7 +27,7 @@ pub async fn start_engine<Node, Ctx, WalCodec, NetCodec>(
     net_codec: NetCodec,
     start_height: Option<Ctx::Height>,
     initial_validator_set: Ctx::ValidatorSet,
-    initial_timeouts: Timeouts,
+    initial_timeouts: Ctx::Timeouts,
 ) -> Result<(Channels<Ctx>, EngineHandle)>
 where
     Ctx: Context,

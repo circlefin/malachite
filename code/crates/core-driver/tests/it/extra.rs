@@ -1,5 +1,5 @@
 use malachitebft_core_state_machine::state::State;
-use malachitebft_core_types::{Round, Timeouts, Validity};
+use malachitebft_core_types::{LinearTimeouts, Round, Validity};
 
 use malachitebft_test::utils::validators::make_validators;
 use malachitebft_test::{Height, Proposal, TestContext, ValidatorSet, Value};
@@ -82,7 +82,7 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
         ctx,
         height,
         vs,
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -163,7 +163,7 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
         ctx,
         height,
         vs,
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -287,7 +287,7 @@ fn driver_steps_decide_previous_with_locked_and_valid() {
         ctx,
         height,
         vs,
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -432,7 +432,7 @@ fn driver_steps_polka_previous_with_locked() {
         ctx,
         height,
         vs,
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -566,7 +566,7 @@ fn driver_steps_polka_previous_not_locked_vote_last_l30() {
         ctx,
         height,
         vs,
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -653,7 +653,7 @@ fn driver_steps_polka_previous_locked_vote_last_l32() {
         ctx,
         height,
         vs,
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -916,7 +916,7 @@ fn driver_steps_polka_previous_invalid_proposal() {
         ctx,
         height,
         vs,
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -1019,7 +1019,7 @@ fn driver_steps_polka_previous_new_proposal() {
         ctx,
         height,
         vs,
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -1172,7 +1172,7 @@ fn driver_steps_polka_previous_with_no_locked() {
         ctx,
         height,
         vs,
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -1304,7 +1304,7 @@ fn driver_steps_polka_nil_and_timeout_propose() {
         ctx,
         height,
         vs,
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -1374,7 +1374,7 @@ fn driver_steps_polka_value_then_proposal() {
         ctx,
         height,
         vs,
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -1446,7 +1446,7 @@ fn driver_steps_polka_any_then_proposal_other() {
         ctx,
         height,
         vs,
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -1512,7 +1512,7 @@ fn driver_equivocate_vote() {
         ctx,
         height,
         vs,
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -1588,7 +1588,7 @@ fn driver_equivocating_proposer_others_vote_first() {
         ctx,
         height,
         vs,
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -1687,7 +1687,7 @@ fn driver_equivocating_proposer_others_vote_second() {
         ctx,
         height,
         vs,
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -1815,7 +1815,7 @@ fn driver_equivocating_proposer_valid_value() {
         ctx,
         height,
         vs,
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -1931,7 +1931,7 @@ fn driver_equivocating_proposer_valid_value_with_polka_cert() {
         ctx,
         height,
         vs,
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -2028,7 +2028,7 @@ fn driver_conflicting_proposal_panic() {
         ctx,
         height,
         vs,
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -2087,7 +2087,7 @@ fn driver_step_change_mux_with_proposal() {
         ctx,
         height,
         vs,
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -2197,7 +2197,7 @@ fn driver_step_change_mux_with_proposal_and_polka() {
         ctx,
         height,
         vs,
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -2281,7 +2281,7 @@ fn driver_step_change_mux_with_proposal_and_commit_quorum() {
         ctx,
         height,
         vs,
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -2360,7 +2360,7 @@ fn proposal_mux_with_polka() {
         ctx,
         height,
         vs,
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -2441,7 +2441,7 @@ fn proposal_mux_with_commit_quorum() {
         ctx,
         height,
         vs,
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );

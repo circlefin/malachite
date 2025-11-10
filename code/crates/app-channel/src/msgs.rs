@@ -145,7 +145,7 @@ pub enum AppMsg<Ctx: Context> {
         reply: Reply<(
             Ctx::Height,
             Ctx::ValidatorSet,
-            Option<malachitebft_app::types::core::Timeouts>,
+            Option<Ctx::Timeouts>,
         )>,
     },
 
@@ -308,7 +308,7 @@ pub enum ConsensusMsg<Ctx: Context> {
     StartHeight(
         Ctx::Height,
         Ctx::ValidatorSet,
-        Option<malachitebft_app::types::core::Timeouts>,
+        Option<Ctx::Timeouts>,
     ),
 
     /// Previousuly received value proposed by a validator
@@ -318,7 +318,7 @@ pub enum ConsensusMsg<Ctx: Context> {
     RestartHeight(
         Ctx::Height,
         Ctx::ValidatorSet,
-        Option<malachitebft_app::types::core::Timeouts>,
+        Option<Ctx::Timeouts>,
     ),
 }
 

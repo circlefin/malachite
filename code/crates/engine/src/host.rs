@@ -6,7 +6,7 @@ use ractor::{ActorRef, RpcReplyPort};
 
 use malachitebft_core_consensus::{Role, VoteExtensionError};
 use malachitebft_core_types::{
-    CommitCertificate, Context, Round, Timeouts, ValueId, VoteExtensions,
+    CommitCertificate, Context, Round, ValueId, VoteExtensions,
 };
 use malachitebft_sync::{PeerId, RawDecidedValue};
 
@@ -21,10 +21,10 @@ pub type HostRef<Ctx> = ActorRef<HostMsg<Ctx>>;
 #[derive_where(Debug)]
 pub enum Next<Ctx: Context> {
     /// Start at the given height with the given validator set.
-    Start(Ctx::Height, Ctx::ValidatorSet, Option<Timeouts>),
+    Start(Ctx::Height, Ctx::ValidatorSet, Option<Ctx::Timeouts>),
 
     /// Restart at the given height with the given validator set.
-    Restart(Ctx::Height, Ctx::ValidatorSet, Option<Timeouts>),
+    Restart(Ctx::Height, Ctx::ValidatorSet, Option<Ctx::Timeouts>),
 }
 
 /// Messages that need to be handled by the host actor.
@@ -36,7 +36,7 @@ pub enum HostMsg<Ctx: Context> {
     /// consensus to start at a given height.
     ConsensusReady {
         /// Use this reply port to instruct consensus to start the first height.
-        reply_to: RpcReplyPort<(Ctx::Height, Ctx::ValidatorSet, Option<Timeouts>)>,
+        reply_to: RpcReplyPort<(Ctx::Height, Ctx::ValidatorSet, Option<Ctx::Timeouts>)>,
     },
 
     /// Consensus has started a new round.

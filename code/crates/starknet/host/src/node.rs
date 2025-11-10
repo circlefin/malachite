@@ -14,7 +14,7 @@ use malachitebft_app::node::{
 };
 use malachitebft_app::types::Keypair;
 use malachitebft_config::mempool_load::UniformLoadConfig;
-use malachitebft_core_types::{Timeouts, VotingPower};
+use malachitebft_core_types::{LinearTimeouts, VotingPower};
 use malachitebft_engine::node::NodeRef;
 use malachitebft_starknet_p2p_types::Ed25519Provider;
 
@@ -166,7 +166,7 @@ impl Node for StarknetNode {
             config.clone(),
             self.home_dir.clone(),
             genesis.validator_set,
-            Timeouts::default(),
+            LinearTimeouts::default(),
             private_key,
             start_height,
             tx_event.clone(),

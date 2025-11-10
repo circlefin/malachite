@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use malachitebft_core_state_machine::state::{RoundValue, State, Step};
 use malachitebft_core_types::{
-    NilOrVal, Round, SignedProposal, SignedVote, Timeout, TimeoutKind, Timeouts, Validity,
+    LinearTimeouts, NilOrVal, Round, SignedProposal, SignedVote, Timeout, TimeoutKind, Validity,
 };
 use malachitebft_test::proposer_selector::{FixedProposer, ProposerSelector, RotateProposer};
 use malachitebft_test::utils::validators::make_validators;
@@ -97,7 +97,7 @@ fn driver_steps_proposer() {
         ctx,
         height,
         vs.clone(),
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -311,7 +311,7 @@ fn driver_steps_proposer_timeout_get_value() {
         ctx,
         height,
         vs.clone(),
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -376,7 +376,7 @@ fn driver_steps_not_proposer_valid() {
         ctx,
         height,
         vs.clone(),
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -579,7 +579,7 @@ fn driver_steps_not_proposer_invalid() {
         ctx,
         height,
         vs.clone(),
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -713,7 +713,7 @@ fn driver_steps_not_proposer_other_height() {
         ctx,
         height,
         vs.clone(),
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -784,7 +784,7 @@ fn driver_steps_not_proposer_other_round() {
         ctx,
         height,
         vs.clone(),
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -846,7 +846,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         ctx,
         height,
         vs.clone(),
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -1032,7 +1032,7 @@ fn driver_steps_no_value_to_propose() {
         ctx,
         height,
         vs.clone(),
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -1070,7 +1070,7 @@ fn driver_steps_proposer_not_found() {
         ctx,
         height,
         vs.clone(),
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -1098,7 +1098,7 @@ fn driver_steps_validator_not_found() {
         ctx,
         height,
         vs.clone(),
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -1138,7 +1138,7 @@ fn driver_steps_skip_round_skip_threshold() {
         ctx,
         height,
         vs.clone(),
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );
@@ -1247,7 +1247,7 @@ fn driver_steps_skip_round_quorum_threshold() {
         ctx,
         height,
         vs.clone(),
-        Timeouts::default(),
+        LinearTimeouts::default(),
         my_addr,
         Default::default(),
     );

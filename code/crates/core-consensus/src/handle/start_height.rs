@@ -9,7 +9,7 @@ pub async fn reset_and_start_height<Ctx>(
     metrics: &Metrics,
     height: Ctx::Height,
     validator_set: Ctx::ValidatorSet,
-    timeouts: Option<Timeouts>,
+    timeouts: Option<Ctx::Timeouts>,
     is_restart: bool,
 ) -> Result<(), Error<Ctx>>
 where

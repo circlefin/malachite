@@ -7,7 +7,7 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::Instrument;
 
-use malachitebft_core_types::{CommitCertificate, Round, SignedVote, Timeouts};
+use malachitebft_core_types::{CommitCertificate, LinearTimeouts, Round, SignedVote};
 
 use crate::host::Host;
 use crate::mempool::MempoolRef;
@@ -34,7 +34,7 @@ pub struct StarknetHost {
     pub address: Address,
     pub private_key: PrivateKey,
     pub validator_set: ValidatorSet,
-    pub timeouts: Timeouts,
+    pub timeouts: LinearTimeouts,
     pub part_store: PartStore<MockContext>,
 }
 
@@ -46,7 +46,7 @@ impl StarknetHost {
         address: Address,
         private_key: PrivateKey,
         validator_set: ValidatorSet,
-        timeouts: Timeouts,
+        timeouts: LinearTimeouts,
     ) -> Self {
         Self {
             params,
