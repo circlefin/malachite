@@ -191,17 +191,17 @@ fn move_to_height_updates_timeouts_when_some() {
     assert_ne!(driver.timeouts(), &initial_timeouts);
 }
 
-/// Test HeightUpdates::none() convenience method
+/// Test HeightUpdates::default() convenience method
 #[test]
-fn height_updates_none_creates_empty_updates() {
-    let updates = HeightUpdates::<TestContext>::none();
+fn height_updates_default_creates_empty_updates() {
+    let updates = HeightUpdates::<TestContext>::default();
     assert!(updates.validator_set.is_none());
     assert!(updates.timeouts.is_none());
 }
 
-/// Test that move_to_height with HeightUpdates::none() preserves everything
+/// Test that move_to_height with HeightUpdates::default() preserves everything
 #[test]
-fn move_to_height_with_none_preserves_all_state() {
+fn move_to_height_with_default_preserves_all_state() {
     let [(v1, sk1), (v2, _sk2), (v3, _sk3)] = make_validators([1, 2, 3]);
     let (_my_sk, my_addr) = (sk1, v1.address);
 
@@ -227,9 +227,9 @@ fn move_to_height_with_none_preserves_all_state() {
         Default::default(),
     );
 
-    // Move to next height with HeightUpdates::none()
+    // Move to next height with HeightUpdates::default()
     let next_height = Height::new(2);
-    driver.move_to_height(next_height, HeightUpdates::none());
+    driver.move_to_height(next_height, HeightUpdates::default());
 
     assert_eq!(driver.height(), next_height);
     assert_eq!(driver.round(), Round::Nil);

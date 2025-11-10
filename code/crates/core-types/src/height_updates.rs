@@ -5,7 +5,7 @@ use derive_where::derive_where;
 use crate::Context;
 
 /// Updates to apply when starting or restarting a height.
-#[derive_where(Debug, Clone, PartialEq, Eq)]
+#[derive_where(Debug, Clone, PartialEq, Eq, Default)]
 pub struct HeightUpdates<Ctx: Context> {
     /// Validator set for the height
     ///
@@ -18,11 +18,15 @@ pub struct HeightUpdates<Ctx: Context> {
 }
 
 impl<Ctx: Context> HeightUpdates<Ctx> {
-    /// Create a new `HeightUpdates` struct with no updates.
-    pub fn none() -> Self {
-        Self {
-            validator_set: None,
-            timeouts: None,
-        }
+    /// Apply a validator set update to the height updates.
+    pub fn with_validator_set(mut self, validator_set: Ctx::ValidatorSet) -> Self {
+        self.validator_set = Some(validator_set);
+        self
+    }
+
+    /// Apply a timeouts update to the height updates.
+    pub fn with_timeouts(mut self, timeouts: Ctx::Timeouts) -> Self {
+        self.timeouts = Some(timeouts);
+        self
     }
 }
