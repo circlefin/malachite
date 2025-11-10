@@ -11,6 +11,7 @@ use malachitebft_sync::{PeerId, RawDecidedValue};
 use crate::util::streaming::StreamMessage;
 
 pub use malachitebft_core_consensus::{LocallyProposedValue, ProposedValue};
+pub use malachitebft_core_types::HeightUpdates;
 
 /// A reference to the host actor.
 pub type HostRef<Ctx> = ActorRef<HostMsg<Ctx>>;
@@ -19,10 +20,10 @@ pub type HostRef<Ctx> = ActorRef<HostMsg<Ctx>>;
 #[derive_where(Debug)]
 pub enum Next<Ctx: Context> {
     /// Start at the given height with the given validator set.
-    Start(Ctx::Height, Ctx::ValidatorSet, Option<Ctx::Timeouts>),
+    Start(Ctx::Height, HeightUpdates<Ctx>),
 
     /// Restart at the given height with the given validator set.
-    Restart(Ctx::Height, Ctx::ValidatorSet, Option<Ctx::Timeouts>),
+    Restart(Ctx::Height, HeightUpdates<Ctx>),
 }
 
 /// Messages that need to be handled by the host actor.
@@ -34,8 +35,7 @@ pub enum HostMsg<Ctx: Context> {
     /// consensus to start at a given height.
     ConsensusReady {
         /// Use this reply port to instruct consensus to start the first height.
-        #[allow(clippy::type_complexity)]
-        reply_to: RpcReplyPort<(Ctx::Height, Ctx::ValidatorSet, Option<Ctx::Timeouts>)>,
+        reply_to: RpcReplyPort<(Ctx::Height, HeightUpdates<Ctx>)>,
     },
 
     /// Consensus has started a new round.

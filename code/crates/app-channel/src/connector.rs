@@ -61,8 +61,8 @@ where
                 let (reply, rx) = oneshot::channel();
                 self.sender.send(AppMsg::ConsensusReady { reply }).await?;
 
-                let (start_height, validator_set, timeouts) = rx.await?;
-                reply_to.send((start_height, validator_set, timeouts))?;
+                let (start_height, updates) = rx.await?;
+                reply_to.send((start_height, updates))?;
             }
 
             HostMsg::StartedRound {

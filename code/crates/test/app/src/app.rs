@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use eyre::eyre;
-use malachitebft_app_channel::app::engine::host::Next;
+use malachitebft_app_channel::app::engine::host::{HeightUpdates, Next};
 use tokio::time::sleep;
 use tracing::{debug, error, info};
 
@@ -40,7 +40,12 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     .get_validator_set(start_height)
                     .expect("Validator set should be available");
 
-                if reply.send((start_height, validator_set, None)).is_err() {
+                let height_updates = HeightUpdates {
+                    validator_set: Some(validator_set),
+                    timeouts: None,
+                };
+
+                if reply.send((start_height, height_updates)).is_err() {
                     error!("Failed to send ConsensusReady reply");
                 }
             }
@@ -216,8 +221,13 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                             .get_validator_set(state.current_height)
                             .expect("Validator set should be available");
 
+                        let height_updates = HeightUpdates {
+                            validator_set: Some(validator_set),
+                            timeouts: None,
+                        };
+
                         if reply
-                            .send(Next::Start(state.current_height, validator_set, None))
+                            .send(Next::Start(state.current_height, height_updates))
                             .is_err()
                         {
                             error!("Failed to send StartHeight reply");
@@ -232,8 +242,13 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                             .get_validator_set(state.current_height)
                             .expect("Validator set should be available");
 
+                        let height_updates = HeightUpdates {
+                            validator_set: Some(validator_set),
+                            timeouts: None,
+                        };
+
                         if reply
-                            .send(Next::Restart(state.current_height, validator_set, None))
+                            .send(Next::Restart(state.current_height, height_updates))
                             .is_err()
                         {
                             error!("Failed to send RestartHeight reply");

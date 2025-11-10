@@ -17,6 +17,7 @@ mod certificate;
 mod context;
 mod error;
 mod height;
+mod height_updates;
 mod proposal;
 mod proposal_part;
 mod round;
@@ -62,6 +63,7 @@ pub use certificate::{
 pub use context::Context;
 pub use error::BoxError;
 pub use height::Height;
+pub use height_updates::HeightUpdates;
 pub use proposal::{Proposal, Validity};
 pub use proposal_part::ProposalPart;
 pub use round::Round;

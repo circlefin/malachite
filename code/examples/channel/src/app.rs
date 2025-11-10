@@ -5,7 +5,7 @@ use tokio::sync::mpsc;
 use tokio::time::sleep;
 use tracing::{error, info};
 
-use malachitebft_app_channel::app::engine::host::Next;
+use malachitebft_app_channel::app::engine::host::{HeightUpdates, Next};
 use malachitebft_app_channel::app::streaming::StreamContent;
 use malachitebft_app_channel::app::types::core::{Height as _, Round, Validity};
 use malachitebft_app_channel::app::types::sync::RawDecidedValue;
@@ -63,14 +63,12 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
                 sleep(Duration::from_millis(200)).await;
 
-                if reply
-                    .send((
-                        start_height,
-                        state.get_validator_set(start_height).clone(),
-                        None,
-                    ))
-                    .is_err()
-                {
+                let height_updates = HeightUpdates {
+                    validator_set: Some(state.get_validator_set(start_height).clone()),
+                    timeouts: None,
+                };
+
+                if reply.send((start_height, height_updates)).is_err() {
                     error!("Failed to send ConsensusReady reply");
                 }
             }
@@ -263,8 +261,12 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         if reply
                             .send(Next::Start(
                                 state.current_height,
-                                state.get_validator_set(state.current_height).clone(),
-                                None,
+                                HeightUpdates {
+                                    validator_set: Some(
+                                        state.get_validator_set(state.current_height).clone(),
+                                    ),
+                                    timeouts: None,
+                                },
                             ))
                             .is_err()
                         {
@@ -280,8 +282,10 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         if reply
                             .send(Next::Restart(
                                 height,
-                                state.get_validator_set(height).clone(),
-                                None,
+                                HeightUpdates {
+                                    validator_set: Some(state.get_validator_set(height).clone()),
+                                    timeouts: None,
+                                },
                             ))
                             .is_err()
                         {

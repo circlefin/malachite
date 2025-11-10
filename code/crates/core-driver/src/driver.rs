@@ -8,9 +8,9 @@ use malachitebft_core_state_machine::output::Output as RoundOutput;
 use malachitebft_core_state_machine::state::{RoundValue, State as RoundState, Step};
 use malachitebft_core_state_machine::state_machine::Info;
 use malachitebft_core_types::{
-    CommitCertificate, Context, EnterRoundCertificate, NilOrVal, PolkaCertificate, PolkaSignature,
-    Proposal, Round, RoundCertificateType, SignedProposal, SignedVote, Timeout, TimeoutKind,
-    Validator, ValidatorSet, Validity, Value, ValueId, Vote, VoteType,
+    CommitCertificate, Context, EnterRoundCertificate, HeightUpdates, NilOrVal, PolkaCertificate,
+    PolkaSignature, Proposal, Round, RoundCertificateType, SignedProposal, SignedVote, Timeout,
+    TimeoutKind, Validator, ValidatorSet, Validity, Value, ValueId, Vote, VoteType,
 };
 use malachitebft_core_votekeeper::keeper::Output as VKOutput;
 use malachitebft_core_votekeeper::keeper::VoteKeeper;
@@ -113,28 +113,29 @@ where
 
     /// Reset votes, round state, pending input
     /// and move to new height with the given validator set and optional timeouts.
-    pub fn move_to_height(
-        &mut self,
-        height: Ctx::Height,
-        validator_set: Ctx::ValidatorSet,
-        timeouts: Option<Ctx::Timeouts>,
-    ) {
+    pub fn move_to_height(&mut self, height: Ctx::Height, height_updates: HeightUpdates<Ctx>) {
         // Reset the proposal keeper
         let proposal_keeper = ProposalKeeper::new();
 
+        // Update the validator set if provided
+        if let Some(validator_set) = height_updates.validator_set {
+            self.validator_set = validator_set;
+        }
+
         // Reset the vote keeper
-        let vote_keeper = VoteKeeper::new(validator_set.clone(), self.threshold_params);
+        // XXX: must be called after updating the validator set
+        let vote_keeper = VoteKeeper::new(self.validator_set.clone(), self.threshold_params);
 
         // Reset the round state
         let round_state = RoundState::new(height, Round::Nil);
 
-        if let Some(timeouts) = timeouts {
+        // Update the timeouts if provided
+        if let Some(timeouts) = height_updates.timeouts {
             self.timeouts = timeouts;
         }
 
-        self.validator_set = validator_set;
-        self.proposal_keeper = proposal_keeper;
         self.vote_keeper = vote_keeper;
+        self.proposal_keeper = proposal_keeper;
         self.round_state = round_state;
         self.pending_inputs = vec![];
         self.commit_certificates = vec![];

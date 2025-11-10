@@ -175,14 +175,13 @@ where
     pub fn reset_and_start_height(
         &mut self,
         height: Ctx::Height,
-        validator_set: Ctx::ValidatorSet,
-        timeouts: Option<Ctx::Timeouts>,
+        height_updates: HeightUpdates<Ctx>,
     ) {
         self.full_proposal_keeper.clear();
         self.last_signed_prevote = None;
         self.last_signed_precommit = None;
 
-        self.driver.move_to_height(height, validator_set, timeouts);
+        self.driver.move_to_height(height, height_updates);
     }
 
     /// Return the round and value id of the decided value.

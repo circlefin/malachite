@@ -24,7 +24,7 @@ use malachitebft_metrics::Metrics;
 use malachitebft_signing::{SigningProvider, SigningProviderExt};
 use malachitebft_sync::{self as sync, HeightStartType, ValueResponse};
 
-use crate::host::{HostMsg, HostRef, LocallyProposedValue, Next, ProposedValue};
+use crate::host::{HeightUpdates, HostMsg, HostRef, LocallyProposedValue, Next, ProposedValue};
 use crate::network::{NetworkEvent, NetworkMsg, NetworkRef};
 use crate::sync::Msg as SyncMsg;
 use crate::sync::SyncRef;
@@ -92,7 +92,7 @@ pub type ConsensusMsg<Ctx> = Msg<Ctx>;
 #[derive_where(Debug)]
 pub enum Msg<Ctx: Context> {
     /// Start consensus for the given height with the given validator set
-    StartHeight(Ctx::Height, Ctx::ValidatorSet, Option<Ctx::Timeouts>),
+    StartHeight(Ctx::Height, HeightUpdates<Ctx>),
 
     /// Received an event from the gossip layer
     NetworkEvent(NetworkEvent<Ctx>),
@@ -115,7 +115,7 @@ pub enum Msg<Ctx: Context> {
     /// 1. The application must clean all state associated with the height for which commit has failed
     /// 2. Since consensus resets its write-ahead log, the node may equivocate on proposals and votes
     ///    for the restarted height, potentially violating protocol safety
-    RestartHeight(Ctx::Height, Ctx::ValidatorSet, Option<Ctx::Timeouts>),
+    RestartHeight(Ctx::Height, HeightUpdates<Ctx>),
 
     /// Request to dump the current consensus state
     DumpState(RpcReplyPort<StateDump<Ctx>>),
@@ -124,7 +124,9 @@ pub enum Msg<Ctx: Context> {
 impl<Ctx: Context> fmt::Display for Msg<Ctx> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Msg::StartHeight(height, _, _) => write!(f, "StartHeight(height={height})"),
+            Msg::StartHeight(height, updates) => {
+                write!(f, "StartHeight(height={height} updates={updates:?})")
+            }
             Msg::NetworkEvent(event) => match event {
                 NetworkEvent::Proposal(_, proposal) => write!(
                     f,
@@ -154,7 +156,9 @@ impl<Ctx: Context> fmt::Display for Msg<Ctx> {
                 "ReceivedProposedValue(height={} round={} origin={origin:?})",
                 value.height, value.round
             ),
-            Msg::RestartHeight(height, _, _) => write!(f, "RestartHeight(height={height})"),
+            Msg::RestartHeight(height, updates) => {
+                write!(f, "RestartHeight(height={height} updates={updates:?})")
+            }
             Msg::DumpState(_) => write!(f, "DumpState"),
         }
     }
@@ -339,16 +343,10 @@ where
         state: &mut State<Ctx>,
         msg: Msg<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
-        let is_restart = matches!(msg, Msg::RestartHeight(_, _, _));
+        let is_restart = matches!(msg, Msg::RestartHeight(_, _));
 
         match msg {
-            Msg::StartHeight(height, validator_set, timeouts)
-            | Msg::RestartHeight(height, validator_set, timeouts) => {
-                // Check that the validator set is not empty
-                if validator_set.count() == 0 {
-                    return Err(eyre!("Validator set for height {height} is empty").into());
-                }
-
+            Msg::StartHeight(height, updates) | Msg::RestartHeight(height, updates) => {
                 self.tx_event
                     .send(|| Event::StartedHeight(height, is_restart));
 
@@ -379,7 +377,7 @@ where
                     .process_input(
                         &myself,
                         state,
-                        ConsensusInput::StartHeight(height, validator_set, is_restart, timeouts),
+                        ConsensusInput::StartHeight(height, updates, is_restart),
                     )
                     .await;
 
@@ -428,9 +426,7 @@ where
                             self.host.call_and_forward(
                                 |reply_to| HostMsg::ConsensusReady { reply_to },
                                 &myself,
-                                |(height, validator_set, timeouts)| {
-                                    ConsensusMsg::StartHeight(height, validator_set, timeouts)
-                                },
+                                |(height, updates)| ConsensusMsg::StartHeight(height, updates),
                                 None,
                             )?;
                         }
@@ -1175,8 +1171,8 @@ where
                         },
                         myself,
                         |next| match next {
-                            Next::Start(h, vs, timeouts) => Msg::StartHeight(h, vs, timeouts),
-                            Next::Restart(h, vs, timeouts) => Msg::RestartHeight(h, vs, timeouts),
+                            Next::Start(h, updates) => Msg::StartHeight(h, updates),
+                            Next::Restart(h, updates) => Msg::RestartHeight(h, updates),
                         },
                         None,
                     )
@@ -1380,7 +1376,7 @@ fn should_buffer<Ctx: Context>(msg: &Msg<Ctx>) -> bool {
 /// Use the height we are about to start instead of the consensus state height
 /// for the tracing span of the Consensus actor when starting a new height.
 fn span_height<Ctx: Context>(height: Ctx::Height, msg: &Msg<Ctx>) -> Ctx::Height {
-    if let Msg::StartHeight(h, _, _) = msg {
+    if let Msg::StartHeight(h, _) = msg {
         *h
     } else {
         height
@@ -1390,7 +1386,7 @@ fn span_height<Ctx: Context>(height: Ctx::Height, msg: &Msg<Ctx>) -> Ctx::Height
 /// Use round 0 instead of the consensus state round for the tracing span of
 /// the Consensus actor when starting a new height.
 fn span_round<Ctx: Context>(round: Round, msg: &Msg<Ctx>) -> Round {
-    if let Msg::StartHeight(_, _, _) = msg {
+    if let Msg::StartHeight(_, _) = msg {
         Round::new(0)
     } else {
         round
