@@ -516,7 +516,7 @@ where
 impl<Ctx, Codec> Actor for Sync<Ctx, Codec>
 where
     Ctx: Context,
-    Codec: SyncCodec<Ctx> + Send + std::marker::Sync + 'static,
+    Codec: SyncCodec<Ctx>,
 {
     type Msg = Msg<Ctx>;
     type State = State<Ctx>;
