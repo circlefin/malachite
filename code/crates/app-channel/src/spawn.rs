@@ -3,8 +3,6 @@
 use eyre::Result;
 use tokio::sync::mpsc;
 
-use malachitebft_app::types::codec::HasEncodedLen;
-use malachitebft_app::types::sync;
 use malachitebft_engine::consensus::ConsensusCodec;
 use malachitebft_engine::host::HostRef;
 use malachitebft_engine::network::NetworkRef;
@@ -40,7 +38,6 @@ where
     Ctx: Context,
     Codec: ConsensusCodec<Ctx>,
     Codec: SyncCodec<Ctx>,
-    Codec: HasEncodedLen<sync::Response<Ctx>>,
 {
     let (tx, mut rx) = mpsc::channel::<NetworkMsg<Ctx>>(1);
 
