@@ -788,7 +788,7 @@ pub async fn response_size_limit_exceeded() {
                 // Values are around ~900 bytes, so this `max_response_size` in combination
                 // with a `batch_size` of 2 leads to having a syncing peer sending partial responses.
                 max_response_size: ByteSize::b(1000),
-                // Values are around ~900 bytes, so we canNOT have more than one value in a response.
+                // Values are around ~900 bytes, so we cannot have more than one value in a response.
                 // In other words, if `max_response_size` is not respected, node 3 would not have been
                 // able to sync in this test.
                 rpc_max_size: ByteSize::b(1000),
