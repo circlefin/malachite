@@ -5,7 +5,7 @@ use crate::{Context, Round, TimeoutKind};
 
 /// Timeouts control how long the consensus engine waits for various steps
 /// in the consensus protocol.
-/// 
+///
 /// The default implementation is [`LinearTimeouts`].
 pub trait Timeouts<Ctx>
 where
@@ -13,6 +13,19 @@ where
     Ctx: Context,
 {
     /// Get the duration for a given step and round.
+    ///
+    /// # Arguments
+    ///
+    /// * `step` - The step to get the duration for.
+    /// * `round` - The round to get the duration for.
+    ///
+    /// # Returns
+    ///
+    /// The duration for the given step and round.
+    ///
+    /// # Panics
+    ///
+    /// If the round is nil, this function must panic.
     fn duration_for(&self, step: TimeoutKind, round: Round) -> Duration;
 }
 
@@ -67,23 +80,17 @@ impl Default for LinearTimeouts {
 }
 
 impl LinearTimeouts {
-    /// Get the duration for a given step and round.
-    ///
-    /// # Arguments
-    ///
-    /// * `step` - The step to get the duration for.
-    /// * `round` - The round to get the duration for.
-    ///
-    /// # Returns
-    ///
-    /// The duration for the given step and round.
+    /// See [`Timeouts::duration_for`].
     pub fn duration_for(&self, step: TimeoutKind, round: Round) -> Duration {
-        let round = round.as_u32().unwrap_or(0);
+        let round = round.as_u32().expect("Round must be defined");
         match step {
             TimeoutKind::Propose => self.propose + self.propose_delta * round,
             TimeoutKind::Prevote => self.prevote + self.prevote_delta * round,
             TimeoutKind::Precommit => self.precommit + self.precommit_delta * round,
-            TimeoutKind::Rebroadcast => self.rebroadcast + (self.propose_delta  + self.prevote_delta + self.precommit_delta) * round,
+            TimeoutKind::Rebroadcast => {
+                self.rebroadcast
+                    + (self.propose_delta + self.prevote_delta + self.precommit_delta) * round
+            }
         }
     }
 }
@@ -96,7 +103,7 @@ mod tests {
     #[test]
     fn test_default_timeouts() {
         let timeouts = LinearTimeouts::default();
-        
+
         assert_eq!(timeouts.propose, Duration::from_secs(3));
         assert_eq!(timeouts.propose_delta, Duration::from_millis(500));
         assert_eq!(timeouts.prevote, Duration::from_secs(1));
@@ -107,142 +114,87 @@ mod tests {
     }
 
     #[test]
-    fn test_propose_timeout_at_round_zero() {
-        let timeouts = LinearTimeouts::default();
-        let duration = timeouts.duration_for(TimeoutKind::Propose, Round::ZERO);
-        
-        // At round 0, timeout should be base propose timeout
-        assert_eq!(duration, Duration::from_secs(3));
-    }
-
-    #[test]
     fn test_propose_timeout_increases_linearly() {
         let timeouts = LinearTimeouts::default();
-        
+
         // Round 0: 3s
         let r0 = timeouts.duration_for(TimeoutKind::Propose, Round::new(0));
         assert_eq!(r0, Duration::from_secs(3));
-        
+
         // Round 1: 3s + 0.5s = 3.5s
         let r1 = timeouts.duration_for(TimeoutKind::Propose, Round::new(1));
         assert_eq!(r1, Duration::from_millis(3500));
-        
+
         // Round 2: 3s + 1s = 4s
         let r2 = timeouts.duration_for(TimeoutKind::Propose, Round::new(2));
         assert_eq!(r2, Duration::from_secs(4));
-        
+
         // Round 10: 3s + 5s = 8s
         let r10 = timeouts.duration_for(TimeoutKind::Propose, Round::new(10));
         assert_eq!(r10, Duration::from_secs(8));
     }
 
     #[test]
-    fn test_prevote_timeout_at_round_zero() {
-        let timeouts = LinearTimeouts::default();
-        let duration = timeouts.duration_for(TimeoutKind::Prevote, Round::ZERO);
-        
-        // At round 0, timeout should be base prevote timeout
-        assert_eq!(duration, Duration::from_secs(1));
-    }
-
-    #[test]
     fn test_prevote_timeout_increases_linearly() {
         let timeouts = LinearTimeouts::default();
-        
+
         // Round 0: 1s
         let r0 = timeouts.duration_for(TimeoutKind::Prevote, Round::new(0));
         assert_eq!(r0, Duration::from_secs(1));
-        
+
         // Round 1: 1s + 0.5s = 1.5s
         let r1 = timeouts.duration_for(TimeoutKind::Prevote, Round::new(1));
         assert_eq!(r1, Duration::from_millis(1500));
-        
+
         // Round 2: 1s + 1s = 2s
         let r2 = timeouts.duration_for(TimeoutKind::Prevote, Round::new(2));
         assert_eq!(r2, Duration::from_secs(2));
-        
+
         // Round 10: 1s + 5s = 6s
         let r10 = timeouts.duration_for(TimeoutKind::Prevote, Round::new(10));
         assert_eq!(r10, Duration::from_secs(6));
     }
 
     #[test]
-    fn test_precommit_timeout_at_round_zero() {
-        let timeouts = LinearTimeouts::default();
-        let duration = timeouts.duration_for(TimeoutKind::Precommit, Round::ZERO);
-        
-        // At round 0, timeout should be base precommit timeout
-        assert_eq!(duration, Duration::from_secs(1));
-    }
-
-    #[test]
     fn test_precommit_timeout_increases_linearly() {
         let timeouts = LinearTimeouts::default();
-        
+
         // Round 0: 1s
         let r0 = timeouts.duration_for(TimeoutKind::Precommit, Round::new(0));
         assert_eq!(r0, Duration::from_secs(1));
-        
+
         // Round 1: 1s + 0.5s = 1.5s
         let r1 = timeouts.duration_for(TimeoutKind::Precommit, Round::new(1));
         assert_eq!(r1, Duration::from_millis(1500));
-        
+
         // Round 2: 1s + 1s = 2s
         let r2 = timeouts.duration_for(TimeoutKind::Precommit, Round::new(2));
         assert_eq!(r2, Duration::from_secs(2));
-        
+
         // Round 10: 1s + 5s = 6s
         let r10 = timeouts.duration_for(TimeoutKind::Precommit, Round::new(10));
         assert_eq!(r10, Duration::from_secs(6));
     }
 
     #[test]
-    fn test_rebroadcast_timeout_at_round_zero() {
-        let timeouts = LinearTimeouts::default();
-        let duration = timeouts.duration_for(TimeoutKind::Rebroadcast, Round::ZERO);
-        
-        // At round 0, timeout should be base rebroadcast timeout
-        // rebroadcast = propose + prevote + precommit = 3s + 1s + 1s = 5s
-        assert_eq!(duration, Duration::from_secs(5));
-    }
-
-    #[test]
     fn test_rebroadcast_timeout_increases_linearly() {
         let timeouts = LinearTimeouts::default();
-        
+
         // Round 0: 5s
         let r0 = timeouts.duration_for(TimeoutKind::Rebroadcast, Round::new(0));
         assert_eq!(r0, Duration::from_secs(5));
-        
+
         // Round 1: 5s + (0.5s + 0.5s + 0.5s) = 5s + 1.5s = 6.5s
         let r1 = timeouts.duration_for(TimeoutKind::Rebroadcast, Round::new(1));
         assert_eq!(r1, Duration::from_millis(6500));
-        
+
         // Round 2: 5s + 3s = 8s
         let r2 = timeouts.duration_for(TimeoutKind::Rebroadcast, Round::new(2));
         assert_eq!(r2, Duration::from_secs(8));
-        
+
         // Round 10: 5s + 15s = 20s
         let r10 = timeouts.duration_for(TimeoutKind::Rebroadcast, Round::new(10));
         assert_eq!(r10, Duration::from_secs(20));
-    }
-
-    #[test]
-    fn test_nil_round_uses_zero_multiplier() {
-        let timeouts = LinearTimeouts::default();
-        
-        // For Round::Nil, as_u32() returns None, which is handled as 0 in duration_for
-        let propose_duration = timeouts.duration_for(TimeoutKind::Propose, Round::Nil);
-        assert_eq!(propose_duration, Duration::from_secs(3));
-        
-        let prevote_duration = timeouts.duration_for(TimeoutKind::Prevote, Round::Nil);
-        assert_eq!(prevote_duration, Duration::from_secs(1));
-        
-        let precommit_duration = timeouts.duration_for(TimeoutKind::Precommit, Round::Nil);
-        assert_eq!(precommit_duration, Duration::from_secs(1));
-        
-        let rebroadcast_duration = timeouts.duration_for(TimeoutKind::Rebroadcast, Round::Nil);
-        assert_eq!(rebroadcast_duration, Duration::from_secs(5));
     }
 
     #[test]
@@ -256,42 +208,21 @@ mod tests {
             precommit_delta: Duration::from_millis(200),
             rebroadcast: Duration::from_secs(10),
         };
-        
+
         // Test propose at round 3: 5s + 3*1s = 8s
         let propose_r3 = timeouts.duration_for(TimeoutKind::Propose, Round::new(3));
         assert_eq!(propose_r3, Duration::from_secs(8));
-        
+
         // Test prevote at round 5: 2s + 5*0.1s = 2.5s
         let prevote_r5 = timeouts.duration_for(TimeoutKind::Prevote, Round::new(5));
         assert_eq!(prevote_r5, Duration::from_millis(2500));
-        
+
         // Test precommit at round 4: 3s + 4*0.2s = 3.8s
         let precommit_r4 = timeouts.duration_for(TimeoutKind::Precommit, Round::new(4));
         assert_eq!(precommit_r4, Duration::from_millis(3800));
-        
+
         // Test rebroadcast at round 2: 10s + 2*(1s + 0.1s + 0.2s) = 10s + 2.6s = 12.6s
         let rebroadcast_r2 = timeouts.duration_for(TimeoutKind::Rebroadcast, Round::new(2));
         assert_eq!(rebroadcast_r2, Duration::from_millis(12600));
-    }
-
-    #[test]
-    fn test_clone_and_equality() {
-        let timeouts1 = LinearTimeouts::default();
-        let timeouts2 = timeouts1.clone();
-        
-        assert_eq!(timeouts1, timeouts2);
-    }
-
-    #[test]
-    fn test_copy_semantics() {
-        let timeouts1 = LinearTimeouts::default();
-        let timeouts2 = timeouts1; // Copy, not move
-        
-        // Both should still be usable
-        assert_eq!(timeouts1, timeouts2);
-        assert_eq!(
-            timeouts1.duration_for(TimeoutKind::Propose, Round::ZERO),
-            timeouts2.duration_for(TimeoutKind::Propose, Round::ZERO)
-        );
     }
 }

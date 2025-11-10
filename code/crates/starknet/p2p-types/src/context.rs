@@ -1,6 +1,6 @@
 use bytes::Bytes;
 
-use malachitebft_core_types::{Context, NilOrVal, Round, ValidatorSet as _, LinearTimeouts};
+use malachitebft_core_types::{Context, LinearTimeouts, NilOrVal, Round, ValidatorSet as _};
 
 use crate::{
     Address, Ed25519, Hash, Height, Proposal, ProposalPart, Validator, ValidatorSet, Vote,

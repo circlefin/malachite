@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 
-use malachitebft_core_types::{Context, NilOrVal, Round, ValidatorSet as _};
 use malachitebft_core_types::LinearTimeouts;
+use malachitebft_core_types::{Context, NilOrVal, Round, ValidatorSet as _};
 
 use crate::address::*;
 use crate::height::*;

@@ -5,9 +5,7 @@ use derive_where::derive_where;
 use ractor::{ActorRef, RpcReplyPort};
 
 use malachitebft_core_consensus::{Role, VoteExtensionError};
-use malachitebft_core_types::{
-    CommitCertificate, Context, Round, ValueId, VoteExtensions,
-};
+use malachitebft_core_types::{CommitCertificate, Context, Round, ValueId, VoteExtensions};
 use malachitebft_sync::{PeerId, RawDecidedValue};
 
 use crate::util::streaming::StreamMessage;

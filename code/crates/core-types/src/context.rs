@@ -1,6 +1,6 @@
 use crate::{
-    Address, Extension, Height, NilOrVal, Proposal, ProposalPart, Round, SigningScheme, Validator,
-    ValidatorSet, Value, ValueId, Vote, Timeouts,
+    Address, Extension, Height, NilOrVal, Proposal, ProposalPart, Round, SigningScheme, Timeouts,
+    Validator, ValidatorSet, Value, ValueId, Vote,
 };
 
 /// This trait allows to abstract over the various datatypes

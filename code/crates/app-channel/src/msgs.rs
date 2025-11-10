@@ -142,11 +142,7 @@ pub enum AppMsg<Ctx: Context> {
     ConsensusReady {
         /// Channel for sending back the height to start at,
         /// the validator set for that height, and optionally the timeouts
-        reply: Reply<(
-            Ctx::Height,
-            Ctx::ValidatorSet,
-            Option<Ctx::Timeouts>,
-        )>,
+        reply: Reply<(Ctx::Height, Ctx::ValidatorSet, Option<Ctx::Timeouts>)>,
     },
 
     /// Notifies the application that a new consensus round has begun.
@@ -305,21 +301,13 @@ pub enum AppMsg<Ctx: Context> {
 #[derive_where(Debug)]
 pub enum ConsensusMsg<Ctx: Context> {
     /// Instructs consensus to start a new height with the given validator set.
-    StartHeight(
-        Ctx::Height,
-        Ctx::ValidatorSet,
-        Option<Ctx::Timeouts>,
-    ),
+    StartHeight(Ctx::Height, Ctx::ValidatorSet, Option<Ctx::Timeouts>),
 
     /// Previousuly received value proposed by a validator
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
 
     /// Instructs consensus to restart at a given height with the given validator set.
-    RestartHeight(
-        Ctx::Height,
-        Ctx::ValidatorSet,
-        Option<Ctx::Timeouts>,
-    ),
+    RestartHeight(Ctx::Height, Ctx::ValidatorSet, Option<Ctx::Timeouts>),
 }
 
 impl<Ctx: Context> From<ConsensusMsg<Ctx>> for ConsensusActorMsg<Ctx> {

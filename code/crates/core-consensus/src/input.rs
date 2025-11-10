@@ -1,7 +1,7 @@
 use derive_where::derive_where;
 use malachitebft_core_types::{
-    Context, PolkaCertificate, RoundCertificate, SignedProposal, SignedVote, Timeout,
-    ValueOrigin, ValueResponse,
+    Context, PolkaCertificate, RoundCertificate, SignedProposal, SignedVote, Timeout, ValueOrigin,
+    ValueResponse,
 };
 
 use crate::types::{LocallyProposedValue, ProposedValue};
