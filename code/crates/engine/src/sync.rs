@@ -6,16 +6,11 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use derive_where::derive_where;
 use eyre::eyre;
-
 use ractor::{Actor, ActorProcessingErr, ActorRef};
 use rand::SeedableRng;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, warn, Instrument};
 
-use crate::host::{HostMsg, HostRef};
-use crate::network::{NetworkEvent, NetworkMsg, NetworkRef, Status};
-use crate::util::ticker::ticker;
-use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 use malachitebft_codec as codec;
 use malachitebft_core_consensus::PeerId;
 use malachitebft_core_types::{CommitCertificate, Context, Height};
@@ -24,6 +19,11 @@ use malachitebft_sync::{
     self as sync, HeightStartType, InboundRequestId, OutboundRequestId, RawDecidedValue, Request,
     Response, Resumable,
 };
+
+use crate::host::{HostMsg, HostRef};
+use crate::network::{NetworkEvent, NetworkMsg, NetworkRef, Status};
+use crate::util::ticker::ticker;
+use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 
 /// Codec for sync protocol messages
 ///

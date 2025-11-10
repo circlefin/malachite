@@ -1,17 +1,14 @@
+use std::collections::{BTreeSet, HashMap};
+use std::marker::PhantomData;
+
 use async_trait::async_trait;
 use derive_where::derive_where;
 use eyre::eyre;
 use libp2p::identity::Keypair;
 use libp2p::request_response;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
-use std::collections::{BTreeSet, HashMap};
-use std::marker::PhantomData;
 use tokio::task::JoinHandle;
 use tracing::{error, trace};
-
-use malachitebft_sync::{
-    self as sync, InboundRequestId, OutboundRequestId, RawMessage, Request, Response,
-};
 
 use malachitebft_codec as codec;
 use malachitebft_core_consensus::{LivenessMsg, SignedConsensusMsg};
@@ -21,6 +18,9 @@ use malachitebft_core_types::{
 use malachitebft_metrics::SharedRegistry;
 use malachitebft_network::handle::CtrlHandle;
 use malachitebft_network::{Channel, Config, Event, Multiaddr, PeerId};
+use malachitebft_sync::{
+    self as sync, InboundRequestId, OutboundRequestId, RawMessage, Request, Response,
+};
 
 use crate::consensus::ConsensusCodec;
 use crate::sync::SyncCodec;
