@@ -4,6 +4,9 @@ use std::path::Path;
 use std::time::Duration;
 
 use eyre::Result;
+use tokio::task::JoinHandle;
+use tracing::Span;
+
 use malachitebft_codec::HasEncodedLen;
 use malachitebft_engine::consensus::{Consensus, ConsensusCodec, ConsensusParams, ConsensusRef};
 use malachitebft_engine::host::HostRef;
@@ -17,8 +20,6 @@ use malachitebft_network::{
 };
 use malachitebft_signing::SigningProvider;
 use malachitebft_sync as sync;
-use tokio::task::JoinHandle;
-use tracing::Span;
 
 use crate::config::{ConsensusConfig, PubSubProtocol, ValueSyncConfig};
 use crate::metrics::{Metrics, SharedRegistry};
