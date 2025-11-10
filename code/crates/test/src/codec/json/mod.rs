@@ -1,9 +1,9 @@
 pub mod raw;
 
 use bytes::Bytes;
-use malachitebft_codec::{Codec, HasEncodedLen};
 use tracing::warn;
 
+use malachitebft_codec::{Codec, HasEncodedLen};
 use malachitebft_core_consensus::{LivenessMsg, SignedConsensusMsg};
 use malachitebft_engine::util::streaming::StreamMessage;
 use malachitebft_sync::{Request, Response, Status};
