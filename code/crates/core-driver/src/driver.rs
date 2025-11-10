@@ -111,8 +111,8 @@ where
         }
     }
 
-    /// Reset votes, round state, pending input
-    /// and move to new height with the given validator set and optional timeouts.
+    /// Reset votes, round state, pending input and move to new height with
+    /// optional updates.
     pub fn move_to_height(&mut self, height: Ctx::Height, height_updates: HeightUpdates<Ctx>) {
         // Reset the proposal keeper
         let proposal_keeper = ProposalKeeper::new();

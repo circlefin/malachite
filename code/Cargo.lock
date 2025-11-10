@@ -2510,7 +2510,6 @@ dependencies = [
  "async-trait",
  "bytes",
  "informalsystems-malachitebft-core-types",
- "informalsystems-malachitebft-engine",
  "informalsystems-malachitebft-proto",
  "informalsystems-malachitebft-signing",
  "informalsystems-malachitebft-signing-ed25519",

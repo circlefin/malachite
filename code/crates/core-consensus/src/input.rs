@@ -12,7 +12,7 @@ pub enum Input<Ctx>
 where
     Ctx: Context,
 {
-    /// Start consensus for the given height with the given validator set
+    /// Start consensus for the given height with optional updates.
     StartHeight(Ctx::Height, HeightUpdates<Ctx>, bool),
 
     /// Process a vote received over the network.

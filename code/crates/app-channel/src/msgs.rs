@@ -299,13 +299,13 @@ pub enum AppMsg<Ctx: Context> {
 /// Messages sent from the application to consensus.
 #[derive_where(Debug)]
 pub enum ConsensusMsg<Ctx: Context> {
-    /// Instructs consensus to start a new height with the given validator set.
+    /// Instructs consensus to start a new height with optional updates.
     StartHeight(Ctx::Height, HeightUpdates<Ctx>),
 
     /// Previousuly received value proposed by a validator
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
 
-    /// Instructs consensus to restart at a given height with the given validator set.
+    /// Instructs consensus to restart at a given height with optional updates.
     RestartHeight(Ctx::Height, HeightUpdates<Ctx>),
 }
 

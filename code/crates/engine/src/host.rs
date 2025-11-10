@@ -19,10 +19,10 @@ pub type HostRef<Ctx> = ActorRef<HostMsg<Ctx>>;
 /// What to do next after a decision.
 #[derive_where(Debug)]
 pub enum Next<Ctx: Context> {
-    /// Start at the given height with the given validator set.
+    /// Start at the given height with optional updates.
     Start(Ctx::Height, HeightUpdates<Ctx>),
 
-    /// Restart at the given height with the given validator set.
+    /// Restart at the given height with optional updates.
     Restart(Ctx::Height, HeightUpdates<Ctx>),
 }
 

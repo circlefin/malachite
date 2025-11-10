@@ -78,6 +78,7 @@ where
         self.driver.validator_set()
     }
 
+    /// Return the timeouts for this height.
     pub fn timeouts(&self) -> &Ctx::Timeouts {
         self.driver.timeouts()
     }

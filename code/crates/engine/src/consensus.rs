@@ -91,7 +91,7 @@ pub type ConsensusMsg<Ctx> = Msg<Ctx>;
 
 #[derive_where(Debug)]
 pub enum Msg<Ctx: Context> {
-    /// Start consensus for the given height with the given validator set
+    /// Start consensus for the given height with optional updates.
     StartHeight(Ctx::Height, HeightUpdates<Ctx>),
 
     /// Received an event from the gossip layer
@@ -106,7 +106,7 @@ pub enum Msg<Ctx: Context> {
     /// Received and assembled the full value proposed by a validator
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
 
-    /// Instructs consensus to restart at a given height with the given validator set.
+    /// Instructs consensus to restart at a given height with optional updates.
     ///
     /// On this input consensus resets the Write-Ahead Log.
     ///
