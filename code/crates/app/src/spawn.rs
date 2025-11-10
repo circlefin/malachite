@@ -146,15 +146,17 @@ where
         .map_err(Into::into)
 }
 
-pub async fn spawn_sync_actor<Ctx>(
+pub async fn spawn_sync_actor<Ctx, Codec>(
     ctx: Ctx,
     network: NetworkRef<Ctx>,
     host: HostRef<Ctx>,
+    sync_codec: Codec,
     config: &ValueSyncConfig,
     registry: &SharedRegistry,
 ) -> Result<Option<SyncRef<Ctx>>>
 where
     Ctx: Context,
+    Codec: SyncCodec<Ctx>,
 {
     if !config.enabled {
         return Ok(None);
@@ -188,6 +190,7 @@ where
         network,
         host,
         params,
+        sync_codec,
         sync_config,
         metrics,
         Span::current(),
