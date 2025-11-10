@@ -104,7 +104,7 @@ The other way is to make use of the slightly lower level actor-based interface, 
 It will then be up to the application to spawn and wire the actors together, which is more complex than using the channel-based interface, but allows for more flexibility.
 
 There is not tutorial for doing this at the moment.
-Please [open a discussion](https://github.com/informalsystems/malachite/discussions) on GitHub if you want to discuss this approach or get help for swapping parts of the engine in and out.
+Please [open a discussion](https://github.com/circlefin/malachite/discussions) on GitHub if you want to discuss this approach or get help for swapping parts of the engine in and out.
 
 #### Low-level interface
 If none of these approaches are flexible enough for your application, another way to leverage Malachite is to use its low-level core consensus library, which is fully agnostic with regard to all aspects outside of core consensus.
@@ -158,18 +158,18 @@ The Host implements the `handle_effect` method, and we can think of this as the 
 We define the set of all the possible Inputs that the Malachite library supports as an `enum`.
 The Inputs are defined in `core-consensus/src/input.rs`:
 
-https://github.com/informalsystems/malachite/blob/6f4cfce72fa0362d743320c0e3ea8fa46b4283b0/code/crates/core-consensus/src/input.rs#L13-L44
+https://github.com/circlefin/malachite/blob/6f4cfce72fa0362d743320c0e3ea8fa46b4283b0/code/crates/core-consensus/src/input.rs#L13-L44
 
 
 The `enum` that captures all the possible variations of an Effect is more verbose than Inputs, and is defined in `core-consensus/src/effect.rs`:
 
-https://github.com/informalsystems/malachite/blob/6f4cfce72fa0362d743320c0e3ea8fa46b4283b0/code/crates/core-consensus/src/effect.rs#L48-L150
+https://github.com/circlefin/malachite/blob/6f4cfce72fa0362d743320c0e3ea8fa46b4283b0/code/crates/core-consensus/src/effect.rs#L48-L150
 
 The variants that are most interesting among Effects are these four:
 
 1. Publish: Malachite instructs the Host to broadcast to other peers in the network a certain consensus message. The type `SignedConsensusMsg` is also an enum of two variants:
 
-https://github.com/informalsystems/malachite/blob/6f4cfce72fa0362d743320c0e3ea8fa46b4283b0/code/crates/core-consensus/src/types.rs#L13-L16
+https://github.com/circlefin/malachite/blob/6f4cfce72fa0362d743320c0e3ea8fa46b4283b0/code/crates/core-consensus/src/types.rs#L13-L16
 
 2. GetValue: Using this variant, Malachite asks the Host to provide a value to serve as a proposal to the consensus protocol. Put differently, this value is the next block to build.
 3. SignProposal: Malachite asks the Host to sign a value to be proposed.
@@ -182,7 +182,7 @@ it only constraints that any implementation satisfies the `Ctx::Proposal` trait.
 Furthermore, this trait is generic over a type which we call a `Context`.
 The full definition of `Ctx::Proposal` trait looks like this:
 
-https://github.com/informalsystems/malachite/blob/53a9d9e071e773ff959465f2836648d8ad2a5c74/code/crates/core-types/src/proposal.rs#L5-L28
+https://github.com/circlefin/malachite/blob/53a9d9e071e773ff959465f2836648d8ad2a5c74/code/crates/core-types/src/proposal.rs#L5-L28
 
 Inputs, Effects, and the Context are the three key types that make up the Malachite consensus library.
 

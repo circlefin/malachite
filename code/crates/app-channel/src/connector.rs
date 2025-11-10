@@ -72,7 +72,7 @@ where
                 role,
                 reply_to,
             } => {
-                let (reply_value, rx_values) = oneshot::channel();
+                let (reply_value, rx) = oneshot::channel();
 
                 self.sender
                     .send(AppMsg::StartedRound {
@@ -84,14 +84,7 @@ where
                     })
                     .await?;
 
-                // Do not block processing of other messages while waiting for the values
-                tokio::spawn(async move {
-                    if let Ok(values) = rx_values.await {
-                        if let Err(e) = reply_to.send(values) {
-                            error!("Failed to send back undecided values: {e}");
-                        }
-                    }
-                });
+                reply_to.send(rx.await?)?;
             }
 
             HostMsg::GetValue {
@@ -200,16 +193,6 @@ where
                 }
             }
 
-            HostMsg::GetValidatorSet { height, reply_to } => {
-                let (reply, rx) = oneshot::channel();
-
-                self.sender
-                    .send(AppMsg::GetValidatorSet { height, reply })
-                    .await?;
-
-                reply_to.send(rx.await?)?;
-            }
-
             HostMsg::Decided {
                 certificate,
                 extensions,
@@ -225,11 +208,14 @@ where
                     })
                     .await?;
 
-                let next = rx.await?;
-
-                if let Err(e) = reply_to.send(next) {
-                    error!("Failed to send next height and validator set: {e}");
-                }
+                // Do not block processing of other messages while waiting for the next height
+                tokio::spawn(async move {
+                    if let Ok(next) = rx.await {
+                        if let Err(e) = reply_to.send(next) {
+                            error!("Failed to send next height and validator set: {e}");
+                        }
+                    }
+                });
             }
 
             HostMsg::GetDecidedValue { height, reply_to } => {

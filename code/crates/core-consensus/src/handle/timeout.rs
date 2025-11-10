@@ -12,8 +12,7 @@ pub async fn on_timeout_elapsed<Ctx>(
 where
     Ctx: Context,
 {
-    let height = state.driver.height();
-    let round = state.driver.round();
+    let (height, round) = (state.height(), state.round());
 
     if timeout.round != round {
         debug!(
@@ -42,7 +41,7 @@ where
         // Time-limit and rebroadcast timeouts are not persisted because they only occur when consensus is stuck.
         perform!(
             co,
-            Effect::WalAppend(WalEntry::Timeout(timeout), Default::default())
+            Effect::WalAppend(height, WalEntry::Timeout(timeout), Default::default())
         );
     }
 

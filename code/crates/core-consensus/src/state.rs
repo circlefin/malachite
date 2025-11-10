@@ -1,4 +1,4 @@
-use tracing::warn;
+use tracing::info;
 
 use malachitebft_core_driver::Driver;
 use malachitebft_core_types::*;
@@ -6,6 +6,7 @@ use malachitebft_core_types::*;
 use crate::full_proposal::{FullProposal, FullProposalKeeper};
 use crate::input::Input;
 use crate::params::Params;
+use crate::prelude::*;
 use crate::types::ProposedValue;
 use crate::util::bounded_queue::BoundedQueue;
 
@@ -184,60 +185,91 @@ where
     }
 
     /// Queue an input for later processing, only keep inputs for the highest height seen so far.
-    pub fn buffer_input(&mut self, height: Ctx::Height, input: Input<Ctx>) {
+    pub fn buffer_input(&mut self, height: Ctx::Height, input: Input<Ctx>, _metrics: &Metrics) {
         self.input_queue.push(height, input);
+
+        #[cfg(feature = "metrics")]
+        {
+            _metrics.queue_heights.set(self.input_queue.len() as i64);
+            _metrics.queue_size.set(self.input_queue.size() as i64);
+        }
+    }
+
+    /// Take all inputs that are pending for the specified height and remove from the input queue.
+    pub fn take_pending_inputs(&mut self, _metrics: &Metrics) -> Vec<Input<Ctx>>
+    where
+        Ctx: Context,
+    {
+        let inputs = self
+            .input_queue
+            .shift_and_take(&self.height())
+            .collect::<Vec<_>>();
+
+        #[cfg(feature = "metrics")]
+        {
+            _metrics.queue_heights.set(self.input_queue.len() as i64);
+            _metrics.queue_size.set(self.input_queue.size() as i64);
+        }
+
+        inputs
     }
 
     pub fn print_state(&self) {
         if let Some(per_round) = self.driver.votes().per_round(self.driver.round()) {
-            warn!(
+            info!(
                 "Number of validators having voted: {} / {}",
                 per_round.addresses_weights().get_inner().len(),
                 self.driver.validator_set().count()
             );
-            warn!(
+            info!(
                 "Total voting power of validators: {}",
                 self.driver.validator_set().total_voting_power()
             );
-            warn!(
+            info!(
                 "Voting power required: {}",
                 self.params
                     .threshold_params
                     .quorum
                     .min_expected(self.driver.validator_set().total_voting_power())
             );
-            warn!(
+            info!(
                 "Total voting power of validators having voted: {}",
                 per_round.addresses_weights().sum()
             );
-            warn!(
+            info!(
                 "Total voting power of validators having prevoted nil: {}",
                 per_round
                     .votes()
                     .get_weight(VoteType::Prevote, &NilOrVal::Nil)
             );
-            warn!(
+            info!(
                 "Total voting power of validators having precommited nil: {}",
                 per_round
                     .votes()
                     .get_weight(VoteType::Precommit, &NilOrVal::Nil)
             );
-            warn!(
+            info!(
                 "Total weight of prevotes: {}",
                 per_round.votes().weight_sum(VoteType::Prevote)
             );
-            warn!(
+            info!(
                 "Total weight of precommits: {}",
                 per_round.votes().weight_sum(VoteType::Precommit)
             );
         }
     }
 
-    /// Check if we are a validator node, i.e. we are present in the current validator set.
-    pub fn is_validator(&self) -> bool {
-        self.validator_set()
-            .get_by_address(self.address())
-            .is_some()
+    /// Check if this node is an active validator.
+    ///
+    /// Returns true only if:
+    /// - Consensus is enabled in the configuration, AND
+    /// - This node is present in the current validator set
+    pub fn is_active_validator(&self) -> bool {
+        self.params.enabled
+            && self
+                .validator_set()
+                .get_by_address(self.address())
+                .is_some()
     }
 
     pub fn round_certificate(&self) -> Option<&EnterRoundCertificate<Ctx>> {

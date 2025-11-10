@@ -28,7 +28,7 @@ use malachitebft_app::node::Node;
 use malachitebft_signing_ed25519::PrivateKey;
 use malachitebft_test_app::node::{App, Handle};
 use malachitebft_test_framework::HasTestRunner;
-use malachitebft_test_framework::{NodeRunner, TestNode};
+use malachitebft_test_framework::{ConfigModifier, NodeRunner, TestNode};
 
 pub use malachitebft_test_framework::TestBuilder as GenTestBuilder;
 pub use malachitebft_test_framework::{HandlerResult, NodeId, TestParams};
@@ -56,7 +56,7 @@ pub struct TestRunner {
 fn temp_dir(id: NodeId) -> PathBuf {
     TempDir::with_prefix(format!("malachitebft-test-app-{id}"))
         .unwrap()
-        .into_path()
+        .keep()
 }
 
 #[derive(Clone)]
@@ -64,6 +64,7 @@ pub struct NodeInfo {
     start_height: Height,
     home_dir: PathBuf,
     middleware: Arc<dyn Middleware>,
+    config_modifier: ConfigModifier<Config>,
 }
 
 #[async_trait]
@@ -85,6 +86,7 @@ impl NodeRunner<TestContext> for TestRunner {
                         start_height: node.start_height,
                         home_dir: temp_dir(node.id),
                         middleware: Arc::clone(&node.middleware),
+                        config_modifier: Arc::clone(&node.config_modifier),
                     },
                 )
             })
@@ -127,6 +129,11 @@ impl TestRunner {
     fn generate_config(&self, node: NodeId) -> Config {
         let mut config = self.generate_default_config(node);
         self.params.apply_to_config(&mut config);
+
+        // Apply node-specific config customizations
+        let node_info = &self.nodes_info[&node];
+        (node_info.config_modifier)(&mut config);
+
         config
     }
 
@@ -142,6 +149,7 @@ impl TestRunner {
             moniker: format!("node-{node}"),
             logging: LoggingConfig::default(),
             consensus: ConsensusConfig {
+                enabled: true,
                 // Current test app does not support proposal-only value payload properly as Init does not include valid_round
                 value_payload: ValuePayload::ProposalAndParts,
                 queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`
@@ -150,10 +158,19 @@ impl TestRunner {
                     protocol,
                     discovery: DiscoveryConfig::default(),
                     listen_addr: transport.multiaddr("127.0.0.1", self.consensus_base_port + i),
-                    persistent_peers: (0..self.nodes_info.len())
-                        .filter(|j| i != *j)
-                        .map(|j| transport.multiaddr("127.0.0.1", self.consensus_base_port + j))
-                        .collect(),
+                    persistent_peers: {
+                        (0..self.nodes_info.len())
+                            .filter(|j|
+                                // Don't connect to self or nodes that are excluded from persistent peers.
+                                // Simulates validators or full nodes that joined after initial network setup
+                                i != *j &&
+                                    !self
+                                        .params
+                                        .exclude_from_persistent_peers
+                                        .contains(&((*j + 1) as u64)))
+                            .map(|j| transport.multiaddr("127.0.0.1", self.consensus_base_port + j))
+                            .collect()
+                    },
                     ..Default::default()
                 },
             },

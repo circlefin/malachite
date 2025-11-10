@@ -464,7 +464,7 @@ where
                     return Ok(());
                 };
 
-                warn!(?timeout, "Timeout elapsed");
+                info!(?timeout, "Timeout elapsed");
 
                 match timeout {
                     Timeout::Request(request_id) => {

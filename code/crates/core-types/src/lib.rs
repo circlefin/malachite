@@ -15,6 +15,7 @@ extern crate alloc;
 
 mod certificate;
 mod context;
+mod error;
 mod height;
 mod proposal;
 mod proposal_part;
@@ -58,12 +59,13 @@ pub use certificate::{
     PolkaSignature, RoundCertificate, RoundCertificateType, RoundSignature, ValueResponse,
 };
 pub use context::Context;
+pub use error::BoxError;
 pub use height::Height;
 pub use proposal::{Proposal, Validity};
 pub use proposal_part::ProposalPart;
 pub use round::Round;
 pub use signed_message::SignedMessage;
-pub use signing::{SigningProvider, SigningProviderExt, SigningScheme};
+pub use signing::SigningScheme;
 pub use threshold::{Threshold, ThresholdParam, ThresholdParams};
 pub use timeout::{Timeout, TimeoutKind};
 pub use validator_set::{Address, Validator, ValidatorSet, VotingPower};

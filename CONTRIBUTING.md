@@ -60,7 +60,7 @@ welcome everyone to ask and offer help.
 
 _Adapted from the CometBFT and Reth contributing guides._
 
-[rust-coc]: https://www.rust-lang.org/en-US/conduct.html
+[rust-coc]: https://rust-lang.org/policies/code-of-conduct/
 [tg]: https://t.me/MalachiteEngine
 [new-issue]: https://github.com/circlefin/malachite/issues/new
 [existing-issues]: https://github.com/circlefin/malachite/issues

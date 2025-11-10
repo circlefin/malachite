@@ -10,7 +10,9 @@ use malachitebft_app_channel::app::streaming::StreamContent;
 use malachitebft_app_channel::app::types::core::{Height as _, Round, Validity};
 use malachitebft_app_channel::app::types::sync::RawDecidedValue;
 use malachitebft_app_channel::app::types::{LocallyProposedValue, ProposedValue};
-use malachitebft_app_channel::{AppMsg, Channels, ConsensusRequest, NetworkMsg};
+use malachitebft_app_channel::{
+    AppMsg, Channels, ConsensusRequest, ConsensusRequestError, NetworkMsg,
+};
 use malachitebft_test::{Height, TestContext};
 
 use crate::state::{decode_value, encode_value, State};
@@ -19,10 +21,19 @@ use crate::state::{decode_value, encode_value, State};
 fn monitor_state(tx_request: mpsc::Sender<ConsensusRequest<TestContext>>) {
     tokio::spawn(async move {
         loop {
-            if let Some(dump) = ConsensusRequest::dump_state(&tx_request).await {
-                tracing::debug!("State dump: {dump:#?}");
-            } else {
-                tracing::debug!("Failed to dump state");
+            match ConsensusRequest::dump_state(&tx_request).await {
+                Ok(dump) => {
+                    tracing::debug!("State dump: {dump:#?}");
+                }
+                Err(ConsensusRequestError::Recv) => {
+                    tracing::error!("Failed to receive state dump from consensus");
+                }
+                Err(ConsensusRequestError::Full) => {
+                    tracing::error!("Consensus request channel full");
+                }
+                Err(ConsensusRequestError::Closed) => {
+                    tracing::error!("Consensus request channel closed");
+                }
             }
 
             sleep(Duration::from_secs(1)).await;
@@ -218,21 +229,6 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
                 if reply.send(proposed_value).is_err() {
                     error!("Failed to send ReceivedProposalPart reply");
-                }
-            }
-
-            // In some cases, e.g. to verify the signature of a vote received at a higher height
-            // than the one we are at (e.g. because we are lagging behind a little bit),
-            // the engine may ask us for the validator set at that height.
-            //
-            // In our case, our validator set stays constant between heights so we can
-            // send back the validator set found in our genesis state.
-            AppMsg::GetValidatorSet { height, reply } => {
-                if reply
-                    .send(Some(state.get_validator_set(height).clone()))
-                    .is_err()
-                {
-                    error!("Failed to send GetValidatorSet reply");
                 }
             }
 

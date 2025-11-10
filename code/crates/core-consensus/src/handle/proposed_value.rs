@@ -39,17 +39,22 @@ pub async fn on_proposed_value<Ctx>(
 where
     Ctx: Context,
 {
-    if state.driver.height() > proposed_value.height {
+    if state.height() > proposed_value.height {
         debug!("Received value for lower height, dropping");
         return Ok(());
     }
 
-    if state.driver.height() < proposed_value.height {
-        debug!("Received value for higher height, queuing for later");
+    if state.height() < proposed_value.height {
+        debug!(
+            consensus.height = %state.height(),
+            value.height = %proposed_value.height,
+            "Received value for higher height, queuing for later"
+        );
 
         state.buffer_input(
             proposed_value.height,
             Input::ProposedValue(proposed_value, origin),
+            metrics,
         );
 
         return Ok(());
@@ -80,6 +85,7 @@ where
         perform!(
             co,
             Effect::WalAppend(
+                proposed_value.height,
                 WalEntry::ProposedValue(proposed_value.clone()),
                 Default::default()
             )

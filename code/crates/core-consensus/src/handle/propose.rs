@@ -52,6 +52,7 @@ where
         perform!(
             co,
             Effect::WalAppend(
+                proposed_value.height,
                 WalEntry::ProposedValue(proposed_value.clone()),
                 Default::default()
             )
@@ -89,18 +90,18 @@ fn verify_propose_value<Ctx>(
 where
     Ctx: Context,
 {
-    if state.driver.height() != local_value.height {
+    if state.height() != local_value.height {
         warn!(
-            "Ignoring value for height {}, current height: {}",
+            "Received locally proposed value for wrong height {}, current height: {}",
             local_value.height,
-            state.driver.height()
+            state.height()
         );
 
         return Ok(false);
     }
 
-    if state.driver.round() != local_value.round {
-        warn!(
+    if state.round() != local_value.round {
+        debug!(
             "Ignoring value for round {}, current round: {}",
             local_value.round,
             state.driver.round()

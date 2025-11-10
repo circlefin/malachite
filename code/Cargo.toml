@@ -20,6 +20,7 @@ members = [
   "crates/wal",
 
   # Signing scheme
+  "crates/signing",
   "crates/signing-ed25519",
 
   # Test
@@ -85,6 +86,7 @@ malachitebft-network            = { version = "0.6.0-pre", package = "informalsy
 malachitebft-metrics            = { version = "0.6.0-pre", package = "informalsystems-malachitebft-metrics", path = "crates/metrics" }
 malachitebft-peer               = { version = "0.6.0-pre", package = "informalsystems-malachitebft-peer", path = "crates/peer", default-features = false }
 malachitebft-proto              = { version = "0.6.0-pre", package = "informalsystems-malachitebft-proto", path = "crates/proto" }
+malachitebft-signing            = { version = "0.6.0-pre", package = "informalsystems-malachitebft-signing", path = "crates/signing" }
 malachitebft-signing-ed25519    = { version = "0.6.0-pre", package = "informalsystems-malachitebft-signing-ed25519", path = "crates/signing-ed25519" }
 malachitebft-sync               = { version = "0.6.0-pre", package = "informalsystems-malachitebft-sync", path = "crates/sync" }
 malachitebft-wal                = { version = "0.6.0-pre", package = "informalsystems-malachitebft-wal", path = "crates/wal" }

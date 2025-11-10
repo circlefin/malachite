@@ -1,5 +1,4 @@
 use crate::handle::driver::apply_driver_input;
-use crate::handle::validator_set::get_validator_set;
 use crate::prelude::*;
 
 use super::signature::{verify_polka_certificate, verify_round_certificate};
@@ -30,6 +29,7 @@ where
 {
     info!(%certificate.height, %certificate.round, "Received polka certificate");
 
+    // Discard certificates for heights that do not match the current height.
     if certificate.height != state.height() {
         warn!(
             %certificate.height,
@@ -40,14 +40,12 @@ where
         return Ok(());
     }
 
-    let validator_set = get_validator_set(co, state, certificate.height)
-        .await?
-        .ok_or_else(|| Error::ValidatorSetNotFound(certificate.height))?;
+    let validator_set = state.validator_set();
 
     let validity = verify_polka_certificate(
         co,
         certificate.clone(),
-        validator_set.into_owned(),
+        validator_set.clone(),
         state.params.threshold_params,
     )
     .await?;
@@ -104,8 +102,9 @@ where
         "Received round certificate"
     );
 
+    // Discard certificates for heights that do not match the current height.
     if certificate.height != state.height() {
-        warn!(
+        debug!(
             %certificate.height,
             consensus.height = %state.height(),
             "Round certificate height mismatch"
@@ -117,7 +116,7 @@ where
     match certificate.cert_type {
         RoundCertificateType::Precommit => {
             if certificate.round < state.round() {
-                warn!(
+                debug!(
                     %certificate.round,
                     consensus.round = %state.round(),
                     "Precommit round certificate from older round"
@@ -127,7 +126,7 @@ where
         }
         RoundCertificateType::Skip => {
             if certificate.round <= state.round() {
-                warn!(
+                debug!(
                     %certificate.round,
                     consensus.round = %state.round(),
                     "Skip round certificate from same or older round"
@@ -137,14 +136,14 @@ where
         }
     }
 
-    let validator_set = get_validator_set(co, state, certificate.height)
-        .await?
-        .ok_or_else(|| Error::ValidatorSetNotFound(certificate.height))?;
+    assert_eq!(certificate.height, state.height());
+
+    let validator_set = state.validator_set();
 
     let validity = verify_round_certificate(
         co,
         certificate.clone(),
-        validator_set.into_owned(),
+        validator_set.clone(),
         state.params.threshold_params,
     )
     .await?;

@@ -1,6 +1,5 @@
 use crate::handle::driver::apply_driver_input;
 use crate::handle::signature::verify_signature;
-use crate::handle::validator_set::get_validator_set;
 use crate::input::Input;
 use crate::prelude::*;
 use crate::types::{ConsensusMsg, ProposedValue, SignedConsensusMsg, WalEntry};
@@ -36,15 +35,17 @@ pub async fn on_proposal<Ctx>(
 where
     Ctx: Context,
 {
-    let consensus_height = state.driver.height();
-
+    let consensus_height = state.height();
+    let consensus_round = state.round();
     let proposal_height = signed_proposal.height();
     let proposal_round = signed_proposal.round();
     let proposer_address = signed_proposal.validator_address();
 
+    // Discard proposals for heights lower than the current height.
     if proposal_height < consensus_height {
-        warn!(
+        debug!(
             consensus.height = %consensus_height,
+            consensus.round = %consensus_round,
             proposal.height = %proposal_height,
             proposer = %proposer_address,
             "Received proposal for lower height, dropping"
@@ -53,24 +54,35 @@ where
         return Ok(());
     }
 
-    // Queue messages if driver is not initialized, or if they are for higher height.
-    // Process messages received for the current height.
-    // Drop all others.
-    if state.driver.round() == Round::Nil {
-        debug!("Received proposal at round -1, queuing for later");
-        state.buffer_input(proposal_height, Input::Proposal(signed_proposal));
-
-        return Ok(());
-    }
-
+    // Queue proposals for heights higher than the current height.
     if proposal_height > consensus_height {
-        debug!("Received proposal for higher height {proposal_height}, queuing for later",);
-        state.buffer_input(proposal_height, Input::Proposal(signed_proposal));
+        debug!(
+            consensus.height = %consensus_height,
+            proposal.height = %proposal_height,
+            "Received proposal for higher height {proposal_height}, queuing for later"
+        );
+
+        state.buffer_input(proposal_height, Input::Proposal(signed_proposal), metrics);
 
         return Ok(());
     }
 
     debug_assert_eq!(proposal_height, consensus_height);
+
+    // Queue messages if driver is not initialized.
+    // Process messages received for the current height.
+    // Drop all others.
+    if state.driver.round() == Round::Nil {
+        debug!(
+            consensus.height = %consensus_height,
+            proposal.height = %proposal_height,
+            "Received proposal at round -1, queuing for later"
+        );
+
+        state.buffer_input(proposal_height, Input::Proposal(signed_proposal), metrics);
+
+        return Ok(());
+    }
 
     if !verify_signed_proposal(co, state, &signed_proposal).await? {
         return Ok(());
@@ -78,10 +90,11 @@ where
 
     info!(
         consensus.height = %consensus_height,
+        consensus.round = %consensus_round,
         proposal.height = %proposal_height,
         proposal.round = %proposal_round,
+        proposal.msg = %PrettyProposal::<Ctx>(&signed_proposal.message),
         proposer = %proposer_address,
-        message = %PrettyProposal::<Ctx>(&signed_proposal.message),
         "Received proposal"
     );
 
@@ -94,6 +107,7 @@ where
         perform!(
             co,
             Effect::WalAppend(
+                signed_proposal.height(),
                 WalEntry::ConsensusMsg(SignedConsensusMsg::Proposal(signed_proposal.clone())),
                 Default::default()
             )
@@ -146,21 +160,14 @@ pub async fn verify_signed_proposal<Ctx>(
 where
     Ctx: Context,
 {
-    let consensus_height = state.driver.height();
+    let consensus_height = state.height();
     let proposal_height = signed_proposal.height();
     let proposal_round = signed_proposal.round();
     let proposer_address = signed_proposal.validator_address();
 
-    let Some(validator_set) = get_validator_set(co, state, proposal_height).await? else {
-        debug!(
-            consensus.height = %consensus_height,
-            proposal.height = %proposal_height,
-            proposer = %proposer_address,
-            "Received proposal for height without known validator set, dropping"
-        );
+    assert_eq!(proposal_height, consensus_height);
 
-        return Ok(false);
-    };
+    let validator_set = state.validator_set();
 
     let Some(proposer) = validator_set.get_by_address(proposer_address) else {
         warn!(

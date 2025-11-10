@@ -160,7 +160,8 @@ impl Behaviour {
 
         let ping = ping::Behaviour::new(ping::Config::new().with_interval(Duration::from_secs(5)));
 
-        let gossipsub = config.pubsub_protocol.is_gossipsub().then(|| {
+        let enable_gossipsub = config.pubsub_protocol.is_gossipsub() && config.enable_consensus;
+        let gossipsub = enable_gossipsub.then(|| {
             gossipsub::Behaviour::new(
                 gossipsub::MessageAuthenticity::Signed(keypair.clone()),
                 gossipsub_config(config.gossipsub, config.pubsub_max_size),
@@ -172,7 +173,8 @@ impl Behaviour {
             )
         });
 
-        let enable_broadcast = config.pubsub_protocol.is_broadcast() || config.enable_sync;
+        let enable_broadcast = (config.pubsub_protocol.is_broadcast() && config.enable_consensus)
+            || config.enable_sync;
         let broadcast = enable_broadcast.then(|| {
             broadcast::Behaviour::new_with_metrics(
                 broadcast::Config {

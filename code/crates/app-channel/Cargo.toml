@@ -18,6 +18,7 @@ derive-where.workspace = true
 eyre.workspace = true
 ractor.workspace = true
 tokio.workspace = true
+thiserror.workspace = true
 tracing.workspace = true
 
 malachitebft-app.workspace = true

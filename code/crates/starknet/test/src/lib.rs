@@ -49,7 +49,7 @@ pub struct TestRunner {
 fn temp_dir(id: NodeId) -> PathBuf {
     TempDir::with_prefix(format!("malachitebft-test-app-{id}-"))
         .unwrap()
-        .into_path()
+        .keep()
 }
 
 #[async_trait]
@@ -145,6 +145,7 @@ impl TestRunner {
             moniker: format!("node-{node}"),
             logging: LoggingConfig::default(),
             consensus: ConsensusConfig {
+                enabled: true,
                 value_payload: ValuePayload::PartsOnly,
                 queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`
                 timeouts: TimeoutConfig::default(),
