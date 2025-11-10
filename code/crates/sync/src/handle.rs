@@ -343,7 +343,9 @@ where
             } else {
                 // The response of this request only provided `response.values.len()` values,
                 // so update the pending request accordingly
-                let updated_range = *requested_range.start()..=new_start.decrement().unwrap();
+                let updated_range =
+                    *requested_range.start()..=new_start.decrement().unwrap_or_default();
+
                 state.update_request(request_id, peer_id, updated_range);
             }
 
