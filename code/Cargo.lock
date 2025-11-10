@@ -2320,6 +2320,7 @@ dependencies = [
  "borsh",
  "byteorder",
  "bytes",
+ "bytesize",
  "derive-where",
  "eyre",
  "informalsystems-malachitebft-codec",

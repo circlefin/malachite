@@ -32,6 +32,9 @@ mod value;
 mod vote;
 mod vote_extension;
 
+/// Utility functions and types.
+pub mod utils;
+
 /// Type alias to make it easier to refer the `ValueId` type.
 pub type ValueId<Ctx> = <<Ctx as Context>::Value as Value>::Id;
 

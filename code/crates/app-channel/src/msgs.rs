@@ -1,3 +1,4 @@
+use std::ops::RangeInclusive;
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -266,14 +267,18 @@ pub enum AppMsg<Ctx: Context> {
         reply: Reply<Next<Ctx>>,
     },
 
-    /// Requests a previously decided value from the application's storage.
+    /// Requests a range of previously decided values from the application's storage.
     ///
-    /// The application MUST respond with that value if available, or `None` otherwise.
-    GetDecidedValue {
-        /// Height of the decided value to retrieve
-        height: Ctx::Height,
+    /// The application MUST respond with those values if available, or `None` otherwise.
+    ///
+    /// ## Important
+    /// The range is NOT checked for validity by consensus. It is the application's responsibility
+    /// to ensure that the the range is within valid bounds.
+    GetDecidedValues {
+        /// Range of decided values to retrieve
+        range: RangeInclusive<Ctx::Height>,
         /// Channel for sending back the decided value
-        reply: Reply<Option<RawDecidedValue<Ctx>>>,
+        reply: Reply<Vec<RawDecidedValue<Ctx>>>,
     },
 
     /// Notifies the application that a value has been synced from the network.

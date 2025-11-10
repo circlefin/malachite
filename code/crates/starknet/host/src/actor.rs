@@ -1,3 +1,4 @@
+use std::ops::RangeInclusive;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -10,6 +11,7 @@ use tokio::time::Instant;
 use tracing::{debug, error, info, trace, warn};
 
 use malachitebft_core_consensus::{PeerId, Role, VoteExtensionError};
+use malachitebft_core_types::utils::height::HeightRangeExt;
 use malachitebft_core_types::{CommitCertificate, Round, Validity, ValueId};
 use malachitebft_engine::host::{HeightParams, LocallyProposedValue, Next, ProposedValue};
 use malachitebft_engine::network::{NetworkMsg, NetworkRef};
@@ -192,8 +194,8 @@ impl Host {
                 ..
             } => on_decided(state, reply_to, &self.mempool, certificate, &self.metrics).await,
 
-            HostMsg::GetDecidedValue { height, reply_to } => {
-                on_get_decided_value(height, state, reply_to).await
+            HostMsg::GetDecidedValues { range, reply_to } => {
+                on_get_decided_values(range, state, reply_to).await
             }
 
             HostMsg::ProcessSyncedValue {
@@ -482,37 +484,35 @@ fn on_process_synced_value(
     Ok(())
 }
 
-async fn on_get_decided_value(
-    height: Height,
+async fn on_get_decided_values(
+    range: RangeInclusive<Height>,
     state: &mut HostState,
-    reply_to: RpcReplyPort<Option<RawDecidedValue<MockContext>>>,
+    reply_to: RpcReplyPort<Vec<RawDecidedValue<MockContext>>>,
 ) -> Result<(), ActorProcessingErr> {
-    debug!(%height, "Received request for block");
+    debug!(?range, "Received sync request for blocks");
 
-    match state.block_store.get(height).await {
-        Ok(None) => {
-            let min = state.block_store.first_height().await.unwrap_or_default();
-            let max = state.block_store.last_height().await.unwrap_or_default();
+    let mut blocks = vec![];
 
-            warn!(%height, "No block for this height, available blocks: {min}..={max}");
+    for height in range.iter_heights() {
+        match state.block_store.get(height).await {
+            Ok(Some(block)) => {
+                let block = RawDecidedValue {
+                    value_bytes: block.block.to_bytes().unwrap(),
+                    certificate: block.certificate,
+                };
 
-            reply_to.send(None)?;
-        }
-
-        Ok(Some(block)) => {
-            let block = RawDecidedValue {
-                value_bytes: block.block.to_bytes().unwrap(),
-                certificate: block.certificate,
-            };
-
-            debug!(%height, "Found decided block in store");
-            reply_to.send(Some(block))?;
-        }
-        Err(e) => {
-            error!(%e, %height, "Failed to get decided block");
-            reply_to.send(None)?;
+                blocks.push(block);
+            }
+            Ok(None) => {
+                warn!(%height, "No block for this height during sync");
+            }
+            Err(e) => {
+                error!(%e, %height, "Failed to get decided block during sync");
+            }
         }
     }
+
+    reply_to.send(blocks)?;
 
     Ok(())
 }

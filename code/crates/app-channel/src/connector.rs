@@ -218,11 +218,11 @@ where
                 });
             }
 
-            HostMsg::GetDecidedValue { height, reply_to } => {
+            HostMsg::GetDecidedValues { range, reply_to } => {
                 let (reply, rx) = oneshot::channel();
 
                 self.sender
-                    .send(AppMsg::GetDecidedValue { height, reply })
+                    .send(AppMsg::GetDecidedValues { range, reply })
                     .await?;
 
                 reply_to.send(rx.await?)?;

@@ -36,6 +36,7 @@ async-trait = { workspace = true }
 async-recursion = { workspace = true }
 borsh = { workspace = true, optional = true }
 bytes = { workspace = true, features = ["serde"] }
+bytesize = { workspace = true }
 byteorder = { workspace = true }
 derive-where = { workspace = true }
 eyre = { workspace = true }

@@ -5,6 +5,7 @@ use std::ops::RangeInclusive;
 use derive_where::derive_where;
 use tracing::{debug, error, info, warn};
 
+use malachitebft_core_types::utils::height::DisplayRange;
 use malachitebft_core_types::{Context, Height};
 
 use crate::co::Co;
@@ -270,7 +271,7 @@ where
     fields(
         peer_id = %peer_id,
         request_id = %request_id,
-        range = %DisplayRange::<Ctx>(&request.range)
+        range = %DisplayRange(&request.range)
     )
 )]
 pub async fn on_value_request<Ctx>(
@@ -307,8 +308,8 @@ where
 
     if range != request.range {
         debug!(
-            requested = %DisplayRange::<Ctx>(&request.range),
-            clamped = %DisplayRange::<Ctx>(&range),
+            requested = %DisplayRange(&request.range),
+            clamped = %DisplayRange(&range),
             "Clamped request range to our tip height"
         );
     }
@@ -474,7 +475,7 @@ pub async fn on_got_decided_values<Ctx>(
 where
     Ctx: Context,
 {
-    info!(range = %DisplayRange::<Ctx>(&range), "Received {} values from host", values.len());
+    info!(range = %DisplayRange(&range), "Received {} values from host", values.len());
 
     let start = range.start();
     let end = range.end();
@@ -500,7 +501,7 @@ where
         height = height.increment();
     }
 
-    debug!(%request_id, range = %DisplayRange::<Ctx>(&range), "Sending response to peer");
+    debug!(%request_id, range = %DisplayRange(&range), "Sending response to peer");
     perform!(
         co,
         Effect::SendValueResponse(
@@ -528,7 +529,7 @@ where
 {
     match request {
         Request::ValueRequest(value_request) => {
-            info!(%peer_id, range = %DisplayRange::<Ctx>(&value_request.range), "Sync request timed out");
+            info!(%peer_id, range = %DisplayRange(&value_request.range), "Sync request timed out");
 
             state.peer_scorer.update_score(peer_id, SyncResult::Timeout);
 
@@ -682,7 +683,7 @@ where
     // Get a random peer that can provide the values in the range.
     let Some((peer, range)) = state.random_peer_with(&range) else {
         // No connected peer reached this height yet, we can stop syncing here.
-        debug!(range = %DisplayRange::<Ctx>(&range), "No peer to request sync from");
+        debug!(range = %DisplayRange(&range), "No peer to request sync from");
         return Ok(());
     };
 
@@ -714,14 +715,14 @@ where
 
     if range.is_empty() {
         warn!(
-            range = %DisplayRange::<Ctx>(&range), %peer,
+            range = %DisplayRange(&range), %peer,
             "All values in range have been validated, skipping request"
         );
 
         return Ok(None);
     }
 
-    info!(range = %DisplayRange::<Ctx>(&range), %peer, "Requesting sync from peer");
+    info!(range = %DisplayRange(&range), %peer, "Requesting sync from peer");
 
     // Send request to peer
     let Some(request_id) = perform!(
@@ -729,12 +730,12 @@ where
         Effect::SendValueRequest(peer, ValueRequest::new(range.clone()), Default::default()),
         Resume::ValueRequestId(id) => id,
     ) else {
-        warn!(range = %DisplayRange::<Ctx>(&range), %peer, "Failed to send sync request to peer");
+        warn!(range = %DisplayRange(&range), %peer, "Failed to send sync request to peer");
         return Ok(None);
     };
 
     metrics.value_request_sent(range.start().as_u64());
-    debug!(%request_id, range = %DisplayRange::<Ctx>(&range), %peer, "Sent sync request to peer");
+    debug!(%request_id, range = %DisplayRange(&range), %peer, "Sent sync request to peer");
 
     Ok(Some((request_id, range)))
 }
@@ -793,14 +794,6 @@ where
         .insert(request_id, (final_range.clone(), peer));
 
     Ok(())
-}
-
-struct DisplayRange<'a, Ctx: Context>(&'a RangeInclusive<Ctx::Height>);
-
-impl<'a, Ctx: Context> core::fmt::Display for DisplayRange<'a, Ctx> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}..={}", self.0.start(), self.0.end())
-    }
 }
 
 /// Find the next uncovered range starting from initial_height.

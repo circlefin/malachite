@@ -7,6 +7,7 @@ use tracing::{error, info};
 
 use malachitebft_app_channel::app::engine::host::{HeightParams, Next};
 use malachitebft_app_channel::app::streaming::StreamContent;
+use malachitebft_app_channel::app::types::core::utils::height::HeightRangeExt;
 use malachitebft_app_channel::app::types::core::{Height as _, Round, Validity};
 use malachitebft_app_channel::app::types::sync::RawDecidedValue;
 use malachitebft_app_channel::app::types::{LocallyProposedValue, ProposedValue};
@@ -337,19 +338,22 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             // then the engine might ask the application to provide with the value
             // that was decided at some lower height. In that case, we fetch it from our store
             // and send it to consensus.
-            AppMsg::GetDecidedValue { height, reply } => {
-                info!(%height, "Received sync request for decided value");
+            AppMsg::GetDecidedValues { range, reply } => {
+                info!(?range, "Received sync request for decided values");
 
-                let decided_value = state.get_decided_value(height).await;
-                info!(%height, "Found decided value: {decided_value:?}");
+                let mut values = Vec::new();
+                for height in range.iter_heights() {
+                    if let Some(decided_value) = state.get_decided_value(height).await {
+                        let raw_decided_value = RawDecidedValue {
+                            certificate: decided_value.certificate,
+                            value_bytes: encode_value(&decided_value.value),
+                        };
+                        values.push(raw_decided_value);
+                    }
+                }
 
-                let raw_decided_value = decided_value.map(|decided_value| RawDecidedValue {
-                    certificate: decided_value.certificate,
-                    value_bytes: encode_value(&decided_value.value),
-                });
-
-                if reply.send(raw_decided_value).is_err() {
-                    error!("Failed to send GetDecidedValue reply");
+                if reply.send(values).is_err() {
+                    error!("Failed to send GetDecidedValues reply");
                 }
             }
 

@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use bytesize::ByteSize;
 use derive_where::derive_where;
 use eyre::eyre;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
@@ -13,8 +14,8 @@ use tracing::{debug, error, info, warn, Instrument};
 
 use malachitebft_codec as codec;
 use malachitebft_core_consensus::PeerId;
-use malachitebft_core_types::{CommitCertificate, Context, Height};
-use malachitebft_sync::Response::ValueResponse;
+use malachitebft_core_types::utils::height::DisplayRange;
+use malachitebft_core_types::{CommitCertificate, Context};
 use malachitebft_sync::{
     self as sync, HeightStartType, InboundRequestId, OutboundRequestId, RawDecidedValue, Request,
     Response, Resumable,
@@ -305,66 +306,15 @@ where
             }
 
             Effect::GetDecidedValues(request_id, range, r) => {
-                let mut values = Vec::new();
-                let mut height = *range.start();
-
-                let mut response_size_bytes = 0;
-                while height <= *range.end() {
-                    let value = self
-                        .host
-                        .call(
-                            |reply_to| HostMsg::GetDecidedValue { height, reply_to },
-                            None,
-                        )
-                        .await?
-                        .success_or(eyre!("Failed to get decided value for height {height}"))?;
-
-                    if let Some(value) = value {
-                        let value_response = ValueResponse(sync::ValueResponse::new(
-                            *range.start(),
-                            vec![value.clone()],
-                        ));
-
-                        let total_value_size_bytes = match self
-                            .sync_codec
-                            .encoded_len(&value_response)
-                        {
-                            Ok(value_in_bytes) => value_in_bytes,
-                            Err(e) => {
-                                error!("Failed to get response size for value, stopping at height {height}: {e}");
-                                break;
-                            }
-                        };
-
-                        // check if adding this value would exceed the max-response limit
-                        if response_size_bytes + total_value_size_bytes
-                            > self.sync_config.max_response_size
-                        {
-                            warn!("Maximum byte size limit ({} bytes) would be exceeded (current: {} + upcoming value: {}), stopping at height {}",
-                              self.sync_config.max_response_size, response_size_bytes, total_value_size_bytes, height);
-                            break;
-                        }
-
-                        response_size_bytes += total_value_size_bytes;
-                        values.push(value);
-
-                        if response_size_bytes == self.sync_config.max_response_size {
-                            info!(
-                                "Reached maximum byte size limit ({} bytes) exactly at height {}",
-                                self.sync_config.max_response_size, height
-                            );
-
-                            break;
-                        }
-                    } else {
-                        warn!("Decided value not found for height {height}");
-                        break;
-                    }
-
-                    height = height.increment();
-                }
-
-                myself.cast(Msg::<Ctx>::GotDecidedValues(request_id, range, values))?;
+                self.host.call_and_forward(
+                    {
+                        let range = range.clone();
+                        |reply_to| HostMsg::GetDecidedValues { range, reply_to }
+                    },
+                    myself,
+                    |values| Msg::<Ctx>::GotDecidedValues(request_id, range, values),
+                    None,
+                )?;
 
                 Ok(r.resume_with(()))
             }
@@ -456,11 +406,27 @@ where
                     .await?;
             }
 
-            Msg::GotDecidedValues(request_id, range, blocks) => {
+            // Received decided values from host
+            //
+            // We need to ensure that the total size of the response does not exceed the maximum allowed size.
+            // If it does, we truncate the response accordingly.
+            // This is to prevent sending overly large messages that could lead to network issues.
+            Msg::GotDecidedValues(request_id, range, mut values) => {
+                debug!(
+                    %request_id,
+                    range = %DisplayRange(&range),
+                    values_count = values.len(),
+                    "Processing decided values from host"
+                );
+
+                // Filter values to respect maximum response size
+                let max_response_size = ByteSize::b(self.sync_config.max_response_size as u64);
+                truncate_values_to_size_limit(&mut values, max_response_size, &self.sync_codec);
+
                 self.process_input(
                     &myself,
                     state,
-                    sync::Input::GotDecidedValues(request_id, range, blocks),
+                    sync::Input::GotDecidedValues(request_id, range, values),
                 )
                 .await?;
             }
@@ -510,6 +476,47 @@ where
 
         Ok(())
     }
+}
+
+fn truncate_values_to_size_limit<Ctx, Codec>(
+    values: &mut Vec<RawDecidedValue<Ctx>>,
+    max_response_size: ByteSize,
+    codec: &Codec,
+) where
+    Ctx: Context,
+    Codec: SyncCodec<Ctx>,
+{
+    let mut current_size = ByteSize::b(0);
+    let mut keep_count = 0;
+
+    for value in values.iter() {
+        let height = value.certificate.height;
+
+        let value_response =
+            Response::ValueResponse(sync::ValueResponse::new(height, vec![value.clone()]));
+
+        let value_size = match codec.encoded_len(&value_response) {
+            Ok(size) => ByteSize::b(size as u64),
+            Err(e) => {
+                error!("Failed to get response size for value, stopping at height {height}: {e}");
+                break;
+            }
+        };
+
+        if current_size + value_size > max_response_size {
+            warn!(
+                %max_response_size, %current_size, %value_size,
+                "Maximum size limit would be exceeded, stopping at height {height}"
+            );
+            break;
+        }
+
+        current_size += value_size;
+        keep_count += 1;
+    }
+
+    // Drop the remaining elements past the size limit
+    values.truncate(keep_count);
 }
 
 #[async_trait]
