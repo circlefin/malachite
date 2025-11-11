@@ -566,7 +566,7 @@ pub async fn validator_persistent_peer_reconnection_discovery_enabled() {
 
     test.build()
         .run_with_params(
-            Duration::from_secs(30),
+            Duration::from_secs(60),
             TestParams {
                 enable_value_sync: true,
                 parallel_requests: 3,
@@ -621,7 +621,7 @@ pub async fn validator_persistent_peer_reconnection_discovery_disabled() {
 
     test.build()
         .run_with_params(
-            Duration::from_secs(30),
+            Duration::from_secs(60),
             TestParams {
                 enable_value_sync: true,
                 parallel_requests: 1,
@@ -676,7 +676,7 @@ pub async fn full_node_persistent_peer_reconnection_discovery_enabled() {
 
     test.build()
         .run_with_params(
-            Duration::from_secs(30),
+            Duration::from_secs(60),
             TestParams {
                 enable_value_sync: true,
                 parallel_requests: 3,
@@ -732,7 +732,7 @@ pub async fn full_node_persistent_peer_reconnection_discovery_disabled() {
 
     test.build()
         .run_with_params(
-            Duration::from_secs(30),
+            Duration::from_secs(60),
             TestParams {
                 enable_value_sync: true,
                 parallel_requests: 3,

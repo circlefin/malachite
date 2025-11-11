@@ -5,7 +5,9 @@ use libp2p::{
 };
 use tracing::{debug, error, warn};
 
-use crate::{controller::PeerData, dial::DialData, Discovery, DiscoveryClient};
+use crate::{
+    controller::PeerData, dial::DialData, ConnectionDirection, Discovery, DiscoveryClient,
+};
 
 impl<C> Discovery<C>
 where
@@ -92,21 +94,30 @@ where
             d @ ConnectedPoint::Dialer { .. } => {
                 debug!(
                     peer = %peer_id, %connection_id, remote_address = %d.get_remote_address(),
-                    "Connected to peer"
+                    "Connected to peer (outbound)"
                 );
+
+                // Track connection direction: Outbound (we dialed)
+                self.connection_directions
+                    .insert(connection_id, ConnectionDirection::Outbound);
+
+                // Only register as "done" for connections that the node initiated
+                // This is needed in case the peer was dialed without knowing the peer id
+                self.controller
+                    .dial
+                    .register_done_on(PeerData::PeerId(peer_id));
             }
             l @ ConnectedPoint::Listener { .. } => {
                 debug!(
                     peer = %peer_id, %connection_id, remote_address = %l.get_remote_address(),
-                    "Accepted incoming connection from peer"
+                    "Accepted incoming connection from peer (inbound)"
                 );
+
+                // Track connection direction: Inbound (they dialed us)
+                self.connection_directions
+                    .insert(connection_id, ConnectionDirection::Inbound);
             }
         }
-
-        // Needed in case the peer was dialed without knowing the peer id
-        self.controller
-            .dial
-            .register_done_on(PeerData::PeerId(peer_id));
 
         // This check is necessary to handle the case where two
         // nodes dial each other at the same time, which can lead

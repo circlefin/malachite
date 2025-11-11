@@ -35,6 +35,14 @@ enum State {
     Idle,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ConnectionDirection {
+    /// Outbound connection (we dialed the peer)
+    Outbound,
+    /// Inbound connection (the peer dialed us)
+    Inbound,
+}
+
 #[derive(Debug, PartialEq)]
 enum OutboundState {
     Pending,
@@ -54,6 +62,8 @@ where
     bootstrap_nodes: Vec<(Option<PeerId>, Vec<Multiaddr>)>,
     discovered_peers: HashMap<PeerId, identify::Info>,
     active_connections: HashMap<PeerId, Vec<ConnectionId>>,
+    /// Track connection direction per connection
+    connection_directions: HashMap<ConnectionId, ConnectionDirection>,
     outbound_peers: HashMap<PeerId, OutboundState>,
     inbound_peers: HashSet<PeerId>,
 
@@ -114,6 +124,7 @@ where
                 .collect(),
             discovered_peers: HashMap::new(),
             active_connections: HashMap::new(),
+            connection_directions: HashMap::new(),
             outbound_peers: HashMap::new(),
             inbound_peers: HashSet::new(),
 

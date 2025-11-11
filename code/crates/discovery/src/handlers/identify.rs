@@ -219,21 +219,31 @@ where
                     .add_address(&peer_id, info.listen_addrs.first().unwrap().clone());
             }
         } else {
-            // If discovery is disabled, all peers are inbound. The
-            // maximum number of inbound peers is enforced by the
-            // corresponding parameter in the configuration.
-            if self.inbound_peers.len() < self.config.num_inbound_peers {
-                debug!(peer = %peer_id, %connection_id, "Connection is inbound");
+            // If discovery is disabled, classify based on actual connection direction
+            let we_dialed = self
+                .controller
+                .dial
+                .get_in_progress_iter()
+                .any(|(_, dial_data)| dial_data.peer_id() == Some(peer_id))
+                || self
+                    .controller
+                    .dial
+                    .is_done_on(&crate::controller::PeerData::PeerId(peer_id));
 
+            if we_dialed {
+                // Accept all peers we dial (no capacity check)
+                // When discovery is disabled, these are explicitly configured peers
+                debug!(peer = %peer_id, %connection_id, "Connection is outbound");
+                self.outbound_peers
+                    .insert(peer_id, OutboundState::Confirmed);
+            } else if self.inbound_peers.len() < self.config.num_inbound_peers {
+                debug!(peer = %peer_id, %connection_id, "Connection is inbound");
                 self.inbound_peers.insert(peer_id);
             } else {
-                warn!(peer = %peer_id, %connection_id, "Peers limit reached, refusing connection");
-
+                warn!(peer = %peer_id, %connection_id, "Inbound peers limit reached, refusing connection");
                 self.controller
                     .close
                     .add_to_queue((peer_id, connection_id), None);
-
-                // Set to true to avoid triggering new connection logic
                 is_already_connected = true;
             }
         }

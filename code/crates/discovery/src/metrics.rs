@@ -17,19 +17,19 @@ pub(crate) struct Metrics {
     /// Total number of discovered peers
     total_discovered: Counter,
 
-    /// Number of active peers
+    /// Number of active peers (unique peers with at least one connection)
     num_active_peers: Gauge,
     /// Number of active connections
     num_active_connections: Gauge,
-    /// Number of outbound peers
+    /// Number of managed outbound peers (peers we dial/maintain)
     num_outbound_peers: Gauge,
     /// Number of outbound connections
     num_outbound_connections: Gauge,
-    /// Number of inbound peers
+    /// Number of accepted inbound peers (peers we accepted that dialed us, not in outbound_peers)
     num_inbound_peers: Gauge,
     /// Number of inbound connections
     num_inbound_connections: Gauge,
-    /// Number of ephemeral peers
+    /// Number of ephemeral peers (temporary connections, neither outbound nor inbound)
     num_ephemeral_peers: Gauge,
     /// Number of ephemeral connections
     num_ephemeral_connections: Gauge,
@@ -87,7 +87,7 @@ impl Metrics {
 
         registry.register(
             "num_active_peers",
-            "Number of active peers",
+            "Number of active peers (unique peers with at least one connection)",
             this.num_active_peers.clone(),
         );
 
@@ -99,7 +99,7 @@ impl Metrics {
 
         registry.register(
             "num_outbound_peers",
-            "Number of outbound peers",
+            "Number of managed outbound peers (peers we dial/maintain)",
             this.num_outbound_peers.clone(),
         );
 
@@ -111,7 +111,7 @@ impl Metrics {
 
         registry.register(
             "num_inbound_peers",
-            "Number of inbound peers",
+            "Number of accepted inbound peers (peers that dialed us, not in outbound_peers)",
             this.num_inbound_peers.clone(),
         );
 
@@ -123,7 +123,7 @@ impl Metrics {
 
         registry.register(
             "num_ephemeral_peers",
-            "Number of ephemeral peers",
+            "Number of ephemeral peers (temporary connections)",
             this.num_ephemeral_peers.clone(),
         );
 
