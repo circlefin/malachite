@@ -196,6 +196,9 @@ pub struct State<Ctx: Context> {
     /// Scheduler for timers
     timers: Timers,
 
+    /// Timeouts for various consensus steps
+    timeouts: Ctx::Timeouts,
+
     /// The state of the consensus state machine
     consensus: ConsensusState<Ctx>,
 
@@ -274,9 +277,6 @@ where
         state: &mut State<Ctx>,
         input: ConsensusInput<Ctx>,
     ) -> Result<(), ConsensusError<Ctx>> {
-        // Extract timeouts before the process! macro to avoid borrow checker issues
-        let timeouts = *state.consensus.timeouts();
-
         malachitebft_core_consensus::process!(
             input: input,
             state: &mut state.consensus,
@@ -285,7 +285,7 @@ where
                 let handler_state = HandlerState {
                     phase: state.phase,
                     timers: &mut state.timers,
-                    timeouts,
+                    timeouts: state.timeouts,
                 };
 
                 self.handle_effect(myself, handler_state, effect).await
@@ -354,12 +354,17 @@ where
                     }
                 }
 
+                // Update the timeouts if provided
+                if let Some(new_timeouts) = updates.timeouts {
+                    state.timeouts = new_timeouts;
+                }
+
                 // Start consensus for the given height
                 let result = self
                     .process_input(
                         &myself,
                         state,
-                        ConsensusInput::StartHeight(height, updates, is_restart),
+                        ConsensusInput::StartHeight(height, updates.validator_set, is_restart),
                     )
                     .await;
 
@@ -908,7 +913,7 @@ where
             }
 
             Effect::ScheduleTimeout(timeout, r) => {
-                let duration = state.timeouts.duration_for(timeout.kind, timeout.round);
+                let duration = state.timeouts.duration_for(timeout);
                 state.timers.start_timer(timeout, duration);
 
                 Ok(r.resume_with(()))
@@ -1115,7 +1120,7 @@ where
             }
 
             Effect::GetValue(height, round, timeout, r) => {
-                let timeout_duration = state.timeouts.duration_for(timeout.kind, timeout.round);
+                let timeout_duration = state.timeouts.duration_for(timeout);
 
                 self.get_value(myself, height, round, timeout_duration)
                     .map_err(|e| {
@@ -1267,6 +1272,7 @@ where
 
         Ok(State {
             timers: Timers::new(Box::new(myself)),
+            timeouts: self.params.initial_timeouts,
             consensus: ConsensusState::new(
                 self.ctx.clone(),
                 self.params.clone(),

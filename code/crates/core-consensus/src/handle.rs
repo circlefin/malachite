@@ -46,8 +46,8 @@ where
     Ctx: Context,
 {
     match input {
-        Input::StartHeight(height, updates, is_restart) => {
-            reset_and_start_height(co, state, metrics, height, updates, is_restart).await
+        Input::StartHeight(height, validator_set, is_restart) => {
+            reset_and_start_height(co, state, metrics, height, validator_set, is_restart).await
         }
         Input::Vote(vote) => on_vote(co, state, metrics, vote).await,
         Input::Proposal(proposal) => on_proposal(co, state, metrics, proposal).await,

@@ -8,7 +8,7 @@ pub async fn reset_and_start_height<Ctx>(
     state: &mut State<Ctx>,
     metrics: &Metrics,
     height: Ctx::Height,
-    height_updates: HeightUpdates<Ctx>,
+    validator_set: Option<Ctx::ValidatorSet>,
     is_restart: bool,
 ) -> Result<(), Error<Ctx>>
 where
@@ -19,7 +19,7 @@ where
     #[cfg(feature = "metrics")]
     metrics.step_end(state.driver.step());
 
-    state.reset_and_start_height(height, height_updates);
+    state.reset_and_start_height(height, validator_set);
 
     debug_assert_eq!(state.height(), height);
     debug_assert_eq!(state.round(), Round::Nil);

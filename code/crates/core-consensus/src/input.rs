@@ -1,7 +1,7 @@
 use derive_where::derive_where;
 use malachitebft_core_types::{
-    Context, HeightUpdates, PolkaCertificate, RoundCertificate, SignedProposal, SignedVote,
-    Timeout, ValueOrigin, ValueResponse,
+    Context, PolkaCertificate, RoundCertificate, SignedProposal, SignedVote, Timeout, ValueOrigin,
+    ValueResponse,
 };
 
 use crate::types::{LocallyProposedValue, ProposedValue};
@@ -12,8 +12,9 @@ pub enum Input<Ctx>
 where
     Ctx: Context,
 {
-    /// Start consensus for the given height with optional updates.
-    StartHeight(Ctx::Height, HeightUpdates<Ctx>, bool),
+    /// Start consensus for the given height with an optional validator set update.
+    /// The boolean indicates whether this is a restart of consensus for the given height.
+    StartHeight(Ctx::Height, Option<Ctx::ValidatorSet>, bool),
 
     /// Process a vote received over the network.
     Vote(SignedVote<Ctx>),

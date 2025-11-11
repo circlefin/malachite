@@ -1,7 +1,7 @@
 use core::fmt::Debug;
 use core::time::Duration;
 
-use crate::{Context, Round, TimeoutKind};
+use crate::{Context, Round, Timeout, TimeoutKind};
 
 /// Timeouts control how long the consensus engine waits for various steps
 /// in the consensus protocol.
@@ -18,17 +18,16 @@ where
     ///
     /// # Arguments
     ///
-    /// * `step` - The step to get the duration for.
-    /// * `round` - The round to get the duration for.
+    /// * `timeout` - The timeout to get the duration for.
     ///
     /// # Returns
     ///
-    /// The duration for the given step and round.
+    /// The duration for the given timeout
     ///
     /// # Panics
     ///
-    /// If the round is nil, this function must panic.
-    fn duration_for(&self, step: TimeoutKind, round: Round) -> Duration;
+    /// If the timeout round is nil, this function must panic.
+    fn duration_for(&self, timeout: Timeout) -> Duration;
 }
 
 /// Timeouts that increase linearly with the round number.
@@ -58,8 +57,8 @@ pub struct LinearTimeouts {
 }
 
 impl<Ctx: Context> Timeouts<Ctx> for LinearTimeouts {
-    fn duration_for(&self, step: TimeoutKind, round: Round) -> Duration {
-        self.duration_for(step, round)
+    fn duration_for(&self, timeout: Timeout) -> Duration {
+        self.duration_for(timeout.kind, timeout.round)
     }
 }
 
@@ -83,9 +82,10 @@ impl Default for LinearTimeouts {
 
 impl LinearTimeouts {
     /// See [`Timeouts::duration_for`].
-    pub fn duration_for(&self, step: TimeoutKind, round: Round) -> Duration {
+    pub fn duration_for(&self, kind: TimeoutKind, round: Round) -> Duration {
         let round = round.as_u32().expect("Round must be defined");
-        match step {
+
+        match kind {
             TimeoutKind::Propose => self.propose + self.propose_delta * round,
             TimeoutKind::Prevote => self.prevote + self.prevote_delta * round,
             TimeoutKind::Precommit => self.precommit + self.precommit_delta * round,

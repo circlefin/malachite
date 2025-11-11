@@ -8,9 +8,9 @@ use malachitebft_core_state_machine::output::Output as RoundOutput;
 use malachitebft_core_state_machine::state::{RoundValue, State as RoundState, Step};
 use malachitebft_core_state_machine::state_machine::Info;
 use malachitebft_core_types::{
-    CommitCertificate, Context, EnterRoundCertificate, HeightUpdates, NilOrVal, PolkaCertificate,
-    PolkaSignature, Proposal, Round, RoundCertificateType, SignedProposal, SignedVote, Timeout,
-    TimeoutKind, Validator, ValidatorSet, Validity, Value, ValueId, Vote, VoteType,
+    CommitCertificate, Context, EnterRoundCertificate, NilOrVal, PolkaCertificate, PolkaSignature,
+    Proposal, Round, RoundCertificateType, SignedProposal, SignedVote, Timeout, TimeoutKind,
+    Validator, ValidatorSet, Validity, Value, ValueId, Vote, VoteType,
 };
 use malachitebft_core_votekeeper::keeper::Output as VKOutput;
 use malachitebft_core_votekeeper::keeper::VoteKeeper;
@@ -108,12 +108,16 @@ where
 
     /// Reset votes, round state, pending input and move to new height with
     /// optional updates.
-    pub fn move_to_height(&mut self, height: Ctx::Height, height_updates: HeightUpdates<Ctx>) {
+    pub fn move_to_height(
+        &mut self,
+        height: Ctx::Height,
+        validator_set: Option<Ctx::ValidatorSet>,
+    ) {
         // Reset the proposal keeper
         let proposal_keeper = ProposalKeeper::new();
 
         // Update the validator set if provided
-        if let Some(validator_set) = height_updates.validator_set {
+        if let Some(validator_set) = validator_set {
             self.validator_set = validator_set;
         }
 
