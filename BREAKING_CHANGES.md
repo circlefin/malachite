@@ -17,8 +17,7 @@
 
 - Remove `GetValidatorSet` effect ([#1189](https://github.com/circlefin/malachite/pull/1189))
 - Removed `Effect::ResetTimeouts` variant ([#1227](https://github.com/circlefin/malachite/pull/1227))
-- Changed `Input::StartHeight` from `StartHeight(Height, ValidatorSet, bool)` to `StartHeight(Height, HeightUpdates, bool)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
-- Added `timeouts` field to `State` struct - timeouts are now stored in State instead of Driver ([#1227](https://github.com/circlefin/malachite/pull/1227))
+- Changed `Input::StartHeight` from `StartHeight(Height, ValidatorSet, bool)` to `StartHeight(Height, Option<ValidatorSet>, bool)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 
 ### `malachitebft-core-driver`
 
@@ -27,7 +26,7 @@
   - New: `Driver::new(ctx, height, validator_set, address, threshold_params)`
 - Removed `Driver::timeouts()` method - timeouts are now accessed through `State` instead ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Removed `timeouts` field from `Driver` struct - Driver no longer stores or manages timeouts ([#1227](https://github.com/circlefin/malachite/pull/1227))
-- Changed `Driver::move_to_height` signature from `move_to_height(height, validator_set, timeouts)` to `move_to_height(height, height_updates)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
+- Changed `Driver::move_to_height` signature from `move_to_height(Height, Validator_set, Timeouts)` to `move_to_height(Height, Option<ValidatorSet>)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 
 ### `malachitebft-engine`
 
@@ -38,6 +37,7 @@
 - Changed `Msg::StartHeight` from `StartHeight(Height, ValidatorSet)` to `StartHeight(Height, HeightUpdates)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Changed `Msg::RestartHeight` from `RestartHeight(Height, ValidatorSet)` to `RestartHeight(Height, HeightUpdates)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Removed validator set empty check when processing `Msg::StartHeight` and `Msg::RestartHeight` (applications are free to provide `HeightUpdates::default()` if no changes have been made to the validator set or timeouts) ([#1227](https://github.com/circlefin/malachite/pull/1227))
+- Added `timeouts` field to `State` struct - timeouts are now stored in State instead of Driver ([#1227](https://github.com/circlefin/malachite/pull/1227))
 
 ### `malachitebft-config`
 
