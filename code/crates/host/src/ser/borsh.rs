@@ -1,4 +1,4 @@
-use crate::util::streaming::StreamId;
+use crate::streaming::StreamId;
 
 impl borsh::BorshSerialize for StreamId {
     fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
