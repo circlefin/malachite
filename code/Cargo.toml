@@ -12,6 +12,7 @@ members = [
   "crates/core-types",
   "crates/core-votekeeper",
   "crates/engine",
+  "crates/host",
   "crates/metrics",
   "crates/network",
   "crates/peer",
@@ -82,6 +83,7 @@ malachitebft-core-state-machine = { version = "0.6.0-pre", package = "informalsy
 malachitebft-core-types         = { version = "0.6.0-pre", package = "informalsystems-malachitebft-core-types", path = "crates/core-types" }
 malachitebft-core-votekeeper    = { version = "0.6.0-pre", package = "informalsystems-malachitebft-core-votekeeper", path = "crates/core-votekeeper" }
 malachitebft-discovery          = { version = "0.6.0-pre", package = "informalsystems-malachitebft-discovery", path = "crates/discovery" }
+malachitebft-host               = { version = "0.6.0-pre", package = "informalsystems-malachitebft-host", path = "crates/host" }
 malachitebft-network            = { version = "0.6.0-pre", package = "informalsystems-malachitebft-network", path = "crates/network" }
 malachitebft-metrics            = { version = "0.6.0-pre", package = "informalsystems-malachitebft-metrics", path = "crates/metrics" }
 malachitebft-peer               = { version = "0.6.0-pre", package = "informalsystems-malachitebft-peer", path = "crates/peer", default-features = false }
