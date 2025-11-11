@@ -25,6 +25,7 @@ pub async fn start_engine<Node, Ctx, WalCodec, NetCodec>(
     cfg: Node::Config,
     wal_codec: WalCodec,
     net_codec: NetCodec,
+    request_channel_size: usize,
 ) -> Result<(Channels<Ctx>, EngineHandle)>
 where
     Ctx: Context,
@@ -84,7 +85,7 @@ where
     let (node, handle) =
         spawn_node_actor(ctx, network, consensus.clone(), wal, sync, connector).await?;
 
-    let (tx_request, rx_request) = tokio::sync::mpsc::channel(100);
+    let (tx_request, rx_request) = tokio::sync::mpsc::channel(request_channel_size);
     spawn_request_task(rx_request, consensus);
 
     let channels = Channels {

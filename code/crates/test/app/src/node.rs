@@ -139,6 +139,7 @@ impl Node for App {
             config.clone(),
             ProtobufCodec, // WAL codec
             JsonCodec,     // Network codec
+            100,           // Request channel size
         )
         .await?;
 
