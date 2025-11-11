@@ -16,12 +16,18 @@
 ### `malachitebft-core-consensus`
 
 - Remove `GetValidatorSet` effect ([#1189](https://github.com/circlefin/malachite/pull/1189))
+- Removed `Effect::ResetTimeouts` variant ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Changed `Input::StartHeight` from `StartHeight(Height, ValidatorSet, bool)` to `StartHeight(Height, HeightUpdates, bool)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
+- Added `timeouts` field to `State` struct - timeouts are now stored in State instead of Driver ([#1227](https://github.com/circlefin/malachite/pull/1227))
 
 ### `malachitebft-core-driver`
 
+- Changed `Driver::new()` signature - removed `timeouts` parameter ([#1227](https://github.com/circlefin/malachite/pull/1227))
+  - Old: `Driver::new(ctx, height, validator_set, timeouts, address, threshold_params)`
+  - New: `Driver::new(ctx, height, validator_set, address, threshold_params)`
+- Removed `Driver::timeouts()` method - timeouts are now accessed through `State` instead ([#1227](https://github.com/circlefin/malachite/pull/1227))
+- Removed `timeouts` field from `Driver` struct - Driver no longer stores or manages timeouts ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Changed `Driver::move_to_height` signature from `move_to_height(height, validator_set, timeouts)` to `move_to_height(height, height_updates)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
-- `Driver::move_to_height` now only updates validator set and timeouts if provided in `HeightUpdates` (preserves existing values when `None`) ([#1227](https://github.com/circlefin/malachite/pull/1227))
 
 ### `malachitebft-engine`
 
@@ -31,7 +37,7 @@
 - Changed `HostMsg::ConsensusReady` reply type from `(Ctx::Height, Ctx::ValidatorSet)` to `(Ctx::Height, HeightUpdates<Ctx>)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Changed `Msg::StartHeight` from `StartHeight(Height, ValidatorSet)` to `StartHeight(Height, HeightUpdates)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Changed `Msg::RestartHeight` from `RestartHeight(Height, ValidatorSet)` to `RestartHeight(Height, HeightUpdates)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
-- Removed validator set empty check when processing `Msg::StartHeight` and `Msg::RestartHeight` (applications are free to provide `HeightUpdates::none` if no changes have been made to the validator set or timeouts) ([#1227](https://github.com/circlefin/malachite/pull/1227))
+- Removed validator set empty check when processing `Msg::StartHeight` and `Msg::RestartHeight` (applications are free to provide `HeightUpdates::default()` if no changes have been made to the validator set or timeouts) ([#1227](https://github.com/circlefin/malachite/pull/1227))
 
 ### `malachitebft-config`
 
