@@ -63,10 +63,8 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
                 sleep(Duration::from_millis(200)).await;
 
-                let height_updates = HeightUpdates {
-                    validator_set: Some(state.get_validator_set(start_height).clone()),
-                    timeouts: None,
-                };
+                let height_updates = HeightUpdates::default()
+                    .with_validator_set(state.get_validator_set(start_height).clone());
 
                 if reply.send((start_height, height_updates)).is_err() {
                     error!("Failed to send ConsensusReady reply");
@@ -261,12 +259,9 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         if reply
                             .send(Next::Start(
                                 state.current_height,
-                                HeightUpdates {
-                                    validator_set: Some(
-                                        state.get_validator_set(state.current_height).clone(),
-                                    ),
-                                    timeouts: None,
-                                },
+                                HeightUpdates::default().with_validator_set(
+                                    state.get_validator_set(state.current_height).clone(),
+                                ),
                             ))
                             .is_err()
                         {
@@ -282,10 +277,8 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         if reply
                             .send(Next::Restart(
                                 height,
-                                HeightUpdates {
-                                    validator_set: Some(state.get_validator_set(height).clone()),
-                                    timeouts: None,
-                                },
+                                HeightUpdates::default()
+                                    .with_validator_set(state.get_validator_set(height).clone()),
                             ))
                             .is_err()
                         {
