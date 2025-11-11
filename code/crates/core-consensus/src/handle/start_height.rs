@@ -15,7 +15,6 @@ where
     Ctx: Context,
 {
     perform!(co, Effect::CancelAllTimeouts(Default::default()));
-    perform!(co, Effect::ResetTimeouts(Default::default()));
 
     #[cfg(feature = "metrics")]
     metrics.step_end(state.driver.step());

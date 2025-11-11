@@ -40,9 +40,6 @@ where
     /// The validator set at the current height
     validator_set: Ctx::ValidatorSet,
 
-    /// The timeouts at the current height
-    timeouts: Ctx::Timeouts,
-
     /// The proposer for the current round, None for round nil.
     proposer: Option<Ctx::Address>,
 
@@ -84,7 +81,6 @@ where
         ctx: Ctx,
         height: Ctx::Height,
         validator_set: Ctx::ValidatorSet,
-        timeouts: Ctx::Timeouts,
         address: Ctx::Address,
         threshold_params: ThresholdParams,
     ) -> Self {
@@ -97,7 +93,6 @@ where
             address,
             threshold_params,
             validator_set,
-            timeouts,
             proposal_keeper,
             vote_keeper,
             round_state,
@@ -128,11 +123,6 @@ where
 
         // Reset the round state
         let round_state = RoundState::new(height, Round::Nil);
-
-        // Update the timeouts if provided
-        if let Some(timeouts) = height_updates.timeouts {
-            self.timeouts = timeouts;
-        }
 
         self.vote_keeper = vote_keeper;
         self.proposal_keeper = proposal_keeper;
@@ -215,11 +205,6 @@ where
     /// Return the validator set for this height.
     pub fn validator_set(&self) -> &Ctx::ValidatorSet {
         &self.validator_set
-    }
-
-    /// Return the timeouts for this height.
-    pub fn timeouts(&self) -> &Ctx::Timeouts {
-        &self.timeouts
     }
 
     /// Return the proposer address for the current round, if any.

@@ -16,13 +16,13 @@ use crate::{ConsensusMsg, Error, PeerId, Role, VoteExtensionError, WalEntry};
 /// ```rust,ignore
 /// fn effect_handler(effect: Effect<Ctx>) -> Result<Resume<Ctx>, Error> {
 ///     match effect {
-///         Effect::ResetTimeouts(r) => {
-///             reset_timeouts();
+///         Effect::ScheduleTimeout(timeout, r) => {
+///             schedule_timeout(timeout);
 ///             Ok(r.resume_with(()))
 ///         }
-///         Effect::GetValidatorSet(height, r) => {
-///             let validator_set = get_validator_set(height);
-///             Ok(r.resume_with(validator_set))
+///         Effect::GetValue(height, round, timeout, r) => {
+///             request_value(height, round);
+///             Ok(r.resume_with(()))
 ///         }
 ///        // ...
 ///     }
@@ -49,11 +49,6 @@ pub enum Effect<Ctx>
 where
     Ctx: Context,
 {
-    /// Reset all timeouts to their initial values
-    ///
-    /// Resume with: [`resume::Continue`]
-    ResetTimeouts(resume::Continue),
-
     /// Cancel all outstanding timeouts
     ///
     /// Resume with: [`resume::Continue`]

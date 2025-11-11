@@ -24,6 +24,9 @@ where
     /// Driver for the per-round consensus state machine
     pub driver: Driver<Ctx>,
 
+    /// The timeouts for this height
+    pub timeouts: Ctx::Timeouts,
+
     /// A queue of inputs that were received before the driver started.
     pub input_queue: BoundedQueue<Ctx::Height, Input<Ctx>>,
 
@@ -46,7 +49,6 @@ where
             ctx.clone(),
             params.initial_height,
             params.initial_validator_set.clone(),
-            params.initial_timeouts,
             params.address.clone(),
             params.threshold_params,
         );
@@ -54,6 +56,7 @@ where
         Self {
             ctx,
             driver,
+            timeouts: params.initial_timeouts,
             params,
             input_queue: BoundedQueue::new(queue_capacity),
             full_proposal_keeper: Default::default(),
@@ -80,7 +83,7 @@ where
 
     /// Return the timeouts for this height.
     pub fn timeouts(&self) -> &Ctx::Timeouts {
-        self.driver.timeouts()
+        &self.timeouts
     }
 
     pub fn get_proposer(&self, height: Ctx::Height, round: Round) -> &Ctx::Address {
@@ -181,6 +184,11 @@ where
         self.full_proposal_keeper.clear();
         self.last_signed_prevote = None;
         self.last_signed_precommit = None;
+
+        // Update the timeouts if provided
+        if let Some(timeouts) = height_updates.timeouts {
+            self.timeouts = timeouts;
+        }
 
         self.driver.move_to_height(height, height_updates);
     }

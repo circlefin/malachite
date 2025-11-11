@@ -180,24 +180,6 @@ impl<Ctx: Context> From<TimeoutElapsed<Timeout>> for Msg<Ctx> {
 
 type Timers = TimerScheduler<Timeout>;
 
-struct TimeoutsState<Ctx: Context> {
-    timeouts: Ctx::Timeouts,
-}
-
-impl<Ctx: Context> TimeoutsState<Ctx> {
-    pub fn new(timeouts: Ctx::Timeouts) -> Self {
-        Self { timeouts }
-    }
-
-    fn reset(&mut self, timeouts: Ctx::Timeouts) {
-        self.timeouts = timeouts;
-    }
-
-    fn duration_for(&self, step: TimeoutKind, round: Round) -> Duration {
-        self.timeouts.duration_for(step, round)
-    }
-}
-
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum Phase {
     Unstarted,
@@ -213,9 +195,6 @@ const MAX_BUFFER_SIZE: usize = 1024;
 pub struct State<Ctx: Context> {
     /// Scheduler for timers
     timers: Timers,
-
-    /// The state of the timeouts
-    timeouts: TimeoutsState<Ctx>,
 
     /// The state of the consensus state machine
     consensus: ConsensusState<Ctx>,
@@ -250,7 +229,7 @@ where
 struct HandlerState<'a, Ctx: Context> {
     phase: Phase,
     timers: &'a mut Timers,
-    timeouts: &'a mut TimeoutsState<Ctx>,
+    timeouts: Ctx::Timeouts,
 }
 
 impl<Ctx> Consensus<Ctx>
@@ -295,6 +274,9 @@ where
         state: &mut State<Ctx>,
         input: ConsensusInput<Ctx>,
     ) -> Result<(), ConsensusError<Ctx>> {
+        // Extract timeouts before the process! macro to avoid borrow checker issues
+        let timeouts = *state.consensus.timeouts();
+
         malachitebft_core_consensus::process!(
             input: input,
             state: &mut state.consensus,
@@ -303,7 +285,7 @@ where
                 let handler_state = HandlerState {
                     phase: state.phase,
                     timers: &mut state.timers,
-                    timeouts: &mut state.timeouts,
+                    timeouts,
                 };
 
                 self.handle_effect(myself, handler_state, effect).await
@@ -915,12 +897,6 @@ where
         effect: Effect<Ctx>,
     ) -> Result<Resume<Ctx>, ActorProcessingErr> {
         match effect {
-            Effect::ResetTimeouts(r) => {
-                let timeouts = self.params.initial_timeouts;
-                state.timeouts.reset(timeouts);
-                Ok(r.resume_with(()))
-            }
-
             Effect::CancelAllTimeouts(r) => {
                 state.timers.cancel_all();
                 Ok(r.resume_with(()))
@@ -1289,11 +1265,8 @@ where
         self.network
             .cast(NetworkMsg::Subscribe(Box::new(myself.clone())))?;
 
-        let timeouts = self.params.initial_timeouts;
-
         Ok(State {
             timers: Timers::new(Box::new(myself)),
-            timeouts: TimeoutsState::new(timeouts),
             consensus: ConsensusState::new(
                 self.ctx.clone(),
                 self.params.clone(),
