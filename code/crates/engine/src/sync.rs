@@ -6,7 +6,6 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use derive_where::derive_where;
 use eyre::eyre;
-
 use ractor::{Actor, ActorProcessingErr, ActorRef};
 use rand::SeedableRng;
 use tokio::task::JoinHandle;
@@ -15,6 +14,7 @@ use tracing::{debug, error, info, warn, Instrument};
 use malachitebft_codec as codec;
 use malachitebft_core_consensus::PeerId;
 use malachitebft_core_types::{CommitCertificate, Context, Height};
+use malachitebft_sync::Response::ValueResponse;
 use malachitebft_sync::{
     self as sync, HeightStartType, InboundRequestId, OutboundRequestId, RawDecidedValue, Request,
     Response, Resumable,
@@ -37,6 +37,7 @@ where
     Self: codec::Codec<sync::Status<Ctx>>,
     Self: codec::Codec<sync::Request<Ctx>>,
     Self: codec::Codec<sync::Response<Ctx>>,
+    Self: codec::HasEncodedLen<sync::Response<Ctx>>,
 {
 }
 
@@ -46,6 +47,7 @@ where
     Codec: codec::Codec<sync::Status<Ctx>>,
     Codec: codec::Codec<sync::Request<Ctx>>,
     Codec: codec::Codec<sync::Response<Ctx>>,
+    Codec: codec::HasEncodedLen<sync::Response<Ctx>>,
 {
 }
 
@@ -149,25 +151,33 @@ pub struct State<Ctx: Context> {
 }
 
 #[allow(dead_code)]
-pub struct Sync<Ctx: Context> {
+pub struct Sync<Ctx, Codec>
+where
+    Ctx: Context,
+    Codec: SyncCodec<Ctx>,
+{
     ctx: Ctx,
     gossip: NetworkRef<Ctx>,
     host: HostRef<Ctx>,
     params: Params,
+    sync_codec: Codec,
     sync_config: sync::Config,
     metrics: sync::Metrics,
     span: tracing::Span,
 }
 
-impl<Ctx> Sync<Ctx>
+impl<Ctx, Codec> Sync<Ctx, Codec>
 where
     Ctx: Context,
+    Codec: SyncCodec<Ctx>,
 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         ctx: Ctx,
         gossip: NetworkRef<Ctx>,
         host: HostRef<Ctx>,
         params: Params,
+        sync_codec: Codec,
         sync_config: sync::Config,
         metrics: sync::Metrics,
         span: tracing::Span,
@@ -177,22 +187,34 @@ where
             gossip,
             host,
             params,
+            sync_codec,
             sync_config,
             metrics,
             span,
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn spawn(
         ctx: Ctx,
         gossip: NetworkRef<Ctx>,
         host: HostRef<Ctx>,
         params: Params,
+        sync_codec: Codec,
         sync_config: sync::Config,
         metrics: sync::Metrics,
         span: tracing::Span,
     ) -> Result<SyncRef<Ctx>, ractor::SpawnErr> {
-        let actor = Self::new(ctx, gossip, host, params, sync_config, metrics, span);
+        let actor = Self::new(
+            ctx,
+            gossip,
+            host,
+            params,
+            sync_codec,
+            sync_config,
+            metrics,
+            span,
+        );
         let (actor_ref, _) = Actor::spawn(None, actor, ()).await?;
         Ok(actor_ref)
     }
@@ -285,6 +307,8 @@ where
             Effect::GetDecidedValues(request_id, range, r) => {
                 let mut values = Vec::new();
                 let mut height = *range.start();
+
+                let mut response_size_bytes = 0;
                 while height <= *range.end() {
                     let value = self
                         .host
@@ -296,7 +320,42 @@ where
                         .success_or(eyre!("Failed to get decided value for height {height}"))?;
 
                     if let Some(value) = value {
+                        let value_response = ValueResponse(sync::ValueResponse::new(
+                            *range.start(),
+                            vec![value.clone()],
+                        ));
+
+                        let total_value_size_bytes = match self
+                            .sync_codec
+                            .encoded_len(&value_response)
+                        {
+                            Ok(value_in_bytes) => value_in_bytes,
+                            Err(e) => {
+                                error!("Failed to get response size for value, stopping at height {height}: {e}");
+                                break;
+                            }
+                        };
+
+                        // check if adding this value would exceed the max-response limit
+                        if response_size_bytes + total_value_size_bytes
+                            > self.sync_config.max_response_size
+                        {
+                            warn!("Maximum byte size limit ({} bytes) would be exceeded (current: {} + upcoming value: {}), stopping at height {}",
+                              self.sync_config.max_response_size, response_size_bytes, total_value_size_bytes, height);
+                            break;
+                        }
+
+                        response_size_bytes += total_value_size_bytes;
                         values.push(value);
+
+                        if response_size_bytes == self.sync_config.max_response_size {
+                            info!(
+                                "Reached maximum byte size limit ({} bytes) exactly at height {}",
+                                self.sync_config.max_response_size, height
+                            );
+
+                            break;
+                        }
                     } else {
                         warn!("Decided value not found for height {height}");
                         break;
@@ -454,9 +513,10 @@ where
 }
 
 #[async_trait]
-impl<Ctx> Actor for Sync<Ctx>
+impl<Ctx, Codec> Actor for Sync<Ctx, Codec>
 where
     Ctx: Context,
+    Codec: SyncCodec<Ctx>,
 {
     type Msg = Msg<Ctx>;
     type State = State<Ctx>;

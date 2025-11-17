@@ -10,10 +10,6 @@ use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
 use tracing::{error, trace};
 
-use malachitebft_sync::{
-    self as sync, InboundRequestId, OutboundRequestId, RawMessage, Request, Response,
-};
-
 use malachitebft_codec as codec;
 use malachitebft_core_consensus::{LivenessMsg, SignedConsensusMsg};
 use malachitebft_core_types::{
@@ -22,6 +18,9 @@ use malachitebft_core_types::{
 use malachitebft_metrics::SharedRegistry;
 use malachitebft_network::handle::CtrlHandle;
 use malachitebft_network::{Channel, Config, Event, Multiaddr, PeerId};
+use malachitebft_sync::{
+    self as sync, InboundRequestId, OutboundRequestId, RawMessage, Request, Response,
+};
 
 use crate::consensus::ConsensusCodec;
 use crate::sync::SyncCodec;
@@ -71,6 +70,7 @@ where
     Ctx: Context,
     Codec: ConsensusCodec<Ctx>,
     Codec: SyncCodec<Ctx>,
+    Codec: codec::HasEncodedLen<sync::Response<Ctx>>,
 {
     pub async fn spawn(
         keypair: Keypair,
@@ -183,10 +183,8 @@ where
     Codec: codec::Codec<Ctx::ProposalPart>,
     Codec: codec::Codec<SignedConsensusMsg<Ctx>>,
     Codec: codec::Codec<StreamMessage<Ctx::ProposalPart>>,
-    Codec: codec::Codec<sync::Status<Ctx>>,
-    Codec: codec::Codec<sync::Request<Ctx>>,
-    Codec: codec::Codec<sync::Response<Ctx>>,
     Codec: codec::Codec<LivenessMsg<Ctx>>,
+    Codec: SyncCodec<Ctx>,
 {
     type Msg = Msg<Ctx>;
     type State = State<Ctx>;
