@@ -8,7 +8,7 @@ use crate::{ConsensusMsg, Error, PeerId, Role, VoteExtensionError, WalEntry};
 /// Provides a way to construct the appropriate [`Resume`] value to
 /// resume execution after handling an [`Effect`].
 ///
-/// Eeach `Effect` embeds a value that implements [`Resumable`]
+/// Each `Effect` embeds a value that implements [`Resumable`]
 /// which is used to construct the appropriate [`Resume`] value.
 ///
 /// ## Example

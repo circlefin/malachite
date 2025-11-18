@@ -22,6 +22,7 @@ pub mod sync {
 
 pub mod codec {
     pub use malachitebft_codec::Codec;
+    pub use malachitebft_codec::HasEncodedLen;
     pub use malachitebft_engine::consensus::ConsensusCodec;
     pub use malachitebft_engine::sync::SyncCodec;
     pub use malachitebft_engine::wal::WalCodec;
