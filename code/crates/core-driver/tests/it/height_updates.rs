@@ -1,6 +1,6 @@
 //! Tests for optional validator set updates when starting/restarting heights
 
-use malachitebft_core_types::{HeightUpdates, Round};
+use malachitebft_core_types::{Round, Updates};
 use malachitebft_test::utils::validators::make_validators;
 use malachitebft_test::{Height, TestContext, ValidatorSet};
 
@@ -73,10 +73,10 @@ fn move_to_height_updates_validator_set_when_some() {
     assert_ne!(driver.validator_set(), &initial_validator_set);
 }
 
-/// Test HeightUpdates::default() convenience method
+/// Test Updates::default() convenience method
 #[test]
 fn height_updates_default_creates_empty_updates() {
-    let updates = HeightUpdates::<TestContext>::default();
+    let updates = Updates::<TestContext>::default();
     assert!(updates.validator_set.is_none());
     assert!(updates.timeouts.is_none());
 }

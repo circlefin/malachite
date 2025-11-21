@@ -12,7 +12,7 @@ use malachitebft_app::consensus::VoteExtensionError;
 use malachitebft_app::types::core::ValueOrigin;
 use malachitebft_engine::consensus::state_dump::StateDump;
 use malachitebft_engine::consensus::Msg as ConsensusActorMsg;
-use malachitebft_engine::host::{HeightUpdates, Next};
+use malachitebft_engine::host::{Next, Updates};
 use malachitebft_engine::network::Msg as NetworkActorMsg;
 use malachitebft_engine::util::events::TxEvent;
 
@@ -141,7 +141,7 @@ pub enum AppMsg<Ctx: Context> {
     /// consensus to start at a given height.
     ConsensusReady {
         /// Channel for sending back the height to start at and any updates
-        reply: Reply<(Ctx::Height, HeightUpdates<Ctx>)>,
+        reply: Reply<(Ctx::Height, Updates<Ctx>)>,
     },
 
     /// Notifies the application that a new consensus round has begun.
@@ -300,13 +300,13 @@ pub enum AppMsg<Ctx: Context> {
 #[derive_where(Debug)]
 pub enum ConsensusMsg<Ctx: Context> {
     /// Instructs consensus to start a new height with optional updates.
-    StartHeight(Ctx::Height, HeightUpdates<Ctx>),
+    StartHeight(Ctx::Height, Updates<Ctx>),
 
     /// Previousuly received value proposed by a validator
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
 
     /// Instructs consensus to restart at a given height with optional updates.
-    RestartHeight(Ctx::Height, HeightUpdates<Ctx>),
+    RestartHeight(Ctx::Height, Updates<Ctx>),
 }
 
 impl<Ctx: Context> From<ConsensusMsg<Ctx>> for ConsensusActorMsg<Ctx> {

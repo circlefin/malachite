@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use eyre::eyre;
-use malachitebft_app_channel::app::engine::host::{HeightUpdates, Next};
+use malachitebft_app_channel::app::engine::host::{Next, Updates};
 use tokio::time::sleep;
 use tracing::{debug, error, info};
 
@@ -40,12 +40,9 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     .get_validator_set(start_height)
                     .expect("Validator set should be available");
 
-                let height_updates = HeightUpdates {
-                    validator_set: Some(validator_set),
-                    timeouts: None,
-                };
+                let updates = Updates::default().with_validator_set(validator_set);
 
-                if reply.send((start_height, height_updates)).is_err() {
+                if reply.send((start_height, updates)).is_err() {
                     error!("Failed to send ConsensusReady reply");
                 }
             }
@@ -221,13 +218,13 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                             .get_validator_set(state.current_height)
                             .expect("Validator set should be available");
 
-                        let height_updates = HeightUpdates {
+                        let updates = Updates {
                             validator_set: Some(validator_set),
                             timeouts: None,
                         };
 
                         if reply
-                            .send(Next::Start(state.current_height, height_updates))
+                            .send(Next::Start(state.current_height, updates))
                             .is_err()
                         {
                             error!("Failed to send StartHeight reply");
@@ -242,13 +239,13 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                             .get_validator_set(state.current_height)
                             .expect("Validator set should be available");
 
-                        let height_updates = HeightUpdates {
+                        let updates = Updates {
                             validator_set: Some(validator_set),
                             timeouts: None,
                         };
 
                         if reply
-                            .send(Next::Restart(state.current_height, height_updates))
+                            .send(Next::Restart(state.current_height, updates))
                             .is_err()
                         {
                             error!("Failed to send RestartHeight reply");

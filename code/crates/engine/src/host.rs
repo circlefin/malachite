@@ -11,7 +11,7 @@ use malachitebft_sync::{PeerId, RawDecidedValue};
 use crate::util::streaming::StreamMessage;
 
 pub use malachitebft_core_consensus::{LocallyProposedValue, ProposedValue};
-pub use malachitebft_core_types::HeightUpdates;
+pub use malachitebft_core_types::Updates;
 
 /// A reference to the host actor.
 pub type HostRef<Ctx> = ActorRef<HostMsg<Ctx>>;
@@ -20,10 +20,10 @@ pub type HostRef<Ctx> = ActorRef<HostMsg<Ctx>>;
 #[derive_where(Debug)]
 pub enum Next<Ctx: Context> {
     /// Start at the given height with optional updates.
-    Start(Ctx::Height, HeightUpdates<Ctx>),
+    Start(Ctx::Height, Updates<Ctx>),
 
     /// Restart at the given height with optional updates.
-    Restart(Ctx::Height, HeightUpdates<Ctx>),
+    Restart(Ctx::Height, Updates<Ctx>),
 }
 
 /// Messages that need to be handled by the host actor.
@@ -35,7 +35,7 @@ pub enum HostMsg<Ctx: Context> {
     /// consensus to start at a given height.
     ConsensusReady {
         /// Use this reply port to instruct consensus to start the first height.
-        reply_to: RpcReplyPort<(Ctx::Height, HeightUpdates<Ctx>)>,
+        reply_to: RpcReplyPort<(Ctx::Height, Updates<Ctx>)>,
     },
 
     /// Consensus has started a new round.

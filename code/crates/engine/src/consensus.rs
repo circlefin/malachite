@@ -24,7 +24,7 @@ use malachitebft_metrics::Metrics;
 use malachitebft_signing::{SigningProvider, SigningProviderExt};
 use malachitebft_sync::{self as sync, HeightStartType, ValueResponse};
 
-use crate::host::{HeightUpdates, HostMsg, HostRef, LocallyProposedValue, Next, ProposedValue};
+use crate::host::{HostMsg, HostRef, LocallyProposedValue, Next, ProposedValue, Updates};
 use crate::network::{NetworkEvent, NetworkMsg, NetworkRef};
 use crate::sync::Msg as SyncMsg;
 use crate::sync::SyncRef;
@@ -92,7 +92,7 @@ pub type ConsensusMsg<Ctx> = Msg<Ctx>;
 #[derive_where(Debug)]
 pub enum Msg<Ctx: Context> {
     /// Start consensus for the given height with optional updates.
-    StartHeight(Ctx::Height, HeightUpdates<Ctx>),
+    StartHeight(Ctx::Height, Updates<Ctx>),
 
     /// Received an event from the gossip layer
     NetworkEvent(NetworkEvent<Ctx>),
@@ -115,7 +115,7 @@ pub enum Msg<Ctx: Context> {
     /// 1. The application must clean all state associated with the height for which commit has failed
     /// 2. Since consensus resets its write-ahead log, the node may equivocate on proposals and votes
     ///    for the restarted height, potentially violating protocol safety
-    RestartHeight(Ctx::Height, HeightUpdates<Ctx>),
+    RestartHeight(Ctx::Height, Updates<Ctx>),
 
     /// Request to dump the current consensus state
     DumpState(RpcReplyPort<StateDump<Ctx>>),

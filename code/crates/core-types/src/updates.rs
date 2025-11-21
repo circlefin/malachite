@@ -1,12 +1,10 @@
-//! Height updates structure for starting or restarting a height.
-
 use derive_where::derive_where;
 
 use crate::Context;
 
 /// Updates to apply when starting or restarting a height.
 #[derive_where(Debug, Clone, PartialEq, Eq, Default)]
-pub struct HeightUpdates<Ctx: Context> {
+pub struct Updates<Ctx: Context> {
     /// Validator set for the height
     ///
     /// If `None`, the validator set will be the same as the current validator set.
@@ -17,7 +15,7 @@ pub struct HeightUpdates<Ctx: Context> {
     pub timeouts: Option<Ctx::Timeouts>,
 }
 
-impl<Ctx: Context> HeightUpdates<Ctx> {
+impl<Ctx: Context> Updates<Ctx> {
     /// Apply a validator set update to the height updates.
     pub fn with_validator_set(mut self, validator_set: Ctx::ValidatorSet) -> Self {
         self.validator_set = Some(validator_set);
