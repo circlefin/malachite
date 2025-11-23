@@ -1,0 +1,7 @@
+# code/rust-toolchain.toml
+[toolchain]
+# Cтабильная версия Rust, необходимая проекту
+channel = "1.85.0"
+
+# Дополнительные компоненты для автоматической проверки кода и форматирования
+components = ["rustfmt", "clippy"]
