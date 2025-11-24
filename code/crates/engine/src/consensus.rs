@@ -381,13 +381,17 @@ where
                     return Err(eyre!("Validator set for height {height} is empty").into());
                 }
 
-                state.consensus = Some(ConsensusState::new(
-                    self.ctx.clone(),
-                    height,
-                    validator_set.clone(),
-                    self.params.clone(),
-                    self.consensus_config.queue_capacity,
-                ));
+                if let Some(consensus) = &mut state.consensus {
+                    consensus.reset_and_start_height(height, validator_set.clone());
+                } else {
+                    state.consensus = Some(ConsensusState::new(
+                        self.ctx.clone(),
+                        height,
+                        validator_set.clone(),
+                        self.params.clone(),
+                        self.consensus_config.queue_capacity,
+                    ));
+                }
 
                 self.tx_event
                     .send(|| Event::StartedHeight(height, is_restart));
