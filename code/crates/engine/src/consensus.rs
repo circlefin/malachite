@@ -381,9 +381,8 @@ where
                     return Err(eyre!("Validator set for height {height} is empty").into());
                 }
 
-                if let Some(consensus) = &mut state.consensus {
-                    consensus.reset_and_start_height(height, validator_set.clone());
-                } else {
+                // Initialize consensus state if this is the first height we start
+                if state.consensus.is_none() {
                     state.consensus = Some(ConsensusState::new(
                         self.ctx.clone(),
                         height,
