@@ -15,6 +15,7 @@ use malachitebft_metrics::Registry;
 use malachitebft_sync as sync;
 
 use crate::{Config, GossipSubConfig};
+
 #[derive(Debug)]
 pub enum NetworkEvent {
     Identify(Box<identify::Event>),
@@ -133,7 +134,6 @@ fn message_id(message: &gossipsub::Message) -> gossipsub::MessageId {
 fn gossipsub_config(config: GossipSubConfig, max_transmit_size: usize) -> gossipsub::Config {
     gossipsub::ConfigBuilder::default()
         .max_transmit_size(max_transmit_size)
-        .opportunistic_graft_ticks(3)
         .heartbeat_interval(Duration::from_secs(1))
         .validation_mode(gossipsub::ValidationMode::Strict)
         .history_gossip(3)
@@ -153,10 +153,10 @@ impl Behaviour {
         keypair: &Keypair,
         registry: &mut Registry,
     ) -> Result<Self> {
-        let identify = identify::Behaviour::new(identify::Config::new(
-            config.protocol_names.consensus.clone(),
-            keypair.public(),
-        ));
+        let identify = identify::Behaviour::new(
+            identify::Config::new(config.protocol_names.consensus.clone(), keypair.public())
+                .with_agent_version(format!("moniker={}", config.moniker)),
+        );
 
         let ping = ping::Behaviour::new(ping::Config::new().with_interval(Duration::from_secs(5)));
 

@@ -235,6 +235,7 @@ async fn spawn_network_actor(
     };
 
     let config_gossip = gossip::Config {
+        moniker: cfg.moniker.clone(),
         listen_addr: cfg.consensus.p2p.listen_addr.clone(),
         persistent_peers: cfg.consensus.p2p.persistent_peers.clone(),
         discovery: gossip::DiscoveryConfig {

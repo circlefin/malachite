@@ -2,7 +2,7 @@ use bytes::Bytes;
 use libp2p::swarm;
 
 use crate::behaviour::Behaviour;
-use crate::{Channel, ChannelNames, PubSubProtocol};
+use crate::{Channel, ChannelNames, PeerIdExt, PubSubProtocol};
 
 pub fn subscribe(
     swarm: &mut swarm::Swarm<Behaviour>,
@@ -59,4 +59,22 @@ pub fn publish(
     }
 
     Ok(())
+}
+
+/// Get the mesh peers for a specific channel
+pub fn get_mesh_peers(
+    swarm: &swarm::Swarm<Behaviour>,
+    channel: Channel,
+    channel_names: ChannelNames,
+) -> Vec<crate::PeerId> {
+    if let Some(gossipsub) = swarm.behaviour().gossipsub.as_ref() {
+        let topic = channel.to_gossipsub_topic(channel_names);
+        let topic_hash = topic.hash();
+        gossipsub
+            .mesh_peers(&topic_hash)
+            .map(crate::PeerId::from_libp2p)
+            .collect()
+    } else {
+        Vec::new()
+    }
 }

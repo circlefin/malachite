@@ -30,6 +30,7 @@ where
 
 pub async fn spawn_network_actor<Ctx, Codec>(
     cfg: &ConsensusConfig,
+    moniker: String,
     keypair: Keypair,
     registry: &SharedRegistry,
     codec: Codec,
@@ -41,7 +42,7 @@ where
 {
     let (tx, mut rx) = mpsc::channel::<NetworkMsg<Ctx>>(1);
 
-    let actor_ref = app::spawn::spawn_network_actor(cfg, keypair, registry, codec).await?;
+    let actor_ref = app::spawn::spawn_network_actor(cfg, moniker, keypair, registry, codec).await?;
 
     tokio::spawn({
         let actor_ref = actor_ref.clone();

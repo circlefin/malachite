@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::error::Error;
 use std::ops::ControlFlow;
 use std::time::Duration;
@@ -29,6 +28,20 @@ pub mod pubsub;
 
 mod channel;
 pub use channel::{Channel, ChannelNames};
+
+mod metrics;
+use metrics::Metrics as NetworkMetrics;
+
+mod peer_type;
+pub use peer_type::PeerType;
+
+mod utils;
+
+// Re-export state types for external use (e.g., RPC)
+pub use state::{LocalNodeInfo, PeerInfo};
+
+mod state;
+use state::State;
 
 use behaviour::{Behaviour, NetworkEvent};
 use handle::Handle;
@@ -103,6 +116,7 @@ pub type Selector = discovery::config::Selector;
 
 #[derive(Clone, Debug)]
 pub struct Config {
+    pub moniker: String,
     pub listen_addr: Multiaddr,
     pub persistent_peers: Vec<Multiaddr>,
     pub discovery: DiscoveryConfig,
@@ -180,21 +194,6 @@ pub enum CtrlMsg {
     Shutdown,
 }
 
-#[derive(Debug)]
-pub struct State {
-    pub sync_channels: HashMap<InboundRequestId, sync::ResponseChannel>,
-    pub discovery: discovery::Discovery<Behaviour>,
-}
-
-impl State {
-    fn new(discovery: discovery::Discovery<Behaviour>) -> Self {
-        Self {
-            sync_channels: Default::default(),
-            discovery,
-        }
-    }
-}
-
 pub async fn spawn(
     keypair: Keypair,
     config: Config,
@@ -239,9 +238,23 @@ pub async fn spawn(
         discovery::Discovery::new(config.discovery, config.persistent_peers.clone(), reg)
     });
 
-    let state = State::new(discovery);
+    let network_metrics = registry.with_prefix(METRICS_PREFIX, NetworkMetrics::new);
 
     let peer_id = PeerId::from_libp2p(swarm.local_peer_id());
+
+    // Create local node info
+    let local_node_info = LocalNodeInfo {
+        moniker: config.moniker.clone(),
+        peer_id: *swarm.local_peer_id(),
+        listen_addr: config.listen_addr.clone(),
+    };
+
+    // Set local node info in metrics
+    network_metrics.set_local_node_info(&local_node_info);
+
+    let mut state = State::new(discovery, config.persistent_peers.clone(), network_metrics);
+    state.local_node = Some(local_node_info);
+
     let span = error_span!("network");
 
     info!(parent: span.clone(), %peer_id, "Starting network service");
@@ -289,10 +302,10 @@ async fn run(
         };
     }
 
-    // Timer to periodically try reconnecting to persistent peers
+    // Timer to perform periodic network operations (peer reconnection, metrics updates, etc.)
     // TODO: Using 1 second for now, for faster reconnection during testing
     // Maybe adjust via config in the future
-    let mut persistent_peer_timer = tokio::time::interval(std::time::Duration::from_secs(1));
+    let mut periodic_timer = tokio::time::interval(std::time::Duration::from_secs(1));
 
     loop {
         let result = tokio::select! {
@@ -324,9 +337,19 @@ async fn run(
                 handle_ctrl_msg(&mut swarm, &mut state, &config, ctrl).await
             }
 
-            _ = persistent_peer_timer.tick() => {
-                // Periodically attempt to dial bootstrap nodes
+            _ = periodic_timer.tick() => {
+                // Attempt to dial bootstrap nodes
                 state.discovery.dial_bootstrap_nodes(&swarm);
+
+                // Update peer info in State and metrics (includes gossipsub scores and mesh membership)
+                if let Some(gossipsub) = swarm.behaviour_mut().gossipsub.as_mut() {
+                    state.update_peer_info(
+                        gossipsub,
+                        Channel::consensus(),
+                        config.channel_names,
+                    );
+                }
+
                 ControlFlow::Continue(())
             }
         };
@@ -456,7 +479,7 @@ async fn handle_swarm_event(
             endpoint,
             ..
         } => {
-            trace!("Connected to {peer_id} with connection id {connection_id}",);
+            trace!("Connected to {peer_id} with connection id {connection_id}");
 
             state
                 .discovery
@@ -517,9 +540,9 @@ async fn handle_swarm_event(
                 peer_id,
                 info,
             } => {
-                trace!(
-                    "Received identity from {peer_id}: protocol={:?}",
-                    info.protocol_version
+                info!(
+                    "Received identity from {peer_id}: protocol={:?} agent={:?}",
+                    info.protocol_version, info.agent_version
                 );
 
                 if info.protocol_version == config.protocol_names.consensus {
@@ -534,6 +557,8 @@ async fn handle_swarm_event(
                         peer_id,
                         info.clone(),
                     );
+
+                    state.record_peer_info(peer_id, &info);
 
                     if !is_already_connected {
                         if let Err(e) = tx_event

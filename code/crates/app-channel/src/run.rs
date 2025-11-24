@@ -46,8 +46,14 @@ where
     let signing_provider = node.get_signing_provider(private_key);
 
     // Spawn consensus gossip
-    let (network, tx_network) =
-        spawn_network_actor(cfg.consensus(), keypair, &registry, net_codec.clone()).await?;
+    let (network, tx_network) = spawn_network_actor(
+        cfg.consensus(),
+        cfg.moniker().to_string(),
+        keypair,
+        &registry,
+        net_codec.clone(),
+    )
+    .await?;
 
     let wal = spawn_wal_actor(&ctx, wal_codec, &node.get_home_dir(), &registry).await?;
 

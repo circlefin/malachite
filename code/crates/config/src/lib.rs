@@ -247,7 +247,10 @@ pub struct GossipSubConfig {
 
 impl Default for GossipSubConfig {
     fn default() -> Self {
-        Self::new(6, 12, 4, 2)
+        // mesh_n=6: Target 6 peers
+        // mesh_n_high=8: Prune at 8 to prevent early validators from hoarding peers
+        // mesh_n_low=4: Graft below 4 to maintain minimum connectivity
+        Self::new(6, 8, 4, 2)
     }
 }
 

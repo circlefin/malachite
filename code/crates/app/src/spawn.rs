@@ -53,6 +53,7 @@ where
 
 pub async fn spawn_network_actor<Ctx, Codec>(
     cfg: &ConsensusConfig,
+    moniker: String,
     keypair: Keypair,
     registry: &SharedRegistry,
     codec: Codec,
@@ -62,7 +63,7 @@ where
     Codec: ConsensusCodec<Ctx>,
     Codec: SyncCodec<Ctx>,
 {
-    let config = make_network_config(cfg);
+    let config = make_network_config(cfg, moniker);
 
     Network::spawn(keypair, config, registry.clone(), codec, Span::current())
         .await
@@ -195,11 +196,12 @@ where
     Ok(Some(actor_ref))
 }
 
-fn make_network_config(cfg: &ConsensusConfig) -> NetworkConfig {
+fn make_network_config(cfg: &ConsensusConfig, moniker: String) -> NetworkConfig {
     use malachitebft_config as config;
     use malachitebft_network as network;
 
     NetworkConfig {
+        moniker,
         listen_addr: cfg.p2p.listen_addr.clone(),
         persistent_peers: cfg.p2p.persistent_peers.clone(),
         discovery: DiscoveryConfig {

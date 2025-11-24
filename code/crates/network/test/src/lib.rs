@@ -146,6 +146,7 @@ impl<const N: usize> Test<N> {
 
     fn generate_default_configs(&self, discovery_config: DiscoveryConfig) -> [Config; N] {
         std::array::from_fn(|i| Config {
+            moniker: format!("node-{}", i),
             listen_addr: TransportProtocol::Quic
                 .multiaddr("127.0.0.1", self.consensus_base_port + i),
             persistent_peers: self.nodes[i]

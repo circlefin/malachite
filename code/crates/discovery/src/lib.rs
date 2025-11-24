@@ -36,11 +36,20 @@ enum State {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ConnectionDirection {
+pub enum ConnectionDirection {
     /// Outbound connection (we dialed the peer)
     Outbound,
     /// Inbound connection (the peer dialed us)
     Inbound,
+}
+
+impl ConnectionDirection {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Outbound => "outbound",
+            Self::Inbound => "inbound",
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -135,6 +144,16 @@ where
 
     pub fn is_enabled(&self) -> bool {
         self.config.enabled
+    }
+
+    /// Check if a peer connection is outbound
+    pub fn is_outbound_peer(&self, peer_id: &PeerId) -> bool {
+        self.outbound_peers.contains_key(peer_id)
+    }
+
+    /// Check if a peer connection is inbound
+    pub fn is_inbound_peer(&self, peer_id: &PeerId) -> bool {
+        self.inbound_peers.contains(peer_id)
     }
 
     pub fn on_network_event(
