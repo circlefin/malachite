@@ -11,6 +11,7 @@
 - Add facility for app to request a consensus state dump at any time ([#1176](https://github.com/informalsystems/malachite/pull/1176))
 - Make libp2p protocol names configurable ([#1161](https://github.com/informalsystems/malachite/issues/1161))
 - Fix mismatched height of WAL entries emitted when processing `StartHeight` input ([#1232](https://github.com/circlefin/malachite/issues/1232))
+- Remove `initial_validator_set` and `initial_height` fields from `Params` struct ([#1190](https://github.com/circlefin/malachite/pull/1190))
 
 ## 0.5.0
 
