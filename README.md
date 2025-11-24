@@ -33,7 +33,7 @@ Malachite is a Byzantine-fault tolerant (BFT) consensus engine implemented in Ru
 
 The Malachite team from Informal Systems has officially joined Circle, bringing their expertise and IP to help build Arc, an open Layer-1 blockchain purpose-built for stablecoin finance. Visit [arcnetwork.xyz](https://arcnetwork.xyz) for more information.
 
-Malachite `/ˈmæl.ə.kaɪt/` is pronounced as follows: __"Mala"__ (like in Malaysia) + __"kite"__ (like the flying toy).
+Malachite `/ˈmæl.ə.kaɪt/` is pronounced as follows: __"Mala"__ (like in "malady" or "maladjusted") + __"kite"__ (like the flying toy).
 
 > [!IMPORTANT]
 > Malachite is alpha software and under heavy development.
