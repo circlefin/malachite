@@ -18,9 +18,7 @@ where
     perform!(co, Effect::ResetTimeouts(Default::default()));
 
     #[cfg(feature = "metrics")]
-    {
-        metrics.step_reset();
-    }
+    metrics.step_end(state.driver.step());
 
     state.reset_and_start_height(height, validator_set);
 
