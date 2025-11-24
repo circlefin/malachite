@@ -5,6 +5,7 @@
 ### `malachitebft-core-types`
 
 - Move `SigningProvider` and `SigningProviderExt` traits into new `malachitebft-signing` crate ([#1191](https://github.com/informalsystems/malachite/pull/1191))
+- Remove `initial_validator_set` and `initial_height` fields from `Params` struct ([#1190](https://github.com/circlefin/malachite/pull/1190))
 
 ### `malachitebft-signing`
 
