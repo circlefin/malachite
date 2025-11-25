@@ -1,0 +1,29 @@
+[package]
+name = "informalsystems-malachitebft-host"
+description = "Implementation of the Malachite BFT consensus engine"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+readme = "../../../README.md"
+
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+borsh = ["dep:borsh"]
+
+[lints]
+workspace = true
+
+[dependencies]
+malachitebft-core-consensus.workspace = true
+malachitebft-core-types.workspace = true
+malachitebft-sync.workspace = true
+
+borsh = { workspace = true, optional = true }
+bytes = { workspace = true, features = ["serde"] }
+derive-where = { workspace = true }
+ractor = { workspace = true }
