@@ -218,9 +218,13 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                             .get_validator_set(state.current_height)
                             .expect("Validator set should be available");
 
-                        let updates = Updates {
-                            validator_set: Some(validator_set),
-                            timeouts: None,
+                        let old_validator_set = state.get_validator_set(state.current_height.decrement().expect("Height should be greater than 0")).expect("Validator set should be available");
+
+                        // Compare the old and new validator sets to determine if we need to send updates
+                        let updates = if old_validator_set == validator_set {
+                            Updates::default()
+                        } else {
+                            Updates::default().with_validator_set(validator_set)
                         };
 
                         if reply
