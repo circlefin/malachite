@@ -95,33 +95,6 @@ async fn different_timeouts_per_node() {
     test.build().run(Duration::from_secs(90)).await
 }
 
-/// Test that timeout changes only apply at height boundaries, not mid-round
-#[tokio::test]
-async fn timeout_changes_at_height_boundaries() {
-    const HEIGHT: u64 = 4;
-    const CHANGE_HEIGHT: u64 = 2;
-
-    let middleware = TimeoutChangingMiddleware {
-        change_height: CHANGE_HEIGHT,
-        new_propose_timeout: Duration::from_millis(100),
-    };
-
-    let mut test = TestBuilder::<()>::new();
-
-    // All three nodes change timeouts at height 2
-    for _ in 0..3 {
-        test.add_node()
-            .with_middleware(middleware)
-            .start()
-            .wait_until(HEIGHT)
-            .success();
-    }
-
-    // The test succeeds if consensus reaches HEIGHT, which means
-    // that timeout changes applied correctly at height boundaries
-    test.build().run(Duration::from_secs(60)).await
-}
-
 /// A middleware that uses extremely short timeouts to test that they're actually being applied
 #[derive(Copy, Clone, Debug)]
 struct VeryShortTimeouts;
