@@ -340,17 +340,18 @@ where
 
         match msg {
             Msg::StartHeight(height, updates) | Msg::RestartHeight(height, updates) => {
-                let Some(validator_set) = updates.validator_set else {
-                    return Err(eyre!("Validator set for height {height} is not provided").into());
-                };
-
-                // Check that the validator set is not empty
-                if validator_set.count() == 0 {
-                    return Err(eyre!("Validator set for height {height} is empty").into());
-                }
-
                 // Initialize consensus state if this is the first height we start
                 if state.consensus.is_none() {
+                    // Check that the validator set is provided and that it is not empty
+                    let Some(ref validator_set) = updates.validator_set else {
+                        return Err(
+                            eyre!("Validator set for height {height} is not provided").into()
+                        );
+                    };
+                    if validator_set.count() == 0 {
+                        return Err(eyre!("Validator set for height {height} is empty").into());
+                    }
+
                     state.consensus = Some(ConsensusState::new(
                         self.ctx.clone(),
                         height,
@@ -395,7 +396,7 @@ where
                     .process_input(
                         &myself,
                         state,
-                        ConsensusInput::StartHeight(height, Some(validator_set), is_restart),
+                        ConsensusInput::StartHeight(height, updates.validator_set, is_restart),
                     )
                     .await;
 
