@@ -18,8 +18,8 @@ use malachitebft_app_channel::app::types::core::{CommitCertificate, Round, Valid
 use malachitebft_app_channel::app::types::{LocallyProposedValue, PeerId};
 use malachitebft_test::codec::json::JsonCodec;
 use malachitebft_test::{
-    Address, Ed25519Provider, Genesis, Height, ProposalData, ProposalFin, ProposalInit,
-    ProposalPart, TestContext, ValidatorSet, Value, ValueId,
+    Address, Ed25519Provider, Genesis, Height, LinearTimeouts, ProposalData, ProposalFin,
+    ProposalInit, ProposalPart, TestContext, ValidatorSet, Value, ValueId,
 };
 
 use crate::config::Config;
@@ -121,6 +121,13 @@ impl State {
             height,
             &self.genesis,
         )
+    }
+
+    /// Returns the timeouts for the given height.
+    pub fn get_timeouts(&self, height: Height) -> Option<LinearTimeouts> {
+        self.ctx
+            .middleware()
+            .get_timeouts(&self.ctx, self.current_height, height)
     }
 
     /// Returns the earliest height available in the state

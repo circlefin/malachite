@@ -29,3 +29,6 @@ pub use crate::signing::*;
 pub use crate::validator_set::*;
 pub use crate::value::*;
 pub use crate::vote::*;
+
+// Re-export LinearTimeouts for convenience
+pub use malachitebft_core_types::LinearTimeouts;

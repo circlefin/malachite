@@ -6,6 +6,7 @@ mod n3f0_consensus_mode;
 mod n3f0_pubsub_protocol;
 mod n3f1;
 mod reset;
+mod timeout_updates;
 mod validator_set;
 mod value_sync;
 mod vote_rebroadcast;

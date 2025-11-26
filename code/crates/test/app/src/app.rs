@@ -40,7 +40,12 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     .get_validator_set(start_height)
                     .expect("Validator set should be available");
 
-                let updates = Updates::default().with_validator_set(validator_set);
+                let mut updates = Updates::default().with_validator_set(validator_set);
+
+                // Apply timeout updates if provided by the middleware
+                if let Some(timeouts) = state.get_timeouts(start_height) {
+                    updates = updates.with_timeouts(timeouts);
+                }
 
                 if reply.send((start_height, updates)).is_err() {
                     error!("Failed to send ConsensusReady reply");
@@ -218,14 +223,26 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                             .get_validator_set(state.current_height)
                             .expect("Validator set should be available");
 
-                        let old_validator_set = state.get_validator_set(state.current_height.decrement().expect("Height should be greater than 0")).expect("Validator set should be available");
+                        let old_validator_set = state
+                            .get_validator_set(
+                                state
+                                    .current_height
+                                    .decrement()
+                                    .expect("Height should be greater than 0"),
+                            )
+                            .expect("Validator set should be available");
 
                         // Compare the old and new validator sets to determine if we need to send updates
-                        let updates = if old_validator_set == validator_set {
+                        let mut updates = if old_validator_set == validator_set {
                             Updates::default()
                         } else {
                             Updates::default().with_validator_set(validator_set)
                         };
+
+                        // Apply timeout updates if provided by the middleware
+                        if let Some(timeouts) = state.get_timeouts(state.current_height) {
+                            updates = updates.with_timeouts(timeouts);
+                        }
 
                         if reply
                             .send(Next::Start(state.current_height, updates))
