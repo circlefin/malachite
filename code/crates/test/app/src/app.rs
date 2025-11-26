@@ -1,11 +1,10 @@
 use std::time::Duration;
 
 use eyre::eyre;
-use malachitebft_app_channel::app::engine::host::{Next, Updates};
 use tokio::time::sleep;
 use tracing::{debug, error, info};
 
-// use malachitebft_app_channel::app::config::ValuePayload;
+use malachitebft_app_channel::app::engine::host::{HeightParams, Next};
 use malachitebft_app_channel::app::streaming::StreamContent;
 use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::{Round, Validity};
@@ -40,7 +39,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     .get_validator_set(start_height)
                     .expect("Validator set should be available");
 
-                let mut updates = Updates::default().with_validator_set(validator_set);
+                let mut updates = HeightParams::default().with_validator_set(validator_set);
 
                 // Apply timeout updates if provided by the middleware
                 if let Some(timeouts) = state.get_timeouts(start_height) {
@@ -234,9 +233,9 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
                         // Compare the old and new validator sets to determine if we need to send updates
                         let mut updates = if old_validator_set == validator_set {
-                            Updates::default()
+                            HeightParams::default()
                         } else {
-                            Updates::default().with_validator_set(validator_set)
+                            HeightParams::default().with_validator_set(validator_set)
                         };
 
                         // Apply timeout updates if provided by the middleware
@@ -260,7 +259,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                             .get_validator_set(state.current_height)
                             .expect("Validator set should be available");
 
-                        let updates = Updates {
+                        let updates = HeightParams {
                             validator_set: Some(validator_set),
                             timeouts: None,
                         };

@@ -1,6 +1,6 @@
 //! Tests for optional validator set updates when starting/restarting heights
 
-use malachitebft_core_types::{Round, Updates};
+use malachitebft_core_types::{HeightParams, Round};
 use malachitebft_test::utils::validators::make_validators;
 use malachitebft_test::{Height, TestContext, ValidatorSet};
 
@@ -76,7 +76,7 @@ fn move_to_height_updates_validator_set_when_some() {
 /// Test Updates::default() convenience method
 #[test]
 fn height_updates_default_creates_empty_updates() {
-    let updates = Updates::<TestContext>::default();
+    let updates = HeightParams::<TestContext>::default();
     assert!(updates.validator_set.is_none());
     assert!(updates.timeouts.is_none());
 }

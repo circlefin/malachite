@@ -24,7 +24,7 @@ use malachitebft_metrics::Metrics;
 use malachitebft_signing::{SigningProvider, SigningProviderExt};
 use malachitebft_sync::{self as sync, HeightStartType, ValueResponse};
 
-use crate::host::{HostMsg, HostRef, LocallyProposedValue, Next, ProposedValue, Updates};
+use crate::host::{HeightParams, HostMsg, HostRef, LocallyProposedValue, Next, ProposedValue};
 use crate::network::{NetworkEvent, NetworkMsg, NetworkRef};
 use crate::sync::Msg as SyncMsg;
 use crate::sync::SyncRef;
@@ -91,8 +91,8 @@ pub type ConsensusMsg<Ctx> = Msg<Ctx>;
 
 #[derive_where(Debug)]
 pub enum Msg<Ctx: Context> {
-    /// Start consensus for the given height with optional updates.
-    StartHeight(Ctx::Height, Updates<Ctx>),
+    /// Start consensus for the given height and provided parameters.
+    StartHeight(Ctx::Height, HeightParams<Ctx>),
 
     /// Received an event from the gossip layer
     NetworkEvent(NetworkEvent<Ctx>),
@@ -106,7 +106,7 @@ pub enum Msg<Ctx: Context> {
     /// Received and assembled the full value proposed by a validator
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
 
-    /// Instructs consensus to restart at a given height with optional updates.
+    /// Instructs consensus to restart at a given height with the provided parameters.
     ///
     /// On this input consensus resets the Write-Ahead Log.
     ///
@@ -115,7 +115,7 @@ pub enum Msg<Ctx: Context> {
     /// 1. The application must clean all state associated with the height for which commit has failed
     /// 2. Since consensus resets its write-ahead log, the node may equivocate on proposals and votes
     ///    for the restarted height, potentially violating protocol safety
-    RestartHeight(Ctx::Height, Updates<Ctx>),
+    RestartHeight(Ctx::Height, HeightParams<Ctx>),
 
     /// Request to dump the current consensus state
     DumpState(RpcReplyPort<Option<StateDump<Ctx>>>),
@@ -124,8 +124,8 @@ pub enum Msg<Ctx: Context> {
 impl<Ctx: Context> fmt::Display for Msg<Ctx> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Msg::StartHeight(height, updates) => {
-                write!(f, "StartHeight(height={height} updates={updates:?})")
+            Msg::StartHeight(height, params) => {
+                write!(f, "StartHeight(height={height} params={params:?})")
             }
             Msg::NetworkEvent(event) => match event {
                 NetworkEvent::Proposal(_, proposal) => write!(
@@ -156,8 +156,8 @@ impl<Ctx: Context> fmt::Display for Msg<Ctx> {
                 "ReceivedProposedValue(height={} round={} origin={origin:?})",
                 value.height, value.round
             ),
-            Msg::RestartHeight(height, updates) => {
-                write!(f, "RestartHeight(height={height} updates={updates:?})")
+            Msg::RestartHeight(height, params) => {
+                write!(f, "RestartHeight(height={height} params={params:?})")
             }
             Msg::DumpState(_) => write!(f, "DumpState"),
         }
@@ -339,7 +339,7 @@ where
         let is_restart = matches!(msg, Msg::RestartHeight(_, _));
 
         match msg {
-            Msg::StartHeight(height, updates) | Msg::RestartHeight(height, updates) => {
+            Msg::StartHeight(height, params) | Msg::RestartHeight(height, params) => {
                 // Initialize consensus state if this is the first height we start
                 if state.consensus.is_none() {
                     // Check that the validator set is provided and that it is not empty
@@ -445,7 +445,7 @@ where
                             self.host.call_and_forward(
                                 |reply_to| HostMsg::ConsensusReady { reply_to },
                                 &myself,
-                                |(height, updates)| ConsensusMsg::StartHeight(height, updates),
+                                |(height, params)| ConsensusMsg::StartHeight(height, params),
                                 None,
                             )?;
                         }
@@ -1202,8 +1202,8 @@ where
                         },
                         myself,
                         |next| match next {
-                            Next::Start(h, updates) => Msg::StartHeight(h, updates),
-                            Next::Restart(h, updates) => Msg::RestartHeight(h, updates),
+                            Next::Start(h, params) => Msg::StartHeight(h, params),
+                            Next::Restart(h, params) => Msg::RestartHeight(h, params),
                         },
                         None,
                     )

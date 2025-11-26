@@ -5,7 +5,7 @@ use tokio::sync::mpsc;
 use tokio::time::sleep;
 use tracing::{error, info};
 
-use malachitebft_app_channel::app::engine::host::{Next, Updates};
+use malachitebft_app_channel::app::engine::host::{HeightParams, Next};
 use malachitebft_app_channel::app::streaming::StreamContent;
 use malachitebft_app_channel::app::types::core::{Height as _, Round, Validity};
 use malachitebft_app_channel::app::types::sync::RawDecidedValue;
@@ -63,7 +63,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
                 sleep(Duration::from_millis(200)).await;
 
-                let height_updates = Updates::default()
+                let height_updates = HeightParams::default()
                     .with_validator_set(state.get_validator_set(start_height).clone());
 
                 if reply.send((start_height, height_updates)).is_err() {
@@ -259,7 +259,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         if reply
                             .send(Next::Start(
                                 state.current_height,
-                                Updates::default().with_validator_set(
+                                HeightParams::default().with_validator_set(
                                     state.get_validator_set(state.current_height).clone(),
                                 ),
                             ))
@@ -277,7 +277,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         if reply
                             .send(Next::Restart(
                                 height,
-                                Updates::default()
+                                HeightParams::default()
                                     .with_validator_set(state.get_validator_set(height).clone()),
                             ))
                             .is_err()
