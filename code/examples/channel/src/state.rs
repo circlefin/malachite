@@ -22,8 +22,8 @@ use malachitebft_app_channel::app::types::core::{
 use malachitebft_app_channel::app::types::{LocallyProposedValue, PeerId};
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{
-    Address, Ed25519Provider, Genesis, Height, ProposalData, ProposalFin, ProposalInit,
-    ProposalPart, TestContext, ValidatorSet, Value,
+    Address, Ed25519Provider, Genesis, Height, LinearTimeouts, ProposalData, ProposalFin,
+    ProposalInit, ProposalPart, TestContext, ValidatorSet, Value,
 };
 
 use crate::store::{DecidedValue, Store};
@@ -511,6 +511,10 @@ impl State {
                 .cloned()
                 .collect::<Vec<_>>(),
         )
+    }
+
+    pub fn get_timeouts(&self, _height: Height) -> LinearTimeouts {
+        LinearTimeouts::default()
     }
 
     /// Re-assemble a [`ProposedValue`] from its [`ProposalParts`].

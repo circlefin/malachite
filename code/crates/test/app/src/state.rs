@@ -114,20 +114,19 @@ impl State {
     }
 
     /// Returns the set of validators for the given height.
-    pub fn get_validator_set(&self, height: Height) -> Option<ValidatorSet> {
-        self.ctx.middleware().get_validator_set(
-            &self.ctx,
-            self.current_height,
-            height,
-            &self.genesis,
-        )
+    pub fn get_validator_set(&self, height: Height) -> ValidatorSet {
+        self.ctx
+            .middleware()
+            .get_validator_set(&self.ctx, self.current_height, height, &self.genesis)
+            .unwrap_or_else(|| self.genesis.validator_set.clone())
     }
 
     /// Returns the timeouts for the given height.
-    pub fn get_timeouts(&self, height: Height) -> Option<LinearTimeouts> {
+    pub fn get_timeouts(&self, height: Height) -> LinearTimeouts {
         self.ctx
             .middleware()
             .get_timeouts(&self.ctx, self.current_height, height)
+            .unwrap_or_default()
     }
 
     /// Returns the earliest height available in the state
@@ -147,9 +146,8 @@ impl State {
         let round = parts.round;
 
         // Get the expected proposer for this height and round
-        let validator_set = self
-            .get_validator_set(height)
-            .expect("Validator set should be available");
+        let validator_set = self.get_validator_set(height);
+
         let expected_proposer = self
             .ctx
             .select_proposer(&validator_set, height, round)
@@ -199,9 +197,8 @@ impl State {
         };
 
         // Retrieve the proposer from the validator set for the given height
-        let validator_set = self
-            .get_validator_set(parts.height)
-            .expect("Validator set should be available");
+        let validator_set = self.get_validator_set(parts.height);
+
         let proposer = validator_set
             .get_by_address(&parts.proposer)
             .ok_or(SignatureVerificationError::ProposerNotFound)?;

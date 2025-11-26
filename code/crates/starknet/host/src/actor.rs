@@ -219,8 +219,8 @@ async fn on_consensus_ready(
     reply_to.send((
         start_height,
         HeightParams {
-            validator_set: Some(state.host.validator_set.clone()),
-            timeouts: Some(state.host.timeouts),
+            validator_set: state.host.validator_set.clone(),
+            timeouts: state.host.timeouts,
         },
     ))?;
 
@@ -694,8 +694,8 @@ async fn on_decided(
     reply_to.send(Next::Start(
         state.height.increment(),
         HeightParams {
-            validator_set: Some(state.host.validator_set.clone()),
-            timeouts: Some(state.host.timeouts),
+            validator_set: state.host.validator_set.clone(),
+            timeouts: state.host.timeouts,
         },
     ))?;
 

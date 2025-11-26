@@ -176,7 +176,7 @@ where
     pub fn reset_and_start_height(
         &mut self,
         height: Ctx::Height,
-        validator_set: Option<Ctx::ValidatorSet>,
+        validator_set: Ctx::ValidatorSet,
     ) {
         self.full_proposal_keeper.clear();
         self.last_signed_prevote = None;

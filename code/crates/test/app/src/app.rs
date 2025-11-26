@@ -35,18 +35,12 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
                 // We can simply respond by telling the engine to start consensus
                 // at the next height, and provide it with the appropriate validator set
-                let validator_set = state
-                    .get_validator_set(start_height)
-                    .expect("Validator set should be available");
+                let params = HeightParams {
+                    validator_set: state.get_validator_set(start_height),
+                    timeouts: state.get_timeouts(start_height),
+                };
 
-                let mut updates = HeightParams::default().with_validator_set(validator_set);
-
-                // Apply timeout updates if provided by the middleware
-                if let Some(timeouts) = state.get_timeouts(start_height) {
-                    updates = updates.with_timeouts(timeouts);
-                }
-
-                if reply.send((start_height, updates)).is_err() {
+                if reply.send((start_height, params)).is_err() {
                     error!("Failed to send ConsensusReady reply");
                 }
             }
@@ -71,6 +65,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     .store
                     .get_pending_proposal_parts(height, round)
                     .await?;
+
                 info!(%height, %round, "Found {} pending proposal parts, validating...", pending_parts.len());
 
                 for parts in &pending_parts {
@@ -218,33 +213,14 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 match state.commit(certificate).await {
                     Ok(_) => {
                         // And then we instruct consensus to start the next height
-                        let validator_set = state
-                            .get_validator_set(state.current_height)
-                            .expect("Validator set should be available");
-
-                        let old_validator_set = state
-                            .get_validator_set(
-                                state
-                                    .current_height
-                                    .decrement()
-                                    .expect("Height should be greater than 0"),
-                            )
-                            .expect("Validator set should be available");
-
-                        // Compare the old and new validator sets to determine if we need to send updates
-                        let mut updates = if old_validator_set == validator_set {
-                            HeightParams::default()
-                        } else {
-                            HeightParams::default().with_validator_set(validator_set)
+                        // NOTE: `current_height` has already been incremented in `commit()`
+                        let params = HeightParams {
+                            validator_set: state.get_validator_set(state.current_height),
+                            timeouts: state.get_timeouts(state.current_height),
                         };
 
-                        // Apply timeout updates if provided by the middleware
-                        if let Some(timeouts) = state.get_timeouts(state.current_height) {
-                            updates = updates.with_timeouts(timeouts);
-                        }
-
                         if reply
-                            .send(Next::Start(state.current_height, updates))
+                            .send(Next::Start(state.current_height, params))
                             .is_err()
                         {
                             error!("Failed to send StartHeight reply");
@@ -255,23 +231,20 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         error!("Commit failed: {e}");
                         error!("Restarting height {}", state.current_height);
 
-                        let validator_set = state
-                            .get_validator_set(state.current_height)
-                            .expect("Validator set should be available");
-
-                        let updates = HeightParams {
-                            validator_set: Some(validator_set),
-                            timeouts: None,
+                        let params = HeightParams {
+                            validator_set: state.get_validator_set(state.current_height),
+                            timeouts: state.get_timeouts(state.current_height),
                         };
 
                         if reply
-                            .send(Next::Restart(state.current_height, updates))
+                            .send(Next::Restart(state.current_height, params))
                             .is_err()
                         {
                             error!("Failed to send RestartHeight reply");
                         }
                     }
                 }
+
                 sleep(Duration::from_millis(500)).await;
             }
 

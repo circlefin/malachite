@@ -14,7 +14,7 @@ where
 {
     /// Start consensus for the given height with an optional validator set update.
     /// The boolean indicates whether this is a restart of consensus for the given height.
-    StartHeight(Ctx::Height, Option<Ctx::ValidatorSet>, bool),
+    StartHeight(Ctx::Height, Ctx::ValidatorSet, bool),
 
     /// Process a vote received over the network.
     Vote(SignedVote<Ctx>),

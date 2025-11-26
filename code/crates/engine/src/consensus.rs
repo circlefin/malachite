@@ -343,19 +343,14 @@ where
                 // Initialize consensus state if this is the first height we start
                 if state.consensus.is_none() {
                     // Check that the validator set is provided and that it is not empty
-                    let Some(ref validator_set) = updates.validator_set else {
-                        return Err(
-                            eyre!("Validator set for height {height} is not provided").into()
-                        );
-                    };
-                    if validator_set.count() == 0 {
+                    if params.validator_set.count() == 0 {
                         return Err(eyre!("Validator set for height {height} is empty").into());
                     }
 
                     state.consensus = Some(ConsensusState::new(
                         self.ctx.clone(),
                         height,
-                        validator_set.clone(),
+                        params.validator_set.clone(),
                         self.params.clone(),
                         self.consensus_config.queue_capacity,
                     ));
@@ -386,17 +381,15 @@ where
                     }
                 }
 
-                // Update the timeouts if provided
-                if let Some(new_timeouts) = updates.timeouts {
-                    state.timeouts = new_timeouts;
-                }
+                // Update the timeouts
+                state.timeouts = params.timeouts;
 
                 // Start consensus for the given height
                 let result = self
                     .process_input(
                         &myself,
                         state,
-                        ConsensusInput::StartHeight(height, updates.validator_set, is_restart),
+                        ConsensusInput::StartHeight(height, params.validator_set, is_restart),
                     )
                     .await;
 

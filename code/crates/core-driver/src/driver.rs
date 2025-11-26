@@ -106,20 +106,13 @@ where
         }
     }
 
-    /// Reset votes, round state, pending input and move to new height with
-    /// optional updates.
-    pub fn move_to_height(
-        &mut self,
-        height: Ctx::Height,
-        validator_set: Option<Ctx::ValidatorSet>,
-    ) {
+    /// Reset votes, round state, pending input and move to new height with the given validator set.
+    pub fn move_to_height(&mut self, height: Ctx::Height, validator_set: Ctx::ValidatorSet) {
         // Reset the proposal keeper
         let proposal_keeper = ProposalKeeper::new();
 
-        // Update the validator set if provided
-        if let Some(validator_set) = validator_set {
-            self.validator_set = validator_set;
-        }
+        // Update the validator set
+        self.validator_set = validator_set;
 
         // Reset the vote keeper
         // XXX: must be called after updating the validator set

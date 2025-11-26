@@ -63,10 +63,12 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
                 sleep(Duration::from_millis(200)).await;
 
-                let height_updates = HeightParams::default()
-                    .with_validator_set(state.get_validator_set(start_height).clone());
+                let params = HeightParams {
+                    validator_set: state.get_validator_set(start_height),
+                    timeouts: state.get_timeouts(start_height),
+                };
 
-                if reply.send((start_height, height_updates)).is_err() {
+                if reply.send((start_height, params)).is_err() {
                     error!("Failed to send ConsensusReady reply");
                 }
             }
@@ -259,9 +261,10 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         if reply
                             .send(Next::Start(
                                 state.current_height,
-                                HeightParams::default().with_validator_set(
-                                    state.get_validator_set(state.current_height).clone(),
-                                ),
+                                HeightParams {
+                                    validator_set: state.get_validator_set(state.current_height),
+                                    timeouts: state.get_timeouts(state.current_height),
+                                },
                             ))
                             .is_err()
                         {
@@ -277,8 +280,10 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         if reply
                             .send(Next::Restart(
                                 height,
-                                HeightParams::default()
-                                    .with_validator_set(state.get_validator_set(height).clone()),
+                                HeightParams {
+                                    validator_set: state.get_validator_set(height),
+                                    timeouts: state.get_timeouts(height),
+                                },
                             ))
                             .is_err()
                         {
