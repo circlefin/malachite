@@ -340,13 +340,13 @@ where
 
         match msg {
             Msg::StartHeight(height, params) | Msg::RestartHeight(height, params) => {
+                // Check that the validator set is provided and that it is not empty
+                if params.validator_set.count() == 0 {
+                    return Err(eyre!("Validator set for height {height} is empty").into());
+                }
+
                 // Initialize consensus state if this is the first height we start
                 if state.consensus.is_none() {
-                    // Check that the validator set is provided and that it is not empty
-                    if params.validator_set.count() == 0 {
-                        return Err(eyre!("Validator set for height {height} is empty").into());
-                    }
-
                     state.consensus = Some(ConsensusState::new(
                         self.ctx.clone(),
                         height,
