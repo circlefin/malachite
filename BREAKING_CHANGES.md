@@ -33,12 +33,11 @@
 ### `malachitebft-engine`
 
 - Remove `HostMsg::GetValidatorSet` ([#1189](https://github.com/circlefin/malachite/pull/1189))
-- Changed `Next::Start` variant from `Start(Height, ValidatorSet)` to `Start(Height, Updates)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
-- Changed `Next::Restart` variant from `Restart(Height, ValidatorSet)` to `Restart(Height, Updates)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
-- Changed `HostMsg::ConsensusReady` reply type from `(Ctx::Height, Ctx::ValidatorSet)` to `(Ctx::Height, Updates<Ctx>)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
-- Changed `Msg::StartHeight` from `StartHeight(Height, ValidatorSet)` to `StartHeight(Height, Updates)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
-- Changed `Msg::RestartHeight` from `RestartHeight(Height, ValidatorSet)` to `RestartHeight(Height, Updates)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
-- Removed validator set empty check when processing `Msg::StartHeight` and `Msg::RestartHeight` (applications are free to provide `Updates::default()` if no changes have been made to the validator set or timeouts) ([#1227](https://github.com/circlefin/malachite/pull/1227))
+- Changed `Next::Start` variant from `Start(Height, ValidatorSet)` to `Start(Height, HeightParams)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
+- Changed `Next::Restart` variant from `Restart(Height, ValidatorSet)` to `Restart(Height, HeightParams)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
+- Changed `HostMsg::ConsensusReady` reply type from `(Ctx::Height, Ctx::ValidatorSet)` to `(Ctx::Height, HeightParams<Ctx>)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
+- Changed `Msg::StartHeight` from `StartHeight(Height, ValidatorSet)` to `StartHeight(Height, HeightParams)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
+- Changed `Msg::RestartHeight` from `RestartHeight(Height, ValidatorSet)` to `RestartHeight(Height, HeightParams)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Added `timeouts` field to `State` struct - timeouts are now stored in State instead of Driver ([#1227](https://github.com/circlefin/malachite/pull/1227))
 
 ### `malachitebft-config`
@@ -51,9 +50,9 @@
 
 - Remove `AppMsg::GetValidatorSet` ([#1189](https://github.com/circlefin/malachite/pull/1189))
 - Added field `requests: tokio::sync::mpsc::Sender<ConsensusRequest<Ctx>>` to `Channels` struct ([#1176](https://github.com/circlefin/malachite/pull/1176))
-- Changed `AppMsg::ConsensusReady` reply type from `(Ctx::Height, Ctx::ValidatorSet)` to `(Ctx::Height, Updates<Ctx>)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
-- Changed `ConsensusMsg::StartHeight` from `StartHeight(Height, ValidatorSet)` to `StartHeight(Height, Updates)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
-- Changed `ConsensusMsg::RestartHeight` from `RestartHeight(Height, ValidatorSet)` to `RestartHeight(Height, Updates)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
+- Changed `AppMsg::ConsensusReady` reply type from `(Ctx::Height, Ctx::ValidatorSet)` to `(Ctx::Height, HeightParams<Ctx>)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
+- Changed `ConsensusMsg::StartHeight` from `StartHeight(Height, ValidatorSet)` to `StartHeight(Height, HeightParams)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
+- Changed `ConsensusMsg::RestartHeight` from `RestartHeight(Height, ValidatorSet)` to `RestartHeight(Height, HeightParams)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 
 
 ## 0.5.0
