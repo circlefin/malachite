@@ -112,11 +112,10 @@ where
         let proposal_keeper = ProposalKeeper::new();
 
         // Update the validator set
-        self.validator_set = validator_set;
+        self.validator_set = validator_set.clone();
 
         // Reset the vote keeper
-        // XXX: must be called after updating the validator set
-        let vote_keeper = VoteKeeper::new(self.validator_set.clone(), self.threshold_params);
+        let vote_keeper = VoteKeeper::new(validator_set, self.threshold_params);
 
         // Reset the round state
         let round_state = RoundState::new(height, Round::Nil);
