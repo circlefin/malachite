@@ -118,7 +118,7 @@ pub enum Msg<Ctx: Context> {
     RestartHeight(Ctx::Height, Updates<Ctx>),
 
     /// Request to dump the current consensus state
-    DumpState(RpcReplyPort<StateDump<Ctx>>),
+    DumpState(RpcReplyPort<Option<StateDump<Ctx>>>),
 }
 
 impl<Ctx: Context> fmt::Display for Msg<Ctx> {
@@ -199,8 +199,9 @@ pub struct State<Ctx: Context> {
     /// Timeouts for various consensus steps
     timeouts: Ctx::Timeouts,
 
-    /// The state of the consensus state machine
-    consensus: ConsensusState<Ctx>,
+    /// The state of the consensus state machine,
+    /// or `None` if consensus has not been started yet.
+    consensus: Option<ConsensusState<Ctx>>,
 
     /// The set of peers we are connected to.
     connected_peers: BTreeSet<PeerId>,
@@ -218,7 +219,17 @@ where
     Ctx: Context,
 {
     pub fn height(&self) -> Ctx::Height {
-        self.consensus.height()
+        self.consensus
+            .as_ref()
+            .map(|c| c.height())
+            .unwrap_or_default()
+    }
+
+    pub fn round(&self) -> Round {
+        self.consensus
+            .as_ref()
+            .map(|c| c.round())
+            .unwrap_or(Round::Nil)
     }
 
     fn set_phase(&mut self, phase: Phase) {
@@ -279,7 +290,7 @@ where
     ) -> Result<(), ConsensusError<Ctx>> {
         malachitebft_core_consensus::process!(
             input: input,
-            state: &mut state.consensus,
+            state: state.consensus.as_mut().expect("Consensus not started"),
             metrics: &self.metrics,
             with: effect => {
                 let handler_state = HandlerState {
@@ -329,6 +340,26 @@ where
 
         match msg {
             Msg::StartHeight(height, updates) | Msg::RestartHeight(height, updates) => {
+                let Some(validator_set) = updates.validator_set else {
+                    return Err(eyre!("Validator set for height {height} is not provided").into());
+                };
+
+                // Check that the validator set is not empty
+                if validator_set.count() == 0 {
+                    return Err(eyre!("Validator set for height {height} is empty").into());
+                }
+
+                // Initialize consensus state if this is the first height we start
+                if state.consensus.is_none() {
+                    state.consensus = Some(ConsensusState::new(
+                        self.ctx.clone(),
+                        height,
+                        validator_set.clone(),
+                        self.params.clone(),
+                        self.consensus_config.queue_capacity,
+                    ));
+                }
+
                 self.tx_event
                     .send(|| Event::StartedHeight(height, is_restart));
 
@@ -364,7 +395,7 @@ where
                     .process_input(
                         &myself,
                         state,
-                        ConsensusInput::StartHeight(height, updates.validator_set, is_restart),
+                        ConsensusInput::StartHeight(height, Some(validator_set), is_restart),
                     )
                     .await;
 
@@ -425,13 +456,7 @@ where
                             return Ok(());
                         }
 
-                        info!(%peer_id, "Connected to peer");
-
-                        let validator_set = state.consensus.validator_set();
-                        let connected_peers = state.connected_peers.len();
-                        let total_peers = validator_set.count().saturating_sub(1);
-
-                        debug!(connected = %connected_peers, total = %total_peers, "Connected to another peer");
+                        info!(%peer_id, total = %state.connected_peers.len(), "Connected to peer");
 
                         self.metrics.connected_peers.inc();
                     }
@@ -498,7 +523,7 @@ where
                             Event::Received(SignedConsensusMsg::Proposal(proposal.clone()))
                         });
 
-                        if state.consensus.params.value_payload.parts_only() {
+                        if self.params.value_payload.parts_only() {
                             error!(%from, "Properly configured peer should never send proposal messages in BlockPart mode");
                             return Ok(());
                         }
@@ -538,7 +563,7 @@ where
                     }
 
                     NetworkEvent::ProposalPart(from, part) => {
-                        if state.consensus.params.value_payload.proposal_only() {
+                        if self.params.value_payload.proposal_only() {
                             error!(%from, "Properly configured peer should never send proposal part messages in Proposal mode");
                             return Ok(());
                         }
@@ -596,9 +621,20 @@ where
             }
 
             Msg::DumpState(reply_to) => {
-                let dump = StateDump::new(&state.consensus);
+                let state_dump = if let Some(consensus) = &state.consensus {
+                    info!(
+                        height = %consensus.height(),
+                        round  = %consensus.round(),
+                        "Dumping consensus state"
+                    );
 
-                if let Err(e) = reply_to.send(dump) {
+                    Some(StateDump::new(consensus))
+                } else {
+                    info!("Dumping consensus state: not started");
+                    None
+                };
+
+                if let Err(e) = reply_to.send(state_dump) {
                     error!("Failed to reply with state dump: {e}");
                 }
 
@@ -649,7 +685,10 @@ where
             TimeoutKind::Prevote | TimeoutKind::Precommit | TimeoutKind::Rebroadcast
         ) {
             info!(step = ?timeout.kind, "Timeout elapsed");
-            state.consensus.print_state();
+
+            state.consensus.as_ref().inspect(|consensus| {
+                consensus.print_state();
+            });
         }
 
         // Process the timeout event
@@ -1273,11 +1312,7 @@ where
         Ok(State {
             timers: Timers::new(Box::new(myself)),
             timeouts: self.params.initial_timeouts,
-            consensus: ConsensusState::new(
-                self.ctx.clone(),
-                self.params.clone(),
-                self.consensus_config.queue_capacity,
-            ),
+            consensus: None,
             connected_peers: BTreeSet::new(),
             phase: Phase::Unstarted,
             msg_buffer: MessageBuffer::new(MAX_BUFFER_SIZE),
@@ -1288,10 +1323,7 @@ where
         name = "consensus",
         parent = &self.span,
         skip_all,
-        fields(
-            height = %state.consensus.height(),
-            round = %state.consensus.round()
-        )
+        fields(height = %state.height(), round = %state.round())
     )]
     async fn post_start(
         &self,
@@ -1309,8 +1341,8 @@ where
         parent = &self.span,
         skip_all,
         fields(
-            height = %span_height(state.consensus.height(), &msg),
-            round = %span_round(state.consensus.round(), &msg)
+            height = %span_height(state.height(), &msg),
+            round = %span_round(state.round(), &msg)
         )
     )]
     async fn handle(
@@ -1337,8 +1369,8 @@ where
         parent = &self.span,
         skip_all,
         fields(
-            height = %state.consensus.height(),
-            round = %state.consensus.round()
+            height = %state.height(),
+            round = %state.round()
         )
     )]
     async fn post_stop(

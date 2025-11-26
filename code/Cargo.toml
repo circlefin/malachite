@@ -180,6 +180,6 @@ time               = "0.3"
 tokio              = "1.47.1"
 tokio-stream       = "0.1"
 toml               = "0.8.21"
-tracing            = "0.1.41"
+tracing            = { version = "0.1.41", default-features = false }
 tracing-appender   = "0.2.3"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }

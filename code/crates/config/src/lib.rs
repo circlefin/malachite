@@ -336,18 +336,13 @@ mod gossipsub {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
 #[serde(tag = "load_type", rename_all = "snake_case")]
 pub enum MempoolLoadType {
+    #[default]
     NoLoad,
     UniformLoad(mempool_load::UniformLoadConfig),
     NonUniformLoad(mempool_load::NonUniformLoadConfig),
-}
-
-impl Default for MempoolLoadType {
-    fn default() -> Self {
-        Self::NoLoad
-    }
 }
 
 pub mod mempool_load {

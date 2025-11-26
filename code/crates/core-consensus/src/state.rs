@@ -41,11 +41,17 @@ impl<Ctx> State<Ctx>
 where
     Ctx: Context,
 {
-    pub fn new(ctx: Ctx, params: Params<Ctx>, queue_capacity: usize) -> Self {
+    pub fn new(
+        ctx: Ctx,
+        height: Ctx::Height,
+        validator_set: Ctx::ValidatorSet,
+        params: Params<Ctx>,
+        queue_capacity: usize,
+    ) -> Self {
         let driver = Driver::new(
             ctx.clone(),
-            params.initial_height,
-            params.initial_validator_set.clone(),
+            height,
+            validator_set,
             params.address.clone(),
             params.threshold_params,
         );

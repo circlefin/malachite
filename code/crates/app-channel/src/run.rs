@@ -25,8 +25,6 @@ pub async fn start_engine<Node, Ctx, WalCodec, NetCodec>(
     cfg: Node::Config,
     wal_codec: WalCodec,
     net_codec: NetCodec,
-    start_height: Option<Ctx::Height>,
-    initial_validator_set: Ctx::ValidatorSet,
     initial_timeouts: Ctx::Timeouts,
 ) -> Result<(Channels<Ctx>, EngineHandle)>
 where
@@ -37,8 +35,6 @@ where
     NetCodec: codec::ConsensusCodec<Ctx>,
     NetCodec: codec::SyncCodec<Ctx>,
 {
-    let start_height = start_height.unwrap_or_default();
-
     let registry = SharedRegistry::global().with_moniker(cfg.moniker());
     let metrics = Metrics::register(&registry);
 
@@ -72,8 +68,6 @@ where
 
     // Spawn consensus
     let consensus = spawn_consensus_actor(
-        start_height,
-        initial_validator_set,
         initial_timeouts,
         address,
         ctx.clone(),

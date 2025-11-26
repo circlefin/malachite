@@ -96,7 +96,7 @@ impl From<oneshot::error::RecvError> for ConsensusRequestError {
 /// ```
 pub enum ConsensusRequest<Ctx: Context> {
     /// Request a state dump from consensus
-    DumpState(Reply<StateDump<Ctx>>),
+    DumpState(Reply<Option<StateDump<Ctx>>>),
 }
 
 impl<Ctx: Context> ConsensusRequest<Ctx> {
@@ -105,7 +105,7 @@ impl<Ctx: Context> ConsensusRequest<Ctx> {
     /// If the request fails, `None` is returned.
     pub async fn dump_state(
         tx_request: &mpsc::Sender<ConsensusRequest<Ctx>>,
-    ) -> Result<StateDump<Ctx>, ConsensusRequestError> {
+    ) -> Result<Option<StateDump<Ctx>>, ConsensusRequestError> {
         let (tx, rx) = oneshot::channel();
 
         tx_request
