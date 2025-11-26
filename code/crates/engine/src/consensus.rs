@@ -1311,7 +1311,7 @@ where
 
         Ok(State {
             timers: Timers::new(Box::new(myself)),
-            timeouts: self.params.initial_timeouts,
+            timeouts: Ctx::Timeouts::default(),
             consensus: None,
             connected_peers: BTreeSet::new(),
             phase: Phase::Unstarted,

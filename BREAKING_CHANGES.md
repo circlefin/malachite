@@ -19,7 +19,6 @@
 - Remove `GetValidatorSet` effect ([#1189](https://github.com/circlefin/malachite/pull/1189))
 - Removed `Effect::ResetTimeouts` variant ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Changed `Input::StartHeight` from `StartHeight(Height, ValidatorSet, bool)` to `StartHeight(Height, Option<ValidatorSet>, bool)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
-- Added required field `initial_timeouts: Ctx::Timeouts` to `Params` struct ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Changed `State::reset_and_start_height()` signature from `(height, validator_set)` to `(height, validator_set: Option<ValidatorSet>)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 
 ### `malachitebft-core-driver`

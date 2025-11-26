@@ -11,7 +11,7 @@ use crate::{Context, Timeout, TimeoutKind};
 /// [`LinearTimeouts::default`] for the default values.
 pub trait Timeouts<Ctx>
 where
-    Self: Clone + Debug + Eq + Send + Sync + Copy,
+    Self: Clone + Debug + Eq + Send + Sync + Copy + Default,
     Ctx: Context,
 {
     /// Get the duration for a given timeout.

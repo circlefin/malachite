@@ -14,7 +14,7 @@ use malachitebft_app_channel::app::node::{
     CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, EngineHandle,
     MakeConfigSettings, Node, NodeHandle,
 };
-use malachitebft_app_channel::app::types::core::{Height as _, LinearTimeouts, VotingPower};
+use malachitebft_app_channel::app::types::core::{Height as _, VotingPower};
 use malachitebft_app_channel::app::types::Keypair;
 
 // Use the same types used for integration tests.
@@ -129,7 +129,6 @@ impl Node for App {
             config.clone(),
             ProtobufCodec, // WAL codec
             ProtobufCodec, // Network codec
-            LinearTimeouts::default(),
         )
         .await?;
 

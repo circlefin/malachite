@@ -11,9 +11,6 @@ pub use malachitebft_core_driver::ThresholdParams;
 /// Consensus parameters.
 #[derive_where(Clone, Debug)]
 pub struct Params<Ctx: Context> {
-    /// The initial timeouts
-    pub initial_timeouts: Ctx::Timeouts,
-
     /// The address of this validator
     pub address: Ctx::Address,
 

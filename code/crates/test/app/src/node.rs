@@ -16,7 +16,7 @@ use malachitebft_app_channel::app::node::{
     CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, EngineHandle,
     MakeConfigSettings, Node, NodeHandle,
 };
-use malachitebft_app_channel::app::types::core::{LinearTimeouts, VotingPower};
+use malachitebft_app_channel::app::types::core::VotingPower;
 use malachitebft_app_channel::app::types::Keypair;
 
 use malachitebft_test::middleware::{DefaultMiddleware, Middleware};
@@ -139,7 +139,6 @@ impl Node for App {
             config.clone(),
             ProtobufCodec, // WAL codec
             JsonCodec,     // Network codec
-            LinearTimeouts::default(),
         )
         .await?;
 

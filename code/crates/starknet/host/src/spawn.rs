@@ -88,7 +88,6 @@ pub async fn spawn_node_actor(
 
     // Spawn consensus
     let consensus = spawn_consensus_actor(
-        initial_timeouts,
         address,
         ctx,
         cfg,
@@ -178,7 +177,6 @@ async fn spawn_sync_actor(
 
 #[allow(clippy::too_many_arguments)]
 async fn spawn_consensus_actor(
-    initial_timeouts: LinearTimeouts,
     address: Address,
     ctx: MockContext,
     mut cfg: Config,
@@ -192,7 +190,6 @@ async fn spawn_consensus_actor(
     span: &tracing::Span,
 ) -> ConsensusRef<MockContext> {
     let consensus_params = ConsensusParams {
-        initial_timeouts,
         address,
         threshold_params: Default::default(),
         value_payload: ValuePayload::PartsOnly,

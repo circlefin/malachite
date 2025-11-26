@@ -25,7 +25,6 @@ pub async fn start_engine<Node, Ctx, WalCodec, NetCodec>(
     cfg: Node::Config,
     wal_codec: WalCodec,
     net_codec: NetCodec,
-    initial_timeouts: Ctx::Timeouts,
 ) -> Result<(Channels<Ctx>, EngineHandle)>
 where
     Ctx: Context,
@@ -68,7 +67,6 @@ where
 
     // Spawn consensus
     let consensus = spawn_consensus_actor(
-        initial_timeouts,
         address,
         ctx.clone(),
         cfg.consensus().clone(),
