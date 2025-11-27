@@ -9,6 +9,9 @@ on:
       - code/**
       - .github/workflows/todo-tracking.yml
 
+permissions:
+  contents: read
+
 jobs:
   update-todos:
     name: Update TODOs and FIXMEs
@@ -16,13 +19,19 @@ jobs:
     permissions:
       issues: write
       contents: read
-
+      id-token: write
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        with:
+          egress-policy: block
+          policy: global-allowed-endpoints-policy
+
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c # v4.9.1
         with:
           python-version: "3.x"
 
@@ -30,7 +39,7 @@ jobs:
         run: python scripts/todos.py
 
       - name: Update issue and timestamp
-        uses: actions/github-script@v6
+        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6.4.1
         with:
           script: |
             const fs = require('fs');

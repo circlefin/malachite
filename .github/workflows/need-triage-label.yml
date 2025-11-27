@@ -6,9 +6,17 @@ on:
 jobs:
   triage:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        with:
+          egress-policy: block
+          policy: global-allowed-endpoints-policy
+
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
       - name: Check if opener is CODEOWNER
         id: check-codeowner
@@ -30,7 +38,7 @@ jobs:
 
       - name: Add need-triage label
         if: steps.check-codeowner.outputs.is_codeowner == 'false'
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           script: |
             try {

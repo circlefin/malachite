@@ -15,7 +15,15 @@ jobs:
   lint:
     name: Check PR title
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
     steps:
-      - uses: step-security/action-semantic-pull-request@v5
+      - name: Harden the runner
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        with:
+          egress-policy: block
+          policy: global-allowed-endpoints-policy
+
+      - uses: step-security/action-semantic-pull-request@9142b539761b0ed6761de569f3a5020a7462a7f3 # v5.5.6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
