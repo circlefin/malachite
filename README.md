@@ -110,6 +110,8 @@ The repository is split into three areas, each covering one of the important asp
 As a guiding point to understand how to use Malachite, please read [ARCHITECTURE.md](ARCHITECTURE.md).
 
 You can also check out the [examples](./code/examples) for a more in-depth experience.
+For a hands-on walkthrough of the Channels API, see the [Malachite Channels tutorial](https://github.com/circlefin/malachite/blob/13bca14cd209d985c3adf101a02924acde8723a5/docs/tutorials/channels.md).
+
 
 ### Contributing
 
