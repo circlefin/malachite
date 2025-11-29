@@ -1,3 +1,4 @@
+> ⚠️ **Note:** Malachite is currently under heavy development and provided “as is”. Use at your own risk — this software has not yet been externally audited.
 <h1 align="center">
 <img src="https://raw.githubusercontent.com/informalsystems/malachite/refs/heads/main/assets/banner.png" alt="Malachite" width="2400" align="center">
 </h1>
