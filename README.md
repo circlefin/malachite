@@ -7,6 +7,9 @@
     State-of-the-art implementation of Tendermint
 </h4>
 
+> For a detailed explanation of Malachite’s internal architecture, see the [ARCHITECTURE.md](./ARCHITECTURE.md) document.
+
+
 ---
 
 <div align="center">
