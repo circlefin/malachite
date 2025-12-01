@@ -1,6 +1,8 @@
 <h1 align="center">
 <img src="https://raw.githubusercontent.com/informalsystems/malachite/refs/heads/main/assets/banner.png" alt="Malachite" width="2400" align="center">
 </h1>
+A flexible and modular Byzantine Fault Tolerant engine designed to support customizable blockchain deployments.
+
 
 <h4 align="center">
     Flexible BFT Consensus Engine in Rust<br/>
