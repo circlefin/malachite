@@ -2,6 +2,8 @@
 <img src="https://raw.githubusercontent.com/informalsystems/malachite/refs/heads/main/assets/banner.png" alt="Malachite" width="2400" align="center">
 </h1>
 
+Malachite is a modular and customizable BFT consensus engine designed to support diverse blockchain deployments.
+
 <h4 align="center">
     Flexible BFT Consensus Engine in Rust<br/>
     State-of-the-art implementation of Tendermint
