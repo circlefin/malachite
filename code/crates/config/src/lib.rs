@@ -7,6 +7,8 @@ use bytesize::ByteSize;
 use multiaddr::Multiaddr;
 use serde::{Deserialize, Serialize};
 
+mod utils;
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProtocolNames {
     pub consensus: String,
@@ -243,14 +245,15 @@ pub struct GossipSubConfig {
     /// When this value is set to 0 or does not meet the above constraints,
     /// it will be calculated as `max(1, min(mesh_n / 2, mesh_n_low - 1))`
     mesh_outbound_min: usize,
+
+    /// Enable peer scoring to prioritize nodes based on their type in mesh formation
+    enable_peer_scoring: bool,
 }
 
 impl Default for GossipSubConfig {
     fn default() -> Self {
-        // mesh_n=6: Target 6 peers
-        // mesh_n_high=8: Prune at 8 to prevent early validators from hoarding peers
-        // mesh_n_low=4: Graft below 4 to maintain minimum connectivity
-        Self::new(6, 8, 4, 2)
+        // Peer scoring enabled by default
+        Self::new(6, 12, 4, 2, true)
     }
 }
 
@@ -261,12 +264,14 @@ impl GossipSubConfig {
         mesh_n_high: usize,
         mesh_n_low: usize,
         mesh_outbound_min: usize,
+        enable_peer_scoring: bool,
     ) -> Self {
         let mut result = Self {
             mesh_n,
             mesh_n_high,
             mesh_n_low,
             mesh_outbound_min,
+            enable_peer_scoring,
         };
 
         result.adjust();
@@ -312,9 +317,19 @@ impl GossipSubConfig {
     pub fn mesh_outbound_min(&self) -> usize {
         self.mesh_outbound_min
     }
+
+    pub fn enable_peer_scoring(&self) -> bool {
+        self.enable_peer_scoring
+    }
 }
 
 mod gossipsub {
+    use super::utils::bool_from_anything;
+
+    fn default_enable_peer_scoring() -> bool {
+        true
+    }
+
     #[derive(serde::Deserialize)]
     pub struct RawConfig {
         #[serde(default)]
@@ -325,6 +340,11 @@ mod gossipsub {
         mesh_n_low: usize,
         #[serde(default)]
         mesh_outbound_min: usize,
+        #[serde(
+            default = "default_enable_peer_scoring",
+            deserialize_with = "bool_from_anything"
+        )]
+        enable_peer_scoring: bool,
     }
 
     impl From<RawConfig> for super::GossipSubConfig {
@@ -334,6 +354,7 @@ mod gossipsub {
                 raw.mesh_n_high,
                 raw.mesh_n_low,
                 raw.mesh_outbound_min,
+                raw.enable_peer_scoring,
             )
         }
     }
@@ -902,5 +923,105 @@ mod tests {
 
         // Should use defaults when protocol_names section is missing
         assert_eq!(config.p2p.protocol_names, ProtocolNames::default());
+    }
+
+    #[test]
+    fn gossipsub_config_default_enables_peer_scoring() {
+        let config = GossipSubConfig::default();
+        assert!(config.enable_peer_scoring());
+    }
+
+    #[test]
+    fn gossipsub_enable_peer_scoring_deserialization() {
+        struct TestCase {
+            name: &'static str,
+            toml: &'static str,
+            expected: bool,
+        }
+
+        let cases = [
+            TestCase {
+                name: "missing field defaults to true",
+                toml: r#"
+                    [p2p.protocol]
+                    type = "gossipsub"
+                "#,
+                expected: true,
+            },
+            TestCase {
+                name: "explicit true",
+                toml: r#"
+                    [p2p.protocol]
+                    type = "gossipsub"
+                    enable_peer_scoring = true
+                "#,
+                expected: true,
+            },
+            TestCase {
+                name: "explicit false",
+                toml: r#"
+                    [p2p.protocol]
+                    type = "gossipsub"
+                    enable_peer_scoring = false
+                "#,
+                expected: false,
+            },
+            TestCase {
+                name: "string true",
+                toml: r#"
+                    [p2p.protocol]
+                    type = "gossipsub"
+                    enable_peer_scoring = "true"
+                "#,
+                expected: true,
+            },
+            TestCase {
+                name: "string false",
+                toml: r#"
+                    [p2p.protocol]
+                    type = "gossipsub"
+                    enable_peer_scoring = "false"
+                "#,
+                expected: false,
+            },
+        ];
+
+        for case in cases {
+            let toml_content = format!(
+                r#"
+                timeout_propose = "3s"
+                timeout_propose_delta = "500ms"
+                timeout_prevote = "1s"
+                timeout_prevote_delta = "500ms"
+                timeout_precommit = "1s"
+                timeout_precommit_delta = "500ms"
+                timeout_rebroadcast = "5s"
+                value_payload = "parts-only"
+                
+                [p2p]
+                listen_addr = "/ip4/0.0.0.0/tcp/0"
+                persistent_peers = []
+                pubsub_max_size = "4 MiB"
+                rpc_max_size = "10 MiB"
+                {}
+                "#,
+                case.toml
+            );
+
+            let config: ConsensusConfig = toml::from_str(&toml_content)
+                .unwrap_or_else(|e| panic!("Failed to parse {}: {}", case.name, e));
+
+            let PubSubProtocol::GossipSub(gossipsub) = config.p2p.protocol else {
+                panic!("{}: expected GossipSub protocol", case.name);
+            };
+
+            assert_eq!(
+                gossipsub.enable_peer_scoring(),
+                case.expected,
+                "{}: expected enable_peer_scoring = {}",
+                case.name,
+                case.expected
+            );
+        }
     }
 }

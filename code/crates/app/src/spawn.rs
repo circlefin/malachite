@@ -241,6 +241,7 @@ fn make_network_config(cfg: &ConsensusConfig, moniker: String) -> NetworkConfig 
                 mesh_n_high: config.mesh_n_high(),
                 mesh_n_low: config.mesh_n_low(),
                 mesh_outbound_min: config.mesh_outbound_min(),
+                enable_peer_scoring: config.enable_peer_scoring(),
             },
             config::PubSubProtocol::Broadcast => GossipSubConfig::default(),
         },

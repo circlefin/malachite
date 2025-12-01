@@ -13,8 +13,9 @@ use libp2p_broadcast as broadcast;
 use malachitebft_discovery as discovery;
 use malachitebft_metrics::Registry;
 use malachitebft_sync as sync;
+use tracing::info;
 
-use crate::{Config, GossipSubConfig};
+use crate::{peer_scoring, Config, GossipSubConfig};
 
 #[derive(Debug)]
 pub enum NetworkEvent {
@@ -134,6 +135,8 @@ fn message_id(message: &gossipsub::Message) -> gossipsub::MessageId {
 fn gossipsub_config(config: GossipSubConfig, max_transmit_size: usize) -> gossipsub::Config {
     gossipsub::ConfigBuilder::default()
         .max_transmit_size(max_transmit_size)
+        .opportunistic_graft_ticks(peer_scoring::OPPORTUNISTIC_GRAFT_TICKS)
+        .opportunistic_graft_peers(peer_scoring::OPPORTUNISTIC_GRAFT_PEERS)
         .heartbeat_interval(Duration::from_secs(1))
         .validation_mode(gossipsub::ValidationMode::Strict)
         .history_gossip(3)
@@ -162,12 +165,26 @@ impl Behaviour {
 
         let enable_gossipsub = config.pubsub_protocol.is_gossipsub() && config.enable_consensus;
         let gossipsub = enable_gossipsub.then(|| {
-            gossipsub::Behaviour::new(
+            let mut behaviour = gossipsub::Behaviour::new(
                 gossipsub::MessageAuthenticity::Signed(keypair.clone()),
                 gossipsub_config(config.gossipsub, config.pubsub_max_size),
             )
-            .unwrap()
-            .with_metrics(
+            .unwrap();
+
+            // Enable peer scoring if configured
+            if config.gossipsub.enable_peer_scoring {
+                info!("Enabling peer scoring for GossipSub");
+                behaviour
+                    .with_peer_score(
+                        peer_scoring::peer_score_params(),
+                        peer_scoring::peer_score_thresholds(),
+                    )
+                    .expect("Failed to enable peer scoring");
+            } else {
+                info!("Peer scoring is disabled for GossipSub");
+            }
+
+            behaviour.with_metrics(
                 registry.sub_registry_with_prefix("gossipsub"),
                 Default::default(),
             )

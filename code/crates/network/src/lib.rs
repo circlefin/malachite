@@ -35,6 +35,8 @@ use metrics::Metrics as NetworkMetrics;
 mod peer_type;
 pub use peer_type::PeerType;
 
+pub mod peer_scoring;
+
 mod utils;
 
 // Re-export state types for external use (e.g., RPC)
@@ -94,6 +96,7 @@ pub struct GossipSubConfig {
     pub mesh_n_high: usize,
     pub mesh_n_low: usize,
     pub mesh_outbound_min: usize,
+    pub enable_peer_scoring: bool,
 }
 
 impl Default for GossipSubConfig {
@@ -104,6 +107,7 @@ impl Default for GossipSubConfig {
             mesh_n_high: 12,
             mesh_n_low: 4,
             mesh_outbound_min: 2,
+            enable_peer_scoring: false,
         }
     }
 }
@@ -449,6 +453,29 @@ async fn handle_ctrl_msg(
     }
 }
 
+/// Set a default low score for a peer immediately upon connection
+/// This allows gossipsub to form an initial mesh before Identify completes
+fn set_default_peer_score(swarm: &mut swarm::Swarm<Behaviour>, peer_id: libp2p::PeerId) {
+    if let Some(gossipsub) = swarm.behaviour_mut().gossipsub.as_mut() {
+        let score = peer_scoring::get_default_score();
+        gossipsub.set_application_score(&peer_id, score);
+        trace!("Set default application score {score} for peer {peer_id} before Identify");
+    }
+}
+
+fn get_peer_score(state: &mut State, peer_id: libp2p::PeerId, info: &identify::Info) -> f64 {
+    let peer_type = state.peer_type(&peer_id, info);
+    peer_scoring::get_peer_score(peer_type)
+}
+
+fn set_peer_score(swarm: &mut swarm::Swarm<Behaviour>, peer_id: libp2p::PeerId, score: f64) {
+    // Set application-specific score in gossipsub if enabled
+    if let Some(gossipsub) = swarm.behaviour_mut().gossipsub.as_mut() {
+        gossipsub.set_application_score(&peer_id, score);
+        debug!("Upgraded application score to {score} for peer {peer_id}");
+    }
+}
+
 async fn handle_swarm_event(
     event: SwarmEvent<NetworkEvent>,
     config: &Config,
@@ -477,9 +504,17 @@ async fn handle_swarm_event(
             peer_id,
             connection_id,
             endpoint,
+            num_established,
             ..
         } => {
             trace!("Connected to {peer_id} with connection id {connection_id}");
+
+            // Set a low default score immediately for gossipsub mesh formation
+            // This will be upgraded later when Identify completes
+            if num_established.get() == 1 {
+                // Only set score on first connection to this peer
+                set_default_peer_score(swarm, peer_id);
+            }
 
             state
                 .discovery
@@ -558,6 +593,11 @@ async fn handle_swarm_event(
                         info.clone(),
                     );
 
+                    // Set initial peer score based on peer type
+                    let score = get_peer_score(state, peer_id, &info);
+                    set_peer_score(swarm, peer_id, score);
+
+                    // Record peer info in State and metrics
                     state.record_peer_info(peer_id, &info);
 
                     if !is_already_connected {
