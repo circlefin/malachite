@@ -119,6 +119,10 @@ impl Node for App {
             dbg!(gs_config.enable_explicit_peering());
             dbg!(gs_config.enable_flood_publish());
             dbg!(gs_config.enable_peer_scoring());
+            dbg!(gs_config.mesh_n());
+            dbg!(gs_config.mesh_n_high());
+            dbg!(gs_config.mesh_n_low());
+            dbg!(gs_config.mesh_outbound_min());
         }
 
         let span = tracing::error_span!("node", moniker = %config.moniker);

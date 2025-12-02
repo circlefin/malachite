@@ -329,7 +329,8 @@ impl GossipSubConfig {
         enable_explicit_peering: bool,
         enable_flood_publish: bool,
     ) -> Self {
-        let mut result = Self {
+        // Note: adjust() is disabled to allow mesh_n = 0 for testing gossip-only mode
+        Self {
             mesh_n,
             mesh_n_high,
             mesh_n_low,
@@ -337,10 +338,7 @@ impl GossipSubConfig {
             enable_peer_scoring,
             enable_explicit_peering,
             enable_flood_publish,
-        };
-
-        result.adjust();
-        result
+        }
     }
 
     /// Adjust the configuration values.
@@ -397,7 +395,7 @@ impl GossipSubConfig {
 }
 
 mod gossipsub {
-    use super::utils::bool_from_anything;
+    use super::utils::{bool_from_anything, usize_from_anything};
 
     fn default_enable_peer_scoring() -> bool {
         true
@@ -411,15 +409,19 @@ mod gossipsub {
         true
     }
 
+    fn default_zero() -> usize {
+        0
+    }
+
     #[derive(serde::Deserialize)]
     pub struct RawConfig {
-        #[serde(default)]
+        #[serde(default = "default_zero", deserialize_with = "usize_from_anything")]
         mesh_n: usize,
-        #[serde(default)]
+        #[serde(default = "default_zero", deserialize_with = "usize_from_anything")]
         mesh_n_high: usize,
-        #[serde(default)]
+        #[serde(default = "default_zero", deserialize_with = "usize_from_anything")]
         mesh_n_low: usize,
-        #[serde(default)]
+        #[serde(default = "default_zero", deserialize_with = "usize_from_anything")]
         mesh_outbound_min: usize,
         #[serde(default, deserialize_with = "bool_from_anything")]
         enable_peer_scoring: bool,
