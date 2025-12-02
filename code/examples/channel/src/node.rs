@@ -113,6 +113,13 @@ impl Node for App {
 
     async fn start(&self) -> eyre::Result<Handle> {
         let config = self.load_config()?;
+        if let malachitebft_test_cli::config::PubSubProtocol::GossipSub(gs_config) =
+            &config.consensus.p2p.protocol
+        {
+            dbg!(gs_config.enable_explicit_peering());
+            dbg!(gs_config.enable_flood_publish());
+            dbg!(gs_config.enable_peer_scoring());
+        }
 
         let span = tracing::error_span!("node", moniker = %config.moniker);
         let _enter = span.enter();
