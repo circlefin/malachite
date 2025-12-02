@@ -1,0 +1,116 @@
+name: Application integration support
+description: Request help integrating Malachite as a consensus engine in your application or blockchain.
+title: "[Integration] <short summary>"
+labels:
+  - support
+  - application
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for building on top of Malachite! This template is meant for
+        questions and issues related to integrating Malachite into your
+        application, blockchain, or sequencer.
+
+  - type: input
+    id: app_description
+    attributes:
+      label: Application / project description
+      description: Briefly describe what you are building.
+      placeholder: "Example: L1 blockchain for stablecoin finance, social app, or rollup sequencer."
+    validations:
+      required: true
+
+  - type: textarea
+    id: integration_architecture
+    attributes:
+      label: Integration architecture
+      description: Describe at a high level how Malachite is integrated into your stack.
+      placeholder: |
+        Example:
+        - Malachite as consensus engine
+        - Custom execution layer in Rust
+        - ABCI-like interface or channel-based integration
+    validations:
+      required: true
+
+  - type: textarea
+    id: malachite_version
+    attributes:
+      label: Malachite version and configuration
+      description: Mention the version (or commit) and any relevant configuration flags.
+      placeholder: |
+        Example:
+        - Malachite v0.5.0
+        - Custom consensus timeouts
+        - Network configuration details
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Describe where you are running the node(s).
+      placeholder: |
+        Example:
+        - Local dev machine (Linux, 16 GiB RAM, NVMe SSD)
+        - Cloud VMs for validators and full nodes
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected_behavior
+    attributes:
+      label: Expected behavior
+      description: Explain what you expected to happen.
+      placeholder: "Example: validators should finalize blocks every N seconds and broadcast them to clients."
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual_behavior
+    attributes:
+      label: Actual behavior
+      description: Explain what is happening instead (errors, crashes, stalls, etc.).
+      placeholder: |
+        Example:
+        - Node fails to start with a specific error
+        - Consensus does not progress beyond a certain height
+        - Peers do not stay connected
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps_to_reproduce
+    attributes:
+      label: Steps to reproduce
+      description: List the steps someone else could follow to see the issue.
+      placeholder: |
+        1. Start a local network with N validators
+        2. Run the application using the described configuration
+        3. Submit transactions or test traffic
+        4. Observe the problem described above
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs_and_diagnostics
+    attributes:
+      label: Logs and diagnostics
+      description: Paste relevant log excerpts, configuration snippets, or links to minimal reproductions (without secrets).
+      placeholder: |
+        Example:
+        - Malachite logs around the time of the incident
+        - Any error messages from your application layer
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional context
+      description: Any other details that might help (previous attempts, related issues, design trade-offs).
+      placeholder: "Optional extra context or links."
+    validations:
+      required: false
