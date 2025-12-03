@@ -13,4 +13,6 @@ widder = "widder"
 typ = "typ"
 
 [files]
-extend-exclude = ["code/crates/starknet/p2p-proto/proto/*"]
+extend-exclude = [
+  "code/crates/starknet/p2p-proto/proto/*",
+]
