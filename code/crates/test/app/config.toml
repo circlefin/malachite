@@ -146,7 +146,7 @@ mesh_outbound_min = 2
 # When enabled, persistent peers receive higher scores and are preferred for grafting into the mesh.
 # Full nodes receive lower scores and can be opportunistically replaced by persistent peers over time.
 # Override with MALACHITE__CONSENSUS__P2P__PROTOCOL__ENABLE_PEER_SCORING env variable
-enable_peer_scoring = true
+enable_peer_scoring = false
 
 #######################################################
 ###         ValueSync Configuration Options         ###
