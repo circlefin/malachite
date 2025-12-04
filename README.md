@@ -35,9 +35,8 @@ The Malachite team from Informal Systems has officially joined Circle, bringing 
 
 Malachite `/ˈmæl.ə.kaɪt/` is pronounced as follows: __"Mala"__ (like in "malady" or "maladjusted") + __"kite"__ (like the flying toy).
 
-> [!IMPORTANT]
-> Malachite is alpha software and under heavy development.
-> The software is provided "as is" and has not been externally audited; use at your own risk.
+> **Important**
+> Malachite is alpha software and under heavy development. The software is provided "as is" and has not been externally audited; use at your own risk. We recommend starting on testnets or other non-production environments before considering any production usage.
 
 ### Goals
 
