@@ -1,7 +1,7 @@
 //! Run Malachite consensus with the given configuration and context.
 //! Provides the application with a channel for receiving messages from consensus.
 
-use eyre::Result;
+use eyre::{eyre, Result};
 use tokio::sync::mpsc::Receiver;
 
 use malachitebft_engine::consensus::{ConsensusMsg, ConsensusRef};
@@ -59,6 +59,10 @@ where
 
     // Spawn the host actor
     let (connector, rx_consensus) = spawn_host_actor(metrics.clone()).await?;
+
+    if cfg.value_sync().enabled && cfg.value_sync().batch_size == 0 {
+        return Err(eyre!("Value sync batch size cannot be zero"));
+    }
 
     let sync = spawn_sync_actor(
         ctx.clone(),
