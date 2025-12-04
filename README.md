@@ -1,3 +1,5 @@
+![License](https://img.shields.io/github/license/circlefin/malachite)
+
 <h1 align="center">
 <img src="https://raw.githubusercontent.com/informalsystems/malachite/refs/heads/main/assets/banner.png" alt="Malachite" width="2400" align="center">
 </h1>
