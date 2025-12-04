@@ -49,6 +49,23 @@ impl Ed25519Provider {
 
 #[async_trait]
 impl SigningProvider<TestContext> for Ed25519Provider {
+    async fn sign_bytes(&self, bytes: &[u8]) -> Result<Signature, Error> {
+        Ok(self.sign(bytes))
+    }
+
+    async fn verify_signed_bytes(
+        &self,
+        bytes: &[u8],
+        signature: &Signature,
+        public_key: &PublicKey,
+    ) -> Result<VerificationResult, Error> {
+        if self.verify(bytes, signature, public_key) {
+            Ok(VerificationResult::Valid)
+        } else {
+            Ok(VerificationResult::Invalid)
+        }
+    }
+
     async fn sign_vote(&self, vote: Vote) -> Result<SignedVote<TestContext>, Error> {
         let signature = self.sign(&vote.to_sign_bytes());
         Ok(SignedVote::new(vote, signature))

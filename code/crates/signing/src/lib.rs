@@ -59,6 +59,17 @@ where
     Ctx: Context,
     Self: Send + Sync,
 {
+    /// Sign the given bytes with our private key.
+    async fn sign_bytes(&self, bytes: &[u8]) -> Result<Signature<Ctx>, Error>;
+
+    /// Verify the given signature over the given bytes using the given public key.
+    async fn verify_signed_bytes(
+        &self,
+        bytes: &[u8],
+        signature: &Signature<Ctx>,
+        public_key: &PublicKey<Ctx>,
+    ) -> Result<VerificationResult, Error>;
+
     /// Sign the given vote with our private key.
     async fn sign_vote(&self, vote: Ctx::Vote) -> Result<SignedMessage<Ctx, Ctx::Vote>, Error>;
 
@@ -105,6 +116,21 @@ where
     T: SigningProvider<Ctx>,
     Ctx: Context,
 {
+    async fn sign_bytes(&self, bytes: &[u8]) -> Result<Signature<Ctx>, Error> {
+        (*self).sign_bytes(bytes).await
+    }
+
+    async fn verify_signed_bytes(
+        &self,
+        bytes: &[u8],
+        signature: &Signature<Ctx>,
+        public_key: &PublicKey<Ctx>,
+    ) -> Result<VerificationResult, Error> {
+        (*self)
+            .verify_signed_bytes(bytes, signature, public_key)
+            .await
+    }
+
     async fn sign_vote(&self, vote: Ctx::Vote) -> Result<SignedMessage<Ctx, Ctx::Vote>, Error> {
         (*self).sign_vote(vote).await
     }
@@ -162,6 +188,21 @@ impl<Ctx> SigningProvider<Ctx> for Box<dyn SigningProvider<Ctx> + '_>
 where
     Ctx: Context,
 {
+    async fn sign_bytes(&self, bytes: &[u8]) -> Result<Signature<Ctx>, Error> {
+        (**self).sign_bytes(bytes).await
+    }
+
+    async fn verify_signed_bytes(
+        &self,
+        bytes: &[u8],
+        signature: &Signature<Ctx>,
+        public_key: &PublicKey<Ctx>,
+    ) -> Result<VerificationResult, Error> {
+        (**self)
+            .verify_signed_bytes(bytes, signature, public_key)
+            .await
+    }
+
     async fn sign_vote(&self, vote: Ctx::Vote) -> Result<SignedMessage<Ctx, Ctx::Vote>, Error> {
         (**self).sign_vote(vote).await
     }
