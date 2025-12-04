@@ -1,11 +1,11 @@
 use async_trait::async_trait;
 use bytes::Bytes;
-use malachitebft_core_types::{SignedExtension, SignedProposal, SignedProposalPart, SignedVote};
+use malachitebft_core_types::{SignedExtension, SignedProposal, SignedVote};
 
 use malachitebft_signing::{Error, SigningProvider, VerificationResult};
 pub use malachitebft_signing_ed25519::{Ed25519, PrivateKey, PublicKey, Signature};
 
-use crate::{MockContext, Proposal, ProposalPart, Vote};
+use crate::{MockContext, Proposal, Vote};
 
 #[derive(Debug)]
 pub struct Ed25519Provider {
@@ -62,24 +62,6 @@ impl SigningProvider<MockContext> for Ed25519Provider {
         _public_key: &PublicKey,
     ) -> Result<VerificationResult, Error> {
         // Proposals are never sent over the network
-        Ok(VerificationResult::Valid)
-    }
-
-    async fn sign_proposal_part(
-        &self,
-        proposal_part: ProposalPart,
-    ) -> Result<SignedProposalPart<MockContext>, Error> {
-        // Proposal parts are not signed for now
-        Ok(SignedProposalPart::new(proposal_part, Signature::test()))
-    }
-
-    async fn verify_signed_proposal_part(
-        &self,
-        _proposal_part: &ProposalPart,
-        _signature: &Signature,
-        _public_key: &PublicKey,
-    ) -> Result<VerificationResult, Error> {
-        // Proposal parts are not signed for now
         Ok(VerificationResult::Valid)
     }
 

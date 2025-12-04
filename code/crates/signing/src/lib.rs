@@ -57,7 +57,7 @@ impl VerificationResult {
 pub trait SigningProvider<Ctx>
 where
     Ctx: Context,
-    Self: Send + Sync + 'static,
+    Self: Send + Sync,
 {
     /// Sign the given vote with our private key.
     async fn sign_vote(&self, vote: Ctx::Vote) -> Result<SignedMessage<Ctx, Ctx::Vote>, Error>;
@@ -84,20 +84,6 @@ where
         public_key: &PublicKey<Ctx>,
     ) -> Result<VerificationResult, Error>;
 
-    /// Sign the proposal part with our private key.
-    async fn sign_proposal_part(
-        &self,
-        proposal_part: Ctx::ProposalPart,
-    ) -> Result<SignedMessage<Ctx, Ctx::ProposalPart>, Error>;
-
-    /// Verify the given proposal part signature using the given public key.
-    async fn verify_signed_proposal_part(
-        &self,
-        proposal_part: &Ctx::ProposalPart,
-        signature: &Signature<Ctx>,
-        public_key: &PublicKey<Ctx>,
-    ) -> Result<VerificationResult, Error>;
-
     /// Sign the given vote extension with our private key.
     async fn sign_vote_extension(
         &self,
@@ -111,6 +97,64 @@ where
         signature: &Signature<Ctx>,
         public_key: &PublicKey<Ctx>,
     ) -> Result<VerificationResult, Error>;
+}
+
+#[async_trait]
+impl<Ctx, T> SigningProvider<Ctx> for &T
+where
+    T: SigningProvider<Ctx>,
+    Ctx: Context,
+{
+    async fn sign_vote(&self, vote: Ctx::Vote) -> Result<SignedMessage<Ctx, Ctx::Vote>, Error> {
+        (*self).sign_vote(vote).await
+    }
+
+    async fn verify_signed_vote(
+        &self,
+        vote: &Ctx::Vote,
+        signature: &Signature<Ctx>,
+        public_key: &PublicKey<Ctx>,
+    ) -> Result<VerificationResult, Error> {
+        (*self)
+            .verify_signed_vote(vote, signature, public_key)
+            .await
+    }
+
+    async fn sign_proposal(
+        &self,
+        proposal: Ctx::Proposal,
+    ) -> Result<SignedMessage<Ctx, Ctx::Proposal>, Error> {
+        (*self).sign_proposal(proposal).await
+    }
+
+    async fn verify_signed_proposal(
+        &self,
+        proposal: &Ctx::Proposal,
+        signature: &Signature<Ctx>,
+        public_key: &PublicKey<Ctx>,
+    ) -> Result<VerificationResult, Error> {
+        (*self)
+            .verify_signed_proposal(proposal, signature, public_key)
+            .await
+    }
+
+    async fn sign_vote_extension(
+        &self,
+        extension: Ctx::Extension,
+    ) -> Result<SignedMessage<Ctx, Ctx::Extension>, Error> {
+        (*self).sign_vote_extension(extension).await
+    }
+
+    async fn verify_signed_vote_extension(
+        &self,
+        extension: &Ctx::Extension,
+        signature: &Signature<Ctx>,
+        public_key: &PublicKey<Ctx>,
+    ) -> Result<VerificationResult, Error> {
+        (*self)
+            .verify_signed_vote_extension(extension, signature, public_key)
+            .await
+    }
 }
 
 #[async_trait]
@@ -148,24 +192,6 @@ where
     ) -> Result<VerificationResult, Error> {
         self.as_ref()
             .verify_signed_proposal(proposal, signature, public_key)
-            .await
-    }
-
-    async fn sign_proposal_part(
-        &self,
-        proposal_part: Ctx::ProposalPart,
-    ) -> Result<SignedMessage<Ctx, Ctx::ProposalPart>, Error> {
-        self.as_ref().sign_proposal_part(proposal_part).await
-    }
-
-    async fn verify_signed_proposal_part(
-        &self,
-        proposal_part: &Ctx::ProposalPart,
-        signature: &Signature<Ctx>,
-        public_key: &PublicKey<Ctx>,
-    ) -> Result<VerificationResult, Error> {
-        self.as_ref()
-            .verify_signed_proposal_part(proposal_part, signature, public_key)
             .await
     }
 

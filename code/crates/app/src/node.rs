@@ -49,7 +49,7 @@ pub trait Node {
     type Config: NodeConfig + Serialize + DeserializeOwned;
     type Genesis: Serialize + DeserializeOwned;
     type PrivateKeyFile: Serialize + DeserializeOwned;
-    type SigningProvider: SigningProvider<Self::Context>;
+    type SigningProvider: SigningProvider<Self::Context> + 'static;
     type NodeHandle: NodeHandle<Self::Context>;
 
     async fn start(&self) -> eyre::Result<Self::NodeHandle>;

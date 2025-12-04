@@ -1,10 +1,10 @@
 use async_trait::async_trait;
 use bytes::Bytes;
 
-use malachitebft_core_types::{SignedExtension, SignedProposal, SignedProposalPart, SignedVote};
+use malachitebft_core_types::{SignedExtension, SignedProposal, SignedVote};
 use malachitebft_signing::{Error, SigningProvider, VerificationResult};
 
-use crate::{Proposal, ProposalPart, TestContext, Vote};
+use crate::{Proposal, TestContext, Vote};
 
 pub use malachitebft_signing_ed25519::*;
 
@@ -82,27 +82,6 @@ impl SigningProvider<TestContext> for Ed25519Provider {
         Ok(VerificationResult::from_bool(
             public_key
                 .verify(&proposal.to_sign_bytes(), signature)
-                .is_ok(),
-        ))
-    }
-
-    async fn sign_proposal_part(
-        &self,
-        proposal_part: ProposalPart,
-    ) -> Result<SignedProposalPart<TestContext>, Error> {
-        let signature = self.private_key.sign(&proposal_part.to_sign_bytes());
-        Ok(SignedProposalPart::new(proposal_part, signature))
-    }
-
-    async fn verify_signed_proposal_part(
-        &self,
-        proposal_part: &ProposalPart,
-        signature: &Signature,
-        public_key: &PublicKey,
-    ) -> Result<VerificationResult, Error> {
-        Ok(VerificationResult::from_bool(
-            public_key
-                .verify(&proposal_part.to_sign_bytes(), signature)
                 .is_ok(),
         ))
     }
