@@ -107,9 +107,25 @@ The repository is split into three areas, each covering one of the important asp
 
 ### Building with Malachite
 
-As a guiding point to understand how to use Malachite, please read [ARCHITECTURE.md](ARCHITECTURE.md).
+As a guiding point to understand how to use Malachite, please read `ARCHITECTURE.md`.
 
-You can also check out the [examples](./code/examples) for a more in-depth experience.
+You can also check out the `examples` directory for a more in-depth experience and concrete, runnable setups.
+
+### Using Malachite crates from Rust
+
+Malachite is published as a set of crates on crates.io with the `informalsystems-malachitebft-` prefix, for example:
+
+- `informalsystems-malachitebft-core-consensus`
+- `informalsystems-malachitebft-engine`
+- `informalsystems-malachitebft-network`
+
+To depend on Malachite from your own Rust project, add the relevant crates to your `Cargo.toml`:
+
+```toml
+[dependencies]
+informalsystems-malachitebft-core-consensus = { version = "x.y.z" }
+informalsystems-malachitebft-engine = { version = "x.y.z" }
+
 
 ### Contributing
 
