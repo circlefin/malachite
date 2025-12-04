@@ -120,6 +120,19 @@ We invite all contributors.
 
 - Rust v1.82+ ([rustup.rs](https://rustup.rs))
 - Quint v0.22+ ([github.com](https://github.com/informalsystems/quint))
+## Quick start
+
+If you want to try Malachite locally without reading all the documentation first, you can use the following minimal workflow:
+
+1. Install the required toolchain:
+   - Rust (via `rustup`)
+   - Quint (follow the installation instructions in the official Quint documentation)
+
+2. Clone the repository and change into its directory:
+
+```bash
+git clone https://github.com/circlefin/malachite.git
+cd malachite
 
 ## Acknowledgements
 
