@@ -246,11 +246,19 @@ pub async fn spawn(
 
     let peer_id = PeerId::from_libp2p(swarm.local_peer_id());
 
-    // Create local node info
+    // Create local node info with subscribed consensus topics
+    let mut subscribed_topics = std::collections::HashSet::new();
+    if config.enable_consensus {
+        for channel in Channel::consensus() {
+            subscribed_topics.insert(channel.as_str(config.channel_names).to_string());
+        }
+    }
+
     let local_node_info = LocalNodeInfo {
         moniker: config.moniker.clone(),
         peer_id: *swarm.local_peer_id(),
         listen_addr: config.listen_addr.clone(),
+        subscribed_topics,
     };
 
     // Set local node info in metrics
@@ -310,6 +318,7 @@ async fn run(
     // TODO: Using 1 second for now, for faster reconnection during testing
     // Maybe adjust via config in the future
     let mut periodic_timer = tokio::time::interval(std::time::Duration::from_secs(1));
+    let mut periodic_tick_count: u32 = 0;
 
     loop {
         let result = tokio::select! {
@@ -352,6 +361,11 @@ async fn run(
                         Channel::consensus(),
                         config.channel_names,
                     );
+                }
+
+                periodic_tick_count = periodic_tick_count.wrapping_add(1);
+                if periodic_tick_count % 5 == 0 {
+                    info!("Network peer state\n{}", state.format_peer_info());
                 }
 
                 ControlFlow::Continue(())

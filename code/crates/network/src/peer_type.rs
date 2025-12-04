@@ -19,10 +19,7 @@ impl EncodeLabelValue for PeerType {
         &self,
         encoder: &mut malachitebft_metrics::prometheus::encoding::LabelValueEncoder,
     ) -> Result<(), std::fmt::Error> {
-        match self {
-            PeerType::PersistentPeer => encoder.write_str("persistent_peer"),
-            PeerType::FullNode => encoder.write_str("full_node"),
-        }
+        encoder.write_str(self.as_str())
     }
 }
 
@@ -39,5 +36,12 @@ impl From<bool> for PeerType {
 impl PeerType {
     pub fn is_persistent(&self) -> bool {
         matches!(self, PeerType::PersistentPeer)
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            PeerType::PersistentPeer => "persistent_peer",
+            PeerType::FullNode => "full_node",
+        }
     }
 }

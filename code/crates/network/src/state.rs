@@ -1,6 +1,7 @@
 //! Network state management
 
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 
 use libp2p::identify;
 use libp2p::request_response::InboundRequestId;
@@ -19,6 +20,20 @@ pub struct LocalNodeInfo {
     pub moniker: String,
     pub peer_id: libp2p::PeerId,
     pub listen_addr: Multiaddr,
+    pub subscribed_topics: HashSet<String>,
+}
+
+impl fmt::Display for LocalNodeInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut topics: Vec<&str> = self.subscribed_topics.iter().map(|s| s.as_str()).collect();
+        topics.sort();
+        let topics_str = format!("[{}]", topics.join(","));
+        write!(
+            f,
+            "{}, {}, {}, {}, me",
+            self.listen_addr, self.moniker, self.peer_id, topics_str
+        )
+    }
 }
 
 /// Peer information without slot number (for State, which has no cardinality limits)
@@ -30,6 +45,28 @@ pub struct PeerInfo {
     pub connection_direction: Option<ConnectionDirection>, // None if ephemeral (unknown)
     pub score: f64,
     pub topics: HashSet<String>, // Set of topics peer is in mesh for (e.g., "/consensus", "/liveness")
+}
+
+impl PeerInfo {
+    /// Format peer info with peer_id for logging
+    ///  Address, Moniker, PeerId, Mesh, Dir, Type, Score
+    pub fn format_with_peer_id(&self, peer_id: &libp2p::PeerId) -> String {
+        let direction = self.connection_direction.map_or("??", |d| d.as_str());
+        let mut topics: Vec<&str> = self.topics.iter().map(|s| s.as_str()).collect();
+        topics.sort();
+        let topics_str = format!("[{}]", topics.join(","));
+        let peer_type_str = self.peer_type.as_str();
+        format!(
+            "{}, {}, {}, {}, {}, {}, {}",
+            self.address,
+            self.moniker,
+            peer_id,
+            topics_str,
+            direction,
+            peer_type_str,
+            self.score as i64
+        )
+    }
 }
 
 #[derive(Debug)]
@@ -203,6 +240,30 @@ impl State {
 
         // Store in State
         self.peer_info.insert(peer_id, peer_info);
+    }
+
+    /// Format the peer information for logging (scrapable format):
+    ///  Address, Moniker, PeerId, Mesh, Dir, Type, Score
+    pub fn format_peer_info(&self) -> String {
+        let mut lines = Vec::new();
+
+        // Header
+        lines.push("Address, Moniker, PeerId, Mesh, Dir, Type, Score".to_string());
+
+        // Local node info marked with "me"
+        if let Some(local) = &self.local_node {
+            lines.push(format!("{}", local));
+        }
+
+        // Sort peers by moniker
+        let mut peers: Vec<_> = self.peer_info.iter().collect();
+        peers.sort_by(|a, b| a.1.moniker.cmp(&b.1.moniker));
+
+        for (peer_id, peer_info) in peers {
+            lines.push(peer_info.format_with_peer_id(peer_id));
+        }
+
+        lines.join("\n")
     }
 }
 
