@@ -111,6 +111,14 @@ As a guiding point to understand how to use Malachite, please read [ARCHITECTURE
 
 You can also check out the [examples](./code/examples) for a more in-depth experience.
 
+### Quick Start
+
+To get started from a Rust project, add the core consensus crate as a dependency in your `Cargo.toml`:
+
+```toml
+[dependencies]
+informalsystems-malachitebft-core-consensus = "0.5"
+
 ### Contributing
 
 If you would like to contribute to the Malachite open-source codebase, please see [CONTRIBUTING.md](./CONTRIBUTING.md).
