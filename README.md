@@ -121,6 +121,13 @@ We invite all contributors.
 - Rust v1.82+ ([rustup.rs](https://rustup.rs))
 - Quint v0.22+ ([github.com](https://github.com/informalsystems/quint))
 
+## Community
+
+If you have questions, feedback, or want to discuss Malachite:
+
+- Join the Telegram chat: https://t.me/MalachiteEngine  
+- Start a topic in GitHub Discussions: https://github.com/circlefin/malachite/discussions
+
 ## Acknowledgements
 
 Malachite would not have been possible without the kind support of the Starknet ecosystem.
