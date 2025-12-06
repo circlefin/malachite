@@ -7,6 +7,16 @@
     State-of-the-art implementation of Tendermint
 </h4>
 
+## Learning paths
+
+If you are new to Fully Homomorphic Encryption (FHE), you can use this list in a few different ways:
+
+- **Concept-first path** – start with the white papers, then move on to tutorials and engineering articles.
+- **Code-first path** – begin with the libraries and solutions section, then explore Concrete ML demos or other application-focused resources.
+- **Research-focused path** – use the research papers and publications section as your entry point, and then cross-reference talks and academic presentations.
+
+You can mix and match these paths depending on whether you care more about theory, code, or real-world use cases.
+
 ---
 
 <div align="center">
