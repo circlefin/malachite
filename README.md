@@ -121,6 +121,12 @@ We invite all contributors.
 - Rust v1.82+ ([rustup.rs](https://rustup.rs))
 - Quint v0.22+ ([github.com](https://github.com/informalsystems/quint))
 
+#### Benchmarks disclaimer
+
+The benchmark numbers mentioned above are indicative and depend heavily on the hardware, network conditions, and configuration used in the experiments.
+
+Before relying on any specific throughput or latency figures in production planning, you should run your own benchmarks that reflect your target environment and workloads.
+
 ## Acknowledgements
 
 Malachite would not have been possible without the kind support of the Starknet ecosystem.
