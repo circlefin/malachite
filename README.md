@@ -116,6 +116,12 @@ You can also check out the [examples](./code/examples) for a more in-depth exper
 If you would like to contribute to the Malachite open-source codebase, please see [CONTRIBUTING.md](./CONTRIBUTING.md).
 We invite all contributors.
 
+## Security
+
+For responsible disclosure of security vulnerabilities, please refer to the security policy:  
+https://github.com/circlefin/malachite/blob/main/SECURITY.md
+
+
 ## Requirements
 
 - Rust v1.82+ ([rustup.rs](https://rustup.rs))
