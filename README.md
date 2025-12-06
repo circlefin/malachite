@@ -238,3 +238,10 @@ Unless required by applicable law or agreed to in writing, software distributed 
 [sync-docs-link]: https://docs.rs/informalsystems-malachitebft-sync
 [wal-docs-image]: https://img.shields.io/docsrs/informalsystems-malachitebft-wal
 [wal-docs-link]: https://docs.rs/informalsystems-malachitebft-wal
+
+## Community
+
+If you have questions, suggestions, or want to report an issue:
+
+- GitHub Issues: https://github.com/circlefin/malachite/issues  
+- GitHub Discussions: https://github.com/circlefin/malachite/discussions  
