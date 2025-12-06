@@ -133,6 +133,15 @@ We are grateful as well for our collaboration with the Shielded Labs team.
 Their Crosslink system, a PoS + PoW hybrid design for upgrading Zcash, has helped deepen our understanding of BFT system design and push the limits of what Malachite is capable of supporting in terms of novel decentralized systems.
 
 These collaborations reflect work completed prior to the Malachite team joining Circle.
+## Getting help and asking questions
+
+If you have questions about Malachite, you can:
+
+- Open a GitHub issue with a clear description of your use case and environment.
+- Look for existing discussions in this repository.
+- Check the Arc and Malachite-related documentation linked from this README.
+
+Including logs, configuration snippets, and a minimal reproduction of the problem will make it easier for maintainers and other users to help.
 
 ## License
 
