@@ -111,6 +111,16 @@ As a guiding point to understand how to use Malachite, please read [ARCHITECTURE
 
 You can also check out the [examples](./code/examples) for a more in-depth experience.
 
+#### Quick start
+
+To quickly try Malachite locally:
+
+```bash
+git clone https://github.com/circlefin/malachite.git
+cd malachite
+cargo test
+
+
 ### Contributing
 
 If you would like to contribute to the Malachite open-source codebase, please see [CONTRIBUTING.md](./CONTRIBUTING.md).
