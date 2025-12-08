@@ -369,25 +369,26 @@ where
                 // Cancel the timer associated with the request for which we just received a response
                 state.timers.cancel(&Timeout::Request(request_id.clone()));
 
-                match response {
-                    Some(Response::ValueResponse(value_response)) => {
-                        self.process_input(
-                            &myself,
-                            state,
-                            sync::Input::ValueResponse(request_id, peer, Some(value_response)),
-                        )
-                        .await?;
-                    }
+                // Remove the in-flight request
+                if state.inflight.remove(&request_id).is_none() {
+                    debug!(%request_id, %peer, "Received response for unknown request");
 
-                    None => {
-                        self.process_input(
-                            &myself,
-                            state,
-                            sync::Input::ValueResponse(request_id, peer, None),
-                        )
-                        .await?;
-                    }
+                    // Ignore response for unknown request
+                    // This can happen if the request timed out and was removed from in-flight requests
+                    // in the meantime or if we receive a duplicate response.
+                    return Ok(());
                 }
+
+                let response = response.map(|resp| match resp {
+                    Response::ValueResponse(value_response) => value_response,
+                });
+
+                self.process_input(
+                    &myself,
+                    state,
+                    sync::Input::ValueResponse(request_id, peer, response),
+                )
+                .await?;
             }
 
             Msg::NetworkEvent(_) => {
