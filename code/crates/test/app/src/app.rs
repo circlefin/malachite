@@ -5,7 +5,6 @@ use tokio::time::sleep;
 use tracing::{debug, error, info};
 
 use malachitebft_app_channel::app::engine::host::{HeightParams, Next};
-use malachitebft_app_channel::app::engine::host::Next;
 use malachitebft_app_channel::app::streaming::StreamContent;
 use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::utils::height::HeightRangeExt;
