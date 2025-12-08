@@ -111,6 +111,14 @@ As a guiding point to understand how to use Malachite, please read [ARCHITECTURE
 
 You can also check out the [examples](./code/examples) for a more in-depth experience.
 
+### Running examples
+
+To run any example from the `examples` directory:
+
+```bash
+cargo run --example <example_name>
+
+
 ### Contributing
 
 If you would like to contribute to the Malachite open-source codebase, please see [CONTRIBUTING.md](./CONTRIBUTING.md).
