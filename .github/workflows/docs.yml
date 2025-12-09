@@ -4,10 +4,8 @@ on:
   push:
     branches: main
 
-permissions:
   contents: read
   pages: write
-  id-token: write
 
 concurrency:
   group: deploy
@@ -16,7 +14,7 @@ concurrency:
 jobs:
   changes:
     name: Detect changes
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-small
     permissions:
       pull-requests: read
     outputs:
@@ -34,7 +32,7 @@ jobs:
     name: Build
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-small
     defaults:
       run:
         working-directory: code
@@ -63,7 +61,7 @@ jobs:
 
   deploy:
     name: Deploy
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-small
     needs: build
     environment:
       name: github-pages

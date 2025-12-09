@@ -14,7 +14,7 @@ permissions:
 jobs:
   lint:
     name: Check PR title
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-small
     steps:
       - uses: step-security/action-semantic-pull-request@v5
         env:

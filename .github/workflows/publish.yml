@@ -9,7 +9,7 @@ on:
 jobs:
   publish:
     name: Publish to crates.io
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-small
     steps:
       - name: Checkout
         uses: actions/checkout@v4
