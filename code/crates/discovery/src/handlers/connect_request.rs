@@ -64,7 +64,9 @@ where
     ) {
         let mut accepted: bool = false;
 
-        if self.outbound_peers.contains_key(&peer) {
+        if self.config.persistent_peers_only && !self.is_persistent_peer(&peer) {
+            debug!("Rejecting upgrade of peer {peer} to inbound peer as it's non-persistent and persistent_peers_only mode is on");
+        } else if self.outbound_peers.contains_key(&peer) {
             debug!("Peer {peer} is already an outbound peer");
 
             accepted = true;

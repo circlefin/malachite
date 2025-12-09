@@ -123,6 +123,7 @@ pub struct Config {
     pub moniker: String,
     pub listen_addr: Multiaddr,
     pub persistent_peers: Vec<Multiaddr>,
+    pub persistent_peers_only: bool,
     pub discovery: DiscoveryConfig,
     pub idle_connection_timeout: Duration,
     pub transport: TransportProtocol,

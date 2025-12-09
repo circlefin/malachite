@@ -238,8 +238,10 @@ async fn spawn_network_actor(
         moniker: cfg.moniker.clone(),
         listen_addr: cfg.consensus.p2p.listen_addr.clone(),
         persistent_peers: cfg.consensus.p2p.persistent_peers.clone(),
+        persistent_peers_only: cfg.consensus.p2p.persistent_peers_only,
         discovery: gossip::DiscoveryConfig {
             enabled: cfg.consensus.p2p.discovery.enabled,
+            persistent_peers_only: cfg.consensus.p2p.persistent_peers_only,
             bootstrap_protocol,
             selector,
             num_outbound_peers: cfg.consensus.p2p.discovery.num_outbound_peers,

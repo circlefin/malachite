@@ -167,3 +167,77 @@ pub async fn discovery_concurrent_dial() {
 
     test.run().await
 }
+
+// Test multiple nodes with persistent_peers_only enabled
+#[tokio::test]
+pub async fn multiple_persistent_peers_only_nodes() {
+    let test = Test::new(
+        [
+            // Node 0: persistent_peers_only=true, allows 1 and 2
+            TestNode::with_custom_config(0, vec![1, 2], |config| {
+                config.discovery.persistent_peers_only = true;
+            }),
+            // Node 1: persistent_peers_only=true, allows 0 and 3
+            TestNode::with_custom_config(1, vec![0, 3], |config| {
+                config.discovery.persistent_peers_only = true;
+            }),
+            // Node 2: normal node, tries to connect to 0 and 3
+            TestNode::correct(2, vec![0, 3]),
+            // Node 3: normal node, tries to connect to 1 and 2
+            TestNode::correct(3, vec![1, 2]),
+        ],
+        [
+            Expected::AtLeast(vec![1, 2]), // Node 0: connects to at least 1,2 (both persistent)
+            Expected::AtLeast(vec![0, 3]), // Node 1: connects to at least 0,3 (both persistent)
+            Expected::AtLeast(vec![0, 3]), // Node 2: connects to at least 0 (in 0's list) and 3
+            Expected::AtLeast(vec![1, 2]), // Node 3: connects to at least 1 (in 1's list) and 2
+        ],
+        Duration::from_secs(2),
+        Duration::from_secs(20),
+        DiscoveryConfig {
+            enabled: false, // Disabled for explicit control
+            num_inbound_peers: 10,
+            ..Default::default()
+        },
+    );
+
+    test.run().await
+}
+
+// Test persistent_peers_only with discovery enabled
+// Node should discover peers but only connect to persistent ones
+#[tokio::test]
+pub async fn persistent_peers_only_with_discovery_enabled() {
+    let test = Test::new(
+        [
+            // Node 0: persistent_peers_only=true, bootstrap=[1], will discover 2,3 but reject them
+            TestNode::with_custom_config(0, vec![1], |config| {
+                config.discovery.persistent_peers_only = true;
+            }),
+            // Node 1: connects to 0, 2, 3
+            TestNode::correct(1, vec![0, 2, 3]),
+            // Node 2: connects via node 1
+            TestNode::correct(2, vec![1]),
+            // Node 3: connects via node 1
+            TestNode::correct(3, vec![1]),
+        ],
+        [
+            Expected::Exactly(vec![1]),       // Node 0 only connects to 1 (persistent)
+            Expected::AtLeast(vec![0, 2, 3]), // Node 1 connects to all (may discover more)
+            Expected::AtLeast(vec![1]),       // Node 2 connects to at least 1 (may discover 3)
+            Expected::AtLeast(vec![1]),       // Node 3 connects to at least 1 (may discover 2)
+        ],
+        Duration::from_secs(1),
+        Duration::from_secs(20),
+        DiscoveryConfig {
+            enabled: true,
+            bootstrap_protocol: BootstrapProtocol::Full,
+            selector: Selector::Random,
+            num_inbound_peers: 10,
+            num_outbound_peers: 10,
+            ..Default::default()
+        },
+    );
+
+    test.run().await
+}

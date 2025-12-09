@@ -29,6 +29,8 @@ pub enum Selector {
 pub struct Config {
     pub enabled: bool,
 
+    pub persistent_peers_only: bool,
+
     pub bootstrap_protocol: BootstrapProtocol,
     pub selector: Selector,
 
@@ -53,6 +55,8 @@ impl Default for Config {
         Self {
             enabled: true,
 
+            persistent_peers_only: false,
+
             bootstrap_protocol: BootstrapProtocol::default(),
             selector: Selector::default(),
 
@@ -76,6 +80,15 @@ impl Config {
             enabled,
             ..Default::default()
         }
+    }
+
+    /// Set the persistent_peers_only mode.
+    ///
+    /// # Arguments
+    ///
+    /// * `persistent_peers_only` - Whether to only allow connections from/to persistent peers.
+    pub fn set_persistent_peers_only(&mut self, persistent_peers_only: bool) {
+        self.persistent_peers_only = persistent_peers_only;
     }
 
     pub fn set_bootstrap_protocol(&mut self, protocol: BootstrapProtocol) {

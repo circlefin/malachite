@@ -204,8 +204,10 @@ fn make_network_config(cfg: &ConsensusConfig, moniker: String) -> NetworkConfig 
         moniker,
         listen_addr: cfg.p2p.listen_addr.clone(),
         persistent_peers: cfg.p2p.persistent_peers.clone(),
+        persistent_peers_only: cfg.p2p.persistent_peers_only,
         discovery: DiscoveryConfig {
             enabled: cfg.p2p.discovery.enabled,
+            persistent_peers_only: cfg.p2p.persistent_peers_only,
             bootstrap_protocol: match cfg.p2p.discovery.bootstrap_protocol {
                 config::BootstrapProtocol::Kademlia => network::BootstrapProtocol::Kademlia,
                 config::BootstrapProtocol::Full => network::BootstrapProtocol::Full,

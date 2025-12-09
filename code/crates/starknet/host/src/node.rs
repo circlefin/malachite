@@ -285,6 +285,7 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
                         .collect()
                 },
                 discovery: settings.discovery,
+                persistent_peers_only: settings.persistent_peers_only,
                 ..Default::default()
             },
         },
@@ -379,6 +380,7 @@ fn make_distributed_config(
                         .collect()
                 },
                 discovery: settings.discovery,
+                persistent_peers_only: settings.persistent_peers_only,
                 ..Default::default()
             },
         },
@@ -424,6 +426,7 @@ fn default_config() -> Config {
             transport: TransportProtocol::Tcp,
             discovery: DiscoveryConfig::default(),
             value_sync: ValueSyncConfig::default(),
+            persistent_peers_only: false,
         },
     )
 }

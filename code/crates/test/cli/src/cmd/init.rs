@@ -63,6 +63,10 @@ pub struct InitCmd {
     /// The duration in milliseconds an ephemeral connection is kept alive
     #[clap(long, default_value = "5000", verbatim_doc_comment)]
     pub ephemeral_connection_timeout_ms: u64,
+
+    /// Only allow connections to/from persistent peers
+    #[clap(long)]
+    pub persistent_peers_only: bool,
 }
 
 impl InitCmd {
@@ -92,6 +96,7 @@ impl InitCmd {
                 ),
             },
             value_sync: Default::default(),
+            persistent_peers_only: self.persistent_peers_only,
         };
 
         let config = N::make_config(0, 1, settings);

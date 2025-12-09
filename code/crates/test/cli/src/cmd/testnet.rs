@@ -104,6 +104,10 @@ pub struct TestnetCmd {
     #[clap(long, default_value = "5000", verbatim_doc_comment)]
     pub ephemeral_connection_timeout_ms: u64,
 
+    /// Only allow connections to/from persistent peers
+    #[clap(long)]
+    pub persistent_peers_only: bool,
+
     /// The transport protocol to use for P2P communication
     /// Possible values:
     /// - "tcp": TCP + Noise (default)
@@ -138,6 +142,7 @@ impl TestnetCmd {
                 ),
             },
             value_sync: Default::default(),
+            persistent_peers_only: self.persistent_peers_only,
         };
 
         testnet(node, self.nodes, home_dir, self.deterministic, settings)

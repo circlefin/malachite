@@ -40,6 +40,10 @@ pub struct P2pConfig {
     /// List of nodes to keep persistent connections to
     pub persistent_peers: Vec<Multiaddr>,
 
+    /// Only allow connections to/from persistent peers
+    #[serde(default)]
+    pub persistent_peers_only: bool,
+
     /// Peer discovery
     #[serde(default)]
     pub discovery: DiscoveryConfig,
@@ -63,6 +67,7 @@ impl Default for P2pConfig {
         P2pConfig {
             listen_addr: Multiaddr::empty(),
             persistent_peers: vec![],
+            persistent_peers_only: false,
             discovery: Default::default(),
             protocol: Default::default(),
             rpc_max_size: ByteSize::mib(10),
@@ -915,6 +920,45 @@ mod tests {
 
         // Should use defaults when protocol_names section is missing
         assert_eq!(config.p2p.protocol_names, ProtocolNames::default());
+    }
+
+    #[test]
+    fn p2p_config_persistent_peers_only_default() {
+        let config = P2pConfig::default();
+        assert!(
+            !config.persistent_peers_only,
+            "persistent_peers_only should default to false"
+        );
+    }
+
+    #[test]
+    fn p2p_config_persistent_peers_only_toml() {
+        let toml_content = r#"
+        timeout_propose = "3s"
+        timeout_propose_delta = "500ms"
+        timeout_prevote = "1s"
+        timeout_prevote_delta = "500ms"
+        timeout_precommit = "1s"
+        timeout_precommit_delta = "500ms"
+        timeout_rebroadcast = "5s"
+        value_payload = "parts-only"
+        
+        [p2p]
+        listen_addr = "/ip4/0.0.0.0/tcp/0"
+        persistent_peers = []
+        persistent_peers_only = true
+        pubsub_max_size = "4 MiB"
+        rpc_max_size = "10 MiB"
+        
+        [p2p.protocol]
+        type = "gossipsub"
+        "#;
+
+        let config: ConsensusConfig = toml::from_str(toml_content).unwrap();
+        assert!(
+            config.p2p.persistent_peers_only,
+            "persistent_peers_only should be true when set in TOML"
+        );
     }
 
     #[test]

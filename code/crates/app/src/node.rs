@@ -82,6 +82,7 @@ pub struct MakeConfigSettings {
     pub transport: TransportProtocol,
     pub discovery: DiscoveryConfig,
     pub value_sync: ValueSyncConfig,
+    pub persistent_peers_only: bool,
 }
 
 pub trait CanMakeConfig: Node {

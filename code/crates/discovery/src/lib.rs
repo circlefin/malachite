@@ -94,6 +94,15 @@ where
             }
         );
 
+        // Warn if discovery is enabled with persistent_peers_only
+        if config.enabled && config.persistent_peers_only {
+            warn!(
+                "Discovery is enabled with persistent_peers_only mode. \
+                 Discovered peers will be rejected unless they are in the persistent_peers list. \
+                 Consider disabling discovery for a pure persistent-peers-only setup."
+            );
+        }
+
         let state = if config.enabled && bootstrap_nodes.is_empty() {
             warn!("No bootstrap nodes provided");
             info!("Discovery found 0 peers in 0ms");
@@ -154,6 +163,14 @@ where
     /// Check if a peer connection is inbound
     pub fn is_inbound_peer(&self, peer_id: &PeerId) -> bool {
         self.inbound_peers.contains(peer_id)
+    }
+
+    /// Check if a peer is a persistent peer (in the bootstrap_nodes list)
+    pub fn is_persistent_peer(&self, peer_id: &PeerId) -> bool {
+        // XXX: The assumption here is bootstrap_nodes is a list of persistent peers.
+        self.bootstrap_nodes
+            .iter()
+            .any(|(maybe_peer_id, _)| maybe_peer_id == &Some(*peer_id))
     }
 
     pub fn on_network_event(

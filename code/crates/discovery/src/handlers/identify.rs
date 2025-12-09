@@ -33,7 +33,7 @@ where
     ///    - If match found: update `bootstrap_nodes[i].0 = Some(peer_id)`
     ///
     /// Called after connection is established but before peer is added to active_connections
-    fn update_bootstrap_node_peer_id(&mut self, peer_id: PeerId) {
+    fn update_bootstrap_node_peer_id(&mut self, peer_id: PeerId, info: &identify::Info) {
         debug!(
             "Checking peer {} against {} bootstrap nodes",
             peer_id,
@@ -55,26 +55,36 @@ where
 
         // Find the dial_data that was updated in handle_connection
         // This dial_data originally had peer_id=None but now should have peer_id=Some(peer_id)
-        let Some((_, dial_data)) = self
+        let dial_data = self
             .controller
             .dial
             .get_in_progress_iter()
             .find(|(_, dial_data)| dial_data.peer_id() == Some(peer_id))
-        else {
-            // This happens for incoming connections (peers that dialed this node)
-            // since no dial_data was created for them
-            return;
-        };
+            .map(|(_, dial_data)| dial_data);
 
-        // Match dial addresses against bootstrap node configurations
+        // Match addresses against bootstrap node configurations
+        // For outbound connections, check dial_data addresses
+        // For inbound connections, check peer's advertised addresses from identify
         for (maybe_peer_id, listen_addrs) in self.bootstrap_nodes.iter_mut() {
-            // Check if this bootstrap node is unidentified and addresses match
-            if maybe_peer_id.is_none()
-                && dial_data
+            // Check if this bootstrap node is unidentified
+            if maybe_peer_id.is_some() {
+                continue;
+            }
+
+            let addresses_match = if let Some(dial_data) = dial_data {
+                // Outbound connection: check addresses we dialed
+                dial_data
                     .listen_addrs()
                     .iter()
                     .any(|dial_addr| listen_addrs.contains(dial_addr))
-            {
+            } else {
+                // Inbound connection: check peer's advertised addresses
+                info.listen_addrs
+                    .iter()
+                    .any(|peer_addr| listen_addrs.contains(peer_addr))
+            };
+
+            if addresses_match {
                 // Bootstrap discovery completed: None -> Some(peer_id)
                 info!("Bootstrap peer {} successfully identified", peer_id);
                 *maybe_peer_id = Some(peer_id);
@@ -107,7 +117,20 @@ where
         }
 
         // Match peer against bootstrap nodes
-        self.update_bootstrap_node_peer_id(peer_id);
+        self.update_bootstrap_node_peer_id(peer_id, &info);
+
+        if self.config.persistent_peers_only && !self.is_persistent_peer(&peer_id) {
+            warn!(
+                peer = %peer_id, %connection_id,
+                "Rejecting connection from non-persistent peer as persistent_peers_only mode is on"
+            );
+
+            self.controller
+                .close
+                .add_to_queue((peer_id, connection_id), None);
+
+            return is_already_connected;
+        }
 
         if self
             .controller
@@ -141,7 +164,7 @@ where
             if connection_ids.len() >= self.config.max_connections_per_peer {
                 warn!(
                     peer = %peer_id, %connection_id,
-                    "Peer has has already reached the maximum number of connections ({}), closing connection",
+                    "Peer has already reached the maximum number of connections ({}), closing connection",
                     self.config.max_connections_per_peer
                 );
 

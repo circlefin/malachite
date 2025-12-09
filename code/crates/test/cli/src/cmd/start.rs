@@ -11,6 +11,10 @@ use crate::metrics;
 pub struct StartCmd {
     #[clap(long)]
     pub start_height: Option<u64>,
+
+    /// Only allow connections to/from persistent peers
+    #[clap(long)]
+    pub persistent_peers_only: bool,
 }
 
 impl StartCmd {
