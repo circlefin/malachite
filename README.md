@@ -116,6 +116,16 @@ You can also check out the [examples](./code/examples) for a more in-depth exper
 If you would like to contribute to the Malachite open-source codebase, please see [CONTRIBUTING.md](./CONTRIBUTING.md).
 We invite all contributors.
 
+## Getting started
+
+To build Malachite locally for the first time:
+
+```bash
+git clone https://github.com/circlefin/malachite.git
+cd malachite
+cargo build
+
+
 ## Requirements
 
 - Rust v1.82+ ([rustup.rs](https://rustup.rs))
