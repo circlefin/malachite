@@ -6,6 +6,8 @@ use malachitebft_test::{Height, Proposal, TestContext, ValidatorSet, Value};
 
 use informalsystems_malachitebft_core_driver::{Driver, Input, Output};
 
+use malachitebft_core_state_machine::state::Step;
+
 use crate::utils::*;
 
 // The following tests are performed:
@@ -3583,13 +3585,44 @@ fn invalid_proposal_becomes_valid_decision_via_certificate() {
 }
 
 fn run_steps(driver: &mut Driver<TestContext>, steps: Vec<TestStep>) {
+    let mut last_step = Step::Unstarted;
     for step in steps {
         println!("Step: {}", step.desc);
 
         let outputs = driver.process(step.input).expect("execute succeeded");
+        last_step = driver.round_state().step;
 
         assert_eq!(outputs, step.expected_outputs, "expected outputs");
         assert_eq!(driver.round(), step.expected_round, "expected round");
         assert_eq!(driver.round_state(), &step.new_state, "expected state");
     }
+
+    // If we have a decision, move to the next height and check driver's state
+    if last_step == Step::Commit {
+        let next_height = driver.height().increment();
+        driver.move_to_height(next_height, driver.validator_set().clone());
+        check_driver_initial_state(driver, next_height);
+    }
+}
+
+fn check_driver_initial_state(driver: &Driver<TestContext>, height: Height) {
+    assert_eq!(driver.height(), height);
+    assert_eq!(driver.round(), Round::Nil);
+    assert_eq!(driver.round_state().step, Step::Unstarted);
+    assert_eq!(driver.round_state().locked, None);
+    assert_eq!(driver.round_state().valid, None);
+    assert_eq!(driver.round_state().decision, None);
+
+    assert_eq!(driver.proposer_address(), None);
+    assert_eq!(driver.proposals().all_rounds().len(), 0);
+    assert_eq!(driver.votes().rounds(), 0);
+    assert_eq!(driver.commit_certificates().len(), 0);
+    assert_eq!(driver.polka_certificates().len(), 0);
+    assert_eq!(driver.pending_inputs().len(), 0);
+    assert_eq!(driver.last_prevote(), None);
+    assert_eq!(driver.last_precommit(), None);
+    assert_eq!(driver.round_certificate(), None);
+    assert_eq!(driver.proposer_address(), None);
+    assert_eq!(driver.proposals().all_rounds().len(), 0);
+    assert_eq!(driver.votes().rounds(), 0);
 }

@@ -108,24 +108,28 @@ where
 
     /// Reset votes, round state, pending input and move to new height with the given validator set.
     pub fn move_to_height(&mut self, height: Ctx::Height, validator_set: Ctx::ValidatorSet) {
-        // Reset the proposal keeper
-        let proposal_keeper = ProposalKeeper::new();
-
         // Update the validator set
         self.validator_set = validator_set.clone();
+        self.proposer = None;
 
         // Reset the vote keeper
         let vote_keeper = VoteKeeper::new(validator_set, self.threshold_params);
+        self.vote_keeper = vote_keeper;
 
         // Reset the round state
         let round_state = RoundState::new(height, Round::Nil);
-
-        self.vote_keeper = vote_keeper;
-        self.proposal_keeper = proposal_keeper;
         self.round_state = round_state;
-        self.pending_inputs = vec![];
+        self.round_certificate = None;
+
+        // Reset the proposal keeper
+        let proposal_keeper = ProposalKeeper::new();
+        self.proposal_keeper = proposal_keeper;
+
+        // Reset certificates
         self.commit_certificates = vec![];
         self.polka_certificates = vec![];
+
+        // Reset additional internal state
         self.last_prevote = None;
         self.last_precommit = None;
     }
@@ -233,6 +237,11 @@ where
             .find(|c| &c.value_id == value_id && c.round == round && c.height == self.height())
     }
 
+    /// Return the commit certificates, if any.
+    pub fn commit_certificates(&self) -> &[CommitCertificate<Ctx>] {
+        self.commit_certificates.as_ref()
+    }
+
     /// Get the polka certificates at the current height for the specified round and value, if it exists
     pub fn polka_certificate(
         &self,
@@ -242,6 +251,26 @@ where
         self.polka_certificates
             .iter()
             .find(|c| &c.value_id == value_id && c.round == round && c.height == self.height())
+    }
+
+    /// Return the polka certificates, if any.
+    pub fn polka_certificates(&self) -> &[PolkaCertificate<Ctx>] {
+        self.polka_certificates.as_ref()
+    }
+
+    /// Return all pending inputs, as pairs (round, round input).
+    pub fn pending_inputs(&self) -> &[(Round, RoundInput<Ctx>)] {
+        self.pending_inputs.as_ref()
+    }
+
+    /// Return the last issued prevote, if any.
+    pub fn last_prevote(&self) -> Option<&Ctx::Vote> {
+        self.last_prevote.as_ref()
+    }
+
+    /// Return the last issued prevote, if any.
+    pub fn last_precommit(&self) -> Option<&Ctx::Vote> {
+        self.last_precommit.as_ref()
     }
 
     /// Get the round certificate for the current round.
