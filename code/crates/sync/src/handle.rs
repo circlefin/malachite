@@ -89,7 +89,7 @@ where
             {
                 if stored_peer_id != &peer_id {
                     warn!(
-                        %request_id, peer.actual = %peer_id, peer.expected = %stored_peer_id,
+                        %request_id, actual_peer = %peer_id, expected_peer = %stored_peer_id,
                         "Received response from different peer than expected"
                     );
 
@@ -150,7 +150,7 @@ pub async fn on_tick<Ctx>(
 where
     Ctx: Context,
 {
-    debug!(height.tip = %state.tip_height, "Broadcasting status");
+    debug!(tip_height = %state.tip_height, "Broadcasting status");
 
     perform!(
         co,
@@ -164,7 +164,7 @@ where
             .reset_inactive_peers_scores(inactive_threshold);
     }
 
-    debug!("Peer scores: {:#?}", state.peer_scorer.get_scores());
+    debug!("Peer scores: {:?}", state.peer_scorer.get_scores());
 
     Ok(())
 }
@@ -181,7 +181,7 @@ where
     let peer_id = status.peer_id;
     let peer_height = status.tip_height;
 
-    debug!(peer.id = %peer_id, peer.height = %peer_height, "Received peer status");
+    debug!(%peer_id, %peer_height, "Received peer status");
 
     state.update_status(status);
 
@@ -192,9 +192,9 @@ where
 
     if peer_height >= state.sync_height {
         info!(
-            height.tip = %state.tip_height,
-            height.sync = %state.sync_height,
-            height.peer = %peer_height,
+            tip_height = %state.tip_height,
+            sync_height = %state.sync_height,
+            peer_height = %peer_height,
             "SYNC REQUIRED: Falling behind"
         );
 
@@ -216,7 +216,7 @@ pub async fn on_started_height<Ctx>(
 where
     Ctx: Context,
 {
-    debug!(%height, is_restart=%start_type.is_restart(), "Consensus started new height");
+    debug!(%height, is_restart = %start_type.is_restart(), "Consensus started new height");
 
     state.started = true;
 
@@ -475,7 +475,7 @@ pub async fn on_got_decided_values<Ctx>(
 where
     Ctx: Context,
 {
-    info!(range = %DisplayRange(&range), "Received {} values from host", values.len());
+    info!(%request_id, range = %DisplayRange(&range), "Received {} values from host", values.len());
 
     let start = range.start();
     let end = range.end();
@@ -484,6 +484,7 @@ where
     let batch_size = end.as_u64() - start.as_u64() + 1;
     if batch_size != values.len() as u64 {
         warn!(
+            %request_id,
             "Received {} values from host, expected {batch_size}",
             values.len()
         )
@@ -494,6 +495,7 @@ where
     for value in &values {
         if value.certificate.height != height {
             error!(
+                %request_id,
                 "Received from host value for height {}, expected for height {height}",
                 value.certificate.height
             );

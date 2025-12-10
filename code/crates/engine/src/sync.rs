@@ -560,8 +560,8 @@ where
         parent = &self.span,
         skip_all,
         fields(
-            height.tip = %state.sync.tip_height,
-            height.sync = %state.sync.sync_height,
+            tip_height = %state.sync.tip_height,
+            sync_height = %state.sync.sync_height,
         ),
     )]
     async fn handle(

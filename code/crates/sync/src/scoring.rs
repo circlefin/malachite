@@ -1,3 +1,4 @@
+use core::fmt;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
@@ -50,7 +51,7 @@ pub enum Strategy {
     Ema,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub struct PeerScore {
     score: Score,
     last_update: Instant,
@@ -62,6 +63,20 @@ impl PeerScore {
             score,
             last_update: Instant::now(),
         }
+    }
+}
+
+impl fmt::Debug for PeerScore {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Round score to 3 decimal places for readability
+        fn round_score(score: Score) -> f64 {
+            (score * 1000.0).round() / 1000.0
+        }
+
+        f.debug_struct("PeerScore")
+            .field("score", &round_score(self.score))
+            .field("last_update", &self.last_update.elapsed())
+            .finish()
     }
 }
 
