@@ -4,22 +4,8 @@
 
 ### `malachitebft-core-types`
 
-- Move `SigningProvider` and `SigningProviderExt` traits into new `malachitebft-signing` crate ([#1191](https://github.com/informalsystems/malachite/pull/1191))
 - Added new associated type `Timeouts` to the `Context` trait (use `LinearTimeouts` for default implementation) ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Remove `initial_validator_set` and `initial_height` fields from `Params` struct ([#1190](https://github.com/circlefin/malachite/pull/1190))
-
-### `malachitebft-signing`
-
-- New crate exposing the `SigningProvider` trait ([#1191](https://github.com/informalsystems/malachite/pull/1191))
-- Make methods of `SigningProvider` and `SigningProviderExt` traits fallible ([#1191](https://github.com/informalsystems/malachite/pull/1191))
-- Changed methods of `SigningProvider` and `SigningProviderExt` traits to `async` ([#1151](https://github.com/informalsystems/malachite/issues/1151))
-
-### `malachitebft-core-consensus`
-
-- Remove `GetValidatorSet` effect ([#1189](https://github.com/circlefin/malachite/pull/1189))
-- Removed `Effect::ResetTimeouts` variant ([#1227](https://github.com/circlefin/malachite/pull/1227))
-- Changed `Input::StartHeight` from `StartHeight(Height, ValidatorSet, bool)` to `StartHeight(Height, Option<ValidatorSet>, bool)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
-- Changed `State::reset_and_start_height()` signature from `(height, validator_set)` to `(height, validator_set: Option<ValidatorSet>)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 
 ### `malachitebft-core-driver`
 
@@ -30,9 +16,14 @@
 - Removed `timeouts` field from `Driver` struct - Driver no longer stores or manages timeouts ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Changed `Driver::move_to_height` signature from `move_to_height(Height, Validator_set, Timeouts)` to `move_to_height(Height, Option<ValidatorSet>)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 
+### `malachitebft-core-consensus`
+
+- Removed `Effect::ResetTimeouts` variant ([#1227](https://github.com/circlefin/malachite/pull/1227))
+- Changed `Input::StartHeight` from `StartHeight(Height, ValidatorSet, bool)` to `StartHeight(Height, Option<ValidatorSet>, bool)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
+- Changed `State::reset_and_start_height()` signature from `(height, validator_set)` to `(height, validator_set: Option<ValidatorSet>)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
+
 ### `malachitebft-engine`
 
-- Remove `HostMsg::GetValidatorSet` ([#1189](https://github.com/circlefin/malachite/pull/1189))
 - Changed `Next::Start` variant from `Start(Height, ValidatorSet)` to `Start(Height, HeightParams)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Changed `Next::Restart` variant from `Restart(Height, ValidatorSet)` to `Restart(Height, HeightParams)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Changed `HostMsg::ConsensusReady` reply type from `(Ctx::Height, Ctx::ValidatorSet)` to `(Ctx::Height, HeightParams<Ctx>)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
@@ -42,18 +33,43 @@
 
 ### `malachitebft-config`
 
-- Added field `channel_names: ChannelNames` to `NetworkConfig` struct ([#849](https://github.com/informalsystems/malachite/pull/849))
 - Removed `TimeoutConfig` struct ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Removed `timeouts` field from `ConsensusConfig` struct (timeouts are now managed via `Context::Timeouts` associated type) ([#1227](https://github.com/circlefin/malachite/pull/1227))
 
 ### `malachitebft-app-channel`
 
-- Remove `AppMsg::GetValidatorSet` ([#1189](https://github.com/circlefin/malachite/pull/1189))
-- Added field `requests: tokio::sync::mpsc::Sender<ConsensusRequest<Ctx>>` to `Channels` struct ([#1176](https://github.com/circlefin/malachite/pull/1176))
 - Changed `AppMsg::ConsensusReady` reply type from `(Ctx::Height, Ctx::ValidatorSet)` to `(Ctx::Height, HeightParams<Ctx>)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Changed `ConsensusMsg::StartHeight` from `StartHeight(Height, ValidatorSet)` to `StartHeight(Height, HeightParams)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Changed `ConsensusMsg::RestartHeight` from `RestartHeight(Height, ValidatorSet)` to `RestartHeight(Height, HeightParams)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 
+## 0.6.0
+
+### `malachitebft-core-types`
+
+- Move `SigningProvider` and `SigningProviderExt` traits into new `malachitebft-signing` crate ([#1191](https://github.com/informalsystems/malachite/pull/1191))
+
+### `malachitebft-signing`
+
+- New crate exposing the `SigningProvider` trait ([#1191](https://github.com/informalsystems/malachite/pull/1191))
+- Make methods of `SigningProvider` and `SigningProviderExt` traits fallible ([#1191](https://github.com/informalsystems/malachite/pull/1191))
+- Changed methods of `SigningProvider` and `SigningProviderExt` traits to `async` ([#1151](https://github.com/informalsystems/malachite/issues/1151))
+
+### `malachitebft-core-consensus`
+
+- Remove `GetValidatorSet` effect ([#1189](https://github.com/circlefin/malachite/pull/1189))
+
+### `malachitebft-engine`
+
+- Remove `HostMsg::GetValidatorSet` ([#1189](https://github.com/circlefin/malachite/pull/1189))
+
+### `malachitebft-config`
+
+- Added field `channel_names: ChannelNames` to `NetworkConfig` struct ([#849](https://github.com/informalsystems/malachite/pull/849))
+
+### `malachitebft-app-channel`
+
+- Remove `AppMsg::GetValidatorSet` ([#1189](https://github.com/circlefin/malachite/pull/1189))
+- Added field `requests: tokio::sync::mpsc::Sender<ConsensusRequest<Ctx>>` to `Channels` struct ([#1176](https://github.com/circlefin/malachite/pull/1176))
 
 ## 0.5.0
 

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Add `persistent_peers_only` config option to allow connections ONLY from/to persistent peers ([#54](https://github.com/circlefin/circle-chain-consensus/pull/54))
+- Allow dynamic adjustment of timeout parameters ([#1227](https://github.com/circlefin/malachite/pull/1227))
+- Allow providing both the validator set and the timeouts for a height in `StartHeight`, `RestartHeight` and `ConsensusReady` reply ([#1227](https://github.com/circlefin/malachite/pull/1227))
+- Remove `initial_validator_set` and `initial_height` fields from `Params` struct ([#1190](https://github.com/circlefin/malachite/pull/1190))
+
+## 0.6.0
+
+*November 19th, 2025*
+
 - Remove `Effect::GetValidatorSet`, `AppMsg::GetValidatorSet` and `HostMsg::GetValidatorSet` ([#1189](https://github.com/circlefin/malachite/pull/1189))
 - Introduce `malachitebft-signing` crate for exposing the `SigningProvider` and `SigningProviderExt` traits ([#1191](https://github.com/informalsystems/malachite/pull/1191))
 - Make `SigningProvider` trait methods fallible ([#1191](https://github.com/informalsystems/malachite/pull/1191))
@@ -11,10 +20,6 @@
 - Add facility for app to request a consensus state dump at any time ([#1176](https://github.com/informalsystems/malachite/pull/1176))
 - Make libp2p protocol names configurable ([#1161](https://github.com/informalsystems/malachite/issues/1161))
 - Fix mismatched height of WAL entries emitted when processing `StartHeight` input ([#1232](https://github.com/circlefin/malachite/issues/1232))
-- Add `persistent_peers_only` config option to allow connections ONLY from/to persistent peers ([#54](https://github.com/circlefin/circle-chain-consensus/pull/54))
-- Allow dynamic adjustment of timeout parameters ([#1227](https://github.com/circlefin/malachite/pull/1227))
-- Allow providing both the validator set and the timeouts for a height in `StartHeight`, `RestartHeight` and `ConsensusReady` reply ([#1227](https://github.com/circlefin/malachite/pull/1227))
-- Remove `initial_validator_set` and `initial_height` fields from `Params` struct ([#1190](https://github.com/circlefin/malachite/pull/1190))
 
 ## 0.5.0
 

@@ -2430,7 +2430,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-signing-ecdsa"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "base64 0.22.1",
  "informalsystems-malachitebft-core-types",
