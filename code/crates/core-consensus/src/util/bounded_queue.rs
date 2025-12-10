@@ -458,7 +458,7 @@ mod tests {
 
         assert!(
             !queue.queue.contains_key(&30),
-            "The high value element should be remmoved"
+            "The high value element should be removed"
         );
     }
 }
