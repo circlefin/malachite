@@ -118,8 +118,16 @@ We invite all contributors.
 
 ## Requirements
 
-- Rust v1.82+ ([rustup.rs](https://rustup.rs))
-- Quint v0.22+ ([github.com](https://github.com/informalsystems/quint))
+  * Rust v1.82+ (https://rustup.rs)
+  * Quint v0.22+ (https://github.com/informalsystems/quint)
+
+## Changelog
+
+For a detailed history of changes and upgrade notes, see:
+
+- [`RELEASE_NOTES.md`](./RELEASE_NOTES.md)
+- GitHub releases: https://github.com/circlefin/malachite/releases
+
 
 ## Acknowledgements
 
