@@ -238,3 +238,14 @@ Unless required by applicable law or agreed to in writing, software distributed 
 [sync-docs-link]: https://docs.rs/informalsystems-malachitebft-sync
 [wal-docs-image]: https://img.shields.io/docsrs/informalsystems-malachitebft-wal
 [wal-docs-link]: https://docs.rs/informalsystems-malachitebft-wal
+
+## Related Projects
+
+Here are some related tools and libraries that may be useful when working with Malachite:
+
+- **Rust Crypto Libraries**: https://github.com/RustCrypto  
+- **Serde for Rust data formats**: https://github.com/serde-rs/serde  
+- **Tokio async runtime**: https://github.com/tokio-rs/tokio
+
+If you think additional links should be added, feel free to suggest them in an issue.
+
