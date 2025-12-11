@@ -4,20 +4,23 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use malachitebft_test::codec::json::JsonCodec;
-use malachitebft_test::codec::proto::ProtobufCodec;
 use rand::{CryptoRng, RngCore};
 use tokio::task::JoinHandle;
 use tracing::Instrument;
 
 use malachitebft_app_channel::app::config::*;
 use malachitebft_app_channel::app::events::{RxEvent, TxEvent};
-use malachitebft_app_channel::app::node::{
-    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, EngineHandle,
-    MakeConfigSettings, Node, NodeHandle,
-};
 use malachitebft_app_channel::app::types::core::VotingPower;
 use malachitebft_app_channel::app::types::Keypair;
+use malachitebft_app_channel::{
+    ConsensusContext, EngineHandle, NetworkContext, RequestContext, WalContext,
+};
+use malachitebft_test::codec::json::JsonCodec;
+use malachitebft_test::codec::proto::ProtobufCodec;
+use malachitebft_test::node::{Node, NodeHandle};
+use malachitebft_test::traits::{
+    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, MakeConfigSettings,
+};
 
 use malachitebft_test::middleware::{DefaultMiddleware, Middleware};
 
@@ -130,16 +133,17 @@ impl Node for App {
 
         let public_key = self.get_public_key(&self.private_key);
         let address = self.get_address(&public_key);
-        let signing_provider = self.get_signing_provider(self.private_key.clone());
+        let keypair = self.get_keypair(self.private_key.clone());
         let genesis = self.load_genesis()?;
+        let wal_path = self.get_home_dir().join("wal").join("consensus.wal");
 
         let (mut channels, engine_handle) = malachitebft_app_channel::start_engine(
             ctx.clone(),
-            self.clone(),
             config.clone(),
-            ProtobufCodec, // WAL codec
-            JsonCodec,     // Network codec
-            100,           // Request channel size
+            WalContext::new(wal_path, ProtobufCodec),
+            NetworkContext::new(keypair, JsonCodec),
+            ConsensusContext::new(address, self.get_signing_provider(self.private_key.clone())),
+            RequestContext::new(100), // Request channel size
         )
         .await?;
 
@@ -158,7 +162,7 @@ impl Node for App {
             address,
             start_height,
             store,
-            signing_provider,
+            self.get_signing_provider(self.private_key.clone()),
             self.middleware.clone(),
         );
 

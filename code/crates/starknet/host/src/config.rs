@@ -2,7 +2,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use malachitebft_app::node::NodeConfig;
+use malachitebft_app::config::NodeConfig;
 
 pub use malachitebft_app::config::{
     ConsensusConfig, LogFormat, LogLevel, LoggingConfig, MempoolConfig, MetricsConfig,

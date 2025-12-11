@@ -1,6 +1,7 @@
 //! Utility functions for spawning the actor system and connecting it to the application.
 
 use eyre::Result;
+use malachitebft_config::ValueSyncConfig;
 use tokio::sync::mpsc;
 
 use malachitebft_engine::consensus::ConsensusCodec;
@@ -30,6 +31,7 @@ where
 
 pub async fn spawn_network_actor<Ctx, Codec>(
     cfg: &ConsensusConfig,
+    value_sync_cfg: &ValueSyncConfig,
     moniker: String,
     keypair: Keypair,
     registry: &SharedRegistry,
@@ -42,7 +44,9 @@ where
 {
     let (tx, mut rx) = mpsc::channel::<NetworkMsg<Ctx>>(1);
 
-    let actor_ref = app::spawn::spawn_network_actor(cfg, moniker, keypair, registry, codec).await?;
+    let actor_ref =
+        app::spawn::spawn_network_actor(cfg, value_sync_cfg, moniker, keypair, registry, codec)
+            .await?;
 
     tokio::spawn({
         let actor_ref = actor_ref.clone();

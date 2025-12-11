@@ -6,12 +6,12 @@ use std::time::Duration;
 use clap::Parser;
 use tracing::{info, warn};
 
-use malachitebft_app::node::{
-    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile,
-    MakeConfigSettings, Node,
-};
 use malachitebft_config::{
     BootstrapProtocol, DiscoveryConfig, RuntimeConfig, Selector, TransportProtocol,
+};
+use malachitebft_test::node::Node;
+use malachitebft_test::traits::{
+    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, MakeConfigSettings,
 };
 
 use crate::error::Error;
@@ -94,6 +94,9 @@ impl InitCmd {
                 ephemeral_connection_timeout: Duration::from_millis(
                     self.ephemeral_connection_timeout_ms,
                 ),
+                dial_max_retries: 5,
+                request_max_retries: 5,
+                connect_request_max_retries: 3,
             },
             value_sync: Default::default(),
             persistent_peers_only: self.persistent_peers_only,

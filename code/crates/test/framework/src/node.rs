@@ -2,9 +2,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use eyre::bail;
-use malachitebft_app::node::NodeConfig;
 use tracing::info;
 
+use malachitebft_app::config::NodeConfig;
 use malachitebft_core_consensus::{LocallyProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{Context, Height, SignedVote, Vote, VoteType, VotingPower};
 use malachitebft_engine::util::events::Event;

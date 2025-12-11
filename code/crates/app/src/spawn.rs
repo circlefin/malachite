@@ -52,7 +52,8 @@ where
 }
 
 pub async fn spawn_network_actor<Ctx, Codec>(
-    cfg: &ConsensusConfig,
+    consensus_cfg: &ConsensusConfig,
+    value_sync_cfg: &ValueSyncConfig,
     moniker: String,
     keypair: Keypair,
     registry: &SharedRegistry,
@@ -63,7 +64,7 @@ where
     Codec: ConsensusCodec<Ctx>,
     Codec: SyncCodec<Ctx>,
 {
-    let config = make_network_config(cfg, moniker);
+    let config = make_network_config(consensus_cfg, value_sync_cfg, moniker);
 
     Network::spawn(keypair, config, registry.clone(), codec, Span::current())
         .await
@@ -72,8 +73,8 @@ where
 
 #[allow(clippy::too_many_arguments)]
 pub async fn spawn_consensus_actor<Ctx>(
-    address: Ctx::Address,
     ctx: Ctx,
+    address: Ctx::Address,
     mut cfg: ConsensusConfig,
     sync_cfg: &ValueSyncConfig,
     signing_provider: Box<dyn SigningProvider<Ctx>>,
@@ -125,21 +126,28 @@ where
 pub async fn spawn_wal_actor<Ctx, Codec>(
     ctx: &Ctx,
     codec: Codec,
-    home_dir: &Path,
+    path: &Path,
     registry: &SharedRegistry,
 ) -> Result<WalRef<Ctx>>
 where
     Ctx: Context,
     Codec: WalCodec<Ctx>,
 {
-    let wal_dir = home_dir.join("wal");
-    std::fs::create_dir_all(&wal_dir).unwrap();
+    if !path.exists() {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
 
-    let wal_file = wal_dir.join("consensus.wal");
-
-    Wal::spawn(ctx, codec, wal_file, registry.clone(), Span::current())
-        .await
-        .map_err(Into::into)
+    Wal::spawn(
+        ctx,
+        codec,
+        path.to_owned(),
+        registry.clone(),
+        Span::current(),
+    )
+    .await
+    .map_err(Into::into)
 }
 
 pub async fn spawn_sync_actor<Ctx, Codec>(
@@ -196,7 +204,11 @@ where
     Ok(Some(actor_ref))
 }
 
-fn make_network_config(cfg: &ConsensusConfig, moniker: String) -> NetworkConfig {
+fn make_network_config(
+    cfg: &ConsensusConfig,
+    value_sync_cfg: &ValueSyncConfig,
+    moniker: String,
+) -> NetworkConfig {
     use malachitebft_config as config;
     use malachitebft_network as network;
 
@@ -220,9 +232,9 @@ fn make_network_config(cfg: &ConsensusConfig, moniker: String) -> NetworkConfig 
             num_inbound_peers: cfg.p2p.discovery.num_inbound_peers,
             max_connections_per_peer: cfg.p2p.discovery.max_connections_per_peer,
             ephemeral_connection_timeout: cfg.p2p.discovery.ephemeral_connection_timeout,
-            dial_max_retries: 5,
-            request_max_retries: 5,
-            connect_request_max_retries: 0,
+            dial_max_retries: cfg.p2p.discovery.dial_max_retries,
+            request_max_retries: cfg.p2p.discovery.request_max_retries,
+            connect_request_max_retries: cfg.p2p.discovery.connect_request_max_retries,
         },
         idle_connection_timeout: Duration::from_secs(15 * 60),
         transport: network::TransportProtocol::from_multiaddr(&cfg.p2p.listen_addr).unwrap_or_else(
@@ -251,7 +263,7 @@ fn make_network_config(cfg: &ConsensusConfig, moniker: String) -> NetworkConfig 
         rpc_max_size: cfg.p2p.rpc_max_size.as_u64() as usize,
         pubsub_max_size: cfg.p2p.pubsub_max_size.as_u64() as usize,
         enable_consensus: cfg.enabled,
-        enable_sync: true,
+        enable_sync: value_sync_cfg.enabled,
         protocol_names: network::ProtocolNames {
             consensus: cfg.p2p.protocol_names.consensus.clone(),
             discovery_kad: cfg.p2p.protocol_names.discovery_kad.clone(),

@@ -15,8 +15,10 @@ mod vote;
 
 pub mod codec;
 pub mod middleware;
+pub mod node;
 pub mod proposer_selector;
 pub mod proto;
+pub mod traits;
 pub mod utils;
 
 pub use crate::address::*;

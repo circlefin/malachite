@@ -93,21 +93,30 @@ pub struct DiscoveryConfig {
     pub selector: Selector,
 
     /// Number of outbound peers
-    #[serde(default)]
+    #[serde(default = "discovery::default_num_outbound_peers")]
     pub num_outbound_peers: usize,
 
     /// Number of inbound peers
-    #[serde(default)]
+    #[serde(default = "discovery::default_num_inbound_peers")]
     pub num_inbound_peers: usize,
 
     /// Maximum number of connections per peer
-    #[serde(default)]
+    #[serde(default = "discovery::default_max_connections_per_peer")]
     pub max_connections_per_peer: usize,
 
     /// Ephemeral connection timeout
     #[serde(default)]
     #[serde(with = "humantime_serde")]
     pub ephemeral_connection_timeout: Duration,
+
+    #[serde(default = "discovery::default_dial_max_retries")]
+    pub dial_max_retries: usize,
+
+    #[serde(default = "discovery::default_request_max_retries")]
+    pub request_max_retries: usize,
+
+    #[serde(default = "discovery::default_connect_request_max_retries")]
+    pub connect_request_max_retries: usize,
 }
 
 impl Default for DiscoveryConfig {
@@ -116,11 +125,40 @@ impl Default for DiscoveryConfig {
             enabled: false,
             bootstrap_protocol: Default::default(),
             selector: Default::default(),
-            num_outbound_peers: 50,
-            num_inbound_peers: 50,
-            max_connections_per_peer: 5,
-            ephemeral_connection_timeout: Default::default(),
+            num_outbound_peers: discovery::default_num_outbound_peers(),
+            num_inbound_peers: discovery::default_num_inbound_peers(),
+            max_connections_per_peer: discovery::default_max_connections_per_peer(),
+            ephemeral_connection_timeout: Duration::from_secs(60),
+            dial_max_retries: discovery::default_dial_max_retries(),
+            request_max_retries: discovery::default_request_max_retries(),
+            connect_request_max_retries: discovery::default_connect_request_max_retries(),
         }
+    }
+}
+
+mod discovery {
+    pub fn default_num_outbound_peers() -> usize {
+        50
+    }
+
+    pub fn default_num_inbound_peers() -> usize {
+        50
+    }
+
+    pub fn default_max_connections_per_peer() -> usize {
+        5
+    }
+
+    pub fn default_dial_max_retries() -> usize {
+        5
+    }
+
+    pub fn default_request_max_retries() -> usize {
+        5
+    }
+
+    pub fn default_connect_request_max_retries() -> usize {
+        3
     }
 }
 

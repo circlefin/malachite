@@ -8,11 +8,11 @@ use clap::Parser;
 use color_eyre::eyre::{eyre, Result};
 use tracing::info;
 
-use malachitebft_app::node::{
-    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile,
-    MakeConfigSettings, Node,
-};
 use malachitebft_config::*;
+use malachitebft_test::node::Node;
+use malachitebft_test::traits::{
+    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, MakeConfigSettings,
+};
 
 use crate::args::Args;
 use crate::error::Error;
@@ -140,6 +140,9 @@ impl TestnetCmd {
                 ephemeral_connection_timeout: Duration::from_millis(
                     self.ephemeral_connection_timeout_ms,
                 ),
+                dial_max_retries: 5,
+                request_max_retries: 5,
+                connect_request_max_retries: 3,
             },
             value_sync: Default::default(),
             persistent_peers_only: self.persistent_peers_only,

@@ -11,11 +11,11 @@ use tracing::{debug, error, error_span, info, Instrument};
 
 use malachitebft_core_types::{Context, Height};
 
-pub use malachitebft_app::node::{
-    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, EngineHandle,
-    Node, NodeHandle,
-};
 pub use malachitebft_engine::util::events::{Event, RxEvent, TxEvent};
+pub use malachitebft_test::node::{Node, NodeHandle};
+pub use malachitebft_test::traits::{
+    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile,
+};
 
 mod logging;
 use logging::init_logging;

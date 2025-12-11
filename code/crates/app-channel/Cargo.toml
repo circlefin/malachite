@@ -22,8 +22,9 @@ thiserror.workspace = true
 tracing.workspace = true
 
 malachitebft-app.workspace = true
-malachitebft-engine.workspace = true
 malachitebft-config.workspace = true
+malachitebft-engine.workspace = true
+malachitebft-signing.workspace = true
 
 [lints]
 workspace = true

@@ -17,8 +17,7 @@ use malachitebft_test_framework::{NodeRunner, TestNode};
 
 pub use malachitebft_test_framework::TestBuilder as GenTestBuilder;
 pub use malachitebft_test_framework::{
-    CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, EngineHandle, HandlerResult, Node,
-    NodeId, TestParams,
+    CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, HandlerResult, Node, NodeId, TestParams,
 };
 
 use tempfile::TempDir;
