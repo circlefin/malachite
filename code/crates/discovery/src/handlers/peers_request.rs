@@ -138,8 +138,11 @@ where
         swarm: &mut Swarm<C>,
         peers: HashSet<(Option<PeerId>, Vec<Multiaddr>)>,
     ) {
-        for (peer_id, listen_addr) in peers {
-            self.add_to_dial_queue(swarm, DialData::new(peer_id, listen_addr));
+        for (peer_id, listen_addrs) in peers {
+            if listen_addrs.is_empty() {
+                continue;
+            }
+            self.add_to_dial_queue(swarm, DialData::new(peer_id, listen_addrs));
         }
     }
 
