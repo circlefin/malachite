@@ -15,7 +15,7 @@ where
     C: DiscoveryClient,
 {
     pub fn can_connect_request(&self) -> bool {
-        self.controller.peers_request.can_perform()
+        self.controller.connect_request.can_perform()
     }
 
     fn should_connect_request(&self, request_data: &RequestData) -> bool {
