@@ -131,10 +131,6 @@ impl Handle {
         self.recv.recv().await
     }
 
-    pub async fn broadcast(&self, channel: Channel, data: Bytes) -> Result<(), eyre::Report> {
-        self.ctrl.publish(channel, data).await
-    }
-
     pub async fn wait_shutdown(self) -> Result<(), eyre::Report> {
         self.ctrl.wait_shutdown().await
     }
