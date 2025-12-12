@@ -23,6 +23,7 @@ tracing-subscriber.workspace = true
 
 [dev-dependencies]
 malachitebft-discovery-test = { workspace = true }
+netstat2 = "0.11"
 
 [lints]
 workspace = true

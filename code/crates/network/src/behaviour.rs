@@ -1,6 +1,8 @@
+use std::convert::Infallible;
 use std::time::Duration;
 
 use eyre::Result;
+use libp2p::connection_limits;
 pub use libp2p::identity::Keypair;
 use libp2p::kad::{Addresses, KBucketKey, KBucketRef};
 use libp2p::request_response::{OutboundRequestId, ResponseChannel};
@@ -16,6 +18,29 @@ use malachitebft_sync as sync;
 use tracing::info;
 
 use crate::{peer_scoring, Config, GossipSubConfig};
+
+/// Multiplier for connection limits.
+/// Connection limits are higher than discovery limits to allow headroom for ephemeral
+/// connections, persistent peers, and connection churn.
+const CONNECTION_LIMITS_MULTIPLIER: u32 = 4;
+
+/// Derive libp2p connection limits from network config.
+/// Uses 4x multiplier to provide headroom above discovery-level limits.
+fn connection_limits(config: &Config) -> connection_limits::ConnectionLimits {
+    let multiplier = CONNECTION_LIMITS_MULTIPLIER;
+    let max_pending_incoming = (config.discovery.num_inbound_peers as u32) * multiplier;
+    let max_pending_outgoing = (config.discovery.num_outbound_peers as u32) * multiplier;
+    let max_established_incoming = (config.discovery.num_inbound_peers as u32) * multiplier;
+    let max_established_outgoing = (config.discovery.num_outbound_peers as u32) * multiplier;
+    let max_established_per_peer = (config.discovery.max_connections_per_peer as u32) * multiplier;
+
+    connection_limits::ConnectionLimits::default()
+        .with_max_pending_incoming(Some(max_pending_incoming))
+        .with_max_pending_outgoing(Some(max_pending_outgoing))
+        .with_max_established_incoming(Some(max_established_incoming))
+        .with_max_established_outgoing(Some(max_established_outgoing))
+        .with_max_established_per_peer(Some(max_established_per_peer))
+}
 
 #[derive(Debug)]
 pub enum NetworkEvent {
@@ -63,9 +88,18 @@ impl From<discovery::NetworkEvent> for NetworkEvent {
     }
 }
 
+// connection_limits::Behaviour never emits events (uses Infallible),
+// but the NetworkBehaviour derive macro requires this implementation.
+impl From<Infallible> for NetworkEvent {
+    fn from(event: Infallible) -> Self {
+        match event {}
+    }
+}
+
 #[derive(NetworkBehaviour)]
 #[behaviour(to_swarm = "NetworkEvent")]
 pub struct Behaviour {
+    pub connection_limits: connection_limits::Behaviour,
     pub identify: identify::Behaviour,
     pub ping: ping::Behaviour,
     pub gossipsub: Toggle<gossipsub::Behaviour>,
@@ -222,7 +256,11 @@ impl Behaviour {
             None
         };
 
+        // Limits for transport layer defense against connection attacks
+        let connection_limits = connection_limits::Behaviour::new(connection_limits(config));
+
         Ok(Self {
+            connection_limits,
             identify,
             ping,
             sync: Toggle::from(sync),
