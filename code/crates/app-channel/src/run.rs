@@ -7,8 +7,8 @@ use eyre::{eyre, Result};
 use tokio::sync::mpsc::{self, Receiver};
 use tokio::task::JoinHandle;
 
-use malachitebft_app::types::Keypair;
 use malachitebft_engine::consensus::{ConsensusMsg, ConsensusRef};
+pub use malachitebft_engine::network::NetworkIdentity;
 use malachitebft_engine::node::NodeRef;
 use malachitebft_engine::util::events::TxEvent;
 use malachitebft_signing::SigningProvider;
@@ -36,13 +36,13 @@ impl EngineHandle {
 }
 
 pub struct NetworkContext<Codec> {
-    pub keypair: Keypair,
+    pub identity: NetworkIdentity,
     pub codec: Codec,
 }
 
 impl<Codec> NetworkContext<Codec> {
-    pub fn new(keypair: Keypair, codec: Codec) -> Self {
-        Self { keypair, codec }
+    pub fn new(identity: NetworkIdentity, codec: Codec) -> Self {
+        Self { identity, codec }
     }
 }
 
@@ -104,10 +104,9 @@ where
 
     // Spawn consensus gossip
     let (network, tx_network) = spawn_network_actor(
+        network_ctx.identity,
         cfg.consensus(),
         cfg.value_sync(),
-        cfg.moniker().to_string(),
-        network_ctx.keypair,
         &registry,
         network_ctx.codec.clone(),
     )

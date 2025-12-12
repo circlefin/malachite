@@ -359,6 +359,14 @@ where
                 self.tx_event
                     .send(|| Event::StartedHeight(height, is_restart));
 
+                // Push validator set to network layer
+                if let Err(e) = self
+                    .network
+                    .cast(NetworkMsg::UpdateValidatorSet(params.validator_set.clone()))
+                {
+                    error!(%height, "Error pushing validator set to network layer: {e}");
+                }
+
                 // Fetch entries from the WAL or reset the WAL if this is a restart
                 let wal_entries = if is_restart {
                     self.wal_reset(height).await?;

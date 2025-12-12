@@ -12,6 +12,7 @@ use malachitebft_app_channel::app::config::*;
 use malachitebft_app_channel::app::events::{RxEvent, TxEvent};
 use malachitebft_app_channel::app::types::core::VotingPower;
 use malachitebft_app_channel::app::types::Keypair;
+use malachitebft_app_channel::NetworkIdentity;
 use malachitebft_app_channel::{
     ConsensusContext, EngineHandle, NetworkContext, RequestContext, WalContext,
 };
@@ -136,12 +137,13 @@ impl Node for App {
         let keypair = self.get_keypair(self.private_key.clone());
         let genesis = self.load_genesis()?;
         let wal_path = self.get_home_dir().join("wal").join("consensus.wal");
-
+        let identity =
+            NetworkIdentity::new(config.moniker.clone(), keypair, Some(address.to_string()));
         let (mut channels, engine_handle) = malachitebft_app_channel::start_engine(
             ctx.clone(),
             config.clone(),
             WalContext::new(wal_path, ProtobufCodec),
-            NetworkContext::new(keypair, JsonCodec),
+            NetworkContext::new(identity, JsonCodec),
             ConsensusContext::new(address, self.get_signing_provider(self.private_key.clone())),
             RequestContext::new(100), // Request channel size
         )

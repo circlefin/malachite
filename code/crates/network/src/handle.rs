@@ -68,6 +68,16 @@ impl CtrlHandle {
         Ok(())
     }
 
+    pub async fn update_validator_set(
+        &self,
+        validators: Vec<crate::ValidatorInfo>,
+    ) -> Result<(), eyre::Report> {
+        self.tx_ctrl
+            .send(CtrlMsg::UpdateValidatorSet(validators))
+            .await?;
+        Ok(())
+    }
+
     pub async fn wait_shutdown(self) -> Result<(), eyre::Report> {
         self.shutdown().await?;
         self.join().await?;

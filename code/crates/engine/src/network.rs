@@ -4,20 +4,23 @@ use std::marker::PhantomData;
 use async_trait::async_trait;
 use derive_where::derive_where;
 use eyre::eyre;
-use libp2p::identity::Keypair;
 use libp2p::request_response;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
-use tracing::{error, trace};
+use tracing::{error, info, trace};
 
 use malachitebft_codec as codec;
 use malachitebft_core_consensus::{LivenessMsg, SignedConsensusMsg};
 use malachitebft_core_types::{
-    Context, PolkaCertificate, RoundCertificate, SignedProposal, SignedVote,
+    Context, PolkaCertificate, RoundCertificate, SignedProposal, SignedVote, Validator,
+    ValidatorSet,
 };
 use malachitebft_metrics::SharedRegistry;
 use malachitebft_network::handle::CtrlHandle;
 use malachitebft_network::{Channel, Config, Event, Multiaddr, PeerId};
+
+pub use malachitebft_network::NetworkIdentity;
+
 use malachitebft_sync::{
     self as sync, InboundRequestId, OutboundRequestId, RawMessage, Request, Response,
 };
@@ -73,14 +76,14 @@ where
     Codec: codec::HasEncodedLen<sync::Response<Ctx>>,
 {
     pub async fn spawn(
-        keypair: Keypair,
+        identity: NetworkIdentity,
         config: Config,
         metrics: SharedRegistry,
         codec: Codec,
         span: tracing::Span,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
         let args = Args {
-            keypair,
+            identity,
             config: config.clone(),
             metrics,
         };
@@ -91,7 +94,7 @@ where
 }
 
 pub struct Args {
-    pub keypair: Keypair,
+    pub identity: NetworkIdentity,
     pub config: Config,
     pub metrics: SharedRegistry,
 }
@@ -170,6 +173,9 @@ pub enum Msg<Ctx: Context> {
     /// Request for number of peers from gossip
     GetState { reply: RpcReplyPort<usize> },
 
+    /// Update the validator set for the current height
+    UpdateValidatorSet(Ctx::ValidatorSet),
+
     // Event emitted by the gossip layer
     #[doc(hidden)]
     NewEvent(Event),
@@ -195,7 +201,7 @@ where
         myself: ActorRef<Msg<Ctx>>,
         args: Args,
     ) -> Result<Self::State, ActorProcessingErr> {
-        let handle = malachitebft_network::spawn(args.keypair, args.config, args.metrics).await?;
+        let handle = malachitebft_network::spawn(args.identity, args.config, args.metrics).await?;
 
         let (mut recv_handle, ctrl_handle) = handle.split();
 
@@ -476,6 +482,23 @@ where
                     ));
                 }
             },
+
+            Msg::UpdateValidatorSet(validator_set) => {
+                info!(
+                    "Updating validator set: {} validators",
+                    validator_set.count()
+                );
+                // Convert ValidatorSet to Vec<ValidatorInfo>
+                // Note: We don't pass the Ctx to the network layer
+                let validators: Vec<_> = validator_set
+                    .iter()
+                    .map(|v| malachitebft_network::ValidatorInfo {
+                        address: v.address().to_string(),
+                        voting_power: v.voting_power(),
+                    })
+                    .collect();
+                ctrl_handle.update_validator_set(validators).await?;
+            }
 
             Msg::GetState { reply } => {
                 let number_peers = match state {

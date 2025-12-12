@@ -187,12 +187,23 @@ fn gossipsub_config(config: GossipSubConfig, max_transmit_size: usize) -> gossip
 impl Behaviour {
     pub fn new_with_metrics(
         config: &Config,
-        keypair: &Keypair,
+        identity: &crate::NetworkIdentity,
         registry: &mut Registry,
     ) -> Result<Self> {
+        // Build agent_version for peer identification
+        // Only include consensus address if this node has one (potential validator)
+        // Note: This is a temporary solution and will be replaced by a custom protocol
+        let agent_version = match &identity.consensus_address {
+            Some(address) => format!("moniker={},address={}", identity.moniker, address),
+            None => format!("moniker={}", identity.moniker),
+        };
+
         let identify = identify::Behaviour::new(
-            identify::Config::new(config.protocol_names.consensus.clone(), keypair.public())
-                .with_agent_version(format!("moniker={}", config.moniker)),
+            identify::Config::new(
+                config.protocol_names.consensus.clone(),
+                identity.keypair.public(),
+            )
+            .with_agent_version(agent_version),
         );
 
         let ping = ping::Behaviour::new(ping::Config::new().with_interval(Duration::from_secs(5)));
@@ -200,7 +211,7 @@ impl Behaviour {
         let enable_gossipsub = config.pubsub_protocol.is_gossipsub() && config.enable_consensus;
         let gossipsub = enable_gossipsub.then(|| {
             let mut behaviour = gossipsub::Behaviour::new(
-                gossipsub::MessageAuthenticity::Signed(keypair.clone()),
+                gossipsub::MessageAuthenticity::Signed(identity.keypair.clone()),
                 gossipsub_config(config.gossipsub, config.pubsub_max_size),
             )
             .unwrap();
@@ -247,7 +258,7 @@ impl Behaviour {
 
         let discovery = if config.discovery.enabled {
             Some(discovery::Behaviour::new(
-                keypair,
+                &identity.keypair,
                 config.discovery,
                 config.protocol_names.discovery_kad.clone(),
                 config.protocol_names.discovery_regres.clone(),

@@ -147,7 +147,6 @@ impl<const N: usize> Test<N> {
     fn generate_default_configs(&self, discovery_config: DiscoveryConfig) -> [Config; N] {
         std::array::from_fn(|i| {
             let mut config = Config {
-                moniker: format!("node-{}", i),
                 listen_addr: TransportProtocol::Quic
                     .multiaddr("127.0.0.1", self.consensus_base_port + i),
                 persistent_peers: self.nodes[i]
@@ -191,8 +190,19 @@ impl<const N: usize> Test<N> {
         for (i, config) in configs.iter().enumerate().take(N) {
             if self.nodes[i].start_node() {
                 let moniker = format!("node-{i}");
-                let handle = spawn(
+                // Generate a test consensus address from the keypair's public key
+                let consensus_address =
+                    format!("test-address-{}", self.keypairs[i].public().to_peer_id());
+
+                // Create node identity
+                let identity = malachitebft_network::NetworkIdentity::new(
+                    moniker.clone(),
                     self.keypairs[i].clone(),
+                    Some(consensus_address),
+                );
+
+                let handle = spawn(
+                    identity,
                     config.clone(),
                     SharedRegistry::global().with_moniker(moniker),
                 )

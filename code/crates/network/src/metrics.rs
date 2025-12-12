@@ -27,7 +27,7 @@ pub(crate) struct PeerInfoLabels {
     peer_id: String,
     address: String,
     peer_type: PeerType,
-    connection_direction: String, // "outbound" (we dialed), "inbound" (they dialed), or "unknown" (ephemeral)
+    consensus_address: String, // Consensus address for validators, "none" for non-validators
 }
 
 /// Labels for per-topic mesh membership metric
@@ -47,21 +47,24 @@ impl PeerInfo {
             peer_id: peer_id.to_string(),
             address: self.address.to_string(),
             peer_type: self.peer_type,
-            connection_direction: self
-                .connection_direction
-                .map(|d| d.as_str())
-                .unwrap_or("unknown")
-                .to_string(),
+            // Only include consensus_address for validators, otherwise "none"
+            consensus_address: if self.peer_type.is_validator() && self.address_str != "unknown" {
+                self.address_str.clone()
+            } else {
+                "none".to_string()
+            },
         }
     }
 }
 
 /// Labels for local node info (peer_id and listen address)
 /// Note: moniker is automatically added by SharedRegistry.with_prefix()
+/// Note: gauge value = is_validator (1 = validator, 0 = not validator)
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 pub(crate) struct LocalNodeLabels {
     peer_id: String,
     listen_addr: String,
+    consensus_address: String, // Consensus address if validator, "none" otherwise
 }
 
 /// Network metrics
@@ -93,7 +96,7 @@ impl Metrics {
 
         registry.register(
             "local_node_info",
-            "Information about the local node (moniker, peer_id, listen_addr)",
+            "Information about the local node (gauge value: 1 = validator, 0 = not validator)",
             local_node_info.clone(),
         );
 
@@ -117,13 +120,22 @@ impl Metrics {
         }
     }
 
-    /// Set the local node information (called once at startup)
+    /// Set the local node information (called once at startup and updated when validator set changes)
+    /// Gauge value: 1 if validator, 0 if not
     pub(crate) fn set_local_node_info(&self, info: &LocalNodeInfo) {
+        // The consensus_address label always shows the configured address (or "none" if not configured).
+        // The gauge VALUE indicates current validator status (1 = active validator, 0 = not).
         let labels = LocalNodeLabels {
             peer_id: info.peer_id.to_string(),
             listen_addr: info.listen_addr.to_string(),
+            consensus_address: info
+                .consensus_address
+                .clone()
+                .unwrap_or_else(|| "none".to_string()),
         };
-        self.local_node_info.get_or_create(&labels).set(1);
+        // Set gauge to 1 if validator, 0 if not
+        let gauge_value = if info.is_validator { 1 } else { 0 };
+        self.local_node_info.get_or_create(&labels).set(gauge_value);
     }
 
     /// Update a peer's score and mesh membership metrics
@@ -217,5 +229,37 @@ impl Metrics {
         // Create labels for initial metrics (score will be updated by update_peer_info)
         let labels = peer_info.to_labels(peer_id, slot);
         self.discovered_peers.get_or_create(&labels).set(0);
+    }
+
+    /// Update peer type in metrics (e.g., when validator set changes)
+    /// Note: Due to Prometheus label immutability, old metrics with the old peer_type will remain stale
+    pub(crate) fn update_peer_type(
+        &mut self,
+        peer_id: &PeerId,
+        old_peer_info: &PeerInfo,
+        new_peer_type: PeerType,
+    ) {
+        if let Some(slot) = self.peer_slots.get(peer_id) {
+            // Mark old peer_type entry as stale
+            let old_labels = old_peer_info.to_labels(peer_id, slot);
+            self.discovered_peers
+                .get_or_create(&old_labels)
+                .set(i64::MIN);
+
+            // Create new peer_info with updated type for new labels
+            let mut new_peer_info = old_peer_info.clone();
+            new_peer_info.peer_type = new_peer_type;
+
+            // Create new metric entry with updated peer_type
+            let new_labels = new_peer_info.to_labels(peer_id, slot);
+            self.discovered_peers
+                .get_or_create(&new_labels)
+                .set(old_peer_info.score as i64);
+
+            debug!(
+                "Updated peer type for {peer_id} from {:?} to {:?}",
+                old_peer_info.peer_type, new_peer_type
+            );
+        }
     }
 }

@@ -72,6 +72,35 @@ where
     }
 }
 
+/// Parsed information from a peer's agent_version string
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AgentInfo {
+    pub moniker: String,
+    pub address: String,
+}
+
+/// Parse agent_version string to extract moniker and consensus address.
+///
+/// Expected format: "moniker=<name>,address=<addr>" or "moniker=<name>"
+/// The order of fields doesn't matter.
+///
+/// Returns `AgentInfo` with parsed values. Missing fields default to "unknown".
+pub fn parse_agent_version(agent_version: &str) -> AgentInfo {
+    let mut moniker = String::from("unknown");
+    let mut address = String::from("unknown");
+
+    for part in agent_version.split(',') {
+        let part = part.trim();
+        if let Some(mon) = part.strip_prefix("moniker=") {
+            moniker = mon.to_string();
+        } else if let Some(addr) = part.strip_prefix("address=") {
+            address = addr.to_string();
+        }
+    }
+
+    AgentInfo { moniker, address }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -224,5 +253,33 @@ mod tests {
 
         // Ensure 20 (slot 1) is still safe
         assert_eq!(slots.get(&20), Some(1));
+    }
+
+    #[test]
+    fn test_parse_agent_version() {
+        let test_cases = [
+            // (input, expected_moniker, expected_address)
+            ("moniker=node1,address=abc123", "node1", "abc123"),
+            ("address=abc123,moniker=node1", "node1", "abc123"), // reversed order
+            ("moniker=node1", "node1", "unknown"),
+            ("address=abc123", "unknown", "abc123"),
+            ("", "unknown", "unknown"),
+            (" moniker=node1 , address=abc123 ", "node1", "abc123"), // with whitespace
+            ("invalid_format", "unknown", "unknown"),
+        ];
+
+        for (input, expected_moniker, expected_address) in test_cases {
+            let result = parse_agent_version(input);
+            assert_eq!(
+                result.moniker, expected_moniker,
+                "Failed for input: {:?}",
+                input
+            );
+            assert_eq!(
+                result.address, expected_address,
+                "Failed for input: {:?}",
+                input
+            );
+        }
     }
 }

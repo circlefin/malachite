@@ -6,7 +6,7 @@ use tokio::sync::mpsc;
 
 use malachitebft_engine::consensus::ConsensusCodec;
 use malachitebft_engine::host::HostRef;
-use malachitebft_engine::network::NetworkRef;
+use malachitebft_engine::network::{NetworkIdentity, NetworkRef};
 use malachitebft_engine::sync::SyncCodec;
 
 use crate::app;
@@ -14,7 +14,6 @@ use crate::app::config::ConsensusConfig;
 use crate::app::metrics::Metrics;
 use crate::app::metrics::SharedRegistry;
 use crate::app::types::core::Context;
-use crate::app::types::Keypair;
 use crate::connector::Connector;
 use crate::{AppMsg, NetworkMsg};
 
@@ -30,10 +29,9 @@ where
 }
 
 pub async fn spawn_network_actor<Ctx, Codec>(
+    identity: NetworkIdentity,
     cfg: &ConsensusConfig,
     value_sync_cfg: &ValueSyncConfig,
-    moniker: String,
-    keypair: Keypair,
     registry: &SharedRegistry,
     codec: Codec,
 ) -> Result<(NetworkRef<Ctx>, mpsc::Sender<NetworkMsg<Ctx>>)>
@@ -45,8 +43,7 @@ where
     let (tx, mut rx) = mpsc::channel::<NetworkMsg<Ctx>>(1);
 
     let actor_ref =
-        app::spawn::spawn_network_actor(cfg, value_sync_cfg, moniker, keypair, registry, codec)
-            .await?;
+        app::spawn::spawn_network_actor(cfg, value_sync_cfg, identity, registry, codec).await?;
 
     tokio::spawn({
         let actor_ref = actor_ref.clone();

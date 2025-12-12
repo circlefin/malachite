@@ -44,17 +44,14 @@
 //! ## Thresholds
 //!
 //! - opportunistic_graft_threshold (100,000): Set very high to maximize high value node density. Triggers
-//!   grafting whenever full nodes are present in the mesh, continuously replacing them with persistent peers
-//!   until the mesh is entirely persistent peers (or no more are available).
-//! - gossip_threshold (-500): Both persistent peers and full nodes are well above this threshold
-//!   and receive gossip messages.
-//! - publish_threshold (-1,000): Both persistent peers and full nodes are well above this threshold
-//!   and can publish messages.
-//! - graylist_threshold (-2,000): Both persistent peers and full nodes are well above this threshold.
-//!   Only malicious peers with very low scores are graylisted.
+//!   grafting whenever full nodes are present in the mesh, continuously replacing them with higher scored peers
+//!   until the mesh is entirely made up of higher scored peers (or no more are available).
+//! - gossip_threshold (-500): All nodes are well above this threshold and receive gossip messages.
+//! - publish_threshold (-1,000): All nodes are well above this threshold and can publish messages.
+//! - graylist_threshold (-2,000): All nodes are well above this threshold.
 //!
-//! Full nodes remain functional (can publish and receive gossip) but are replaced in the mesh by
-//! persistent peers through continuous opportunistic grafting.
+//! Full nodes remain functional (can publish and receive gossip) but are aggressively replaced in
+//! the mesh by higher scored peers through continuous opportunistic grafting.
 
 use libp2p::gossipsub;
 
@@ -62,8 +59,13 @@ use crate::PeerType;
 
 /// Application-Specific Scores
 ///
+/// Application-specific score for validators.
+///
+/// After multiplication by `APP_SPECIFIC_WEIGHT` (100.0), validators have a score of 20,000.
+pub const VALIDATOR_SCORE: f64 = 200.0;
+
 /// Application-specific score for persistent peers.
-///    
+///
 /// After multiplication by `APP_SPECIFIC_WEIGHT` (100.0), persistent peers have a score of 10,000.
 pub const PERSISTENT_PEER_SCORE: f64 = 100.0;
 
@@ -90,14 +92,14 @@ const APP_SPECIFIC_WEIGHT: f64 = 100.0;
 /// threshold. It then grafts high-scoring peers (above the median) to improve mesh quality.
 ///
 /// Setting this to a very high value (100,000) ensures grafting attempts to replace ANY full nodes
-/// with validators and persistent peers whenever possible.
+/// with validators whenever possible.
 const OPPORTUNISTIC_GRAFT_THRESHOLD: f64 = 100_000.0;
 
 /// Number of heartbeat ticks between opportunistic grafting attempts.
 ///
 /// With a 1-second heartbeat interval, this means grafting is attempted every 3 seconds.
 /// This is more aggressive than the libp2p default (60 ticks/seconds), allowing faster
-/// mesh optimization.
+/// mesh optimization to prioritize high scored peers over low scored peers.
 pub const OPPORTUNISTIC_GRAFT_TICKS: u64 = 3;
 
 /// Maximum number of peers to graft during each opportunistic grafting cycle.
@@ -119,9 +121,12 @@ pub fn get_default_score() -> f64 {
 ///
 /// This score is set after the Identify protocol completes and the peer's type is determined.
 pub fn get_peer_score(peer_type: PeerType) -> f64 {
-    match peer_type {
-        PeerType::PersistentPeer => PERSISTENT_PEER_SCORE,
-        PeerType::FullNode => FULL_NODE_SCORE,
+    if peer_type.is_validator() {
+        VALIDATOR_SCORE
+    } else if peer_type.is_persistent() {
+        PERSISTENT_PEER_SCORE
+    } else {
+        FULL_NODE_SCORE
     }
 }
 
@@ -142,8 +147,6 @@ pub fn peer_score_params() -> gossipsub::PeerScoreParams {
 /// - `gossip_threshold`: Peers below this don't receive gossip
 /// - `publish_threshold`: Peers below this can't publish messages
 /// - `graylist_threshold`: Peers below this are completely ignored
-///
-/// Full nodes and persistent peers are both well above these thresholds.
 pub fn peer_score_thresholds() -> gossipsub::PeerScoreThresholds {
     gossipsub::PeerScoreThresholds {
         opportunistic_graft_threshold: OPPORTUNISTIC_GRAFT_THRESHOLD,

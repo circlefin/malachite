@@ -5,13 +5,46 @@ use std::fmt::Write;
 use malachitebft_metrics::prometheus::encoding::EncodeLabelValue;
 
 /// Type of peer for labeling and scoring
-/// Note: This will change in the future when we can detect validator peers
+/// Peers can be validators (in current validator set), persistent (configured), both, or neither (full nodes)
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-pub enum PeerType {
-    /// Persistent peer
-    PersistentPeer,
-    /// Full node
-    FullNode,
+pub struct PeerType {
+    is_persistent: bool,
+    is_validator: bool,
+}
+
+impl PeerType {
+    /// Create a new PeerType with specified persistent and validator status
+    pub fn new(is_persistent: bool, is_validator: bool) -> Self {
+        Self {
+            is_persistent,
+            is_validator,
+        }
+    }
+
+    /// Create a new PeerType with updated validator status, preserving persistent status
+    pub fn with_validator_status(self, is_validator: bool) -> Self {
+        Self {
+            is_persistent: self.is_persistent,
+            is_validator,
+        }
+    }
+
+    /// Get the primary type for display/metrics (prioritize validator > persistent > full node)
+    pub fn primary_type_str(&self) -> &'static str {
+        match (self.is_validator, self.is_persistent) {
+            (true, _) => "validator",           // Validator (may also be persistent)
+            (false, true) => "persistent_peer", // Persistent but not validator
+            (false, false) => "full_node",      // Neither
+        }
+    }
+
+    pub fn is_persistent(&self) -> bool {
+        self.is_persistent
+    }
+
+    pub fn is_validator(&self) -> bool {
+        self.is_validator
+    }
 }
 
 impl EncodeLabelValue for PeerType {
@@ -19,29 +52,6 @@ impl EncodeLabelValue for PeerType {
         &self,
         encoder: &mut malachitebft_metrics::prometheus::encoding::LabelValueEncoder,
     ) -> Result<(), std::fmt::Error> {
-        encoder.write_str(self.as_str())
-    }
-}
-
-impl From<bool> for PeerType {
-    fn from(is_persistent: bool) -> Self {
-        if is_persistent {
-            PeerType::PersistentPeer
-        } else {
-            PeerType::FullNode
-        }
-    }
-}
-
-impl PeerType {
-    pub fn is_persistent(&self) -> bool {
-        matches!(self, PeerType::PersistentPeer)
-    }
-
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            PeerType::PersistentPeer => "persistent_peer",
-            PeerType::FullNode => "full_node",
-        }
+        encoder.write_str(self.primary_type_str())
     }
 }

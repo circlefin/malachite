@@ -40,7 +40,7 @@ pub mod peer_scoring;
 mod utils;
 
 // Re-export state types for external use (e.g., RPC)
-pub use state::{LocalNodeInfo, PeerInfo};
+pub use state::{LocalNodeInfo, PeerInfo, ValidatorInfo};
 
 mod state;
 use state::State;
@@ -118,9 +118,43 @@ pub type DiscoveryConfig = discovery::Config;
 pub type BootstrapProtocol = discovery::config::BootstrapProtocol;
 pub type Selector = discovery::config::Selector;
 
+/// Node identity bundling all node-specific information.
+///
+/// The consensus address is derived from the keypair in the current implementation
+/// where libp2p and consensus use the same key. In the future, when using separate
+/// keys (e.g., cc-signer for consensus), the address will be provided separately.
+///
+/// If consensus_address is None, the node will not advertise a validator address
+/// and cannot become a validator.
+#[derive(Clone, Debug)]
+pub struct NetworkIdentity {
+    pub moniker: String,
+    pub keypair: Keypair,
+    pub consensus_address: Option<String>,
+}
+
+impl NetworkIdentity {
+    /// Create a new NodeIdentity.
+    ///
+    /// # Arguments
+    /// * `moniker` - Human-readable node identifier
+    /// * `keypair` - libp2p keypair for network authentication
+    /// * `consensus_address` - Optional consensus address (Some = potential validator, None = full node)
+    ///
+    /// In the current implementation where libp2p and consensus share the same key,
+    /// the address is typically derived from the keypair before calling this method.
+    /// In the future with cc-signer, the consensus address will be separate.
+    pub fn new(moniker: String, keypair: Keypair, consensus_address: Option<String>) -> Self {
+        Self {
+            moniker,
+            keypair,
+            consensus_address,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Config {
-    pub moniker: String,
     pub listen_addr: Multiaddr,
     pub persistent_peers: Vec<Multiaddr>,
     pub persistent_peers_only: bool,
@@ -196,19 +230,22 @@ pub enum CtrlMsg {
     Broadcast(Channel, Bytes),
     SyncRequest(PeerId, Bytes, oneshot::Sender<OutboundRequestId>),
     SyncReply(InboundRequestId, Bytes),
+    UpdateValidatorSet(Vec<ValidatorInfo>),
     Shutdown,
 }
 
 pub async fn spawn(
-    keypair: Keypair,
+    identity: NetworkIdentity,
     config: Config,
     registry: SharedRegistry,
 ) -> Result<Handle, eyre::Report> {
     let swarm = registry.with_prefix(METRICS_PREFIX, |registry| -> Result<_, eyre::Report> {
-        let builder = SwarmBuilder::with_existing_identity(keypair.clone()).with_tokio();
+        // Pass the libp2p keypair to the behaviour, it is included in the Identify protocol
+        // Required for ALL nodes
+        let builder = SwarmBuilder::with_existing_identity(identity.keypair.clone()).with_tokio();
         match config.transport {
             TransportProtocol::Tcp => {
-                let behaviour = Behaviour::new_with_metrics(&config, &keypair, registry)?;
+                let behaviour = Behaviour::new_with_metrics(&config, &identity, registry)?;
                 Ok(builder
                     .with_tcp(
                         libp2p::tcp::Config::new().nodelay(true), // Disable Nagle's algorithm
@@ -222,7 +259,7 @@ pub async fn spawn(
                     .build())
             }
             TransportProtocol::Quic => {
-                let behaviour = Behaviour::new_with_metrics(&config, &keypair, registry)?;
+                let behaviour = Behaviour::new_with_metrics(&config, &identity, registry)?;
                 Ok(builder
                     .with_quic_config(|cfg| config.apply_to_quic(cfg))
                     .with_dns()?
@@ -255,18 +292,31 @@ pub async fn spawn(
         }
     }
 
+    let NetworkIdentity {
+        moniker,
+        consensus_address,
+        ..
+    } = identity;
+
+    // Create local node info
     let local_node_info = LocalNodeInfo {
-        moniker: config.moniker.clone(),
+        moniker,
         peer_id: *swarm.local_peer_id(),
         listen_addr: config.listen_addr.clone(),
         subscribed_topics,
+        consensus_address,
+        is_validator: false, // Will be updated when validator set is received
     };
 
     // Set local node info in metrics
     network_metrics.set_local_node_info(&local_node_info);
 
-    let mut state = State::new(discovery, config.persistent_peers.clone(), network_metrics);
-    state.local_node = Some(local_node_info);
+    let state = State::new(
+        discovery,
+        config.persistent_peers.clone(),
+        local_node_info,
+        network_metrics,
+    );
 
     let span = error_span!("network");
 
@@ -464,6 +514,18 @@ async fn handle_ctrl_msg(
             ControlFlow::Continue(())
         }
 
+        CtrlMsg::UpdateValidatorSet(validators) => {
+            // Process the validator set update and get peers that need score updates
+            let changed_peers = state.process_validator_set_update(validators);
+
+            // Update GossipSub scores for peers whose type changed
+            for (peer_id, new_score) in changed_peers {
+                set_peer_score(swarm, peer_id, new_score);
+            }
+
+            ControlFlow::Continue(())
+        }
+
         CtrlMsg::Shutdown => ControlFlow::Break(()),
     }
 }
@@ -476,11 +538,6 @@ fn set_default_peer_score(swarm: &mut swarm::Swarm<Behaviour>, peer_id: libp2p::
         gossipsub.set_application_score(&peer_id, score);
         trace!("Set default application score {score} for peer {peer_id} before Identify");
     }
-}
-
-fn get_peer_score(state: &mut State, peer_id: libp2p::PeerId, info: &identify::Info) -> f64 {
-    let peer_type = state.peer_type(&peer_id, info);
-    peer_scoring::get_peer_score(peer_type)
 }
 
 fn set_peer_score(swarm: &mut swarm::Swarm<Behaviour>, peer_id: libp2p::PeerId, score: f64) {
@@ -608,12 +665,9 @@ async fn handle_swarm_event(
                         info.clone(),
                     );
 
-                    // Set initial peer score based on peer type
-                    let score = get_peer_score(state, peer_id, &info);
+                    // Update peer info in State and metrics, set peer score in gossipsub
+                    let score = state.update_peer(peer_id, &info);
                     set_peer_score(swarm, peer_id, score);
-
-                    // Record peer info in State and metrics
-                    state.record_peer_info(peer_id, &info);
 
                     if !is_already_connected {
                         if let Err(e) = tx_event

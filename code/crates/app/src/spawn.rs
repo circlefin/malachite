@@ -15,7 +15,7 @@ use malachitebft_engine::sync::{Params as SyncParams, Sync, SyncCodec, SyncRef};
 use malachitebft_engine::util::events::TxEvent;
 use malachitebft_engine::wal::{Wal, WalCodec, WalRef};
 use malachitebft_network::{
-    ChannelNames, Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, Keypair,
+    ChannelNames, Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, NetworkIdentity,
 };
 use malachitebft_signing::SigningProvider;
 use malachitebft_sync as sync;
@@ -54,8 +54,7 @@ where
 pub async fn spawn_network_actor<Ctx, Codec>(
     consensus_cfg: &ConsensusConfig,
     value_sync_cfg: &ValueSyncConfig,
-    moniker: String,
-    keypair: Keypair,
+    identity: NetworkIdentity,
     registry: &SharedRegistry,
     codec: Codec,
 ) -> Result<NetworkRef<Ctx>>
@@ -64,9 +63,9 @@ where
     Codec: ConsensusCodec<Ctx>,
     Codec: SyncCodec<Ctx>,
 {
-    let config = make_network_config(consensus_cfg, value_sync_cfg, moniker);
+    let config = make_network_config(consensus_cfg, value_sync_cfg);
 
-    Network::spawn(keypair, config, registry.clone(), codec, Span::current())
+    Network::spawn(identity, config, registry.clone(), codec, Span::current())
         .await
         .map_err(Into::into)
 }
@@ -204,16 +203,11 @@ where
     Ok(Some(actor_ref))
 }
 
-fn make_network_config(
-    cfg: &ConsensusConfig,
-    value_sync_cfg: &ValueSyncConfig,
-    moniker: String,
-) -> NetworkConfig {
+fn make_network_config(cfg: &ConsensusConfig, value_sync_cfg: &ValueSyncConfig) -> NetworkConfig {
     use malachitebft_config as config;
     use malachitebft_network as network;
 
     NetworkConfig {
-        moniker,
         listen_addr: cfg.p2p.listen_addr.clone(),
         persistent_peers: cfg.p2p.persistent_peers.clone(),
         persistent_peers_only: cfg.p2p.persistent_peers_only,

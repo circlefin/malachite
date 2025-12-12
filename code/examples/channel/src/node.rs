@@ -13,7 +13,7 @@ use malachitebft_app_channel::app::metrics::SharedRegistry;
 use malachitebft_app_channel::app::types::core::{Height as _, VotingPower};
 use malachitebft_app_channel::app::types::Keypair;
 use malachitebft_app_channel::{
-    ConsensusContext, EngineHandle, NetworkContext, RequestContext, WalContext,
+    ConsensusContext, EngineHandle, NetworkContext, NetworkIdentity, RequestContext, WalContext,
 };
 use malachitebft_test::node::{Node, NodeHandle};
 use malachitebft_test::traits::{
@@ -124,14 +124,15 @@ impl Node for App {
         let keypair = self.get_keypair(private_key.clone());
         let wal_path = self.get_home_dir().join("wal").join("consensus.wal");
         let ctx = TestContext::new();
-
+        let identity =
+            NetworkIdentity::new(config.moniker.clone(), keypair, Some(address.to_string()));
         let genesis = self.load_genesis()?;
 
         let (mut channels, engine_handle) = malachitebft_app_channel::start_engine(
             ctx.clone(),
             config.clone(),
             WalContext::new(wal_path, ProtobufCodec),
-            NetworkContext::new(keypair, ProtobufCodec),
+            NetworkContext::new(identity, ProtobufCodec),
             ConsensusContext::new(address, self.get_signing_provider(private_key.clone())),
             RequestContext::new(100), // Request channel size
         )

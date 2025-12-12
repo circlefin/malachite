@@ -16,8 +16,8 @@ use std::time::Duration;
 use malachitebft_config::TransportProtocol;
 use malachitebft_metrics::SharedRegistry;
 use malachitebft_network::{
-    spawn, ChannelNames, Config, DiscoveryConfig, GossipSubConfig, Keypair, ProtocolNames,
-    PubSubProtocol,
+    spawn, ChannelNames, Config, DiscoveryConfig, GossipSubConfig, Keypair, NetworkIdentity,
+    ProtocolNames, PubSubProtocol,
 };
 use netstat2::{get_sockets_info, AddressFamilyFlags, ProtocolFlags, ProtocolSocketInfo, TcpState};
 
@@ -60,9 +60,8 @@ fn init_logging() {
     let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 }
 
-fn make_config(moniker: &str, port: u16, persistent_peers: Vec<u16>) -> Config {
+fn make_config(port: u16, persistent_peers: Vec<u16>) -> Config {
     Config {
-        moniker: moniker.to_string(),
         listen_addr: TransportProtocol::Tcp.multiaddr("127.0.0.1", port as usize),
         persistent_peers: persistent_peers
             .iter()
@@ -102,11 +101,12 @@ async fn connection_flood_attack() {
     let transport_limit = 12;
 
     // Target node
-    let target_config = make_config("target", target_port, vec![]);
+    let target_config = make_config(target_port, vec![]);
     let target_keypair = Keypair::generate_ed25519();
+    let target_identity = NetworkIdentity::new("target".to_string(), target_keypair, None);
     let target_registry = SharedRegistry::global().with_moniker("flood-target");
 
-    let target_handle = spawn(target_keypair, target_config, target_registry)
+    let target_handle = spawn(target_identity, target_config, target_registry)
         .await
         .unwrap();
 
@@ -116,11 +116,12 @@ async fn connection_flood_attack() {
     let mut peer_handles = Vec::new();
     for i in 0..num_peers {
         let peer_port = base_port + 1 + i;
-        let peer_config = make_config(&format!("peer-{}", i), peer_port, vec![target_port]);
+        let peer_config = make_config(peer_port, vec![target_port]);
         let peer_keypair = Keypair::generate_ed25519();
+        let peer_identity = NetworkIdentity::new(format!("peer-{}", i), peer_keypair, None);
         let peer_registry = SharedRegistry::global().with_moniker(format!("flood-peer-{}", i));
 
-        let handle = spawn(peer_keypair, peer_config, peer_registry)
+        let handle = spawn(peer_identity, peer_config, peer_registry)
             .await
             .unwrap();
         peer_handles.push(handle);

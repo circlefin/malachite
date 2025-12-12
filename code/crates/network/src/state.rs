@@ -14,12 +14,32 @@ use crate::metrics::Metrics as NetworkMetrics;
 use crate::{Channel, ChannelNames, PeerType};
 use malachitebft_discovery::ConnectionDirection;
 
+/// Validator information passed from consensus to network layer
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ValidatorInfo {
+    /// Consensus address as string (for matching via Identify protocol)
+    pub address: String,
+    /// Voting power
+    pub voting_power: u64,
+}
+
 /// Local node information
 #[derive(Clone, Debug)]
 pub struct LocalNodeInfo {
     pub moniker: String,
     pub peer_id: libp2p::PeerId,
     pub listen_addr: Multiaddr,
+    /// This node's consensus address (if it is configured with validator credentials).
+    ///
+    /// Present if the node has a consensus keypair, even if not currently in the active validator set.
+    /// This is static configuration determined at startup.
+    /// Note: In the future full nodes will not have a consensus address, so this will be None.
+    pub consensus_address: Option<String>,
+    /// Whether this node is currently in the active validator set.
+    ///
+    /// Updated dynamically when validator set changes. A node can have `consensus_address = Some(...)`
+    /// but `is_validator = false` if it was removed from the validator set or hasn't joined yet.
+    pub is_validator: bool,
     pub subscribed_topics: HashSet<String>,
 }
 
@@ -40,6 +60,7 @@ impl fmt::Display for LocalNodeInfo {
 #[derive(Clone, Debug)]
 pub struct PeerInfo {
     pub address: Multiaddr,
+    pub address_str: String, // Consensus address as string (for validator matching)
     pub moniker: String,
     pub peer_type: PeerType,
     pub connection_direction: Option<ConnectionDirection>, // None if ephemeral (unknown)
@@ -55,7 +76,7 @@ impl PeerInfo {
         let mut topics: Vec<&str> = self.topics.iter().map(|s| s.as_str()).collect();
         topics.sort();
         let topics_str = format!("[{}]", topics.join(","));
-        let peer_type_str = self.peer_type.as_str();
+        let peer_type_str = self.peer_type.primary_type_str();
         format!(
             "{}, {}, {}, {}, {}, {}, {}",
             self.address,
@@ -75,17 +96,122 @@ pub struct State {
     pub discovery: discovery::Discovery<Behaviour>,
     pub persistent_peer_ids: HashSet<libp2p::PeerId>,
     pub persistent_peer_addrs: Vec<Multiaddr>,
+    /// Latest validator set from consensus
+    pub validator_set: Vec<ValidatorInfo>,
     pub(crate) metrics: NetworkMetrics,
     /// Local node information
-    pub local_node: Option<LocalNodeInfo>,
+    pub local_node: LocalNodeInfo,
     /// Detailed peer information indexed by PeerId (for RPC queries and metrics)
     pub peer_info: HashMap<libp2p::PeerId, PeerInfo>,
 }
 
 impl State {
+    /// Process a validator set update from consensus.
+    ///
+    /// This method:
+    /// - Updates the validator set
+    /// - Updates local node validator status and metrics
+    /// - Re-classifies all connected peers based on the new validator set
+    ///
+    /// Returns a list of (peer_id, new_score) for peers whose type changed,
+    /// so the caller can update GossipSub scores.
+    pub(crate) fn process_validator_set_update(
+        &mut self,
+        new_validators: Vec<ValidatorInfo>,
+    ) -> Vec<(libp2p::PeerId, f64)> {
+        // Store the new validator set
+        self.validator_set = new_validators;
+
+        self.reclassify_local_node();
+
+        // Re-classify all connected peers
+        self.reclassify_peers()
+    }
+
+    /// Re-classify the local node based on the current validator set.
+    fn reclassify_local_node(&mut self) {
+        let was_validator = self.local_node.is_validator;
+        // Update local node status
+        let local_is_validator = self
+            .local_node
+            .consensus_address
+            .as_ref()
+            .map(|addr| self.validator_set.iter().any(|v| &v.address == addr))
+            .unwrap_or(false);
+
+        self.local_node.is_validator = local_is_validator;
+
+        // Log and update metrics for local node status change
+        if was_validator != local_is_validator {
+            tracing::info!(
+                local_is_validator,
+                address = ?self.local_node.consensus_address,
+                "Local node validator status changed"
+            );
+            self.metrics.set_local_node_info(&self.local_node);
+        }
+    }
+
+    /// Re-classify all connected peers based on the current validator set.
+    ///
+    /// Returns a list of (peer_id, new_score) for peers whose type changed.
+    fn reclassify_peers(&mut self) -> Vec<(libp2p::PeerId, f64)> {
+        let mut changed_peers = Vec::new();
+
+        for (peer_id, peer_info) in self.peer_info.iter_mut() {
+            let old_type = peer_info.peer_type;
+
+            // Check if advertised address matches a validator in the set
+            // If it does, use the canonical address from the validator set
+            let is_validator = if let Some(validator_info) = self
+                .validator_set
+                .iter()
+                .find(|v| v.address == peer_info.address_str)
+            {
+                // Use canonical address from validator set
+                peer_info.address_str = validator_info.address.clone();
+                true
+            } else {
+                false
+            };
+
+            // Preserve persistent status, update validator status
+            let new_type = peer_info.peer_type.with_validator_status(is_validator);
+
+            if new_type != old_type {
+                tracing::info!(
+                    %peer_id,
+                    ?old_type,
+                    ?new_type,
+                    "Peer type changed due to validator set update"
+                );
+
+                // Clone peer_info before updating for metrics (need old state)
+                let old_peer_info = peer_info.clone();
+
+                // Compute new score
+                let new_score = crate::peer_scoring::get_peer_score(new_type);
+
+                // Update peer type and score
+                peer_info.peer_type = new_type;
+                peer_info.score = new_score;
+
+                // Update metrics with old info and new type
+                self.metrics
+                    .update_peer_type(peer_id, &old_peer_info, new_type);
+
+                // Record for caller to update GossipSub scores
+                changed_peers.push((*peer_id, new_score));
+            }
+        }
+
+        changed_peers
+    }
+
     pub(crate) fn new(
         discovery: discovery::Discovery<Behaviour>,
         persistent_peer_addrs: Vec<Multiaddr>,
+        local_node: LocalNodeInfo,
         metrics: NetworkMetrics,
     ) -> Self {
         // Extract PeerIds from persistent peer Multiaddrs if they contain /p2p/<peer_id>
@@ -99,8 +225,9 @@ impl State {
             discovery,
             persistent_peer_ids,
             persistent_peer_addrs,
+            validator_set: Vec::new(),
             metrics,
-            local_node: None,
+            local_node,
             peer_info: HashMap::new(),
         }
     }
@@ -110,7 +237,15 @@ impl State {
         let is_persistent =
             self.persistent_peer_ids.contains(peer_id) || self.is_persistent_peer_by_address(info);
 
-        PeerType::from(is_persistent)
+        // Extract validator address from agent_version and check if it's in the validator set
+        let agent_info = crate::utils::parse_agent_version(&info.agent_version);
+        let is_validator = agent_info.address != "unknown"
+            && self
+                .validator_set
+                .iter()
+                .any(|v| v.address == agent_info.address);
+
+        PeerType::new(is_persistent, is_validator)
     }
 
     /// Check if a peer is a persistent peer by matching its addresses against persistent peer addresses
@@ -190,8 +325,15 @@ impl State {
         }
     }
 
-    /// Record peer information after Identify completes
-    pub(crate) fn record_peer_info(&mut self, peer_id: libp2p::PeerId, info: &identify::Info) {
+    /// Update the peer information after Identify completes and compute peer score.
+    ///
+    /// This method:
+    /// - Determines the peer type (validator, persistent, etc.)
+    /// - Records peer info in state and metrics
+    /// - Computes the GossipSub score
+    ///
+    /// Returns the score to set on the peer in GossipSub.
+    pub(crate) fn update_peer(&mut self, peer_id: libp2p::PeerId, info: &identify::Info) -> f64 {
         // Determine peer type
         let peer_type = self.peer_type(&peer_id, info);
 
@@ -218,20 +360,34 @@ impl State {
             .cloned()
             .unwrap_or_else(|| "/ip4/0.0.0.0/tcp/0".parse().expect("valid multiaddr"));
 
-        // Extract moniker from agent_version (format: "moniker=app-0")
-        let moniker = info
-            .agent_version
-            .strip_prefix("moniker=")
-            .unwrap_or("unknown")
-            .to_string();
+        // Parse agent_version to extract moniker and consensus address
+        let agent_info = crate::utils::parse_agent_version(&info.agent_version);
+
+        // TODO: The advertised address in agent_version is untrusted, any peer can claim any address.
+        // A malicious peer could impersonate a validator by advertising their address.
+        // Fix: Require peers to sign their libp2p PeerID with their consensus key to prove ownership.
+        let address_str = if peer_type.is_validator() {
+            // Use canonical address from validator set
+            self.validator_set
+                .iter()
+                .find(|v| v.address == agent_info.address)
+                .map(|v| v.address.clone())
+                .unwrap_or_else(|| agent_info.address.clone())
+        } else {
+            agent_info.address.clone()
+        };
+
+        // Compute the peer score based on peer type
+        let score = crate::peer_scoring::get_peer_score(peer_type);
 
         // Record peer information in State
         let peer_info = PeerInfo {
             address,
-            moniker,
+            address_str,
+            moniker: agent_info.moniker,
             peer_type,
             connection_direction,
-            score: 0.0, // Initial score, will be updated by update_peer_info
+            score,
             topics: Default::default(), // Empty set, will be updated by update_peer_info
         };
 
@@ -240,6 +396,8 @@ impl State {
 
         // Store in State
         self.peer_info.insert(peer_id, peer_info);
+
+        score
     }
 
     /// Format the peer information for logging (scrapable format):
@@ -251,9 +409,7 @@ impl State {
         lines.push("Address, Moniker, PeerId, Mesh, Dir, Type, Score".to_string());
 
         // Local node info marked with "me"
-        if let Some(local) = &self.local_node {
-            lines.push(format!("{}", local));
-        }
+        lines.push(format!("{}", self.local_node));
 
         // Sort peers by moniker
         let mut peers: Vec<_> = self.peer_info.iter().collect();
