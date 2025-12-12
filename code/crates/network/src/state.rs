@@ -40,6 +40,8 @@ pub struct LocalNodeInfo {
     /// Updated dynamically when validator set changes. A node can have `consensus_address = Some(...)`
     /// but `is_validator = false` if it was removed from the validator set or hasn't joined yet.
     pub is_validator: bool,
+    /// Whether this node only accepts connections from persistent peers.
+    pub persistent_peers_only: bool,
     pub subscribed_topics: HashSet<String>,
 }
 
@@ -48,10 +50,21 @@ impl fmt::Display for LocalNodeInfo {
         let mut topics: Vec<&str> = self.subscribed_topics.iter().map(|s| s.as_str()).collect();
         topics.sort();
         let topics_str = format!("[{}]", topics.join(","));
+        let address = self.consensus_address.as_deref().unwrap_or("none");
+        let role = if self.is_validator {
+            "validator"
+        } else {
+            "full_node"
+        };
+        let peers_mode = if self.persistent_peers_only {
+            "persistent_only"
+        } else {
+            "open"
+        };
         write!(
             f,
-            "{}, {}, {}, {}, me",
-            self.listen_addr, self.moniker, self.peer_id, topics_str
+            "{}, {}, {}, {}, {}, {}, {}, me",
+            self.listen_addr, self.moniker, role, self.peer_id, address, topics_str, peers_mode
         )
     }
 }
@@ -70,21 +83,27 @@ pub struct PeerInfo {
 
 impl PeerInfo {
     /// Format peer info with peer_id for logging
-    ///  Address, Moniker, PeerId, Mesh, Dir, Type, Score
+    ///  Address, Moniker, Type, PeerId, ConsensusAddr, Mesh, Dir, Score
     pub fn format_with_peer_id(&self, peer_id: &libp2p::PeerId) -> String {
         let direction = self.connection_direction.map_or("??", |d| d.as_str());
         let mut topics: Vec<&str> = self.topics.iter().map(|s| s.as_str()).collect();
         topics.sort();
         let topics_str = format!("[{}]", topics.join(","));
         let peer_type_str = self.peer_type.primary_type_str();
+        let address = if self.address_str.is_empty() {
+            "none"
+        } else {
+            &self.address_str
+        };
         format!(
-            "{}, {}, {}, {}, {}, {}, {}",
+            "{}, {}, {}, {}, {}, {}, {}, {}",
             self.address,
             self.moniker,
+            peer_type_str,
             peer_id,
+            address,
             topics_str,
             direction,
-            peer_type_str,
             self.score as i64
         )
     }
@@ -406,7 +425,7 @@ impl State {
         let mut lines = Vec::new();
 
         // Header
-        lines.push("Address, Moniker, PeerId, Mesh, Dir, Type, Score".to_string());
+        lines.push("Address, Moniker, Type, PeerId, ConsensusAddr, Mesh, Dir, Score".to_string());
 
         // Local node info marked with "me"
         lines.push(format!("{}", self.local_node));

@@ -306,6 +306,7 @@ pub async fn spawn(
         subscribed_topics,
         consensus_address,
         is_validator: false, // Will be updated when validator set is received
+        persistent_peers_only: config.persistent_peers_only,
     };
 
     // Set local node info in metrics
