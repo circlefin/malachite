@@ -121,6 +121,13 @@ We invite all contributors.
 - Rust v1.82+ ([rustup.rs](https://rustup.rs))
 - Quint v0.22+ ([github.com](https://github.com/informalsystems/quint))
 
+## Rust Version Policy
+
+Malachite follows a Minimum Supported Rust Version (MSRV) policy.
+
+The MSRV may change between releases and is documented in release notes. Users are encouraged to ensure their Rust toolchain is up to date when upgrading.
+
+
 ## Acknowledgements
 
 Malachite would not have been possible without the kind support of the Starknet ecosystem.
