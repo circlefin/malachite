@@ -118,10 +118,19 @@ We invite all contributors.
 
 ## Requirements
 
-- Rust v1.82+ ([rustup.rs](https://rustup.rs))
-- Quint v0.22+ ([github.com](https://github.com/informalsystems/quint))
+  * Rust v1.82+ (https://rustup.rs)
+  * Quint v0.22+ (https://github.com)
+
+## Support
+
+If you have questions about using Malachite or run into issues, you can:
+
+- Check the documentation linked at the top of this page
+- Browse existing issues and discussions in this repository
+- Open a new issue with details about your environment and problem
 
 ## Acknowledgements
+
 
 Malachite would not have been possible without the kind support of the Starknet ecosystem.
 We are grateful to StarkWare Industries for prompting the initial discussions of building Tendermint in Rust, to Starknet Foundation for funding and fostering a collaborative environment, and to both of these organizations plus numerous others in the ecosystem for their constructive feedback on earlier designs of Malachite.
