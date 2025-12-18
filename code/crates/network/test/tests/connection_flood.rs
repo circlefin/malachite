@@ -71,6 +71,8 @@ fn make_config(port: u16, persistent_peers: Vec<u16>) -> Config {
             enabled: false,
             num_inbound_peers: 3,
             num_outbound_peers: 3,
+            // Set high to ensure ip_limits doesn't interfere with this test
+            max_connections_per_ip: 200,
             ..Default::default()
         },
         idle_connection_timeout: Duration::from_secs(60),

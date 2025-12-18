@@ -37,6 +37,8 @@ pub struct Config {
     pub num_outbound_peers: usize,
     pub num_inbound_peers: usize,
 
+    pub max_connections_per_ip: usize,
+
     pub max_connections_per_peer: usize,
 
     pub ephemeral_connection_timeout: Duration,
@@ -64,6 +66,7 @@ impl Default for Config {
             num_inbound_peers: DEFAULT_NUM_INBOUND_PEERS,
 
             max_connections_per_peer: DEFAULT_MAX_CONNECTIONS_PER_PEER,
+            max_connections_per_ip: DEFAULT_NUM_INBOUND_PEERS,
 
             ephemeral_connection_timeout: DEFAULT_EPHEMERAL_CONNECTION_TIMEOUT,
 

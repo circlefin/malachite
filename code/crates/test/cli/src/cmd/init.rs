@@ -97,6 +97,7 @@ impl InitCmd {
                 dial_max_retries: 5,
                 request_max_retries: 5,
                 connect_request_max_retries: 3,
+                ..Default::default()
             },
             value_sync: Default::default(),
             persistent_peers_only: self.persistent_peers_only,

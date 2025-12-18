@@ -104,10 +104,6 @@ persistent_peers = []
 # Override with MALACHITE__CONSENSUS__P2P__TRANSPORT env variable
 transport = "tcp"
 
-# Enable the discovery protocol to find more peers
-# Override with MALACHITE__CONSENSUS__P2P__DISCOVERY__ENABLED env variable
-discovery = { enabled = true }
-
 # The maximum size of messages to send over pub-sub
 # Must be larger than the maximum block part size.
 # Override with MALACHITE__CONSENSUS__P2P__PUBSUB_MAX_SIZE env variable
@@ -117,6 +113,26 @@ pubsub_max_size = "4 MiB"
 # Must be larger than the maximum block size.
 # Override with MALACHITE__CONSENSUS__P2P__RPC_MAX_SIZE env variable
 rpc_max_size = "10 MiB"
+
+#######################################################
+###  Consensus P2P Discovery Configuration Options  ###
+#######################################################
+[consensus.p2p.discovery]
+
+# Enable the discovery protocol to find more peers
+# Override with MALACHITE__CONSENSUS__P2P__DISCOVERY__ENABLED env variable
+enabled = true
+
+# Maximum number of connections per peer
+# Override with MALACHITE__CONSENSUS__P2P__DISCOVERY__MAX_CONNECTIONS_PER_PEER env variable
+# max_connections_per_peer = 5
+
+# Maximum connections allowed per IP address.
+# Limits inbound connections from the same IP to prevent DoS attacks
+# where an attacker generates many PeerIds from the same IP.
+# Defaults to num_inbound_peers (effectively disabled).
+# Override with MALACHITE__CONSENSUS__P2P__DISCOVERY__MAX_CONNECTIONS_PER_IP env variable
+# max_connections_per_ip = 20
 
 #######################################################
 ###  Consensus P2P Protocol Configuration Options   ###

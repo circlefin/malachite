@@ -224,6 +224,7 @@ fn make_network_config(cfg: &ConsensusConfig, value_sync_cfg: &ValueSyncConfig) 
             },
             num_outbound_peers: cfg.p2p.discovery.num_outbound_peers,
             num_inbound_peers: cfg.p2p.discovery.num_inbound_peers,
+            max_connections_per_ip: cfg.p2p.discovery.max_connections_per_ip,
             max_connections_per_peer: cfg.p2p.discovery.max_connections_per_peer,
             ephemeral_connection_timeout: cfg.p2p.discovery.ephemeral_connection_timeout,
             dial_max_retries: cfg.p2p.discovery.dial_max_retries,

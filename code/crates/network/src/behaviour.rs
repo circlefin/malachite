@@ -17,7 +17,7 @@ use malachitebft_metrics::Registry;
 use malachitebft_sync as sync;
 use tracing::info;
 
-use crate::{peer_scoring, Config, GossipSubConfig};
+use crate::{ip_limits, peer_scoring, Config, GossipSubConfig};
 
 /// Multiplier for connection limits.
 /// Connection limits are higher than discovery limits to allow headroom for ephemeral
@@ -100,6 +100,7 @@ impl From<Infallible> for NetworkEvent {
 #[behaviour(to_swarm = "NetworkEvent")]
 pub struct Behaviour {
     pub connection_limits: connection_limits::Behaviour,
+    pub ip_limits: ip_limits::Behaviour,
     pub identify: identify::Behaviour,
     pub ping: ping::Behaviour,
     pub gossipsub: Toggle<gossipsub::Behaviour>,
@@ -270,8 +271,12 @@ impl Behaviour {
         // Limits for transport layer defense against connection attacks
         let connection_limits = connection_limits::Behaviour::new(connection_limits(config));
 
+        // Per-IP connection limits to prevent DoS from multiple PeerIds on same IP
+        let ip_limits = ip_limits::Behaviour::new(config.discovery.max_connections_per_ip);
+
         Ok(Self {
             connection_limits,
+            ip_limits,
             identify,
             ping,
             sync: Toggle::from(sync),

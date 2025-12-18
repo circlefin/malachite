@@ -104,6 +104,12 @@ pub struct DiscoveryConfig {
     #[serde(default = "discovery::default_max_connections_per_peer")]
     pub max_connections_per_peer: usize,
 
+    /// Maximum connections allowed per IP address.
+    /// Prevents DoS attacks where an attacker generates many PeerIds from the same IP.
+    /// Defaults to num_inbound_peers (effectively disabled).
+    #[serde(default = "discovery::default_num_inbound_peers")]
+    pub max_connections_per_ip: usize,
+
     /// Ephemeral connection timeout
     #[serde(default)]
     #[serde(with = "humantime_serde")]
@@ -127,6 +133,7 @@ impl Default for DiscoveryConfig {
             selector: Default::default(),
             num_outbound_peers: discovery::default_num_outbound_peers(),
             num_inbound_peers: discovery::default_num_inbound_peers(),
+            max_connections_per_ip: discovery::default_num_inbound_peers(),
             max_connections_per_peer: discovery::default_max_connections_per_peer(),
             ephemeral_connection_timeout: Duration::from_secs(60),
             dial_max_retries: discovery::default_dial_max_retries(),

@@ -39,6 +39,8 @@ pub mod peer_scoring;
 
 mod utils;
 
+mod ip_limits;
+
 // Re-export state types for external use (e.g., RPC)
 pub use state::{LocalNodeInfo, PeerInfo, ValidatorInfo};
 
