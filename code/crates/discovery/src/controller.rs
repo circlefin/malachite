@@ -175,28 +175,6 @@ impl Controller {
         }
     }
 
-    pub(crate) fn dial_remove_matching_in_progress_connections(
-        &mut self,
-        peer_id: &PeerId,
-    ) -> Vec<DialData> {
-        let matching_connection_ids = self
-            .dial
-            .get_in_progress_iter()
-            .filter_map(|(connection_id, dial_data)| {
-                if dial_data.peer_id() == Some(*peer_id) {
-                    Some(*connection_id)
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-
-        matching_connection_ids
-            .into_iter()
-            .filter_map(|connection_id| self.dial.remove_in_progress(&connection_id))
-            .collect()
-    }
-
     pub(crate) fn is_idle(&self) -> (bool, usize, usize) {
         let (is_dial_idle, in_progress_dial_len) = self.dial.is_idle();
         let (is_peers_request_idle, in_progress_peers_request_len) = self.peers_request.is_idle();

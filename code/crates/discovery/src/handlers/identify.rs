@@ -132,16 +132,9 @@ where
             return is_already_connected;
         }
 
-        if self
-            .controller
-            .dial
-            .remove_in_progress(&connection_id)
-            .is_none()
-        {
-            // Remove any matching in progress connections to avoid dangling data
-            self.controller
-                .dial_remove_matching_in_progress_connections(&peer_id);
-        }
+        // Remove from dial in-progress if this was an outbound connection we initiated.
+        // For inbound connections, this will return None and we don't touch dial data.
+        self.controller.dial.remove_in_progress(&connection_id);
 
         match self.discovered_peers.insert(peer_id, info.clone()) {
             Some(_) => {
