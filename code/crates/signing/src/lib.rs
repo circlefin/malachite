@@ -5,6 +5,7 @@ extern crate alloc;
 
 use alloc::boxed::Box;
 
+use alloc::sync::Arc;
 use async_trait::async_trait;
 use malachitebft_core_types::{Context, PublicKey, Signature, SignedMessage};
 
@@ -185,6 +186,78 @@ where
 
 #[async_trait]
 impl<Ctx> SigningProvider<Ctx> for Box<dyn SigningProvider<Ctx> + '_>
+where
+    Ctx: Context,
+{
+    async fn sign_bytes(&self, bytes: &[u8]) -> Result<Signature<Ctx>, Error> {
+        (**self).sign_bytes(bytes).await
+    }
+
+    async fn verify_signed_bytes(
+        &self,
+        bytes: &[u8],
+        signature: &Signature<Ctx>,
+        public_key: &PublicKey<Ctx>,
+    ) -> Result<VerificationResult, Error> {
+        (**self)
+            .verify_signed_bytes(bytes, signature, public_key)
+            .await
+    }
+
+    async fn sign_vote(&self, vote: Ctx::Vote) -> Result<SignedMessage<Ctx, Ctx::Vote>, Error> {
+        (**self).sign_vote(vote).await
+    }
+
+    async fn verify_signed_vote(
+        &self,
+        vote: &Ctx::Vote,
+        signature: &Signature<Ctx>,
+        public_key: &PublicKey<Ctx>,
+    ) -> Result<VerificationResult, Error> {
+        self.as_ref()
+            .verify_signed_vote(vote, signature, public_key)
+            .await
+    }
+
+    async fn sign_proposal(
+        &self,
+        proposal: Ctx::Proposal,
+    ) -> Result<SignedMessage<Ctx, Ctx::Proposal>, Error> {
+        self.as_ref().sign_proposal(proposal).await
+    }
+
+    async fn verify_signed_proposal(
+        &self,
+        proposal: &Ctx::Proposal,
+        signature: &Signature<Ctx>,
+        public_key: &PublicKey<Ctx>,
+    ) -> Result<VerificationResult, Error> {
+        self.as_ref()
+            .verify_signed_proposal(proposal, signature, public_key)
+            .await
+    }
+
+    async fn sign_vote_extension(
+        &self,
+        extension: Ctx::Extension,
+    ) -> Result<SignedMessage<Ctx, Ctx::Extension>, Error> {
+        self.as_ref().sign_vote_extension(extension).await
+    }
+
+    async fn verify_signed_vote_extension(
+        &self,
+        extension: &Ctx::Extension,
+        signature: &Signature<Ctx>,
+        public_key: &PublicKey<Ctx>,
+    ) -> Result<VerificationResult, Error> {
+        self.as_ref()
+            .verify_signed_vote_extension(extension, signature, public_key)
+            .await
+    }
+}
+
+#[async_trait]
+impl<Ctx> SigningProvider<Ctx> for Arc<dyn SigningProvider<Ctx> + '_>
 where
     Ctx: Context,
 {
