@@ -2205,6 +2205,7 @@ dependencies = [
  "informalsystems-malachitebft-signing",
  "informalsystems-malachitebft-sync",
  "informalsystems-malachitebft-wal",
+ "libp2p",
  "libp2p-identity",
  "ractor",
  "rand 0.8.5",

@@ -83,7 +83,7 @@ impl fmt::Display for LocalNodeInfo {
 #[derive(Clone, Debug)]
 pub struct PeerInfo {
     pub address: Multiaddr,
-    pub address_str: String, // Consensus address as string (for validator matching)
+    pub consensus_address: String, // Consensus address as string (for validator matching)
     pub moniker: String,
     pub peer_type: PeerType,
     pub connection_direction: Option<ConnectionDirection>, // None if ephemeral (unknown)
@@ -100,10 +100,10 @@ impl PeerInfo {
         topics.sort();
         let topics_str = format!("[{}]", topics.join(","));
         let peer_type_str = self.peer_type.primary_type_str();
-        let address = if self.address_str.is_empty() {
+        let address = if self.consensus_address.is_empty() {
             "none"
         } else {
-            &self.address_str
+            &self.consensus_address
         };
         format!(
             "{}, {}, {}, {}, {}, {}, {}, {}",
@@ -195,10 +195,10 @@ impl State {
             let is_validator = if let Some(validator_info) = self
                 .validator_set
                 .iter()
-                .find(|v| v.address == peer_info.address_str)
+                .find(|v| v.address == peer_info.consensus_address)
             {
                 // Use canonical address from validator set
-                peer_info.address_str = validator_info.address.clone();
+                peer_info.consensus_address = validator_info.address.clone();
                 true
             } else {
                 false
@@ -395,7 +395,7 @@ impl State {
         // TODO: The advertised address in agent_version is untrusted, any peer can claim any address.
         // A malicious peer could impersonate a validator by advertising their address.
         // Fix: Require peers to sign their libp2p PeerID with their consensus key to prove ownership.
-        let address_str = if peer_type.is_validator() {
+        let consensus_address = if peer_type.is_validator() {
             // Use canonical address from validator set
             self.validator_set
                 .iter()
@@ -412,7 +412,7 @@ impl State {
         // Record peer information in State
         let peer_info = PeerInfo {
             address,
-            address_str,
+            consensus_address,
             moniker: agent_info.moniker,
             peer_type,
             connection_direction,

@@ -48,8 +48,10 @@ impl PeerInfo {
             address: self.address.to_string(),
             peer_type: self.peer_type,
             // Only include consensus_address for validators, otherwise "none"
-            consensus_address: if self.peer_type.is_validator() && self.address_str != "unknown" {
-                self.address_str.clone()
+            consensus_address: if self.peer_type.is_validator()
+                && self.consensus_address != "unknown"
+            {
+                self.consensus_address.clone()
             } else {
                 "none".to_string()
             },

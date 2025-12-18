@@ -17,6 +17,10 @@ pub mod events {
     pub use malachitebft_engine::util::events::{RxEvent, TxEvent};
 }
 
+pub mod net {
+    pub use libp2p::{Multiaddr, PeerId};
+}
+
 pub use malachitebft_core_consensus as consensus;
 pub use malachitebft_engine as engine;
 pub use malachitebft_engine::util::streaming;
