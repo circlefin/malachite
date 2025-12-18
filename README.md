@@ -39,6 +39,13 @@ Malachite `/ˈmæl.ə.kaɪt/` is pronounced as follows: __"Mala"__ (like in "mal
 > Malachite is alpha software and under heavy development.
 > The software is provided "as is" and has not been externally audited; use at your own risk.
 
+
+## Project Boundaries
+
+Malachite focuses on core protocol components.
+Client applications and deployment-specific tooling are intentionally out of scope.
+
+
 ### Goals
 
 Malachite aims to empower developers building decentralized systems—including sequencers, social networks, and Layer-1 blockchains—by offering a flexible, reliable, and high-performance BFT consensus engine. It now serves as the consensus foundation for [Arc](http://arcnetwork.xyz), a new purpose-built blockchain developed by Circle.
