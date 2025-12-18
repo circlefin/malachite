@@ -9,6 +9,7 @@ use tokio::task::JoinHandle;
 
 use malachitebft_engine::consensus::{ConsensusMsg, ConsensusRef};
 pub use malachitebft_engine::network::NetworkIdentity;
+use malachitebft_engine::network::NetworkRef;
 use malachitebft_engine::node::NodeRef;
 use malachitebft_engine::util::events::TxEvent;
 use malachitebft_signing::SigningProvider;
@@ -20,7 +21,7 @@ use crate::app::spawn::{
 };
 use crate::app::types::codec;
 use crate::app::types::core::Context;
-use crate::msgs::ConsensusRequest;
+use crate::msgs::{ConsensusRequest, NetworkRequest};
 use crate::spawn::{spawn_host_actor, spawn_network_actor};
 use crate::Channels;
 
@@ -149,17 +150,28 @@ where
     )
     .await?;
 
-    let (node, handle) =
-        spawn_node_actor(ctx, network, consensus.clone(), wal, sync, connector).await?;
+    let (node, handle) = spawn_node_actor(
+        ctx,
+        network.clone(),
+        consensus.clone(),
+        wal,
+        sync,
+        connector,
+    )
+    .await?;
 
     let (tx_request, rx_request) = mpsc::channel(request_ctx.channel_size);
-    spawn_request_task(rx_request, consensus);
+    spawn_consensus_request_task(rx_request, consensus);
+
+    let (tx_net_request, rx_net_request) = mpsc::channel(request_ctx.channel_size);
+    spawn_network_request_task(rx_net_request, network);
 
     let channels = Channels {
         consensus: rx_consensus,
         network: tx_network,
         events: tx_event,
         requests: tx_request,
+        net_requests: tx_net_request,
     };
 
     let handle = EngineHandle {
@@ -170,7 +182,7 @@ where
     Ok((channels, handle))
 }
 
-fn spawn_request_task<Ctx>(
+fn spawn_consensus_request_task<Ctx>(
     mut rx_request: Receiver<ConsensusRequest<Ctx>>,
     consensus: ConsensusRef<Ctx>,
 ) where
@@ -182,6 +194,27 @@ fn spawn_request_task<Ctx>(
                 ConsensusRequest::DumpState(reply) => {
                     if let Err(e) = consensus.cast(ConsensusMsg::DumpState(reply.into())) {
                         tracing::error!("Failed to send state dump request: {e}");
+                    }
+                }
+            }
+        }
+    });
+}
+
+fn spawn_network_request_task<Ctx>(
+    mut rx_request: Receiver<NetworkRequest>,
+    network: NetworkRef<Ctx>,
+) where
+    Ctx: Context,
+{
+    tokio::spawn(async move {
+        while let Some(msg) = rx_request.recv().await {
+            match msg {
+                NetworkRequest::DumpState(reply) => {
+                    if let Err(error) =
+                        network.cast(malachitebft_engine::network::Msg::DumpState(reply.into()))
+                    {
+                        tracing::error!(%error, "Failed to send network state dump request");
                     }
                 }
             }

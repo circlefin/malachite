@@ -30,6 +30,8 @@ use crate::sync::SyncCodec;
 use crate::util::output_port::{OutputPort, OutputPortSubscriberTrait};
 use crate::util::streaming::StreamMessage;
 
+pub use malachitebft_network::NetworkStateDump;
+
 pub type NetworkRef<Ctx> = ActorRef<Msg<Ctx>>;
 pub type NetworkMsg<Ctx> = Msg<Ctx>;
 
@@ -170,8 +172,8 @@ pub enum Msg<Ctx: Context> {
     /// Send a response for a request to a peer
     OutgoingResponse(InboundRequestId, Response<Ctx>),
 
-    /// Request for number of peers from gossip
-    GetState { reply: RpcReplyPort<usize> },
+    /// Request to dump the current network state
+    DumpState(RpcReplyPort<Option<NetworkStateDump>>),
 
     /// Update the validator set for the current height
     UpdateValidatorSet(Ctx::ValidatorSet),
@@ -239,6 +241,12 @@ where
         msg: Msg<Ctx>,
         state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
+        // We need to handle before deconstructing `state` to always reply.
+        if let Msg::DumpState(reply_to) = msg {
+            handle_dump_state(state, reply_to).await;
+            return Ok(());
+        }
+
         let State::Running {
             listen_addrs,
             peers,
@@ -500,13 +508,7 @@ where
                 ctrl_handle.update_validator_set(validators).await?;
             }
 
-            Msg::GetState { reply } => {
-                let number_peers = match state {
-                    State::Stopped => 0,
-                    State::Running { peers, .. } => peers.len(),
-                };
-                reply.send(number_peers)?;
-            }
+            Msg::DumpState(_) => unreachable!("DumpState handled above to ensure a reply"),
         }
 
         Ok(())
@@ -530,5 +532,30 @@ where
         }
 
         Ok(())
+    }
+}
+
+async fn handle_dump_state<Ctx>(
+    state: &mut State<Ctx>,
+    reply_to: RpcReplyPort<Option<NetworkStateDump>>,
+) where
+    Ctx: Context,
+{
+    let dump = match state {
+        State::Stopped => {
+            info!("Dumping network state: not started");
+            None
+        }
+        State::Running { ctrl_handle, .. } => match ctrl_handle.dump_state().await {
+            Ok(snapshot) => Some(snapshot),
+            Err(error) => {
+                error!(%error, "Failed to obtain network dump");
+                None
+            }
+        },
+    };
+
+    if let Err(error) = reply_to.send(dump) {
+        error!(%error, "Failed to reply with network state dump");
     }
 }

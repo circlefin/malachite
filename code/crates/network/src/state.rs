@@ -14,6 +14,16 @@ use crate::metrics::Metrics as NetworkMetrics;
 use crate::{Channel, ChannelNames, PeerType};
 use malachitebft_discovery::ConnectionDirection;
 
+/// Public network state dump for external consumers
+#[derive(Clone, Debug)]
+pub struct NetworkStateDump {
+    pub local_node: LocalNodeInfo,
+    pub peers: std::collections::HashMap<libp2p::PeerId, PeerInfo>,
+    pub validator_set: Vec<ValidatorInfo>,
+    pub persistent_peer_ids: Vec<libp2p::PeerId>,
+    pub persistent_peer_addrs: Vec<Multiaddr>,
+}
+
 /// Validator information passed from consensus to network layer
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ValidatorInfo {

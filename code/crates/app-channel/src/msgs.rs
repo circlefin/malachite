@@ -15,6 +15,7 @@ use malachitebft_engine::consensus::state_dump::StateDump;
 use malachitebft_engine::consensus::Msg as ConsensusActorMsg;
 use malachitebft_engine::host::{HeightParams, Next};
 use malachitebft_engine::network::Msg as NetworkActorMsg;
+use malachitebft_engine::network::NetworkStateDump;
 use malachitebft_engine::util::events::TxEvent;
 
 use crate::app::types::core::{CommitCertificate, Context, Round, ValueId, VoteExtensions};
@@ -121,6 +122,31 @@ impl<Ctx: Context> ConsensusRequest<Ctx> {
     }
 }
 
+/// Represents requests that can be sent to the network layer by the application.
+pub enum NetworkRequest {
+    /// Request a state dump from the network
+    DumpState(Reply<Option<NetworkStateDump>>),
+}
+
+impl NetworkRequest {
+    /// Request a state dump from the network.
+    pub async fn dump_state(
+        tx_request: &mpsc::Sender<NetworkRequest>,
+    ) -> Result<Option<NetworkStateDump>, ConsensusRequestError> {
+        let (tx, rx) = oneshot::channel();
+
+        tx_request
+            .try_send(Self::DumpState(tx))
+            .inspect_err(|error| error!(%error, "Failed to send DumpState request to network"))?;
+
+        let dump = rx.await.inspect_err(
+            |error| error!(%error, "Failed to receive DumpState response from network"),
+        )?;
+
+        Ok(dump)
+    }
+}
+
 /// Channels created for application consumption
 pub struct Channels<Ctx: Context> {
     /// Channel for receiving messages from consensus
@@ -131,6 +157,8 @@ pub struct Channels<Ctx: Context> {
     pub events: TxEvent<Ctx>,
     /// Channel for sending requests to consensus
     pub requests: mpsc::Sender<ConsensusRequest<Ctx>>,
+    /// Channel for sending requests to the network
+    pub net_requests: mpsc::Sender<NetworkRequest>,
 }
 
 /// Messages sent from consensus to the application.

@@ -17,7 +17,8 @@ mod spawn;
 
 mod msgs;
 pub use msgs::{
-    AppMsg, Channels, ConsensusMsg, ConsensusRequest, ConsensusRequestError, NetworkMsg, Reply,
+    AppMsg, Channels, ConsensusMsg, ConsensusRequest, ConsensusRequestError, NetworkMsg,
+    NetworkRequest, Reply,
 };
 
 mod run;

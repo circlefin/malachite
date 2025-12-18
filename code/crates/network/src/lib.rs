@@ -43,6 +43,7 @@ mod utils;
 pub use state::{LocalNodeInfo, PeerInfo, ValidatorInfo};
 
 mod state;
+pub use state::NetworkStateDump;
 use state::State;
 
 use behaviour::{Behaviour, NetworkEvent};
@@ -231,6 +232,7 @@ pub enum CtrlMsg {
     SyncRequest(PeerId, Bytes, oneshot::Sender<OutboundRequestId>),
     SyncReply(InboundRequestId, Bytes),
     UpdateValidatorSet(Vec<ValidatorInfo>),
+    DumpState(oneshot::Sender<NetworkStateDump>),
     Shutdown,
 }
 
@@ -527,6 +529,20 @@ async fn handle_ctrl_msg(
             ControlFlow::Continue(())
         }
 
+        CtrlMsg::DumpState(reply_to) => {
+            // Build a snapshot from current state
+            let snapshot = NetworkStateDump {
+                local_node: state.local_node.clone(),
+                peers: state.peer_info.clone(),
+                validator_set: state.validator_set.clone(),
+                persistent_peer_ids: state.persistent_peer_ids.iter().copied().collect(),
+                persistent_peer_addrs: state.persistent_peer_addrs.clone(),
+            };
+            if let Err(_s) = reply_to.send(snapshot) {
+                error!("Error replying to DumpState");
+            }
+            ControlFlow::Continue(())
+        }
         CtrlMsg::Shutdown => ControlFlow::Break(()),
     }
 }

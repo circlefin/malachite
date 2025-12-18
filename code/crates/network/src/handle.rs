@@ -78,6 +78,14 @@ impl CtrlHandle {
         Ok(())
     }
 
+    pub async fn dump_state(&self) -> Result<crate::NetworkStateDump, eyre::Report> {
+        let (tx, rx) = oneshot::channel();
+
+        self.tx_ctrl.send(CtrlMsg::DumpState(tx)).await?;
+
+        Ok(rx.await?)
+    }
+
     pub async fn wait_shutdown(self) -> Result<(), eyre::Report> {
         self.shutdown().await?;
         self.join().await?;
