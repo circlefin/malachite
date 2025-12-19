@@ -135,13 +135,20 @@ impl Controller {
         }
     }
 
-    pub(crate) fn dial_register_done_on(&mut self, dial_data: &DialData) {
+    /// Register dial data as done.
+    ///
+    /// If `register_addrs` is true, also registers addresses to done_on.
+    /// Only use `register_addrs = true` for trusted addresses (bootstrap nodes).
+    /// For discovered peers, use `register_addrs = false` to prevent address poisoning attacks.
+    pub(crate) fn dial_register_done_on(&mut self, dial_data: &DialData, register_addrs: bool) {
         if let Some(peer_id) = dial_data.peer_id() {
             self.dial.register_done_on(PeerData::PeerId(peer_id));
         }
-        for addr in dial_data.listen_addrs() {
-            self.dial
-                .register_done_on(PeerData::Multiaddr(addr.clone()));
+        if register_addrs {
+            for addr in dial_data.listen_addrs() {
+                self.dial
+                    .register_done_on(PeerData::Multiaddr(addr.clone()));
+            }
         }
     }
 
@@ -243,5 +250,69 @@ mod tests {
         assert_eq!(action.can_perform(), true);
         assert_eq!(action.is_idle(), (true, 0));
         assert_eq!(action.remove_in_progress(&2), None);
+    }
+
+    #[test]
+    fn test_address_poisoning_prevented() {
+        use crate::dial::DialData;
+
+        let mut controller = Controller::new();
+
+        // Attacker claims victim's address
+        let attacker_peer_id = PeerId::random();
+        let victim_addr = Multiaddr::from_str("/ip4/1.2.3.4/tcp/8000").unwrap();
+        let attacker_addr = Multiaddr::from_str("/ip4/5.6.7.8/tcp/9000").unwrap();
+
+        // Poisoned dial data: attacker's peer_id with victim's address
+        let poisoned_dial = DialData::new(
+            Some(attacker_peer_id),
+            vec![attacker_addr.clone(), victim_addr.clone()],
+        );
+
+        // For discovered peers, only register peer_id (not untrusted addresses)
+        controller.dial_register_done_on(&poisoned_dial, false);
+
+        // Attacker's peer_id should be in done_on
+        assert!(controller
+            .dial
+            .is_done_on(&PeerData::PeerId(attacker_peer_id)));
+
+        // Victim's address should NOT be in done_on (prevents address poisoning)
+        assert!(!controller
+            .dial
+            .is_done_on(&PeerData::Multiaddr(victim_addr.clone())));
+        assert!(!controller
+            .dial
+            .is_done_on(&PeerData::Multiaddr(attacker_addr.clone())));
+
+        // Later: victim's real peer info arrives
+        let victim_peer_id = PeerId::random();
+        let victim_dial = DialData::new(Some(victim_peer_id), vec![victim_addr.clone()]);
+
+        // Victim should NOT be blocked - we can still dial them
+        assert!(!controller.dial_is_done_on(&victim_dial));
+    }
+
+    #[test]
+    fn test_bootstrap_addresses_registered() {
+        use crate::dial::DialData;
+
+        let mut controller = Controller::new();
+
+        let bootstrap_peer_id = PeerId::random();
+        let bootstrap_addr = Multiaddr::from_str("/ip4/10.0.0.1/tcp/8000").unwrap();
+
+        let bootstrap_dial = DialData::new(Some(bootstrap_peer_id), vec![bootstrap_addr.clone()]);
+
+        // For bootstrap peers (trusted config), register both peer_id AND addresses
+        controller.dial_register_done_on(&bootstrap_dial, true);
+
+        // Both peer_id and address should be in done_on
+        assert!(controller
+            .dial
+            .is_done_on(&PeerData::PeerId(bootstrap_peer_id)));
+        assert!(controller
+            .dial
+            .is_done_on(&PeerData::Multiaddr(bootstrap_addr)));
     }
 }

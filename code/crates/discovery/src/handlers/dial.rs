@@ -51,7 +51,8 @@ where
         };
         let connection_id = dial_opts.connection_id();
 
-        self.controller.dial_register_done_on(&dial_data);
+        // Register peer_id only, not addresses as they are untrusted
+        self.controller.dial_register_done_on(&dial_data, false);
 
         self.controller
             .dial
@@ -205,9 +206,9 @@ where
 
     pub(crate) fn add_to_dial_queue(&mut self, swarm: &Swarm<C>, dial_data: DialData) {
         if self.should_dial(swarm, &dial_data, true) {
-            // Already register as dialed address to avoid flooding the dial queue
-            // with the same dial attempts.
-            self.controller.dial_register_done_on(&dial_data);
+            // Register peer_id only to avoid flooding the dial queue.
+            // Don't register addresses because they may are untrusted (from peers response).
+            self.controller.dial_register_done_on(&dial_data, false);
 
             self.controller.dial.add_to_queue(dial_data, None);
         }
@@ -241,7 +242,8 @@ where
                     self.controller.dial.queue_len(),
                     self.controller.dial.is_idle().1
                 );
-                self.controller.dial_register_done_on(&dial_data);
+                // For bootstrap nodes, register addresses too (trusted config)
+                self.controller.dial_register_done_on(&dial_data, true);
                 self.controller.dial.add_to_queue(dial_data, None);
             }
         }
