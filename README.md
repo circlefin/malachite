@@ -134,6 +134,12 @@ Their Crosslink system, a PoS + PoW hybrid design for upgrading Zcash, has helpe
 
 These collaborations reflect work completed prior to the Malachite team joining Circle.
 
+## Operational Notes
+
+Running Malachite components in production requires monitoring,
+regular updates, and careful configuration management.
+
+
 ## License
 
 Copyright © 2025 Circle Internet Group, Inc. All rights reserved.
