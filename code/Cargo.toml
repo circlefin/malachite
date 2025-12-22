@@ -116,7 +116,7 @@ advisory-lock      = "0.3.0"
 arbtest            = "0.3.2"
 async-recursion    = "1.1"
 async-trait        = "0.1.88"
-axum               = "0.7"
+axum               = "0.8"
 base64             = "0.22.0"
 borsh              = {version = "1", features = ["de_strict_order", "derive"]}
 bs58               = { version = "0.5.1", default-features = false }
