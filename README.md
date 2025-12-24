@@ -134,6 +134,13 @@ Their Crosslink system, a PoS + PoW hybrid design for upgrading Zcash, has helpe
 
 These collaborations reflect work completed prior to the Malachite team joining Circle.
 
+## Getting started for contributors
+
+If you are new to the project, start by reading the code
+and existing documentation. Small documentation improvements
+and clarifications are welcome.
+
+
 ## License
 
 Copyright © 2025 Circle Internet Group, Inc. All rights reserved.
