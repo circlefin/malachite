@@ -134,6 +134,13 @@ Their Crosslink system, a PoS + PoW hybrid design for upgrading Zcash, has helpe
 
 These collaborations reflect work completed prior to the Malachite team joining Circle.
 
+## Project scope
+
+Malachite focuses on correctness and safety of core logic.
+It is not intended to be a full application framework, but a foundation
+for building and verifying critical components.
+
+
 ## License
 
 Copyright © 2025 Circle Internet Group, Inc. All rights reserved.
