@@ -1,3 +1,7 @@
+# Welcome!
+
+Thank you for your interest in contributing to Malachite! Every contribution, big or small, helps us build a more robust and flexible BFT consensus engine. We appreciate your time and effort.
+
 # Contributing to Malachite
 
 First, thank you for your interest in improving Malachite!
