@@ -214,9 +214,11 @@ where
             }
             // Add the address to the Kademlia routing table
             if self.config.bootstrap_protocol == BootstrapProtocol::Kademlia {
-                swarm
-                    .behaviour_mut()
-                    .add_address(&peer_id, info.listen_addrs.first().unwrap().clone());
+                if let Some(addr) = info.listen_addrs.first() {
+                    swarm.behaviour_mut().add_address(&peer_id, addr.clone());
+                } else {
+                    warn!(peer = %peer_id, "No listen addresses available for Kademlia routing");
+                }
             }
         } else {
             // If discovery is disabled, all peers are inbound. The
