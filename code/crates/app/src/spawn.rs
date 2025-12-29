@@ -132,7 +132,7 @@ where
     Codec: WalCodec<Ctx>,
 {
     let wal_dir = home_dir.join("wal");
-    std::fs::create_dir_all(&wal_dir).unwrap();
+    std::fs::create_dir_all(&wal_dir)?;
 
     let wal_file = wal_dir.join("consensus.wal");
 

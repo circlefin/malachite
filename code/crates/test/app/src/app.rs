@@ -298,9 +298,17 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 let decided_value = state.get_decided_value(height).await;
                 info!(%height, "Found decided value: {decided_value:?}");
 
-                let raw_decided_value = decided_value.map(|decided_value| RawDecidedValue {
-                    certificate: decided_value.certificate,
-                    value_bytes: JsonCodec.encode(&decided_value.value).unwrap(), // FIXME: unwrap
+                let raw_decided_value = decided_value.and_then(|decided_value| {
+                    match JsonCodec.encode(&decided_value.value) {
+                        Ok(value_bytes) => Some(RawDecidedValue {
+                            certificate: decided_value.certificate,
+                            value_bytes,
+                        }),
+                        Err(e) => {
+                            error!(%height, "Failed to encode decided value: {e}");
+                            None
+                        }
+                    }
                 });
 
                 if reply.send(raw_decided_value).is_err() {
