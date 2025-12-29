@@ -144,6 +144,18 @@ Licensed under the Apache License, Version 2.0 (the "License"); you may not use 
 
 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 
+## FAQ
+
+### What is Malachite?
+Malachite is an open-source project by Circle focused on building reliable and scalable infrastructure components.
+
+### Who is this repository for?
+This repository is intended for developers who want to explore, contribute to, or build on top of Malachite components.
+
+### Is this project production-ready?
+Some components may be experimental. Please review documentation and issues before using in production.
+
+
 [docs-main-image]: https://img.shields.io/badge/docs-main-blue?logo=googledocs&logoColor=white
 [docs-main-link]: https://informalsystems.github.io/malachite/
 [build-image]: https://github.com/circlefin/malachite/actions/workflows/rust.yml/badge.svg
