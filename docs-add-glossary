@@ -1,0 +1,10 @@
+# Glossary
+
+**Validator**  
+A node responsible for validating and proposing blocks.
+
+**Consensus**  
+The process by which nodes agree on the state of the network.
+
+**Epoch**  
+A fixed period used for validator rotation and rewards.
