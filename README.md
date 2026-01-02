@@ -1,4 +1,8 @@
-<h1 align="center">
+## Project Overview
+
+Malachite is a consensus and networking framework designed for high-performance
+and modular blockchain systems.
+
 <img src="https://raw.githubusercontent.com/informalsystems/malachite/refs/heads/main/assets/banner.png" alt="Malachite" width="2400" align="center">
 </h1>
 
