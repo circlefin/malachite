@@ -8,7 +8,7 @@ use bytesize::ByteSize;
 use derive_where::derive_where;
 use eyre::eyre;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
-use rand::SeedableRng;
+use rand::{Rng as _, SeedableRng};
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, warn, Instrument};
 
@@ -538,14 +538,21 @@ where
         self.gossip
             .cast(NetworkMsg::Subscribe(Box::new(myself.clone())))?;
 
+        let mut rng = Box::new(rand::rngs::StdRng::from_entropy());
+
+        // One-time uniform adjustment factor [-1%, +1%]
+        const ADJ_RATE: f64 = 0.01;
+        let adjustment = rng.gen_range(-ADJ_RATE..=ADJ_RATE);
+
         let ticker = tokio::spawn(
-            ticker(self.params.status_update_interval, myself.clone(), || {
-                Msg::Tick
-            })
+            ticker(
+                self.params.status_update_interval,
+                myself.clone(),
+                adjustment,
+                || Msg::Tick,
+            )
             .in_current_span(),
         );
-
-        let rng = Box::new(rand::rngs::StdRng::from_entropy());
 
         Ok(State {
             sync: sync::State::new(rng, self.sync_config),

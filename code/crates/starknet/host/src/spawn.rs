@@ -46,7 +46,7 @@ pub async fn spawn_node_actor(
     let registry = SharedRegistry::global().with_moniker(cfg.moniker.as_str());
     let consensus_metrics = ConsensusMetrics::register(&registry);
     let app_metrics = AppMetrics::register(&registry);
-    let sync_metrics = sync::Metrics::register(&registry);
+    let sync_metrics = sync::Metrics::register(&registry, cfg.value_sync.status_update_interval);
 
     let address = Address::from_public_key(private_key.public_key());
     let signing_provider = Ed25519Provider::new(private_key.clone());

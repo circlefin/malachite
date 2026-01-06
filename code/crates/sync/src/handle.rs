@@ -184,6 +184,7 @@ where
     debug!(%peer_id, %peer_height, "Received peer status");
 
     state.update_status(status);
+    metrics.status_received(state.peers.len() as u64);
 
     if !state.started {
         // Consensus has not started yet, no need to sync (yet).

@@ -186,7 +186,7 @@ where
         batch_size: config.batch_size,
     };
 
-    let metrics = sync::Metrics::register(registry);
+    let metrics = sync::Metrics::register(registry, params.status_update_interval);
 
     let actor_ref = Sync::spawn(
         ctx,
