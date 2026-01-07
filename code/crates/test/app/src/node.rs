@@ -14,7 +14,7 @@ use malachitebft_app_channel::app::types::core::VotingPower;
 use malachitebft_app_channel::app::types::Keypair;
 use malachitebft_app_channel::NetworkIdentity;
 use malachitebft_app_channel::{
-    ConsensusContext, EngineHandle, NetworkContext, RequestContext, WalContext,
+    ConsensusContext, EngineHandle, NetworkContext, RequestContext, SyncContext, WalContext,
 };
 use malachitebft_test::codec::json::JsonCodec;
 use malachitebft_test::codec::proto::ProtobufCodec;
@@ -145,6 +145,7 @@ impl Node for App {
             WalContext::new(wal_path, ProtobufCodec),
             NetworkContext::new(identity, JsonCodec),
             ConsensusContext::new(address, self.get_signing_provider(self.private_key.clone())),
+            SyncContext::new(JsonCodec),
             RequestContext::new(100), // Request channel size
         )
         .await?;
