@@ -27,6 +27,11 @@
 
 </div>
 
+## Project Description
+
+Malachite is a library focused on secure and reliable cryptographic primitives.
+It is designed to be used as a foundational component for cryptographic systems.
+
 ## About
 
 Malachite is a Byzantine-fault tolerant (BFT) consensus engine implemented in Rust.
