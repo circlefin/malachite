@@ -107,9 +107,10 @@ The repository is split into three areas, each covering one of the important asp
 
 ### Building with Malachite
 
-As a guiding point to understand how to use Malachite, please read [ARCHITECTURE.md](ARCHITECTURE.md).
+As a guiding point to understand how to use Malachite, please read ARCHITECTURE.md.
+If you would like to contribute to the project, please start by reading the CONTRIBUTING.md guide.
 
-You can also check out the [examples](./code/examples) for a more in-depth experience.
+You can also check out the examples for a more in-depth experience.
 
 ### Contributing
 
