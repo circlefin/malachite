@@ -1,0 +1,172 @@
+name: PR Gate
+
+on:
+  pull_request_target:
+    types: [opened, reopened]
+
+jobs:
+  check-eligibility:
+    runs-on: github-hosted-small
+    steps:
+      - name: Check if author is org member
+        id: check-org-member
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prAuthor = context.payload.pull_request.user.login;
+            const org = 'circlefin';
+
+            try {
+              const response = await github.rest.orgs.checkMembershipForUser({
+                org: org,
+                username: prAuthor
+              });
+              // Status 204 means the user is a member
+              console.log(`${prAuthor} is a member of ${org}`);
+              core.setOutput('is_org_member', 'true');
+            } catch (error) {
+              // Status 404 means the user is not a member (or org doesn't exist)
+              // Status 302 means the requester is not an org member (redirect to login)
+              console.log(`${prAuthor} is NOT a member of ${org}: ${error.status}`);
+              core.setOutput('is_org_member', 'false');
+            }
+
+      - name: Check issue assignment
+        id: check-assignment
+        if: steps.check-org-member.outputs.is_org_member == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prBody = context.payload.pull_request.body || '';
+            const prAuthor = context.payload.pull_request.user.login;
+
+            // Extract issue number from PR body (matches "Closes: #123" or "Closes #123")
+            const issueMatch = prBody.match(/[Cc]loses:?\s*#(\d+)/);
+
+            if (!issueMatch) {
+              console.log('No issue reference found in PR body');
+              core.setOutput('is_assigned', 'false');
+              core.setOutput('reason', 'no_issue_reference');
+              return;
+            }
+
+            const issueNumber = parseInt(issueMatch[1], 10);
+            console.log(`Found issue reference: #${issueNumber}`);
+
+            try {
+              const issue = await github.rest.issues.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber
+              });
+
+              // Check if PR author is assigned to the issue
+              const assignees = issue.data.assignees.map(a => a.login);
+              console.log(`Issue assignees: ${assignees.join(', ')}`);
+
+              if (assignees.includes(prAuthor)) {
+                console.log(`PR author ${prAuthor} is assigned to issue #${issueNumber}`);
+                core.setOutput('is_assigned', 'true');
+              } else {
+                console.log(`PR author ${prAuthor} is NOT assigned to issue #${issueNumber}`);
+                core.setOutput('is_assigned', 'false');
+                core.setOutput('reason', 'not_assigned_to_issue');
+                core.setOutput('issue_number', issueNumber.toString());
+              }
+            } catch (error) {
+              console.log(`Error fetching issue #${issueNumber}: ${error.message}`);
+              core.setOutput('is_assigned', 'false');
+              core.setOutput('reason', 'issue_not_found');
+            }
+
+      - name: Close ineligible PR
+        if: |
+          steps.check-org-member.outputs.is_org_member == 'false' &&
+          steps.check-assignment.outputs.is_assigned == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const reason = '${{ steps.check-assignment.outputs.reason }}';
+            const issueNumber = '${{ steps.check-assignment.outputs.issue_number }}';
+            const prAuthor = context.payload.pull_request.user.login;
+
+            let message = '';
+
+            if (reason === 'no_issue_reference') {
+              message = `Hi @${prAuthor},
+
+            Thank you for your interest in contributing to Malachite.
+
+            This PR has been automatically closed because it does not reference a GitHub issue. All PRs must reference an existing issue using the format \`Closes: #XXX\`.
+
+            **To contribute properly:**
+            1. Find an existing issue you'd like to work on, or [open a new issue](https://github.com/${context.repo.owner}/${context.repo.repo}/issues/new) describing your proposed change
+            2. Comment on the issue requesting assignment and wait for maintainer approval
+            3. Only submit a PR after you have been assigned to the issue
+
+            Please see our [CONTRIBUTING.md](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/CONTRIBUTING.md) for more details.`;
+            } else if (reason === 'not_assigned_to_issue') {
+              message = `Hi @${prAuthor},
+
+            Thank you for your interest in contributing to Malachite.
+
+            This PR has been automatically closed because you are not assigned to issue #${issueNumber}. We require contributors to be explicitly assigned to an issue before submitting a PR.
+
+            **To contribute properly:**
+            1. Comment on issue #${issueNumber} requesting assignment
+            2. Wait for maintainer approval
+            3. Only submit a PR after you have been assigned
+
+            Please see our [CONTRIBUTING.md](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/CONTRIBUTING.md) for more details.`;
+            } else if (reason === 'issue_not_found') {
+              message = `Hi @${prAuthor},
+
+            Thank you for your interest in contributing to Malachite.
+
+            This PR has been automatically closed because the referenced issue could not be found. Please ensure you reference a valid, existing issue using the format \`Closes: #XXX\`.
+
+            **To contribute properly:**
+            1. Find an existing issue you'd like to work on, or [open a new issue](https://github.com/${context.repo.owner}/${context.repo.repo}/issues/new) describing your proposed change
+            2. Comment on the issue requesting assignment and wait for maintainer approval
+            3. Only submit a PR after you have been assigned to the issue
+
+            Please see our [CONTRIBUTING.md](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/CONTRIBUTING.md) for more details.`;
+            } else {
+              message = `Hi @${prAuthor},
+
+            Thank you for your interest in contributing to Malachite.
+
+            This PR has been automatically closed because it does not meet our contribution requirements.
+
+            Please see our [CONTRIBUTING.md](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/CONTRIBUTING.md) for details on how to contribute properly.`;
+            }
+
+            // Add comment
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: message
+            });
+
+            // Add label
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                labels: ['need-triage']
+              });
+            } catch (error) {
+              console.log('Could not add label (may not exist):', error.message);
+            }
+
+            // Close PR
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              state: 'closed'
+            });
+
+            console.log('PR closed successfully');

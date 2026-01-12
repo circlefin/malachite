@@ -4,6 +4,12 @@ Closes: #XXX
 
 ### PR author checklist
 
+#### Contribution eligibility
+
+- [ ] I am a core contributor, OR I have been explicitly assigned to the linked issue
+- [ ] I have read [CONTRIBUTING.md](/CONTRIBUTING.md) and my PR complies with all requirements
+- [ ] I understand that PRs not meeting these requirements will be closed without review
+
 #### For all contributors
 
 - [ ] Reference a GitHub issue
