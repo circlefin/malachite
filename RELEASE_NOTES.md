@@ -28,6 +28,9 @@
 - Ensure polka certificate is matched against a proposal for the same value
 - Produce `InvalidProposalAndPolkaPrevious` when receiving a polka certificate matching the POL round of a proposal with an invalid value
 
+### `engine`
+- Stop consensus engine on WAL replay failure
+
 ### `network`
 - Add `persistent_peers_only` config option to allow connections ONLY from/to persistent peers
 - Add a mechanism to dump the network state

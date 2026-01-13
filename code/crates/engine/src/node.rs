@@ -1,7 +1,7 @@
 use async_trait::async_trait;
-use ractor::{Actor, ActorProcessingErr, ActorRef, SupervisionEvent};
+use ractor::{Actor, ActorId, ActorProcessingErr, ActorRef, SupervisionEvent};
 use tokio::task::JoinHandle;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 use malachitebft_core_types::Context;
 
@@ -52,6 +52,14 @@ where
     pub async fn spawn(self) -> Result<(ActorRef<()>, JoinHandle<()>), ractor::SpawnErr> {
         Actor::spawn(None, self, ()).await
     }
+
+    fn should_shutdown_on_child_failure(&self, child_id: ActorId) -> ShutdownPolicy {
+        if child_id == self.wal.get_id() {
+            ShutdownPolicy::Shutdown(format!("WAL actor {child_id} has failed"))
+        } else {
+            ShutdownPolicy::Continue
+        }
+    }
 }
 
 #[async_trait]
@@ -94,7 +102,7 @@ where
     #[tracing::instrument(name = "node", parent = &self.span, skip_all)]
     async fn handle_supervisor_evt(
         &self,
-        _myself: ActorRef<Self::Msg>,
+        myself: ActorRef<Self::Msg>,
         evt: SupervisionEvent,
         _state: &mut (),
     ) -> Result<(), ActorProcessingErr> {
@@ -102,19 +110,56 @@ where
             SupervisionEvent::ActorStarted(cell) => {
                 info!(actor = %cell.get_id(), "Actor has started");
             }
+
             SupervisionEvent::ActorTerminated(cell, _state, reason) => {
-                warn!(
-                    "Actor {} has terminated: {}",
-                    cell.get_id(),
-                    reason.unwrap_or_default()
+                error!(
+                    actor = %cell.get_id(),
+                    "Actor has terminated: {}",
+                    reason.unwrap_or_else(|| "no reason provided".to_string())
                 );
+
+                match self.should_shutdown_on_child_failure(cell.get_id()) {
+                    ShutdownPolicy::Shutdown(reason) => {
+                        error!("Shutting down node due to child actor termination: {reason}");
+                        myself.stop(Some(format!(
+                            "Shutting down node due to child actor termination: {reason}"
+                        )));
+                    }
+                    ShutdownPolicy::Continue => {
+                        info!("Continuing operation despite child actor termination");
+                    }
+                }
             }
+
             SupervisionEvent::ActorFailed(cell, error) => {
-                error!("Actor {} has failed: {error}", cell.get_id());
+                error!(actor = %cell.get_id(), "Actor has failed: {error}");
+                error!("Shutting down node due to child actor failure");
+
+                match self.should_shutdown_on_child_failure(cell.get_id()) {
+                    ShutdownPolicy::Shutdown(reason) => {
+                        error!("Shutting down node due to child actor failure: {reason}");
+                        myself.stop(Some(format!(
+                            "Shutting down node due to child actor failure: {reason}"
+                        )));
+                    }
+                    ShutdownPolicy::Continue => {
+                        info!("Continuing operation despite child actor failure");
+                    }
+                }
             }
+
             SupervisionEvent::ProcessGroupChanged(_) => (),
         }
 
         Ok(())
     }
+}
+
+/// Policy for shutting down the node upon child actor failure
+enum ShutdownPolicy {
+    /// Shutdown the node with the given reason
+    Shutdown(String),
+
+    /// Continue operations despite the failure
+    Continue,
 }

@@ -369,10 +369,32 @@ where
 
                 // Fetch entries from the WAL or reset the WAL if this is a restart
                 let wal_entries = if is_restart {
-                    self.wal_reset(height).await?;
+                    if let Err(e) = self.wal_reset(height).await {
+                        error!(%height, "Error when resetting WAL: {e}");
+                        error!(%height, "Consensus may be in an inconsistent state after WAL reset failure");
+                        error!(%height, "Shutting down consensus actor to prevent safety violations");
+
+                        myself.kill();
+
+                        return Err(eyre!("Terminating consensus due to WAL reset failure").into());
+                    }
+
                     vec![]
                 } else {
-                    self.wal_fetch(height).await?
+                    match self.wal_fetch(height).await {
+                        Ok(entries) => entries,
+                        Err(e) => {
+                            error!(%height, "Error when fetching WAL entries: {e}");
+                            error!(%height, "Consensus may be in an inconsistent state after WAL fetch failure");
+                            error!(%height, "Shutting down consensus actor to prevent safety violations");
+
+                            myself.kill();
+
+                            return Err(
+                                eyre!("Terminating consensus due to WAL fetch failure").into()
+                            );
+                        }
+                    }
                 };
 
                 if !wal_entries.is_empty() {
@@ -406,7 +428,15 @@ where
                 }
 
                 if !wal_entries.is_empty() {
-                    self.wal_replay(&myself, state, height, wal_entries).await;
+                    if let Err(e) = self.wal_replay(&myself, state, height, wal_entries).await {
+                        error!(%height, "Error when replaying WAL: {e}");
+                        error!(%height, "Consensus may be in an inconsistent state after WAL replay failure");
+                        error!(%height, "Shutting down consensus actor to prevent safety violations");
+
+                        myself.kill();
+
+                        return Err(eyre!("Terminating consensus due to WAL replay failure").into());
+                    }
                 }
 
                 // Set the phase to `Running` now that we have replayed the WAL
@@ -677,7 +707,7 @@ where
         myself: &ActorRef<Msg<Ctx>>,
         state: &mut State<Ctx>,
         timeout: Timeout,
-    ) -> Result<(), ActorProcessingErr> {
+    ) -> Result<(), ConsensusError<Ctx>> {
         // Make sure the associated timer is cancelled
         state.timers.cancel(&timeout);
 
@@ -708,10 +738,18 @@ where
                 // Success
             }
             Ok(Err(e)) => {
-                error!("Resetting the WAL failed: {e}");
+                error!(%height, "Failed to reset WAL: {e}");
+                return Err(e
+                    .wrap_err(format!("Failed to reset WAL for height {height}"))
+                    .into());
             }
             Err(e) => {
-                error!("Failed to send Reset command to WAL actor: {e}");
+                error!(%height, "Failed to send Reset command to WAL actor: {e}");
+                return Err(eyre!(e)
+                    .wrap_err(format!(
+                        "Failed to send Reset command to WAL actor for height {height}"
+                    ))
+                    .into());
             }
         }
 
@@ -726,8 +764,9 @@ where
 
         match result {
             Ok(None) => {
-                // Nothing to replay
                 debug!(%height, "No WAL entries to replay");
+
+                // Nothing to replay
                 Ok(Default::default())
             }
 
@@ -739,9 +778,10 @@ where
 
             Err(e) => {
                 error!(%height, "Error when notifying WAL of started height: {e}");
-                self.tx_event
-                    .send(|| Event::WalReplayError(Arc::new(e.into())));
-                Ok(Default::default())
+
+                self.tx_event.send(|| Event::WalResetError(Arc::new(e)));
+
+                Err(eyre!("Failed to fetch WAL entries for height {height}").into())
             }
         }
     }
@@ -752,7 +792,7 @@ where
         state: &mut State<Ctx>,
         height: Ctx::Height,
         entries: Vec<WalEntry<Ctx>>,
-    ) {
+    ) -> Result<(), Arc<ConsensusError<Ctx>>> {
         use SignedConsensusMsg::*;
 
         assert_eq!(state.phase, Phase::Recovering);
@@ -760,7 +800,7 @@ where
         info!("Replaying {} WAL entries", entries.len());
 
         if entries.is_empty() {
-            return;
+            return Ok(());
         }
 
         self.tx_event
@@ -779,8 +819,13 @@ where
                     {
                         error!("Error when replaying vote: {e}");
 
-                        self.tx_event
-                            .send(|| Event::WalReplayError(Arc::new(e.into())));
+                        let e = Arc::new(e);
+                        self.tx_event.send({
+                            let e = Arc::clone(&e);
+                            || Event::WalReplayError(e)
+                        });
+
+                        return Err(e);
                     }
                 }
 
@@ -793,8 +838,13 @@ where
                     {
                         error!("Error when replaying Proposal: {e}");
 
-                        self.tx_event
-                            .send(|| Event::WalReplayError(Arc::new(e.into())));
+                        let e = Arc::new(e);
+                        self.tx_event.send({
+                            let e = Arc::clone(&e);
+                            || Event::WalReplayError(e)
+                        });
+
+                        return Err(e);
                     }
                 }
 
@@ -804,7 +854,13 @@ where
                     if let Err(e) = self.timeout_elapsed(myself, state, timeout).await {
                         error!("Error when replaying TimeoutElapsed: {e}");
 
-                        self.tx_event.send(|| Event::WalReplayError(Arc::new(e)));
+                        let e = Arc::new(e);
+                        self.tx_event.send({
+                            let e = Arc::clone(&e);
+                            || Event::WalReplayError(e)
+                        });
+
+                        return Err(e);
                     }
                 }
 
@@ -821,14 +877,21 @@ where
                     {
                         error!("Error when replaying LocallyProposedValue: {e}");
 
-                        self.tx_event
-                            .send(|| Event::WalReplayError(Arc::new(e.into())));
+                        let e = Arc::new(e);
+                        self.tx_event.send({
+                            let e = Arc::clone(&e);
+                            || Event::WalReplayError(e)
+                        });
+
+                        return Err(e);
                     }
                 }
             }
         }
 
         self.tx_event.send(|| Event::WalReplayDone(state.height()));
+
+        Ok(())
     }
 
     fn get_value(
