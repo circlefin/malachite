@@ -1,0 +1,139 @@
+name: Sonarqube Analysis
+on:
+  workflow_call:
+    inputs:
+      repository:
+        description: "Source repository to clone. Pass as github.repository expression"
+        type: string
+        required: false
+        default: ${{ github.repository }}
+      branch:
+        description: "Branch to run CI on. Pass as github.ref expression"
+        type: string
+        required: false
+        default: ${{ github.ref }}
+      sonar_project_key:
+        description: "Sonar project key (auto-generated when creating a project with GitHub Integration)"
+        type: string
+        required: true
+      clippy_artifact_name:
+        description: "Name of the Clippy report artifact to download"
+        type: string
+        required: false
+        default: ""
+      coverage_artifact_name:
+        description: "Name of the coverage report artifact to download"
+        type: string
+        required: false
+        default: ""
+      coverage_artifact_pattern:
+        description: "glob pattern to the coverage report artifacts to download, ignored if coverage_artifact_name is specified"
+        type: string
+        required: false
+        default: ""
+      sonarqube_host_url:
+        description: "SonarQube instance URL to use."
+        type: string
+        required: false
+        default: "http://sonarqube-prod-sonarqube.sonarqube:9000"
+      target_dir:
+        description: "Target directory where coverage file is generated."
+        type: string
+        required: false
+        default: "target"
+      args:
+        description: >
+          Additional sonar properties to use alongside the sonar-project.properties file.
+          For more language specific options, refer to https://docs.sonarqube.org/latest/analyzing-source-code/analysis-parameters/
+        type: string
+        required: false
+        default: >
+          -Dsonar.projectVersion=${{ github.sha }}
+      runner:
+        description: "Runner size to use."
+        type: string
+        required: false
+        default: "large-dind-cached"
+      quality_gate_check:
+        description: |
+          Verify the quality gate status. Setting this will fail the build in case of quality gate conditions not being met
+          Only applicable to "pull_request" event type.
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  sonarqube:
+    runs-on: ${{ inputs.runner }}
+    steps:
+      - name: Fail if report generation enabled but artifact to download is missing
+        if: ${{ inputs.clippy_artifact_name == '' && inputs.coverage_artifact_name == '' && inputs.coverage_artifact_pattern == '' }}
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          script: |
+              core.setFailed('At least one of clippy_artifact_name, coverage_artifact_name, or coverage_artifact_pattern must be set')
+
+      - name: Run Circle actions runner setup
+        uses: circlefin/circle-runner-setup-action@v5.7
+        with:
+          repository: ${{ inputs.repository }}
+          branch: ${{ inputs.branch }}
+          deep_clone: true
+          extra_apt_packages: libclang-dev
+
+      - name: Read secrets from AWS Secrets Manager into environment variables
+        uses: aws-actions/aws-secretsmanager-get-secrets@1d6311ab61b4856de027ff508aac818ddc1e141b # v2.0.7
+        with:
+          parse-json-secrets: true
+          secret-ids: |
+            /ops/sonarqube/token
+
+      - name: Download Clippy Report
+        if: ${{ inputs.clippy_artifact_name != '' }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ inputs.clippy_artifact_name }}
+          path: ${{ inputs.target_dir }}
+
+      - name: Download Coverage Report (by name)
+        if: ${{ inputs.coverage_artifact_name != '' }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: ${{ inputs.coverage_artifact_name }}
+          path: ${{ inputs.target_dir }}
+
+      - name: Download Coverage Reports (by pattern)
+        if: ${{ inputs.coverage_artifact_name == '' && inputs.coverage_artifact_pattern != '' }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: ${{ inputs.coverage_artifact_pattern }}
+          path: ${{ inputs.target_dir }}
+          merge-multiple: true
+
+      - name: List downloaded artifacts
+        run: ls -la ${{ inputs.target_dir }}
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@fb51252c7ba57d633bc668f941da052e410add48
+
+      # Assumes sonar-project.properties file exists in the repo root with the necessary sonar properties.
+      # If you do not want to define file, call this workflow with the args input
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@1a6d90ebcb0e6a6b1d87e37ba693fe453195ae25 # v5.3.1
+        env:
+          SONAR_TOKEN: ${{ env._OPS_SONARQUBE_TOKEN_TOKEN }}
+          SONAR_HOST_URL: ${{ inputs.sonarqube_host_url }}
+        with:
+          args: >
+            ${{ inputs.args }}
+            -Dsonar.projectKey=${{ inputs.sonar_project_key }}
+            ${{ runner.debug == '1' && '--debug' || '' }}
+
+      - name: SonarQube Quality Gate check
+        if: ${{ inputs.quality_gate_check && github.event_name == 'pull_request' }}
+        uses: sonarsource/sonarqube-quality-gate-action@cf038b0e0cdecfa9e56c198bbb7d21d751d62c3b # v1.2.0
+        timeout-minutes: 2
+        env:
+          SONAR_TOKEN: ${{ env._OPS_SONARQUBE_TOKEN_TOKEN }}
+          SONAR_HOST_URL: ${{ inputs.sonarqube_host_url }}
+

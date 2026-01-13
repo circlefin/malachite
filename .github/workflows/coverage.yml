@@ -21,17 +21,15 @@ jobs:
     permissions:
       pull-requests: read
     outputs:
-      code: ${{ steps.filter.outputs.code }}
-      specs: ${{ steps.filter.outputs.specs }}
+      changed: ${{ steps.filter.outputs.changed }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
         id: filter
         with:
           filters: |
-            code:
+            changed:
               - 'code/**'
-            specs:
               - 'specs/**'
             codecov:
               - 'codecov.yml'
@@ -39,8 +37,8 @@ jobs:
   integration:
     name: Integration
     needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' || needs.changes.outputs.codecov == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: github-hosted-small
+    if: ${{ needs.changes.outputs.changed == 'true' || github.ref == 'refs/heads/main' }}
+    runs-on: 2xlarge-spot
     defaults:
       run:
         working-directory: code
@@ -68,15 +66,15 @@ jobs:
             --all-features \
             --no-capture \
             --ignore-run-fail \
-            --codecov \
-            --output-path coverage-integration.info
+            --lcov \
+            --output-path coverage-integration.lcov
       - name: Generate text report
         run: cargo llvm-cov report
       - name: Upload coverage artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: integration-coverage
-          path: code/coverage-integration.info
+          name: coverage-integration
+          path: code/coverage-integration.lcov
           retention-days: 1
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
@@ -89,28 +87,32 @@ jobs:
   mbt:
     name: MBT
     needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' || needs.changes.outputs.specs == 'true' || needs.changes.outputs.codecov == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: github-hosted-small
+    if: ${{ needs.changes.outputs.changed == 'true' || github.ref == 'refs/heads/main' }}
+    runs-on: 2xlarge-spot
     defaults:
       run:
         working-directory: code
     env:
       CARGO_TERM_COLOR: always
     steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Run Circle actions runner setup
+        uses: circlefin/circle-runner-setup-action@v5.6
+        with:
+          repository: ${{ github.repository }}
+          branch: ${{ github.ref }}
+          extra_apt_packages: libclang-dev
       - name: Install Protoc
-        uses: step-security/setup-protoc@f6eb248a6510dbb851209febc1bd7981604a52e3 # v3
+        uses: step-security/setup-protoc@f6eb248a6510dbb851209febc1bd7981604a52e3 # v3.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Setup Node
-        uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3
+        uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
         with:
           node-version: "18"
       - name: Install Quint
         run: npm install -g @informalsystems/quint
       - name: Setup Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1
+        uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
         with:
           toolchain: nightly-2025-01-07 # pin to working nightly
           components: llvm-tools-preview
@@ -123,54 +125,30 @@ jobs:
           cargo llvm-cov nextest \
            -p informalsystems-malachitebft-test-mbt \
            -p informalsystems-malachitebft-starknet-test-mbt \
-           --all-features --codecov --output-path coverage-mbt.info
+           --all-features \
+          --ignore-run-fail \
+          --lcov \
+          --output-path coverage-mbt.lcov
       - name: Generate text report
         run: cargo llvm-cov report
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: mbt-coverage
-          path: code/coverage-mbt.info
+          name: coverage-mbt
+          path: code/coverage-mbt.lcov
           retention-days: 1
-      - name: Upload test results to Codecov
-        if: ${{ !cancelled() }}
-        uses: codecov/test-results-action@47f89e9acb64b76debcd5ea40642d25a4adced9f # v1
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          flags: mbt
-          fail_ci_if_error: false
 
-  upload-coverage:
-    name: Upload coverage to Codecov
+  sonarqube:
+    name: SonarQube Analysis
     needs: [changes, integration, mbt]
-    runs-on: github-hosted-small
-    if: ${{ !cancelled() && (needs.changes.outputs.code == 'true' || needs.changes.outputs.specs == 'true' || needs.changes.outputs.codecov == 'true' || github.ref == 'refs/heads/main') }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - name: Create coverage directory
-        run: mkdir -p code/coverage
-      - name: Download integration coverage
-        uses: actions/download-artifact@v4
-        with:
-          name: integration-coverage
-          path: code/coverage
-      - name: Download MBT coverage
-        uses: actions/download-artifact@v4
-        with:
-          name: mbt-coverage
-          path: code/coverage
-      - name: List coverage files
-        run: ls -la code/coverage
-      - name: Upload integration coverage to Codecov
-        working-directory: code
-        run: |
-          bash <(curl -s https://codecov.io/bash) -f coverage/coverage-integration.info -F integration
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-      - name: Upload MBT coverage to Codecov
-        working-directory: code
-        run: |
-          bash <(curl -s https://codecov.io/bash) -f coverage/coverage-mbt.info -F mbt
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    uses: ./.github/workflows/sonarqube.yml
+    if: ${{ needs.changes.outputs.changed == 'true' || github.ref == 'refs/heads/main' }}
+    with:
+      sonar_project_key: circlefin_malachite_57a53656-ff02-a10c-9c5a-52ba9202f3a9
+      coverage_artifact_pattern: coverage-*
+      quality_gate_check: true
+      args: >
+        -Dsonar.projectVersion=${{ github.sha }}
+        -Dsonar.sources=code
+        -Dsonar.rust.cargo.manifestPaths=code/Cargo.toml
+        -Dsonar.rust.lcov.reportPaths=target/coverage-integration.lcov,target/coverage-mbt.lcov

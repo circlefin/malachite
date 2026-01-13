@@ -137,18 +137,42 @@ jobs:
     if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
     runs-on: github-hosted-small
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Run Circle actions runner setup
+        uses: circlefin/circle-runner-setup-action@v5.6
+        with:
+          repository: ${{ github.repository }}
+          branch: ${{ github.ref }}
+          extra_apt_packages: libclang-dev
       - name: Setup Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           components: clippy
           cache-workspaces: "code"
       - name: Run clippy
-        uses: actions-rs/clippy@master
+        run: |
+          cargo clippy --all-targets --all-features --message-format=json -- -D warnings 2>&1 | tee target/clippy-report.json
+          test ${PIPESTATUS[0]} -eq 0
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          token: ${{secrets.GITHUB_TOKEN}}
-          args: --all-features --all-targets --manifest-path code/Cargo.toml
+          name: clippy-report
+          path: code/target/clippy-report.json
+          retention-days: 1
+
+  sonarqube:
+    name: SonarQube Analysis
+    needs: [changes, clippy]
+    uses: ./.github/workflows/sonarqube.yml
+    if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
+    with:
+      sonar_project_key: circlefin_malachite_57a53656-ff02-a10c-9c5a-52ba9202f3a9
+      clippy_artifact_name: clippy-report
+      quality_gate_check: true
+      args: >
+        -Dsonar.projectVersion=${{ github.sha }}
+        -Dsonar.sources=code
+        -Dsonar.rust.cargo.manifestPaths=code/Cargo.toml
+        -Dsonar.rust.clippy.reportPaths=target/clippy-report.json
 
   fmt:
     name: Formatting
