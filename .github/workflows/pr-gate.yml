@@ -6,6 +6,7 @@ on:
 
 jobs:
   check-eligibility:
+    name: Check eligibility
     runs-on: github-hosted-small
     steps:
       - name: Check if author is org member
