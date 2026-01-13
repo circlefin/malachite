@@ -42,6 +42,10 @@
 - Changed `ConsensusMsg::StartHeight` from `StartHeight(Height, ValidatorSet)` to `StartHeight(Height, HeightParams)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Changed `ConsensusMsg::RestartHeight` from `RestartHeight(Height, ValidatorSet)` to `RestartHeight(Height, HeightParams)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 
+### `malachitebft-app`
+
+- Removed `Node` trait
+
 ## 0.6.0
 
 ### `malachitebft-core-types`
