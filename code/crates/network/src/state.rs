@@ -262,9 +262,14 @@ impl State {
     }
 
     /// Determine the peer type based on peer ID and identify info
-    pub(crate) fn peer_type(&self, peer_id: &libp2p::PeerId, info: &identify::Info) -> PeerType {
-        let is_persistent =
-            self.persistent_peer_ids.contains(peer_id) || self.is_persistent_peer_by_address(info);
+    pub(crate) fn peer_type(
+        &self,
+        peer_id: &libp2p::PeerId,
+        connection_id: libp2p::swarm::ConnectionId,
+        info: &identify::Info,
+    ) -> PeerType {
+        let is_persistent = self.persistent_peer_ids.contains(peer_id)
+            || self.is_persistent_peer_by_address(connection_id);
 
         // Extract validator address from agent_version and check if it's in the validator set
         let agent_info = crate::utils::parse_agent_version(&info.agent_version);
@@ -278,20 +283,27 @@ impl State {
     }
 
     /// Check if a peer is a persistent peer by matching its addresses against persistent peer addresses
-    fn is_persistent_peer_by_address(&self, info: &identify::Info) -> bool {
-        // Check if any of the peer's listen addresses match a persistent peer address
-        // We strip the /p2p/<peer_id> component for comparison
-        for peer_addr in &info.listen_addrs {
-            let peer_addr_without_p2p = strip_peer_id_from_multiaddr(peer_addr);
+    ///
+    /// For inbound connections, we use the actual remote address from the connection endpoint
+    /// to prevent address spoofing attacks where a malicious peer could claim to be a
+    /// persistent peer by faking its `listen_addrs` in the Identify message.
+    fn is_persistent_peer_by_address(&self, connection_id: libp2p::swarm::ConnectionId) -> bool {
+        // Use actual remote address for both inbound and outbound connections
+        // This prevents address spoofing for inbound, and for outbound it's the address we dialed
+        let Some(conn_info) = self.discovery.connections.get(&connection_id) else {
+            return false;
+        };
 
-            for persistent_addr in &self.persistent_peer_addrs {
-                let persistent_addr_without_p2p = strip_peer_id_from_multiaddr(persistent_addr);
+        let remote_addr_without_p2p = strip_peer_id_from_multiaddr(&conn_info.remote_addr);
 
-                if peer_addr_without_p2p == persistent_addr_without_p2p {
-                    return true;
-                }
+        for persistent_addr in &self.persistent_peer_addrs {
+            let persistent_addr_without_p2p = strip_peer_id_from_multiaddr(persistent_addr);
+
+            if remote_addr_without_p2p == persistent_addr_without_p2p {
+                return true;
             }
         }
+
         false
     }
 
@@ -362,9 +374,14 @@ impl State {
     /// - Computes the GossipSub score
     ///
     /// Returns the score to set on the peer in GossipSub.
-    pub(crate) fn update_peer(&mut self, peer_id: libp2p::PeerId, info: &identify::Info) -> f64 {
-        // Determine peer type
-        let peer_type = self.peer_type(&peer_id, info);
+    pub(crate) fn update_peer(
+        &mut self,
+        peer_id: libp2p::PeerId,
+        connection_id: libp2p::swarm::ConnectionId,
+        info: &identify::Info,
+    ) -> f64 {
+        // Determine peer type using actual remote address for inbound connections
+        let peer_type = self.peer_type(&peer_id, connection_id, info);
 
         // Track persistent peers
         if peer_type.is_persistent() {

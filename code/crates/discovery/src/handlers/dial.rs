@@ -6,7 +6,8 @@ use libp2p::{
 use tracing::{debug, error, warn};
 
 use crate::{
-    controller::PeerData, dial::DialData, ConnectionDirection, Discovery, DiscoveryClient,
+    controller::PeerData, dial::DialData, ConnectionDirection, ConnectionInfo, Discovery,
+    DiscoveryClient,
 };
 
 impl<C> Discovery<C>
@@ -93,14 +94,20 @@ where
     ) {
         match endpoint {
             d @ ConnectedPoint::Dialer { .. } => {
+                let remote_addr = d.get_remote_address().clone();
                 debug!(
-                    peer = %peer_id, %connection_id, remote_address = %d.get_remote_address(),
+                    peer = %peer_id, %connection_id, remote_address = %remote_addr,
                     "Connected to peer (outbound)"
                 );
 
-                // Track connection direction: Outbound (we dialed)
-                self.connection_directions
-                    .insert(connection_id, ConnectionDirection::Outbound);
+                // Track connection, direction and remote address
+                self.connections.insert(
+                    connection_id,
+                    ConnectionInfo {
+                        direction: ConnectionDirection::Outbound,
+                        remote_addr,
+                    },
+                );
 
                 // Only register as "done" for connections that the node initiated
                 // This is needed in case the peer was dialed without knowing the peer id
@@ -109,14 +116,20 @@ where
                     .register_done_on(PeerData::PeerId(peer_id));
             }
             l @ ConnectedPoint::Listener { .. } => {
+                let remote_addr = l.get_remote_address().clone();
                 debug!(
-                    peer = %peer_id, %connection_id, remote_address = %l.get_remote_address(),
+                    peer = %peer_id, %connection_id, remote_address = %remote_addr,
                     "Accepted incoming connection from peer (inbound)"
                 );
 
-                // Track connection direction: Inbound (they dialed us)
-                self.connection_directions
-                    .insert(connection_id, ConnectionDirection::Inbound);
+                // Track connection info: direction and remote address
+                self.connections.insert(
+                    connection_id,
+                    ConnectionInfo {
+                        direction: ConnectionDirection::Inbound,
+                        remote_addr,
+                    },
+                );
             }
         }
 

@@ -16,10 +16,9 @@ where
             .values()
             .flatten()
             .filter(|connection_id| {
-                matches!(
-                    self.connection_directions.get(connection_id),
-                    Some(ConnectionDirection::Outbound)
-                )
+                self.connections
+                    .get(connection_id)
+                    .is_some_and(|info| info.direction == ConnectionDirection::Outbound)
             })
             .count()
     }
@@ -30,10 +29,9 @@ where
             .values()
             .flatten()
             .filter(|connection_id| {
-                matches!(
-                    self.connection_directions.get(connection_id),
-                    Some(ConnectionDirection::Inbound)
-                )
+                self.connections
+                    .get(connection_id)
+                    .is_some_and(|info| info.direction == ConnectionDirection::Inbound)
             })
             .count()
     }

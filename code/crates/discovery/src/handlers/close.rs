@@ -51,7 +51,7 @@ where
                 warn!("Removing active connection {connection_id} to peer {peer_id}");
                 connection_ids.retain(|id| id != &connection_id);
 
-                self.connection_directions.remove(&connection_id);
+                self.connections.remove(&connection_id);
 
                 if connection_ids.is_empty() {
                     self.active_connections.remove(&peer_id);

@@ -685,7 +685,7 @@ async fn handle_swarm_event(
                     );
 
                     // Update peer info in State and metrics, set peer score in gossipsub
-                    let score = state.update_peer(peer_id, &info);
+                    let score = state.update_peer(peer_id, connection_id, &info);
                     set_peer_score(swarm, peer_id, score);
 
                     if !is_already_connected {

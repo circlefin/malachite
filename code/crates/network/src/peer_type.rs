@@ -1,15 +1,35 @@
 //! Peer type classification for network peers
 
 use std::fmt::Write;
+use std::hash::{Hash, Hasher};
 
 use malachitebft_metrics::prometheus::encoding::EncodeLabelValue;
 
 /// Type of peer for labeling and scoring
 /// Peers can be validators (in current validator set), persistent (configured), both, or neither (full nodes)
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+///
+/// Note: Hash and PartialEq are implemented manually to be consistent with EncodeLabelValue.
+/// Two PeerTypes that produce the same Prometheus label must have the same Hash and be equal.
+#[derive(Clone, Copy, Debug)]
 pub struct PeerType {
     is_persistent: bool,
     is_validator: bool,
+}
+
+impl PartialEq for PeerType {
+    fn eq(&self, other: &Self) -> bool {
+        // Two PeerTypes are equal if they produce the same primary_type_str
+        self.primary_type_str() == other.primary_type_str()
+    }
+}
+
+impl Eq for PeerType {}
+
+impl Hash for PeerType {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        // Hash based on primary_type_str to be consistent with PartialEq and EncodeLabelValue
+        self.primary_type_str().hash(state);
+    }
 }
 
 impl PeerType {

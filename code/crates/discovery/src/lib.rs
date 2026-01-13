@@ -52,6 +52,13 @@ impl ConnectionDirection {
     }
 }
 
+/// Information about an established connection
+#[derive(Debug, Clone)]
+pub struct ConnectionInfo {
+    pub direction: ConnectionDirection,
+    pub remote_addr: Multiaddr,
+}
+
 #[derive(Debug, PartialEq)]
 enum OutboundState {
     Pending,
@@ -71,8 +78,8 @@ where
     bootstrap_nodes: Vec<(Option<PeerId>, Vec<Multiaddr>)>,
     discovered_peers: HashMap<PeerId, identify::Info>,
     active_connections: HashMap<PeerId, Vec<ConnectionId>>,
-    /// Track connection direction per connection
-    connection_directions: HashMap<ConnectionId, ConnectionDirection>,
+    /// Track connection info (direction and remote address) per connection
+    pub connections: HashMap<ConnectionId, ConnectionInfo>,
     outbound_peers: HashMap<PeerId, OutboundState>,
     inbound_peers: HashSet<PeerId>,
 
@@ -142,7 +149,7 @@ where
                 .collect(),
             discovered_peers: HashMap::new(),
             active_connections: HashMap::new(),
-            connection_directions: HashMap::new(),
+            connections: HashMap::new(),
             outbound_peers: HashMap::new(),
             inbound_peers: HashSet::new(),
 

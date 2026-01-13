@@ -20,6 +20,7 @@
 - Ensure discovery configuration is passed down to the networking module
 - Fix peer and connection metrics when discovery is disabled
 - Prevent address poisoning when discovery is enabled
+- Prevent address spoofing in persistent peer detection
 
 ### `driver`
 - Check for polka certificate to multiplex `PolkaValue` output on step change
