@@ -1,10 +1,10 @@
 use async_trait::async_trait;
 use bytes::Bytes;
 
-use malachitebft_core_types::{SignedExtension, SignedProposal, SignedProposalPart, SignedVote};
+use malachitebft_core_types::{SignedExtension, SignedProposal, SignedVote};
 use malachitebft_signing::{Error, SigningProvider, VerificationResult};
 
-use crate::{Proposal, ProposalPart, TestContext, Vote};
+use crate::{Proposal, TestContext, Vote};
 
 pub use malachitebft_signing_ed25519::*;
 
@@ -49,6 +49,23 @@ impl Ed25519Provider {
 
 #[async_trait]
 impl SigningProvider<TestContext> for Ed25519Provider {
+    async fn sign_bytes(&self, bytes: &[u8]) -> Result<Signature, Error> {
+        Ok(self.sign(bytes))
+    }
+
+    async fn verify_signed_bytes(
+        &self,
+        bytes: &[u8],
+        signature: &Signature,
+        public_key: &PublicKey,
+    ) -> Result<VerificationResult, Error> {
+        if self.verify(bytes, signature, public_key) {
+            Ok(VerificationResult::Valid)
+        } else {
+            Ok(VerificationResult::Invalid)
+        }
+    }
+
     async fn sign_vote(&self, vote: Vote) -> Result<SignedVote<TestContext>, Error> {
         let signature = self.sign(&vote.to_sign_bytes());
         Ok(SignedVote::new(vote, signature))
@@ -82,27 +99,6 @@ impl SigningProvider<TestContext> for Ed25519Provider {
         Ok(VerificationResult::from_bool(
             public_key
                 .verify(&proposal.to_sign_bytes(), signature)
-                .is_ok(),
-        ))
-    }
-
-    async fn sign_proposal_part(
-        &self,
-        proposal_part: ProposalPart,
-    ) -> Result<SignedProposalPart<TestContext>, Error> {
-        let signature = self.private_key.sign(&proposal_part.to_sign_bytes());
-        Ok(SignedProposalPart::new(proposal_part, signature))
-    }
-
-    async fn verify_signed_proposal_part(
-        &self,
-        proposal_part: &ProposalPart,
-        signature: &Signature,
-        public_key: &PublicKey,
-    ) -> Result<VerificationResult, Error> {
-        Ok(VerificationResult::from_bool(
-            public_key
-                .verify(&proposal_part.to_sign_bytes(), signature)
                 .is_ok(),
         ))
     }

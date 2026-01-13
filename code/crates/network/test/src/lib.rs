@@ -145,27 +145,36 @@ impl<const N: usize> Test<N> {
     }
 
     fn generate_default_configs(&self, discovery_config: DiscoveryConfig) -> [Config; N] {
-        std::array::from_fn(|i| Config {
-            listen_addr: TransportProtocol::Quic
-                .multiaddr("127.0.0.1", self.consensus_base_port + i),
-            persistent_peers: self.nodes[i]
-                .bootstrap_nodes
-                .iter()
-                .map(|j| {
-                    TransportProtocol::Quic.multiaddr("127.0.0.1", self.consensus_base_port + *j)
-                })
-                .collect(),
-            discovery: discovery_config,
-            idle_connection_timeout: Duration::from_secs(60),
-            transport: malachitebft_network::TransportProtocol::Quic,
-            gossipsub: malachitebft_network::GossipSubConfig::default(),
-            pubsub_protocol: malachitebft_network::PubSubProtocol::default(),
-            channel_names: malachitebft_network::ChannelNames::default(),
-            rpc_max_size: 10 * 1024 * 1024,   // 10 MiB
-            pubsub_max_size: 4 * 1024 * 1024, // 4 MiB
-            enable_consensus: true,
-            enable_sync: false,
-            protocol_names: ProtocolNames::default(),
+        std::array::from_fn(|i| {
+            let mut config = Config {
+                listen_addr: TransportProtocol::Quic
+                    .multiaddr("127.0.0.1", self.consensus_base_port + i),
+                persistent_peers: self.nodes[i]
+                    .bootstrap_nodes
+                    .iter()
+                    .map(|j| {
+                        TransportProtocol::Quic
+                            .multiaddr("127.0.0.1", self.consensus_base_port + *j)
+                    })
+                    .collect(),
+                persistent_peers_only: false,
+                discovery: discovery_config,
+                idle_connection_timeout: Duration::from_secs(60),
+                transport: malachitebft_network::TransportProtocol::Quic,
+                gossipsub: malachitebft_network::GossipSubConfig::default(),
+                pubsub_protocol: malachitebft_network::PubSubProtocol::default(),
+                channel_names: malachitebft_network::ChannelNames::default(),
+                rpc_max_size: 10 * 1024 * 1024,   // 10 MiB
+                pubsub_max_size: 4 * 1024 * 1024, // 4 MiB
+                enable_consensus: true,
+                enable_sync: false,
+                protocol_names: ProtocolNames::default(),
+            };
+
+            // Apply custom configuration if provided
+            self.nodes[i].customize_config(&mut config);
+
+            config
         })
     }
 
@@ -181,8 +190,19 @@ impl<const N: usize> Test<N> {
         for (i, config) in configs.iter().enumerate().take(N) {
             if self.nodes[i].start_node() {
                 let moniker = format!("node-{i}");
-                let handle = spawn(
+                // Generate a test consensus address from the keypair's public key
+                let consensus_address =
+                    format!("test-address-{}", self.keypairs[i].public().to_peer_id());
+
+                // Create node identity
+                let identity = malachitebft_network::NetworkIdentity::new(
+                    moniker.clone(),
                     self.keypairs[i].clone(),
+                    Some(consensus_address),
+                );
+
+                let handle = spawn(
+                    identity,
                     config.clone(),
                     SharedRegistry::global().with_moniker(moniker),
                 )
@@ -270,11 +290,35 @@ pub enum Fault {
     NoStart,
 }
 
-#[derive(Clone, Debug)]
+type ConfigCustomizer = std::sync::Arc<dyn Fn(&mut Config) + Send + Sync>;
+
 pub struct TestNode {
     _id: usize,
     bootstrap_nodes: Vec<usize>,
     faults: Vec<Fault>,
+    config_customizer: Option<ConfigCustomizer>,
+}
+
+impl Clone for TestNode {
+    fn clone(&self) -> Self {
+        Self {
+            _id: self._id,
+            bootstrap_nodes: self.bootstrap_nodes.clone(),
+            faults: self.faults.clone(),
+            config_customizer: self.config_customizer.clone(),
+        }
+    }
+}
+
+impl std::fmt::Debug for TestNode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TestNode")
+            .field("_id", &self._id)
+            .field("bootstrap_nodes", &self.bootstrap_nodes)
+            .field("faults", &self.faults)
+            .field("has_config_customizer", &self.config_customizer.is_some())
+            .finish()
+    }
 }
 
 impl TestNode {
@@ -283,6 +327,7 @@ impl TestNode {
             _id: id,
             bootstrap_nodes,
             faults: Vec::new(),
+            config_customizer: None,
         }
     }
 
@@ -291,6 +336,19 @@ impl TestNode {
             _id: id,
             bootstrap_nodes,
             faults,
+            config_customizer: None,
+        }
+    }
+
+    pub fn with_custom_config<F>(id: usize, bootstrap_nodes: Vec<usize>, customizer: F) -> Self
+    where
+        F: Fn(&mut Config) + Send + Sync + 'static,
+    {
+        Self {
+            _id: id,
+            bootstrap_nodes,
+            faults: Vec::new(),
+            config_customizer: Some(std::sync::Arc::new(customizer)),
         }
     }
 
@@ -300,6 +358,12 @@ impl TestNode {
 
     pub fn start_node(&self) -> bool {
         !self.faults.contains(&Fault::NoStart)
+    }
+
+    pub fn customize_config(&self, config: &mut Config) {
+        if let Some(customizer) = &self.config_customizer {
+            customizer(config);
+        }
     }
 }
 

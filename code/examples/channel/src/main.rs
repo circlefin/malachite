@@ -2,9 +2,9 @@
 
 use config::Config;
 use eyre::{eyre, Result};
+use malachitebft_test::node::Node;
 use tracing::info;
 
-use malachitebft_app_channel::app::node::Node;
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::Height;
 use malachitebft_test_cli::args::{Args, Commands};

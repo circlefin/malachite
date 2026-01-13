@@ -8,15 +8,16 @@ use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;
 
 use malachitebft_app::events::{RxEvent, TxEvent};
-use malachitebft_app::node::{
-    CanGeneratePrivateKey, CanMakeConfig, CanMakeDistributedConfig, CanMakeGenesis,
-    CanMakePrivateKeyFile, MakeConfigSettings, Node, NodeHandle,
-};
 use malachitebft_app::types::Keypair;
 use malachitebft_config::mempool_load::UniformLoadConfig;
 use malachitebft_core_types::{LinearTimeouts, VotingPower};
 use malachitebft_engine::node::NodeRef;
 use malachitebft_starknet_p2p_types::Ed25519Provider;
+use malachitebft_test::node::{Node, NodeHandle};
+use malachitebft_test::traits::{
+    CanGeneratePrivateKey, CanMakeConfig, CanMakeDistributedConfig, CanMakeGenesis,
+    CanMakePrivateKeyFile, MakeConfigSettings,
+};
 
 use crate::config::{load_config, Config};
 use crate::spawn::spawn_node_actor;
@@ -285,6 +286,7 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
                         .collect()
                 },
                 discovery: settings.discovery,
+                persistent_peers_only: settings.persistent_peers_only,
                 ..Default::default()
             },
         },
@@ -379,6 +381,7 @@ fn make_distributed_config(
                         .collect()
                 },
                 discovery: settings.discovery,
+                persistent_peers_only: settings.persistent_peers_only,
                 ..Default::default()
             },
         },
@@ -424,6 +427,7 @@ fn default_config() -> Config {
             transport: TransportProtocol::Tcp,
             discovery: DiscoveryConfig::default(),
             value_sync: ValueSyncConfig::default(),
+            persistent_peers_only: false,
         },
     )
 }

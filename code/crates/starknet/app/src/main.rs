@@ -1,9 +1,9 @@
 use color_eyre::eyre::Context;
 
-use malachitebft_app::node::Node;
 use malachitebft_config::{LogFormat, LogLevel};
 use malachitebft_starknet_host::codec::ProtobufCodec;
 use malachitebft_starknet_host::node::{ConfigSource, StarknetNode};
+use malachitebft_test::node::Node;
 use malachitebft_test_cli::args::{Args, Commands};
 use malachitebft_test_cli::{logging, runtime};
 

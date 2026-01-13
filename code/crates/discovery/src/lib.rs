@@ -35,6 +35,30 @@ enum State {
     Idle,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConnectionDirection {
+    /// Outbound connection (we dialed the peer)
+    Outbound,
+    /// Inbound connection (the peer dialed us)
+    Inbound,
+}
+
+impl ConnectionDirection {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Outbound => "outbound",
+            Self::Inbound => "inbound",
+        }
+    }
+}
+
+/// Information about an established connection
+#[derive(Debug, Clone)]
+pub struct ConnectionInfo {
+    pub direction: ConnectionDirection,
+    pub remote_addr: Multiaddr,
+}
+
 #[derive(Debug, PartialEq)]
 enum OutboundState {
     Pending,
@@ -54,6 +78,8 @@ where
     bootstrap_nodes: Vec<(Option<PeerId>, Vec<Multiaddr>)>,
     discovered_peers: HashMap<PeerId, identify::Info>,
     active_connections: HashMap<PeerId, Vec<ConnectionId>>,
+    /// Track connection info (direction and remote address) per connection
+    pub connections: HashMap<ConnectionId, ConnectionInfo>,
     outbound_peers: HashMap<PeerId, OutboundState>,
     inbound_peers: HashSet<PeerId>,
 
@@ -74,6 +100,15 @@ where
                 "disabled"
             }
         );
+
+        // Warn if discovery is enabled with persistent_peers_only
+        if config.enabled && config.persistent_peers_only {
+            warn!(
+                "Discovery is enabled with persistent_peers_only mode. \
+                 Discovered peers will be rejected unless they are in the persistent_peers list. \
+                 Consider disabling discovery for a pure persistent-peers-only setup."
+            );
+        }
 
         let state = if config.enabled && bootstrap_nodes.is_empty() {
             warn!("No bootstrap nodes provided");
@@ -114,6 +149,7 @@ where
                 .collect(),
             discovered_peers: HashMap::new(),
             active_connections: HashMap::new(),
+            connections: HashMap::new(),
             outbound_peers: HashMap::new(),
             inbound_peers: HashSet::new(),
 
@@ -124,6 +160,24 @@ where
 
     pub fn is_enabled(&self) -> bool {
         self.config.enabled
+    }
+
+    /// Check if a peer connection is outbound
+    pub fn is_outbound_peer(&self, peer_id: &PeerId) -> bool {
+        self.outbound_peers.contains_key(peer_id)
+    }
+
+    /// Check if a peer connection is inbound
+    pub fn is_inbound_peer(&self, peer_id: &PeerId) -> bool {
+        self.inbound_peers.contains(peer_id)
+    }
+
+    /// Check if a peer is a persistent peer (in the bootstrap_nodes list)
+    pub fn is_persistent_peer(&self, peer_id: &PeerId) -> bool {
+        // XXX: The assumption here is bootstrap_nodes is a list of persistent peers.
+        self.bootstrap_nodes
+            .iter()
+            .any(|(maybe_peer_id, _)| maybe_peer_id == &Some(*peer_id))
     }
 
     pub fn on_network_event(

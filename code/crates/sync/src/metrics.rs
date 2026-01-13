@@ -1,5 +1,5 @@
 use std::ops::Deref;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use dashmap::DashMap;
@@ -27,15 +27,21 @@ pub struct Inner {
     value_client_latency: Histogram,
     value_server_latency: Histogram,
     value_request_timeouts: Counter,
+    status_interarrival: Histogram,
+    status_interarrival_normalized: Histogram, // Independent of number of peers and status update interval
+    status_total: Counter,
 
     instant_request_sent: Arc<DashMap<u64, Instant>>,
     instant_request_received: Arc<DashMap<u64, Instant>>,
+    instant_last_status_received: Arc<Mutex<Option<Instant>>>,
+    status_update_interval: Duration,
 
     pub scoring: crate::scoring::metrics::Metrics,
 }
 
 impl Inner {
-    pub fn new() -> Self {
+    pub fn new(status_update_interval: Duration) -> Self {
+        let t = status_update_interval.as_secs_f64();
         Self {
             value_requests_sent: Counter::default(),
             value_requests_received: Counter::default(),
@@ -44,26 +50,25 @@ impl Inner {
             value_client_latency: Histogram::new(exponential_buckets(0.1, 2.0, 20)),
             value_server_latency: Histogram::new(exponential_buckets(0.1, 2.0, 20)),
             value_request_timeouts: Counter::default(),
+            status_interarrival: Histogram::new(exponential_buckets(0.05 * t.max(1e-6), 1.15, 40)),
+            status_interarrival_normalized: Histogram::new(exponential_buckets(0.05, 1.15, 40)),
+            status_total: Counter::default(),
             instant_request_sent: Arc::new(DashMap::new()),
             instant_request_received: Arc::new(DashMap::new()),
+            instant_last_status_received: Arc::new(Mutex::new(None)),
+            status_update_interval,
             scoring: crate::scoring::metrics::Metrics::new(),
         }
     }
 }
 
-impl Default for Inner {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl Metrics {
-    pub fn new() -> Self {
-        Self(Arc::new(Inner::new()))
+    pub fn new(status_update_interval: Duration) -> Self {
+        Self(Arc::new(Inner::new(status_update_interval)))
     }
 
-    pub fn register(registry: &SharedRegistry) -> Self {
-        let metrics = Self::new();
+    pub fn register(registry: &SharedRegistry, status_update_interval: Duration) -> Self {
+        let metrics = Self::new(status_update_interval);
 
         registry.with_prefix("malachitebft_sync", |registry| {
             // Value sync related metrics
@@ -110,6 +115,23 @@ impl Metrics {
             );
 
             metrics.scoring.register(registry);
+
+            registry.register(
+                "status_interarrival",
+                "Status updates interarrival histogram (any peer)",
+                metrics.status_interarrival.clone(),
+            );
+
+            registry.register(
+                "status_interarrival_normalized",
+                "Status updates interarrival histogram (any peer) normalized to have a mean of 1",
+                metrics.status_interarrival_normalized.clone(),
+            );
+            registry.register(
+                "status_total",
+                "Total number of status updates received",
+                metrics.status_total.clone(),
+            );
         });
 
         metrics
@@ -150,10 +172,32 @@ impl Metrics {
         self.value_request_timeouts.inc();
         self.instant_request_sent.remove(&height);
     }
+
+    pub fn status_received(&self, n_peers: u64) {
+        self.status_total.inc();
+        let now = Instant::now();
+
+        let mut last_recv_guard = self.instant_last_status_received.lock().unwrap();
+        if let Some(prev) = *last_recv_guard {
+            let delta = now.duration_since(prev).as_secs_f64();
+            self.status_interarrival.observe(delta);
+
+            if n_peers > 0 {
+                // Observe normalized metric (delta / (T/N))
+                let mu = self.status_update_interval.as_secs_f64() / (n_peers as f64);
+                if mu > 0.0 {
+                    let ratio = delta / mu;
+                    self.status_interarrival_normalized.observe(ratio);
+                }
+            }
+        }
+        *last_recv_guard = Some(now);
+    }
 }
 
 impl Default for Metrics {
     fn default() -> Self {
-        Self::new()
+        // Default interval of 1s.
+        Self::new(Duration::from_secs(1))
     }
 }

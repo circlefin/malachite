@@ -3,7 +3,7 @@ use starknet_core::utils::starknet_keccak;
 
 use malachitebft_core_types::{
     CertificateError, CommitCertificate, CommitSignature, NilOrVal, SignedExtension,
-    SignedProposal, SignedProposalPart, SignedVote, SigningProvider, VotingPower,
+    SignedProposal, SignedVote, SigningProvider, VotingPower,
 };
 
 use crate::{
@@ -54,22 +54,6 @@ impl SigningProvider<MockContext> for EcdsaProvider {
     ) -> bool {
         // Proposals are never sent over the network
         true
-    }
-
-    fn sign_proposal_part(&self, proposal_part: ProposalPart) -> SignedProposalPart<MockContext> {
-        let hash = starknet_keccak(&proposal_part.to_sign_bytes());
-        let signature = self.private_key.sign(&hash);
-        SignedProposalPart::new(proposal_part, signature)
-    }
-
-    fn verify_signed_proposal_part(
-        &self,
-        proposal_part: &ProposalPart,
-        signature: &Signature,
-        public_key: &PublicKey,
-    ) -> bool {
-        let hash = starknet_keccak(&proposal_part.to_sign_bytes());
-        public_key.verify(&hash, signature)
     }
 
     fn sign_vote_extension(&self, extension: Bytes) -> SignedExtension<MockContext> {

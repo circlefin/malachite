@@ -5,6 +5,7 @@ use std::ops::RangeInclusive;
 use derive_where::derive_where;
 use tracing::{debug, error, info, warn};
 
+use malachitebft_core_types::utils::height::DisplayRange;
 use malachitebft_core_types::{Context, Height};
 
 use crate::co::Co;
@@ -88,7 +89,7 @@ where
             {
                 if stored_peer_id != &peer_id {
                     warn!(
-                        %request_id, peer.actual = %peer_id, peer.expected = %stored_peer_id,
+                        %request_id, actual_peer = %peer_id, expected_peer = %stored_peer_id,
                         "Received response from different peer than expected"
                     );
 
@@ -149,7 +150,7 @@ pub async fn on_tick<Ctx>(
 where
     Ctx: Context,
 {
-    debug!(height.tip = %state.tip_height, "Broadcasting status");
+    debug!(tip_height = %state.tip_height, "Broadcasting status");
 
     perform!(
         co,
@@ -163,7 +164,7 @@ where
             .reset_inactive_peers_scores(inactive_threshold);
     }
 
-    debug!("Peer scores: {:#?}", state.peer_scorer.get_scores());
+    debug!("Peer scores: {:?}", state.peer_scorer.get_scores());
 
     Ok(())
 }
@@ -180,9 +181,10 @@ where
     let peer_id = status.peer_id;
     let peer_height = status.tip_height;
 
-    debug!(peer.id = %peer_id, peer.height = %peer_height, "Received peer status");
+    debug!(%peer_id, %peer_height, "Received peer status");
 
     state.update_status(status);
+    metrics.status_received(state.peers.len() as u64);
 
     if !state.started {
         // Consensus has not started yet, no need to sync (yet).
@@ -191,9 +193,9 @@ where
 
     if peer_height >= state.sync_height {
         info!(
-            height.tip = %state.tip_height,
-            height.sync = %state.sync_height,
-            height.peer = %peer_height,
+            tip_height = %state.tip_height,
+            sync_height = %state.sync_height,
+            peer_height = %peer_height,
             "SYNC REQUIRED: Falling behind"
         );
 
@@ -215,7 +217,7 @@ pub async fn on_started_height<Ctx>(
 where
     Ctx: Context,
 {
-    debug!(%height, is_restart=%start_type.is_restart(), "Consensus started new height");
+    debug!(%height, is_restart = %start_type.is_restart(), "Consensus started new height");
 
     state.started = true;
 
@@ -264,9 +266,18 @@ where
     Ok(())
 }
 
+#[tracing::instrument(
+    name = "on_value_request",
+    skip_all,
+    fields(
+        peer_id = %peer_id,
+        request_id = %request_id,
+        range = %DisplayRange(&request.range)
+    )
+)]
 pub async fn on_value_request<Ctx>(
     co: Co<Ctx>,
-    _state: &mut State<Ctx>,
+    state: &mut State<Ctx>,
     metrics: &Metrics,
     request_id: InboundRequestId,
     peer_id: PeerId,
@@ -275,16 +286,91 @@ pub async fn on_value_request<Ctx>(
 where
     Ctx: Context,
 {
-    debug!(range = %DisplayRange::<Ctx>(&request.range), %peer_id, "Received request for values");
+    debug!("Received request for values");
+
+    if !validate_request_range::<Ctx>(&request.range, state.tip_height, state.config.batch_size) {
+        debug!("Sending empty response to peer");
+
+        perform!(
+            co,
+            Effect::SendValueResponse(
+                request_id.clone(),
+                ValueResponse::new(*request.range.start(), vec![]),
+                Default::default()
+            )
+        );
+
+        return Ok(());
+    }
 
     metrics.value_request_received(request.range.start().as_u64());
 
+    let range = clamp_request_range::<Ctx>(&request.range, state.tip_height);
+
+    if range != request.range {
+        debug!(
+            requested = %DisplayRange(&request.range),
+            clamped = %DisplayRange(&range),
+            "Clamped request range to our tip height"
+        );
+    }
+
     perform!(
         co,
-        Effect::GetDecidedValues(request_id, request.range, Default::default())
+        Effect::GetDecidedValues(request_id, range, Default::default())
     );
 
     Ok(())
+}
+
+fn validate_request_range<Ctx>(
+    range: &RangeInclusive<Ctx::Height>,
+    tip_height: Ctx::Height,
+    batch_size: usize,
+) -> bool
+where
+    Ctx: Context,
+{
+    if range.is_empty() {
+        debug!("Received request for empty range of values");
+        return false;
+    }
+
+    if range.start() > range.end() {
+        debug!("Received request for invalid range of values");
+        return false;
+    }
+
+    if range.start() > &tip_height {
+        debug!("Received request for values beyond our tip height {tip_height}");
+        return false;
+    }
+
+    let len = (range.end().as_u64() - range.start().as_u64()).saturating_add(1) as usize;
+    if len > batch_size {
+        warn!("Received request for too many values: requested {len}, max is {batch_size}");
+        return false;
+    }
+
+    true
+}
+
+fn clamp_request_range<Ctx>(
+    range: &RangeInclusive<Ctx::Height>,
+    tip_height: Ctx::Height,
+) -> RangeInclusive<Ctx::Height>
+where
+    Ctx: Context,
+{
+    assert!(!range.is_empty(), "Cannot clamp an empty range");
+    assert!(
+        *range.start() <= tip_height,
+        "Cannot clamp range starting above tip height"
+    );
+
+    let start = *range.start();
+    let end = min(*range.end(), tip_height);
+    start..=end
 }
 
 pub async fn on_value_response<Ctx>(
@@ -390,7 +476,7 @@ pub async fn on_got_decided_values<Ctx>(
 where
     Ctx: Context,
 {
-    info!(range = %DisplayRange::<Ctx>(&range), "Received {} values from host", values.len());
+    info!(%request_id, range = %DisplayRange(&range), "Received {} values from host", values.len());
 
     let start = range.start();
     let end = range.end();
@@ -399,6 +485,7 @@ where
     let batch_size = end.as_u64() - start.as_u64() + 1;
     if batch_size != values.len() as u64 {
         warn!(
+            %request_id,
             "Received {} values from host, expected {batch_size}",
             values.len()
         )
@@ -406,9 +493,10 @@ where
 
     // Validate the height of each received value
     let mut height = *start;
-    for value in values.clone() {
+    for value in &values {
         if value.certificate.height != height {
             error!(
+                %request_id,
                 "Received from host value for height {}, expected for height {height}",
                 value.certificate.height
             );
@@ -416,7 +504,7 @@ where
         height = height.increment();
     }
 
-    debug!(%request_id, range = %DisplayRange::<Ctx>(&range), "Sending response to peer");
+    debug!(%request_id, range = %DisplayRange(&range), "Sending response to peer");
     perform!(
         co,
         Effect::SendValueResponse(
@@ -444,7 +532,7 @@ where
 {
     match request {
         Request::ValueRequest(value_request) => {
-            info!(%peer_id, range = %DisplayRange::<Ctx>(&value_request.range), "Sync request timed out");
+            info!(%peer_id, range = %DisplayRange(&value_request.range), "Sync request timed out");
 
             state.peer_scorer.update_score(peer_id, SyncResult::Timeout);
 
@@ -598,7 +686,7 @@ where
     // Get a random peer that can provide the values in the range.
     let Some((peer, range)) = state.random_peer_with(&range) else {
         // No connected peer reached this height yet, we can stop syncing here.
-        debug!(range = %DisplayRange::<Ctx>(&range), "No peer to request sync from");
+        debug!(range = %DisplayRange(&range), "No peer to request sync from");
         return Ok(());
     };
 
@@ -630,14 +718,14 @@ where
 
     if range.is_empty() {
         warn!(
-            range = %DisplayRange::<Ctx>(&range), %peer,
+            range = %DisplayRange(&range), %peer,
             "All values in range have been validated, skipping request"
         );
 
         return Ok(None);
     }
 
-    info!(range = %DisplayRange::<Ctx>(&range), %peer, "Requesting sync from peer");
+    info!(range = %DisplayRange(&range), %peer, "Requesting sync from peer");
 
     // Send request to peer
     let Some(request_id) = perform!(
@@ -645,12 +733,12 @@ where
         Effect::SendValueRequest(peer, ValueRequest::new(range.clone()), Default::default()),
         Resume::ValueRequestId(id) => id,
     ) else {
-        warn!(range = %DisplayRange::<Ctx>(&range), %peer, "Failed to send sync request to peer");
+        warn!(range = %DisplayRange(&range), %peer, "Failed to send sync request to peer");
         return Ok(None);
     };
 
     metrics.value_request_sent(range.start().as_u64());
-    debug!(%request_id, range = %DisplayRange::<Ctx>(&range), %peer, "Sent sync request to peer");
+    debug!(%request_id, range = %DisplayRange(&range), %peer, "Sent sync request to peer");
 
     Ok(Some((request_id, range)))
 }
@@ -709,14 +797,6 @@ where
         .insert(request_id, (final_range.clone(), peer));
 
     Ok(())
-}
-
-struct DisplayRange<'a, Ctx: Context>(&'a RangeInclusive<Ctx::Height>);
-
-impl<'a, Ctx: Context> core::fmt::Display for DisplayRange<'a, Ctx> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}..={}", self.0.start(), self.0.end())
-    }
 }
 
 /// Find the next uncovered range starting from initial_height.
@@ -1095,5 +1175,55 @@ mod tests {
                 case.name
             );
         }
+    }
+
+    #[test]
+    fn test_validate_request_range() {
+        let validate = validate_request_range::<TestContext>;
+
+        let tip_height = Height::new(20);
+        let batch_size = 5;
+
+        // Valid range
+        let range = Height::new(15)..=Height::new(19);
+        assert!(validate(&range, tip_height, batch_size));
+
+        // Start greater than end
+        let range = Height::new(18)..=Height::new(17);
+        assert!(!validate(&range, tip_height, batch_size));
+
+        // Start greater than tip height
+        let range = Height::new(21)..=Height::new(25);
+        assert!(!validate(&range, tip_height, batch_size));
+
+        // Exceeds batch size
+        let range = Height::new(10)..=Height::new(16);
+        assert!(!validate(&range, tip_height, batch_size));
+
+        // No overflow
+        let range = Height::new(0)..=Height::new(u64::MAX);
+        assert!(!validate(&range, tip_height, batch_size));
+    }
+
+    #[test]
+    fn test_clamp_request_range() {
+        let clamp = clamp_request_range::<TestContext>;
+
+        let tip_height = Height::new(20);
+
+        // Range within tip height
+        let range = Height::new(15)..=Height::new(18);
+        let clamped = clamp(&range, tip_height);
+        assert_eq!(clamped, range);
+
+        // Range exceeding tip height
+        let range = Height::new(18)..=Height::new(25);
+        let clamped = clamp(&range, tip_height);
+        assert_eq!(clamped, Height::new(18)..=tip_height);
+
+        // Range starting at tip height
+        let range = tip_height..=Height::new(25);
+        let clamped = clamp(&range, tip_height);
+        assert_eq!(clamped, tip_height..=tip_height);
     }
 }

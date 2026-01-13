@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-const DEFAULT_NUM_OUTBOUND_PEERS: usize = 20;
-const DEFAULT_NUM_INBOUND_PEERS: usize = 20;
+const DEFAULT_NUM_OUTBOUND_PEERS: usize = 50;
+const DEFAULT_NUM_INBOUND_PEERS: usize = 50;
 
 const DEFAULT_MAX_CONNECTIONS_PER_PEER: usize = 5;
 
@@ -29,11 +29,15 @@ pub enum Selector {
 pub struct Config {
     pub enabled: bool,
 
+    pub persistent_peers_only: bool,
+
     pub bootstrap_protocol: BootstrapProtocol,
     pub selector: Selector,
 
     pub num_outbound_peers: usize,
     pub num_inbound_peers: usize,
+
+    pub max_connections_per_ip: usize,
 
     pub max_connections_per_peer: usize,
 
@@ -53,6 +57,8 @@ impl Default for Config {
         Self {
             enabled: true,
 
+            persistent_peers_only: false,
+
             bootstrap_protocol: BootstrapProtocol::default(),
             selector: Selector::default(),
 
@@ -60,6 +66,7 @@ impl Default for Config {
             num_inbound_peers: DEFAULT_NUM_INBOUND_PEERS,
 
             max_connections_per_peer: DEFAULT_MAX_CONNECTIONS_PER_PEER,
+            max_connections_per_ip: DEFAULT_NUM_INBOUND_PEERS,
 
             ephemeral_connection_timeout: DEFAULT_EPHEMERAL_CONNECTION_TIMEOUT,
 
@@ -76,6 +83,15 @@ impl Config {
             enabled,
             ..Default::default()
         }
+    }
+
+    /// Set the persistent_peers_only mode.
+    ///
+    /// # Arguments
+    ///
+    /// * `persistent_peers_only` - Whether to only allow connections from/to persistent peers.
+    pub fn set_persistent_peers_only(&mut self, persistent_peers_only: bool) {
+        self.persistent_peers_only = persistent_peers_only;
     }
 
     pub fn set_bootstrap_protocol(&mut self, protocol: BootstrapProtocol) {

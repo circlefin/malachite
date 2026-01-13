@@ -15,12 +15,12 @@ use malachitebft_engine::sync::{Params as SyncParams, Sync, SyncCodec, SyncRef};
 use malachitebft_engine::util::events::TxEvent;
 use malachitebft_engine::wal::{Wal, WalCodec, WalRef};
 use malachitebft_network::{
-    ChannelNames, Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, Keypair,
+    ChannelNames, Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, NetworkIdentity,
 };
 use malachitebft_signing::SigningProvider;
 use malachitebft_sync as sync;
 
-use crate::config::{ConsensusConfig, PubSubProtocol, ValueSyncConfig};
+use crate::config::{ConsensusConfig, ValueSyncConfig};
 use crate::metrics::{Metrics, SharedRegistry};
 use crate::types::core::Context;
 use crate::types::ValuePayload;
@@ -52,8 +52,9 @@ where
 }
 
 pub async fn spawn_network_actor<Ctx, Codec>(
-    cfg: &ConsensusConfig,
-    keypair: Keypair,
+    consensus_cfg: &ConsensusConfig,
+    value_sync_cfg: &ValueSyncConfig,
+    identity: NetworkIdentity,
     registry: &SharedRegistry,
     codec: Codec,
 ) -> Result<NetworkRef<Ctx>>
@@ -62,17 +63,17 @@ where
     Codec: ConsensusCodec<Ctx>,
     Codec: SyncCodec<Ctx>,
 {
-    let config = make_gossip_config(cfg);
+    let config = make_network_config(consensus_cfg, value_sync_cfg);
 
-    Network::spawn(keypair, config, registry.clone(), codec, Span::current())
+    Network::spawn(identity, config, registry.clone(), codec, Span::current())
         .await
         .map_err(Into::into)
 }
 
 #[allow(clippy::too_many_arguments)]
 pub async fn spawn_consensus_actor<Ctx>(
-    address: Ctx::Address,
     ctx: Ctx,
+    address: Ctx::Address,
     mut cfg: ConsensusConfig,
     sync_cfg: &ValueSyncConfig,
     signing_provider: Box<dyn SigningProvider<Ctx>>,
@@ -124,21 +125,28 @@ where
 pub async fn spawn_wal_actor<Ctx, Codec>(
     ctx: &Ctx,
     codec: Codec,
-    home_dir: &Path,
+    path: &Path,
     registry: &SharedRegistry,
 ) -> Result<WalRef<Ctx>>
 where
     Ctx: Context,
     Codec: WalCodec<Ctx>,
 {
-    let wal_dir = home_dir.join("wal");
-    std::fs::create_dir_all(&wal_dir).unwrap();
+    if !path.exists() {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
 
-    let wal_file = wal_dir.join("consensus.wal");
-
-    Wal::spawn(ctx, codec, wal_file, registry.clone(), Span::current())
-        .await
-        .map_err(Into::into)
+    Wal::spawn(
+        ctx,
+        codec,
+        path.to_owned(),
+        registry.clone(),
+        Span::current(),
+    )
+    .await
+    .map_err(Into::into)
 }
 
 pub async fn spawn_sync_actor<Ctx, Codec>(
@@ -178,7 +186,7 @@ where
         batch_size: config.batch_size,
     };
 
-    let metrics = sync::Metrics::register(registry);
+    let metrics = sync::Metrics::register(registry, params.status_update_interval);
 
     let actor_ref = Sync::spawn(
         ctx,
@@ -195,41 +203,63 @@ where
     Ok(Some(actor_ref))
 }
 
-fn make_gossip_config(cfg: &ConsensusConfig) -> NetworkConfig {
+fn make_network_config(cfg: &ConsensusConfig, value_sync_cfg: &ValueSyncConfig) -> NetworkConfig {
+    use malachitebft_config as config;
+    use malachitebft_network as network;
+
     NetworkConfig {
         listen_addr: cfg.p2p.listen_addr.clone(),
         persistent_peers: cfg.p2p.persistent_peers.clone(),
+        persistent_peers_only: cfg.p2p.persistent_peers_only,
         discovery: DiscoveryConfig {
             enabled: cfg.p2p.discovery.enabled,
-            ..Default::default()
+            persistent_peers_only: cfg.p2p.persistent_peers_only,
+            bootstrap_protocol: match cfg.p2p.discovery.bootstrap_protocol {
+                config::BootstrapProtocol::Kademlia => network::BootstrapProtocol::Kademlia,
+                config::BootstrapProtocol::Full => network::BootstrapProtocol::Full,
+            },
+            selector: match cfg.p2p.discovery.selector {
+                config::Selector::Kademlia => network::Selector::Kademlia,
+                config::Selector::Random => network::Selector::Random,
+            },
+            num_outbound_peers: cfg.p2p.discovery.num_outbound_peers,
+            num_inbound_peers: cfg.p2p.discovery.num_inbound_peers,
+            max_connections_per_ip: cfg.p2p.discovery.max_connections_per_ip,
+            max_connections_per_peer: cfg.p2p.discovery.max_connections_per_peer,
+            ephemeral_connection_timeout: cfg.p2p.discovery.ephemeral_connection_timeout,
+            dial_max_retries: cfg.p2p.discovery.dial_max_retries,
+            request_max_retries: cfg.p2p.discovery.request_max_retries,
+            connect_request_max_retries: cfg.p2p.discovery.connect_request_max_retries,
         },
         idle_connection_timeout: Duration::from_secs(15 * 60),
-        transport: malachitebft_network::TransportProtocol::from_multiaddr(&cfg.p2p.listen_addr)
-            .unwrap_or_else(|| {
+        transport: network::TransportProtocol::from_multiaddr(&cfg.p2p.listen_addr).unwrap_or_else(
+            || {
                 panic!(
                     "No valid transport protocol found in listen address: {}",
                     cfg.p2p.listen_addr
                 )
-            }),
+            },
+        ),
         pubsub_protocol: match cfg.p2p.protocol {
-            PubSubProtocol::GossipSub(_) => malachitebft_network::PubSubProtocol::GossipSub,
-            PubSubProtocol::Broadcast => malachitebft_network::PubSubProtocol::Broadcast,
+            config::PubSubProtocol::GossipSub(_) => network::PubSubProtocol::GossipSub,
+            config::PubSubProtocol::Broadcast => network::PubSubProtocol::Broadcast,
         },
         gossipsub: match cfg.p2p.protocol {
-            PubSubProtocol::GossipSub(config) => GossipSubConfig {
+            config::PubSubProtocol::GossipSub(config) => GossipSubConfig {
                 mesh_n: config.mesh_n(),
                 mesh_n_high: config.mesh_n_high(),
                 mesh_n_low: config.mesh_n_low(),
                 mesh_outbound_min: config.mesh_outbound_min(),
+                enable_peer_scoring: config.enable_peer_scoring(),
             },
-            PubSubProtocol::Broadcast => GossipSubConfig::default(),
+            config::PubSubProtocol::Broadcast => GossipSubConfig::default(),
         },
         channel_names: ChannelNames::default(),
         rpc_max_size: cfg.p2p.rpc_max_size.as_u64() as usize,
         pubsub_max_size: cfg.p2p.pubsub_max_size.as_u64() as usize,
         enable_consensus: cfg.enabled,
-        enable_sync: true,
-        protocol_names: malachitebft_network::ProtocolNames {
+        enable_sync: value_sync_cfg.enabled,
+        protocol_names: network::ProtocolNames {
             consensus: cfg.p2p.protocol_names.consensus.clone(),
             discovery_kad: cfg.p2p.protocol_names.discovery_kad.clone(),
             discovery_regres: cfg.p2p.protocol_names.discovery_regres.clone(),

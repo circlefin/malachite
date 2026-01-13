@@ -217,7 +217,7 @@ checksum = "3109e49b1e4909e9db6515a30c633684d68cdeaa252f215214cb4fa1a5bfee2c"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
  "synstructure",
 ]
 
@@ -229,7 +229,7 @@ checksum = "7b18050c2cd6fe86c3a76584ef5e0baf286d038cda203eb6223df2cc413565f7"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -282,7 +282,7 @@ checksum = "3b43422f69d8ff38f95f1b2bb76517c91589a924d1559a0e935d7c8ce0274c11"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -293,7 +293,7 @@ checksum = "e539d3fca749fcee5236ab05e93a52867dd549cc157c8cb7f99595f3cedffdb5"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -445,6 +445,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a8241f3ebb85c056b509d4327ad0358fbbba6ffb340bf388f26350aeda225b1"
 
 [[package]]
+name = "bindgen"
+version = "0.72.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "993776b509cfb49c750f11b8f07a46fa23e0a1386ffc01fb1e7d343efc387895"
+dependencies = [
+ "bitflags 2.9.0",
+ "cexpr",
+ "clang-sys",
+ "itertools 0.13.0",
+ "log",
+ "prettyplease",
+ "proc-macro2",
+ "quote",
+ "regex",
+ "rustc-hash",
+ "shlex",
+ "syn 2.0.100",
+]
+
+[[package]]
 name = "bitflags"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -503,7 +523,7 @@ dependencies = [
  "ident_case",
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -526,7 +546,7 @@ dependencies = [
  "proc-macro-crate",
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -624,6 +644,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cexpr"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6fac387a98bb7c37292057cffc56d62ecb629900026402633ae9160df93a8766"
+dependencies = [
+ "nom",
+]
+
+[[package]]
 name = "cfg-if"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -669,7 +698,7 @@ dependencies = [
  "iana-time-zone",
  "num-traits",
  "serde",
- "windows-link",
+ "windows-link 0.1.0",
 ]
 
 [[package]]
@@ -711,6 +740,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "clang-sys"
+version = "1.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b023947811758c97c59bf9d1c188fd619ad4718dcaa767947df1cadb14f39f4"
+dependencies = [
+ "glob",
+ "libc",
+ "libloading",
+]
+
+[[package]]
 name = "clap"
 version = "4.5.37"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -741,7 +781,7 @@ dependencies = [
  "heck",
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -988,7 +1028,7 @@ checksum = "f46882e17999c6cc590af592290432be3bce0428cb0d5f8b6715e4dc7b383eb3"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -1025,7 +1065,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "strsim",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -1036,7 +1076,7 @@ checksum = "d336a2a514f6ccccaa3e09b02d41d35330c07ddf03a62165fcec10bb561c7806"
 dependencies = [
  "darling_core",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -1076,7 +1116,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "18e4fdb82bd54a12e42fb58a800dcae6b9e13982238ce2296dc3570b92148e1f"
 dependencies = [
  "data-encoding",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -1122,7 +1162,7 @@ checksum = "ef941ded77d15ca19b40374869ac6000af1c9f2a4c0f3d4c70926287e6364a8f"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -1181,7 +1221,7 @@ checksum = "97369cbbc041bc366949bc74d34658d6cda5621039731c6310521892a3a20ae0"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -1278,7 +1318,7 @@ dependencies = [
  "heck",
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -1464,7 +1504,7 @@ checksum = "162ee34ebcb7c64a8abebc059ce0fee27c2262618d7b60ed8faf72fef13c3650"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -2035,7 +2075,7 @@ checksum = "1ec89e9337638ecdc08744df490b221a7399bf8d164eb52a665454e60e075ad6"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -2149,7 +2189,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-app"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "async-trait",
  "derive-where",
@@ -2165,6 +2205,7 @@ dependencies = [
  "informalsystems-malachitebft-signing",
  "informalsystems-malachitebft-sync",
  "informalsystems-malachitebft-wal",
+ "libp2p",
  "libp2p-identity",
  "ractor",
  "rand 0.8.5",
@@ -2175,7 +2216,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-app-channel"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "bytes",
  "derive-where",
@@ -2183,6 +2224,7 @@ dependencies = [
  "informalsystems-malachitebft-app",
  "informalsystems-malachitebft-config",
  "informalsystems-malachitebft-engine",
+ "informalsystems-malachitebft-signing",
  "informalsystems-malachitebft-test",
  "ractor",
  "rand 0.8.5",
@@ -2193,14 +2235,14 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-codec"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "bytes",
 ]
 
 [[package]]
 name = "informalsystems-malachitebft-config"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "bytesize",
  "config",
@@ -2214,7 +2256,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-core-consensus"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "async-recursion",
  "borsh",
@@ -2235,7 +2277,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-core-driver"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "derive-where",
  "informalsystems-malachitebft-core-state-machine",
@@ -2248,7 +2290,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-core-state-machine"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "derive-where",
  "displaydoc",
@@ -2258,7 +2300,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-core-types"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "async-trait",
  "borsh",
@@ -2271,7 +2313,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-core-votekeeper"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "derive-where",
  "informalsystems-malachitebft-core-types",
@@ -2282,7 +2324,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-discovery"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "either",
  "eyre",
@@ -2296,7 +2338,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-discovery-test"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "futures",
  "informalsystems-malachitebft-config",
@@ -2305,6 +2347,7 @@ dependencies = [
  "informalsystems-malachitebft-network",
  "informalsystems-malachitebft-starknet-host",
  "libp2p-identity",
+ "netstat2",
  "rand 0.8.5",
  "tokio",
  "tracing",
@@ -2313,13 +2356,14 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-engine"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "async-recursion",
  "async-trait",
  "borsh",
  "byteorder",
  "bytes",
+ "bytesize",
  "derive-where",
  "eyre",
  "informalsystems-malachitebft-codec",
@@ -2343,7 +2387,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-example-channel"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "async-trait",
  "bytes",
@@ -2370,7 +2414,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-metrics"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "informalsystems-malachitebft-core-state-machine",
  "prometheus-client",
@@ -2378,7 +2422,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-network"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "bytes",
  "either",
@@ -2399,7 +2443,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-peer"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "borsh",
  "bs58",
@@ -2411,7 +2455,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-proto"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "prost",
  "prost-types",
@@ -2420,7 +2464,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-signing"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "async-trait",
  "informalsystems-malachitebft-core-types",
@@ -2429,7 +2473,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-signing-ecdsa"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "base64 0.22.1",
  "informalsystems-malachitebft-core-types",
@@ -2444,7 +2488,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-signing-ed25519"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "base64 0.22.1",
  "ed25519-consensus",
@@ -2456,13 +2500,14 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-starknet-app"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "clap",
  "color-eyre",
  "informalsystems-malachitebft-app",
  "informalsystems-malachitebft-config",
  "informalsystems-malachitebft-starknet-host",
+ "informalsystems-malachitebft-test",
  "informalsystems-malachitebft-test-cli",
  "tempfile",
  "tikv-jemallocator",
@@ -2471,7 +2516,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-starknet-host"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "async-trait",
  "bytes",
@@ -2491,6 +2536,7 @@ dependencies = [
  "informalsystems-malachitebft-starknet-p2p-proto",
  "informalsystems-malachitebft-starknet-p2p-types",
  "informalsystems-malachitebft-sync",
+ "informalsystems-malachitebft-test",
  "informalsystems-malachitebft-test-cli",
  "informalsystems-malachitebft-test-mempool",
  "itertools 0.14.0",
@@ -2511,7 +2557,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-starknet-p2p-proto"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "prost",
  "prost-build",
@@ -2520,7 +2566,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-starknet-p2p-types"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "async-trait",
  "bytes",
@@ -2538,7 +2584,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-starknet-test"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "async-trait",
  "axum",
@@ -2562,7 +2608,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-starknet-test-mbt"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "bytes",
  "glob",
@@ -2578,7 +2624,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-sync"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "arbtest",
  "async-trait",
@@ -2603,7 +2649,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-test"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -2626,6 +2672,7 @@ dependencies = [
  "informalsystems-malachitebft-sync",
  "informalsystems-malachitebft-test-app",
  "informalsystems-malachitebft-test-framework",
+ "libp2p-identity",
  "prost",
  "prost-build",
  "prost-types",
@@ -2642,7 +2689,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-test-app"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "async-trait",
  "bytes",
@@ -2670,7 +2717,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-test-cli"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "axum",
  "bytesize",
@@ -2681,6 +2728,7 @@ dependencies = [
  "informalsystems-malachitebft-config",
  "informalsystems-malachitebft-core-types",
  "informalsystems-malachitebft-metrics",
+ "informalsystems-malachitebft-test",
  "itertools 0.14.0",
  "rand 0.8.5",
  "serde",
@@ -2695,7 +2743,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-test-framework"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "axum",
  "bytesize",
@@ -2719,7 +2767,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-test-mbt"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "glob",
  "informalsystems-malachitebft-core-state-machine",
@@ -2743,7 +2791,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-test-mempool"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "eyre",
  "futures",
@@ -2762,7 +2810,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-wal"
-version = "0.6.0-pre"
+version = "0.7.0-pre"
 dependencies = [
  "advisory-lock",
  "bytes",
@@ -2930,6 +2978,16 @@ name = "libc"
 version = "0.2.175"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a82ae493e598baaea5209805c49bbf2ea7de956d50d7da0da1164f9c6d28543"
+
+[[package]]
+name = "libloading"
+version = "0.8.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7c4b02199fee7c5d21a5ae7d8cfa79a6ef5bb2fc834d6e9058e89c825efdc55"
+dependencies = [
+ "cfg-if",
+ "windows-link 0.2.1",
+]
 
 [[package]]
 name = "libp2p"
@@ -3294,7 +3352,7 @@ checksum = "dd297cf53f0cb3dee4d2620bb319ae47ef27c702684309f682bdb7e55a18ae9c"
 dependencies = [
  "heck",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -3428,7 +3486,7 @@ dependencies = [
  "quote",
  "regex-syntax",
  "rustc_version",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -3517,7 +3575,7 @@ checksum = "db5b29714e950dbb20d5e6f74f9dcec4edbcc1067bb7f8ed198c097b8c1a818b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -3667,6 +3725,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "netlink-packet-sock-diag"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a495cb1de50560a7cd12fdcf023db70eec00e340df81be31cedbbfd4aadd6b76"
+dependencies = [
+ "anyhow",
+ "bitflags 1.3.2",
+ "byteorder",
+ "libc",
+ "netlink-packet-core",
+ "netlink-packet-utils",
+ "smallvec",
+]
+
+[[package]]
 name = "netlink-packet-utils"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3703,6 +3776,24 @@ dependencies = [
  "libc",
  "log",
  "tokio",
+]
+
+[[package]]
+name = "netstat2"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "496f264d3ead4870d6b366deb9d20597592d64aac2a907f3e7d07c2325ba4663"
+dependencies = [
+ "bindgen",
+ "bitflags 2.9.0",
+ "byteorder",
+ "netlink-packet-core",
+ "netlink-packet-sock-diag",
+ "netlink-packet-utils",
+ "netlink-sys",
+ "num-derive",
+ "num-traits",
+ "thiserror 2.0.16",
 ]
 
 [[package]]
@@ -3778,6 +3869,17 @@ name = "num-conv"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51d515d32fb182ee37cda2ccdcb92950d6a3c2893aa280e540671c2cd0f3b1d9"
+
+[[package]]
+name = "num-derive"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "876a53fff98e03a936a674b29568b0e605f06b29372c2489ff4de23f1949743d"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
 
 [[package]]
 name = "num-integer"
@@ -3976,7 +4078,7 @@ checksum = "6e918e4ff8c4549eb882f14b3a4bc8c8bc93de829416eacf579f1207a8fbf861"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -4105,7 +4207,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1ccf34da56fc294e7d4ccf69a85992b7dfb826b7cf57bac6a70bba3494cc08a"
 dependencies = [
  "proc-macro2",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -4155,7 +4257,7 @@ checksum = "440f724eba9f6996b75d63681b0a92b06947f1457076d503a4d2e2c8f56442b8"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -4184,7 +4286,7 @@ dependencies = [
  "prost",
  "prost-types",
  "regex",
- "syn",
+ "syn 2.0.100",
  "tempfile",
 ]
 
@@ -4198,7 +4300,7 @@ dependencies = [
  "itertools 0.14.0",
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -4749,7 +4851,7 @@ checksum = "5b0276cf7f2c73365f7157c8123c21cd9a50fbbd844757af28ca1f5925fc2a00"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -4848,7 +4950,7 @@ dependencies = [
  "darling",
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -4860,7 +4962,7 @@ dependencies = [
  "darling",
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -5091,7 +5193,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rustversion",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -5105,6 +5207,17 @@ name = "subtle-ng"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "734676eb262c623cec13c3155096e08d1f8f29adce39ba17948b18dad1e54142"
+
+[[package]]
+name = "syn"
+version = "1.0.109"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72b64191b275b66ffe2469e8af2c1cfe3bafa67b529ead792a6d0160888b4237"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-ident",
+]
 
 [[package]]
 name = "syn"
@@ -5131,7 +5244,7 @@ checksum = "c8af7666ab7b6390ab78131fb5b0fce11d6b7a6951602017c35fa82800708971"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -5229,7 +5342,7 @@ checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -5240,7 +5353,7 @@ checksum = "6c5e1be1c48b9172ee610da68fd9cd2770e7a4056cb3fc98710ee6906f0c7960"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -5368,7 +5481,7 @@ checksum = "6e06d43f1345a3bcd39f6a56dbb7dcab2ba47e68e8ac134855e7e2bdbaf8cab8"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -5485,7 +5598,7 @@ checksum = "395ae124c09f9e6918a2310af6038fba074bcf474ac352496d5910dd59a2226d"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -5732,7 +5845,7 @@ dependencies = [
  "log",
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
  "wasm-bindgen-shared",
 ]
 
@@ -5754,7 +5867,7 @@ checksum = "8ae87ea40c9f689fc23f209965b6fb8a99ad69aeeb0231408be24920604395de"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
  "wasm-bindgen-backend",
  "wasm-bindgen-shared",
 ]
@@ -5896,7 +6009,7 @@ checksum = "2bbd5b46c938e506ecbce286b6628a02171d56153ba733b6c741fc627ec9579b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -5907,7 +6020,7 @@ checksum = "053c4c462dc91d3b1504c6fe5a726dd15e216ba718e84a0e46a88fbe5ded3515"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -5915,6 +6028,12 @@ name = "windows-link"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6dccfd733ce2b1753b03b6d3c65edf020262ea35e20ccdf3e288043e6dd620e3"
+
+[[package]]
+name = "windows-link"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5"
 
 [[package]]
 name = "windows-result"
@@ -6242,7 +6361,7 @@ checksum = "2380878cad4ac9aac1e2435f3eb4020e8374b5f13c296cb75b4620ff8e229154"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
  "synstructure",
 ]
 
@@ -6272,7 +6391,7 @@ checksum = "fa4f8080344d4671fb4e831a13ad1e68092748387dfc4f55e356242fae12ce3e"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -6283,7 +6402,7 @@ checksum = "6352c01d0edd5db859a63e2605f4ea3183ddbd15e2c4a9e7d32184df75e4f154"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -6303,7 +6422,7 @@ checksum = "d71e5d6e06ab090c67b5e44993ec16b72dcbaabc526db883a360057678b48502"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
  "synstructure",
 ]
 
@@ -6324,7 +6443,7 @@ checksum = "ce36e65b0d2999d2aafac989fb249189a141aee1f53c612c1f37d72631959f69"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -6346,5 +6465,5 @@ checksum = "6eafa6dfb17584ea3e2bd6e76e0cc15ad7af12b09abdd1ca55961bed9b1063c6"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.100",
 ]

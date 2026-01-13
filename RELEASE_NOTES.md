@@ -2,6 +2,56 @@
 
 ## Unreleased
 
+### `app-channel`
+- Make consensus request channel capacity configurable
+- Refactor infrastructure for spawning a channel-based application
+
+### `consensus`
+- Allow application to change its mind about validity (invalid -> valid)
+- Allow dynamic adjustment of timeout parameters ([#1227](https://github.com/circlefin/malachite/pull/1227))
+- Allow providing both the validator set and the timeouts for a height in `StartHeight`, `RestartHeight` and `ConsensusReady` reply ([#1227](https://github.com/circlefin/malachite/pull/1227))
+- Remove `initial_validator_set` and `initial_height` fields from `Params` struct ([#1190](https://github.com/circlefin/malachite/pull/1190))
+
+### `discovery`
+- Can connect request calls the wrong controller action
+- Clear connect_request done_on to allow re-upgrading the peer on reconnection
+- Don't add peers with empty address list to dial queue
+- Don't cancel outgoing dials when receiving inbound connection from same peer
+- Ensure discovery configuration is passed down to the networking module
+- Fix peer and connection metrics when discovery is disabled
+- Prevent address poisoning when discovery is enabled
+- Prevent address spoofing in persistent peer detection
+
+### `driver`
+- Check for polka certificate to multiplex `PolkaValue` output on step change
+- Ensure `PrecommitAny` does not shadow `PolkaNil` and `PolkaAny` pending inputs
+- Ensure polka certificate is matched against a proposal for the same value
+- Produce `InvalidProposalAndPolkaPrevious` when receiving a polka certificate matching the POL round of a proposal with an invalid value
+
+### `engine`
+- Stop consensus engine on WAL replay failure
+
+### `network`
+- Add `persistent_peers_only` config option to allow connections ONLY from/to persistent peers
+- Add a mechanism to dump the network state
+- Add application-specific peer scoring for Gossipsub to prioritize nodes based on their types, in mesh formation and maintenance
+- Add network metrics for peer identification and tracking
+- Add transport level connection limits
+- Limit the number of peers that can connect from same IP address
+
+### `signing`
+- Implement `SigningProvider` for `Arc<T>` where `T: SigningProvider`
+- Remove signing of proposal parts
+
+### `sync`
+- Initial random (fixed) period adjustment in sync status ticker
+- Support batch retrieval of decided values
+- Validate value request ranges before processing
+
+## 0.6.0
+
+*November 19th, 2025*
+
 - Remove `Effect::GetValidatorSet`, `AppMsg::GetValidatorSet` and `HostMsg::GetValidatorSet` ([#1189](https://github.com/circlefin/malachite/pull/1189))
 - Introduce `malachitebft-signing` crate for exposing the `SigningProvider` and `SigningProviderExt` traits ([#1191](https://github.com/informalsystems/malachite/pull/1191))
 - Make `SigningProvider` trait methods fallible ([#1191](https://github.com/informalsystems/malachite/pull/1191))
@@ -11,9 +61,6 @@
 - Add facility for app to request a consensus state dump at any time ([#1176](https://github.com/informalsystems/malachite/pull/1176))
 - Make libp2p protocol names configurable ([#1161](https://github.com/informalsystems/malachite/issues/1161))
 - Fix mismatched height of WAL entries emitted when processing `StartHeight` input ([#1232](https://github.com/circlefin/malachite/issues/1232))
-- Allow dynamic adjustment of timeout parameters ([#1227](https://github.com/circlefin/malachite/pull/1227))
-- Allow providing both the validator set and the timeouts for a height in `StartHeight`, `RestartHeight` and `ConsensusReady` reply ([#1227](https://github.com/circlefin/malachite/pull/1227))
-- Remove `initial_validator_set` and `initial_height` fields from `Params` struct ([#1190](https://github.com/circlefin/malachite/pull/1190))
 
 ## 0.5.0
 

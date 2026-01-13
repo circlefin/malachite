@@ -8,7 +8,7 @@ use derive_where::derive_where;
 use thiserror::Error;
 
 use malachitebft_core_types::{Context, Proposal, Round, SignedProposal, Validity, Value, ValueId};
-use tracing::warn;
+use tracing::{error, warn};
 
 /// Errors can that be yielded when recording a proposal.
 #[derive_where(Debug)]
@@ -62,50 +62,112 @@ where
     }
 
     /// Add a proposal to this round, checking for conflicts.
+    ///
     /// All proposals must come from the same validator (proposer).
     /// If a proposal comes from a different validator than the first,
     /// this is considered a calling code bug and the function will panic.
+    ///
     /// - Stores each unique proposal once.
-    /// - Returns an error if equivocation is detected but from the **same** validator.
+    /// - Returns an error if equivocation is detected from the **same** validator.
     /// - Panics if proposals come from **different validators**.
     pub fn add(
         &mut self,
         proposal: SignedProposal<Ctx>,
         validity: Validity,
     ) -> Result<(), RecordProposalError<Ctx>> {
-        // Ignore exact duplicates
-        if self.proposals.iter().any(|(p, _)| p == &proposal) {
+        // Early return for exact duplicates
+        if self.contains_exact(&proposal, validity) {
             return Ok(());
         }
 
-        // Check if the proposal is from the same validator as the first one recorded.
-        // This should never happen, as proposals should always come from the same validator (round's proposer).
-        if let Some(first) = self.get_first_proposal() {
-            if first.validator_address() != proposal.validator_address() {
-                panic!(
-                    "BUG: Received proposals from different validators in the same round.\n\
-                    Existing: {:?}, New: {:?}",
-                    first.validator_address(),
-                    proposal.validator_address()
-                );
+        // Ensure all proposals come from the same validator
+        self.verify_same_validator(&proposal);
+
+        // Update existing proposal or add new one
+        match self.proposal_validity_mut(&proposal) {
+            Some(existing_validity) => {
+                Self::update_validity(&proposal, existing_validity, validity);
+            }
+            None => {
+                self.proposals.push((proposal.clone(), validity));
             }
         }
 
-        // Store the new unique proposal
-        self.proposals.push((proposal.clone(), validity));
+        // Check for equivocation (multiple distinct proposals)
+        self.check_equivocation(proposal)
+    }
 
-        // If more than one distinct proposal has been recorded, treat it as equivocation.
-        if self.proposals.len() > 1 {
-            return Err(RecordProposalError::ConflictingProposal {
-                existing: self
-                    .get_first_proposal()
-                    .expect("at least one proposal should exist after push")
-                    .clone(),
-                conflicting: proposal,
-            });
+    fn contains_exact(&self, proposal: &SignedProposal<Ctx>, validity: Validity) -> bool {
+        self.proposals
+            .iter()
+            .any(|(p, v)| p == proposal && *v == validity)
+    }
+
+    fn verify_same_validator(&self, proposal: &SignedProposal<Ctx>) {
+        if let Some(first) = self.get_first_proposal() {
+            assert_eq!(
+                first.validator_address(),
+                proposal.validator_address(),
+                "BUG: Received proposals from different validators in the same round.\n\
+                Existing: {:?}, New: {:?}",
+                first.validator_address(),
+                proposal.validator_address()
+            );
         }
+    }
 
-        Ok(())
+    fn proposal_validity_mut(&mut self, proposal: &SignedProposal<Ctx>) -> Option<&mut Validity> {
+        self.proposals
+            .iter_mut()
+            .find(|(p, _)| p == proposal)
+            .map(|(_, v)| v)
+    }
+
+    fn update_validity(proposal: &SignedProposal<Ctx>, current: &mut Validity, new: Validity) {
+        use Validity::{Invalid, Valid};
+
+        match (&current, &new) {
+            (Invalid, Valid) => {
+                warn!(
+                    height = %proposal.message.height(),
+                    round = %proposal.message.round(),
+                    value_id = %proposal.message.value().id(),
+                    "Application changed its mind on proposal's validity: Invalid --> Valid"
+                );
+                *current = new;
+            }
+            (Valid, Invalid) => {
+                error!(
+                    height = %proposal.message.height(),
+                    round = %proposal.message.round(),
+                    value_id = %proposal.message.value().id(),
+                    "Application changed its mind on proposal's validity: Valid --> Invalid; \
+                    this should not happen"
+                );
+            }
+            _ => {
+                // Same validity, no action needed
+            }
+        }
+    }
+
+    fn check_equivocation(
+        &self,
+        proposal: SignedProposal<Ctx>,
+    ) -> Result<(), RecordProposalError<Ctx>> {
+        if self.proposals.len() > 1 {
+            let existing = self
+                .get_first_proposal()
+                .expect("at least one proposal should exist")
+                .clone();
+
+            Err(RecordProposalError::ConflictingProposal {
+                existing,
+                conflicting: proposal,
+            })
+        } else {
+            Ok(())
+        }
     }
 }
 

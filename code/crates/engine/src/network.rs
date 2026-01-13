@@ -4,20 +4,23 @@ use std::marker::PhantomData;
 use async_trait::async_trait;
 use derive_where::derive_where;
 use eyre::eyre;
-use libp2p::identity::Keypair;
 use libp2p::request_response;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
-use tracing::{error, trace};
+use tracing::{error, info, trace};
 
 use malachitebft_codec as codec;
 use malachitebft_core_consensus::{LivenessMsg, SignedConsensusMsg};
 use malachitebft_core_types::{
-    Context, PolkaCertificate, RoundCertificate, SignedProposal, SignedVote,
+    Context, PolkaCertificate, RoundCertificate, SignedProposal, SignedVote, Validator,
+    ValidatorSet,
 };
 use malachitebft_metrics::SharedRegistry;
 use malachitebft_network::handle::CtrlHandle;
 use malachitebft_network::{Channel, Config, Event, Multiaddr, PeerId};
+
+pub use malachitebft_network::NetworkIdentity;
+
 use malachitebft_sync::{
     self as sync, InboundRequestId, OutboundRequestId, RawMessage, Request, Response,
 };
@@ -26,6 +29,8 @@ use crate::consensus::ConsensusCodec;
 use crate::sync::SyncCodec;
 use crate::util::output_port::{OutputPort, OutputPortSubscriberTrait};
 use crate::util::streaming::StreamMessage;
+
+pub use malachitebft_network::NetworkStateDump;
 
 pub type NetworkRef<Ctx> = ActorRef<Msg<Ctx>>;
 pub type NetworkMsg<Ctx> = Msg<Ctx>;
@@ -73,14 +78,14 @@ where
     Codec: codec::HasEncodedLen<sync::Response<Ctx>>,
 {
     pub async fn spawn(
-        keypair: Keypair,
+        identity: NetworkIdentity,
         config: Config,
         metrics: SharedRegistry,
         codec: Codec,
         span: tracing::Span,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
         let args = Args {
-            keypair,
+            identity,
             config: config.clone(),
             metrics,
         };
@@ -91,7 +96,7 @@ where
 }
 
 pub struct Args {
-    pub keypair: Keypair,
+    pub identity: NetworkIdentity,
     pub config: Config,
     pub metrics: SharedRegistry,
 }
@@ -167,8 +172,11 @@ pub enum Msg<Ctx: Context> {
     /// Send a response for a request to a peer
     OutgoingResponse(InboundRequestId, Response<Ctx>),
 
-    /// Request for number of peers from gossip
-    GetState { reply: RpcReplyPort<usize> },
+    /// Request to dump the current network state
+    DumpState(RpcReplyPort<Option<NetworkStateDump>>),
+
+    /// Update the validator set for the current height
+    UpdateValidatorSet(Ctx::ValidatorSet),
 
     // Event emitted by the gossip layer
     #[doc(hidden)]
@@ -195,7 +203,7 @@ where
         myself: ActorRef<Msg<Ctx>>,
         args: Args,
     ) -> Result<Self::State, ActorProcessingErr> {
-        let handle = malachitebft_network::spawn(args.keypair, args.config, args.metrics).await?;
+        let handle = malachitebft_network::spawn(args.identity, args.config, args.metrics).await?;
 
         let (mut recv_handle, ctrl_handle) = handle.split();
 
@@ -233,6 +241,12 @@ where
         msg: Msg<Ctx>,
         state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
+        // We need to handle before deconstructing `state` to always reply.
+        if let Msg::DumpState(reply_to) = msg {
+            handle_dump_state(state, reply_to).await;
+            return Ok(());
+        }
+
         let State::Running {
             listen_addrs,
             peers,
@@ -477,13 +491,24 @@ where
                 }
             },
 
-            Msg::GetState { reply } => {
-                let number_peers = match state {
-                    State::Stopped => 0,
-                    State::Running { peers, .. } => peers.len(),
-                };
-                reply.send(number_peers)?;
+            Msg::UpdateValidatorSet(validator_set) => {
+                info!(
+                    "Updating validator set: {} validators",
+                    validator_set.count()
+                );
+                // Convert ValidatorSet to Vec<ValidatorInfo>
+                // Note: We don't pass the Ctx to the network layer
+                let validators: Vec<_> = validator_set
+                    .iter()
+                    .map(|v| malachitebft_network::ValidatorInfo {
+                        address: v.address().to_string(),
+                        voting_power: v.voting_power(),
+                    })
+                    .collect();
+                ctrl_handle.update_validator_set(validators).await?;
             }
+
+            Msg::DumpState(_) => unreachable!("DumpState handled above to ensure a reply"),
         }
 
         Ok(())
@@ -507,5 +532,30 @@ where
         }
 
         Ok(())
+    }
+}
+
+async fn handle_dump_state<Ctx>(
+    state: &mut State<Ctx>,
+    reply_to: RpcReplyPort<Option<NetworkStateDump>>,
+) where
+    Ctx: Context,
+{
+    let dump = match state {
+        State::Stopped => {
+            info!("Dumping network state: not started");
+            None
+        }
+        State::Running { ctrl_handle, .. } => match ctrl_handle.dump_state().await {
+            Ok(snapshot) => Some(snapshot),
+            Err(error) => {
+                error!(%error, "Failed to obtain network dump");
+                None
+            }
+        },
+    };
+
+    if let Err(error) = reply_to.send(dump) {
+        error!(%error, "Failed to reply with network state dump");
     }
 }

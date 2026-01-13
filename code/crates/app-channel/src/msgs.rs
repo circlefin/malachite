@@ -1,3 +1,4 @@
+use std::ops::RangeInclusive;
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -14,6 +15,7 @@ use malachitebft_engine::consensus::state_dump::StateDump;
 use malachitebft_engine::consensus::Msg as ConsensusActorMsg;
 use malachitebft_engine::host::{HeightParams, Next};
 use malachitebft_engine::network::Msg as NetworkActorMsg;
+use malachitebft_engine::network::NetworkStateDump;
 use malachitebft_engine::util::events::TxEvent;
 
 use crate::app::types::core::{CommitCertificate, Context, Round, ValueId, VoteExtensions};
@@ -120,6 +122,31 @@ impl<Ctx: Context> ConsensusRequest<Ctx> {
     }
 }
 
+/// Represents requests that can be sent to the network layer by the application.
+pub enum NetworkRequest {
+    /// Request a state dump from the network
+    DumpState(Reply<Option<NetworkStateDump>>),
+}
+
+impl NetworkRequest {
+    /// Request a state dump from the network.
+    pub async fn dump_state(
+        tx_request: &mpsc::Sender<NetworkRequest>,
+    ) -> Result<Option<NetworkStateDump>, ConsensusRequestError> {
+        let (tx, rx) = oneshot::channel();
+
+        tx_request
+            .try_send(Self::DumpState(tx))
+            .inspect_err(|error| error!(%error, "Failed to send DumpState request to network"))?;
+
+        let dump = rx.await.inspect_err(
+            |error| error!(%error, "Failed to receive DumpState response from network"),
+        )?;
+
+        Ok(dump)
+    }
+}
+
 /// Channels created for application consumption
 pub struct Channels<Ctx: Context> {
     /// Channel for receiving messages from consensus
@@ -130,6 +157,8 @@ pub struct Channels<Ctx: Context> {
     pub events: TxEvent<Ctx>,
     /// Channel for sending requests to consensus
     pub requests: mpsc::Sender<ConsensusRequest<Ctx>>,
+    /// Channel for sending requests to the network
+    pub net_requests: mpsc::Sender<NetworkRequest>,
 }
 
 /// Messages sent from consensus to the application.
@@ -266,14 +295,18 @@ pub enum AppMsg<Ctx: Context> {
         reply: Reply<Next<Ctx>>,
     },
 
-    /// Requests a previously decided value from the application's storage.
+    /// Requests a range of previously decided values from the application's storage.
     ///
-    /// The application MUST respond with that value if available, or `None` otherwise.
-    GetDecidedValue {
-        /// Height of the decided value to retrieve
-        height: Ctx::Height,
+    /// The application MUST respond with those values if available, or `None` otherwise.
+    ///
+    /// ## Important
+    /// The range is NOT checked for validity by consensus. It is the application's responsibility
+    /// to ensure that the the range is within valid bounds.
+    GetDecidedValues {
+        /// Range of decided values to retrieve
+        range: RangeInclusive<Ctx::Height>,
         /// Channel for sending back the decided value
-        reply: Reply<Option<RawDecidedValue<Ctx>>>,
+        reply: Reply<Vec<RawDecidedValue<Ctx>>>,
     },
 
     /// Notifies the application that a value has been synced from the network.

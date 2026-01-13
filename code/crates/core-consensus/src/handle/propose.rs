@@ -47,17 +47,16 @@ where
     #[cfg(feature = "metrics")]
     metrics.consensus_start();
 
-    // If this is the first time we see this value in the current round, append it to the WAL
-    if !state.value_exists(&proposed_value) {
-        perform!(
-            co,
-            Effect::WalAppend(
-                proposed_value.height,
-                WalEntry::ProposedValue(proposed_value.clone()),
-                Default::default()
-            )
-        );
-    }
+    // We may consider in the future some optimization to avoid multiple identical entries in the
+    // WAL, in the case of multiple node restarts. For now we write every ProposedValue to it.
+    perform!(
+        co,
+        Effect::WalAppend(
+            proposed_value.height,
+            WalEntry::ProposedValue(proposed_value.clone()),
+            Default::default()
+        )
+    );
 
     state.store_value(&proposed_value);
 

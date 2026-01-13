@@ -9,6 +9,7 @@ impl borsh::BorshSerialize for PeerId {
 impl borsh::BorshDeserialize for PeerId {
     fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
         let bytes = Vec::<u8>::deserialize_reader(reader)?;
-        Ok(PeerId::from_bytes(&bytes).unwrap())
+        PeerId::from_bytes(&bytes)
+            .map_err(|e| borsh::io::Error::new(borsh::io::ErrorKind::InvalidData, e))
     }
 }

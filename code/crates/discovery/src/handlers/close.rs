@@ -50,6 +50,9 @@ where
             if connection_ids.contains(&connection_id) {
                 warn!("Removing active connection {connection_id} to peer {peer_id}");
                 connection_ids.retain(|id| id != &connection_id);
+
+                self.connections.remove(&connection_id);
+
                 if connection_ids.is_empty() {
                     self.active_connections.remove(&peer_id);
 
@@ -96,6 +99,9 @@ where
     /// Clean up peer state and dial history when the last connection to a peer is closed
     fn cleanup_peer_on_disconnect(&mut self, peer_id: PeerId) {
         let peer_info = self.discovered_peers.remove(&peer_id);
+
+        // Clear connect_request done_on to allow re-upgrading the peer on reconnection
+        self.controller.connect_request.remove_done_on(&peer_id);
 
         // Find and reset the bootstrap node peer_id to allow re-identification
         // This handles the case where a bootstrap node restarts with a different peer_id

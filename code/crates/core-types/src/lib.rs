@@ -32,6 +32,9 @@ mod value;
 mod vote;
 mod vote_extension;
 
+/// Utility functions and types.
+pub mod utils;
+
 /// Type alias to make it easier to refer the `ValueId` type.
 pub type ValueId<Ctx> = <<Ctx as Context>::Value as Value>::Id;
 
@@ -49,9 +52,6 @@ pub type SignedVote<Ctx> = SignedMessage<Ctx, <Ctx as Context>::Vote>;
 
 /// A signed proposal
 pub type SignedProposal<Ctx> = SignedMessage<Ctx, <Ctx as Context>::Proposal>;
-
-/// A signed proposal part
-pub type SignedProposalPart<Ctx> = SignedMessage<Ctx, <Ctx as Context>::ProposalPart>;
 
 /// A signed vote extension
 pub type SignedExtension<Ctx> = SignedMessage<Ctx, <Ctx as Context>::Extension>;

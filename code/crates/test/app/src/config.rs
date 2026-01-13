@@ -2,7 +2,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use malachitebft_app_channel::app::node::NodeConfig;
+use malachitebft_app_channel::app::config::NodeConfig;
 
 pub use malachitebft_app_channel::app::config::{
     ConsensusConfig, LogFormat, LogLevel, LoggingConfig, MetricsConfig, RuntimeConfig, TestConfig,

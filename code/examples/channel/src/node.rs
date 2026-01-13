@@ -10,12 +10,15 @@ use tracing::Instrument;
 
 use malachitebft_app_channel::app::events::{RxEvent, TxEvent};
 use malachitebft_app_channel::app::metrics::SharedRegistry;
-use malachitebft_app_channel::app::node::{
-    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, EngineHandle,
-    MakeConfigSettings, Node, NodeHandle,
-};
 use malachitebft_app_channel::app::types::core::{Height as _, VotingPower};
 use malachitebft_app_channel::app::types::Keypair;
+use malachitebft_app_channel::{
+    ConsensusContext, EngineHandle, NetworkContext, NetworkIdentity, RequestContext, WalContext,
+};
+use malachitebft_test::node::{Node, NodeHandle};
+use malachitebft_test::traits::{
+    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, MakeConfigSettings,
+};
 
 // Use the same types used for integration tests.
 // A real application would use its own types and context instead.
@@ -118,17 +121,20 @@ impl Node for App {
         let private_key = self.load_private_key(private_key_file);
         let public_key = self.get_public_key(&private_key);
         let address = self.get_address(&public_key);
-        let signing_provider = self.get_signing_provider(private_key);
+        let keypair = self.get_keypair(private_key.clone());
+        let wal_path = self.get_home_dir().join("wal").join("consensus.wal");
         let ctx = TestContext::new();
-
+        let identity =
+            NetworkIdentity::new(config.moniker.clone(), keypair, Some(address.to_string()));
         let genesis = self.load_genesis()?;
 
         let (mut channels, engine_handle) = malachitebft_app_channel::start_engine(
             ctx.clone(),
-            self.clone(),
             config.clone(),
-            ProtobufCodec, // WAL codec
-            ProtobufCodec, // Network codec
+            WalContext::new(wal_path, ProtobufCodec),
+            NetworkContext::new(identity, ProtobufCodec),
+            ConsensusContext::new(address, self.get_signing_provider(private_key.clone())),
+            RequestContext::new(100), // Request channel size
         )
         .await?;
 
@@ -146,7 +152,14 @@ impl Node for App {
 
         let store = Store::open(db_dir.join("store.db"), metrics).await?;
         let start_height = self.start_height.unwrap_or(Height::INITIAL);
-        let mut state = State::new(ctx, signing_provider, genesis, address, start_height, store);
+        let mut state = State::new(
+            ctx,
+            self.get_signing_provider(private_key),
+            genesis,
+            address,
+            start_height,
+            store,
+        );
 
         let span = tracing::error_span!("node", moniker = %config.moniker);
         let app_handle = tokio::spawn(

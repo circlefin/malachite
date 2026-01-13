@@ -14,6 +14,7 @@ use malachitebft_engine::sync::{Params as SyncParams, Sync, SyncRef};
 use malachitebft_engine::util::events::TxEvent;
 use malachitebft_engine::wal::{Wal, WalRef};
 use malachitebft_metrics::{Metrics as ConsensusMetrics, SharedRegistry};
+use malachitebft_network as gossip;
 use malachitebft_network::{ChannelNames, Keypair};
 use malachitebft_starknet_p2p_types::Ed25519Provider;
 use malachitebft_sync as sync;
@@ -45,7 +46,7 @@ pub async fn spawn_node_actor(
     let registry = SharedRegistry::global().with_moniker(cfg.moniker.as_str());
     let consensus_metrics = ConsensusMetrics::register(&registry);
     let app_metrics = AppMetrics::register(&registry);
-    let sync_metrics = sync::Metrics::register(&registry);
+    let sync_metrics = sync::Metrics::register(&registry, cfg.value_sync.status_update_interval);
 
     let address = Address::from_public_key(private_key.public_key());
     let signing_provider = Ed25519Provider::new(private_key.clone());
@@ -55,8 +56,13 @@ pub async fn spawn_node_actor(
     let mempool = spawn_mempool_actor(mempool_network, &cfg.mempool, &span).await;
     let mempool_load = spawn_mempool_load_actor(&cfg.mempool.load, mempool.clone(), &span).await;
 
+    // Create the node identity
+    let keypair = make_keypair(&private_key);
+    let identity =
+        gossip::NetworkIdentity::new(cfg.moniker.clone(), keypair, Some(address.to_string()));
+
     // Spawn consensus gossip
-    let network = spawn_network_actor(&cfg, &private_key, &registry, &span).await;
+    let network = spawn_network_actor(&cfg, identity, &registry, &span).await;
 
     // Spawn the host actor
     let host = spawn_host_actor(
@@ -218,12 +224,10 @@ async fn spawn_consensus_actor(
 
 async fn spawn_network_actor(
     cfg: &Config,
-    private_key: &PrivateKey,
+    identity: gossip::NetworkIdentity,
     registry: &SharedRegistry,
     span: &tracing::Span,
 ) -> NetworkRef<MockContext> {
-    use malachitebft_network as gossip;
-
     let bootstrap_protocol = match cfg.consensus.p2p.discovery.bootstrap_protocol {
         config::BootstrapProtocol::Kademlia => gossip::BootstrapProtocol::Kademlia,
         config::BootstrapProtocol::Full => gossip::BootstrapProtocol::Full,
@@ -237,8 +241,10 @@ async fn spawn_network_actor(
     let config_gossip = gossip::Config {
         listen_addr: cfg.consensus.p2p.listen_addr.clone(),
         persistent_peers: cfg.consensus.p2p.persistent_peers.clone(),
+        persistent_peers_only: cfg.consensus.p2p.persistent_peers_only,
         discovery: gossip::DiscoveryConfig {
             enabled: cfg.consensus.p2p.discovery.enabled,
+            persistent_peers_only: cfg.consensus.p2p.persistent_peers_only,
             bootstrap_protocol,
             selector,
             num_outbound_peers: cfg.consensus.p2p.discovery.num_outbound_peers,
@@ -265,6 +271,7 @@ async fn spawn_network_actor(
                 mesh_n_high: config.mesh_n_high(),
                 mesh_n_low: config.mesh_n_low(),
                 mesh_outbound_min: config.mesh_outbound_min(),
+                enable_peer_scoring: config.enable_peer_scoring(),
             },
             config::PubSubProtocol::Broadcast => gossip::GossipSubConfig::default(),
         },
@@ -281,11 +288,10 @@ async fn spawn_network_actor(
         },
     };
 
-    let keypair = make_keypair(private_key);
     let codec = ProtobufCodec;
 
     Network::spawn(
-        keypair,
+        identity,
         config_gossip,
         registry.clone(),
         codec,

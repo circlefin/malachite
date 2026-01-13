@@ -5,9 +5,11 @@ mod n3f0;
 mod n3f0_consensus_mode;
 mod n3f0_pubsub_protocol;
 mod n3f1;
+mod persistent_peers_only;
 mod reset;
 mod timeout_updates;
 mod validator_set;
+mod validity_change_on_restart;
 mod value_sync;
 mod vote_rebroadcast;
 mod wal;
@@ -19,14 +21,12 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use informalsystems_malachitebft_test::middleware::Middleware;
-use malachitebft_test_app::config::Config;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tempfile::TempDir;
 
-use malachitebft_app::node::Node;
 use malachitebft_signing_ed25519::PrivateKey;
+use malachitebft_test_app::config::Config;
 use malachitebft_test_app::node::{App, Handle};
 use malachitebft_test_framework::HasTestRunner;
 use malachitebft_test_framework::{ConfigModifier, NodeRunner, TestNode};
@@ -34,6 +34,8 @@ use malachitebft_test_framework::{ConfigModifier, NodeRunner, TestNode};
 pub use malachitebft_test_framework::TestBuilder as GenTestBuilder;
 pub use malachitebft_test_framework::{HandlerResult, NodeId, TestParams};
 
+use informalsystems_malachitebft_test::middleware::Middleware;
+use informalsystems_malachitebft_test::node::Node;
 use informalsystems_malachitebft_test::{Height, TestContext, Validator, ValidatorSet};
 
 pub type TestBuilder<S> = GenTestBuilder<TestContext, S>;

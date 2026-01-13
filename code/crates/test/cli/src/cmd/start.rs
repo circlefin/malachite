@@ -2,8 +2,8 @@ use clap::Parser;
 use color_eyre::eyre;
 use tracing::info;
 
-use malachitebft_app::node::Node;
 use malachitebft_config::MetricsConfig;
+use malachitebft_test::node::Node;
 
 use crate::metrics;
 
@@ -11,6 +11,10 @@ use crate::metrics;
 pub struct StartCmd {
     #[clap(long)]
     pub start_height: Option<u64>,
+
+    /// Only allow connections to/from persistent peers
+    #[clap(long)]
+    pub persistent_peers_only: bool,
 }
 
 impl StartCmd {

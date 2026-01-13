@@ -33,7 +33,7 @@ where
     ///    - If match found: update `bootstrap_nodes[i].0 = Some(peer_id)`
     ///
     /// Called after connection is established but before peer is added to active_connections
-    fn update_bootstrap_node_peer_id(&mut self, peer_id: PeerId) {
+    fn update_bootstrap_node_peer_id(&mut self, peer_id: PeerId, info: &identify::Info) {
         debug!(
             "Checking peer {} against {} bootstrap nodes",
             peer_id,
@@ -55,26 +55,36 @@ where
 
         // Find the dial_data that was updated in handle_connection
         // This dial_data originally had peer_id=None but now should have peer_id=Some(peer_id)
-        let Some((_, dial_data)) = self
+        let dial_data = self
             .controller
             .dial
             .get_in_progress_iter()
             .find(|(_, dial_data)| dial_data.peer_id() == Some(peer_id))
-        else {
-            // This happens for incoming connections (peers that dialed this node)
-            // since no dial_data was created for them
-            return;
-        };
+            .map(|(_, dial_data)| dial_data);
 
-        // Match dial addresses against bootstrap node configurations
+        // Match addresses against bootstrap node configurations
+        // For outbound connections, check dial_data addresses
+        // For inbound connections, check peer's advertised addresses from identify
         for (maybe_peer_id, listen_addrs) in self.bootstrap_nodes.iter_mut() {
-            // Check if this bootstrap node is unidentified and addresses match
-            if maybe_peer_id.is_none()
-                && dial_data
+            // Check if this bootstrap node is unidentified
+            if maybe_peer_id.is_some() {
+                continue;
+            }
+
+            let addresses_match = if let Some(dial_data) = dial_data {
+                // Outbound connection: check addresses we dialed
+                dial_data
                     .listen_addrs()
                     .iter()
                     .any(|dial_addr| listen_addrs.contains(dial_addr))
-            {
+            } else {
+                // Inbound connection: check peer's advertised addresses
+                info.listen_addrs
+                    .iter()
+                    .any(|peer_addr| listen_addrs.contains(peer_addr))
+            };
+
+            if addresses_match {
                 // Bootstrap discovery completed: None -> Some(peer_id)
                 info!("Bootstrap peer {} successfully identified", peer_id);
                 *maybe_peer_id = Some(peer_id);
@@ -107,18 +117,24 @@ where
         }
 
         // Match peer against bootstrap nodes
-        self.update_bootstrap_node_peer_id(peer_id);
+        self.update_bootstrap_node_peer_id(peer_id, &info);
 
-        if self
-            .controller
-            .dial
-            .remove_in_progress(&connection_id)
-            .is_none()
-        {
-            // Remove any matching in progress connections to avoid dangling data
+        if self.config.persistent_peers_only && !self.is_persistent_peer(&peer_id) {
+            warn!(
+                peer = %peer_id, %connection_id,
+                "Rejecting connection from non-persistent peer as persistent_peers_only mode is on"
+            );
+
             self.controller
-                .dial_remove_matching_in_progress_connections(&peer_id);
+                .close
+                .add_to_queue((peer_id, connection_id), None);
+
+            return is_already_connected;
         }
+
+        // Remove from dial in-progress if this was an outbound connection we initiated.
+        // For inbound connections, this will return None and we don't touch dial data.
+        self.controller.dial.remove_in_progress(&connection_id);
 
         match self.discovered_peers.insert(peer_id, info.clone()) {
             Some(_) => {
@@ -141,7 +157,7 @@ where
             if connection_ids.len() >= self.config.max_connections_per_peer {
                 warn!(
                     peer = %peer_id, %connection_id,
-                    "Peer has has already reached the maximum number of connections ({}), closing connection",
+                    "Peer has already reached the maximum number of connections ({}), closing connection",
                     self.config.max_connections_per_peer
                 );
 
@@ -214,26 +230,36 @@ where
             }
             // Add the address to the Kademlia routing table
             if self.config.bootstrap_protocol == BootstrapProtocol::Kademlia {
-                swarm
-                    .behaviour_mut()
-                    .add_address(&peer_id, info.listen_addrs.first().unwrap().clone());
+                if let Some(addr) = info.listen_addrs.first() {
+                    swarm.behaviour_mut().add_address(&peer_id, addr.clone());
+                }
             }
         } else {
-            // If discovery is disabled, all peers are inbound. The
-            // maximum number of inbound peers is enforced by the
-            // corresponding parameter in the configuration.
-            if self.inbound_peers.len() < self.config.num_inbound_peers {
-                debug!(peer = %peer_id, %connection_id, "Connection is inbound");
+            // If discovery is disabled, classify based on actual connection direction
+            let we_dialed = self
+                .controller
+                .dial
+                .get_in_progress_iter()
+                .any(|(_, dial_data)| dial_data.peer_id() == Some(peer_id))
+                || self
+                    .controller
+                    .dial
+                    .is_done_on(&crate::controller::PeerData::PeerId(peer_id));
 
+            if we_dialed {
+                // Accept all peers we dial (no capacity check)
+                // When discovery is disabled, these are explicitly configured peers
+                debug!(peer = %peer_id, %connection_id, "Connection is outbound");
+                self.outbound_peers
+                    .insert(peer_id, OutboundState::Confirmed);
+            } else if self.inbound_peers.len() < self.config.num_inbound_peers {
+                debug!(peer = %peer_id, %connection_id, "Connection is inbound");
                 self.inbound_peers.insert(peer_id);
             } else {
-                warn!(peer = %peer_id, %connection_id, "Peers limit reached, refusing connection");
-
+                warn!(peer = %peer_id, %connection_id, "Inbound peers limit reached, refusing connection");
                 self.controller
                     .close
                     .add_to_queue((peer_id, connection_id), None);
-
-                // Set to true to avoid triggering new connection logic
                 is_already_connected = true;
             }
         }

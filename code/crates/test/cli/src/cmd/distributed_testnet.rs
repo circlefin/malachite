@@ -7,11 +7,12 @@ use clap::Parser;
 use color_eyre::eyre::{eyre, Result};
 use tracing::info;
 
-use malachitebft_app::node::{
-    CanGeneratePrivateKey, CanMakeDistributedConfig, CanMakeGenesis, CanMakePrivateKeyFile,
-    MakeConfigSettings, Node,
-};
 use malachitebft_config::*;
+use malachitebft_test::node::Node;
+use malachitebft_test::traits::{
+    CanGeneratePrivateKey, CanMakeDistributedConfig, CanMakeGenesis, CanMakePrivateKeyFile,
+    MakeConfigSettings,
+};
 
 use crate::args::Args;
 use crate::cmd::testnet::RuntimeFlavour;
@@ -74,6 +75,10 @@ pub struct DistributedTestnetCmd {
     #[clap(long, default_value = "5000", verbatim_doc_comment)]
     pub ephemeral_connection_timeout_ms: u64,
 
+    /// Only allow connections to/from persistent peers
+    #[clap(long)]
+    pub persistent_peers_only: bool,
+
     /// The size of the bootstrap set.
     #[clap(long, default_value = "1", verbatim_doc_comment)]
     pub bootstrap_set_size: usize,
@@ -114,8 +119,13 @@ impl DistributedTestnetCmd {
                 ephemeral_connection_timeout: Duration::from_millis(
                     self.ephemeral_connection_timeout_ms,
                 ),
+                dial_max_retries: 5,
+                request_max_retries: 5,
+                connect_request_max_retries: 3,
+                ..Default::default()
             },
             value_sync: Default::default(),
+            persistent_peers_only: self.persistent_peers_only,
         };
 
         distributed_testnet(

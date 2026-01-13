@@ -7,6 +7,8 @@ use bytesize::ByteSize;
 use multiaddr::Multiaddr;
 use serde::{Deserialize, Serialize};
 
+mod utils;
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProtocolNames {
     pub consensus: String,
@@ -38,6 +40,10 @@ pub struct P2pConfig {
     /// List of nodes to keep persistent connections to
     pub persistent_peers: Vec<Multiaddr>,
 
+    /// Only allow connections to/from persistent peers
+    #[serde(default)]
+    pub persistent_peers_only: bool,
+
     /// Peer discovery
     #[serde(default)]
     pub discovery: DiscoveryConfig,
@@ -61,6 +67,7 @@ impl Default for P2pConfig {
         P2pConfig {
             listen_addr: Multiaddr::empty(),
             persistent_peers: vec![],
+            persistent_peers_only: false,
             discovery: Default::default(),
             protocol: Default::default(),
             rpc_max_size: ByteSize::mib(10),
@@ -86,21 +93,36 @@ pub struct DiscoveryConfig {
     pub selector: Selector,
 
     /// Number of outbound peers
-    #[serde(default)]
+    #[serde(default = "discovery::default_num_outbound_peers")]
     pub num_outbound_peers: usize,
 
     /// Number of inbound peers
-    #[serde(default)]
+    #[serde(default = "discovery::default_num_inbound_peers")]
     pub num_inbound_peers: usize,
 
     /// Maximum number of connections per peer
-    #[serde(default)]
+    #[serde(default = "discovery::default_max_connections_per_peer")]
     pub max_connections_per_peer: usize,
+
+    /// Maximum connections allowed per IP address.
+    /// Prevents DoS attacks where an attacker generates many PeerIds from the same IP.
+    /// Defaults to num_inbound_peers (effectively disabled).
+    #[serde(default = "discovery::default_num_inbound_peers")]
+    pub max_connections_per_ip: usize,
 
     /// Ephemeral connection timeout
     #[serde(default)]
     #[serde(with = "humantime_serde")]
     pub ephemeral_connection_timeout: Duration,
+
+    #[serde(default = "discovery::default_dial_max_retries")]
+    pub dial_max_retries: usize,
+
+    #[serde(default = "discovery::default_request_max_retries")]
+    pub request_max_retries: usize,
+
+    #[serde(default = "discovery::default_connect_request_max_retries")]
+    pub connect_request_max_retries: usize,
 }
 
 impl Default for DiscoveryConfig {
@@ -109,11 +131,41 @@ impl Default for DiscoveryConfig {
             enabled: false,
             bootstrap_protocol: Default::default(),
             selector: Default::default(),
-            num_outbound_peers: 0,
-            num_inbound_peers: 20,
-            max_connections_per_peer: 5,
-            ephemeral_connection_timeout: Default::default(),
+            num_outbound_peers: discovery::default_num_outbound_peers(),
+            num_inbound_peers: discovery::default_num_inbound_peers(),
+            max_connections_per_ip: discovery::default_num_inbound_peers(),
+            max_connections_per_peer: discovery::default_max_connections_per_peer(),
+            ephemeral_connection_timeout: Duration::from_secs(60),
+            dial_max_retries: discovery::default_dial_max_retries(),
+            request_max_retries: discovery::default_request_max_retries(),
+            connect_request_max_retries: discovery::default_connect_request_max_retries(),
         }
+    }
+}
+
+mod discovery {
+    pub fn default_num_outbound_peers() -> usize {
+        50
+    }
+
+    pub fn default_num_inbound_peers() -> usize {
+        50
+    }
+
+    pub fn default_max_connections_per_peer() -> usize {
+        5
+    }
+
+    pub fn default_dial_max_retries() -> usize {
+        5
+    }
+
+    pub fn default_request_max_retries() -> usize {
+        5
+    }
+
+    pub fn default_connect_request_max_retries() -> usize {
+        3
     }
 }
 
@@ -243,11 +295,15 @@ pub struct GossipSubConfig {
     /// When this value is set to 0 or does not meet the above constraints,
     /// it will be calculated as `max(1, min(mesh_n / 2, mesh_n_low - 1))`
     mesh_outbound_min: usize,
+
+    /// Enable peer scoring to prioritize nodes based on their type in mesh formation
+    enable_peer_scoring: bool,
 }
 
 impl Default for GossipSubConfig {
     fn default() -> Self {
-        Self::new(6, 12, 4, 2)
+        // Peer scoring disabled by default
+        Self::new(6, 12, 4, 2, false)
     }
 }
 
@@ -258,12 +314,14 @@ impl GossipSubConfig {
         mesh_n_high: usize,
         mesh_n_low: usize,
         mesh_outbound_min: usize,
+        enable_peer_scoring: bool,
     ) -> Self {
         let mut result = Self {
             mesh_n,
             mesh_n_high,
             mesh_n_low,
             mesh_outbound_min,
+            enable_peer_scoring,
         };
 
         result.adjust();
@@ -309,9 +367,14 @@ impl GossipSubConfig {
     pub fn mesh_outbound_min(&self) -> usize {
         self.mesh_outbound_min
     }
+
+    pub fn enable_peer_scoring(&self) -> bool {
+        self.enable_peer_scoring
+    }
 }
 
 mod gossipsub {
+    use super::utils::bool_from_anything;
     #[derive(serde::Deserialize)]
     pub struct RawConfig {
         #[serde(default)]
@@ -322,6 +385,8 @@ mod gossipsub {
         mesh_n_low: usize,
         #[serde(default)]
         mesh_outbound_min: usize,
+        #[serde(default, deserialize_with = "bool_from_anything")]
+        enable_peer_scoring: bool,
     }
 
     impl From<RawConfig> for super::GossipSubConfig {
@@ -331,6 +396,7 @@ mod gossipsub {
                 raw.mesh_n_high,
                 raw.mesh_n_low,
                 raw.mesh_outbound_min,
+                raw.enable_peer_scoring,
             )
         }
     }
@@ -899,5 +965,144 @@ mod tests {
 
         // Should use defaults when protocol_names section is missing
         assert_eq!(config.p2p.protocol_names, ProtocolNames::default());
+    }
+
+    #[test]
+    fn p2p_config_persistent_peers_only_default() {
+        let config = P2pConfig::default();
+        assert!(
+            !config.persistent_peers_only,
+            "persistent_peers_only should default to false"
+        );
+    }
+
+    #[test]
+    fn p2p_config_persistent_peers_only_toml() {
+        let toml_content = r#"
+        timeout_propose = "3s"
+        timeout_propose_delta = "500ms"
+        timeout_prevote = "1s"
+        timeout_prevote_delta = "500ms"
+        timeout_precommit = "1s"
+        timeout_precommit_delta = "500ms"
+        timeout_rebroadcast = "5s"
+        value_payload = "parts-only"
+        
+        [p2p]
+        listen_addr = "/ip4/0.0.0.0/tcp/0"
+        persistent_peers = []
+        persistent_peers_only = true
+        pubsub_max_size = "4 MiB"
+        rpc_max_size = "10 MiB"
+        
+        [p2p.protocol]
+        type = "gossipsub"
+        "#;
+
+        let config: ConsensusConfig = toml::from_str(toml_content).unwrap();
+        assert!(
+            config.p2p.persistent_peers_only,
+            "persistent_peers_only should be true when set in TOML"
+        );
+    }
+
+    #[test]
+    fn gossipsub_config_default_disables_peer_scoring() {
+        let config = GossipSubConfig::default();
+        assert!(!config.enable_peer_scoring());
+    }
+
+    #[test]
+    fn gossipsub_enable_peer_scoring_deserialization() {
+        struct TestCase {
+            name: &'static str,
+            toml: &'static str,
+            expected: bool,
+        }
+
+        let cases = [
+            TestCase {
+                name: "missing field defaults to false",
+                toml: r#"
+                    [p2p.protocol]
+                    type = "gossipsub"
+                "#,
+                expected: false,
+            },
+            TestCase {
+                name: "explicit true",
+                toml: r#"
+                    [p2p.protocol]
+                    type = "gossipsub"
+                    enable_peer_scoring = true
+                "#,
+                expected: true,
+            },
+            TestCase {
+                name: "explicit false",
+                toml: r#"
+                    [p2p.protocol]
+                    type = "gossipsub"
+                    enable_peer_scoring = false
+                "#,
+                expected: false,
+            },
+            TestCase {
+                name: "string true",
+                toml: r#"
+                    [p2p.protocol]
+                    type = "gossipsub"
+                    enable_peer_scoring = "true"
+                "#,
+                expected: true,
+            },
+            TestCase {
+                name: "string false",
+                toml: r#"
+                    [p2p.protocol]
+                    type = "gossipsub"
+                    enable_peer_scoring = "false"
+                "#,
+                expected: false,
+            },
+        ];
+
+        for case in cases {
+            let toml_content = format!(
+                r#"
+                timeout_propose = "3s"
+                timeout_propose_delta = "500ms"
+                timeout_prevote = "1s"
+                timeout_prevote_delta = "500ms"
+                timeout_precommit = "1s"
+                timeout_precommit_delta = "500ms"
+                timeout_rebroadcast = "5s"
+                value_payload = "parts-only"
+                
+                [p2p]
+                listen_addr = "/ip4/0.0.0.0/tcp/0"
+                persistent_peers = []
+                pubsub_max_size = "4 MiB"
+                rpc_max_size = "10 MiB"
+                {}
+                "#,
+                case.toml
+            );
+
+            let config: ConsensusConfig = toml::from_str(&toml_content)
+                .unwrap_or_else(|e| panic!("Failed to parse {}: {}", case.name, e));
+
+            let PubSubProtocol::GossipSub(gossipsub) = config.p2p.protocol else {
+                panic!("{}: expected GossipSub protocol", case.name);
+            };
+
+            assert_eq!(
+                gossipsub.enable_peer_scoring(),
+                case.expected,
+                "{}: expected enable_peer_scoring = {}",
+                case.name,
+                case.expected
+            );
+        }
     }
 }
