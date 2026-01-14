@@ -38,6 +38,24 @@ There are three ways you can contribute to Malachite:
 
 At this time, we will not be accepting contributions that only fix spelling or grammatical errors in documentation, code or elsewhere.
 
+### Policy on Unsolicited Contributions
+
+We do not accept unsolicited contributions. The following types of PRs will be closed immediately:
+
+- PRs submitted without prior issue assignment or maintainer approval
+- PRs that only fix typos, formatting, or make superficial "improvements"
+- New documentation or features that were not requested
+- Refactoring or "code quality improvements" that were not discussed beforehand
+
+Repeat offenders may be blocked from the repository.
+
+**How to contribute properly:**
+1. Find an existing issue you'd like to work on, or open a new issue describing your proposed change
+2. Comment on the issue requesting assignment and wait for maintainer approval
+3. Only submit a PR after you have been assigned to the issue
+
+### Pull Request Requirements
+
 Pull requests will only be accepted if they meet **ALL** of the following criteria:
 
 1. The submitter must be a core contributor to Malachite

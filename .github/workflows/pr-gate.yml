@@ -1,0 +1,288 @@
+name: PR Gate
+
+on:
+  pull_request_target:
+    types: [opened, reopened]
+
+jobs:
+  check-eligibility:
+    name: Check eligibility
+    runs-on: github-hosted-small
+    steps:
+      - name: Check if author is codeowner
+        id: check-codeowner
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prAuthor = context.payload.pull_request.user.login;
+
+            try {
+              const response = await github.rest.repos.getContent({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                path: '.github/CODEOWNERS',
+                ref: context.payload.pull_request.base.ref
+              });
+
+              const content = Buffer.from(response.data.content, 'base64').toString('utf-8');
+              // Extract usernames from CODEOWNERS (matches @username patterns)
+              const codeowners = content.match(/@[\w-]+/g) || [];
+              const codeownerUsernames = codeowners.map(c => c.substring(1).toLowerCase());
+
+              core.setOutput('codeowner_list', JSON.stringify(codeownerUsernames));
+
+              if (codeownerUsernames.includes(prAuthor.toLowerCase())) {
+                console.log(`${prAuthor} is a codeowner`);
+                core.setOutput('is_codeowner', 'true');
+              } else {
+                console.log(`${prAuthor} is NOT a codeowner`);
+                core.setOutput('is_codeowner', 'false');
+              }
+            } catch (error) {
+              console.log(`Could not read CODEOWNERS file: ${error.message}`);
+              core.setOutput('is_codeowner', 'false');
+            }
+
+      - name: Check if author is org member
+        id: check-org-member
+        if: steps.check-codeowner.outputs.is_codeowner == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prAuthor = context.payload.pull_request.user.login;
+            const org = 'circlefin';
+
+            try {
+              const response = await github.rest.orgs.checkMembershipForUser({
+                org: org,
+                username: prAuthor
+              });
+              // Status 204 means the user is a member
+              console.log(`${prAuthor} is a member of ${org}`);
+              core.setOutput('is_org_member', 'true');
+            } catch (error) {
+              // Status 404 means the user is not a member (or org doesn't exist)
+              // Status 302 means the requester is not an org member (redirect to login)
+              console.log(`${prAuthor} is NOT a member of ${org}: ${error.status}`);
+              core.setOutput('is_org_member', 'false');
+            }
+
+      - name: Check issue assignment
+        id: check-assignment
+        if: |
+          steps.check-codeowner.outputs.is_codeowner == 'false' &&
+          steps.check-org-member.outputs.is_org_member == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prBody = context.payload.pull_request.body || '';
+            const prAuthor = context.payload.pull_request.user.login;
+
+            // Extract issue number from PR body (matches "Closes: #123" or "Closes #123")
+            const issueMatch = prBody.match(/[Cc]loses:?\s*#(\d+)/);
+
+            if (!issueMatch) {
+              console.log('No issue reference found in PR body');
+              core.setOutput('is_assigned', 'false');
+              core.setOutput('reason', 'no_issue_reference');
+              return;
+            }
+
+            const issueNumber = parseInt(issueMatch[1], 10);
+            console.log(`Found issue reference: #${issueNumber}`);
+
+            try {
+              const issue = await github.rest.issues.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber
+              });
+
+              // Check if PR author is assigned to the issue
+              const assignees = issue.data.assignees.map(a => a.login);
+              console.log(`Issue assignees: ${assignees.join(', ')}`);
+
+              if (assignees.includes(prAuthor)) {
+                console.log(`PR author ${prAuthor} is assigned to issue #${issueNumber}`);
+                core.setOutput('is_assigned', 'true');
+              } else {
+                console.log(`PR author ${prAuthor} is NOT assigned to issue #${issueNumber}`);
+                core.setOutput('is_assigned', 'false');
+                core.setOutput('reason', 'not_assigned_to_issue');
+                core.setOutput('issue_number', issueNumber.toString());
+              }
+            } catch (error) {
+              console.log(`Error fetching issue #${issueNumber}: ${error.message}`);
+              core.setOutput('is_assigned', 'false');
+              core.setOutput('reason', 'issue_not_found');
+            }
+
+      - name: Check if author is tagged by codeowner
+        id: check-tagged-by-codeowner
+        if: |
+          steps.check-codeowner.outputs.is_codeowner == 'false' &&
+          steps.check-org-member.outputs.is_org_member == 'false' &&
+          steps.check-assignment.outputs.is_assigned == 'false' &&
+          steps.check-assignment.outputs.reason == 'not_assigned_to_issue'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prAuthor = context.payload.pull_request.user.login;
+            const issueNumber = parseInt('${{ steps.check-assignment.outputs.issue_number }}', 10);
+
+            const codeownerUsernames = JSON.parse('${{ steps.check-codeowner.outputs.codeowner_list }}' || '[]');
+
+            if (codeownerUsernames.length === 0) {
+              console.log('No codeowners found');
+              core.setOutput('is_tagged_by_codeowner', 'false');
+              return;
+            }
+
+            // Get all comments on the issue
+            try {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                per_page: 100
+              });
+
+              console.log(`Found ${comments.length} comments on issue #${issueNumber}`);
+
+              // Look for /assign @username commands in comments from codeowners
+              // We need to find the latest such command to determine current assignment
+              const prAuthorLower = prAuthor.toLowerCase();
+              const assignPattern = /\/assign\s+@([\w-]+)/gi;
+
+              // Process comments in reverse order (newest first) to find the latest assignment
+              for (let i = comments.length - 1; i >= 0; i--) {
+                const comment = comments[i];
+                const commentAuthor = comment.user.login.toLowerCase();
+
+                // Only consider comments from codeowners
+                if (!codeownerUsernames.includes(commentAuthor)) {
+                  continue;
+                }
+
+                // Find all /assign commands in this comment
+                const matches = [...comment.body.matchAll(assignPattern)];
+                if (matches.length > 0) {
+                  // Get the last /assign command in this comment
+                  const lastMatch = matches[matches.length - 1];
+                  const assignedUser = lastMatch[1].toLowerCase();
+
+                  console.log(`Found /assign @${lastMatch[1]} in comment by codeowner @${comment.user.login}`);
+                  console.log(`Comment URL: ${comment.html_url}`);
+
+                  if (assignedUser === prAuthorLower) {
+                    console.log(`PR author @${prAuthor} was assigned by codeowner`);
+                    core.setOutput('is_tagged_by_codeowner', 'true');
+                    return;
+                  } else {
+                    console.log(`Latest /assign command is for @${lastMatch[1]}, not @${prAuthor}`);
+                    core.setOutput('is_tagged_by_codeowner', 'false');
+                    return;
+                  }
+                }
+              }
+
+              console.log(`No /assign command from codeowner found for @${prAuthor}`);
+              core.setOutput('is_tagged_by_codeowner', 'false');
+            } catch (error) {
+              console.log(`Error fetching comments for issue #${issueNumber}: ${error.message}`);
+              core.setOutput('is_tagged_by_codeowner', 'false');
+            }
+
+      - name: Close ineligible PR
+        if: |
+          steps.check-codeowner.outputs.is_codeowner == 'false' &&
+          steps.check-org-member.outputs.is_org_member == 'false' &&
+          steps.check-assignment.outputs.is_assigned == 'false' &&
+          steps.check-tagged-by-codeowner.outputs.is_tagged_by_codeowner != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const reason = '${{ steps.check-assignment.outputs.reason }}';
+            const issueNumber = '${{ steps.check-assignment.outputs.issue_number }}';
+            const prAuthor = context.payload.pull_request.user.login;
+
+            let message = '';
+
+            if (reason === 'no_issue_reference') {
+              message = `Hi @${prAuthor},
+
+            Thank you for your interest in contributing to Malachite.
+
+            This PR has been automatically closed because it does not reference a GitHub issue. All PRs must reference an existing issue using the format \`Closes: #XXX\`.
+
+            **To contribute properly:**
+            1. Find an existing issue you'd like to work on, or [open a new issue](https://github.com/${context.repo.owner}/${context.repo.repo}/issues/new) describing your proposed change
+            2. Comment on the issue requesting assignment and wait for maintainer approval
+            3. Only submit a PR after you have been assigned to the issue
+
+            Please see our [CONTRIBUTING.md](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/CONTRIBUTING.md) for more details.`;
+            } else if (reason === 'not_assigned_to_issue') {
+              message = `Hi @${prAuthor},
+
+            Thank you for your interest in contributing to Malachite.
+
+            This PR has been automatically closed because you are not assigned to issue #${issueNumber}. We require contributors to be explicitly assigned to an issue before submitting a PR.
+
+            **To contribute properly:**
+            1. Comment on issue #${issueNumber} requesting assignment
+            2. Wait for maintainer approval
+            3. Only submit a PR after you have been assigned
+
+            Please see our [CONTRIBUTING.md](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/CONTRIBUTING.md) for more details.`;
+            } else if (reason === 'issue_not_found') {
+              message = `Hi @${prAuthor},
+
+            Thank you for your interest in contributing to Malachite.
+
+            This PR has been automatically closed because the referenced issue could not be found. Please ensure you reference a valid, existing issue using the format \`Closes: #XXX\`.
+
+            **To contribute properly:**
+            1. Find an existing issue you'd like to work on, or [open a new issue](https://github.com/${context.repo.owner}/${context.repo.repo}/issues/new) describing your proposed change
+            2. Comment on the issue requesting assignment and wait for maintainer approval
+            3. Only submit a PR after you have been assigned to the issue
+
+            Please see our [CONTRIBUTING.md](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/CONTRIBUTING.md) for more details.`;
+            } else {
+              message = `Hi @${prAuthor},
+
+            Thank you for your interest in contributing to Malachite.
+
+            This PR has been automatically closed because it does not meet our contribution requirements.
+
+            Please see our [CONTRIBUTING.md](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/CONTRIBUTING.md) for details on how to contribute properly.`;
+            }
+
+            // Add comment
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: message
+            });
+
+            // Add label
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                labels: ['need-triage']
+              });
+            } catch (error) {
+              console.log('Could not add label (may not exist):', error.message);
+            }
+
+            // Close PR
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              state: 'closed'
+            });
+
+            console.log('PR closed successfully');
