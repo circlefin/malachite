@@ -3,7 +3,7 @@
 use std::path::Path;
 use std::time::Duration;
 
-use eyre::Result;
+use eyre::{eyre, Result};
 use tokio::task::JoinHandle;
 use tracing::Span;
 
@@ -163,6 +163,10 @@ where
 {
     if !config.enabled {
         return Ok(None);
+    }
+
+    if config.enabled && config.batch_size == 0 {
+        return Err(eyre!("Value sync batch size cannot be zero"));
     }
 
     let params = SyncParams {

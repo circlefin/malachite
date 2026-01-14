@@ -285,10 +285,6 @@ where
         let sync = if let Some(custom) = self.custom_sync {
             custom
         } else {
-            if self.config.value_sync().enabled && self.config.value_sync().batch_size == 0 {
-                return Err(eyre!("Value sync batch size cannot be zero"));
-            }
-
             let sync_ctx = self.sync_ctx.ok_or_else(|| {
                 eyre!("Sync context is required for spawning sync actor (or provide custom sync actor)")
             })?;
