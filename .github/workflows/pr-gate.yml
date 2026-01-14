@@ -29,6 +29,8 @@ jobs:
               const codeowners = content.match(/@[\w-]+/g) || [];
               const codeownerUsernames = codeowners.map(c => c.substring(1).toLowerCase());
 
+              core.setOutput('codeowner_list', JSON.stringify(codeownerUsernames));
+
               if (codeownerUsernames.includes(prAuthor.toLowerCase())) {
                 console.log(`${prAuthor} is a codeowner`);
                 core.setOutput('is_codeowner', 'true');
@@ -128,25 +130,7 @@ jobs:
             const prAuthor = context.payload.pull_request.user.login;
             const issueNumber = parseInt('${{ steps.check-assignment.outputs.issue_number }}', 10);
 
-            // First, get the codeowners list
-            let codeownerUsernames = [];
-            try {
-              const response = await github.rest.repos.getContent({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                path: '.github/CODEOWNERS',
-                ref: context.payload.pull_request.base.ref
-              });
-
-              const content = Buffer.from(response.data.content, 'base64').toString('utf-8');
-              const codeowners = content.match(/@[\w-]+/g) || [];
-              codeownerUsernames = codeowners.map(c => c.substring(1).toLowerCase());
-              console.log(`Codeowners: ${codeownerUsernames.join(', ')}`);
-            } catch (error) {
-              console.log(`Could not read CODEOWNERS file: ${error.message}`);
-              core.setOutput('is_tagged_by_codeowner', 'false');
-              return;
-            }
+            const codeownerUsernames = JSON.parse('${{ steps.check-codeowner.outputs.codeowner_list }}' || '[]');
 
             if (codeownerUsernames.length === 0) {
               console.log('No codeowners found');
