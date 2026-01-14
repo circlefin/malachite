@@ -115,11 +115,106 @@ jobs:
               core.setOutput('reason', 'issue_not_found');
             }
 
+      - name: Check if author is tagged by codeowner
+        id: check-tagged-by-codeowner
+        if: |
+          steps.check-codeowner.outputs.is_codeowner == 'false' &&
+          steps.check-org-member.outputs.is_org_member == 'false' &&
+          steps.check-assignment.outputs.is_assigned == 'false' &&
+          steps.check-assignment.outputs.reason == 'not_assigned_to_issue'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prAuthor = context.payload.pull_request.user.login;
+            const issueNumber = parseInt('${{ steps.check-assignment.outputs.issue_number }}', 10);
+
+            // First, get the codeowners list
+            let codeownerUsernames = [];
+            try {
+              const response = await github.rest.repos.getContent({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                path: '.github/CODEOWNERS',
+                ref: context.payload.pull_request.base.ref
+              });
+
+              const content = Buffer.from(response.data.content, 'base64').toString('utf-8');
+              const codeowners = content.match(/@[\w-]+/g) || [];
+              codeownerUsernames = codeowners.map(c => c.substring(1).toLowerCase());
+              console.log(`Codeowners: ${codeownerUsernames.join(', ')}`);
+            } catch (error) {
+              console.log(`Could not read CODEOWNERS file: ${error.message}`);
+              core.setOutput('is_tagged_by_codeowner', 'false');
+              return;
+            }
+
+            if (codeownerUsernames.length === 0) {
+              console.log('No codeowners found');
+              core.setOutput('is_tagged_by_codeowner', 'false');
+              return;
+            }
+
+            // Get all comments on the issue
+            try {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                per_page: 100
+              });
+
+              console.log(`Found ${comments.length} comments on issue #${issueNumber}`);
+
+              // Look for /assign @username commands in comments from codeowners
+              // We need to find the latest such command to determine current assignment
+              const prAuthorLower = prAuthor.toLowerCase();
+              const assignPattern = /\/assign\s+@([\w-]+)/gi;
+
+              // Process comments in reverse order (newest first) to find the latest assignment
+              for (let i = comments.length - 1; i >= 0; i--) {
+                const comment = comments[i];
+                const commentAuthor = comment.user.login.toLowerCase();
+
+                // Only consider comments from codeowners
+                if (!codeownerUsernames.includes(commentAuthor)) {
+                  continue;
+                }
+
+                // Find all /assign commands in this comment
+                const matches = [...comment.body.matchAll(assignPattern)];
+                if (matches.length > 0) {
+                  // Get the last /assign command in this comment
+                  const lastMatch = matches[matches.length - 1];
+                  const assignedUser = lastMatch[1].toLowerCase();
+
+                  console.log(`Found /assign @${lastMatch[1]} in comment by codeowner @${comment.user.login}`);
+                  console.log(`Comment URL: ${comment.html_url}`);
+
+                  if (assignedUser === prAuthorLower) {
+                    console.log(`PR author @${prAuthor} was assigned by codeowner`);
+                    core.setOutput('is_tagged_by_codeowner', 'true');
+                    return;
+                  } else {
+                    console.log(`Latest /assign command is for @${lastMatch[1]}, not @${prAuthor}`);
+                    core.setOutput('is_tagged_by_codeowner', 'false');
+                    return;
+                  }
+                }
+              }
+
+              console.log(`No /assign command from codeowner found for @${prAuthor}`);
+              core.setOutput('is_tagged_by_codeowner', 'false');
+            } catch (error) {
+              console.log(`Error fetching comments for issue #${issueNumber}: ${error.message}`);
+              core.setOutput('is_tagged_by_codeowner', 'false');
+            }
+
       - name: Close ineligible PR
         if: |
           steps.check-codeowner.outputs.is_codeowner == 'false' &&
           steps.check-org-member.outputs.is_org_member == 'false' &&
-          steps.check-assignment.outputs.is_assigned == 'false'
+          steps.check-assignment.outputs.is_assigned == 'false' &&
+          steps.check-tagged-by-codeowner.outputs.is_tagged_by_codeowner != 'true'
         uses: actions/github-script@v7
         with:
           script: |
