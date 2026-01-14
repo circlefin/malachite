@@ -7,7 +7,6 @@ use bytes::Bytes;
 use prost::Message;
 use redb::ReadableTable;
 use thiserror::Error;
-use tracing::error;
 
 use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::{CommitCertificate, Round};
