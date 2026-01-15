@@ -321,6 +321,22 @@ pub enum AppMsg<Ctx: Context> {
         reply: Reply<Option<ProposedValue<Ctx>>>,
     },
 
+    /// Notifies the application that consensus has received a proposal over the network.
+    ///
+    /// The application MUST respond with the complete proposed value.
+    ReceivedProposal {
+        /// Height of the proposal
+        height: Ctx::Height,
+        /// Round of the proposal
+        round: Round,
+        /// Peer whom the proposal was received from
+        proposer: Ctx::Address,
+        /// Value of the proposal
+        value: Ctx::Value,
+        /// Channel for returning validity of the proposal
+        reply: Reply<ProposedValue<Ctx>>,
+    },
+
     /// Notifies the application that consensus has decided on a value.
     ///
     /// This message includes a commit certificate containing the ID of

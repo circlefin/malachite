@@ -278,6 +278,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 info!(%height, %round, "Processing synced value");
 
                 if let Some(value) = decode_value(value_bytes) {
+                    // TODO: Verify the validity of value
                     let proposal = ProposedValue {
                         height,
                         round,
@@ -291,11 +292,6 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     state.store_synced_value(proposal.clone()).await?;
 
                     if reply.send(Some(proposal)).is_err() {
-                        error!("Failed to send ProcessSyncedValue reply");
-                    }
-                } else {
-                    error!(%height, %round, "Failed to decode synced value");
-                    if reply.send(None).is_err() {
                         error!("Failed to send ProcessSyncedValue reply");
                     }
                 }
@@ -392,6 +388,10 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 if reply.send(Ok(())).is_err() {
                     error!("Failed to send VerifyVoteExtension reply");
                 }
+            }
+
+            AppMsg::ReceivedProposal { .. } => {
+                panic!("ReceivedProposal should not be called in test app");
             }
         }
     }
