@@ -310,17 +310,14 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 info!(%height, %round, "Processing synced value");
 
                 let proposed_value = if let Some(value) = decode_value(value_bytes) {
-                    // TODO: verify the validity of value
                     let proposed_value = ProposedValue {
                         height,
                         round,
                         valid_round: Round::Nil,
                         proposer,
                         value,
-                        validity: Validity::Valid,
+                        validity: Validity::Valid, // NOTE: Values are always valid in this example app
                     };
-
-                    // TODO: should we store invalid values?
 
                     state
                         .store
