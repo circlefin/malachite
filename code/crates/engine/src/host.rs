@@ -6,7 +6,9 @@ use derive_where::derive_where;
 use ractor::{ActorRef, RpcReplyPort};
 
 use malachitebft_core_consensus::{Role, VoteExtensionError};
-use malachitebft_core_types::{CommitCertificate, Context, Round, ValueId, VoteExtensions};
+use malachitebft_core_types::{
+    CommitCertificate, Context, Round, SignedProposal, ValueId, VoteExtensions,
+};
 use malachitebft_sync::{PeerId, RawDecidedValue};
 
 use crate::util::streaming::StreamMessage;
@@ -138,13 +140,16 @@ pub enum HostMsg<Ctx: Context> {
         reply_to: RpcReplyPort<ProposedValue<Ctx>>,
     },
 
-    /// Received a proposal from a validator
+    /// Notifies the application that consensus has received a Proposal message over the network.
+    ///
+    /// If consensus is running in proposal-only mode, `reply` will be `Some` and
+    /// the application MUST respond with the complete proposed value.
     ReceivedProposal {
-        height: Ctx::Height,
-        round: Round,
-        proposer: Ctx::Address,
-        value: Ctx::Value,
-        reply_to: RpcReplyPort<ProposedValue<Ctx>>,
+        /// The signed Proposal message
+        proposal: SignedProposal<Ctx>,
+        /// Channel for returning validity of the proposal
+        /// If consensus is not running in proposal-only mode, this will be `None`.
+        reply_to: Option<RpcReplyPort<ProposedValue<Ctx>>>,
     },
 
     /// Notifies the application that consensus has decided on a value.

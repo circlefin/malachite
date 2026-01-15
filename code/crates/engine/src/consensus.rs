@@ -540,9 +540,11 @@ where
                             Event::Received(SignedConsensusMsg::Proposal(proposal.clone()))
                         });
 
+                        let mode = self.params.value_payload;
+
                         // Ignore proposals if we are in parts-only mode
                         // (as the proposal value should never be sent in this mode)
-                        if self.params.value_payload.parts_only() {
+                        if mode.parts_only() {
                             error!(%from, "Received Proposal message while configured in parts-only mode, ignoring");
                             return Ok(());
                         }
@@ -563,14 +565,17 @@ where
                         self.host
                             .call_and_forward(
                                 |reply_to| HostMsg::ReceivedProposal {
-                                    height: proposal.height(),
-                                    round: proposal.round(),
-                                    proposer: proposal.validator_address().clone(),
-                                    value: proposal.value().clone(),
-                                    reply_to,
+                                    proposal: proposal.clone(),
+                                    reply_to: mode.proposal_only().then_some(reply_to),
                                 },
                                 &myself,
-                                |value| Msg::ReceivedProposedValue(value, ValueOrigin::Consensus),
+                                move |value| {
+                                    if mode.proposal_only() {
+                                        Msg::ReceivedProposedValue(value, ValueOrigin::Consensus)
+                                    } else {
+                                        unreachable!("No reply channel was provided to HostMsg::ReceivedProposal")
+                                    }
+                                },
                                 None,
                             )
                             .map_err(|e| eyre!("Error when forwarding proposal to host: {e}"))?;
