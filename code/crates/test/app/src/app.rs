@@ -277,7 +277,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             } => {
                 info!(%height, %round, "Processing synced value");
 
-                if let Some(value) = decode_value(value_bytes) {
+                let result = if let Some(value) = decode_value(value_bytes) {
                     // TODO: Verify the validity of value
                     let proposal = ProposedValue {
                         height,
@@ -290,10 +290,14 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
                     // TODO: We plan to add some validation here in the future.
                     state.store_synced_value(proposal.clone()).await?;
+                    Some(proposal)
+                } else {
+                    error!(%height, %round, "Failed to decode synced value");
+                    None
+                };
 
-                    if reply.send(Some(proposal)).is_err() {
-                        error!("Failed to send ProcessSyncedValue reply");
-                    }
+                if reply.send(result).is_err() {
+                    error!("Failed to send ProcessSyncedValue reply");
                 }
             }
 

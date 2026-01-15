@@ -326,6 +326,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
                     Some(proposed_value)
                 } else {
+                    error!(%height, %round, "Failed to decode synced value");
                     None
                 };
 
