@@ -557,27 +557,21 @@ where
                             error!(%from, "Error when processing proposal: {e}");
                         }
 
-                        // Forward the proposal value to the host if we are in proposal-only mode
-                        if self.params.value_payload.proposal_only() {
-                            self.host
-                                .call_and_forward(
-                                    |reply_to| HostMsg::ReceivedProposal {
-                                        height: proposal.height(),
-                                        round: proposal.round(),
-                                        proposer: proposal.validator_address().clone(),
-                                        value: proposal.value().clone(),
-                                        reply_to,
-                                    },
-                                    &myself,
-                                    |value| {
-                                        Msg::ReceivedProposedValue(value, ValueOrigin::Consensus)
-                                    },
-                                    None,
-                                )
-                                .map_err(|e| {
-                                    eyre!("Error when forwarding proposal to host: {e}")
-                                })?;
-                        }
+                        // Forward the proposal value to the host
+                        self.host
+                            .call_and_forward(
+                                |reply_to| HostMsg::ReceivedProposal {
+                                    height: proposal.height(),
+                                    round: proposal.round(),
+                                    proposer: proposal.validator_address().clone(),
+                                    value: proposal.value().clone(),
+                                    reply_to,
+                                },
+                                &myself,
+                                |value| Msg::ReceivedProposedValue(value, ValueOrigin::Consensus),
+                                None,
+                            )
+                            .map_err(|e| eyre!("Error when forwarding proposal to host: {e}"))?;
                     }
 
                     NetworkEvent::PolkaCertificate(from, certificate) => {
