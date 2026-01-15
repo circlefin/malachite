@@ -193,6 +193,28 @@ where
                 }
             }
 
+            HostMsg::ReceivedProposal {
+                height,
+                round,
+                proposer,
+                value,
+                reply_to,
+            } => {
+                let (reply, rx) = oneshot::channel();
+
+                self.sender
+                    .send(AppMsg::ReceivedProposal {
+                        height,
+                        round,
+                        value,
+                        proposer,
+                        reply,
+                    })
+                    .await?;
+
+                reply_to.send(rx.await?)?;
+            }
+
             HostMsg::Decided {
                 certificate,
                 extensions,

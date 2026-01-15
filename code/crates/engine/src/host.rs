@@ -138,6 +138,15 @@ pub enum HostMsg<Ctx: Context> {
         reply_to: RpcReplyPort<ProposedValue<Ctx>>,
     },
 
+    /// Received a proposal from a validator
+    ReceivedProposal {
+        height: Ctx::Height,
+        round: Round,
+        proposer: Ctx::Address,
+        value: Ctx::Value,
+        reply_to: RpcReplyPort<ProposedValue<Ctx>>,
+    },
+
     /// Notifies the application that consensus has decided on a value.
     ///
     /// This message includes a commit certificate containing the ID of
