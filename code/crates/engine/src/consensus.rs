@@ -540,8 +540,10 @@ where
                             Event::Received(SignedConsensusMsg::Proposal(proposal.clone()))
                         });
 
+                        // Ignore proposals if we are in parts-only mode
+                        // (as the proposal value should never be sent in this mode)
                         if self.params.value_payload.parts_only() {
-                            error!(%from, "Properly configured peer should never send proposal messages in BlockPart mode");
+                            error!(%from, "Received Proposal message while configured in parts-only mode, ignoring");
                             return Ok(());
                         }
 
