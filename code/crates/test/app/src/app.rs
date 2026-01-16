@@ -394,8 +394,16 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 }
             }
 
-            AppMsg::ReceivedProposal { .. } => {
-                panic!("ReceivedProposal should not be called in test app");
+            AppMsg::ReceivedProposal { proposal, reply } => {
+                assert!(reply.is_none(), "Test app runs in proposal-and-parts mode");
+
+                info!(
+                    height = %state.current_height, round = %state.current_round,
+                    "Received proposal: {proposal:?}"
+                );
+
+                // NOTE: In proposal-and-parts mode, the application does not need
+                // to process this message any further.
             }
         }
     }
