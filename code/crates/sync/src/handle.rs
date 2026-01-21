@@ -405,6 +405,14 @@ where
         );
     }
 
+    let values_count = response.values.len();
+
+    // Tell consensus to process the response.
+    perform!(
+        co,
+        Effect::ProcessValueResponse(peer_id, response, Default::default())
+    );
+
     // If the response contains a prefix of the requested values, re-request the remaining values.
     if let Some((requested_range, stored_peer_id)) = state.pending_requests.get(&request_id) {
         if stored_peer_id != &peer_id {
@@ -419,7 +427,7 @@ where
 
         let range_len = requested_range.end().as_u64() - requested_range.start().as_u64() + 1;
 
-        if response.values.len() < range_len as usize {
+        if values_count < range_len as usize {
             // NOTE: We cannot simply call `re_request_values_from_peer_except` here.
             // Although we received some values from the peer, these values have not yet been processed
             // by the consensus engine. If we called `re_request_values_from_peer_except`, we would
@@ -428,13 +436,11 @@ where
             // values are fully processed.
             // To tackle this, we first update the current pending request with the range of values
             // it provides we received, and then issue a new request with the remaining values.
-            let new_start = requested_range
-                .start()
-                .increment_by(response.values.len() as u64);
+            let new_start = requested_range.start().increment_by(values_count as u64);
 
             let end = *requested_range.end();
 
-            if response.values.is_empty() {
+            if values_count == 0 {
                 error!(%request_id, %peer_id, "Received response contains no values");
             } else {
                 // The response of this request only provided `response.values.len()` values,

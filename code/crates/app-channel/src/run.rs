@@ -2,17 +2,20 @@
 //! Provides the application with a channel for receiving messages from consensus.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use eyre::{eyre, Result};
 use tokio::sync::mpsc::{self, Receiver};
 use tokio::task::JoinHandle;
 
 use malachitebft_engine::consensus::{ConsensusMsg, ConsensusRef};
-pub use malachitebft_engine::network::NetworkIdentity;
 use malachitebft_engine::network::{NetworkMsg, NetworkRef};
 use malachitebft_engine::node::NodeRef;
 use malachitebft_engine::util::events::TxEvent;
+use malachitebft_engine::util::output_port::{OutputPort, OutputPortSubscriberTrait};
 use malachitebft_signing::SigningProvider;
+
+pub use malachitebft_engine::network::NetworkIdentity;
 
 use crate::app::config::NodeConfig;
 use crate::app::metrics::{Metrics, SharedRegistry};
@@ -103,6 +106,10 @@ where
     let registry = SharedRegistry::global().with_moniker(cfg.moniker());
     let metrics = Metrics::register(&registry);
 
+    if cfg.value_sync().enabled && cfg.value_sync().batch_size == 0 {
+        return Err(eyre!("Value sync batch size cannot be zero"));
+    }
+
     // Spawn consensus gossip
     let (network, tx_network) = spawn_network_actor(
         network_ctx.identity,
@@ -118,21 +125,8 @@ where
     // Spawn the host actor
     let (connector, rx_consensus) = spawn_host_actor(metrics.clone()).await?;
 
-    if cfg.value_sync().enabled && cfg.value_sync().batch_size == 0 {
-        return Err(eyre!("Value sync batch size cannot be zero"));
-    }
-
-    let sync = spawn_sync_actor(
-        ctx.clone(),
-        network.clone(),
-        connector.clone(),
-        network_ctx.codec,
-        cfg.value_sync(),
-        &registry,
-    )
-    .await?;
-
     let tx_event = TxEvent::new();
+    let sync_port = Arc::new(OutputPort::new());
 
     // Spawn consensus
     let consensus = spawn_consensus_actor(
@@ -144,11 +138,26 @@ where
         network.clone(),
         connector.clone(),
         wal.clone(),
-        sync.clone(),
+        sync_port.clone(),
         metrics,
         tx_event.clone(),
     )
     .await?;
+
+    let sync = spawn_sync_actor(
+        ctx.clone(),
+        network.clone(),
+        connector.clone(),
+        consensus.clone(),
+        network_ctx.codec,
+        cfg.value_sync(),
+        &registry,
+    )
+    .await?;
+
+    if let Some(sync) = &sync {
+        sync.subscribe_to_port(&sync_port);
+    }
 
     let (node, handle) = spawn_node_actor(
         ctx,
