@@ -250,10 +250,9 @@ impl Behaviour {
         });
 
         let sync = if config.enable_sync {
-            Some(sync::Behaviour::new_with_metrics(
+            Some(sync::Behaviour::new(
                 sync::Config::default().with_max_response_size(config.rpc_max_size),
                 config.protocol_names.sync.clone(),
-                registry.sub_registry_with_prefix("sync"),
             )?)
         } else {
             None
