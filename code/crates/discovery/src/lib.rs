@@ -293,4 +293,86 @@ where
             }
         }
     }
+
+    /// Add a bootstrap node for persistent peer management
+    pub fn add_bootstrap_node(&mut self, addr: Multiaddr) {
+        // Check if this address already exists in bootstrap nodes
+        if self
+            .bootstrap_nodes
+            .iter()
+            .any(|(_, addrs)| addrs.contains(&addr))
+        {
+            info!("Bootstrap node already exists: {addr}");
+            return;
+        }
+
+        // Extract peer_id from multiaddr if present
+        let peer_id = addr.iter().find_map(|protocol| {
+            if let libp2p::multiaddr::Protocol::P2p(peer_id) = protocol {
+                Some(peer_id)
+            } else {
+                None
+            }
+        });
+
+        // Add to bootstrap_nodes list
+        self.bootstrap_nodes.push((peer_id, vec![addr]));
+
+        info!(
+            "Added bootstrap node, total: {}",
+            self.bootstrap_nodes.len()
+        );
+    }
+
+    /// Remove a bootstrap node for persistent peer management
+    pub fn remove_bootstrap_node(&mut self, addr: &Multiaddr) -> bool {
+        // Find matching bootstrap node by comparing addresses
+        let pos = self
+            .bootstrap_nodes
+            .iter()
+            .position(|(_, addrs)| addrs.iter().any(|a| a == addr));
+
+        if let Some(index) = pos {
+            self.bootstrap_nodes.remove(index);
+            info!(
+                "Removed bootstrap node, remaining: {}",
+                self.bootstrap_nodes.len()
+            );
+            true
+        } else {
+            warn!("Bootstrap node not found for removal: {}", addr);
+            false
+        }
+    }
+
+    /// Get the peer_id associated with a bootstrap node address.
+    ///
+    /// This is useful when the peer_id is discovered when we successfully connect, via the TLS/noise handshake
+    pub fn get_peer_id_for_addr(&self, addr: &Multiaddr) -> Option<PeerId> {
+        self.bootstrap_nodes
+            .iter()
+            .find(|(_, addrs)| addrs.iter().any(|a| a == addr))
+            .and_then(|(peer_id, _)| *peer_id)
+    }
+
+    /// Cancel any in-progress dial attempts for a given address and/or peer_id
+    ///
+    /// This is useful when removing a persistent peer to ensure we don't continue
+    /// trying to dial them after they've been removed.
+    pub fn cancel_dial_attempts(&mut self, addr: &Multiaddr, peer_id: Option<PeerId>) {
+        use controller::PeerData;
+
+        // Cancel dial attempts for the address
+        let addr_without_p2p = util::strip_peer_id_from_multiaddr(addr);
+        self.controller
+            .dial
+            .remove_done_on(&PeerData::Multiaddr(addr_without_p2p));
+
+        // Cancel dial attempts for the peer_id if present
+        if let Some(peer_id) = peer_id {
+            self.controller
+                .dial
+                .remove_done_on(&PeerData::PeerId(peer_id));
+        }
+    }
 }

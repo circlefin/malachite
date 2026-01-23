@@ -49,6 +49,14 @@ impl PeerType {
         }
     }
 
+    /// Create a new PeerType with updated persistent status, preserving validator status
+    pub fn with_persistent(self, is_persistent: bool) -> Self {
+        Self {
+            is_persistent,
+            is_validator: self.is_validator,
+        }
+    }
+
     /// Get the primary type for display/metrics (prioritize validator > persistent > full node)
     pub fn primary_type_str(&self) -> &'static str {
         match (self.is_validator, self.is_persistent) {
@@ -73,5 +81,24 @@ impl EncodeLabelValue for PeerType {
         encoder: &mut malachitebft_metrics::prometheus::encoding::LabelValueEncoder,
     ) -> Result<(), std::fmt::Error> {
         encoder.write_str(self.primary_type_str())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_with_persistent_preserves_validator_status() {
+        // Test that with_persistent preserves validator status
+        let validator = PeerType::new(false, true);
+        let persistent_validator = validator.with_persistent(true);
+        assert!(persistent_validator.is_persistent());
+        assert!(persistent_validator.is_validator());
+
+        // And that removing persistent also preserves validator status
+        let non_persistent_validator = persistent_validator.with_persistent(false);
+        assert!(!non_persistent_validator.is_persistent());
+        assert!(non_persistent_validator.is_validator());
     }
 }

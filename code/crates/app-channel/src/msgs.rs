@@ -15,7 +15,9 @@ use malachitebft_engine::consensus::state_dump::StateDump;
 use malachitebft_engine::consensus::Msg as ConsensusActorMsg;
 use malachitebft_engine::host::{HeightParams, Next};
 use malachitebft_engine::network::Msg as NetworkActorMsg;
-use malachitebft_engine::network::NetworkStateDump;
+use malachitebft_engine::network::{
+    Multiaddr, NetworkStateDump, PersistentPeerError, PersistentPeersOp,
+};
 use malachitebft_engine::util::events::TxEvent;
 
 use crate::app::types::core::{CommitCertificate, Context, Round, ValueId, VoteExtensions};
@@ -126,6 +128,8 @@ impl<Ctx: Context> ConsensusRequest<Ctx> {
 pub enum NetworkRequest {
     /// Request a state dump from the network
     DumpState(Reply<Option<NetworkStateDump>>),
+    /// Add or remove a persistent peer at runtime
+    UpdatePersistentPeers(PersistentPeersOp, Reply<Result<(), PersistentPeerError>>),
 }
 
 impl NetworkRequest {
@@ -144,6 +148,52 @@ impl NetworkRequest {
         )?;
 
         Ok(dump)
+    }
+
+    /// Add a persistent peer at runtime.
+    pub async fn add_persistent_peer(
+        tx_request: &mpsc::Sender<NetworkRequest>,
+        addr: Multiaddr,
+    ) -> Result<Result<(), PersistentPeerError>, ConsensusRequestError> {
+        let (tx, rx) = oneshot::channel();
+
+        tx_request
+            .try_send(Self::UpdatePersistentPeers(
+                PersistentPeersOp::Add(addr),
+                tx,
+            ))
+            .inspect_err(
+                |error| error!(%error, "Failed to send AddPersistentPeer request to network"),
+            )?;
+
+        let result = rx.await.inspect_err(
+            |error| error!(%error, "Failed to receive AddPersistentPeer response from network"),
+        )?;
+
+        Ok(result)
+    }
+
+    /// Remove a persistent peer at runtime.
+    pub async fn remove_persistent_peer(
+        tx_request: &mpsc::Sender<NetworkRequest>,
+        addr: Multiaddr,
+    ) -> Result<Result<(), PersistentPeerError>, ConsensusRequestError> {
+        let (tx, rx) = oneshot::channel();
+
+        tx_request
+            .try_send(Self::UpdatePersistentPeers(
+                PersistentPeersOp::Remove(addr),
+                tx,
+            ))
+            .inspect_err(
+                |error| error!(%error, "Failed to send RemovePersistentPeer request to network"),
+            )?;
+
+        let result = rx.await.inspect_err(
+            |error| error!(%error, "Failed to receive RemovePersistentPeer response from network"),
+        )?;
+
+        Ok(result)
     }
 }
 

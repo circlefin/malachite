@@ -8,6 +8,8 @@
 
 ### `consensus`
 - Allow application to change its mind about validity (invalid -> valid)
+- Add an ability to add/remove persistent peers at runtime via `Network` handle
+- Add `persistent_peers_only` config option to allow connections ONLY from/to persistent peers 
 - Allow dynamic adjustment of timeout parameters ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Allow providing both the validator set and the timeouts for a height in `StartHeight`, `RestartHeight` and `ConsensusReady` reply ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Remove `initial_validator_set` and `initial_height` fields from `Params` struct ([#1190](https://github.com/circlefin/malachite/pull/1190))

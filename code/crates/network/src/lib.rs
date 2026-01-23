@@ -208,6 +208,32 @@ impl TransportProtocol {
     }
 }
 
+/// Operation to perform on a persistent peer
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PersistentPeersOp {
+    /// Add a persistent peer
+    Add(Multiaddr),
+    /// Remove a persistent peer
+    Remove(Multiaddr),
+}
+
+/// Errors that can occur during persistent peer operations
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum PersistentPeerError {
+    /// Peer already exists in the persistent peers list (for Add operation)
+    #[error("Persistent peer already exists")]
+    AlreadyExists,
+    /// Peer not found in the persistent peers list (for Remove operation)
+    #[error("Persistent peer not found")]
+    NotFound,
+    /// Network is not started
+    #[error("Network not started")]
+    NetworkStopped,
+    /// Internal error
+    #[error("Internal error: {0}")]
+    InternalError(String),
+}
+
 /// sync event details:
 ///
 /// peer1: sync                  peer2: network                    peer2: sync              peer1: network
@@ -235,6 +261,10 @@ pub enum CtrlMsg {
     SyncReply(InboundRequestId, Bytes),
     UpdateValidatorSet(Vec<ValidatorInfo>),
     DumpState(oneshot::Sender<NetworkStateDump>),
+    UpdatePersistentPeers(
+        PersistentPeersOp,
+        oneshot::Sender<Result<(), PersistentPeerError>>,
+    ),
     Shutdown,
 }
 
@@ -545,6 +575,18 @@ async fn handle_ctrl_msg(
             }
             ControlFlow::Continue(())
         }
+
+        CtrlMsg::UpdatePersistentPeers(op, reply_to) => {
+            let result = match op {
+                PersistentPeersOp::Add(addr) => state.add_persistent_peer(addr, swarm),
+                PersistentPeersOp::Remove(addr) => state.remove_persistent_peer(addr, swarm),
+            };
+            if reply_to.send(result).is_err() {
+                error!("Error replying to UpdatePersistentPeers");
+            }
+            ControlFlow::Continue(())
+        }
+
         CtrlMsg::Shutdown => ControlFlow::Break(()),
     }
 }

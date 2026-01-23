@@ -12,7 +12,7 @@ use malachitebft_sync as sync;
 
 use crate::behaviour::Behaviour;
 use crate::metrics::Metrics as NetworkMetrics;
-use crate::{Channel, ChannelNames, PeerType};
+use crate::{Channel, ChannelNames, PeerType, PersistentPeerError};
 use malachitebft_discovery::ConnectionDirection;
 
 /// Public network state dump for external consumers
@@ -467,6 +467,92 @@ impl State {
         }
 
         lines.join("\n")
+    }
+
+    /// Add a persistent peer at runtime
+    pub(crate) fn add_persistent_peer(
+        &mut self,
+        addr: Multiaddr,
+        swarm: &mut libp2p::Swarm<Behaviour>,
+    ) -> Result<(), PersistentPeerError> {
+        // Check if already exists
+        if self.persistent_peer_addrs.contains(&addr) {
+            return Err(PersistentPeerError::AlreadyExists);
+        }
+
+        // Extract PeerId from multiaddr if present
+        if let Some(peer_id) = extract_peer_id_from_multiaddr(&addr) {
+            self.persistent_peer_ids.insert(peer_id);
+        }
+
+        // Add to persistent peer list
+        self.persistent_peer_addrs.push(addr.clone());
+
+        // Update discovery layer to add this as a bootstrap node
+        self.discovery.add_bootstrap_node(addr.clone());
+
+        // Attempt to dial the new persistent peer
+        if let Err(e) = swarm.dial(addr.clone()) {
+            tracing::warn!(
+                error = %e,
+                addr = %addr,
+                "Failed to dial newly added persistent peer, will retry via discovery"
+            );
+            // Don't return error - the peer is added, dialing might succeed later
+        }
+
+        Ok(())
+    }
+
+    /// Remove a persistent peer at runtime
+    pub(crate) fn remove_persistent_peer(
+        &mut self,
+        addr: Multiaddr,
+        swarm: &mut libp2p::Swarm<Behaviour>,
+    ) -> Result<(), PersistentPeerError> {
+        // Check if exists and remove from persistent peer list
+        let Some(pos) = self.persistent_peer_addrs.iter().position(|a| a == &addr) else {
+            return Err(PersistentPeerError::NotFound);
+        };
+
+        self.persistent_peer_addrs.remove(pos);
+
+        // Look up the peer_id from discovery, learned via TLS/noise handshake
+        // when we successfully connected to this address
+        let peer_id = self.discovery.get_peer_id_for_addr(&addr);
+
+        if let Some(peer_id) = peer_id {
+            self.persistent_peer_ids.remove(&peer_id);
+
+            // Update peer type and score if connected
+            if let Some(peer_info) = self.peer_info.get_mut(&peer_id) {
+                // Mark as no longer persistent
+                peer_info.peer_type = peer_info.peer_type.with_persistent(false);
+
+                // Recalculate score
+                let new_score = crate::peer_scoring::get_peer_score(peer_info.peer_type);
+                peer_info.score = new_score;
+
+                // Update GossipSub score
+                if let Some(gossipsub) = swarm.behaviour_mut().gossipsub.as_mut() {
+                    gossipsub.set_application_score(&peer_id, new_score);
+                }
+            }
+
+            // Disconnect from the peer if currently connected
+            if swarm.is_connected(&peer_id) {
+                let _ = swarm.disconnect_peer_id(peer_id);
+                tracing::info!(%peer_id, %addr, "Disconnecting from removed persistent peer");
+            }
+        }
+
+        // Cancel any in-progress dial attempts for this address and peer
+        self.discovery.cancel_dial_attempts(&addr, peer_id);
+
+        // Update discovery layer
+        self.discovery.remove_bootstrap_node(&addr);
+
+        Ok(())
     }
 }
 

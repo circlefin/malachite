@@ -28,5 +28,6 @@ libp2p-broadcast = { workspace = true }
 libp2p-gossipsub = { workspace = true, features = ["metrics"] }
 seahash = { workspace = true }
 serde = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true, features = ["macros"] }
 tracing = { workspace = true }

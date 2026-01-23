@@ -9,7 +9,7 @@ use tokio::task::JoinHandle;
 
 use malachitebft_engine::consensus::{ConsensusMsg, ConsensusRef};
 pub use malachitebft_engine::network::NetworkIdentity;
-use malachitebft_engine::network::NetworkRef;
+use malachitebft_engine::network::{NetworkMsg, NetworkRef};
 use malachitebft_engine::node::NodeRef;
 use malachitebft_engine::util::events::TxEvent;
 use malachitebft_signing::SigningProvider;
@@ -211,10 +211,15 @@ fn spawn_network_request_task<Ctx>(
         while let Some(msg) = rx_request.recv().await {
             match msg {
                 NetworkRequest::DumpState(reply) => {
-                    if let Err(error) =
-                        network.cast(malachitebft_engine::network::Msg::DumpState(reply.into()))
-                    {
+                    if let Err(error) = network.cast(NetworkMsg::DumpState(reply.into())) {
                         tracing::error!(%error, "Failed to send network state dump request");
+                    }
+                }
+                NetworkRequest::UpdatePersistentPeers(op, reply) => {
+                    if let Err(error) =
+                        network.cast(NetworkMsg::UpdatePersistentPeers(op, reply.into()))
+                    {
+                        tracing::error!(%error, "Failed to send update persistent peers request");
                     }
                 }
             }
