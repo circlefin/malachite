@@ -133,6 +133,16 @@ We are grateful as well for our collaboration with the Shielded Labs team.
 Their Crosslink system, a PoS + PoW hybrid design for upgrading Zcash, has helped deepen our understanding of BFT system design and push the limits of what Malachite is capable of supporting in terms of novel decentralized systems.
 
 These collaborations reflect work completed prior to the Malachite team joining Circle.
+## Installation
+
+Malachite requires a stable Rust toolchain.
+
+Add the dependency to your `Cargo.toml`:
+
+```toml
+[dependencies]
+malachite = { git = "https://github.com/circlefin/malachite", branch = "main" }
+```
 
 ## License
 
