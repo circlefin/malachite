@@ -164,7 +164,7 @@ redb               = "2.6.3"
 seahash            = "4.1"
 serde              = { version = "1.0", default-features = false }
 serde_json         = "1.0"
-serde_with         = "3.9"
+serde_with         = "3.16"
 sha3               = "0.10"
 signature          = "2.2.0"
 k256               = { version = "0.13", default-features = false }
