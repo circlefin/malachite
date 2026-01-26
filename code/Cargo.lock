@@ -2402,7 +2402,7 @@ dependencies = [
  "informalsystems-malachitebft-test",
  "informalsystems-malachitebft-test-cli",
  "itertools 0.14.0",
- "prost",
+ "prost 0.13.5",
  "rand 0.8.5",
  "redb",
  "serde",
@@ -2459,8 +2459,8 @@ dependencies = [
 name = "informalsystems-malachitebft-proto"
 version = "0.7.0-pre"
 dependencies = [
- "prost",
- "prost-types",
+ "prost 0.13.5",
+ "prost-types 0.13.5",
  "thiserror 2.0.16",
 ]
 
@@ -2543,7 +2543,7 @@ dependencies = [
  "informalsystems-malachitebft-test-mempool",
  "itertools 0.14.0",
  "libp2p-identity",
- "prost",
+ "prost 0.13.5",
  "ractor",
  "rand 0.8.5",
  "redb",
@@ -2561,7 +2561,7 @@ dependencies = [
 name = "informalsystems-malachitebft-starknet-p2p-proto"
 version = "0.7.0-pre"
 dependencies = [
- "prost",
+ "prost 0.13.5",
  "prost-build",
  "protox",
 ]
@@ -2675,9 +2675,9 @@ dependencies = [
  "informalsystems-malachitebft-test-app",
  "informalsystems-malachitebft-test-framework",
  "libp2p-identity",
- "prost",
+ "prost 0.13.5",
  "prost-build",
- "prost-types",
+ "prost-types 0.13.5",
  "protox",
  "rand 0.8.5",
  "serde",
@@ -2705,7 +2705,7 @@ dependencies = [
  "informalsystems-malachitebft-test-cli",
  "informalsystems-malachitebft-test-framework",
  "itertools 0.14.0",
- "prost",
+ "prost 0.13.5",
  "rand 0.8.5",
  "redb",
  "serde",
@@ -2801,9 +2801,9 @@ dependencies = [
  "informalsystems-malachitebft-proto",
  "libp2p",
  "libp2p-gossipsub",
- "prost",
+ "prost 0.13.5",
  "prost-build",
- "prost-types",
+ "prost-types 0.13.5",
  "protox",
  "seahash",
  "tokio",
@@ -4269,7 +4269,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2796faa41db3ec313a31f7624d9286acf277b52de526150b7e69f3debf891ee5"
 dependencies = [
  "bytes",
- "prost-derive",
+ "prost-derive 0.13.5",
+]
+
+[[package]]
+name = "prost"
+version = "0.14.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2ea70524a2f82d518bce41317d0fae74151505651af45faf1ffbd6fd33f0568"
+dependencies = [
+ "bytes",
+ "prost-derive 0.14.3",
 ]
 
 [[package]]
@@ -4285,8 +4295,8 @@ dependencies = [
  "once_cell",
  "petgraph",
  "prettyplease",
- "prost",
- "prost-types",
+ "prost 0.13.5",
+ "prost-types 0.13.5",
  "regex",
  "syn 2.0.100",
  "tempfile",
@@ -4306,15 +4316,28 @@ dependencies = [
 ]
 
 [[package]]
-name = "prost-reflect"
-version = "0.15.3"
+name = "prost-derive"
+version = "0.14.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37587d5a8a1b3dc9863403d084fc2254b91ab75a702207098837950767e2260b"
+checksum = "27c6023962132f4b30eb4c172c91ce92d933da334c59c23cddee82358ddafb0b"
+dependencies = [
+ "anyhow",
+ "itertools 0.14.0",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.100",
+]
+
+[[package]]
+name = "prost-reflect"
+version = "0.16.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b89455ef41ed200cafc47c76c552ee7792370ac420497e551f16123a9135f76e"
 dependencies = [
  "logos",
  "miette",
- "prost",
- "prost-types",
+ "prost 0.14.3",
+ "prost-types 0.14.3",
 ]
 
 [[package]]
@@ -4323,33 +4346,42 @@ version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52c2c1bf36ddb1a1c396b3601a3cec27c2462e45f07c386894ec3ccf5332bd16"
 dependencies = [
- "prost",
+ "prost 0.13.5",
+]
+
+[[package]]
+name = "prost-types"
+version = "0.14.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8991c4cbdb8bc5b11f0b074ffe286c30e523de90fee5ba8132f1399f23cb3dd7"
+dependencies = [
+ "prost 0.14.3",
 ]
 
 [[package]]
 name = "protox"
-version = "0.8.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "424c2bd294b69c49b949f3619362bc3c5d28298cd1163b6d1a62df37c16461aa"
+checksum = "4f25a07a73c6717f0b9bbbd685918f5df9815f7efba450b83d9c9dea41f0e3a1"
 dependencies = [
  "bytes",
  "miette",
- "prost",
+ "prost 0.14.3",
  "prost-reflect",
- "prost-types",
+ "prost-types 0.14.3",
  "protox-parse",
  "thiserror 2.0.16",
 ]
 
 [[package]]
 name = "protox-parse"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57927f9dbeeffcce7192404deee6157a640cbb3fe8ac11eabbe571565949ab75"
+checksum = "072eee358134396a4643dff81cfff1c255c9fbd3fb296be14bdb6a26f9156366"
 dependencies = [
  "logos",
  "miette",
- "prost-types",
+ "prost-types 0.14.3",
  "thiserror 2.0.16",
 ]
 
