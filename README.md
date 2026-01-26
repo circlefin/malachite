@@ -134,6 +134,14 @@ Their Crosslink system, a PoS + PoW hybrid design for upgrading Zcash, has helpe
 
 These collaborations reflect work completed prior to the Malachite team joining Circle.
 
+## Install
+
+To use Malachite in your project, add the following to your `Cargo.toml`:
+
+```toml
+[dependencies]
+malachite = { git = "https://github.com/circlefin/malachite", branch = "main" }
+```
 ## License
 
 Copyright © 2025 Circle Internet Group, Inc. All rights reserved.
