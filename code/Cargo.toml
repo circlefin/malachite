@@ -154,7 +154,7 @@ num-traits         = "0.2.17"
 pretty_assertions  = "1.4"
 prometheus-client  = "0.23.1"
 prost              = "0.13"
-prost-build        = "0.13"
+prost-build        = "0.14"
 prost-types        = "0.13"
 protox             = "0.8.0"
 ractor             = { version = "0.14.6", default-features = false, features = ["async-trait", "tokio_runtime"] }
