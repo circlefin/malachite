@@ -21,3 +21,10 @@ lcov.info
 
 # Vim temporary files
 *.swp
+
+# Rust build artifacts
+/target/
+
+# IDE files
+.idea/
+.vscode/
