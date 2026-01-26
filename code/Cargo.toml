@@ -174,7 +174,7 @@ ecdsa              = { version = "0.16", default-features = false }
 tempfile           = "3.21.0"
 testdir            = "0.9.1"
 thiserror          = { version = "2.0", default-features = false }
-tikv-jemallocator  = "0.6.0"
+tikv-jemallocator  = "0.6.1"
 time               = "0.3"
 tokio              = "1.47.1"
 tokio-stream       = "0.1"
