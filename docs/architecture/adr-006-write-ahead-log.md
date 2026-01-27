@@ -111,7 +111,78 @@ the `core-consensus` layer that will interact with its implementation.
 
 ### Inputs
 
-TODO: discuss which inputs to persist
+A priori, all inputs that change the consensus protocol state or produce an
+output should be persisted to the WAL.
+More specifically:
+
+1. Consensus messages: `Proposal` and `Vote`, the last representing both
+   `Prevote` and `Precomit` votes;
+2. Expired timeouts `TimeoutElapsed(step)`, where `step` is one of
+   `{propose,prevote, precommit}`;
+3. Application input `LocallyProposedValue`: the return of `getValue()` helper
+   at the proposer;
+4. Application input `ProposedValue`: received consensus value `v` and its
+   validity `valid(v)`;
+
+The case of consensus messages is straightforward, as their reception leads to
+progress in the consensus protocol.
+
+The case of expired timeouts is less evident.
+Timeouts are scheduled when some conditions on the received messages are
+observed.
+While their expiration leads to state transitions, provided that the process is
+still in the same consensus step when they were scheduled.
+When the process is replaying inputs from the WAL during recovery, the ordinary
+consensus execution should schedule the same timeouts scheduled before the
+process has crashed, while processing the same inputs.
+But since it takes time for the timeouts to expire, it is hard to ensure that
+the state of the process when the timeout expires will be the same it was
+before it had crashed.
+As the next state and outputs of the timeout expiration event depends on the
+process state, it must be ensured that the `TimeoutElapsed` inputs are
+replayed during recover in _the same relative order_ to other inputs they were
+before crashing.
+In other words, since _time_ is non deterministic, time-based event should be
+logged.
+
+The values proposed by the local instance of the application, when the
+process is the proposer of a round, are also an important source of
+non-determinism.
+As typical applications produce consensus values from values received from
+clients, it is unlikely that the return value of `getValue()` when a process is
+recovering will be the same as it was before the process has crashed.
+It is true that the application should be consistent and also support the
+crash-recovery behavior, returning the same value upon multiple calls to
+`getValue()`: this is actually a [requirement](TODO-link).
+But since the return of a `getValue()` call produces a `Proposal` message that
+is broadcast, it is safer to just store the value returned by the application,
+which it is supposed to be small as large values are propagated by the
+application (see [ADR 003](./adr-003-values-propagation.md)).
+
+The `ProposedValue` inputs received from the application are typically combined
+with the `Proposal` consensus message received by the process to produce the
+`Proposal` input that is processed by Tendermint's state machine.
+This operation is also discussed in [ADR 003](./adr-003-values-propagation.md).
+In the same way as for the `LocallyProposedValue` input, the application is
+supposed to be deterministic and consistent, replaying the same inputs when the
+process recovers.
+But since the reception of these inputs typically lead to state transitions and
+outputs, it is safer to just store the value returned by the application, which
+it is supposed to be small, together with its application-evaluated validity.
+
+> For reviewers: while looked obvious in the first design, persisting the
+> application inputs (values) appears not to be so crucial, when a
+> well-behaving application is considered.
+
+> **NOTE**: consensus inputs that were added afterwards, namely
+> `SyncValueResponse`, `RoundCertificate`, `PolkaCertificate`, and
+> `CommitCertificate` are not persisted.
+> This may lead to inconsistent behavior, or not, which needs to be checked.
+
+### Lifespan
+
+TODO: a WAL per height, start heights replays the wal or creates a new one.
+Heights as snapshots.
 
 ### Write Mode
 
