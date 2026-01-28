@@ -5,7 +5,7 @@ use std::time::Duration;
 use derive_where::derive_where;
 use ractor::{ActorRef, RpcReplyPort};
 
-use malachitebft_core_consensus::{Role, VoteExtensionError};
+use malachitebft_core_consensus::{MisbehaviorEvidence, Role, VoteExtensionError};
 use malachitebft_core_types::{CommitCertificate, Context, Round, ValueId, VoteExtensions};
 use malachitebft_sync::{PeerId, RawDecidedValue};
 
@@ -159,6 +159,9 @@ pub enum HostMsg<Ctx: Context> {
 
         /// Vote extensions that were received for this height.
         extensions: VoteExtensions<Ctx>,
+
+        /// Misbehavior evidence collected since last height was decided.
+        evidence: MisbehaviorEvidence<Ctx>,
 
         /// Use this reply port to instruct consensus to start the next height.
         reply_to: RpcReplyPort<Next<Ctx>>,

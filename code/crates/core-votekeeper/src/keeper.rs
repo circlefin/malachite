@@ -257,11 +257,11 @@ where
                     "Received equivocating vote {:?}, existing {:?}",
                     conflicting, existing
                 );
-                self.evidence.add(existing.clone(), conflicting);
+                self.evidence.add(existing.clone(), conflicting.clone());
 
                 return Err(RecordVoteError::ConflictingVote {
                     existing,
-                    conflicting: vote,
+                    conflicting,
                 });
             }
         }

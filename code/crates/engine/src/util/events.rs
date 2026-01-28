@@ -6,8 +6,8 @@ use derive_where::derive_where;
 use tokio::sync::broadcast;
 
 use malachitebft_core_consensus::{
-    Error as ConsensusError, LocallyProposedValue, ProposedValue, Role, SignedConsensusMsg,
-    WalEntry,
+    Error as ConsensusError, LocallyProposedValue, MisbehaviorEvidence, ProposedValue, Role,
+    SignedConsensusMsg, WalEntry,
 };
 use malachitebft_core_types::{
     CommitCertificate, Context, PolkaCertificate, Round, RoundCertificate, SignedProposal,
@@ -52,7 +52,10 @@ pub enum Event<Ctx: Context> {
     Received(SignedConsensusMsg<Ctx>),
     ProposedValue(LocallyProposedValue<Ctx>),
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
-    Decided(CommitCertificate<Ctx>),
+    Decided {
+        commit_certificate: CommitCertificate<Ctx>,
+        evidence: MisbehaviorEvidence<Ctx>,
+    },
     RepublishVote(SignedVote<Ctx>),
     RebroadcastRoundCertificate(RoundCertificate<Ctx>),
     SkipRoundCertificate(RoundCertificate<Ctx>),
@@ -93,8 +96,15 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
                     "ReceivedProposedValue(value: {value:?}, origin: {origin:?})"
                 )
             }
-            Event::Decided(commit_certificate) => {
-                write!(f, "Decided(value: {})", commit_certificate.value_id)
+            Event::Decided {
+                commit_certificate,
+                evidence,
+            } => {
+                write!(
+                    f,
+                    "Decided(value: {}, evidence: {:?})",
+                    commit_certificate.value_id, evidence
+                )
             }
             Event::RepublishVote(vote) => write!(f, "RepublishVote(vote: {vote:?})"),
             Event::RebroadcastRoundCertificate(certificate) => write!(

@@ -3,7 +3,7 @@
 pub use libp2p_identity::Keypair;
 
 pub use malachitebft_core_consensus::{
-    ConsensusMsg, ProposedValue, SignedConsensusMsg, ValuePayload,
+    ConsensusMsg, MisbehaviorEvidence, ProposedValue, SignedConsensusMsg, ValuePayload,
 };
 pub use malachitebft_engine::host::LocallyProposedValue;
 pub use malachitebft_peer::PeerId;

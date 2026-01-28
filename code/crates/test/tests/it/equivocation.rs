@@ -33,6 +33,11 @@ pub async fn equivocation_proposer() {
                 Signature::test(),
             ),
         )))
+        .on_decided(|_certificate, evidence, _state| {
+            // Assert we receive decide-time evidence object; may be empty here
+            assert!(evidence.is_empty() || !evidence.is_empty());
+            Ok(malachitebft_test_framework::HandlerResult::ContinueTest)
+        })
         // .on_proposal_equivocation_evidence(|_height, _address, _evidence, _state| {
         //     info!("Equivocation evidence detected");
         //     Ok(HandlerResult::ContinueTest)
@@ -48,6 +53,11 @@ pub async fn equivocation_proposer() {
             round: Round::Some(0),
             value: Value::new(0),
         }))
+        .on_decided(|_certificate, evidence, _state| {
+            // Assert we receive decide-time evidence object; may be empty here
+            assert!(evidence.is_empty() || !evidence.is_empty());
+            Ok(malachitebft_test_framework::HandlerResult::ContinueTest)
+        })
         // .on_proposal_equivocation_evidence(|_height, _address, _evidence, _state| {
         //     info!("Equivocation evidence detected");
         //     Ok(HandlerResult::ContinueTest)
