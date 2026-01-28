@@ -218,9 +218,35 @@ and set up the WAL to log inputs of height `H`.
 Case 2. refers to when the process is restarting or recovering,
 and has to replay the WAL content, as described in the [Replay](#replay) section.
 
-### Write Mode
+### Persistence
 
-TODO: synchronous versus asynchronous writes
+The correct operation of a WAL-based system requires logging inputs to the WAL
+**before** they are applied to the state machine.
+A more precise requirement establishes the relation of persistence of inputs
+and production of outputs: all inputs that have lead to the production
+of an output, as a result of a state machine transition, must be persisted
+before **the output is emitted** (to the "external word").
+The reason is the adopted definition of consistency, which is derived from the
+outputs produced by a process during regular execution and recovery.
+
+Although seemingly complex, there is very simple definition of
+"all inputs that have lead to the production of an output":
+every processed input preceding the production of the output.
+This definition enables the following operational design for the WAL component:
+
+1. Log all processed inputs, in the order they have been processed, without
+   persistence guarantees -> asynchronous writes;
+2. When an output is produced, and before emitting it, persist all inputs that
+   were not yet persisted -> synchronous writes or `flush()`.
+
+Put in different words, inputs that do not (immediately) lead to an output, or
+to a relevant state transition, can be logged in foreground and in a best
+effort manner.
+While the production of an output demands a synchronous, blocking call to
+persist all the outstanding inputs.
+
+> It is not 100% clear to me if we adopted this approach.
+> I have the impression that all WAL append calls are synchronous.
 
 ### Replay
 
