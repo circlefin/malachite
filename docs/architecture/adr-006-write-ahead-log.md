@@ -174,11 +174,6 @@ it is supposed to be small, together with its application-evaluated validity.
 > application inputs (values) appears not to be so crucial, when a
 > well-behaving application is considered.
 
-> **NOTE**: consensus inputs that were added afterwards, namely
-> `SyncValueResponse`, `RoundCertificate`, `PolkaCertificate`, and
-> `CommitCertificate` are not persisted.
-> This may lead to inconsistent behavior, or not, which needs to be checked.
-
 ### Checkpoints
 
 A WAL enables crash-recovery behavior in systems that can be modelled as
@@ -317,6 +312,81 @@ It should also describe affects / corollary items that may need to be changed as
 If the proposed change will be large, please also indicate a way to do the change to maximize ease of review.
 (e.g. the optimal split of things to do between separate PR's)
 
+This section is built atop the extensive discussion of options presented in the
+[Implementation](#implementation) section.
+
+### Layers
+
+The Write-Ahead Log (WAL) is implemented by the consensus **engine**,
+as part of the [malachitebft-engine][engine-crate] crate.
+This crate can be seen as the default implementation of all the effects, i.e.,
+the interaction with the host system, needed by
+the [malachitebft-core-consensus][consensus-crate] crate.
+The handling of storage, files, formatting, versioning etc. is implemented and
+tested in the [malachitebft-wal][wal-crate] crate.
+
+The [malachitebft-core-consensus][consensus-crate] crate defines the following
+new `Effect` to request the WAL to log an input:
+
+```rust
+    /// Append an entry to the Write-Ahead Log for crash recovery
+    /// If the WAL is not at the given height, the entry should be ignored.
+    /// 
+    /// Resume with: [`resume::Continue`]`
+    WalAppend(Ctx::Height, WalEntry<Ctx>, resume::Continue),
+```
+
+Notice that a `WalEntry` type defines the consensus inputs that are persisted,
+as discussed in the [Inputs](#inputs2) section.
+
+> TODO: add some discussion of why this is the right layer for the WAL.
+> I think the main reason is still the need of signatures etc.
+
+### Inputs
+
+A new `WalEntry` type defines the consensus inputs that are persisted to the WAL:
+
+```rust
+pub enum WalEntry<Ctx: Context> {
+    ConsensusMsg(SignedConsensusMsg<Ctx>), 
+    ProposedValue(ProposedValue<Ctx>),
+    Timeout(Timeout),
+}
+```
+
+When compared to the [malachitebft-core-consensus][consensus-crate] crate's
+`Input` type, notice:
+
+- `Vote` and `Proposal` inputs were merged into `WalEntry::ConsensusMsg`
+- `Propose` and `ProposedValue` inputs were merged into `WalEntry::ProposedValue`
+- `TimeoutElapsed` is directly mapped to `WalEntry::Timeout`
+
+So, all the [list of inputs](#inputs) that must be persisted were contemplated.
+There are, however, important exceptions: some inputs produced by the
+synchronization protocol (`SyncValueResponse`, which includes a `CommitCertificate`)
+and by the liveness protocol (`PolkaCertificate` and `RoundCertificate`) are
+not persisted.
+They are all **Certificate**s, namely types that aggregate multiple `Vote` inputs.
+
+> TODO: by not persisting those inputs we may produced inconsistent behavior.
+> If this is not the case, we should explain why they do not need persistence.
+
+To conclude the list of `Input`s, `StartHeight` is not persisted to the WAL but
+this input leads to either:
+
+1. The [reset](#reset) of the WAL, namely clearing it to start a new height;
+2. Or the [replay](#replay) of the WAL, from the collection of all logged `WalEntry` instances.
+
+### Reset
+
+### Persistence
+
+### Replay
+
+### Corruption
+
+TODO: entries in the WAL can be corrupted, see https://circlepay.atlassian.net/browse/CCHAIN-771
+
 ## Status
 
 Accepted
@@ -327,9 +397,21 @@ Accepted
 
 ### Positive
 
+* Malachite supports crash-recovery behaviour, preventing processes from equivocating
+* No important changes were needed at core components of Tendentermin implementation
+* The consensus Engine implements a WAL actor that should suit most use cases
+* Per-height WALs render the WAL file most of the time small, no need for rotations
+
 ### Negative
 
+* Persisting inputs to the WAL are in the critical path of consensus execution
+* By not implementing asynchronous WAL writes, the implementation has a higher overhead than needed
+* With the current design, testing the WAL operation is relatively complex
+* With the current design, existing driver test units cannot evaluate the WAL
+
 ### Neutral
+
+* The size of the WAL is limited to the number of inputs processed during a height of consensus
 
 ## References
 
@@ -340,4 +422,6 @@ Accepted
 [smr-crate]: https://github.com/circlefin/malachite/tree/main/code/crates/core-state-machine
 [driver-crate]: https://github.com/circlefin/malachite/tree/main/code/crates/core-driver
 [consensus-crate]: https://github.com/circlefin/malachite/tree/main/code/crates/core-consensus
+[engine-crate]: https://github.com/circlefin/malachite/tree/main/code/crates/engine
+[wal-crate]: https://github.com/circlefin/malachite/tree/main/code/crates/wal
 [pseudo-code]: https://github.com/circlefin/malachite/blob/main/specs/consensus/pseudo-code.md
