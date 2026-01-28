@@ -92,8 +92,10 @@ jobs:
             const prBody = context.payload.pull_request.body || '';
             const prAuthor = context.payload.pull_request.user.login;
 
-            // Extract issue number from PR body (matches "Closes: #123" or "Closes #123")
-            const issueMatch = prBody.match(/[Cc]loses:?\s*#(\d+)/);
+            // Extract issue number from PR body
+            const issuePrefixes = ['closes', 'fixes', 'fix', 'close', 'resolve', 'resolves'];
+            const prefixPattern = issuePrefixes.join('|');
+            const issueMatch = prBody.match(new RegExp(`(?:${prefixPattern}):?\\s*#(\\d+)`, 'i'));
 
             if (!issueMatch) {
               console.log('No issue reference found in PR body');
