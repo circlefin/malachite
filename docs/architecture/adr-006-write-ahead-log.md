@@ -40,7 +40,7 @@ a slashable Byzantine process.
 ## Implementation
 
 This section discusses the Tendermint consensus implementation in Malachite
-and how the consensus WAL could be implemented.
+and how the consensus WAL is implemented.
 
 ### Layers
 
@@ -179,10 +179,44 @@ it is supposed to be small, together with its application-evaluated validity.
 > `CommitCertificate` are not persisted.
 > This may lead to inconsistent behavior, or not, which needs to be checked.
 
-### Lifespan
+### Checkpoints
 
-TODO: a WAL per height, start heights replays the wal or creates a new one.
-Heights as snapshots.
+A WAL enables crash-recovery behavior in systems that can be modelled as
+deterministic state machines.
+This, for example, that starting from an initial state `s0` and applying
+inputs `i1` and `i2`, the system transitions to states `s1` and `s2`, respectively.
+This also means that starting from state `s1` and only applying input `i2`,
+the state machine is also replayed until it reaches the same state `s2`.
+State `s1` in the example is a checkpoint.
+Notice that by starting from state `s1`, the outputs produced by the transition
+`s0` to `s1` are not replayed.
+
+Checkpoints for the Tendermint state machine can be safely produced at the
+**beginning of each height** because, from the consensus point of view, heights
+are completely independent from each other.
+This means that if a process is at height `H`, no input pertaining to a height
+`H' < H` will produce any state transition or output.
+Thus, there is no need to replay inputs and revisiting states belonging to
+previous heights.
+
+In practical terms, this means that upon a `StartHeight` input for height `H`,
+all logged entries referring to heights `H' < H` can be removed from the WAL.
+Assuming that inputs for future heights `H" > H'` are not logged to the WAL,
+when `StartHeight` is received for height `H`:
+
+1. Height `H` was never started by the process, and all WAL entries are from
+   height `H' < H`, typically `H' = H - 1`;
+2. OR height `H` was previously started, the WAL contains inputs for height `H`
+   that have to be replayed, since this is a recovery;
+
+Case 1. is the ordinary case, with no crashes or restarts involved.
+The process can just **reset** the WAL to height `H`.
+Namely, to remove all inputs possibly present in the WAL,
+that by design must refer to previous heights,
+and set up the WAL to log inputs of height `H`.
+
+Case 2. refers to when the process is restarting or recovering,
+and has to replay the WAL content, as described in the [Replay](#replay) section.
 
 ### Write Mode
 
