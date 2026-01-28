@@ -40,7 +40,7 @@ a slashable Byzantine process.
 ## Implementation
 
 This section discusses the Tendermint consensus implementation in Malachite
-and how the consensus WAL is implemented.
+and how the consensus WAL can be implemented.
 
 ### Layers
 
@@ -250,7 +250,65 @@ persist all the outstanding inputs.
 
 ### Replay
 
-TODO: how to replay logged inputs, how to handle the produced outputs during recovery
+All discussion of previous boils down to this point: how is the operation of a
+recovery process?
+A first and relevant consideration is that Malachite, a priori, does not
+know if it either in ordinary or recovery operation.
+The consensus layer, in either operation mode, waits for a `StartHeight` input
+from the application indicating the height number `H` to start.
+At this point Malachite should open and load the WAL contents to check if it
+includes entries (inputs) belonging to height `H`:
+if there are, it is in recovery mode; otherwise, in regular operation.
+If the concept of [Checkpoints](#checkpoints) is adopted, this verification is
+even simpler and already described on the associated section (Case 2).
+
+When the application requests Malachite to start height `H` via `StartHeight`
+input, the consensus [driver](./adr-001-architecture.md#consensus-driver) is
+configured with its initial state, set for height `H` with some parameters
+applied (e.g., the validator set).
+If there are WAL entries belonging to height `H`, the process is in recovery
+mode: all height `H` inputs are replayed in the order with which they appear in
+the WAL.
+Once there are no (further) inputs to be replayed, the process starts its
+ordinary operation, processing inputs from the network, from the application,
+and from other protocols.
+
+It remains to clarify what is the difference between replaying (during recovery)
+and processing (in regular operation) an input?
+In theoretical terms, none.
+The replayed inputs are inputs that were received and applied by the process
+before crashing, producing state transitions and outputs.
+Upon recovery, the same inputs are read from the WAL and applied, producing the
+same state transitions and outputs.
+Consensus protocols in general, and Tendermint in particular, are able to handle
+duplicated inputs, so there is not actual harm to correctness.
+
+There is also an important corner case to be considered.
+Crashes can occur at any time, so in particular they can occur when an output
+was produced but not yet emitted.
+Assume that WAL replay is implemented in a way that outputs derived from
+replayed inputs are produced but not emitted.
+So there is a case where the process transitions to a particular state (say,
+the `precommit` step of a round) but no process sees the output produced by
+that state transition (in the case, a `Precommit` message for that round)
+because it is not emitted during recover.
+
+In practical terms, however, the question is whether is acceptable, during recovery,
+to emit the same outputs "again"?
+Or which outputs and associated [Effects](./adr-004-coroutine-effect-system.md#effect)
+should be produced and handled during recovery?
+Notice that, in particular, logging an input to the WAL is an `Effect`, but in
+this case does it make sense to append to WAL inputs that were originally
+replayed from that same WAL?
+
+> I am not sure on how this is handled in the current implementation.
+> From the `wal_replay` method from `engine/src/consensus.rs`, replayed inputs
+> are processed using the `process_input` method, the same used for ordinary
+> inputs.
+>
+> At the same time, there is a `Recovering` phase set during replay, that
+> should change some behaviors.
+> From what I could check, it only prevents logging replayed inputs to the WAL.
 
 ## Decision
 
