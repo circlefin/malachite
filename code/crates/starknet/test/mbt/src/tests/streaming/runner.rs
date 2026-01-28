@@ -97,7 +97,7 @@ impl ItfRunner for StreamingRunner {
         println!("🔸 step: model input={:?}", expected.incoming_message);
         match stream_state {
             Some(stream_state) => {
-                println!("🔸 step: actual state={:?}", stream_state);
+                println!("🔸 step: actual state={stream_state:?}");
                 println!("🔸 step: model state={:?}", expected.state);
 
                 let message = match &expected.incoming_message {
@@ -156,7 +156,7 @@ impl ItfRunner for StreamingRunner {
 
         match actual_stream_state {
             Some(actual_stream_state) => {
-                println!("🟢 state invariant: actual state={:?}", actual_stream_state);
+                println!("🟢 state invariant: actual state={actual_stream_state:?}");
                 println!("🟢 state invariant: expected state={:?}", expected.state);
 
                 // Compare the actual and expected states

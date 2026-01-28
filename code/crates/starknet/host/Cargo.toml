@@ -20,6 +20,7 @@ malachitebft-proto = { workspace = true }
 malachitebft-starknet-p2p-proto = { workspace = true }
 malachitebft-starknet-p2p-types = { workspace = true }
 malachitebft-sync = { workspace = true }
+malachitebft-test = { workspace = true }
 malachitebft-test-mempool = { workspace = true }
 
 async-trait = { workspace = true }

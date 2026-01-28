@@ -1,3 +1,4 @@
+use alloc::collections::BTreeSet;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt;
@@ -7,9 +8,9 @@ use malachitebft_core_state_machine::output::Output as RoundOutput;
 use malachitebft_core_state_machine::state::{RoundValue, State as RoundState, Step};
 use malachitebft_core_state_machine::state_machine::Info;
 use malachitebft_core_types::{
-    CommitCertificate, Context, NilOrVal, PolkaCertificate, PolkaSignature, Proposal, Round,
-    SignedProposal, SignedVote, Timeout, TimeoutKind, Validator, ValidatorSet, Validity, Value,
-    ValueId, Vote, VoteType,
+    CommitCertificate, Context, EnterRoundCertificate, NilOrVal, PolkaCertificate, PolkaSignature,
+    Proposal, Round, RoundCertificateType, SignedProposal, SignedVote, Timeout, TimeoutKind,
+    Validator, ValidatorSet, Validity, Value, ValueId, Vote, VoteType,
 };
 use malachitebft_core_votekeeper::keeper::Output as VKOutput;
 use malachitebft_core_votekeeper::keeper::VoteKeeper;
@@ -63,6 +64,9 @@ where
 
     last_prevote: Option<Ctx::Vote>,
     last_precommit: Option<Ctx::Vote>,
+
+    /// The certificate that justifies moving to the `enter_round` specified in the `EnterRoundCertificate.
+    pub round_certificate: Option<EnterRoundCertificate<Ctx>>,
 }
 
 impl<Ctx> Driver<Ctx>
@@ -98,28 +102,34 @@ where
             polka_certificates: vec![],
             last_prevote: None,
             last_precommit: None,
+            round_certificate: None,
         }
     }
 
-    /// Reset votes, round state, pending input
-    /// and move to new height with the given validator set.
+    /// Reset votes, round state, pending input and move to new height with the given validator set.
     pub fn move_to_height(&mut self, height: Ctx::Height, validator_set: Ctx::ValidatorSet) {
-        // Reset the proposal keeper
-        let proposal_keeper = ProposalKeeper::new();
+        // Update the validator set
+        self.validator_set = validator_set.clone();
+        self.proposer = None;
 
         // Reset the vote keeper
-        let vote_keeper = VoteKeeper::new(validator_set.clone(), self.threshold_params);
+        let vote_keeper = VoteKeeper::new(validator_set, self.threshold_params);
+        self.vote_keeper = vote_keeper;
 
         // Reset the round state
         let round_state = RoundState::new(height, Round::Nil);
-
-        self.validator_set = validator_set;
-        self.proposal_keeper = proposal_keeper;
-        self.vote_keeper = vote_keeper;
         self.round_state = round_state;
-        self.pending_inputs = vec![];
+        self.round_certificate = None;
+
+        // Reset the proposal keeper
+        let proposal_keeper = ProposalKeeper::new();
+        self.proposal_keeper = proposal_keeper;
+
+        // Reset certificates
         self.commit_certificates = vec![];
         self.polka_certificates = vec![];
+
+        // Reset additional internal state
         self.last_prevote = None;
         self.last_precommit = None;
     }
@@ -169,6 +179,11 @@ where
         &self.vote_keeper
     }
 
+    /// Return a reference to the proposal keeper
+    pub fn proposals(&self) -> &ProposalKeeper<Ctx> {
+        &self.proposal_keeper
+    }
+
     /// Return the state for the current round.
     pub fn round_state(&self) -> &RoundState<Ctx> {
         &self.round_state
@@ -190,6 +205,11 @@ where
     /// Return the validator set for this height.
     pub fn validator_set(&self) -> &Ctx::ValidatorSet {
         &self.validator_set
+    }
+
+    /// Return the proposer address for the current round, if any.
+    pub fn proposer_address(&self) -> Option<&Ctx::Address> {
+        self.proposer.as_ref()
     }
 
     /// Return recorded evidence of proposal equivocation for this height.
@@ -220,25 +240,71 @@ where
     pub fn commit_certificate(
         &self,
         round: Round,
-        value_id: ValueId<Ctx>,
+        value_id: &ValueId<Ctx>,
     ) -> Option<&CommitCertificate<Ctx>> {
         self.commit_certificates
             .iter()
-            .find(|c| c.round == round && c.value_id == value_id)
+            .find(|c| &c.value_id == value_id && c.round == round && c.height == self.height())
     }
 
-    /// Get all polka certificates
-    pub fn polka_certificates(&self) -> &[PolkaCertificate<Ctx>] {
-        &self.polka_certificates
+    /// Return the commit certificates, if any.
+    pub fn commit_certificates(&self) -> &[CommitCertificate<Ctx>] {
+        self.commit_certificates.as_ref()
     }
 
-    /// Get the proposal for the given round.
-    pub fn proposal_and_validity_for_round(
+    /// Get the polka certificates at the current height for the specified round and value, if it exists
+    pub fn polka_certificate(
         &self,
         round: Round,
+        value_id: &ValueId<Ctx>,
+    ) -> Option<&PolkaCertificate<Ctx>> {
+        self.polka_certificates
+            .iter()
+            .find(|c| &c.value_id == value_id && c.round == round && c.height == self.height())
+    }
+
+    /// Return the polka certificates, if any.
+    pub fn polka_certificates(&self) -> &[PolkaCertificate<Ctx>] {
+        self.polka_certificates.as_ref()
+    }
+
+    /// Return all pending inputs, as pairs (round, round input).
+    pub fn pending_inputs(&self) -> &[(Round, RoundInput<Ctx>)] {
+        self.pending_inputs.as_ref()
+    }
+
+    /// Return the last issued prevote, if any.
+    pub fn last_prevote(&self) -> Option<&Ctx::Vote> {
+        self.last_prevote.as_ref()
+    }
+
+    /// Return the last issued prevote, if any.
+    pub fn last_precommit(&self) -> Option<&Ctx::Vote> {
+        self.last_precommit.as_ref()
+    }
+
+    /// Get the round certificate for the current round.
+    pub fn round_certificate(&self) -> Option<&EnterRoundCertificate<Ctx>> {
+        self.round_certificate.as_ref()
+    }
+
+    /// Returns the proposal and its validity for the given round and value_id, if any.
+    pub fn proposal_and_validity_for_round_and_value(
+        &self,
+        round: Round,
+        value_id: ValueId<Ctx>,
     ) -> Option<&(SignedProposal<Ctx>, Validity)> {
         self.proposal_keeper
-            .get_proposal_and_validity_for_round(round)
+            .get_proposal_and_validity_for_round_and_value(round, value_id)
+    }
+
+    /// Returns the proposals and their validities for the given round, if any.
+    pub fn proposals_and_validities_for_round(
+        &self,
+        round: Round,
+    ) -> &[(SignedProposal<Ctx>, Validity)] {
+        self.proposal_keeper
+            .get_proposals_and_validities_for_round(round)
     }
 
     /// Store the last vote that we have cast
@@ -346,6 +412,7 @@ where
             Input::Proposal(proposal, validity) => self.apply_proposal(proposal, validity),
             Input::Vote(vote) => self.apply_vote(vote),
             Input::TimeoutElapsed(timeout) => self.apply_timeout(timeout),
+            Input::SyncDecision(proposal) => self.apply_decide_on_sync(proposal),
         }
     }
 
@@ -460,8 +527,18 @@ where
             Err(_) => return Ok(None),
         };
 
-        if let VKOutput::PolkaValue(val) = &output {
-            self.store_polka_certificate(vote_round, val);
+        match &output {
+            VKOutput::PolkaValue(val) => self.store_polka_certificate(vote_round, val),
+            // Only store PrecommitAny certificates for the current round:
+            // - Lower round PrecommitAny is ignored
+            // - Higher round PrecommitAny cannot occur because receiving 2f+1
+            //   Precommit votes for a higher round would first generate a SkipRound certificate,
+            //   advancing the node to that round before the PrecommitAny is processed
+            VKOutput::PrecommitAny if this_round == vote_round => {
+                self.store_precommit_any_round_certificate(vote_round)
+            }
+            VKOutput::SkipRound(round) => self.store_skip_round_certificate(*round),
+            _ => (),
         }
 
         let (input_round, round_input) = self.multiplex_vote_threshold(output, vote_round);
@@ -494,6 +571,61 @@ where
         })
     }
 
+    /// Prunes all polka certificates and votes from rounds less than `min_round`.
+    pub fn prune_votes_and_certificates(&mut self, min_round: Round) {
+        self.prune_polka_certificates(min_round);
+        self.vote_keeper.prune_votes(min_round);
+    }
+
+    /// Prunes all polka certificates from rounds less than `min_round`.
+    fn prune_polka_certificates(&mut self, min_round: Round) {
+        self.polka_certificates
+            .retain(|cert| cert.round >= min_round);
+    }
+
+    fn store_precommit_any_round_certificate(&mut self, vote_round: Round) {
+        let Some(per_round) = self.vote_keeper.per_round(vote_round) else {
+            panic!("Missing the PrecommitAny votes for round {vote_round}");
+        };
+
+        let precommits: Vec<SignedVote<Ctx>> = per_round
+            .received_votes()
+            .iter()
+            .filter(|v| v.vote_type() == VoteType::Precommit)
+            .cloned()
+            .collect();
+
+        self.round_certificate = Some(EnterRoundCertificate::new_from_votes(
+            self.height(),
+            vote_round.increment(),
+            vote_round,
+            RoundCertificateType::Precommit,
+            precommits,
+        ));
+    }
+
+    fn store_skip_round_certificate(&mut self, vote_round: Round) {
+        let Some(per_round) = self.vote_keeper.per_round(vote_round) else {
+            panic!("Missing the SkipRoundvotes for round {vote_round}");
+        };
+
+        let mut seen_addresses = BTreeSet::new();
+        let skip_votes: Vec<_> = per_round
+            .received_votes()
+            .iter()
+            .filter(|vote| seen_addresses.insert(vote.validator_address()))
+            .cloned()
+            .collect();
+
+        self.round_certificate = Some(EnterRoundCertificate::new_from_votes(
+            self.height(),
+            vote_round,
+            vote_round,
+            RoundCertificateType::Skip,
+            skip_votes,
+        ));
+    }
+
     fn apply_timeout(&mut self, timeout: Timeout) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         let input = match timeout.kind {
             TimeoutKind::Propose => RoundInput::TimeoutPropose,
@@ -501,13 +633,43 @@ where
             TimeoutKind::Precommit => RoundInput::TimeoutPrecommit,
 
             // The driver never receives these events, so we can just ignore them.
-            TimeoutKind::PrevoteTimeLimit => return Ok(None),
-            TimeoutKind::PrecommitTimeLimit => return Ok(None),
-            TimeoutKind::PrevoteRebroadcast => return Ok(None),
-            TimeoutKind::PrecommitRebroadcast => return Ok(None),
+            TimeoutKind::Rebroadcast => return Ok(None),
         };
 
         self.apply_input(timeout.round, input)
+    }
+
+    /// Apply a sync decision using the provided unsigned proposal.
+    ///
+    /// This is used when we receive a value and commit certificate from sync.
+    /// The certificate must already be stored in the driver (from earlier processing).
+    /// We use the normal state machine decision path with `ProposalAndPrecommitValue`.
+    fn apply_decide_on_sync(
+        &mut self,
+        proposal: Ctx::Proposal,
+    ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
+        let round = proposal.round();
+        let value_id = proposal.value().id();
+
+        // The certificate should already be stored - it was looked up by the caller
+        // in on_proposed_value before calling SyncDecision
+        let certificate = self.commit_certificate(round, &value_id).ok_or_else(|| {
+            Error::CertificateNotFound {
+                round,
+                value_id: value_id.clone(),
+            }
+        })?;
+
+        // Sanity check: certificate height should match
+        debug_assert_eq!(
+            certificate.height,
+            self.height(),
+            "Certificate height mismatch"
+        );
+
+        // Go through the state machine with ProposalAndPrecommitValue
+        // This will trigger L49 and produce a Decision output
+        self.apply_input(round, RoundInput::ProposalAndPrecommitValue(proposal))
     }
 
     /// Apply the input, update the state.

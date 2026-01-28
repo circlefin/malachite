@@ -4,6 +4,7 @@ use crate::Round;
 
 /// The timeout type. There may be multiple timeouts running in a given step.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum TimeoutKind {
     /// Timeout for the propose step.
     Propose,
@@ -11,24 +12,16 @@ pub enum TimeoutKind {
     /// Timeout for the prevote step.
     Prevote,
 
-    /// Timeout for detecting consensus being in the prevote step for too long.
-    PrevoteTimeLimit,
-
     /// Timeout for the precommit step.
     Precommit,
 
-    /// Timeout for detecting consensus being in the precommit step for too long.
-    PrecommitTimeLimit,
-
-    /// Timeout to rebroadcast the last prevote
-    PrevoteRebroadcast,
-
-    /// Timeout to rebroadcast the last precommit
-    PrecommitRebroadcast,
+    /// Timeout to rebroadcast the round synchronization messages
+    Rebroadcast,
 }
 
 /// A timeout for a round step.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Timeout {
     /// The timeout kind.
     pub kind: TimeoutKind,
@@ -53,28 +46,14 @@ impl Timeout {
         Self::new(round, TimeoutKind::Prevote)
     }
 
-    /// Create a new timeout for the prevote step of the given round.
-    pub const fn prevote_time_limit(round: Round) -> Self {
-        Self::new(round, TimeoutKind::PrevoteTimeLimit)
-    }
-
     /// Create a new timeout for the precommit step of the given round.
     pub const fn precommit(round: Round) -> Self {
         Self::new(round, TimeoutKind::Precommit)
     }
-    /// Create a new timeout for the precommit step of the given round.
-    pub const fn precommit_time_limit(round: Round) -> Self {
-        Self::new(round, TimeoutKind::PrecommitTimeLimit)
-    }
 
-    /// Create a new timeout for rebroadcasting the last prevote.
-    pub const fn prevote_rebroadcast(round: Round) -> Self {
-        Self::new(round, TimeoutKind::PrevoteRebroadcast)
-    }
-
-    /// Create a new timeout for rebroadcasting the last precommit.
-    pub const fn precommit_rebroadcast(round: Round) -> Self {
-        Self::new(round, TimeoutKind::PrecommitRebroadcast)
+    /// Create a new timeout for rebroadcasting the round synchronization messages.
+    pub const fn rebroadcast(round: Round) -> Self {
+        Self::new(round, TimeoutKind::Rebroadcast)
     }
 }
 

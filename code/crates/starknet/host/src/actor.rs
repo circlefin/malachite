@@ -1,8 +1,8 @@
+use std::ops::RangeInclusive;
 use std::path::PathBuf;
 use std::time::Duration;
 
 use bytes::Bytes;
-use eyre::eyre;
 use itertools::Itertools;
 use ractor::{async_trait, Actor, ActorProcessingErr, RpcReplyPort, SpawnErr};
 use rand::rngs::StdRng;
@@ -10,19 +10,19 @@ use rand::SeedableRng;
 use tokio::time::Instant;
 use tracing::{debug, error, info, trace, warn};
 
-use malachitebft_core_consensus::{PeerId, VoteExtensionError};
-use malachitebft_core_types::{CommitCertificate, Round, Validity, ValueId, ValueOrigin};
-use malachitebft_engine::consensus::{ConsensusMsg, ConsensusRef};
-use malachitebft_engine::host::{LocallyProposedValue, ProposedValue};
+use malachitebft_core_consensus::{PeerId, Role, VoteExtensionError};
+use malachitebft_core_types::utils::height::HeightRangeExt;
+use malachitebft_core_types::{CommitCertificate, Round, Validity, ValueId};
+use malachitebft_engine::host::{HeightParams, LocallyProposedValue, Next, ProposedValue};
 use malachitebft_engine::network::{NetworkMsg, NetworkRef};
 use malachitebft_engine::util::streaming::{StreamContent, StreamMessage};
-use malachitebft_metrics::Metrics;
 use malachitebft_sync::RawDecidedValue;
 
 use crate::host::state::HostState;
 use crate::host::{Host as _, StarknetHost};
 use crate::mempool::{MempoolMsg, MempoolRef};
 use crate::mempool_load::MempoolLoadRef;
+use crate::metrics::Metrics;
 use crate::proto::Protobuf;
 use crate::types::*;
 
@@ -125,13 +125,15 @@ impl Host {
         state: &mut HostState,
     ) -> Result<(), ActorProcessingErr> {
         match msg {
-            HostMsg::ConsensusReady(consensus) => on_consensus_ready(state, consensus).await,
+            HostMsg::ConsensusReady { reply_to } => on_consensus_ready(state, reply_to).await,
 
             HostMsg::StartedRound {
                 height,
                 round,
                 proposer,
-            } => on_started_round(state, height, round, proposer).await,
+                role,
+                reply_to,
+            } => on_started_round(state, height, round, proposer, role, reply_to).await,
 
             HostMsg::GetHistoryMinHeight { reply_to } => {
                 on_get_history_min_height(state, reply_to).await
@@ -186,70 +188,43 @@ impl Host {
                 reply_to,
             } => on_received_proposal_part(state, part, from, reply_to).await,
 
-            HostMsg::GetValidatorSet { height, reply_to } => {
-                on_get_validator_set(state, height, reply_to).await
-            }
-
             HostMsg::Decided {
                 certificate,
-                consensus,
+                reply_to,
                 ..
-            } => on_decided(state, &consensus, &self.mempool, certificate, &self.metrics).await,
+            } => on_decided(state, reply_to, &self.mempool, certificate, &self.metrics).await,
 
-            HostMsg::GetDecidedValue { height, reply_to } => {
-                on_get_decided_block(height, state, reply_to).await
+            HostMsg::GetDecidedValues { range, reply_to } => {
+                on_get_decided_values(range, state, reply_to).await
             }
 
             HostMsg::ProcessSyncedValue {
                 height,
                 round,
-                validator_address,
+                proposer,
                 value_bytes,
                 reply_to,
-            } => on_process_synced_value(value_bytes, height, round, validator_address, reply_to),
+            } => on_process_synced_value(value_bytes, height, round, proposer, reply_to),
         }
     }
 }
 
 async fn on_consensus_ready(
     state: &mut HostState,
-    consensus: ConsensusRef<MockContext>,
+    reply_to: RpcReplyPort<(Height, HeightParams<MockContext>)>,
 ) -> Result<(), ActorProcessingErr> {
     let latest_block_height = state.block_store.last_height().await.unwrap_or_default();
     let start_height = latest_block_height.increment();
 
-    state.consensus = Some(consensus.clone());
-
     tokio::time::sleep(Duration::from_millis(200)).await;
 
-    consensus.cast(ConsensusMsg::StartHeight(
+    reply_to.send((
         start_height,
-        state.host.validator_set.clone(),
+        HeightParams {
+            validator_set: state.host.validator_set.clone(),
+            timeouts: state.host.timeouts,
+        },
     ))?;
-
-    Ok(())
-}
-
-async fn replay_undecided_values(
-    state: &mut HostState,
-    height: Height,
-    round: Round,
-) -> Result<(), ActorProcessingErr> {
-    let undecided_values = state
-        .block_store
-        .get_undecided_values(height, round)
-        .await?;
-
-    let consensus = state.consensus.as_ref().unwrap();
-
-    for value in undecided_values {
-        info!(%height, %round, hash = %value.value, "Replaying already known proposed value");
-
-        consensus.cast(ConsensusMsg::ReceivedProposedValue(
-            value,
-            ValueOrigin::Consensus,
-        ))?;
-    }
 
     Ok(())
 }
@@ -259,14 +234,34 @@ async fn on_started_round(
     height: Height,
     round: Round,
     proposer: Address,
+    role: Role,
+    reply_to: RpcReplyPort<Vec<ProposedValue<MockContext>>>,
 ) -> Result<(), ActorProcessingErr> {
     state.height = height;
     state.round = round;
     state.proposer = Some(proposer);
+    state.role = role;
+
+    info!(%height, %round, %proposer, ?role, "Started new round");
+
+    let pending = state.block_store.get_pending_values(height, round).await?;
+    info!(%height, %round, "Found {} pending proposals, validating...", pending.len());
+    for p in &pending {
+        // TODO: check proposal validity
+        state.block_store.store_undecided_value(p.clone()).await?;
+        state.block_store.remove_pending_value(p.clone()).await?;
+    }
 
     // If we have already built or seen one or more values for this height and round,
     // feed them back to consensus. This may happen when we are restarting after a crash.
-    replay_undecided_values(state, height, round).await?;
+    let undecided_values = state
+        .block_store
+        .get_undecided_values(height, round)
+        .await?;
+
+    info!(%height, %round, "Found {} undecided values", undecided_values.len());
+
+    reply_to.send(undecided_values)?;
 
     Ok(())
 }
@@ -278,19 +273,6 @@ async fn on_get_history_min_height(
     let history_min_height = state.block_store.first_height().await.unwrap_or_default();
     reply_to.send(history_min_height)?;
 
-    Ok(())
-}
-
-async fn on_get_validator_set(
-    state: &mut HostState,
-    height: Height,
-    reply_to: RpcReplyPort<Option<ValidatorSet>>,
-) -> Result<(), ActorProcessingErr> {
-    let Some(validators) = state.host.validators(height).await else {
-        return Err(eyre!("No validator set found for the given height {height}").into());
-    };
-
-    reply_to.send(Some(ValidatorSet::new(validators)))?;
     Ok(())
 }
 
@@ -502,37 +484,35 @@ fn on_process_synced_value(
     Ok(())
 }
 
-async fn on_get_decided_block(
-    height: Height,
+async fn on_get_decided_values(
+    range: RangeInclusive<Height>,
     state: &mut HostState,
-    reply_to: RpcReplyPort<Option<RawDecidedValue<MockContext>>>,
+    reply_to: RpcReplyPort<Vec<RawDecidedValue<MockContext>>>,
 ) -> Result<(), ActorProcessingErr> {
-    debug!(%height, "Received request for block");
+    debug!(?range, "Received sync request for blocks");
 
-    match state.block_store.get(height).await {
-        Ok(None) => {
-            let min = state.block_store.first_height().await.unwrap_or_default();
-            let max = state.block_store.last_height().await.unwrap_or_default();
+    let mut blocks = vec![];
 
-            warn!(%height, "No block for this height, available blocks: {min}..={max}");
+    for height in range.iter_heights() {
+        match state.block_store.get(height).await {
+            Ok(Some(block)) => {
+                let block = RawDecidedValue {
+                    value_bytes: block.block.to_bytes().unwrap(),
+                    certificate: block.certificate,
+                };
 
-            reply_to.send(None)?;
-        }
-
-        Ok(Some(block)) => {
-            let block = RawDecidedValue {
-                value_bytes: block.block.to_bytes().unwrap(),
-                certificate: block.certificate,
-            };
-
-            debug!(%height, "Found decided block in store");
-            reply_to.send(Some(block))?;
-        }
-        Err(e) => {
-            error!(%e, %height, "Failed to get decided block");
-            reply_to.send(None)?;
+                blocks.push(block);
+            }
+            Ok(None) => {
+                warn!(%height, "No block for this height during sync");
+            }
+            Err(e) => {
+                error!(%e, %height, "Failed to get decided block during sync");
+            }
         }
     }
+
+    reply_to.send(blocks)?;
 
     Ok(())
 }
@@ -574,7 +554,7 @@ async fn on_received_proposal_part(
             part.height = %parts.height,
             part.round = %parts.round,
             part.sequence = %sequence,
-            "Received outdated proposal part, ignoring"
+            "Received proposal part for past height, ignoring"
         );
 
         return Ok(());
@@ -595,22 +575,11 @@ async fn on_received_proposal_part(
             .build_value_from_part(&stream_id, parts.height, parts.round, part)
             .await
         {
-            debug!(
-                height = %value.height,
-                round = %value.round,
-                block_hash = %value.value,
-                validity = ?value.validity,
-                "Storing proposed value assembled from proposal parts"
-            );
-
-            if let Err(e) = state.block_store.store_undecided_value(value.clone()).await {
-                error!(
-                    %e, height = %value.height, round = %value.round, block_hash = %value.value,
-                    "Failed to store the proposed value"
-                );
+            if let Some(value) = store_proposed_value(state, parts.height, value).await? {
+                // Value is for current height, so we can send it to consensus
+                reply_to.send(value)?;
             }
 
-            reply_to.send(value)?;
             break;
         }
 
@@ -620,10 +589,50 @@ async fn on_received_proposal_part(
     Ok(())
 }
 
-//TODO
+/// Store the proposed value in the block store.
+///
+/// If the height of the proposed value is greater than the current height,
+/// store it as a pending value and return `None`.
+///
+/// If the height is equal to the current height, store it as an undecided value and return
+/// `Some(value)`.
+async fn store_proposed_value(
+    state: &mut HostState,
+    height: Height,
+    value: ProposedValue<MockContext>,
+) -> Result<Option<ProposedValue<MockContext>>, ActorProcessingErr> {
+    debug!(
+        height = %value.height,
+        round = %value.round,
+        block_hash = %value.value,
+        validity = ?value.validity,
+        "Storing proposed value assembled from proposal parts"
+    );
+
+    if height > state.height {
+        if let Err(e) = state.block_store.store_pending_value(value.clone()).await {
+            error!(
+                %e, height = %value.height, round = %value.round, block_hash = %value.value,
+                "Failed to store the pending proposed value"
+            );
+        }
+
+        Ok(None)
+    } else {
+        if let Err(e) = state.block_store.store_undecided_value(value.clone()).await {
+            error!(
+                %e, height = %value.height, round = %value.round, block_hash = %value.value,
+                "Failed to store the undecided proposed value"
+            );
+        }
+
+        Ok(Some(value))
+    }
+}
+
 async fn on_decided(
     state: &mut HostState,
-    consensus: &ConsensusRef<MockContext>,
+    reply_to: RpcReplyPort<Next<MockContext>>,
     mempool: &MempoolRef,
     certificate: CommitCertificate<MockContext>,
     metrics: &Metrics,
@@ -682,9 +691,12 @@ async fn on_decided(
     state.host.decision(certificate).await;
 
     // Start the next height
-    consensus.cast(ConsensusMsg::StartHeight(
+    reply_to.send(Next::Start(
         state.height.increment(),
-        state.host.validator_set.clone(),
+        HeightParams {
+            validator_set: state.host.validator_set.clone(),
+            timeouts: state.host.timeouts,
+        },
     ))?;
 
     Ok(())

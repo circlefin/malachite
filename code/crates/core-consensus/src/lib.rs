@@ -1,3 +1,6 @@
+#![doc = include_str!("../README.md")]
+#![allow(rustdoc::private_intra_doc_links)]
+
 mod prelude;
 
 mod input;
@@ -10,7 +13,10 @@ mod error;
 pub use error::Error;
 
 mod params;
-pub use params::{Params, ThresholdParams, VoteSyncMode};
+pub use params::{Params, ThresholdParams};
+
+#[doc(hidden)]
+pub use params::HIDDEN_LOCK_ROUND;
 
 mod effect;
 pub use effect::{Effect, Resumable, Resume};
@@ -18,9 +24,11 @@ pub use effect::{Effect, Resumable, Resume};
 mod types;
 pub use types::*;
 
-mod full_proposal;
+pub mod full_proposal;
+pub mod util;
+
 mod macros;
-mod util;
+mod ser;
 
 // Only used in macros
 #[doc(hidden)]
@@ -30,10 +38,6 @@ pub mod gen;
 mod handle;
 #[doc(hidden)]
 pub use handle::handle;
-
-// Only used internally, but needs to be exposed for tests
-#[doc(hidden)]
-pub use full_proposal::{FullProposal, FullProposalKeeper};
 
 // Used in macros
 #[doc(hidden)]

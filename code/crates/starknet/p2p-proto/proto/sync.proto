@@ -4,6 +4,7 @@ package sync;
 
 import "p2p/proto/common.proto";
 import "p2p/proto/consensus/consensus.proto";
+import "p2p/proto/consensus/liveness.proto";
 
 message Status {
   PeerID peer_id = 1;
@@ -16,12 +17,13 @@ message Status {
 message ValueRequest {
   uint64 block_number = 1;
   uint64 fork_id = 2;
+  optional uint64 end_block_number = 3;
 }
 
 message ValueResponse {
   uint64 block_number = 1;
   uint64 fork_id = 2;
-  SyncedValue value = 3;
+  repeated SyncedValue values = 3;
 }
 
 message SyncedValue {
@@ -54,20 +56,6 @@ message CommitCertificate {
     repeated CommitSignature signatures = 5;
 }
 
-message PolkaSignature {
-    // TODO - add flag (no vote, nil, value?)
-    Address validator_address    = 1;
-    ConsensusSignature signature = 2;
-}
-
-message PolkaCertificate {
-    uint64 fork_id = 1;
-    uint64 block_number = 2;
-    uint32 round = 3;
-    Hash block_hash = 4;
-    repeated PolkaSignature signatures = 5;
-}
-
 message ProposedValue {
     uint64 fork_id = 1;
     uint64 block_number = 2;
@@ -78,34 +66,14 @@ message ProposedValue {
     bool validity = 7;
 }
 
-message VoteSetRequest {
-  uint64 fork_id = 1;
-  uint64 block_number = 2;
-  uint32 round = 3;
-}
-
-message VoteSetResponse {
-  uint64 fork_id = 1;
-  uint64 block_number = 2;
-  uint32 round = 3;
-  VoteSet vote_set = 4;
-  repeated PolkaCertificate polka_certificates = 5;
-}
-
-message VoteSet {
-  repeated Vote signed_votes = 1;
-}
-
 message SyncRequest {
   oneof messages {
     ValueRequest value_request = 1;
-    VoteSetRequest vote_set_request = 2;
   }
 }
 
 message SyncResponse {
   oneof messages {
     ValueResponse value_response = 1;
-    VoteSetResponse vote_set_response = 2;
   }
 }

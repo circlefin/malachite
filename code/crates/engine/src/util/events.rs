@@ -1,15 +1,17 @@
 use core::fmt;
+use std::io;
 use std::sync::Arc;
 
 use derive_where::derive_where;
-use ractor::ActorProcessingErr;
 use tokio::sync::broadcast;
 
 use malachitebft_core_consensus::{
-    LocallyProposedValue, ProposedValue, SignedConsensusMsg, WalEntry,
+    Error as ConsensusError, LocallyProposedValue, ProposedValue, Role, SignedConsensusMsg,
+    WalEntry,
 };
 use malachitebft_core_types::{
-    CommitCertificate, Context, Round, SignedProposal, SignedVote, ValueOrigin,
+    CommitCertificate, Context, PolkaCertificate, Round, RoundCertificate, SignedProposal,
+    SignedVote, ValueOrigin,
 };
 
 pub type RxEvent<Ctx> = broadcast::Receiver<Event<Ctx>>;
@@ -45,18 +47,22 @@ impl<Ctx: Context> Default for TxEvent<Ctx> {
 #[derive_where(Clone, Debug)]
 pub enum Event<Ctx: Context> {
     StartedHeight(Ctx::Height, bool),
-    StartedRound(Ctx::Height, Round),
+    StartedRound(Ctx::Height, Round, Ctx::Address, Role),
     Published(SignedConsensusMsg<Ctx>),
+    Received(SignedConsensusMsg<Ctx>),
     ProposedValue(LocallyProposedValue<Ctx>),
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
     Decided(CommitCertificate<Ctx>),
-    Rebroadcast(SignedVote<Ctx>),
-    RequestedVoteSet(Ctx::Height, Round),
-    SentVoteSetResponse(Ctx::Height, Round, usize, usize),
+    RepublishVote(SignedVote<Ctx>),
+    RebroadcastRoundCertificate(RoundCertificate<Ctx>),
+    SkipRoundCertificate(RoundCertificate<Ctx>),
+    PolkaCertificate(PolkaCertificate<Ctx>),
     WalReplayBegin(Ctx::Height, usize),
     WalReplayEntry(WalEntry<Ctx>),
     WalReplayDone(Ctx::Height),
-    WalReplayError(Arc<ActorProcessingErr>),
+    WalReplayError(Arc<ConsensusError<Ctx>>),
+    WalResetError(Arc<eyre::Report>),
+    WalCorrupted(Arc<io::Error>),
     ProposalEquivocationEvidence {
         proposal_height: Ctx::Height,
         address: Ctx::Address,
@@ -75,10 +81,11 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
             Event::StartedHeight(height, restart) => {
                 write!(f, "StartedHeight(height: {height}, restart: {restart})")
             }
-            Event::StartedRound(height, round) => {
-                write!(f, "StartedRound(height: {height}, round: {round})")
+            Event::StartedRound(height, round, proposer, role) => {
+                write!(f, "StartedRound(height: {height}, round: {round}, proposer: {proposer}, role: {role:?})")
             }
             Event::Published(msg) => write!(f, "Published(msg: {msg:?})"),
+            Event::Received(msg) => write!(f, "Received(msg: {msg:?})"),
             Event::ProposedValue(value) => write!(f, "ProposedValue(value: {value:?})"),
             Event::ReceivedProposedValue(value, origin) => {
                 write!(
@@ -87,24 +94,28 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
                 )
             }
             Event::Decided(commit_certificate) => {
-                write!(f, "Decided(value: {})", commit_certificate.value_id,)
+                write!(f, "Decided(value: {})", commit_certificate.value_id)
             }
-            Event::Rebroadcast(msg) => write!(f, "Rebroadcast(msg: {msg:?})"),
-            Event::RequestedVoteSet(height, round) => {
-                write!(f, "RequestedVoteSet(height: {height}, round: {round})")
-            }
-            Event::SentVoteSetResponse(height, round, vote_count, polka_count) => {
-                write!(
-                    f,
-                    "SentVoteSetResponse(height: {height}, round: {round}, count: {vote_count}, polka_certificates: {polka_count})"
-                )
-            }
+            Event::RepublishVote(vote) => write!(f, "RepublishVote(vote: {vote:?})"),
+            Event::RebroadcastRoundCertificate(certificate) => write!(
+                f,
+                "RebroadcastRoundCertificate(certificate: {certificate:?})"
+            ),
             Event::WalReplayBegin(height, count) => {
                 write!(f, "WalReplayBegin(height: {height}, count: {count})")
             }
             Event::WalReplayEntry(entry) => write!(f, "WalReplayEntry(entry: {entry:?})"),
             Event::WalReplayDone(height) => write!(f, "WalReplayDone(height: {height})"),
             Event::WalReplayError(error) => write!(f, "WalReplayError({error})"),
+            Event::WalResetError(error) => write!(f, "WalResetError({error})"),
+            Event::WalCorrupted(error) => write!(f, "WalCorrupted(error: {error:?})"),
+
+            Event::PolkaCertificate(certificate) => {
+                write!(f, "PolkaCertificate: {certificate:?})")
+            }
+            Event::SkipRoundCertificate(certificate) => {
+                write!(f, "SkipRoundCertificate: {certificate:?})")
+            }
             Event::ProposalEquivocationEvidence {
                 proposal_height,
                 address,

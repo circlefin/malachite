@@ -2,30 +2,30 @@ use derive_where::derive_where;
 
 use malachitebft_core_types::*;
 
-use crate::input::RequestId;
-use crate::types::SignedConsensusMsg;
-use crate::{ConsensusMsg, VoteExtensionError, WalEntry};
+use crate::types::{LivenessMsg, SignedConsensusMsg};
+use crate::{ConsensusMsg, Error, PeerId, Role, VoteExtensionError, WalEntry};
 
 /// Provides a way to construct the appropriate [`Resume`] value to
 /// resume execution after handling an [`Effect`].
 ///
-/// Eeach `Effect` embeds a value that implements [`Resumable`]
+/// Each `Effect` embeds a value that implements [`Resumable`]
 /// which is used to construct the appropriate [`Resume`] value.
 ///
 /// ## Example
 ///
 /// ```rust,ignore
 /// fn effect_handler(effect: Effect<Ctx>) -> Result<Resume<Ctx>, Error> {
-/// match effect {
-///    Effect::ResetTimeouts(r) => {
-///      reset_timeouts();
-///      Ok(r.resume_with(()))
-///    }
-///    Effect::GetValidatorSet(height, r) => {)
-///        let validator_set = get_validator_set(height);
-///        Ok(r.resume_with(validator_set))
-///    }
-///    // ...
+///     match effect {
+///         Effect::ScheduleTimeout(timeout, r) => {
+///             schedule_timeout(timeout);
+///             Ok(r.resume_with(()))
+///         }
+///         Effect::GetValue(height, round, timeout, r) => {
+///             request_value(height, round);
+///             Ok(r.resume_with(()))
+///         }
+///        // ...
+///     }
 /// }
 /// ```
 pub trait Resumable<Ctx: Context> {
@@ -49,11 +49,6 @@ pub enum Effect<Ctx>
 where
     Ctx: Context,
 {
-    /// Reset all timeouts to their initial values
-    ///
-    /// Resume with: [`resume::Continue`]
-    ResetTimeouts(resume::Continue),
-
     /// Cancel all outstanding timeouts
     ///
     /// Resume with: [`resume::Continue`]
@@ -69,25 +64,30 @@ where
     /// Resume with: [`resume::Continue`]
     ScheduleTimeout(Timeout, resume::Continue),
 
-    /// Get the validator set at the given height, if known.
-    ///
-    /// Resume with: [`resume::ValidatorSet`]
-    GetValidatorSet(Ctx::Height, resume::ValidatorSet),
-
     /// Consensus is starting a new round with the given proposer
     ///
     /// Resume with: [`resume::Continue`]
-    StartRound(Ctx::Height, Round, Ctx::Address, resume::Continue),
+    StartRound(Ctx::Height, Round, Ctx::Address, Role, resume::Continue),
 
     /// Publish a message to peers
     ///
     /// Resume with: [`resume::Continue`]
-    Publish(SignedConsensusMsg<Ctx>, resume::Continue),
+    PublishConsensusMsg(SignedConsensusMsg<Ctx>, resume::Continue),
 
-    /// Rebroadcast a vote to peers
+    /// Publish a liveness message to peers
     ///
     /// Resume with: [`resume::Continue`]
-    Rebroadcast(SignedVote<Ctx>, resume::Continue),
+    PublishLivenessMsg(LivenessMsg<Ctx>, resume::Continue),
+
+    /// Re-publish a vote to peers
+    ///
+    /// Resume with: [`resume::Continue`]
+    RepublishVote(SignedVote<Ctx>, resume::Continue),
+
+    /// Re-publish a round certificate to peers
+    ///
+    /// Resume with: [`resume::Continue`]
+    RepublishRoundCertificate(RoundCertificate<Ctx>, resume::Continue),
 
     /// Requests the application to build a value for consensus to run on.
     ///
@@ -118,6 +118,32 @@ where
         /// Value ID of the value to restream
         ValueId<Ctx>,
         /// For resumption
+        resume::Continue,
+    ),
+
+    /// Notifies the application that consensus has received a valid sync value response.
+    ///
+    /// Resume with: [`resume::Continue`]
+    ValidSyncValue(
+        /// The value response
+        ValueResponse<Ctx>,
+        /// The proposer for that value
+        Ctx::Address,
+        /// How to resume
+        resume::Continue,
+    ),
+
+    /// Notifies the engine that consensus has received an invalid sync value response.
+    ///
+    /// Resume with: [`resume::Continue`]
+    InvalidSyncValue(
+        /// The peer that sent the invalid response
+        PeerId,
+        /// The height for which the response was sent
+        Ctx::Height,
+        /// The error that was encountered
+        Error<Ctx>,
+        /// How to resume
         resume::Continue,
     ),
 
@@ -175,27 +201,21 @@ where
         resume::CertificateValidity,
     ),
 
-    /// Consensus has been stuck in Prevote or Precommit step, ask for vote sets from peers
+    /// Verify a round certificate
     ///
-    /// Resume with: [`resume::Continue`]
-    RequestVoteSet(Ctx::Height, Round, resume::Continue),
-
-    /// A peer has required our vote set, send the response
-    ///
-    /// Resume with: [`resume::Continue`]`
-    SendVoteSetResponse(
-        RequestId,
-        Ctx::Height,
-        Round,
-        VoteSet<Ctx>,
-        Vec<PolkaCertificate<Ctx>>,
-        resume::Continue,
+    /// Resume with: [`resume::CertificateValidity`]
+    VerifyRoundCertificate(
+        RoundCertificate<Ctx>,
+        Ctx::ValidatorSet,
+        ThresholdParams,
+        resume::CertificateValidity,
     ),
 
     /// Append an entry to the Write-Ahead Log for crash recovery
+    /// If the WAL is not at the given height, the entry should be ignored.
     ///
     /// Resume with: [`resume::Continue`]`
-    WalAppend(WalEntry<Ctx>, resume::Continue),
+    WalAppend(Ctx::Height, WalEntry<Ctx>, resume::Continue),
 
     /// Allows the application to extend the pre-commit vote with arbitrary data.
     ///
@@ -278,17 +298,6 @@ pub mod resume {
 
         fn resume_with(self, _: ()) -> Resume<Ctx> {
             Resume::Continue
-        }
-    }
-
-    #[derive(Debug, Default)]
-    pub struct ValidatorSet;
-
-    impl<Ctx: Context> Resumable<Ctx> for ValidatorSet {
-        type Value = Option<Ctx::ValidatorSet>;
-
-        fn resume_with(self, value: Self::Value) -> Resume<Ctx> {
-            Resume::ValidatorSet(value)
         }
     }
 

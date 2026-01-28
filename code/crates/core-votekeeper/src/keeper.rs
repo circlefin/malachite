@@ -2,13 +2,13 @@
 
 use derive_where::derive_where;
 use thiserror::Error;
+use tracing::warn;
 
 use alloc::collections::{BTreeMap, BTreeSet};
-
+use alloc::vec::Vec;
 use malachitebft_core_types::{
     Context, NilOrVal, Round, SignedVote, Validator, ValidatorSet, ValueId, Vote, VoteType,
 };
-use tracing::warn;
 
 use crate::evidence::EvidenceMap;
 use crate::round_votes::RoundVotes;
@@ -50,7 +50,7 @@ where
     addresses_weights: RoundWeights<Ctx::Address>,
 
     /// All the votes received for this round.
-    received_votes: BTreeSet<SignedVote<Ctx>>,
+    received_votes: Vec<SignedVote<Ctx>>,
 
     /// The emitted outputs for this round.
     emitted_outputs: BTreeSet<Output<ValueId<Ctx>>>,
@@ -81,6 +81,15 @@ where
         Self::default()
     }
 
+    /// Create a new `PerRound` instance with pre-allocated capacity for the expected number of votes.
+    pub fn with_expected_number_of_votes(num_votes: usize) -> Self {
+        Self {
+            // pre-allocate capacity to avoid re-allocations during the addition of votes
+            received_votes: Vec::with_capacity(num_votes),
+            ..Self::default()
+        }
+    }
+
     /// Add a vote to the round, checking for conflicts.
     pub fn add(
         &mut self,
@@ -105,7 +114,7 @@ where
             .set_once(vote.validator_address(), weight);
 
         // Add the vote to the received votes
-        self.received_votes.insert(vote);
+        self.received_votes.push(vote);
 
         Ok(())
     }
@@ -127,7 +136,7 @@ where
     }
 
     /// Return the votes for this round.
-    pub fn received_votes(&self) -> &BTreeSet<SignedVote<Ctx>> {
+    pub fn received_votes(&self) -> &Vec<SignedVote<Ctx>> {
         &self.received_votes
     }
 
@@ -191,6 +200,11 @@ where
         self.per_round.get(&round)
     }
 
+    /// Return votes for all rounds we have seen so far.
+    pub fn all_rounds(&self) -> &BTreeMap<Round, PerRound<Ctx>> {
+        &self.per_round
+    }
+
     /// Return how many rounds we have seen votes for so far.
     pub fn rounds(&self) -> usize {
         self.per_round.len()
@@ -220,7 +234,12 @@ where
         round: Round,
     ) -> Result<Option<Output<ValueId<Ctx>>>, RecordVoteError<Ctx>> {
         let total_weight = self.total_weight();
-        let per_round = self.per_round.entry(vote.round()).or_default();
+        let per_round =
+            self.per_round
+                .entry(vote.round())
+                .or_insert(PerRound::with_expected_number_of_votes(
+                    self.validator_set.count(),
+                ));
 
         let Some(validator) = self.validator_set.get_by_address(vote.validator_address()) else {
             // Vote from unknown validator, let's discard it.
@@ -234,12 +253,11 @@ where
                 conflicting,
             }) => {
                 // This is an equivocating vote
-                self.evidence.add(existing.clone(), conflicting);
-
                 warn!(
-                    "Conflicting vote: existing: {:?}, conflicting: {:?}",
-                    existing, vote
+                    "Received equivocating vote {:?}, existing {:?}",
+                    conflicting, existing
                 );
+                self.evidence.add(existing.clone(), conflicting);
 
                 return Err(RecordVoteError::ConflictingVote {
                     existing,
@@ -298,6 +316,11 @@ where
                 self.total_weight(),
             )
         })
+    }
+
+    /// Prunes all stored votes from rounds less than `min_round`.
+    pub fn prune_votes(&mut self, min_round: Round) {
+        self.per_round.retain(|round, _| *round >= min_round);
     }
 }
 

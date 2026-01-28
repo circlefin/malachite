@@ -46,13 +46,13 @@ fn large_number_of_entries() -> io::Result<()> {
 
     // Write entries
     for i in 0..config.num_entries {
-        let entry = format!("entry-{}", i);
+        let entry = format!("entry-{i}");
         wal.append(entry.as_bytes())?;
 
         if i % config.sync_interval == 0 {
             wal.flush()?;
             if i % 100_000 == 0 {
-                println!("Wrote {} entries...", i);
+                println!("Wrote {i} entries...");
             }
         }
     }
@@ -60,7 +60,7 @@ fn large_number_of_entries() -> io::Result<()> {
     wal.flush()?;
 
     let write_duration = start.elapsed();
-    println!("Write phase completed in {:?}", write_duration);
+    println!("Write phase completed in {write_duration:?}");
 
     // Verify entries
     let start = Instant::now();
@@ -69,12 +69,12 @@ fn large_number_of_entries() -> io::Result<()> {
     assert_eq!(entries.len(), config.num_entries);
 
     for (i, entry) in entries.iter().enumerate() {
-        let expected = format!("entry-{}", i);
+        let expected = format!("entry-{i}");
         assert_eq!(entry, expected.as_bytes());
     }
 
     let read_duration = start.elapsed();
-    println!("Read phase completed in {:?}", read_duration);
+    println!("Read phase completed in {read_duration:?}");
 
     // Report statistics
     let file_size = fs::metadata(&path)?.len();
@@ -131,7 +131,7 @@ fn entry_sizes() -> io::Result<()> {
         wal.flush()?;
 
         let duration = start.elapsed();
-        println!("  Write completed in {:?}", duration);
+        println!("  Write completed in {duration:?}");
         println!(
             "  Throughput: {:.2} MB/s",
             size as f64 / MB as f64 / duration.as_secs_f64()

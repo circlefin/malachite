@@ -12,8 +12,8 @@ where
 {
     assert!(state.driver.step_is_commit());
 
-    let height = state.driver.height();
-    let consensus_round = state.driver.round();
+    let height = state.height();
+    let consensus_round = state.round();
 
     let Some((proposal_round, decided_value)) = state.decided_value() else {
         return Err(Error::DecisionNotFound(height, consensus_round));
@@ -21,11 +21,15 @@ where
 
     let decided_id = decided_value.id();
 
-    // Look for an existing certificate
-    let (certificate, extensions) = state
+    // Look for an existing certificate (from sync) or build one from precommits
+    let existing_certificate = state
         .driver
-        .commit_certificate(proposal_round, decided_id.clone())
-        .cloned()
+        .commit_certificate(proposal_round, &decided_id)
+        .cloned();
+
+    // FIXME: there is actual no guarantee that associated vote extensions can be found,
+    // in particular when deciding via sync, see: https://circlepay.atlassian.net/browse/CCHAIN-915.
+    let (certificate, extensions) = existing_certificate
         .map(|certificate| (certificate, VoteExtensions::default()))
         .unwrap_or_else(|| {
             // Restore the commits. Note that they will be removed from `state`
@@ -39,38 +43,16 @@ where
             (certificate, extensions)
         });
 
-    let Some((proposal, _)) = state.driver.proposal_and_validity_for_round(proposal_round) else {
-        return Err(Error::DriverProposalNotFound(height, proposal_round));
-    };
-
-    let Some(full_proposal) =
-        state.full_proposal_at_round_and_value(&height, proposal_round, &decided_value)
-    else {
-        return Err(Error::FullProposalNotFound(height, proposal_round));
-    };
-
-    if proposal.value().id() != decided_id {
-        info!(
-            "Decide: driver proposal value id {} does not match the decided value id {}, this may happen if consensus and value sync run in parallel",
-            proposal.value().id(),
-            decided_id
-        );
-    }
-
-    assert_eq!(full_proposal.builder_value.id(), decided_id);
-    assert_eq!(full_proposal.proposal.value().id(), decided_id);
-    assert_eq!(full_proposal.validity, Validity::Valid);
-
     // The certificate must be valid in Commit step
-    assert_eq!(
+    assert!(
         verify_commit_certificate(
             co,
             certificate.clone(),
             state.driver.validator_set().clone(),
             state.params.threshold_params,
         )
-        .await?,
-        Ok(()),
+        .await?
+        .is_ok(),
         "Commit certificate is not valid"
     );
 
@@ -83,7 +65,6 @@ where
         }
 
         metrics.block_end();
-        metrics.finalized_blocks.inc();
 
         metrics
             .consensus_round

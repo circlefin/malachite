@@ -12,6 +12,9 @@ readme = "../../../README.md"
 [package.metadata.docs.rs]
 all-features = true
 
+[features]
+borsh = ["malachitebft-core-consensus/borsh"]
+
 [dependencies]
 malachitebft-codec.workspace = true
 malachitebft-config.workspace = true
@@ -21,6 +24,7 @@ malachitebft-engine.workspace = true
 malachitebft-metrics.workspace = true
 malachitebft-network.workspace = true
 malachitebft-peer.workspace = true
+malachitebft-signing.workspace = true
 malachitebft-sync.workspace = true
 malachitebft-wal.workspace = true
 
@@ -33,6 +37,7 @@ rand = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+libp2p = { workspace = true }
 
 [lints]
 workspace = true

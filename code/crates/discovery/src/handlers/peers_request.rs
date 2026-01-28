@@ -1,14 +1,13 @@
-use std::collections::HashSet;
-
 use libp2p::{
+    core::{PeerRecord, SignedEnvelope},
     request_response::{OutboundRequestId, ResponseChannel},
-    Multiaddr, PeerId, Swarm,
+    PeerId, Swarm,
 };
-use tracing::{debug, error, trace};
+use tracing::{debug, error, trace, warn};
 
 use crate::{
-    behaviour::{self, Response},
-    connection::ConnectionData,
+    behaviour::{self, Response, SignedPeerRecordBytes},
+    dial::DialData,
     request::RequestData,
     Discovery, DiscoveryClient,
 };
@@ -52,7 +51,9 @@ where
 
         let request_id = swarm.behaviour_mut().send_request(
             &request_data.peer_id(),
-            behaviour::Request::Peers(self.get_all_peers_except(request_data.peer_id())),
+            behaviour::Request::Peers(
+                self.get_signed_peer_records_as_bytes(request_data.peer_id()),
+            ),
         );
 
         self.controller
@@ -65,24 +66,39 @@ where
         swarm: &mut Swarm<C>,
         peer: PeerId,
         channel: ResponseChannel<Response>,
-        peers: HashSet<(Option<PeerId>, Multiaddr)>,
+        signed_records: Vec<SignedPeerRecordBytes>,
     ) {
-        // Compute the difference between the discovered peers and the requested peers
-        // to avoid sending the requesting peer the peers it already knows.
-        let peers_difference = self
-            .get_all_peers_except(peer)
-            .difference(&peers)
-            .cloned()
+        // Extract peer_ids from received records to compute difference
+        let received_peer_ids: std::collections::HashSet<PeerId> = signed_records
+            .iter()
+            .filter_map(|bytes| {
+                SignedEnvelope::from_protobuf_encoding(bytes)
+                    .ok()
+                    .and_then(|env| PeerRecord::from_signed_envelope(env).ok())
+                    .map(|rec| rec.peer_id())
+            })
             .collect();
 
+        // Process incoming signed records
+        self.process_signed_peer_records(swarm, signed_records);
+
+        // Send back only records they don't already have (the difference)
+        let response_records: Vec<SignedPeerRecordBytes> = self
+            .signed_peer_records
+            .iter()
+            .filter(|(pid, _)| **pid != peer && !received_peer_ids.contains(pid))
+            .map(|(_, env)| env.clone().into_protobuf_encoding())
+            .collect();
+
+        let count = response_records.len();
         if swarm
             .behaviour_mut()
-            .send_response(channel, behaviour::Response::Peers(peers_difference))
+            .send_response(channel, behaviour::Response::Peers(response_records))
             .is_err()
         {
             error!("Error sending peers to {peer}");
         } else {
-            trace!("Sent peers to {peer}");
+            trace!("Sent {count} peers to {peer}");
         }
     }
 
@@ -90,13 +106,14 @@ where
         &mut self,
         swarm: &mut Swarm<C>,
         request_id: OutboundRequestId,
-        peers: HashSet<(Option<PeerId>, Multiaddr)>,
+        signed_records: Vec<SignedPeerRecordBytes>,
     ) {
         self.controller
             .peers_request
             .remove_in_progress(&request_id);
 
-        self.process_received_peers(swarm, peers);
+        // Process signed records (verified peer_id, secure)
+        self.process_signed_peer_records(swarm, signed_records);
 
         self.make_extension_step(swarm);
     }
@@ -133,42 +150,55 @@ where
         }
     }
 
-    fn process_received_peers(
+    /// Process received signed peer records
+    /// Decode from bytes, verify signatures, dial valid peers
+    fn process_signed_peer_records(
         &mut self,
         swarm: &mut Swarm<C>,
-        peers: HashSet<(Option<PeerId>, Multiaddr)>,
+        signed_record_bytes: Vec<SignedPeerRecordBytes>,
     ) {
-        for (peer_id, listen_addr) in peers {
-            self.add_to_dial_queue(swarm, ConnectionData::new(peer_id, listen_addr));
+        for bytes in signed_record_bytes {
+            // Decode protobuf bytes to SignedEnvelope
+            let envelope = match SignedEnvelope::from_protobuf_encoding(&bytes) {
+                Ok(env) => env,
+                Err(e) => {
+                    warn!("Failed to decode signed envelope: {e}");
+                    continue;
+                }
+            };
+
+            // Verify and extract peer record
+            match PeerRecord::from_signed_envelope(envelope) {
+                Ok(peer_record) => {
+                    let peer_id = peer_record.peer_id();
+                    let addresses = peer_record.addresses().to_vec();
+
+                    if addresses.is_empty() {
+                        continue;
+                    }
+
+                    debug!(
+                        %peer_id,
+                        addr_count = addresses.len(),
+                        "Received verified signed peer record"
+                    );
+
+                    // Add to dial queue with verified peer_id
+                    self.add_to_dial_queue(swarm, DialData::new(Some(peer_id), addresses));
+                }
+                Err(e) => {
+                    warn!("Invalid signed peer record: {e}");
+                }
+            }
         }
     }
 
-    /// Returns all discovered peers, including bootstrap nodes, except the given peer.
-    fn get_all_peers_except(&self, peer: PeerId) -> HashSet<(Option<PeerId>, Multiaddr)> {
-        let mut remaining_bootstrap_nodes: Vec<_> = self.bootstrap_nodes.clone();
-
-        let mut peers: HashSet<(Option<PeerId>, Multiaddr)> = self
-            .discovered_peers
+    /// Get all signed peer records as protobuf bytes, except for the given peer
+    fn get_signed_peer_records_as_bytes(&self, peer: PeerId) -> Vec<SignedPeerRecordBytes> {
+        self.signed_peer_records
             .iter()
-            .filter_map(|(peer_id, info)| {
-                if let Some(addr) = info.listen_addrs.first() {
-                    remaining_bootstrap_nodes.retain(|(_, x)| x != addr);
-
-                    if peer_id == &peer {
-                        return None;
-                    }
-
-                    Some((Some(*peer_id), addr.clone()))
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        for (peer_id, addr) in remaining_bootstrap_nodes {
-            peers.insert((peer_id, addr));
-        }
-
-        peers
+            .filter(|(peer_id, _)| **peer_id != peer)
+            .map(|(_, envelope)| envelope.clone().into_protobuf_encoding())
+            .collect()
     }
 }

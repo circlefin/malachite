@@ -4,6 +4,11 @@ use crate::{Context, NilOrVal, Round, SignedExtension, Value};
 
 /// A type of vote.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "borsh",
+    derive(::borsh::BorshSerialize, ::borsh::BorshDeserialize)
+)]
 pub enum VoteType {
     /// Votes for values which validators observe are valid for a given round.
     Prevote,
@@ -18,7 +23,7 @@ pub enum VoteType {
 /// include information about the validator signing it.
 pub trait Vote<Ctx>
 where
-    Self: Clone + Debug + Eq + Ord + Send + Sync + 'static,
+    Self: Clone + Debug + Eq + Send + Sync + 'static,
     Ctx: Context,
 {
     /// The height for which the vote is for.

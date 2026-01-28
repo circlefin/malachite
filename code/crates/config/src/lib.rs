@@ -4,9 +4,32 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use bytesize::ByteSize;
-use malachitebft_core_types::TimeoutKind;
 use multiaddr::Multiaddr;
 use serde::{Deserialize, Serialize};
+
+mod utils;
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProtocolNames {
+    pub consensus: String,
+
+    pub discovery_kad: String,
+
+    pub discovery_regres: String,
+
+    pub sync: String,
+}
+
+impl Default for ProtocolNames {
+    fn default() -> Self {
+        Self {
+            consensus: "/malachitebft-core-consensus/v1beta1".to_string(),
+            discovery_kad: "/malachitebft-discovery/kad/v1beta1".to_string(),
+            discovery_regres: "/malachitebft-discovery/reqres/v1beta1".to_string(),
+            sync: "/malachitebft-sync/v1beta1".to_string(),
+        }
+    }
+}
 
 /// P2P configuration options
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -16,6 +39,10 @@ pub struct P2pConfig {
 
     /// List of nodes to keep persistent connections to
     pub persistent_peers: Vec<Multiaddr>,
+
+    /// Only allow connections to/from persistent peers
+    #[serde(default)]
+    pub persistent_peers_only: bool,
 
     /// Peer discovery
     #[serde(default)]
@@ -29,6 +56,10 @@ pub struct P2pConfig {
 
     /// The maximum size of messages to send over RPC
     pub rpc_max_size: ByteSize,
+
+    /// Protocol name configuration
+    #[serde(default)]
+    pub protocol_names: ProtocolNames,
 }
 
 impl Default for P2pConfig {
@@ -36,10 +67,12 @@ impl Default for P2pConfig {
         P2pConfig {
             listen_addr: Multiaddr::empty(),
             persistent_peers: vec![],
+            persistent_peers_only: false,
             discovery: Default::default(),
             protocol: Default::default(),
             rpc_max_size: ByteSize::mib(10),
             pubsub_max_size: ByteSize::mib(4),
+            protocol_names: Default::default(),
         }
     }
 }
@@ -60,17 +93,36 @@ pub struct DiscoveryConfig {
     pub selector: Selector,
 
     /// Number of outbound peers
-    #[serde(default)]
+    #[serde(default = "discovery::default_num_outbound_peers")]
     pub num_outbound_peers: usize,
 
     /// Number of inbound peers
-    #[serde(default)]
+    #[serde(default = "discovery::default_num_inbound_peers")]
     pub num_inbound_peers: usize,
+
+    /// Maximum number of connections per peer
+    #[serde(default = "discovery::default_max_connections_per_peer")]
+    pub max_connections_per_peer: usize,
+
+    /// Maximum connections allowed per IP address.
+    /// Prevents DoS attacks where an attacker generates many PeerIds from the same IP.
+    /// Defaults to num_inbound_peers (effectively disabled).
+    #[serde(default = "discovery::default_num_inbound_peers")]
+    pub max_connections_per_ip: usize,
 
     /// Ephemeral connection timeout
     #[serde(default)]
     #[serde(with = "humantime_serde")]
     pub ephemeral_connection_timeout: Duration,
+
+    #[serde(default = "discovery::default_dial_max_retries")]
+    pub dial_max_retries: usize,
+
+    #[serde(default = "discovery::default_request_max_retries")]
+    pub request_max_retries: usize,
+
+    #[serde(default = "discovery::default_connect_request_max_retries")]
+    pub connect_request_max_retries: usize,
 }
 
 impl Default for DiscoveryConfig {
@@ -79,10 +131,41 @@ impl Default for DiscoveryConfig {
             enabled: false,
             bootstrap_protocol: Default::default(),
             selector: Default::default(),
-            num_outbound_peers: 0,
-            num_inbound_peers: 20,
-            ephemeral_connection_timeout: Default::default(),
+            num_outbound_peers: discovery::default_num_outbound_peers(),
+            num_inbound_peers: discovery::default_num_inbound_peers(),
+            max_connections_per_ip: discovery::default_num_inbound_peers(),
+            max_connections_per_peer: discovery::default_max_connections_per_peer(),
+            ephemeral_connection_timeout: Duration::from_secs(60),
+            dial_max_retries: discovery::default_dial_max_retries(),
+            request_max_retries: discovery::default_request_max_retries(),
+            connect_request_max_retries: discovery::default_connect_request_max_retries(),
         }
+    }
+}
+
+mod discovery {
+    pub fn default_num_outbound_peers() -> usize {
+        50
+    }
+
+    pub fn default_num_inbound_peers() -> usize {
+        50
+    }
+
+    pub fn default_max_connections_per_peer() -> usize {
+        5
+    }
+
+    pub fn default_dial_max_retries() -> usize {
+        5
+    }
+
+    pub fn default_request_max_retries() -> usize {
+        5
+    }
+
+    pub fn default_connect_request_max_retries() -> usize {
+        3
     }
 }
 
@@ -212,11 +295,15 @@ pub struct GossipSubConfig {
     /// When this value is set to 0 or does not meet the above constraints,
     /// it will be calculated as `max(1, min(mesh_n / 2, mesh_n_low - 1))`
     mesh_outbound_min: usize,
+
+    /// Enable peer scoring to prioritize nodes based on their type in mesh formation
+    enable_peer_scoring: bool,
 }
 
 impl Default for GossipSubConfig {
     fn default() -> Self {
-        Self::new(6, 12, 4, 2)
+        // Peer scoring disabled by default
+        Self::new(6, 12, 4, 2, false)
     }
 }
 
@@ -227,12 +314,14 @@ impl GossipSubConfig {
         mesh_n_high: usize,
         mesh_n_low: usize,
         mesh_outbound_min: usize,
+        enable_peer_scoring: bool,
     ) -> Self {
         let mut result = Self {
             mesh_n,
             mesh_n_high,
             mesh_n_low,
             mesh_outbound_min,
+            enable_peer_scoring,
         };
 
         result.adjust();
@@ -278,9 +367,14 @@ impl GossipSubConfig {
     pub fn mesh_outbound_min(&self) -> usize {
         self.mesh_outbound_min
     }
+
+    pub fn enable_peer_scoring(&self) -> bool {
+        self.enable_peer_scoring
+    }
 }
 
 mod gossipsub {
+    use super::utils::bool_from_anything;
     #[derive(serde::Deserialize)]
     pub struct RawConfig {
         #[serde(default)]
@@ -291,6 +385,8 @@ mod gossipsub {
         mesh_n_low: usize,
         #[serde(default)]
         mesh_outbound_min: usize,
+        #[serde(default, deserialize_with = "bool_from_anything")]
+        enable_peer_scoring: bool,
     }
 
     impl From<RawConfig> for super::GossipSubConfig {
@@ -300,23 +396,19 @@ mod gossipsub {
                 raw.mesh_n_high,
                 raw.mesh_n_low,
                 raw.mesh_outbound_min,
+                raw.enable_peer_scoring,
             )
         }
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
 #[serde(tag = "load_type", rename_all = "snake_case")]
 pub enum MempoolLoadType {
+    #[default]
     NoLoad,
     UniformLoad(mempool_load::UniformLoadConfig),
     NonUniformLoad(mempool_load::NonUniformLoadConfig),
-}
-
-impl Default for MempoolLoadType {
-    fn default() -> Self {
-        Self::NoLoad
-    }
 }
 
 pub mod mempool_load {
@@ -423,6 +515,26 @@ pub struct ValueSyncConfig {
     /// Timeout duration for sync requests
     #[serde(with = "humantime_serde")]
     pub request_timeout: Duration,
+
+    /// Maximum size of a request
+    pub max_request_size: ByteSize,
+
+    /// Maximum size of a response
+    pub max_response_size: ByteSize,
+
+    /// Maximum number of parallel requests to send
+    pub parallel_requests: usize,
+
+    /// Scoring strategy for peers
+    #[serde(default)]
+    pub scoring_strategy: ScoringStrategy,
+
+    /// Threshold for considering a peer inactive
+    #[serde(with = "humantime_serde")]
+    pub inactive_threshold: Duration,
+
+    /// Maximum number of decided values to request in a single batch
+    pub batch_size: usize,
 }
 
 impl Default for ValueSyncConfig {
@@ -431,16 +543,55 @@ impl Default for ValueSyncConfig {
             enabled: true,
             status_update_interval: Duration::from_secs(10),
             request_timeout: Duration::from_secs(10),
+            max_request_size: ByteSize::mib(1),
+            max_response_size: ByteSize::mib(10),
+            parallel_requests: 5,
+            scoring_strategy: ScoringStrategy::default(),
+            inactive_threshold: Duration::from_secs(60),
+            batch_size: 5,
         }
     }
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ScoringStrategy {
+    #[default]
+    Ema,
+}
+
+impl ScoringStrategy {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Ema => "ema",
+        }
+    }
+}
+
+impl FromStr for ScoringStrategy {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "ema" => Ok(Self::Ema),
+            e => Err(format!("unknown scoring strategy: {e}, available: ema")),
+        }
+    }
+}
+
+fn default_consensus_enabled() -> bool {
+    true
+}
+
 /// Consensus configuration options
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ConsensusConfig {
-    /// Timeouts
-    #[serde(flatten)]
-    pub timeouts: TimeoutConfig,
+    /// Enable consensus protocol participation
+    ///
+    /// When disabled, the node only runs the synchronization protocol
+    /// and does not subscribe to consensus-related topics
+    #[serde(default = "default_consensus_enabled")]
+    pub enabled: bool,
 
     /// P2P configuration options
     pub p2p: P2pConfig,
@@ -448,37 +599,23 @@ pub struct ConsensusConfig {
     /// Message types that can carry values
     pub value_payload: ValuePayload,
 
-    /// VoteSync configuration options
-    pub vote_sync: VoteSyncConfig,
+    /// Size of the consensus input queue
+    ///
+    /// # Deprecated
+    /// This setting is deprecated and will be removed in the future.
+    /// The queue capacity is now derived from the `sync.parallel_requests` setting.
+    #[serde(default)]
+    pub queue_capacity: usize,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct VoteSyncConfig {
-    /// The mode of vote synchronization
-    /// - RequestResponse: The lagging node sends a request to a peer for the missing votes
-    /// - Rebroadcast: Nodes rebroadcast their last vote to all peers
-    pub mode: VoteSyncMode,
-}
-
-/// The mode of vote synchronization
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum VoteSyncMode {
-    /// The lagging node sends a request to a peer for the missing votes
-    #[default]
-    RequestResponse,
-
-    /// Nodes rebroadcast their last vote to all peers
-    Rebroadcast,
-}
-
-impl VoteSyncMode {
-    pub fn is_request_response(&self) -> bool {
-        matches!(self, Self::RequestResponse)
-    }
-
-    pub fn is_rebroadcast(&self) -> bool {
-        matches!(self, Self::Rebroadcast)
+impl Default for ConsensusConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            p2p: P2pConfig::default(),
+            value_payload: ValuePayload::default(),
+            queue_capacity: 0,
+        }
     }
 }
 
@@ -504,79 +641,6 @@ impl ValuePayload {
         match self {
             Self::PartsOnly => false,
             Self::ProposalOnly | Self::ProposalAndParts => true,
-        }
-    }
-}
-
-/// Timeouts
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct TimeoutConfig {
-    /// How long we wait for a proposal block before prevoting nil
-    #[serde(with = "humantime_serde")]
-    pub timeout_propose: Duration,
-
-    /// How much timeout_propose increases with each round
-    #[serde(with = "humantime_serde")]
-    pub timeout_propose_delta: Duration,
-
-    /// How long we wait after receiving +2/3 prevotes for “anything” (ie. not a single block or nil)
-    #[serde(with = "humantime_serde")]
-    pub timeout_prevote: Duration,
-
-    /// How much the timeout_prevote increases with each round
-    #[serde(with = "humantime_serde")]
-    pub timeout_prevote_delta: Duration,
-
-    /// How long we wait after receiving +2/3 precommits for “anything” (ie. not a single block or nil)
-    #[serde(with = "humantime_serde")]
-    pub timeout_precommit: Duration,
-
-    /// How much the timeout_precommit increases with each round
-    #[serde(with = "humantime_serde")]
-    pub timeout_precommit_delta: Duration,
-
-    /// How long we stay in preovte or precommit steps before starting
-    /// the vote synchronization protocol.
-    #[serde(with = "humantime_serde")]
-    pub timeout_step: Duration,
-}
-
-impl TimeoutConfig {
-    pub fn timeout_duration(&self, step: TimeoutKind) -> Duration {
-        match step {
-            TimeoutKind::Propose => self.timeout_propose,
-            TimeoutKind::Prevote => self.timeout_prevote,
-            TimeoutKind::Precommit => self.timeout_precommit,
-            TimeoutKind::PrevoteTimeLimit => self.timeout_step,
-            TimeoutKind::PrecommitTimeLimit => self.timeout_step,
-            TimeoutKind::PrevoteRebroadcast => self.timeout_prevote,
-            TimeoutKind::PrecommitRebroadcast => self.timeout_precommit,
-        }
-    }
-
-    pub fn delta_duration(&self, step: TimeoutKind) -> Option<Duration> {
-        match step {
-            TimeoutKind::Propose => Some(self.timeout_propose_delta),
-            TimeoutKind::Prevote => Some(self.timeout_prevote_delta),
-            TimeoutKind::Precommit => Some(self.timeout_precommit_delta),
-            TimeoutKind::PrevoteTimeLimit => None,
-            TimeoutKind::PrecommitTimeLimit => None,
-            TimeoutKind::PrevoteRebroadcast => None,
-            TimeoutKind::PrecommitRebroadcast => None,
-        }
-    }
-}
-
-impl Default for TimeoutConfig {
-    fn default() -> Self {
-        Self {
-            timeout_propose: Duration::from_secs(3),
-            timeout_propose_delta: Duration::from_millis(500),
-            timeout_prevote: Duration::from_secs(1),
-            timeout_prevote_delta: Duration::from_millis(500),
-            timeout_precommit: Duration::from_secs(1),
-            timeout_precommit_delta: Duration::from_millis(500),
-            timeout_step: Duration::from_secs(2),
         }
     }
 }
@@ -743,17 +807,6 @@ mod tests {
     }
 
     #[test]
-    fn timeout_durations() {
-        let t = TimeoutConfig::default();
-        assert_eq!(t.timeout_duration(TimeoutKind::Propose), t.timeout_propose);
-        assert_eq!(t.timeout_duration(TimeoutKind::Prevote), t.timeout_prevote);
-        assert_eq!(
-            t.timeout_duration(TimeoutKind::Precommit),
-            t.timeout_precommit
-        );
-    }
-
-    #[test]
     fn runtime_multi_threaded() {
         assert_eq!(
             RuntimeConfig::multi_threaded(5),
@@ -779,5 +832,277 @@ mod tests {
             format!("{} {}", LogFormat::Plaintext, LogFormat::Json),
             "plaintext json"
         );
+    }
+
+    #[test]
+    fn protocol_names_default() {
+        let protocol_names = ProtocolNames::default();
+        assert_eq!(
+            protocol_names.consensus,
+            "/malachitebft-core-consensus/v1beta1"
+        );
+        assert_eq!(
+            protocol_names.discovery_kad,
+            "/malachitebft-discovery/kad/v1beta1"
+        );
+        assert_eq!(
+            protocol_names.discovery_regres,
+            "/malachitebft-discovery/reqres/v1beta1"
+        );
+        assert_eq!(protocol_names.sync, "/malachitebft-sync/v1beta1");
+    }
+
+    #[test]
+    fn protocol_names_serde() {
+        use serde_json;
+
+        // Test serialization
+        let protocol_names = ProtocolNames {
+            consensus: "/custom-consensus/v1".to_string(),
+            discovery_kad: "/custom-discovery/kad/v1".to_string(),
+            discovery_regres: "/custom-discovery/reqres/v1".to_string(),
+            sync: "/custom-sync/v1".to_string(),
+        };
+
+        let json = serde_json::to_string(&protocol_names).unwrap();
+
+        // Test deserialization
+        let deserialized: ProtocolNames = serde_json::from_str(&json).unwrap();
+        assert_eq!(protocol_names, deserialized);
+    }
+
+    #[test]
+    fn p2p_config_with_protocol_names() {
+        let config = P2pConfig::default();
+
+        // Verify protocol_names field exists and has defaults
+        assert_eq!(config.protocol_names, ProtocolNames::default());
+
+        // Test with custom protocol names
+        let custom_protocol_names = ProtocolNames {
+            consensus: "/test-network/consensus/v1".to_string(),
+            discovery_kad: "/test-network/discovery/kad/v1".to_string(),
+            discovery_regres: "/test-network/discovery/reqres/v1".to_string(),
+            sync: "/test-network/sync/v1".to_string(),
+        };
+
+        let config_with_custom = P2pConfig {
+            protocol_names: custom_protocol_names.clone(),
+            ..Default::default()
+        };
+
+        assert_eq!(config_with_custom.protocol_names, custom_protocol_names);
+    }
+
+    #[test]
+    fn protocol_names_toml_deserialization() {
+        let toml_content = r#"
+        timeout_propose = "3s"
+        timeout_propose_delta = "500ms"
+        timeout_prevote = "1s"
+        timeout_prevote_delta = "500ms"
+        timeout_precommit = "1s"
+        timeout_precommit_delta = "500ms"
+        timeout_rebroadcast = "5s"
+        value_payload = "parts-only"
+        
+        [p2p]
+        listen_addr = "/ip4/0.0.0.0/tcp/0"
+        persistent_peers = []
+        pubsub_max_size = "4 MiB"
+        rpc_max_size = "10 MiB"
+        
+        [p2p.protocol_names]
+        consensus = "/custom-network/consensus/v2"
+        discovery_kad = "/custom-network/discovery/kad/v2"
+        discovery_regres = "/custom-network/discovery/reqres/v2"
+        sync = "/custom-network/sync/v2"
+        
+        [p2p.protocol]
+        type = "gossipsub"
+        "#;
+
+        let config: ConsensusConfig = toml::from_str(toml_content).unwrap();
+
+        assert_eq!(
+            config.p2p.protocol_names.consensus,
+            "/custom-network/consensus/v2"
+        );
+        assert_eq!(
+            config.p2p.protocol_names.discovery_kad,
+            "/custom-network/discovery/kad/v2"
+        );
+        assert_eq!(
+            config.p2p.protocol_names.discovery_regres,
+            "/custom-network/discovery/reqres/v2"
+        );
+        assert_eq!(config.p2p.protocol_names.sync, "/custom-network/sync/v2");
+    }
+
+    #[test]
+    fn protocol_names_toml_defaults_when_missing() {
+        let toml_content = r#"
+        timeout_propose = "3s"
+        timeout_propose_delta = "500ms"
+        timeout_prevote = "1s"
+        timeout_prevote_delta = "500ms"
+        timeout_precommit = "1s"
+        timeout_precommit_delta = "500ms"
+        timeout_rebroadcast = "5s"
+        value_payload = "parts-only"
+        
+        [p2p]
+        listen_addr = "/ip4/0.0.0.0/tcp/0"
+        persistent_peers = []
+        pubsub_max_size = "4 MiB"
+        rpc_max_size = "10 MiB"
+        
+        [p2p.protocol]
+        type = "gossipsub"
+        "#;
+
+        let config: ConsensusConfig = toml::from_str(toml_content).unwrap();
+
+        // Should use defaults when protocol_names section is missing
+        assert_eq!(config.p2p.protocol_names, ProtocolNames::default());
+    }
+
+    #[test]
+    fn p2p_config_persistent_peers_only_default() {
+        let config = P2pConfig::default();
+        assert!(
+            !config.persistent_peers_only,
+            "persistent_peers_only should default to false"
+        );
+    }
+
+    #[test]
+    fn p2p_config_persistent_peers_only_toml() {
+        let toml_content = r#"
+        timeout_propose = "3s"
+        timeout_propose_delta = "500ms"
+        timeout_prevote = "1s"
+        timeout_prevote_delta = "500ms"
+        timeout_precommit = "1s"
+        timeout_precommit_delta = "500ms"
+        timeout_rebroadcast = "5s"
+        value_payload = "parts-only"
+        
+        [p2p]
+        listen_addr = "/ip4/0.0.0.0/tcp/0"
+        persistent_peers = []
+        persistent_peers_only = true
+        pubsub_max_size = "4 MiB"
+        rpc_max_size = "10 MiB"
+        
+        [p2p.protocol]
+        type = "gossipsub"
+        "#;
+
+        let config: ConsensusConfig = toml::from_str(toml_content).unwrap();
+        assert!(
+            config.p2p.persistent_peers_only,
+            "persistent_peers_only should be true when set in TOML"
+        );
+    }
+
+    #[test]
+    fn gossipsub_config_default_disables_peer_scoring() {
+        let config = GossipSubConfig::default();
+        assert!(!config.enable_peer_scoring());
+    }
+
+    #[test]
+    fn gossipsub_enable_peer_scoring_deserialization() {
+        struct TestCase {
+            name: &'static str,
+            toml: &'static str,
+            expected: bool,
+        }
+
+        let cases = [
+            TestCase {
+                name: "missing field defaults to false",
+                toml: r#"
+                    [p2p.protocol]
+                    type = "gossipsub"
+                "#,
+                expected: false,
+            },
+            TestCase {
+                name: "explicit true",
+                toml: r#"
+                    [p2p.protocol]
+                    type = "gossipsub"
+                    enable_peer_scoring = true
+                "#,
+                expected: true,
+            },
+            TestCase {
+                name: "explicit false",
+                toml: r#"
+                    [p2p.protocol]
+                    type = "gossipsub"
+                    enable_peer_scoring = false
+                "#,
+                expected: false,
+            },
+            TestCase {
+                name: "string true",
+                toml: r#"
+                    [p2p.protocol]
+                    type = "gossipsub"
+                    enable_peer_scoring = "true"
+                "#,
+                expected: true,
+            },
+            TestCase {
+                name: "string false",
+                toml: r#"
+                    [p2p.protocol]
+                    type = "gossipsub"
+                    enable_peer_scoring = "false"
+                "#,
+                expected: false,
+            },
+        ];
+
+        for case in cases {
+            let toml_content = format!(
+                r#"
+                timeout_propose = "3s"
+                timeout_propose_delta = "500ms"
+                timeout_prevote = "1s"
+                timeout_prevote_delta = "500ms"
+                timeout_precommit = "1s"
+                timeout_precommit_delta = "500ms"
+                timeout_rebroadcast = "5s"
+                value_payload = "parts-only"
+                
+                [p2p]
+                listen_addr = "/ip4/0.0.0.0/tcp/0"
+                persistent_peers = []
+                pubsub_max_size = "4 MiB"
+                rpc_max_size = "10 MiB"
+                {}
+                "#,
+                case.toml
+            );
+
+            let config: ConsensusConfig = toml::from_str(&toml_content)
+                .unwrap_or_else(|e| panic!("Failed to parse {}: {}", case.name, e));
+
+            let PubSubProtocol::GossipSub(gossipsub) = config.p2p.protocol else {
+                panic!("{}: expected GossipSub protocol", case.name);
+            };
+
+            assert_eq!(
+                gossipsub.enable_peer_scoring(),
+                case.expected,
+                "{}: expected enable_peer_scoring = {}",
+                case.name,
+                case.expected
+            );
+        }
     }
 }

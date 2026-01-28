@@ -14,8 +14,6 @@ If you contribute to this project, your contributions will be made to the projec
 
 ## Code of Conduct
 
-### Contact: conduct@informal.systems
-
 The Malachite project adheres to the [Rust Code of Conduct][rust-coc]. This code of conduct describes the minimum behavior expected from all contributors.
 
 Violations of this Code of Conduct can be reported by contacting the team at above mentioned contact email.
@@ -40,7 +38,35 @@ There are three ways you can contribute to Malachite:
 
 At this time, we will not be accepting contributions that only fix spelling or grammatical errors in documentation, code or elsewhere.
 
-Moreover, we will not accept any pull request which does not address an already existing issue, and which do not clearly specify which issue it is resolving and explains how it does so. 
+### Policy on Unsolicited Contributions
+
+We do not accept unsolicited contributions. The following types of PRs will be closed immediately:
+
+- PRs submitted without prior issue assignment or maintainer approval
+- PRs that only fix typos, formatting, or make superficial "improvements"
+- New documentation or features that were not requested
+- Refactoring or "code quality improvements" that were not discussed beforehand
+
+Repeat offenders may be blocked from the repository.
+
+**How to contribute properly:**
+1. Find an existing issue you'd like to work on, or open a new issue describing your proposed change
+2. Comment on the issue requesting assignment and wait for maintainer approval
+3. Only submit a PR after you have been assigned to the issue
+
+### Pull Request Requirements
+
+Pull requests will only be accepted if they meet **ALL** of the following criteria:
+
+1. The submitter must be a core contributor to Malachite
+    * OR the submitter must have been explicitly assigned to the issue that the PR addresses
+2. The PR must address an existing issue in our issue tracker
+3. The PR description must clearly reference the issue number it resolves and explain how it resolves the issue
+4. The PR must comply with all other contribution standards (code style, testing requirements, etc.)
+
+**Pull requests that do not meet these requirements will be closed without review.**
+
+If you are interested in contributing but are not a core contributor, please comment on an existing issue to request assignment before submitting a PR.
 
 ### Getting Help
 
@@ -52,9 +78,9 @@ welcome everyone to ask and offer help.
 
 _Adapted from the CometBFT and Reth contributing guides._
 
-[rust-coc]: https://www.rust-lang.org/en-US/conduct.html
+[rust-coc]: https://rust-lang.org/policies/code-of-conduct/
 [tg]: https://t.me/MalachiteEngine
-[new-issue]: https://github.com/informalsystems/malachite/issues/new
-[existing-issues]: https://github.com/informalsystems/malachite/issues
-[open-discussion]: https://github.com/informalsystems/malachite/discussions/new/choose
-[discussions-board]: https://github.com/informalsystems/malachite/discussions
+[new-issue]: https://github.com/circlefin/malachite/issues/new
+[existing-issues]: https://github.com/circlefin/malachite/issues
+[open-discussion]: https://github.com/circlefin/malachite/discussions/new/choose
+[discussions-board]: https://github.com/circlefin/malachite/discussions

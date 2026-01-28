@@ -14,8 +14,8 @@ permissions:
 jobs:
   lint:
     name: Check PR title
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-small
     steps:
-      - uses: amannn/action-semantic-pull-request@v5
+      - uses: step-security/action-semantic-pull-request@v5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

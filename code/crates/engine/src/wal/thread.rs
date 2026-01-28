@@ -1,8 +1,9 @@
 use std::ops::ControlFlow;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::thread::JoinHandle;
 use std::{io, thread};
 
-use eyre::Result;
+use eyre::{eyre, Result};
 use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, info};
 
@@ -15,7 +16,7 @@ use super::iter::log_entries;
 pub type ReplyTo<T> = oneshot::Sender<Result<T>>;
 
 pub enum WalMsg<Ctx: Context> {
-    StartedHeight(Ctx::Height, ReplyTo<Vec<WalEntry<Ctx>>>),
+    StartedHeight(Ctx::Height, ReplyTo<Vec<io::Result<WalEntry<Ctx>>>>),
     Reset(Ctx::Height, ReplyTo<()>),
     Append(WalEntry<Ctx>, ReplyTo<()>),
     Flush(ReplyTo<()>),
@@ -34,16 +35,24 @@ where
     Codec: WalCodec<Ctx>,
 {
     thread::spawn(move || {
-        while let Some(msg) = rx.blocking_recv() {
-            match process_msg(msg, &span, &mut log, &codec) {
-                Ok(ControlFlow::Continue(())) => continue,
-                Ok(ControlFlow::Break(())) => break,
-                Err(e) => error!("WAL task failed: {e}"),
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            while let Some(msg) = rx.blocking_recv() {
+                match process_msg(msg, &span, &mut log, &codec) {
+                    Ok(ControlFlow::Continue(())) => continue,
+                    Ok(ControlFlow::Break(())) => break,
+                    Err(e) => error!("WAL task failed: {e}"),
+                }
             }
-        }
 
-        // Task finished normally, stop the thread
-        drop(log);
+            info!("WAL thread exiting");
+
+            // Task finished normally, stop the thread
+            drop(log);
+        }));
+
+        if let Err(e) = result {
+            error!("WAL thread panicked: {e:?}");
+        }
     })
 }
 
@@ -65,7 +74,6 @@ where
 {
     match msg {
         WalMsg::StartedHeight(height, reply) => {
-            // FIXME: Ensure this works even with fork_id
             let sequence = height.as_u64();
 
             if sequence == log.sequence() {
@@ -79,10 +87,7 @@ where
             } else {
                 // WAL is at different sequence, restart it
                 // No entries to replay
-                let result = log
-                    .restart(sequence)
-                    .map(|_| Vec::new())
-                    .map_err(Into::into);
+                let result = log.reset(sequence).map(|_| Vec::new()).map_err(Into::into);
 
                 debug!(%height, "Reset WAL");
 
@@ -95,7 +100,7 @@ where
         WalMsg::Reset(height, reply) => {
             let sequence = height.as_u64();
 
-            let result = log.restart(sequence).map_err(Into::into);
+            let result = log.reset(sequence).map_err(Into::into);
 
             debug!(%height, "Reset WAL");
 
@@ -105,7 +110,7 @@ where
         }
 
         WalMsg::Append(entry, reply) => {
-            let tpe = wal_entry_type(&entry);
+            let entry_type = wal_entry_type(&entry);
 
             let mut buf = Vec::new();
             encode_entry(&entry, codec, &mut buf)?;
@@ -117,7 +122,7 @@ where
                     error!("ATTENTION: Failed to append entry to WAL: {e}");
                 } else {
                     debug!(
-                        type = %tpe, entry.size = %buf.len(), log.entries = %log.len(),
+                        type = %entry_type, entry.size = %buf.len(), log.entries = %log.len(),
                         "Wrote log entry"
                     );
                 }
@@ -161,7 +166,10 @@ where
     Ok(ControlFlow::Continue(()))
 }
 
-fn fetch_entries<Ctx, Codec>(log: &mut wal::Log, codec: &Codec) -> Result<Vec<WalEntry<Ctx>>>
+fn fetch_entries<Ctx, Codec>(
+    log: &mut wal::Log,
+    codec: &Codec,
+) -> Result<Vec<io::Result<WalEntry<Ctx>>>>
 where
     Ctx: Context,
     Codec: WalCodec<Ctx>,
@@ -170,36 +178,53 @@ where
         return Ok(Vec::new());
     }
 
-    let entries = log
-        .iter()?
-        .enumerate() // Add enumeration to get the index
-        .filter_map(|(idx, result)| match result {
-            Ok(entry) => Some((idx, entry)),
-            Err(e) => {
-                error!("Failed to retrieve WAL entry {idx}: {e}");
-                None
-            }
-        })
-        .filter_map(
-            |(idx, bytes)| match decode_entry(codec, io::Cursor::new(bytes.clone())) {
-                Ok(entry) => Some(entry),
-                Err(e) => {
-                    error!("Failed to decode WAL entry {idx}: {e} {:?}", bytes);
-                    None
-                }
-            },
-        )
-        .collect::<Vec<_>>();
+    let iter = log
+        .iter()
+        .map_err(|e| eyre!("Failed to open WAL for reading entries: {e}"))?;
 
-    if log.len() != entries.len() {
-        Err(eyre::eyre!(
-            "Failed to fetch and decode all WAL entries: expected {}, got {}",
-            log.len(),
-            entries.len()
-        ))
-    } else {
-        Ok(entries)
+    let mut entries = Vec::new();
+
+    for (idx, result) in iter.enumerate() {
+        match result {
+            Ok(bytes) => {
+                let decoded = decode_result(idx, Ok(bytes), codec);
+                entries.push(decoded);
+            }
+            Err(e) => {
+                error!("Failed to read WAL entry {idx}: {e}");
+                entries.push(Err(e));
+
+                log.truncate(idx as u64).map_err(|e| {
+                    eyre!("Failed to truncate WAL after read error at entry {idx}: {e}")
+                })?;
+
+                break;
+            }
+        }
     }
+
+    Ok(entries)
+}
+
+fn decode_result<Ctx, Codec>(
+    idx: usize,
+    result: io::Result<Vec<u8>>,
+    codec: &Codec,
+) -> io::Result<WalEntry<Ctx>>
+where
+    Ctx: Context,
+    Codec: WalCodec<Ctx>,
+{
+    result
+        .inspect_err(|e| error!("Failed to retrieve WAL entry {idx}: {e}"))
+        .and_then(|bytes| {
+            decode_entry(codec, io::Cursor::new(&bytes)).inspect_err(|e| {
+                error!(
+                    "Failed to decode WAL entry {idx}: {e} (0x{})",
+                    hex::encode(&bytes)
+                );
+            })
+        })
 }
 
 fn dump_entries<'a, Ctx, Codec>(log: &'a mut wal::Log, codec: &'a Codec) -> Result<()>

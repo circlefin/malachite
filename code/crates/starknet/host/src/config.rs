@@ -2,11 +2,11 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use malachitebft_app::node::NodeConfig;
+use malachitebft_app::config::NodeConfig;
 
 pub use malachitebft_app::config::{
     ConsensusConfig, LogFormat, LogLevel, LoggingConfig, MempoolConfig, MetricsConfig,
-    RuntimeConfig, TestConfig, TimeoutConfig, ValueSyncConfig,
+    RuntimeConfig, TestConfig, ValueSyncConfig,
 };
 
 /// Malachite configuration options
@@ -47,8 +47,16 @@ impl NodeConfig for Config {
         &self.consensus
     }
 
+    fn consensus_mut(&mut self) -> &mut ConsensusConfig {
+        &mut self.consensus
+    }
+
     fn value_sync(&self) -> &ValueSyncConfig {
         &self.value_sync
+    }
+
+    fn value_sync_mut(&mut self) -> &mut ValueSyncConfig {
+        &mut self.value_sync
     }
 }
 
@@ -64,23 +72,3 @@ pub fn load_config(path: impl AsRef<Path>, prefix: Option<&str>) -> eyre::Result
         .try_deserialize()
         .map_err(Into::into)
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//
-//     #[test]
-//     fn parse_default_config_file() {
-//         let file = include_str!("../config.toml");
-//         let config = toml::from_str::<Config>(file).unwrap();
-//         assert_eq!(config.consensus.timeouts, TimeoutConfig::default());
-//
-//         let tmp_file = std::env::temp_dir().join("config-test.toml");
-//         std::fs::write(&tmp_file, file).unwrap();
-//
-//         let config = load_config(&tmp_file, None).unwrap();
-//         assert_eq!(config.consensus.timeouts, TimeoutConfig::default());
-//
-//         std::fs::remove_file(tmp_file).unwrap();
-//     }
-// }

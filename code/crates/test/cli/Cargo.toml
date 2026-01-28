@@ -14,6 +14,7 @@ malachitebft-core-types.workspace = true
 malachitebft-metrics.workspace = true
 malachitebft-config.workspace = true
 malachitebft-app.workspace = true
+malachitebft-test.workspace = true
 
 axum = { workspace = true }
 bytesize = { workspace = true }

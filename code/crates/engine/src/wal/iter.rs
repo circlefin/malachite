@@ -35,17 +35,16 @@ where
     Ctx: Context,
     Codec: WalCodec<Ctx>,
 {
-    type Item = Result<WalEntry<Ctx>>;
+    type Item = io::Result<WalEntry<Ctx>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let entry = self.iter.next()?;
         match entry {
             Ok(bytes) => {
                 let buf = io::Cursor::new(bytes);
-                let entry = decode_entry(self.codec, buf);
-                Some(entry.map_err(Into::into))
+                Some(decode_entry(self.codec, buf))
             }
-            Err(e) => Some(Err(e.into())),
+            Err(e) => Some(Err(e)),
         }
     }
 }

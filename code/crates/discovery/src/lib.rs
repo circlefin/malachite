@@ -1,18 +1,17 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use tracing::{debug, error, info, warn};
 
 use malachitebft_metrics::Registry;
 
+use libp2p::core::SignedEnvelope;
 use libp2p::{identify, kad, request_response, swarm::ConnectionId, Multiaddr, PeerId, Swarm};
-
-mod util;
 
 mod behaviour;
 pub use behaviour::*;
 
-mod connection;
-use connection::ConnectionData;
+mod dial;
+use dial::DialData;
 
 pub mod config;
 pub use config::Config;
@@ -28,6 +27,8 @@ use metrics::Metrics;
 
 mod request;
 
+pub mod util;
+
 #[derive(Debug, PartialEq)]
 enum State {
     Bootstrapping,
@@ -35,13 +36,34 @@ enum State {
     Idle,
 }
 
-// The usage of `OutboundConnection` is to keep track of the persistent connection status
-// of a peer with its connection id. The connection id is an option as one can try to upgrade
-// a connection that does not exist yet (hence, no connection id exists yet).
-#[derive(Debug)]
-struct OutboundConnection {
-    connection_id: Option<ConnectionId>,
-    is_persistent: bool,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConnectionDirection {
+    /// Outbound connection (we dialed the peer)
+    Outbound,
+    /// Inbound connection (the peer dialed us)
+    Inbound,
+}
+
+impl ConnectionDirection {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Outbound => "outbound",
+            Self::Inbound => "inbound",
+        }
+    }
+}
+
+/// Information about an established connection
+#[derive(Debug, Clone)]
+pub struct ConnectionInfo {
+    pub direction: ConnectionDirection,
+    pub remote_addr: Multiaddr,
+}
+
+#[derive(Debug, PartialEq)]
+enum OutboundState {
+    Pending,
+    Confirmed,
 }
 
 #[derive(Debug)]
@@ -54,11 +76,15 @@ where
 
     selector: Box<dyn Selector<C>>,
 
-    bootstrap_nodes: Vec<(Option<PeerId>, Multiaddr)>,
+    bootstrap_nodes: Vec<(Option<PeerId>, Vec<Multiaddr>)>,
     discovered_peers: HashMap<PeerId, identify::Info>,
+    /// Signed peer records received from peers (cryptographically verified)
+    signed_peer_records: HashMap<PeerId, SignedEnvelope>,
     active_connections: HashMap<PeerId, Vec<ConnectionId>>,
-    outbound_connections: HashMap<PeerId, OutboundConnection>,
-    inbound_connections: HashMap<PeerId, ConnectionId>,
+    /// Track connection info (direction and remote address) per connection
+    pub connections: HashMap<ConnectionId, ConnectionInfo>,
+    outbound_peers: HashMap<PeerId, OutboundState>,
+    inbound_peers: HashSet<PeerId>,
 
     pub controller: Controller,
     metrics: Metrics,
@@ -77,6 +103,15 @@ where
                 "disabled"
             }
         );
+
+        // Warn if discovery is enabled with persistent_peers_only
+        if config.enabled && config.persistent_peers_only {
+            warn!(
+                "Discovery is enabled with persistent_peers_only mode. \
+                 Discovered peers will be rejected unless they are in the persistent_peers list. \
+                 Consider disabling discovery for a pure persistent-peers-only setup."
+            );
+        }
 
         let state = if config.enabled && bootstrap_nodes.is_empty() {
             warn!("No bootstrap nodes provided");
@@ -113,12 +148,14 @@ where
             bootstrap_nodes: bootstrap_nodes
                 .clone()
                 .into_iter()
-                .map(|addr| (None, addr))
+                .map(|addr| (None, vec![addr]))
                 .collect(),
             discovered_peers: HashMap::new(),
+            signed_peer_records: HashMap::new(),
             active_connections: HashMap::new(),
-            outbound_connections: HashMap::new(),
-            inbound_connections: HashMap::new(),
+            connections: HashMap::new(),
+            outbound_peers: HashMap::new(),
+            inbound_peers: HashSet::new(),
 
             controller: Controller::new(),
             metrics: Metrics::new(registry, !config.enabled || bootstrap_nodes.is_empty()),
@@ -129,8 +166,22 @@ where
         self.config.enabled
     }
 
-    fn active_connections_len(&self) -> usize {
-        self.active_connections.values().map(Vec::len).sum()
+    /// Check if a peer connection is outbound
+    pub fn is_outbound_peer(&self, peer_id: &PeerId) -> bool {
+        self.outbound_peers.contains_key(peer_id)
+    }
+
+    /// Check if a peer connection is inbound
+    pub fn is_inbound_peer(&self, peer_id: &PeerId) -> bool {
+        self.inbound_peers.contains(peer_id)
+    }
+
+    /// Check if a peer is a persistent peer (in the bootstrap_nodes list)
+    pub fn is_persistent_peer(&self, peer_id: &PeerId) -> bool {
+        // XXX: The assumption here is bootstrap_nodes is a list of persistent peers.
+        self.bootstrap_nodes
+            .iter()
+            .any(|(maybe_peer_id, _)| maybe_peer_id == &Some(*peer_id))
     }
 
     pub fn on_network_event(
@@ -175,16 +226,20 @@ where
                                 request, channel, ..
                             },
                     } => match request {
-                        behaviour::Request::Peers(peers) => {
-                            debug!(peer_id = %peer, %connection_id, "Received peers request");
+                        behaviour::Request::Peers(signed_records) => {
+                            debug!(
+                                peer_id = %peer, %connection_id,
+                                count = signed_records.len(),
+                                "Received peers request"
+                            );
 
-                            self.handle_peers_request(swarm, peer, channel, peers);
+                            self.handle_peers_request(swarm, peer, channel, signed_records);
                         }
 
                         behaviour::Request::Connect() => {
                             debug!(peer_id = %peer, %connection_id, "Received connect request");
 
-                            self.handle_connect_request(swarm, channel, peer, connection_id);
+                            self.handle_connect_request(swarm, channel, peer);
                         }
                     },
 
@@ -198,22 +253,20 @@ where
                                 ..
                             },
                     } => match response {
-                        behaviour::Response::Peers(peers) => {
-                            debug!(%peer, %connection_id, count = peers.len(), "Received peers response");
+                        behaviour::Response::Peers(signed_records) => {
+                            debug!(
+                                %peer, %connection_id,
+                                count = signed_records.len(),
+                                "Received peers response"
+                            );
 
-                            self.handle_peers_response(swarm, request_id, peers);
+                            self.handle_peers_response(swarm, request_id, signed_records);
                         }
 
                         behaviour::Response::Connect(accepted) => {
                             debug!(%peer, %connection_id, accepted, "Received connect response");
 
-                            self.handle_connect_response(
-                                swarm,
-                                request_id,
-                                peer,
-                                connection_id,
-                                accepted,
-                            );
+                            self.handle_connect_response(swarm, request_id, peer, accepted);
                         }
                     },
 

@@ -121,12 +121,11 @@ fn encode_timeout(tag: u8, timeout: &Timeout, mut buf: impl Write) -> io::Result
         TimeoutKind::Prevote => 2,
         TimeoutKind::Precommit => 3,
 
+        // NOTE: Commit, prevote and precommit time limit timeouts have been removed.
+
         // Consensus will typically not want to store these timeouts in the WAL,
         // but we still need to handle them here.
-        TimeoutKind::PrevoteTimeLimit => 5,
-        TimeoutKind::PrecommitTimeLimit => 6,
-        TimeoutKind::PrevoteRebroadcast => 7,
-        TimeoutKind::PrecommitRebroadcast => 8,
+        TimeoutKind::Rebroadcast => 7,
     };
 
     buf.write_u8(tag)?;
@@ -144,7 +143,7 @@ fn decode_timeout(mut buf: impl Read) -> io::Result<Timeout> {
         2 => TimeoutKind::Prevote,
         3 => TimeoutKind::Precommit,
 
-        // Commit timeouts have been removed in <https://github.com/informalsystems/malachite/pull/976>,
+        // Commit timeouts have been removed in PR #976,
         // but we still need to handle them here in order to decode old WAL entries.
         4 => {
             return Err(io::Error::new(
@@ -153,12 +152,18 @@ fn decode_timeout(mut buf: impl Read) -> io::Result<Timeout> {
             ))
         }
 
+        // Prevote/precommit rebroadcast timeouts have been removed in PR #1037,
+        // but we still need to handle them here in order to decode old WAL entries.
+        5 | 6 => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "prevote/precommit time limit timeouts are no longer supported, ignoring",
+            ))
+        }
+
         // Consensus will typically not want to store these timeouts in the WAL,
         // but we still need to handle them here.
-        5 => TimeoutKind::PrevoteTimeLimit,
-        6 => TimeoutKind::PrecommitTimeLimit,
-        7 => TimeoutKind::PrevoteRebroadcast,
-        8 => TimeoutKind::PrecommitRebroadcast,
+        7 => TimeoutKind::Rebroadcast,
 
         _ => {
             return Err(io::Error::new(

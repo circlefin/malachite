@@ -3,8 +3,8 @@ use bytes::Bytes;
 use libp2p::futures::{io, AsyncRead, AsyncWrite};
 use libp2p::StreamProtocol;
 
-use crate::behaviour::Config;
 use crate::types::{RawRequest, RawResponse};
+use crate::Config;
 
 #[derive(Copy, Clone)]
 pub struct Codec {

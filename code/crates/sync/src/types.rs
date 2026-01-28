@@ -1,29 +1,59 @@
+use std::{ops::RangeInclusive, sync::Arc};
+
 use bytes::Bytes;
 use derive_where::derive_where;
 use displaydoc::Display;
 use libp2p::request_response;
 use serde::{Deserialize, Serialize};
 
-use malachitebft_core_types::{CommitCertificate, Context, PolkaCertificate, Round, VoteSet};
+use malachitebft_core_types::{CommitCertificate, Context, Height};
 pub use malachitebft_peer::PeerId;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Display)]
-#[displaydoc("{0}")]
-pub struct InboundRequestId(String);
+/// Indicates whether the height is the start of a new height or a restart of the latest height
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum HeightStartType {
+    /// This is the start of a new height
+    Start,
 
-impl InboundRequestId {
-    pub fn new(id: impl ToString) -> Self {
-        Self(id.to_string())
+    /// This is a restart of the latest height
+    Restart,
+}
+
+impl HeightStartType {
+    pub const fn from_is_restart(is_restart: bool) -> Self {
+        if is_restart {
+            Self::Restart
+        } else {
+            Self::Start
+        }
+    }
+
+    pub const fn is_start(&self) -> bool {
+        matches!(self, Self::Start)
+    }
+
+    pub const fn is_restart(&self) -> bool {
+        matches!(self, Self::Restart)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Display)]
 #[displaydoc("{0}")]
-pub struct OutboundRequestId(String);
+pub struct InboundRequestId(Arc<str>);
+
+impl InboundRequestId {
+    pub fn new(id: impl ToString) -> Self {
+        Self(Arc::from(id.to_string()))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Display)]
+#[displaydoc("{0}")]
+pub struct OutboundRequestId(Arc<str>);
 
 impl OutboundRequestId {
     pub fn new(id: impl ToString) -> Self {
-        Self(id.to_string())
+        Self(Arc::from(id.to_string()))
     }
 }
 
@@ -39,35 +69,47 @@ pub struct Status<Ctx: Context> {
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub enum Request<Ctx: Context> {
     ValueRequest(ValueRequest<Ctx>),
-    VoteSetRequest(VoteSetRequest<Ctx>),
 }
 
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub enum Response<Ctx: Context> {
     ValueResponse(ValueResponse<Ctx>),
-    VoteSetResponse(VoteSetResponse<Ctx>),
 }
 
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct ValueRequest<Ctx: Context> {
-    pub height: Ctx::Height,
+    pub range: RangeInclusive<Ctx::Height>,
 }
 
 impl<Ctx: Context> ValueRequest<Ctx> {
-    pub fn new(height: Ctx::Height) -> Self {
-        Self { height }
+    pub fn new(range: RangeInclusive<Ctx::Height>) -> Self {
+        Self { range }
     }
 }
 
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct ValueResponse<Ctx: Context> {
-    pub height: Ctx::Height,
-    pub value: Option<RawDecidedValue<Ctx>>,
+    /// The height of the first value in the response.
+    pub start_height: Ctx::Height,
+
+    /// Values are sequentially ordered by height.
+    pub values: Vec<RawDecidedValue<Ctx>>,
 }
 
 impl<Ctx: Context> ValueResponse<Ctx> {
-    pub fn new(height: Ctx::Height, value: Option<RawDecidedValue<Ctx>>) -> Self {
-        Self { height, value }
+    pub fn new(start_height: Ctx::Height, values: Vec<RawDecidedValue<Ctx>>) -> Self {
+        Self {
+            start_height,
+            values,
+        }
+    }
+
+    pub fn end_height(&self) -> Option<Ctx::Height> {
+        if self.values.is_empty() {
+            None
+        } else {
+            Some(self.start_height.increment_by(self.values.len() as u64 - 1))
+        }
     }
 }
 
@@ -105,43 +147,3 @@ pub struct RawRequest(pub Bytes);
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RawResponse(pub Bytes);
-
-#[derive_where(Clone, Debug, PartialEq, Eq)]
-pub struct VoteSetRequest<Ctx: Context> {
-    pub height: Ctx::Height,
-    pub round: Round,
-}
-
-impl<Ctx: Context> VoteSetRequest<Ctx> {
-    pub fn new(height: Ctx::Height, round: Round) -> Self {
-        Self { height, round }
-    }
-}
-
-#[derive_where(Clone, Debug, PartialEq, Eq)]
-pub struct VoteSetResponse<Ctx: Context> {
-    /// The height of the vote set
-    pub height: Ctx::Height,
-    /// The round of the vote set
-    pub round: Round,
-    /// The set of votes at this height and round
-    pub vote_set: VoteSet<Ctx>,
-    /// Certificates witnessing a Polka at this height for any round up to this round included
-    pub polka_certificates: Vec<PolkaCertificate<Ctx>>,
-}
-
-impl<Ctx: Context> VoteSetResponse<Ctx> {
-    pub fn new(
-        height: Ctx::Height,
-        round: Round,
-        vote_set: VoteSet<Ctx>,
-        polka_certificates: Vec<PolkaCertificate<Ctx>>,
-    ) -> Self {
-        Self {
-            height,
-            round,
-            vote_set,
-            polka_certificates,
-        }
-    }
-}

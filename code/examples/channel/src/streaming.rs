@@ -97,7 +97,7 @@ impl StreamState {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ProposalParts {
     pub height: Height,
     pub round: Round,

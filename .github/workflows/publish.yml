@@ -9,20 +9,16 @@ on:
 jobs:
   publish:
     name: Publish to crates.io
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-small
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           cache-workspaces: "code"
       - name: Publish crates
-        uses: katyo/publish-crates@v2
+        uses: step-security/publish-crates@v2
         with:
           registry-token: ${{ secrets.CRATES_TOKEN }}
           path: code

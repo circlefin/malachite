@@ -17,7 +17,7 @@ env:
 jobs:
   changes:
     name: Detect changes
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-small
     permissions:
       pull-requests: read
     outputs:
@@ -40,7 +40,7 @@ jobs:
     name: Integration
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' || needs.changes.outputs.codecov == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-small
     defaults:
       run:
         working-directory: code
@@ -48,26 +48,16 @@ jobs:
       CARGO_TERM_COLOR: always
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      # - name: Setup Node
-      #   uses: actions/setup-node@v3
-      #   with:
-      #     node-version: "18"
-      # - name: Install Quint
-      #   run: npm install -g @informalsystems/quint
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Setup Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1
         with:
           toolchain: nightly-2025-01-07 # pin to working nightly
           components: llvm-tools-preview
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@cargo-nextest
+        uses: taiki-e/install-action@ea550356e2321dfdcd1d315eb6bf64d259aa5da1 # cargo-nextest
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
+        uses: taiki-e/install-action@4f58db3287097306b1c9381106c8445b616d3c08 # cargo-llvm-cov
       - name: Generate code coverage
         run: |
           cargo llvm-cov nextest \
@@ -78,26 +68,29 @@ jobs:
             --all-features \
             --no-capture \
             --ignore-run-fail \
-            --lcov \
-            --output-path lcov-integration.info
+            --codecov \
+            --output-path coverage-integration.info
       - name: Generate text report
         run: cargo llvm-cov report
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: integration-coverage
-          path: code/lcov-integration.info
-      - name: Upload test results artifact
-        uses: actions/upload-artifact@v4
+          path: code/coverage-integration.info
+          retention-days: 1
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@47f89e9acb64b76debcd5ea40642d25a4adced9f # v1
         with:
-          name: integration-test-results
-          path: code/target/nextest/default/junit.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: integration
+          fail_ci_if_error: false
 
   # mbt:
   #   name: MBT
   #   needs: changes
   #   if: ${{ needs.changes.outputs.code == 'true' || needs.changes.outputs.specs == 'true' || needs.changes.outputs.codecov == 'true' || github.ref == 'refs/heads/main' }}
-  #   runs-on: ubuntu-latest
+  #   runs-on: github-hosted-small
   #   defaults:
   #     run:
   #       working-directory: code
@@ -105,78 +98,80 @@ jobs:
   #     CARGO_TERM_COLOR: always
   #   steps:
   #     - name: Checkout
-  #       uses: actions/checkout@v4
+  #       uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
   #     - name: Install Protoc
-  #       uses: arduino/setup-protoc@v3
+  #       uses: step-security/setup-protoc@f6eb248a6510dbb851209febc1bd7981604a52e3 # v3
   #       with:
   #         repo-token: ${{ secrets.GITHUB_TOKEN }}
   #     - name: Setup Node
-  #       uses: actions/setup-node@v3
+  #       uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3
   #       with:
   #         node-version: "18"
   #     - name: Install Quint
   #       run: npm install -g @informalsystems/quint
   #     - name: Setup Rust toolchain
-  #       uses: actions-rust-lang/setup-rust-toolchain@v1
+  #       uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1
   #       with:
   #         toolchain: nightly-2025-01-07 # pin to working nightly
   #         components: llvm-tools-preview
   #     - name: Install cargo-nextest
-  #       uses: taiki-e/install-action@cargo-nextest
+  #       uses: taiki-e/install-action@ea550356e2321dfdcd1d315eb6bf64d259aa5da1 # cargo-nextest
   #     - name: Install cargo-llvm-cov
-  #       uses: taiki-e/install-action@cargo-llvm-cov
+  #       uses: taiki-e/install-action@4f58db3287097306b1c9381106c8445b616d3c08 # cargo-llvm-cov
   #     - name: Generate code coverage
   #       run: |
   #         cargo llvm-cov nextest \
   #          -p informalsystems-malachitebft-test-mbt \
   #          -p informalsystems-malachitebft-starknet-test-mbt \
-  #          --all-features --lcov --output-path lcov-mbt.info
+  #          --all-features --codecov --output-path coverage-mbt.info
   #     - name: Generate text report
   #       run: cargo llvm-cov report
   #     - name: Upload coverage artifact
-  #       uses: actions/upload-artifact@v4
+  #       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
   #       with:
   #         name: mbt-coverage
-  #         path: code/lcov-mbt.info
+  #         path: code/coverage-mbt.info
+  #         retention-days: 1
+  #     - name: Upload test results to Codecov
+  #       if: ${{ !cancelled() }}
+  #       uses: codecov/test-results-action@47f89e9acb64b76debcd5ea40642d25a4adced9f # v1
+  #       with:
+  #         token: ${{ secrets.CODECOV_TOKEN }}
+  #         flags: mbt
+  #         fail_ci_if_error: false
 
   upload-coverage:
-    name: Upload Coverage
-    needs: [integration]
-    runs-on: ubuntu-latest
+    name: Upload coverage to Codecov
+    # needs: [changes, integration, mbt]
+    # needs: [changes, integration]
+    runs-on: github-hosted-small
+    if: ${{ !cancelled() && (needs.changes.outputs.code == 'true' || needs.changes.outputs.specs == 'true' || needs.changes.outputs.codecov == 'true' || github.ref == 'refs/heads/main') }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Create coverage directory
+        run: mkdir -p code/coverage
       - name: Download integration coverage
         uses: actions/download-artifact@v4
         with:
           name: integration-coverage
+          path: code/coverage
       # - name: Download MBT coverage
       #   uses: actions/download-artifact@v4
       #   with:
       #     name: mbt-coverage
-      - name: Download integration test results
-        uses: actions/download-artifact@v4
-        with:
-          name: integration-test-results
+      #     path: code/coverage
+      - name: List coverage files
+        run: ls -la code/coverage
       - name: Upload integration coverage to Codecov
-        uses: codecov/codecov-action@v5
-        if: ${{ !cancelled() }}
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: lcov-integration.info
-          flags: integration
-          fail_ci_if_error: false
+        working-directory: code
+        run: |
+          bash <(curl -s https://codecov.io/bash) -f coverage/coverage-integration.info -F integration
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       # - name: Upload MBT coverage to Codecov
-      #   uses: codecov/codecov-action@v5
-      #   if: ${{ !cancelled() }}
-      #   with:
-      #     token: ${{ secrets.CODECOV_TOKEN }}
-      #     files: lcov-mbt.info
-      #     flags: mbt
-      #     fail_ci_if_error: false
-      - name: Upload test results to Codecov
-        if: ${{ !cancelled() }}
-        uses: codecov/test-results-action@v1
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          file: junit.xml
-          flags: integration
-          fail_ci_if_error: false
+      #   working-directory: code
+      #   run: |
+      #     bash <(curl -s https://codecov.io/bash) -f coverage/coverage-mbt.info -F mbt
+      #   env:
+      #     CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

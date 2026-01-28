@@ -1,7 +1,8 @@
 use std::fs;
+use std::hint::black_box;
 use std::path::PathBuf;
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use tempfile::tempdir;
 
 use informalsystems_malachitebft_wal::Log;
@@ -123,7 +124,7 @@ fn get_temp_wal_path(dir: &tempfile::TempDir) -> PathBuf {
     use std::sync::atomic::{AtomicUsize, Ordering};
     static COUNTER: AtomicUsize = AtomicUsize::new(0);
     let id = COUNTER.fetch_add(1, Ordering::SeqCst);
-    dir.path().join(format!("bench_{}.wal", id))
+    dir.path().join(format!("bench_{id}.wal"))
 }
 
 /// Benchmark sequential writes

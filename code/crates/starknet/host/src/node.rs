@@ -9,19 +9,20 @@ use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;
 
 use malachitebft_app::events::{RxEvent, TxEvent};
-use malachitebft_app::node::{
-    CanGeneratePrivateKey, CanMakeConfig, CanMakeDistributedConfig, CanMakeGenesis,
-    CanMakePrivateKeyFile, MakeConfigSettings, Node, NodeHandle,
-};
 use malachitebft_app::types::Keypair;
 use malachitebft_config::mempool_load::UniformLoadConfig;
-use malachitebft_core_types::VotingPower;
+use malachitebft_core_types::{LinearTimeouts, VotingPower};
 use malachitebft_engine::node::NodeRef;
 use malachitebft_starknet_p2p_types::Ed25519Provider;
+use malachitebft_test::node::{Node, NodeHandle};
+use malachitebft_test::traits::{
+    CanGeneratePrivateKey, CanMakeConfig, CanMakeDistributedConfig, CanMakeGenesis,
+    CanMakePrivateKeyFile, MakeConfigSettings,
+};
 
 use crate::config::{load_config, Config};
 use crate::spawn::spawn_node_actor;
-use crate::types::{Address, Height, MockContext, PrivateKey, PublicKey, Validator, ValidatorSet};
+use crate::types::{Address, MockContext, PrivateKey, PublicKey, Validator, ValidatorSet};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Genesis {
@@ -167,14 +168,12 @@ impl Node for StarknetNode {
         let genesis = self.load_genesis()?;
         let tx_event = TxEvent::new();
 
-        let start_height = self.start_height.map(|height| Height::new(height, 1));
-
         let (actor, handle) = spawn_node_actor(
             config.clone(),
             self.home_dir.clone(),
             genesis.validator_set,
+            LinearTimeouts::default(),
             private_key,
-            start_height,
             tx_event.clone(),
             span.clone(),
         )
@@ -255,13 +254,11 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
     let metrics_port = METRICS_BASE_PORT + index;
 
     Config {
-        moniker: format!("starknet-{}", index),
+        moniker: format!("starknet-{index}"),
         consensus: ConsensusConfig {
+            enabled: true,
             value_payload: ValuePayload::PartsOnly,
-            vote_sync: VoteSyncConfig {
-                mode: VoteSyncMode::Rebroadcast,
-            },
-            timeouts: TimeoutConfig::default(),
+            queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
                 listen_addr: settings.transport.multiaddr("127.0.0.1", consensus_port),
@@ -296,6 +293,7 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
                         .collect()
                 },
                 discovery: settings.discovery,
+                persistent_peers_only: settings.persistent_peers_only,
                 ..Default::default()
             },
         },
@@ -343,7 +341,6 @@ fn make_distributed_config(
 ) -> Config {
     use itertools::Itertools;
     use malachitebft_config::*;
-    use std::time::Duration;
 
     const CONSENSUS_BASE_PORT: usize = 27000;
     const MEMPOOL_BASE_PORT: usize = 28000;
@@ -355,13 +352,11 @@ fn make_distributed_config(
     let metrics_port = METRICS_BASE_PORT + (index / machines.len());
 
     Config {
-        moniker: format!("starknet-{}", index),
+        moniker: format!("starknet-{index}"),
         consensus: ConsensusConfig {
+            enabled: true,
+            queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`
             value_payload: ValuePayload::PartsOnly,
-            vote_sync: VoteSyncConfig {
-                mode: VoteSyncMode::Rebroadcast,
-            },
-            timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
                 listen_addr: settings.transport.multiaddr(&machine, consensus_port),
@@ -393,6 +388,7 @@ fn make_distributed_config(
                         .collect()
                 },
                 discovery: settings.discovery,
+                persistent_peers_only: settings.persistent_peers_only,
                 ..Default::default()
             },
         },
@@ -415,8 +411,7 @@ fn make_distributed_config(
         },
         value_sync: ValueSyncConfig {
             enabled: false,
-            status_update_interval: Duration::from_secs(0),
-            request_timeout: Duration::from_secs(0),
+            ..settings.value_sync
         },
         metrics: MetricsConfig {
             enabled: true,
@@ -429,7 +424,7 @@ fn make_distributed_config(
 }
 
 fn default_config() -> Config {
-    use malachitebft_config::{DiscoveryConfig, RuntimeConfig, TransportProtocol};
+    use malachitebft_config::{DiscoveryConfig, RuntimeConfig, TransportProtocol, ValueSyncConfig};
 
     make_config(
         1,
@@ -438,6 +433,8 @@ fn default_config() -> Config {
             runtime: RuntimeConfig::single_threaded(),
             transport: TransportProtocol::Tcp,
             discovery: DiscoveryConfig::default(),
+            value_sync: ValueSyncConfig::default(),
+            persistent_peers_only: false,
         },
     )
 }

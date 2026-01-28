@@ -11,12 +11,15 @@ use tracing::Instrument;
 
 use malachitebft_app_channel::app::events::{RxEvent, TxEvent};
 use malachitebft_app_channel::app::metrics::SharedRegistry;
-use malachitebft_app_channel::app::node::{
-    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, EngineHandle,
-    MakeConfigSettings, Node, NodeHandle,
-};
 use malachitebft_app_channel::app::types::core::{Height as _, VotingPower};
 use malachitebft_app_channel::app::types::Keypair;
+use malachitebft_app_channel::{
+    ConsensusContext, EngineHandle, NetworkContext, NetworkIdentity, RequestContext, WalContext,
+};
+use malachitebft_test::node::{Node, NodeHandle};
+use malachitebft_test::traits::{
+    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, MakeConfigSettings,
+};
 
 // Use the same types used for integration tests.
 // A real application would use its own types and context instead.
@@ -125,21 +128,20 @@ impl Node for App {
         let private_key = self.load_private_key(private_key_file);
         let public_key = self.get_public_key(&private_key);
         let address = self.get_address(&public_key);
-        let signing_provider = self.get_signing_provider(private_key);
+        let keypair = self.get_keypair(private_key.clone());
+        let wal_path = self.get_home_dir().join("wal").join("consensus.wal");
         let ctx = TestContext::new();
-
+        let identity =
+            NetworkIdentity::new(config.moniker.clone(), keypair, Some(address.to_string()));
         let genesis = self.load_genesis()?;
-        let initial_validator_set = genesis.validator_set.clone();
-
-        let codec = ProtobufCodec;
 
         let (mut channels, engine_handle) = malachitebft_app_channel::start_engine(
             ctx.clone(),
-            codec,
-            self.clone(),
             config.clone(),
-            self.start_height,
-            initial_validator_set,
+            WalContext::new(wal_path, ProtobufCodec),
+            NetworkContext::new(identity, ProtobufCodec),
+            ConsensusContext::new(address, self.get_signing_provider(private_key.clone())),
+            RequestContext::new(100), // Request channel size
         )
         .await?;
 
@@ -157,7 +159,14 @@ impl Node for App {
 
         let store = Store::open(db_dir.join("store.db"), metrics).await?;
         let start_height = self.start_height.unwrap_or(Height::INITIAL);
-        let mut state = State::new(ctx, signing_provider, genesis, address, start_height, store);
+        let mut state = State::new(
+            ctx,
+            self.get_signing_provider(private_key),
+            genesis,
+            address,
+            start_height,
+            store,
+        );
 
         let span = tracing::error_span!("node", moniker = %config.moniker);
         let app_handle = tokio::spawn(
@@ -230,14 +239,12 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
     let metrics_port = METRICS_BASE_PORT + index;
 
     Config {
-        moniker: format!("app-{}", index),
+        moniker: format!("app-{index}"),
         consensus: ConsensusConfig {
+            enabled: true,
             // Current channel app does not support parts-only value payload properly as Init does not include valid_round
             value_payload: ValuePayload::ProposalAndParts,
-            vote_sync: VoteSyncConfig {
-                mode: VoteSyncMode::RequestResponse,
-            },
-            timeouts: TimeoutConfig::default(),
+            queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
                 listen_addr: settings.transport.multiaddr("127.0.0.1", consensus_port),

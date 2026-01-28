@@ -6,6 +6,11 @@ use core::{cmp, fmt};
 /// - `Round::Nil` (ie. `-1`)
 /// - `Round::Some(r)` where `r >= 0`
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "borsh",
+    derive(::borsh::BorshSerialize, ::borsh::BorshDeserialize)
+)]
 pub enum Round {
     /// No round, ie. `-1`
     Nil,
@@ -63,6 +68,54 @@ impl Round {
         match self {
             Round::Nil => Round::new(0),
             Round::Some(r) => Round::new(r + 1),
+        }
+    }
+
+    /// Return `self` if it is defined, otherwise return `round`.
+    ///
+    /// ```rust
+    /// use informalsystems_malachitebft_core_types::Round;
+    ///
+    /// let nil = Round::Nil;
+    /// let some = Round::Some(2);
+    ///
+    /// assert_eq!(nil.or(Round::Some(5)), Round::Some(5));
+    /// assert_eq!(some.or(Round::Some(5)), Round::Some(2));
+    ///
+    /// assert_eq!(nil.or(Round::Nil), Round::Nil);
+    /// assert_eq!(some.or(Round::Nil), Round::Some(2));
+    ///
+    /// assert_eq!(nil.or(Round::new(10)), Round::new(10));
+    /// assert_eq!(some.or(Round::new(10)), Round::Some(2));
+    /// ```
+    pub fn or(&self, round: Round) -> Round {
+        match self {
+            Round::Nil => round,
+            Round::Some(_) => *self,
+        }
+    }
+
+    /// Return `self` if it is defined, otherwise compute and return the result of `f`.
+    ///
+    /// ```rust
+    /// use informalsystems_malachitebft_core_types::Round;
+    ///
+    /// let nil = Round::Nil;
+    /// let some = Round::Some(2);
+    ///
+    /// assert_eq!(nil.or_else(|| Round::Some(5)), Round::Some(5));
+    /// assert_eq!(some.or_else(|| Round::Some(5)), Round::Some(2));
+    ///
+    /// assert_eq!(nil.or_else(|| Round::Nil), Round::Nil);
+    /// assert_eq!(some.or_else(|| Round::Nil), Round::Some(2));
+    ///
+    /// assert_eq!(nil.or_else(|| Round::new(10)), Round::new(10));
+    /// assert_eq!(some.or_else(|| Round::new(10)), Round::Some(2));
+    /// ```
+    pub fn or_else(&self, f: impl FnOnce() -> Round) -> Round {
+        match self {
+            Round::Nil => f(),
+            Round::Some(_) => *self,
         }
     }
 }

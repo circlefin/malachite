@@ -29,6 +29,10 @@ where
 
 /// Whether or not a proposal is valid.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "borsh",
+    derive(::borsh::BorshSerialize, ::borsh::BorshDeserialize)
+)]
 pub enum Validity {
     /// The proposal is valid.
     Valid,
@@ -40,6 +44,11 @@ impl Validity {
     /// Returns `true` if the proposal is valid.
     pub fn is_valid(self) -> bool {
         self == Validity::Valid
+    }
+
+    /// Returns `true` if the proposal is invalid.
+    pub fn is_invalid(self) -> bool {
+        self == Validity::Invalid
     }
 
     /// Converts the validity to a boolean:

@@ -28,6 +28,12 @@ log_format = "plaintext"
 #######################################################
 [consensus]
 
+# Enable consensus protocol participation
+# When disabled, the node will only run synchronization protocol 
+# and will not subscribe to consensus-related topics
+# Override with MALACHITE__CONSENSUS__ENABLED env variable
+enabled = true
+
 ## Timeouts
 
 # How long we wait for a proposal block before prevoting nil
@@ -57,10 +63,9 @@ timeout_precommit_delta = "500ms"
 # Override with MALACHITE__CONSENSUS__TIMEOUT_COMMIT env variable
 timeout_commit = "0s"
 
-# How long we wait in the prevote and precommit steps before starting
-# the vote synchronization protocol
-# Override with MALACHITE__CONSENSUS__TIMEOUT_STEP env variable
-timeout_step = "2s"
+# How long we wait after entering a round before starting the rebroadcast liveness protocol
+# Override with MALACHITE__CONSENSUS__TIMEOUT_REBROADCAST env variable
+timeout_rebroadcast = "5s"
 
 # The message(s) required to carry the value payload.
 # Available options are:
@@ -98,10 +103,6 @@ persistent_peers = []
 # Override with MALACHITE__CONSENSUS__P2P__TRANSPORT env variable
 transport = "tcp"
 
-# Enable the discovery protocol to find more peers
-# Override with MALACHITE__CONSENSUS__P2P__DISCOVERY__ENABLED env variable
-discovery = { enabled = true }
-
 # The maximum size of messages to send over pub-sub
 # Must be larger than the maximum block part size.
 # Override with MALACHITE__CONSENSUS__P2P__PUBSUB_MAX_SIZE env variable
@@ -111,6 +112,26 @@ pubsub_max_size = "4 MiB"
 # Must be larger than the maximum block size.
 # Override with MALACHITE__CONSENSUS__P2P__RPC_MAX_SIZE env variable
 rpc_max_size = "10 MiB"
+
+#######################################################
+###  Consensus P2P Discovery Configuration Options  ###
+#######################################################
+[consensus.p2p.discovery]
+
+# Enable the discovery protocol to find more peers
+# Override with MALACHITE__CONSENSUS__P2P__DISCOVERY__ENABLED env variable
+enabled = true
+
+# Maximum number of connections per peer
+# Override with MALACHITE__CONSENSUS__P2P__DISCOVERY__MAX_CONNECTIONS_PER_PEER env variable
+# max_connections_per_peer = 5
+
+# Maximum connections allowed per IP address.
+# Limits inbound connections from the same IP to prevent DoS attacks
+# where an attacker generates many PeerIds from the same IP.
+# Defaults to num_inbound_peers (effectively disabled).
+# Override with MALACHITE__CONSENSUS__P2P__DISCOVERY__MAX_CONNECTIONS_PER_IP env variable
+# max_connections_per_ip = 20
 
 #######################################################
 ###  Consensus P2P Protocol Configuration Options   ###
@@ -135,6 +156,12 @@ mesh_n_low = 4
 # When this value is set to 0 or does not meet the above constraints,
 # it will be calculated as `max(1, min(mesh_n / 2, mesh_n_low - 1))`
 mesh_outbound_min = 2
+
+# GossipSub only. Enable peer scoring to prioritize persistent peers in mesh formation.
+# When enabled, persistent peers receive higher scores and are preferred for grafting into the mesh.
+# Full nodes receive lower scores and can be opportunistically replaced by persistent peers over time.
+# Override with MALACHITE__CONSENSUS__P2P__PROTOCOL__ENABLE_PEER_SCORING env variable
+enable_peer_scoring = false
 
 #######################################################
 ###          Mempool Configuration Options          ###
@@ -229,7 +256,7 @@ spike_multiplier = 5
 
 # Only available when "non_uniform_load"
 # Sleep interval in milliseconds
-sleep_interval = { start = 1000, end = 5000 }  # Random delay between 1-5 seconds
+sleep_interval = { start = 1000, end = 5000 } # Random delay between 1-5 seconds
 
 #######################################################
 ###         ValueSync Configuration Options         ###
@@ -246,6 +273,32 @@ status_update_interval = "10s"
 # Timeout duration for ValueSync requests
 # Override with MALACHITE__VALUE_SYNC__REQUEST_TIMEOUT env variable
 request_timeout = "10s"
+
+# The maximum size of a ValueSync request.
+# Override with MALACHITE__VALUE_SYNC__MAX_REQUEST_SIZE env variable
+max_request_size = "1 MiB"
+
+# The maximum size of a ValueSync response.
+# Override with MALACHITE__VALUE_SYNC__MAX_RESPONSE_SIZE env variable
+max_response_size = "10 MiB"
+
+# The maximum number of requests to send in parallel when syncing values.
+# Override with MALACHITE__VALUE_SYNC__PARALLEL_REQUESTS env variable
+parallel_requests = 5
+
+# The scoring strategy to use for ValueSync.
+# Valid values:
+# - "ema": Exponential moving average (default)
+# Override with MALACHITE__VALUE_SYNC__SCORING_STRATEGY env variable
+scoring_strategy = "ema"
+
+# The threshold for considering a peer as inactive.
+# Override with MALACHITE__VALUE_SYNC__INACTIVE_THRESHOLD env variable
+inactive_threshold = "60s"
+
+# The number of values to request in a single batch.
+# Override with MALACHITE__VALUE_SYNC__BATCH_SIZE env variable
+batch_size = 5
 
 #######################################################
 ###          Metrics Configuration Options          ###

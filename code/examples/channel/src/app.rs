@@ -1,21 +1,53 @@
 use std::time::Duration;
 
 use eyre::eyre;
+use tokio::sync::mpsc;
 use tokio::time::sleep;
 use tracing::{error, info};
 
+use malachitebft_app_channel::app::engine::host::{HeightParams, Next};
 use malachitebft_app_channel::app::streaming::StreamContent;
-use malachitebft_app_channel::app::types::codec::Codec;
+use malachitebft_app_channel::app::types::core::utils::height::HeightRangeExt;
 use malachitebft_app_channel::app::types::core::{Height as _, Round, Validity};
 use malachitebft_app_channel::app::types::sync::RawDecidedValue;
 use malachitebft_app_channel::app::types::{LocallyProposedValue, ProposedValue};
-use malachitebft_app_channel::{AppMsg, Channels, ConsensusMsg, NetworkMsg};
-use malachitebft_test::codec::proto::ProtobufCodec;
+use malachitebft_app_channel::{
+    AppMsg, Channels, ConsensusRequest, ConsensusRequestError, NetworkMsg,
+};
 use malachitebft_test::{Height, TestContext};
 
-use crate::state::{decode_value, State};
+use crate::state::{decode_value, encode_value, State};
+
+/// Periodically request a state dump from consensus and print it to the console
+fn monitor_state(tx_request: mpsc::Sender<ConsensusRequest<TestContext>>) {
+    tokio::spawn(async move {
+        loop {
+            match ConsensusRequest::dump_state(&tx_request).await {
+                Ok(dump) => {
+                    tracing::debug!("State dump: {dump:#?}");
+                }
+                Err(ConsensusRequestError::Recv) => {
+                    tracing::error!("Failed to receive state dump from consensus");
+                }
+                Err(ConsensusRequestError::Full) => {
+                    tracing::error!("Consensus request channel full");
+                }
+                Err(ConsensusRequestError::Closed) => {
+                    tracing::error!("Consensus request channel closed");
+                }
+            }
+
+            sleep(Duration::from_secs(1)).await;
+        }
+    });
+}
 
 pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyre::Result<()> {
+    // If the MALACHITE_MONITOR_STATE env var is set, start monitoring the consensus state
+    if std::env::var("MALACHITE_MONITOR_STATE").is_ok() {
+        monitor_state(channels.requests.clone());
+    }
+
     while let Some(msg) = channels.consensus.recv().await {
         match msg {
             // The first message to handle is the `ConsensusReady` message, signaling to the app
@@ -32,10 +64,12 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
                 sleep(Duration::from_millis(200)).await;
 
-                if reply
-                    .send((start_height, state.get_validator_set(start_height).clone()))
-                    .is_err()
-                {
+                let params = HeightParams {
+                    validator_set: state.get_validator_set(start_height),
+                    timeouts: state.get_timeouts(start_height),
+                };
+
+                if reply.send((start_height, params)).is_err() {
                     error!("Failed to send ConsensusReady reply");
                 }
             }
@@ -46,9 +80,10 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 height,
                 round,
                 proposer,
+                role,
                 reply_value,
             } => {
-                info!(%height, %round, %proposer, "Started round");
+                info!(%height, %round, %proposer, ?role, "Started round");
 
                 reload_log_level(height, round);
 
@@ -57,9 +92,49 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 state.current_round = round;
                 state.current_proposer = Some(proposer);
 
+                let pending_parts = state
+                    .store
+                    .get_pending_proposal_parts(height, round)
+                    .await?;
+                info!(%height, %round, "Found {} pending proposal parts, validating...", pending_parts.len());
+
+                for parts in &pending_parts {
+                    // Remove the parts from pending
+                    state
+                        .store
+                        .remove_pending_proposal_parts(parts.clone())
+                        .await?;
+
+                    match state.validate_proposal_parts(parts) {
+                        Ok(()) => {
+                            // Validation passed - convert to ProposedValue and move to undecided
+                            let value = State::assemble_value_from_parts(parts.clone())?;
+                            state.store.store_undecided_proposal(value).await?;
+                            info!(
+                                height = %parts.height,
+                                round = %parts.round,
+                                proposer = %parts.proposer,
+                                "Moved valid pending proposal to undecided after validation"
+                            );
+                        }
+                        Err(error) => {
+                            // Validation failed, log error
+                            error!(
+                                height = %parts.height,
+                                round = %parts.round,
+                                proposer = %parts.proposer,
+                                error = ?error,
+                                "Removed invalid pending proposal"
+                            );
+                        }
+                    }
+                }
+
                 // If we have already built or seen values for this height and round,
                 // send them all back to consensus. This may happen when we are restarting after a crash.
                 let proposals = state.store.get_undecided_proposals(height, round).await?;
+                info!(%height, %round, "Found {} undecided proposals", proposals.len());
+
                 if reply_value.send(proposals).is_err() {
                     error!("Failed to send undecided proposals");
                 }
@@ -160,21 +235,6 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 }
             }
 
-            // In some cases, e.g. to verify the signature of a vote received at a higher height
-            // than the one we are at (e.g. because we are lagging behind a little bit),
-            // the engine may ask us for the validator set at that height.
-            //
-            // In our case, our validator set stays constant between heights so we can
-            // send back the validator set found in our genesis state.
-            AppMsg::GetValidatorSet { height, reply } => {
-                if reply
-                    .send(Some(state.get_validator_set(height).clone()))
-                    .is_err()
-                {
-                    error!("Failed to send GetValidatorSet reply");
-                }
-            }
-
             // After some time, consensus will finally reach a decision on the value
             // to commit for the current height, and will notify the application,
             // providing it with a commit certificate which contains the ID of the value
@@ -195,11 +255,17 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 // When that happens, we store the decided value in our store
                 match state.commit(certificate, extensions).await {
                     Ok(_) => {
+                        // Sleep a bit to slow down the app.
+                        sleep(Duration::from_millis(500)).await;
+
                         // And then we instruct consensus to start the next height
                         if reply
-                            .send(ConsensusMsg::StartHeight(
+                            .send(Next::Start(
                                 state.current_height,
-                                state.get_validator_set(state.current_height).clone(),
+                                HeightParams {
+                                    validator_set: state.get_validator_set(state.current_height),
+                                    timeouts: state.get_timeouts(state.current_height),
+                                },
                             ))
                             .is_err()
                         {
@@ -207,12 +273,18 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         }
                     }
                     Err(_) => {
+                        let height = state.current_height;
+
                         // Commit failed, restart the height
-                        error!("Commit failed, restarting height {}", state.current_height);
+                        error!("Commit failed, restarting height {height}");
+
                         if reply
-                            .send(ConsensusMsg::RestartHeight(
-                                state.current_height,
-                                state.get_validator_set(state.current_height).clone(),
+                            .send(Next::Restart(
+                                height,
+                                HeightParams {
+                                    validator_set: state.get_validator_set(height),
+                                    timeouts: state.get_timeouts(height),
+                                },
                             ))
                             .is_err()
                         {
@@ -220,15 +292,14 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         }
                     }
                 }
-                sleep(Duration::from_millis(500)).await;
             }
 
             // It may happen that our node is lagging behind its peers. In that case,
             // a synchronization mechanism will automatically kick to try and catch up to
             // our peers. When that happens, some of these peers will send us decided values
-            // for the heights in between the one we are currently at (included) and the one
-            // that they are at. When the engine receives such a value, it will forward to the application
-            // to decode it from its wire format and send back the decoded value to consensus.
+            // for the current height only (not for future heights). When the engine receives
+            // such a value, it will forward to the application to decode it from its wire format
+            // and send back the decoded value to consensus.
             AppMsg::ProcessSyncedValue {
                 height,
                 round,
@@ -238,22 +309,26 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             } => {
                 info!(%height, %round, "Processing synced value");
 
-                let value = decode_value(value_bytes);
-                let proposed_value = ProposedValue {
-                    height,
-                    round,
-                    valid_round: Round::Nil,
-                    proposer,
-                    value,
-                    validity: Validity::Valid,
-                };
+                if let Some(value) = decode_value(value_bytes) {
+                    let proposed_value = ProposedValue {
+                        height,
+                        round,
+                        valid_round: Round::Nil,
+                        proposer,
+                        value,
+                        validity: Validity::Valid,
+                    };
 
-                state
-                    .store
-                    .store_undecided_proposal(proposed_value.clone())
-                    .await?;
+                    // TODO: We plan to add some validation here in the future.
+                    state
+                        .store
+                        .store_undecided_proposal(proposed_value.clone())
+                        .await?;
 
-                if reply.send(proposed_value).is_err() {
+                    if reply.send(Some(proposed_value)).is_err() {
+                        error!("Failed to send ProcessSyncedValue reply");
+                    }
+                } else if reply.send(None).is_err() {
                     error!("Failed to send ProcessSyncedValue reply");
                 }
             }
@@ -263,19 +338,22 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             // then the engine might ask the application to provide with the value
             // that was decided at some lower height. In that case, we fetch it from our store
             // and send it to consensus.
-            AppMsg::GetDecidedValue { height, reply } => {
-                info!(%height, "Received sync request for decided value");
+            AppMsg::GetDecidedValues { range, reply } => {
+                info!(?range, "Received sync request for decided values");
 
-                let decided_value = state.get_decided_value(height).await;
-                info!(%height, "Found decided value: {decided_value:?}");
+                let mut values = Vec::new();
+                for height in range.iter_heights() {
+                    if let Some(decided_value) = state.get_decided_value(height).await {
+                        let raw_decided_value = RawDecidedValue {
+                            certificate: decided_value.certificate,
+                            value_bytes: encode_value(&decided_value.value),
+                        };
+                        values.push(raw_decided_value);
+                    }
+                }
 
-                let raw_decided_value = decided_value.map(|decided_value| RawDecidedValue {
-                    certificate: decided_value.certificate,
-                    value_bytes: ProtobufCodec.encode(&decided_value.value).unwrap(),
-                });
-
-                if reply.send(raw_decided_value).is_err() {
-                    error!("Failed to send GetDecidedValue reply");
+                if reply.send(values).is_err() {
+                    error!("Failed to send GetDecidedValues reply");
                 }
             }
 
@@ -296,12 +374,17 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 address: _,
                 value_id,
             } => {
-                //  Look for a proposal at valid_round (should be already stored)
-                info!(%height, %valid_round, "Restreaming existing propos*al...");
+                //  Look for a proposal at valid_round or round(should be already stored)
+                let proposal_round = if valid_round == Round::Nil {
+                    round
+                } else {
+                    valid_round
+                };
+                info!(%height, %proposal_round, "Restreaming existing propos*al...");
 
                 let proposal = state
                     .store
-                    .get_undecided_proposal(height, valid_round, value_id)
+                    .get_undecided_proposal(height, proposal_round, value_id)
                     .await?;
 
                 if let Some(proposal) = proposal {

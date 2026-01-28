@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use tracing::{error, warn};
 
 use derive_where::derive_where;
 
@@ -33,7 +34,7 @@ impl<Ctx: Context> FullProposal<Ctx> {
 
 /// An entry in the keeper.
 #[derive_where(Clone, Debug)]
-enum Entry<Ctx: Context> {
+pub enum Entry<Ctx: Context> {
     /// The full proposal has been received,i.e. both the value and the proposal.
     Full(FullProposal<Ctx>),
 
@@ -53,15 +54,6 @@ enum Entry<Ctx: Context> {
 impl<Ctx: Context> Entry<Ctx> {
     fn full(value: Ctx::Value, validity: Validity, proposal: SignedProposal<Ctx>) -> Self {
         Entry::Full(FullProposal::new(value, validity, proposal))
-    }
-
-    fn id(&self) -> Option<ValueId<Ctx>> {
-        match self {
-            Entry::Full(p) => Some(p.builder_value.id()),
-            Entry::ProposalOnly(p) => Some(p.value().id()),
-            Entry::ValueOnly(v, _) => Some(v.id()),
-            Entry::Empty => None,
-        }
     }
 }
 
@@ -188,12 +180,22 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         None
     }
 
-    pub fn get_value<'a>(
+    pub fn get_value(
         &self,
         height: &Ctx::Height,
         round: Round,
-        value: &'a Ctx::Value,
-    ) -> Option<(&'a Ctx::Value, Validity)> {
+        value: &Ctx::Value,
+    ) -> Option<(&Ctx::Value, Validity)> {
+        self.get_value_by_id(height, round, &value.id())
+    }
+
+    /// Get a valid value by its ID at the specified height and round.
+    pub fn get_value_by_id(
+        &self,
+        height: &Ctx::Height,
+        round: Round,
+        value_id: &ValueId<Ctx>,
+    ) -> Option<(&Ctx::Value, Validity)> {
         let entries = self
             .keeper
             .get(&(*height, round))
@@ -201,11 +203,11 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
 
         for entry in entries {
             match entry {
-                Entry::Full(p) if p.proposal.value().id() == value.id() => {
-                    return Some((value, p.validity));
+                Entry::Full(p) if p.proposal.value().id() == *value_id => {
+                    return Some((&p.builder_value, p.validity));
                 }
-                Entry::ValueOnly(v, validity) if v.id() == value.id() => {
-                    return Some((value, *validity));
+                Entry::ValueOnly(v, validity) if v.id() == *value_id => {
+                    return Some((v, *validity));
                 }
                 _ => continue,
             }
@@ -298,12 +300,45 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         self.store_value_at_pol_round(new_value);
     }
 
-    pub fn value_exists(&self, value: &ProposedValue<Ctx>) -> bool {
-        match self.keeper.get(&(value.height, value.round)) {
-            None => false,
-            Some(entries) => entries
-                .iter()
-                .any(|entry| entry.id() == Some(value.value.id())),
+    fn handle_validity_change(
+        height: &Ctx::Height,
+        round: Round,
+        value_id: &ValueId<Ctx>,
+        stored_validity: &mut Validity,
+        new_validity: Validity,
+        kind_phrase: &str,
+    ) {
+        use Validity::{Invalid, Valid};
+
+        // Match previous behavior exactly:
+        // - log warning and update for Invalid -> Valid
+        // - log error but do not update for Valid -> Invalid
+        match (*stored_validity, new_validity) {
+            (Invalid, Valid) => {
+                warn!(
+                    height = %height,
+                    round = %round,
+                    value.id = ?value_id,
+                    "Application changed its mind on {}'s validity: Invalid --> Valid",
+                    kind_phrase
+                );
+
+                *stored_validity = new_validity;
+            }
+            (Valid, Invalid) => {
+                error!(
+                    height = %height,
+                    round = %round,
+                    value.id = ?value_id,
+                    "Application changed its mind on {}'s validity: Valid --> Invalid; this should not happen",
+                    kind_phrase
+                );
+
+                // Do not modify stored_validity per original behavior.
+            }
+            _ => {
+                // No change in validity
+            }
         }
     }
 
@@ -334,15 +369,31 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                                 return;
                             }
                         }
-                        Entry::ValueOnly(value, ..) => {
-                            if value.id() == new_value.value.id() {
-                                // Same value received before, nothing to do.
+                        Entry::ValueOnly(old_value, old_validity) => {
+                            if old_value.id() == new_value.value.id() {
+                                // Same value received before; handle potential validity change.
+                                Self::handle_validity_change(
+                                    &new_value.height,
+                                    new_value.round,
+                                    &new_value.value.id(),
+                                    old_validity,
+                                    new_value.validity,
+                                    "value",
+                                );
                                 return;
                             }
                         }
                         Entry::Full(full_proposal) => {
                             if full_proposal.proposal.value().id() == new_value.value.id() {
-                                // Same value received before, nothing to do.
+                                // Same value received before; handle potential validity change.
+                                Self::handle_validity_change(
+                                    &new_value.height,
+                                    new_value.round,
+                                    &new_value.value.id(),
+                                    &mut full_proposal.validity,
+                                    new_value.validity,
+                                    "full proposal",
+                                );
                                 return;
                             }
                         }

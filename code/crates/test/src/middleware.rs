@@ -1,7 +1,7 @@
 use core::fmt;
 
 use malachitebft_core_consensus::{LocallyProposedValue, ProposedValue};
-use malachitebft_core_types::{CommitCertificate, NilOrVal, Round};
+use malachitebft_core_types::{CommitCertificate, LinearTimeouts, NilOrVal, Round, Validity};
 
 use crate::{Address, Genesis, Height, Proposal, TestContext, ValidatorSet, Value, ValueId, Vote};
 
@@ -14,6 +14,15 @@ pub trait Middleware: fmt::Debug + Send + Sync {
         genesis: &Genesis,
     ) -> Option<ValidatorSet> {
         Some(genesis.validator_set.clone())
+    }
+
+    fn get_timeouts(
+        &self,
+        _ctx: &TestContext,
+        _current_height: Height,
+        _height: Height,
+    ) -> Option<LinearTimeouts> {
+        None
     }
 
     fn new_proposal(
@@ -56,6 +65,18 @@ pub trait Middleware: fmt::Debug + Send + Sync {
         _proposed_value: &mut LocallyProposedValue<TestContext>,
         _reproposal: bool,
     ) {
+    }
+
+    /// Called when a proposed value is being assembled/validated
+    /// Allows middleware to customize the validity based on application logic
+    fn get_validity(
+        &self,
+        _ctx: &TestContext,
+        _height: Height,
+        _round: Round,
+        _value: &Value,
+    ) -> Validity {
+        Validity::Valid
     }
 
     fn on_commit(

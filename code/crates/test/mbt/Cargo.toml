@@ -30,4 +30,4 @@ pretty_assertions = { workspace = true }
 multihash = { workspace = true }
 
 [dev-dependencies]
-tempfile = { version = "3.19.1" }
+tempfile = { version = "3.21.0" }

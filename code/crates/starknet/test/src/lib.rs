@@ -17,8 +17,7 @@ use malachitebft_test_framework::{NodeRunner, TestNode};
 
 pub use malachitebft_test_framework::TestBuilder as GenTestBuilder;
 pub use malachitebft_test_framework::{
-    CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, EngineHandle, HandlerResult, Node,
-    NodeId, TestParams,
+    CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, HandlerResult, Node, NodeId, TestParams,
 };
 
 use tempfile::TempDir;
@@ -49,7 +48,7 @@ pub struct TestRunner {
 fn temp_dir(id: NodeId) -> PathBuf {
     TempDir::with_prefix(format!("malachitebft-test-app-{id}-"))
         .unwrap()
-        .into_path()
+        .keep()
 }
 
 #[async_trait]
@@ -142,14 +141,12 @@ impl TestRunner {
         let i = node - 1;
 
         Config {
-            moniker: format!("node-{}", node),
+            moniker: format!("node-{node}"),
             logging: LoggingConfig::default(),
             consensus: ConsensusConfig {
+                enabled: true,
                 value_payload: ValuePayload::PartsOnly,
-                vote_sync: VoteSyncConfig {
-                    mode: VoteSyncMode::Rebroadcast,
-                },
-                timeouts: TimeoutConfig::default(),
+                queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`
                 p2p: P2pConfig {
                     protocol,
                     discovery: DiscoveryConfig::default(),
@@ -181,6 +178,7 @@ impl TestRunner {
                 enabled: true,
                 status_update_interval: Duration::from_secs(2),
                 request_timeout: Duration::from_secs(5),
+                ..Default::default()
             },
             metrics: MetricsConfig {
                 enabled: false,
@@ -232,15 +230,13 @@ fn make_validators<S>(
 fn apply_params(config: &mut Config, params: &TestParams) {
     config.consensus.value_payload = ValuePayload::PartsOnly;
     config.value_sync.enabled = params.enable_value_sync;
+    config.value_sync.parallel_requests = params.parallel_requests;
+    config.value_sync.batch_size = params.batch_size;
+    config.value_sync.max_response_size = params.max_response_size;
     config.consensus.p2p.protocol = params.protocol;
-    config.consensus.timeouts.timeout_step = params.timeout_step;
     config.test.max_block_size = params.block_size;
     config.test.txs_per_part = params.txs_per_part;
     config.test.vote_extensions.enabled = params.vote_extensions.is_some();
     config.test.vote_extensions.size = params.vote_extensions.unwrap_or_default();
     config.test.max_retain_blocks = params.max_retain_blocks;
-
-    if let Some(vote_sync_mode) = params.vote_sync_mode {
-        config.consensus.vote_sync.mode = vote_sync_mode;
-    }
 }

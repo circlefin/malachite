@@ -15,8 +15,10 @@ mod vote;
 
 pub mod codec;
 pub mod middleware;
+pub mod node;
 pub mod proposer_selector;
 pub mod proto;
+pub mod traits;
 pub mod utils;
 
 pub use crate::address::*;
@@ -29,3 +31,6 @@ pub use crate::signing::*;
 pub use crate::validator_set::*;
 pub use crate::value::*;
 pub use crate::vote::*;
+
+// Re-export LinearTimeouts for convenience
+pub use malachitebft_core_types::LinearTimeouts;

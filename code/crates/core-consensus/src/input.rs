@@ -1,13 +1,10 @@
 use derive_where::derive_where;
 use malachitebft_core_types::{
-    CommitCertificate, Context, PolkaCertificate, Round, SignedProposal, SignedVote, Timeout,
-    ValueOrigin, VoteSet,
+    Context, PolkaCertificate, RoundCertificate, SignedProposal, SignedVote, Timeout, ValueOrigin,
+    ValueResponse,
 };
 
-use crate::types::ProposedValue;
-use crate::LocallyProposedValue;
-
-pub type RequestId = String;
+use crate::types::{LocallyProposedValue, ProposedValue};
 
 /// Inputs to be handled by the consensus process.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
@@ -15,8 +12,9 @@ pub enum Input<Ctx>
 where
     Ctx: Context,
 {
-    /// Start consensus for the given height with the given validator set
-    StartHeight(Ctx::Height, Ctx::ValidatorSet),
+    /// Start consensus for the given height with an optional validator set update.
+    /// The boolean indicates whether this is a restart of consensus for the given height.
+    StartHeight(Ctx::Height, Ctx::ValidatorSet, bool),
 
     /// Process a vote received over the network.
     Vote(SignedVote<Ctx>),
@@ -26,6 +24,12 @@ where
     /// This input MUST only be provided when `ValuePayload` is set to `ProposalOnly` or `ProposalAndParts`,
     /// i.e. when consensus runs in a mode where the proposer sends a Proposal consensus message over the network.
     Proposal(SignedProposal<Ctx>),
+
+    /// Process a PolkaCertificate message received over the network
+    PolkaCertificate(PolkaCertificate<Ctx>),
+
+    /// Process a RoundCertificate message received over the network
+    RoundCertificate(RoundCertificate<Ctx>),
 
     /// Propose the given value.
     ///
@@ -40,12 +44,6 @@ where
     /// The origin denotes whether the value was received via consensus gossip or via the sync protocol.
     ProposedValue(ProposedValue<Ctx>, ValueOrigin),
 
-    /// We have received a commit certificate via the sync protocol.
-    CommitCertificate(CommitCertificate<Ctx>),
-
-    /// A peer has requested a vote set for the given height and round
-    VoteSetRequest(RequestId, Ctx::Height, Round),
-
-    /// Received a vote set from a peer via Sync
-    VoteSetResponse(VoteSet<Ctx>, Vec<PolkaCertificate<Ctx>>),
+    /// We have received a synced value via the sync protocol.
+    SyncValueResponse(ValueResponse<Ctx>),
 }

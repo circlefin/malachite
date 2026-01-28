@@ -1,13 +1,16 @@
-use tracing::warn;
+use tracing::info;
 
 use malachitebft_core_driver::Driver;
 use malachitebft_core_types::*;
 
+use crate::full_proposal::{FullProposal, FullProposalKeeper};
 use crate::input::Input;
-use crate::util::max_queue::MaxQueue;
-use crate::{FullProposal, FullProposalKeeper, Params, ProposedValue};
+use crate::params::Params;
+use crate::prelude::*;
+use crate::types::ProposedValue;
+use crate::util::bounded_queue::BoundedQueue;
 
-/// The state maintained by consensus for processing a [`Input`][crate::Input].
+/// The state maintained by consensus for processing a [`Input`].
 pub struct State<Ctx>
 where
     Ctx: Context,
@@ -22,7 +25,7 @@ where
     pub driver: Driver<Ctx>,
 
     /// A queue of inputs that were received before the driver started.
-    pub input_queue: MaxQueue<Ctx::Height, Input<Ctx>>,
+    pub input_queue: BoundedQueue<Ctx::Height, Input<Ctx>>,
 
     /// The proposals to decide on.
     pub full_proposal_keeper: FullProposalKeeper<Ctx>,
@@ -38,11 +41,17 @@ impl<Ctx> State<Ctx>
 where
     Ctx: Context,
 {
-    pub fn new(ctx: Ctx, params: Params<Ctx>) -> Self {
+    pub fn new(
+        ctx: Ctx,
+        height: Ctx::Height,
+        validator_set: Ctx::ValidatorSet,
+        params: Params<Ctx>,
+        queue_capacity: usize,
+    ) -> Self {
         let driver = Driver::new(
             ctx.clone(),
-            params.initial_height,
-            params.initial_validator_set.clone(),
+            height,
+            validator_set,
             params.address.clone(),
             params.threshold_params,
         );
@@ -51,7 +60,7 @@ where
             ctx,
             driver,
             params,
-            input_queue: Default::default(),
+            input_queue: BoundedQueue::new(queue_capacity),
             full_proposal_keeper: Default::default(),
             last_signed_prevote: None,
             last_signed_precommit: None,
@@ -111,36 +120,13 @@ where
         }
     }
 
-    #[allow(clippy::type_complexity)]
-    pub fn restore_votes(
-        &mut self,
-        height: Ctx::Height,
+    /// Get the polka certificate at the current height for the specified round and value, if it exists
+    pub fn polka_certificate(
+        &self,
         round: Round,
-    ) -> Option<(Vec<SignedVote<Ctx>>, Vec<PolkaCertificate<Ctx>>)> {
-        assert!(round.is_defined());
-
-        if height != self.driver.height() {
-            return None;
-        }
-
-        let mut votes = Vec::new();
-
-        let upper_round = self.driver.votes().max_round();
-        for r in round_range_inclusive(round, upper_round) {
-            let per_round = self.driver.votes().per_round(r)?;
-            votes.extend(per_round.received_votes().iter().cloned());
-        }
-
-        // Gather polka certificates for all rounds up to `round` included
-        let certificates = self
-            .driver
-            .polka_certificates()
-            .iter()
-            .filter(|c| c.round <= round && c.height == height)
-            .cloned()
-            .collect::<Vec<_>>();
-
-        Some((votes, certificates))
+        value_id: &ValueId<Ctx>,
+    ) -> Option<&PolkaCertificate<Ctx>> {
+        self.driver.polka_certificate(round, value_id)
     }
 
     pub fn full_proposal_at_round_and_value(
@@ -163,6 +149,26 @@ where
             .full_proposal_at_round_and_proposer(height, round, address)
     }
 
+    /// Get a proposed value by its ID at the specified height and round.
+    pub fn get_proposed_value_by_id(
+        &self,
+        height: Ctx::Height,
+        round: Round,
+        value_id: &ValueId<Ctx>,
+    ) -> Option<ProposedValue<Ctx>> {
+        let (value, validity) = self
+            .full_proposal_keeper
+            .get_value_by_id(&height, round, value_id)?;
+        Some(ProposedValue {
+            height,
+            round,
+            valid_round: Round::Nil,
+            proposer: self.get_proposer(height, round).clone(),
+            value: value.clone(),
+            validity,
+        })
+    }
+
     pub fn proposals_for_value(
         &self,
         proposed_value: &ProposedValue<Ctx>,
@@ -175,16 +181,35 @@ where
         self.full_proposal_keeper.store_proposal(new_proposal)
     }
 
-    pub fn value_exists(&mut self, new_value: &ProposedValue<Ctx>) -> bool {
-        self.full_proposal_keeper.value_exists(new_value)
-    }
-
-    pub fn store_value(&mut self, new_value: &ProposedValue<Ctx>) {
+    /// Store the proposed value and return its validity,
+    /// which may be now be different from the one provided.
+    pub fn store_value(&mut self, new_value: &ProposedValue<Ctx>) -> Validity {
         // Values for higher height should have been cached for future processing
         assert_eq!(new_value.height, self.driver.height());
 
+        if self
+            .full_proposal_keeper
+            .get_value(&new_value.height, new_value.round, &new_value.value)
+            .is_none()
+            && new_value.validity.is_invalid()
+        {
+            warn!(
+                height = %new_value.height,
+                round = %new_value.round,
+                value.id = ?new_value.value.id(),
+                "Application sent an invalid proposed value"
+            );
+        }
         // Store the value at both round and valid_round
         self.full_proposal_keeper.store_value(new_value);
+
+        // Retrieve the validity after storing, as it may have changed (e.g., from Invalid to Valid)
+        let (_value, validity) = self
+            .full_proposal_keeper
+            .get_value(&new_value.height, new_value.round, &new_value.value)
+            .expect("We just stored the entry, so it should be there");
+
+        validity
     }
 
     pub fn reset_and_start_height(
@@ -205,71 +230,94 @@ where
     }
 
     /// Queue an input for later processing, only keep inputs for the highest height seen so far.
-    pub fn buffer_input(&mut self, height: Ctx::Height, input: Input<Ctx>) {
+    pub fn buffer_input(&mut self, height: Ctx::Height, input: Input<Ctx>, _metrics: &Metrics) {
         self.input_queue.push(height, input);
+
+        #[cfg(feature = "metrics")]
+        {
+            _metrics.queue_heights.set(self.input_queue.len() as i64);
+            _metrics.queue_size.set(self.input_queue.size() as i64);
+        }
+    }
+
+    /// Take all inputs that are pending for the specified height and remove from the input queue.
+    pub fn take_pending_inputs(&mut self, _metrics: &Metrics) -> Vec<Input<Ctx>>
+    where
+        Ctx: Context,
+    {
+        let inputs = self
+            .input_queue
+            .shift_and_take(&self.height())
+            .collect::<Vec<_>>();
+
+        #[cfg(feature = "metrics")]
+        {
+            _metrics.queue_heights.set(self.input_queue.len() as i64);
+            _metrics.queue_size.set(self.input_queue.size() as i64);
+        }
+
+        inputs
     }
 
     pub fn print_state(&self) {
         if let Some(per_round) = self.driver.votes().per_round(self.driver.round()) {
-            warn!(
+            info!(
                 "Number of validators having voted: {} / {}",
                 per_round.addresses_weights().get_inner().len(),
                 self.driver.validator_set().count()
             );
-            warn!(
+            info!(
                 "Total voting power of validators: {}",
                 self.driver.validator_set().total_voting_power()
             );
-            warn!(
+            info!(
                 "Voting power required: {}",
                 self.params
                     .threshold_params
                     .quorum
                     .min_expected(self.driver.validator_set().total_voting_power())
             );
-            warn!(
+            info!(
                 "Total voting power of validators having voted: {}",
                 per_round.addresses_weights().sum()
             );
-            warn!(
+            info!(
                 "Total voting power of validators having prevoted nil: {}",
                 per_round
                     .votes()
                     .get_weight(VoteType::Prevote, &NilOrVal::Nil)
             );
-            warn!(
+            info!(
                 "Total voting power of validators having precommited nil: {}",
                 per_round
                     .votes()
                     .get_weight(VoteType::Precommit, &NilOrVal::Nil)
             );
-            warn!(
+            info!(
                 "Total weight of prevotes: {}",
                 per_round.votes().weight_sum(VoteType::Prevote)
             );
-            warn!(
+            info!(
                 "Total weight of precommits: {}",
                 per_round.votes().weight_sum(VoteType::Precommit)
             );
         }
     }
 
-    /// Check if we are a validator node, i.e. we are present in the current validator set.
-    pub fn is_validator(&self) -> bool {
-        self.validator_set()
-            .get_by_address(self.address())
-            .is_some()
-    }
-}
-
-fn round_range_inclusive(from: Round, to: Round) -> Box<dyn Iterator<Item = Round>> {
-    if !from.is_defined() || !to.is_defined() || from > to {
-        return Box::new(std::iter::empty());
-    }
-
-    if from == to {
-        return Box::new(std::iter::once(from));
+    /// Check if this node is an active validator.
+    ///
+    /// Returns true only if:
+    /// - Consensus is enabled in the configuration, AND
+    /// - This node is present in the current validator set
+    pub fn is_active_validator(&self) -> bool {
+        self.params.enabled
+            && self
+                .validator_set()
+                .get_by_address(self.address())
+                .is_some()
     }
 
-    Box::new((from.as_u32().unwrap_or(0)..=to.as_u32().unwrap_or(0)).map(Round::new))
+    pub fn round_certificate(&self) -> Option<&EnterRoundCertificate<Ctx>> {
+        self.driver.round_certificate.as_ref()
+    }
 }

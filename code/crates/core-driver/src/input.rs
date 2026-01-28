@@ -31,4 +31,9 @@ where
 
     /// Receive a timeout
     TimeoutElapsed(Timeout),
+
+    /// Decide on a value from sync.
+    /// The commit certificate must already be stored in the driver.
+    /// Takes an unsigned proposal and goes through the state machine.
+    SyncDecision(Ctx::Proposal),
 }

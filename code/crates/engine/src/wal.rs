@@ -1,10 +1,11 @@
+use std::io;
 use std::marker::PhantomData;
 use std::path::PathBuf;
 
 use eyre::eyre;
 use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, RpcReplyPort, SpawnErr};
 use tokio::sync::{mpsc, oneshot};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use malachitebft_core_types::{Context, Height};
 use malachitebft_metrics::SharedRegistry;
@@ -52,7 +53,7 @@ where
 pub type WalReply<T> = RpcReplyPort<eyre::Result<T>>;
 
 pub enum Msg<Ctx: Context> {
-    StartedHeight(Ctx::Height, WalReply<Option<Vec<WalEntry<Ctx>>>>),
+    StartedHeight(Ctx::Height, WalReply<Vec<io::Result<WalEntry<Ctx>>>>),
     Reset(Ctx::Height, WalReply<()>),
     Append(Ctx::Height, WalEntry<Ctx>, WalReply<()>),
     Flush(WalReply<()>),
@@ -84,7 +85,10 @@ where
         match msg {
             Msg::StartedHeight(height, reply_to) => {
                 if state.height == height {
-                    debug!(%height, "WAL already at height, ignoring");
+                    debug!(%height, "WAL already at height, returning empty entries");
+                    reply_to
+                        .send(Ok(Vec::new()))
+                        .map_err(|e| eyre!("Failed to send reply: {e}"))?;
                     return Ok(());
                 }
 
@@ -99,11 +103,17 @@ where
 
             Msg::Append(height, entry, reply_to) => {
                 if height != state.height {
-                    debug!("Ignoring append at height {} != {}", height, state.height);
-                    return Ok(());
-                }
+                    warn!(
+                        wal.height = %state.height, entry.height = %height,
+                        "Ignoring append, mismatched height: {entry:?}"
+                    );
 
-                self.write_log(state, entry, reply_to).await?;
+                    reply_to
+                        .send(Ok(()))
+                        .map_err(|e| eyre!("Failed to send reply: {e}"))?;
+                } else {
+                    self.write_log(state, entry, reply_to).await?;
+                }
             }
 
             Msg::Flush(reply_to) => {
@@ -143,8 +153,8 @@ where
     async fn started_height(
         &self,
         state: &mut State<Ctx>,
-        height: <Ctx as Context>::Height,
-        reply_to: WalReply<Option<Vec<WalEntry<Ctx>>>>,
+        height: Ctx::Height,
+        reply_to: WalReply<Vec<io::Result<WalEntry<Ctx>>>>,
     ) -> Result<(), ActorProcessingErr> {
         let (tx, rx) = oneshot::channel();
 
@@ -153,9 +163,7 @@ where
             .send(self::thread::WalMsg::StartedHeight(height, tx))
             .await?;
 
-        let to_replay = rx
-            .await?
-            .map(|entries| Some(entries).filter(|entries| !entries.is_empty()));
+        let to_replay = rx.await?;
 
         reply_to
             .send(to_replay)

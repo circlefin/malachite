@@ -6,12 +6,12 @@ use std::time::Duration;
 use clap::Parser;
 use tracing::{info, warn};
 
-use malachitebft_app::node::{
-    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile,
-    MakeConfigSettings, Node,
-};
 use malachitebft_config::{
     BootstrapProtocol, DiscoveryConfig, RuntimeConfig, Selector, TransportProtocol,
+};
+use malachitebft_test::node::Node;
+use malachitebft_test::traits::{
+    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, MakeConfigSettings,
 };
 
 use crate::error::Error;
@@ -54,10 +54,19 @@ pub struct InitCmd {
     #[clap(long, default_value = "20", verbatim_doc_comment)]
     pub num_inbound_peers: usize,
 
+    /// Maximum number of connections per peer
+    /// This limits the number of connections to a single peer
+    #[clap(long, default_value = "5", verbatim_doc_comment)]
+    pub max_connections_per_peer: usize,
+
     /// Ephemeral connection timeout
     /// The duration in milliseconds an ephemeral connection is kept alive
     #[clap(long, default_value = "5000", verbatim_doc_comment)]
     pub ephemeral_connection_timeout_ms: u64,
+
+    /// Only allow connections to/from persistent peers
+    #[clap(long)]
+    pub persistent_peers_only: bool,
 }
 
 impl InitCmd {
@@ -81,10 +90,17 @@ impl InitCmd {
                 selector: self.selector,
                 num_outbound_peers: self.num_outbound_peers,
                 num_inbound_peers: self.num_inbound_peers,
+                max_connections_per_peer: self.max_connections_per_peer,
                 ephemeral_connection_timeout: Duration::from_millis(
                     self.ephemeral_connection_timeout_ms,
                 ),
+                dial_max_retries: 5,
+                request_max_retries: 5,
+                connect_request_max_retries: 3,
+                ..Default::default()
             },
+            value_sync: Default::default(),
+            persistent_peers_only: self.persistent_peers_only,
         };
 
         let config = N::make_config(0, 1, settings);

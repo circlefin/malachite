@@ -15,19 +15,25 @@ extern crate alloc;
 
 mod certificate;
 mod context;
+mod error;
 mod height;
+mod height_params;
 mod proposal;
 mod proposal_part;
 mod round;
+mod ser;
 mod signed_message;
 mod signing;
 mod threshold;
 mod timeout;
+mod timeouts;
 mod validator_set;
 mod value;
 mod vote;
 mod vote_extension;
-mod vote_set;
+
+/// Utility functions and types.
+pub mod utils;
 
 /// Type alias to make it easier to refer the `ValueId` type.
 pub type ValueId<Ctx> = <<Ctx as Context>::Value as Value>::Id;
@@ -47,26 +53,26 @@ pub type SignedVote<Ctx> = SignedMessage<Ctx, <Ctx as Context>::Vote>;
 /// A signed proposal
 pub type SignedProposal<Ctx> = SignedMessage<Ctx, <Ctx as Context>::Proposal>;
 
-/// A signed proposal part
-pub type SignedProposalPart<Ctx> = SignedMessage<Ctx, <Ctx as Context>::ProposalPart>;
-
 /// A signed vote extension
 pub type SignedExtension<Ctx> = SignedMessage<Ctx, <Ctx as Context>::Extension>;
 
 pub use certificate::{
-    CertificateError, CommitCertificate, CommitSignature, PolkaCertificate, PolkaSignature,
+    CertificateError, CommitCertificate, CommitSignature, EnterRoundCertificate, PolkaCertificate,
+    PolkaSignature, RoundCertificate, RoundCertificateType, RoundSignature, ValueResponse,
 };
 pub use context::Context;
+pub use error::BoxError;
 pub use height::Height;
+pub use height_params::HeightParams;
 pub use proposal::{Proposal, Validity};
 pub use proposal_part::ProposalPart;
 pub use round::Round;
 pub use signed_message::SignedMessage;
-pub use signing::{SigningProvider, SigningProviderExt, SigningScheme};
+pub use signing::SigningScheme;
 pub use threshold::{Threshold, ThresholdParam, ThresholdParams};
 pub use timeout::{Timeout, TimeoutKind};
+pub use timeouts::{LinearTimeouts, Timeouts};
 pub use validator_set::{Address, Validator, ValidatorSet, VotingPower};
 pub use value::{NilOrVal, Value, ValueOrigin, ValuePayload};
 pub use vote::{Vote, VoteType};
 pub use vote_extension::{Extension, VoteExtensions};
-pub use vote_set::VoteSet;

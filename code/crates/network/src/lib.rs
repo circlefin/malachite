@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::error::Error;
 use std::ops::ControlFlow;
 use std::time::Duration;
@@ -28,14 +27,51 @@ pub mod handle;
 pub mod pubsub;
 
 mod channel;
-pub use channel::Channel;
+pub use channel::{Channel, ChannelNames};
+
+mod metrics;
+use metrics::Metrics as NetworkMetrics;
+
+mod peer_type;
+pub use peer_type::PeerType;
+
+pub mod peer_scoring;
+
+mod utils;
+
+mod ip_limits;
+
+// Re-export state types for external use (e.g., RPC)
+pub use state::{LocalNodeInfo, PeerInfo, ValidatorInfo};
+
+mod state;
+pub use state::NetworkStateDump;
+use state::State;
 
 use behaviour::{Behaviour, NetworkEvent};
 use handle::Handle;
 
-const PROTOCOL: &str = "/malachitebft-core-consensus/v1beta1";
 const METRICS_PREFIX: &str = "malachitebft_network";
 const DISCOVERY_METRICS_PREFIX: &str = "malachitebft_discovery";
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProtocolNames {
+    pub consensus: String,
+    pub discovery_kad: String,
+    pub discovery_regres: String,
+    pub sync: String,
+}
+
+impl Default for ProtocolNames {
+    fn default() -> Self {
+        Self {
+            consensus: "/malachitebft-core-consensus/v1beta1".to_string(),
+            discovery_kad: "/malachitebft-discovery/kad/v1beta1".to_string(),
+            discovery_regres: "/malachitebft-discovery/reqres/v1beta1".to_string(),
+            sync: "/malachitebft-sync/v1beta1".to_string(),
+        }
+    }
+}
 
 #[derive(Copy, Clone, Debug, Default)]
 pub enum PubSubProtocol {
@@ -63,6 +99,7 @@ pub struct GossipSubConfig {
     pub mesh_n_high: usize,
     pub mesh_n_low: usize,
     pub mesh_outbound_min: usize,
+    pub enable_peer_scoring: bool,
 }
 
 impl Default for GossipSubConfig {
@@ -73,6 +110,7 @@ impl Default for GossipSubConfig {
             mesh_n_high: 12,
             mesh_n_low: 4,
             mesh_outbound_min: 2,
+            enable_peer_scoring: false,
         }
     }
 }
@@ -83,18 +121,57 @@ pub type DiscoveryConfig = discovery::Config;
 pub type BootstrapProtocol = discovery::config::BootstrapProtocol;
 pub type Selector = discovery::config::Selector;
 
+/// Node identity bundling all node-specific information.
+///
+/// The consensus address is derived from the keypair in the current implementation
+/// where libp2p and consensus use the same key. In the future, when using separate
+/// keys (e.g., cc-signer for consensus), the address will be provided separately.
+///
+/// If consensus_address is None, the node will not advertise a validator address
+/// and cannot become a validator.
+#[derive(Clone, Debug)]
+pub struct NetworkIdentity {
+    pub moniker: String,
+    pub keypair: Keypair,
+    pub consensus_address: Option<String>,
+}
+
+impl NetworkIdentity {
+    /// Create a new NodeIdentity.
+    ///
+    /// # Arguments
+    /// * `moniker` - Human-readable node identifier
+    /// * `keypair` - libp2p keypair for network authentication
+    /// * `consensus_address` - Optional consensus address (Some = potential validator, None = full node)
+    ///
+    /// In the current implementation where libp2p and consensus share the same key,
+    /// the address is typically derived from the keypair before calling this method.
+    /// In the future with cc-signer, the consensus address will be separate.
+    pub fn new(moniker: String, keypair: Keypair, consensus_address: Option<String>) -> Self {
+        Self {
+            moniker,
+            keypair,
+            consensus_address,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Config {
     pub listen_addr: Multiaddr,
     pub persistent_peers: Vec<Multiaddr>,
+    pub persistent_peers_only: bool,
     pub discovery: DiscoveryConfig,
     pub idle_connection_timeout: Duration,
     pub transport: TransportProtocol,
     pub gossipsub: GossipSubConfig,
     pub pubsub_protocol: PubSubProtocol,
+    pub channel_names: ChannelNames,
     pub rpc_max_size: usize,
     pub pubsub_max_size: usize,
+    pub enable_consensus: bool,
     pub enable_sync: bool,
+    pub protocol_names: ProtocolNames,
 }
 
 impl Config {
@@ -133,13 +210,11 @@ impl TransportProtocol {
 
 /// sync event details:
 ///
-/// peer1: sync               peer2: network       peer2: sync           peer1: network
-///                                                                or consensus
+/// peer1: sync                  peer2: network                    peer2: sync              peer1: network
 /// CtrlMsg::SyncRequest       --> Event::Sync      -----------> CtrlMsg::SyncReply ------> Event::Sync
 /// (peer_id, height)             (RawMessage::Request           (request_id, height)       RawMessage::Response
 ///                           {request_id, peer_id, request}                                {request_id, response}
 ///
-/// - request can be for a block or vote set
 ///
 /// An event that can be emitted by the gossip layer
 #[derive(Clone, Debug)]
@@ -147,7 +222,8 @@ pub enum Event {
     Listening(Multiaddr),
     PeerConnected(PeerId),
     PeerDisconnected(PeerId),
-    Message(Channel, PeerId, Bytes),
+    ConsensusMessage(Channel, PeerId, Bytes),
+    LivenessMessage(Channel, PeerId, Bytes),
     Sync(sync::RawMessage),
 }
 
@@ -157,50 +233,45 @@ pub enum CtrlMsg {
     Broadcast(Channel, Bytes),
     SyncRequest(PeerId, Bytes, oneshot::Sender<OutboundRequestId>),
     SyncReply(InboundRequestId, Bytes),
+    UpdateValidatorSet(Vec<ValidatorInfo>),
+    DumpState(oneshot::Sender<NetworkStateDump>),
     Shutdown,
 }
 
-#[derive(Debug)]
-pub struct State {
-    pub sync_channels: HashMap<InboundRequestId, sync::ResponseChannel>,
-    pub discovery: discovery::Discovery<Behaviour>,
-}
-
-impl State {
-    fn new(discovery: discovery::Discovery<Behaviour>) -> Self {
-        Self {
-            sync_channels: Default::default(),
-            discovery,
-        }
-    }
-}
-
 pub async fn spawn(
-    keypair: Keypair,
+    identity: NetworkIdentity,
     config: Config,
     registry: SharedRegistry,
 ) -> Result<Handle, eyre::Report> {
     let swarm = registry.with_prefix(METRICS_PREFIX, |registry| -> Result<_, eyre::Report> {
-        let builder = SwarmBuilder::with_existing_identity(keypair).with_tokio();
+        // Pass the libp2p keypair to the behaviour, it is included in the Identify protocol
+        // Required for ALL nodes
+        let builder = SwarmBuilder::with_existing_identity(identity.keypair.clone()).with_tokio();
         match config.transport {
-            TransportProtocol::Tcp => Ok(builder
-                .with_tcp(
-                    libp2p::tcp::Config::new().nodelay(true), // Disable Nagle's algorithm
-                    libp2p::noise::Config::new,
-                    libp2p::yamux::Config::default,
-                )?
-                .with_dns()?
-                .with_bandwidth_metrics(registry)
-                .with_behaviour(|kp| Behaviour::new_with_metrics(&config, kp, registry))?
-                .with_swarm_config(|cfg| config.apply_to_swarm(cfg))
-                .build()),
-            TransportProtocol::Quic => Ok(builder
-                .with_quic_config(|cfg| config.apply_to_quic(cfg))
-                .with_dns()?
-                .with_bandwidth_metrics(registry)
-                .with_behaviour(|kp| Behaviour::new_with_metrics(&config, kp, registry))?
-                .with_swarm_config(|cfg| config.apply_to_swarm(cfg))
-                .build()),
+            TransportProtocol::Tcp => {
+                let behaviour = Behaviour::new_with_metrics(&config, &identity, registry)?;
+                Ok(builder
+                    .with_tcp(
+                        libp2p::tcp::Config::new().nodelay(true), // Disable Nagle's algorithm
+                        libp2p::noise::Config::new,
+                        libp2p::yamux::Config::default,
+                    )?
+                    .with_dns()?
+                    .with_bandwidth_metrics(registry)
+                    .with_behaviour(|_| behaviour)?
+                    .with_swarm_config(|cfg| config.apply_to_swarm(cfg))
+                    .build())
+            }
+            TransportProtocol::Quic => {
+                let behaviour = Behaviour::new_with_metrics(&config, &identity, registry)?;
+                Ok(builder
+                    .with_quic_config(|cfg| config.apply_to_quic(cfg))
+                    .with_dns()?
+                    .with_bandwidth_metrics(registry)
+                    .with_behaviour(|_| behaviour)?
+                    .with_swarm_config(|cfg| config.apply_to_swarm(cfg))
+                    .build())
+            }
         }
     })?;
 
@@ -213,9 +284,45 @@ pub async fn spawn(
         discovery::Discovery::new(config.discovery, config.persistent_peers.clone(), reg)
     });
 
-    let state = State::new(discovery);
+    let network_metrics = registry.with_prefix(METRICS_PREFIX, NetworkMetrics::new);
 
     let peer_id = PeerId::from_libp2p(swarm.local_peer_id());
+
+    // Create local node info with subscribed consensus topics
+    let mut subscribed_topics = std::collections::HashSet::new();
+    if config.enable_consensus {
+        for channel in Channel::consensus() {
+            subscribed_topics.insert(channel.as_str(config.channel_names).to_string());
+        }
+    }
+
+    let NetworkIdentity {
+        moniker,
+        consensus_address,
+        ..
+    } = identity;
+
+    // Create local node info
+    let local_node_info = LocalNodeInfo {
+        moniker,
+        peer_id: *swarm.local_peer_id(),
+        listen_addr: config.listen_addr.clone(),
+        subscribed_topics,
+        consensus_address,
+        is_validator: false, // Will be updated when validator set is received
+        persistent_peers_only: config.persistent_peers_only,
+    };
+
+    // Set local node info in metrics
+    network_metrics.set_local_node_info(&local_node_info);
+
+    let state = State::new(
+        discovery,
+        config.persistent_peers.clone(),
+        local_node_info,
+        network_metrics,
+    );
+
     let span = error_span!("network");
 
     info!(parent: span.clone(), %peer_id, "Starting network service");
@@ -239,19 +346,35 @@ async fn run(
         return;
     }
 
-    state.discovery.dial_bootstrap_nodes(&swarm);
-
-    if let Err(e) = pubsub::subscribe(&mut swarm, config.pubsub_protocol, Channel::consensus()) {
-        error!("Error subscribing to consensus channels: {e}");
-        return;
-    };
+    if config.enable_consensus {
+        if let Err(e) = pubsub::subscribe(
+            &mut swarm,
+            config.pubsub_protocol,
+            Channel::consensus(),
+            config.channel_names,
+        ) {
+            error!("Error subscribing to consensus channels: {e}");
+            return;
+        };
+    }
 
     if config.enable_sync {
-        if let Err(e) = pubsub::subscribe(&mut swarm, PubSubProtocol::Broadcast, &[Channel::Sync]) {
+        if let Err(e) = pubsub::subscribe(
+            &mut swarm,
+            PubSubProtocol::Broadcast,
+            &[Channel::Sync],
+            config.channel_names,
+        ) {
             error!("Error subscribing to Sync channel: {e}");
             return;
         };
     }
+
+    // Timer to perform periodic network operations (peer reconnection, metrics updates, etc.)
+    // TODO: Using 1 second for now, for faster reconnection during testing
+    // Maybe adjust via config in the future
+    let mut periodic_timer = tokio::time::interval(std::time::Duration::from_secs(1));
+    let mut periodic_tick_count: u32 = 0;
 
     loop {
         let result = tokio::select! {
@@ -282,6 +405,27 @@ async fn run(
             Some(ctrl) = rx_ctrl.recv() => {
                 handle_ctrl_msg(&mut swarm, &mut state, &config, ctrl).await
             }
+
+            _ = periodic_timer.tick() => {
+                // Attempt to dial bootstrap nodes
+                state.discovery.dial_bootstrap_nodes(&swarm);
+
+                // Update peer info in State and metrics (includes gossipsub scores and mesh membership)
+                if let Some(gossipsub) = swarm.behaviour_mut().gossipsub.as_mut() {
+                    state.update_peer_info(
+                        gossipsub,
+                        Channel::consensus(),
+                        config.channel_names,
+                    );
+                }
+
+                periodic_tick_count = periodic_tick_count.wrapping_add(1);
+                if periodic_tick_count % 5 == 0 {
+                    info!("Network peer state\n{}", state.format_peer_info());
+                }
+
+                ControlFlow::Continue(())
+            }
         };
 
         match result {
@@ -300,7 +444,13 @@ async fn handle_ctrl_msg(
     match msg {
         CtrlMsg::Publish(channel, data) => {
             let msg_size = data.len();
-            let result = pubsub::publish(swarm, config.pubsub_protocol, channel, data);
+            let result = pubsub::publish(
+                swarm,
+                config.pubsub_protocol,
+                channel,
+                config.channel_names,
+                data,
+            );
 
             match result {
                 Ok(()) => debug!(%channel, size = %msg_size, "Published message"),
@@ -317,7 +467,13 @@ async fn handle_ctrl_msg(
             }
 
             let msg_size = data.len();
-            let result = pubsub::publish(swarm, PubSubProtocol::Broadcast, channel, data);
+            let result = pubsub::publish(
+                swarm,
+                PubSubProtocol::Broadcast,
+                channel,
+                config.channel_names,
+                data,
+            );
 
             match result {
                 Ok(()) => debug!(%channel, size = %msg_size, "Broadcasted message"),
@@ -363,13 +519,57 @@ async fn handle_ctrl_msg(
             ControlFlow::Continue(())
         }
 
+        CtrlMsg::UpdateValidatorSet(validators) => {
+            // Process the validator set update and get peers that need score updates
+            let changed_peers = state.process_validator_set_update(validators);
+
+            // Update GossipSub scores for peers whose type changed
+            for (peer_id, new_score) in changed_peers {
+                set_peer_score(swarm, peer_id, new_score);
+            }
+
+            ControlFlow::Continue(())
+        }
+
+        CtrlMsg::DumpState(reply_to) => {
+            // Build a snapshot from current state
+            let snapshot = NetworkStateDump {
+                local_node: state.local_node.clone(),
+                peers: state.peer_info.clone(),
+                validator_set: state.validator_set.clone(),
+                persistent_peer_ids: state.persistent_peer_ids.iter().copied().collect(),
+                persistent_peer_addrs: state.persistent_peer_addrs.clone(),
+            };
+            if let Err(_s) = reply_to.send(snapshot) {
+                error!("Error replying to DumpState");
+            }
+            ControlFlow::Continue(())
+        }
         CtrlMsg::Shutdown => ControlFlow::Break(()),
+    }
+}
+
+/// Set a default low score for a peer immediately upon connection
+/// This allows gossipsub to form an initial mesh before Identify completes
+fn set_default_peer_score(swarm: &mut swarm::Swarm<Behaviour>, peer_id: libp2p::PeerId) {
+    if let Some(gossipsub) = swarm.behaviour_mut().gossipsub.as_mut() {
+        let score = peer_scoring::get_default_score();
+        gossipsub.set_application_score(&peer_id, score);
+        trace!("Set default application score {score} for peer {peer_id} before Identify");
+    }
+}
+
+fn set_peer_score(swarm: &mut swarm::Swarm<Behaviour>, peer_id: libp2p::PeerId, score: f64) {
+    // Set application-specific score in gossipsub if enabled
+    if let Some(gossipsub) = swarm.behaviour_mut().gossipsub.as_mut() {
+        gossipsub.set_application_score(&peer_id, score);
+        debug!("Upgraded application score to {score} for peer {peer_id}");
     }
 }
 
 async fn handle_swarm_event(
     event: SwarmEvent<NetworkEvent>,
-    _config: &Config,
+    config: &Config,
     metrics: &Metrics,
     swarm: &mut swarm::Swarm<Behaviour>,
     state: &mut State,
@@ -378,7 +578,7 @@ async fn handle_swarm_event(
     if let SwarmEvent::Behaviour(NetworkEvent::GossipSub(e)) = &event {
         metrics.record(e);
     } else if let SwarmEvent::Behaviour(NetworkEvent::Identify(e)) = &event {
-        metrics.record(e);
+        metrics.record(e.as_ref());
     }
 
     match event {
@@ -395,9 +595,17 @@ async fn handle_swarm_event(
             peer_id,
             connection_id,
             endpoint,
+            num_established,
             ..
         } => {
-            trace!("Connected to {peer_id} with connection id {connection_id}",);
+            trace!("Connected to {peer_id} with connection id {connection_id}");
+
+            // Set a low default score immediately for gossipsub mesh formation
+            // This will be upgraded later when Identify completes
+            if num_established.get() == 1 {
+                // Only set score on first connection to this peer
+                set_default_peer_score(swarm, peer_id);
+            }
 
             state
                 .discovery
@@ -413,15 +621,20 @@ async fn handle_swarm_event(
 
             state
                 .discovery
-                .handle_failed_connection(swarm, connection_id);
+                .handle_failed_connection(swarm, connection_id, error);
         }
 
         SwarmEvent::ConnectionClosed {
             peer_id,
             connection_id,
+            num_established,
             cause,
             ..
         } => {
+            debug!(
+                "SwarmEvent::ConnectionClosed: peer_id={}, connection_id={}, num_established={}",
+                peer_id, connection_id, num_established
+            );
             if let Some(cause) = cause {
                 warn!("Connection closed with {peer_id}, reason: {cause}");
             } else {
@@ -432,55 +645,69 @@ async fn handle_swarm_event(
                 .discovery
                 .handle_closed_connection(swarm, peer_id, connection_id);
 
-            if let Err(e) = tx_event
-                .send(Event::PeerDisconnected(PeerId::from_libp2p(&peer_id)))
-                .await
-            {
-                error!("Error sending peer disconnected event to handle: {e}");
-                return ControlFlow::Break(());
-            }
-        }
-
-        SwarmEvent::Behaviour(NetworkEvent::Identify(identify::Event::Sent {
-            peer_id, ..
-        })) => {
-            trace!("Sent identity to {peer_id}");
-        }
-
-        SwarmEvent::Behaviour(NetworkEvent::Identify(identify::Event::Received {
-            connection_id,
-            peer_id,
-            info,
-        })) => {
-            trace!(
-                "Received identity from {peer_id}: protocol={:?}",
-                info.protocol_version
-            );
-
-            if info.protocol_version == PROTOCOL {
-                trace!(
-                    "Peer {peer_id} is using compatible protocol version: {:?}",
-                    info.protocol_version
-                );
-
-                state
-                    .discovery
-                    .handle_new_peer(swarm, connection_id, peer_id, info);
-
+            if num_established == 0 {
                 if let Err(e) = tx_event
-                    .send(Event::PeerConnected(PeerId::from_libp2p(&peer_id)))
+                    .send(Event::PeerDisconnected(PeerId::from_libp2p(&peer_id)))
                     .await
                 {
-                    error!("Error sending peer connected event to handle: {e}");
+                    error!("Error sending peer disconnected event to handle: {e}");
                     return ControlFlow::Break(());
                 }
-            } else {
-                trace!(
-                    "Peer {peer_id} is using incompatible protocol version: {:?}",
-                    info.protocol_version
-                );
             }
         }
+
+        SwarmEvent::Behaviour(NetworkEvent::Identify(event)) => match *event {
+            identify::Event::Sent { peer_id, .. } => {
+                trace!("Sent identity to {peer_id}");
+            }
+
+            identify::Event::Received {
+                connection_id,
+                peer_id,
+                info,
+            } => {
+                info!(
+                    "Received identity from {peer_id}: protocol={:?} agent={:?}",
+                    info.protocol_version, info.agent_version
+                );
+
+                if info.protocol_version == config.protocol_names.consensus {
+                    trace!(
+                        "Peer {peer_id} is using compatible protocol version: {:?}",
+                        info.protocol_version
+                    );
+
+                    let is_already_connected = state.discovery.handle_new_peer(
+                        swarm,
+                        connection_id,
+                        peer_id,
+                        info.clone(),
+                    );
+
+                    // Update peer info in State and metrics, set peer score in gossipsub
+                    let score = state.update_peer(peer_id, connection_id, &info);
+                    set_peer_score(swarm, peer_id, score);
+
+                    if !is_already_connected {
+                        if let Err(e) = tx_event
+                            .send(Event::PeerConnected(PeerId::from_libp2p(&peer_id)))
+                            .await
+                        {
+                            error!("Error sending peer connected event to handle: {e}");
+                            return ControlFlow::Break(());
+                        }
+                    }
+                } else {
+                    trace!(
+                        "Peer {peer_id} is using incompatible protocol version: {:?}",
+                        info.protocol_version
+                    );
+                }
+            }
+
+            // Ignore other identify events
+            _ => (),
+        },
 
         SwarmEvent::Behaviour(NetworkEvent::Ping(event)) => {
             match &event.result {
@@ -497,11 +724,11 @@ async fn handle_swarm_event(
         }
 
         SwarmEvent::Behaviour(NetworkEvent::GossipSub(event)) => {
-            return handle_gossipsub_event(event, metrics, swarm, state, tx_event).await;
+            return handle_gossipsub_event(event, config, metrics, swarm, state, tx_event).await;
         }
 
         SwarmEvent::Behaviour(NetworkEvent::Broadcast(event)) => {
-            return handle_broadcast_event(event, metrics, swarm, state, tx_event).await;
+            return handle_broadcast_event(event, config, metrics, swarm, state, tx_event).await;
         }
 
         SwarmEvent::Behaviour(NetworkEvent::Sync(event)) => {
@@ -509,7 +736,7 @@ async fn handle_swarm_event(
         }
 
         SwarmEvent::Behaviour(NetworkEvent::Discovery(network_event)) => {
-            state.discovery.on_network_event(swarm, network_event);
+            state.discovery.on_network_event(swarm, *network_event);
         }
 
         swarm_event => {
@@ -522,6 +749,7 @@ async fn handle_swarm_event(
 
 async fn handle_gossipsub_event(
     event: gossipsub::Event,
+    config: &Config,
     _metrics: &Metrics,
     _swarm: &mut swarm::Swarm<Behaviour>,
     _state: &mut State,
@@ -529,7 +757,7 @@ async fn handle_gossipsub_event(
 ) -> ControlFlow<()> {
     match event {
         gossipsub::Event::Subscribed { peer_id, topic } => {
-            if !Channel::has_gossipsub_topic(&topic) {
+            if !Channel::has_gossipsub_topic(&topic, config.channel_names) {
                 trace!("Peer {peer_id} tried to subscribe to unknown topic: {topic}");
                 return ControlFlow::Continue(());
             }
@@ -538,7 +766,7 @@ async fn handle_gossipsub_event(
         }
 
         gossipsub::Event::Unsubscribed { peer_id, topic } => {
-            if !Channel::has_gossipsub_topic(&topic) {
+            if !Channel::has_gossipsub_topic(&topic, config.channel_names) {
                 trace!("Peer {peer_id} tried to unsubscribe from unknown topic: {topic}");
                 return ControlFlow::Continue(());
             }
@@ -555,7 +783,9 @@ async fn handle_gossipsub_event(
                 return ControlFlow::Continue(());
             };
 
-            let Some(channel) = Channel::from_gossipsub_topic_hash(&message.topic) else {
+            let Some(channel) =
+                Channel::from_gossipsub_topic_hash(&message.topic, config.channel_names)
+            else {
                 trace!(
                     "Received message {message_id} from {peer_id} on different channel: {}",
                     message.topic
@@ -569,11 +799,13 @@ async fn handle_gossipsub_event(
                 message.data.len()
             );
 
-            let event = Event::Message(
-                channel,
-                PeerId::from_libp2p(&peer_id),
-                Bytes::from(message.data),
-            );
+            let peer_id = PeerId::from_libp2p(&peer_id);
+
+            let event = if channel == Channel::Liveness {
+                Event::LivenessMessage(channel, peer_id, Bytes::from(message.data))
+            } else {
+                Event::ConsensusMessage(channel, peer_id, Bytes::from(message.data))
+            };
 
             if let Err(e) = tx_event.send(event).await {
                 error!("Error sending message to handle: {e}");
@@ -601,6 +833,7 @@ async fn handle_gossipsub_event(
 
 async fn handle_broadcast_event(
     event: broadcast::Event,
+    config: &Config,
     _metrics: &Metrics,
     _swarm: &mut swarm::Swarm<Behaviour>,
     _state: &mut State,
@@ -608,7 +841,7 @@ async fn handle_broadcast_event(
 ) -> ControlFlow<()> {
     match event {
         broadcast::Event::Subscribed(peer_id, topic) => {
-            if !Channel::has_broadcast_topic(&topic) {
+            if !Channel::has_broadcast_topic(&topic, config.channel_names) {
                 trace!("Peer {peer_id} tried to subscribe to unknown topic: {topic:?}");
                 return ControlFlow::Continue(());
             }
@@ -617,7 +850,7 @@ async fn handle_broadcast_event(
         }
 
         broadcast::Event::Unsubscribed(peer_id, topic) => {
-            if !Channel::has_broadcast_topic(&topic) {
+            if !Channel::has_broadcast_topic(&topic, config.channel_names) {
                 trace!("Peer {peer_id} tried to unsubscribe from unknown topic: {topic:?}");
                 return ControlFlow::Continue(());
             }
@@ -626,7 +859,7 @@ async fn handle_broadcast_event(
         }
 
         broadcast::Event::Received(peer_id, topic, message) => {
-            let Some(channel) = Channel::from_broadcast_topic(&topic) else {
+            let Some(channel) = Channel::from_broadcast_topic(&topic, config.channel_names) else {
                 trace!("Received message from {peer_id} on different channel: {topic:?}");
                 return ControlFlow::Continue(());
             };
@@ -636,11 +869,13 @@ async fn handle_broadcast_event(
                 message.len()
             );
 
-            let event = Event::Message(
-                channel,
-                PeerId::from_libp2p(&peer_id),
-                Bytes::copy_from_slice(message.as_ref()),
-            );
+            let peer_id = PeerId::from_libp2p(&peer_id);
+
+            let event = if channel == Channel::Liveness {
+                Event::LivenessMessage(channel, peer_id, message)
+            } else {
+                Event::ConsensusMessage(channel, peer_id, message)
+            };
 
             if let Err(e) = tx_event.send(event).await {
                 error!("Error sending message to handle: {e}");

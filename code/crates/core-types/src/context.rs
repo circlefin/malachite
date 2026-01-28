@@ -1,6 +1,6 @@
 use crate::{
-    Address, Extension, Height, NilOrVal, Proposal, ProposalPart, Round, SigningScheme, Validator,
-    ValidatorSet, Value, ValueId, Vote,
+    Address, Extension, Height, NilOrVal, Proposal, ProposalPart, Round, SigningScheme, Timeouts,
+    Validator, ValidatorSet, Value, ValueId, Vote,
 };
 
 /// This trait allows to abstract over the various datatypes
@@ -26,6 +26,9 @@ where
 
     /// The interface provided by the validator set type.
     type ValidatorSet: ValidatorSet<Self>;
+
+    /// The interface provided by the timeouts type.
+    type Timeouts: Timeouts<Self>;
 
     /// The `Value` type denotes the value `v` carried by the `Proposal`
     /// consensus message that is gossiped to other nodes by the proposer.

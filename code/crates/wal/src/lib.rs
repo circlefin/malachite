@@ -15,3 +15,7 @@ pub use version::Version;
 // For use in tests
 #[doc(hidden)]
 pub mod ext;
+
+// For use in tests
+#[doc(hidden)]
+pub use log::constants;

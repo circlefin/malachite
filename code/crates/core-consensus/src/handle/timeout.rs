@@ -1,6 +1,5 @@
 use crate::handle::driver::apply_driver_input;
 use crate::handle::rebroadcast_timeout::on_rebroadcast_timeout;
-use crate::handle::step_timeout::on_step_limit_timeout;
 use crate::prelude::*;
 use crate::types::WalEntry;
 
@@ -13,8 +12,7 @@ pub async fn on_timeout_elapsed<Ctx>(
 where
     Ctx: Context,
 {
-    let height = state.driver.height();
-    let round = state.driver.round();
+    let (height, round) = (state.height(), state.round());
 
     if timeout.round != round {
         debug!(
@@ -43,19 +41,15 @@ where
         // Time-limit and rebroadcast timeouts are not persisted because they only occur when consensus is stuck.
         perform!(
             co,
-            Effect::WalAppend(WalEntry::Timeout(timeout), Default::default())
+            Effect::WalAppend(height, WalEntry::Timeout(timeout), Default::default())
         );
     }
 
     apply_driver_input(co, state, metrics, DriverInput::TimeoutElapsed(timeout)).await?;
 
-    match timeout.kind {
-        TimeoutKind::PrevoteRebroadcast | TimeoutKind::PrecommitRebroadcast => {
-            on_rebroadcast_timeout(co, state, metrics, timeout).await
-        }
-        TimeoutKind::PrevoteTimeLimit | TimeoutKind::PrecommitTimeLimit => {
-            on_step_limit_timeout(co, state, metrics, timeout.round).await
-        }
-        _ => Ok(()),
+    if matches!(timeout.kind, TimeoutKind::Rebroadcast) {
+        on_rebroadcast_timeout(co, state, metrics).await?;
     }
+
+    Ok(())
 }

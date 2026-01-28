@@ -4,24 +4,30 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use malachitebft_app_channel::app::engine::consensus::Msg;
-use malachitebft_test::middleware::{DefaultMiddleware, Middleware};
 use rand::{CryptoRng, RngCore};
 use tokio::task::JoinHandle;
 use tracing::Instrument;
 
 use malachitebft_app_channel::app::config::*;
+use malachitebft_app_channel::app::engine::consensus::Msg;
 use malachitebft_app_channel::app::events::{RxEvent, TxEvent};
-use malachitebft_app_channel::app::node::{
-    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, EngineHandle,
-    MakeConfigSettings, Node, NodeHandle,
-};
 use malachitebft_app_channel::app::types::core::VotingPower;
 use malachitebft_app_channel::app::types::Keypair;
+use malachitebft_app_channel::NetworkIdentity;
+use malachitebft_app_channel::{
+    ConsensusContext, EngineHandle, NetworkContext, RequestContext, WalContext,
+};
+use malachitebft_test::codec::json::JsonCodec;
+use malachitebft_test::codec::proto::ProtobufCodec;
+use malachitebft_test::node::{Node, NodeHandle};
+use malachitebft_test::traits::{
+    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, MakeConfigSettings,
+};
+
+use malachitebft_test::middleware::{DefaultMiddleware, Middleware};
 
 // Use the same types used for integration tests.
 // A real application would use its own types and context instead.
-use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{
     Address, Ed25519Provider, Genesis, Height, PrivateKey, PublicKey, TestContext, Validator,
     ValidatorSet,
@@ -130,20 +136,21 @@ impl Node for App {
             .unwrap_or_else(|| Arc::new(DefaultMiddleware));
 
         let ctx = TestContext::with_middleware(middleware);
-        let codec = ProtobufCodec;
 
         let public_key = self.get_public_key(&self.private_key);
         let address = self.get_address(&public_key);
-        let signing_provider = self.get_signing_provider(self.private_key.clone());
+        let keypair = self.get_keypair(self.private_key.clone());
         let genesis = self.load_genesis()?;
-
+        let wal_path = self.get_home_dir().join("wal").join("consensus.wal");
+        let identity =
+            NetworkIdentity::new(config.moniker.clone(), keypair, Some(address.to_string()));
         let (mut channels, engine_handle) = malachitebft_app_channel::start_engine(
             ctx.clone(),
-            codec,
-            self.clone(),
             config.clone(),
-            self.start_height,
-            self.validator_set.clone(),
+            WalContext::new(wal_path, ProtobufCodec),
+            NetworkContext::new(identity, JsonCodec),
+            ConsensusContext::new(address, self.get_signing_provider(self.private_key.clone())),
+            RequestContext::new(100), // Request channel size
         )
         .await?;
 
@@ -162,14 +169,15 @@ impl Node for App {
             address,
             start_height,
             store,
-            signing_provider,
+            self.get_signing_provider(self.private_key.clone()),
+            self.middleware.clone(),
         );
 
         let tx_event = channels.events.clone();
 
         let app_handle = tokio::spawn(
             async move {
-                if let Err(e) = crate::app::run(genesis, &mut state, &mut channels).await {
+                if let Err(e) = crate::app::run(&mut state, &mut channels).await {
                     tracing::error!("Application has failed with an error: {e}");
                 }
             }
@@ -235,14 +243,12 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
     let metrics_port = METRICS_BASE_PORT + index;
 
     Config {
-        moniker: format!("test-{}", index),
+        moniker: format!("test-{index}"),
         consensus: ConsensusConfig {
+            enabled: true,
             // Current test app does not support proposal-only value payload properly as Init does not include valid_round
             value_payload: ValuePayload::ProposalAndParts,
-            vote_sync: VoteSyncConfig {
-                mode: VoteSyncMode::RequestResponse,
-            },
-            timeouts: TimeoutConfig::default(),
+            queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
                 listen_addr: settings.transport.multiaddr("127.0.0.1", consensus_port),
@@ -277,6 +283,7 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
                         .collect()
                 },
                 discovery: settings.discovery,
+                persistent_peers_only: settings.persistent_peers_only,
                 ..Default::default()
             },
         },

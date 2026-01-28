@@ -1,6 +1,6 @@
 use derive_where::derive_where;
 
-use malachitebft_core_types::{Context, Round};
+use malachitebft_core_types::{Context, Round, Value};
 
 /// The type of errors that can be yielded by the `Driver`.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
@@ -48,5 +48,14 @@ where
         certificate_height: Ctx::Height,
         /// Consensus height
         consensus_height: Ctx::Height,
+    },
+
+    /// Commit certificate not found for the given round and value
+    #[error("Commit certificate not found for round {round} and value {value_id}")]
+    CertificateNotFound {
+        /// The round
+        round: Round,
+        /// The value ID
+        value_id: <Ctx::Value as Value>::Id,
     },
 }

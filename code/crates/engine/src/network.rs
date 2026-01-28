@@ -4,27 +4,33 @@ use std::marker::PhantomData;
 use async_trait::async_trait;
 use derive_where::derive_where;
 use eyre::eyre;
-use libp2p::identity::Keypair;
 use libp2p::request_response;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
-use tracing::{error, trace};
+use tracing::{error, info, trace};
+
+use malachitebft_codec as codec;
+use malachitebft_core_consensus::{LivenessMsg, SignedConsensusMsg};
+use malachitebft_core_types::{
+    Context, PolkaCertificate, RoundCertificate, SignedProposal, SignedVote, Validator,
+    ValidatorSet,
+};
+use malachitebft_metrics::SharedRegistry;
+use malachitebft_network::handle::CtrlHandle;
+use malachitebft_network::{Channel, Config, Event, Multiaddr, PeerId};
+
+pub use malachitebft_network::NetworkIdentity;
 
 use malachitebft_sync::{
     self as sync, InboundRequestId, OutboundRequestId, RawMessage, Request, Response,
 };
 
-use malachitebft_codec as codec;
-use malachitebft_core_consensus::SignedConsensusMsg;
-use malachitebft_core_types::{Context, SignedProposal, SignedVote};
-use malachitebft_metrics::SharedRegistry;
-use malachitebft_network::handle::CtrlHandle;
-use malachitebft_network::{Channel, Config, Event, Multiaddr, PeerId};
-
 use crate::consensus::ConsensusCodec;
 use crate::sync::SyncCodec;
 use crate::util::output_port::{OutputPort, OutputPortSubscriberTrait};
 use crate::util::streaming::StreamMessage;
+
+pub use malachitebft_network::NetworkStateDump;
 
 pub type NetworkRef<Ctx> = ActorRef<Msg<Ctx>>;
 pub type NetworkMsg<Ctx> = Msg<Ctx>;
@@ -69,17 +75,18 @@ where
     Ctx: Context,
     Codec: ConsensusCodec<Ctx>,
     Codec: SyncCodec<Ctx>,
+    Codec: codec::HasEncodedLen<sync::Response<Ctx>>,
 {
     pub async fn spawn(
-        keypair: Keypair,
+        identity: NetworkIdentity,
         config: Config,
         metrics: SharedRegistry,
         codec: Codec,
         span: tracing::Span,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
         let args = Args {
-            keypair,
-            config,
+            identity,
+            config: config.clone(),
             metrics,
         };
 
@@ -89,7 +96,7 @@ where
 }
 
 pub struct Args {
-    pub keypair: Keypair,
+    pub identity: NetworkIdentity,
     pub config: Config,
     pub metrics: SharedRegistry,
 }
@@ -106,10 +113,14 @@ pub enum NetworkEvent<Ctx: Context> {
     Proposal(PeerId, SignedProposal<Ctx>),
     ProposalPart(PeerId, StreamMessage<Ctx::ProposalPart>),
 
+    PolkaCertificate(PeerId, PolkaCertificate<Ctx>),
+
+    RoundCertificate(PeerId, RoundCertificate<Ctx>),
+
     Status(PeerId, Status<Ctx>),
 
-    Request(InboundRequestId, PeerId, Request<Ctx>),
-    Response(OutboundRequestId, PeerId, Response<Ctx>),
+    SyncRequest(InboundRequestId, PeerId, Request<Ctx>),
+    SyncResponse(OutboundRequestId, PeerId, Option<Response<Ctx>>),
 }
 
 pub enum State<Ctx: Context> {
@@ -118,7 +129,7 @@ pub enum State<Ctx: Context> {
         listen_addrs: Vec<Multiaddr>,
         peers: BTreeSet<PeerId>,
         output_port: OutputPort<NetworkEvent<Ctx>>,
-        ctrl_handle: CtrlHandle,
+        ctrl_handle: Box<CtrlHandle>,
         recv_task: JoinHandle<()>,
         inbound_requests: HashMap<InboundRequestId, request_response::InboundRequestId>,
     },
@@ -144,7 +155,10 @@ pub enum Msg<Ctx: Context> {
     Subscribe(Box<dyn Subscriber<NetworkEvent<Ctx>>>),
 
     /// Publish a signed consensus message
-    Publish(SignedConsensusMsg<Ctx>),
+    PublishConsensusMsg(SignedConsensusMsg<Ctx>),
+
+    /// Publish a liveness message
+    PublishLivenessMsg(LivenessMsg<Ctx>),
 
     /// Publish a proposal part
     PublishProposalPart(StreamMessage<Ctx::ProposalPart>),
@@ -158,8 +172,11 @@ pub enum Msg<Ctx: Context> {
     /// Send a response for a request to a peer
     OutgoingResponse(InboundRequestId, Response<Ctx>),
 
-    /// Request for number of peers from gossip
-    GetState { reply: RpcReplyPort<usize> },
+    /// Request to dump the current network state
+    DumpState(RpcReplyPort<Option<NetworkStateDump>>),
+
+    /// Update the validator set for the current height
+    UpdateValidatorSet(Ctx::ValidatorSet),
 
     // Event emitted by the gossip layer
     #[doc(hidden)]
@@ -174,9 +191,8 @@ where
     Codec: codec::Codec<Ctx::ProposalPart>,
     Codec: codec::Codec<SignedConsensusMsg<Ctx>>,
     Codec: codec::Codec<StreamMessage<Ctx::ProposalPart>>,
-    Codec: codec::Codec<sync::Status<Ctx>>,
-    Codec: codec::Codec<sync::Request<Ctx>>,
-    Codec: codec::Codec<sync::Response<Ctx>>,
+    Codec: codec::Codec<LivenessMsg<Ctx>>,
+    Codec: SyncCodec<Ctx>,
 {
     type Msg = Msg<Ctx>;
     type State = State<Ctx>;
@@ -187,7 +203,7 @@ where
         myself: ActorRef<Msg<Ctx>>,
         args: Args,
     ) -> Result<Self::State, ActorProcessingErr> {
-        let handle = malachitebft_network::spawn(args.keypair, args.config, args.metrics).await?;
+        let handle = malachitebft_network::spawn(args.identity, args.config, args.metrics).await?;
 
         let (mut recv_handle, ctrl_handle) = handle.split();
 
@@ -204,7 +220,7 @@ where
             listen_addrs: Vec::new(),
             peers: BTreeSet::new(),
             output_port: OutputPort::with_capacity(128),
-            ctrl_handle,
+            ctrl_handle: Box::new(ctrl_handle),
             recv_task,
             inbound_requests: HashMap::new(),
         })
@@ -225,6 +241,12 @@ where
         msg: Msg<Ctx>,
         state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
+        // We need to handle before deconstructing `state` to always reply.
+        if let Msg::DumpState(reply_to) = msg {
+            handle_dump_state(state, reply_to).await;
+            return Ok(());
+        }
+
         let State::Running {
             listen_addrs,
             peers,
@@ -250,9 +272,14 @@ where
                 subscriber.subscribe_to_port(output_port);
             }
 
-            Msg::Publish(msg) => match self.codec.encode(&msg) {
+            Msg::PublishConsensusMsg(msg) => match self.codec.encode(&msg) {
                 Ok(data) => ctrl_handle.publish(Channel::Consensus, data).await?,
-                Err(e) => error!("Failed to encode gossip message: {e:?}"),
+                Err(e) => error!("Failed to encode consensus message: {e:?}"),
+            },
+
+            Msg::PublishLivenessMsg(msg) => match self.codec.encode(&msg) {
+                Ok(data) => ctrl_handle.publish(Channel::Liveness, data).await?,
+                Err(e) => error!("Failed to encode liveness message: {e:?}"),
             },
 
             Msg::PublishProposalPart(msg) => {
@@ -328,11 +355,38 @@ where
                 output_port.send(NetworkEvent::PeerDisconnected(peer_id));
             }
 
-            Msg::NewEvent(Event::Message(Channel::Consensus, from, data)) => {
+            Msg::NewEvent(Event::LivenessMessage(Channel::Liveness, from, data)) => {
                 let msg = match self.codec.decode(data) {
                     Ok(msg) => msg,
                     Err(e) => {
-                        error!(%from, "Failed to decode gossip message: {e:?}");
+                        error!(%from, "Failed to decode liveness message: {e:?}");
+                        return Ok(());
+                    }
+                };
+
+                let event = match msg {
+                    LivenessMsg::PolkaCertificate(polka_cert) => {
+                        NetworkEvent::PolkaCertificate(from, polka_cert)
+                    }
+                    LivenessMsg::SkipRoundCertificate(round_cert) => {
+                        NetworkEvent::RoundCertificate(from, round_cert)
+                    }
+                    LivenessMsg::Vote(vote) => NetworkEvent::Vote(from, vote),
+                };
+
+                output_port.send(event);
+            }
+
+            Msg::NewEvent(Event::LivenessMessage(channel, from, _)) => {
+                error!(%from, "Unexpected liveness message on {channel} channel");
+                return Ok(());
+            }
+
+            Msg::NewEvent(Event::ConsensusMessage(Channel::Consensus, from, data)) => {
+                let msg = match self.codec.decode(data) {
+                    Ok(msg) => msg,
+                    Err(e) => {
+                        error!(%from, "Failed to decode consensus message: {e:?}");
                         return Ok(());
                     }
                 };
@@ -347,7 +401,7 @@ where
                 output_port.send(event);
             }
 
-            Msg::NewEvent(Event::Message(Channel::ProposalParts, from, data)) => {
+            Msg::NewEvent(Event::ConsensusMessage(Channel::ProposalParts, from, data)) => {
                 let msg: StreamMessage<Ctx::ProposalPart> = match self.codec.decode(data) {
                     Ok(stream_msg) => stream_msg,
                     Err(e) => {
@@ -366,7 +420,7 @@ where
                 output_port.send(NetworkEvent::ProposalPart(from, msg));
             }
 
-            Msg::NewEvent(Event::Message(Channel::Sync, from, data)) => {
+            Msg::NewEvent(Event::ConsensusMessage(Channel::Sync, from, data)) => {
                 let status: sync::Status<Ctx> = match self.codec.decode(data) {
                     Ok(status) => status,
                     Err(e) => {
@@ -388,13 +442,18 @@ where
                 ));
             }
 
+            Msg::NewEvent(Event::ConsensusMessage(channel, from, _)) => {
+                error!(%from, "Unexpected consensus message on {channel} channel");
+                return Ok(());
+            }
+
             Msg::NewEvent(Event::Sync(raw_msg)) => match raw_msg {
                 RawMessage::Request {
                     request_id,
                     peer,
                     body,
                 } => {
-                    let request: sync::Request<Ctx> = match self.codec.decode(body) {
+                    let request = match self.codec.decode(body) {
                         Ok(request) => request,
                         Err(e) => {
                             error!(%peer, "Failed to decode sync request: {e:?}");
@@ -404,7 +463,7 @@ where
 
                     inbound_requests.insert(InboundRequestId::new(request_id), request_id);
 
-                    output_port.send(NetworkEvent::Request(
+                    output_port.send(NetworkEvent::SyncRequest(
                         InboundRequestId::new(request_id),
                         peer,
                         request,
@@ -416,15 +475,15 @@ where
                     peer,
                     body,
                 } => {
-                    let response: sync::Response<Ctx> = match self.codec.decode(body) {
-                        Ok(response) => response,
+                    let response = match self.codec.decode(body) {
+                        Ok(response) => Some(response),
                         Err(e) => {
                             error!(%peer, "Failed to decode sync response: {e:?}");
-                            return Ok(());
+                            None
                         }
                     };
 
-                    output_port.send(NetworkEvent::Response(
+                    output_port.send(NetworkEvent::SyncResponse(
                         OutboundRequestId::new(request_id),
                         peer,
                         response,
@@ -432,13 +491,24 @@ where
                 }
             },
 
-            Msg::GetState { reply } => {
-                let number_peers = match state {
-                    State::Stopped => 0,
-                    State::Running { peers, .. } => peers.len(),
-                };
-                reply.send(number_peers)?;
+            Msg::UpdateValidatorSet(validator_set) => {
+                info!(
+                    "Updating validator set: {} validators",
+                    validator_set.count()
+                );
+                // Convert ValidatorSet to Vec<ValidatorInfo>
+                // Note: We don't pass the Ctx to the network layer
+                let validators: Vec<_> = validator_set
+                    .iter()
+                    .map(|v| malachitebft_network::ValidatorInfo {
+                        address: v.address().to_string(),
+                        voting_power: v.voting_power(),
+                    })
+                    .collect();
+                ctrl_handle.update_validator_set(validators).await?;
             }
+
+            Msg::DumpState(_) => unreachable!("DumpState handled above to ensure a reply"),
         }
 
         Ok(())
@@ -462,5 +532,30 @@ where
         }
 
         Ok(())
+    }
+}
+
+async fn handle_dump_state<Ctx>(
+    state: &mut State<Ctx>,
+    reply_to: RpcReplyPort<Option<NetworkStateDump>>,
+) where
+    Ctx: Context,
+{
+    let dump = match state {
+        State::Stopped => {
+            info!("Dumping network state: not started");
+            None
+        }
+        State::Running { ctrl_handle, .. } => match ctrl_handle.dump_state().await {
+            Ok(snapshot) => Some(snapshot),
+            Err(error) => {
+                error!(%error, "Failed to obtain network dump");
+                None
+            }
+        },
+    };
+
+    if let Err(error) = reply_to.send(dump) {
+        error!(%error, "Failed to reply with network state dump");
     }
 }

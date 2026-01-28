@@ -1,8 +1,5 @@
-use tracing::trace;
-
 use crate::handle::driver::apply_driver_input;
 use crate::handle::signature::verify_signature;
-use crate::handle::validator_set::get_validator_set;
 use crate::input::Input;
 use crate::prelude::*;
 use crate::types::{ConsensusMsg, SignedConsensusMsg, WalEntry};
@@ -17,15 +14,19 @@ pub async fn on_vote<Ctx>(
 where
     Ctx: Context,
 {
-    let consensus_height = state.driver.height();
-    let consensus_round = state.driver.round();
+    let consensus_height = state.height();
+    let consensus_round = state.round();
     let vote_height = signed_vote.height();
+    let vote_round = signed_vote.round();
     let validator_address = signed_vote.validator_address();
 
+    // Discard votes for heights lower than the current height.
     if consensus_height > vote_height {
         debug!(
             consensus.height = %consensus_height,
+            consensus.round = %consensus_round,
             vote.height = %vote_height,
+            vote.round = %vote_round,
             validator = %validator_address,
             "Received vote for lower height, dropping"
         );
@@ -33,62 +34,69 @@ where
         return Ok(());
     }
 
-    if !verify_signed_vote(co, state, &signed_vote).await? {
-        return Ok(());
-    }
-
-    info!(
-        height = %consensus_height,
-        %vote_height,
-        address = %validator_address,
-        message = %PrettyVote::<Ctx>(&signed_vote.message),
-        "Received vote",
-    );
-
-    // Queue messages if driver is not initialized, or if they are for higher height.
-    // Process messages received for the current height.
-    // Drop all others.
-    if consensus_round == Round::Nil {
-        trace!(
-            consensus.height = %consensus_height,
-            vote.height = %vote_height,
-            validator = %validator_address,
-            "Received vote at round -1, queuing for later"
-        );
-
-        state.buffer_input(vote_height, Input::Vote(signed_vote));
-
-        return Ok(());
-    }
-
+    // Queue votes for heights higher than the current height.
     if consensus_height < vote_height {
-        trace!(
+        debug!(
             consensus.height = %consensus_height,
+            consensus.round = %consensus_round,
             vote.height = %vote_height,
+            vote.round = %vote_round,
             validator = %validator_address,
             "Received vote for higher height, queuing for later"
         );
 
-        state.buffer_input(vote_height, Input::Vote(signed_vote));
+        state.buffer_input(vote_height, Input::Vote(signed_vote), metrics);
+
+        return Ok(());
+    }
+
+    // Queue messages if driver is not initialized
+    // Process messages received for the current height.
+    // Drop all others.
+    if consensus_round == Round::Nil {
+        debug!(
+            consensus.height = %consensus_height,
+            consensus.round = %consensus_round,
+            vote.height = %vote_height,
+            vote.round = %vote_round,
+            validator = %validator_address,
+            "Received vote at round -1, queuing for later"
+        );
+
+        state.buffer_input(vote_height, Input::Vote(signed_vote), metrics);
 
         return Ok(());
     }
 
     debug_assert_eq!(consensus_height, vote_height);
 
-    // Only append to WAL and store the non-nil precommit if we have not yet seen this vote.
+    if !verify_signed_vote(co, state, &signed_vote).await? {
+        return Ok(());
+    }
+
+    info!(
+        consensus.height = %consensus_height,
+        consensus.round = %consensus_round,
+        vote.height = %vote_height,
+        vote.round = %vote_round,
+        vote.msg = %PrettyVote::<Ctx>(&signed_vote.message),
+        validator = %validator_address,
+        "Received vote",
+    );
+
+    // Only process this vote if we have not yet seen it.
     if !state.driver.votes().has_vote(&signed_vote) {
-        // Append the vote to the Write-ahead Log
         perform!(
             co,
             Effect::WalAppend(
+                signed_vote.height(),
                 WalEntry::ConsensusMsg(SignedConsensusMsg::Vote(signed_vote.clone())),
                 Default::default()
             )
         );
-    }
 
-    apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote)).await?;
+        apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote)).await?;
+    }
 
     Ok(())
 }
@@ -101,22 +109,14 @@ pub async fn verify_signed_vote<Ctx>(
 where
     Ctx: Context,
 {
-    let consensus_height = state.driver.height();
+    let consensus_height = state.height();
     let vote_height = signed_vote.height();
     let vote_round = signed_vote.round();
     let validator_address = signed_vote.validator_address();
 
-    let Some(validator_set) = get_validator_set(co, state, signed_vote.height()).await? else {
-        debug!(
-            consensus.height = %consensus_height,
-            vote.height = %vote_height,
-            vote.round = %vote_round,
-            validator = %validator_address,
-            "Received vote for height without known validator set, dropping"
-        );
+    assert_eq!(vote_height, consensus_height);
 
-        return Ok(false);
-    };
+    let validator_set = state.validator_set();
 
     let Some(validator) = validator_set.get_by_address(validator_address) else {
         warn!(
@@ -182,7 +182,7 @@ where
 
     if let Err(e) = result {
         warn!(
-            consensus.height = %state.driver.height(),
+            consensus.height = %state.height(),
             vote.height = %vote.height(),
             vote.round = %vote.round(),
             validator = %validator.address(),

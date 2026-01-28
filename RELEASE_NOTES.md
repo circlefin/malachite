@@ -2,8 +2,100 @@
 
 ## Unreleased
 
+### `app-channel`
+- Make consensus request channel capacity configurable
+- Refactor infrastructure for spawning a channel-based application
+
+### `consensus`
+- Allow application to change its mind about validity (invalid -> valid)
+- Allow dynamic adjustment of timeout parameters ([#1227](https://github.com/circlefin/malachite/pull/1227))
+- Allow providing both the validator set and the timeouts for a height in `StartHeight`, `RestartHeight` and `ConsensusReady` reply ([#1227](https://github.com/circlefin/malachite/pull/1227))
+- Remove `initial_validator_set` and `initial_height` fields from `Params` struct ([#1190](https://github.com/circlefin/malachite/pull/1190))
+
+### `discovery`
+- Can connect request calls the wrong controller action
+- Clear connect_request done_on to allow re-upgrading the peer on reconnection
+- Don't add peers with empty address list to dial queue
+- Don't cancel outgoing dials when receiving inbound connection from same peer
+- Ensure discovery configuration is passed down to the networking module
+- Fix peer and connection metrics when discovery is disabled
+- Prevent address poisoning when discovery is enabled
+- Prevent address spoofing in persistent peer detection
+
+### `driver`
+- Check for polka certificate to multiplex `PolkaValue` output on step change
+- Ensure `PrecommitAny` does not shadow `PolkaNil` and `PolkaAny` pending inputs
+- Ensure polka certificate is matched against a proposal for the same value
+- Produce `InvalidProposalAndPolkaPrevious` when receiving a polka certificate matching the POL round of a proposal with an invalid value
+
+### `network`
+- Add `persistent_peers_only` config option to allow connections ONLY from/to persistent peers
+- Add a mechanism to dump the network state
+- Add application-specific peer scoring for Gossipsub to prioritize nodes based on their types, in mesh formation and maintenance
+- Add network metrics for peer identification and tracking
+- Add transport level connection limits
+- Limit the number of peers that can connect from same IP address
+
+### `signing`
+- Implement `SigningProvider` for `Arc<T>` where `T: SigningProvider`
+- Remove signing of proposal parts
+
+### `sync`
+- Initial random (fixed) period adjustment in sync status ticker
+- Support batch retrieval of decided values
+- Validate value request ranges before processing
+
+## 0.6.0
+
+*November 19th, 2025*
+
+- Remove `Effect::GetValidatorSet`, `AppMsg::GetValidatorSet` and `HostMsg::GetValidatorSet` ([#1189](https://github.com/circlefin/malachite/pull/1189))
+- Introduce `malachitebft-signing` crate for exposing the `SigningProvider` and `SigningProviderExt` traits ([#1191](https://github.com/informalsystems/malachite/pull/1191))
+- Make `SigningProvider` trait methods fallible ([#1191](https://github.com/informalsystems/malachite/pull/1191))
+- Make `SigningProvider` trait methods async ([#1151](https://github.com/informalsystems/malachite/issues/1151))
+- Make GossipSub topic names configurable ([#849](https://github.com/informalsystems/malachite/issues/849))
+- Fix bug in WAL recovery logic where a corrupted entry would not be detected in some circumstances ([#1127](https://github.com/informalsystems/malachite/pull/1127))
+- Add facility for app to request a consensus state dump at any time ([#1176](https://github.com/informalsystems/malachite/pull/1176))
+- Make libp2p protocol names configurable ([#1161](https://github.com/informalsystems/malachite/issues/1161))
+- Fix mismatched height of WAL entries emitted when processing `StartHeight` input ([#1232](https://github.com/circlefin/malachite/issues/1232))
+
+## 0.5.0
+
+*July 31st, 2025*
+
+- Update libp2p to v0.56.x ([#1124](https://github.com/informalsystems/malachite/pull/1124))
+- Rename `Effect::RebroadcastVote` to `Effect::RepublishVote` and `Effect::RebroadcastRoundCertificate` to `Effect::RepublishRoundCertificate` ([#1011](https://github.com/informalsystems/malachite/issues/1011))
+- Decouple `Host` messages from the `Consensus` actor ([#1109](https://github.com/informalsystems/malachite/pull/1109))
+- Fix a bug where values synced from other peers were assigned the current node's address instead of their proposer's address ([#1141](https://github.com/informalsystems/malachite/pull/1141))
+- Buffer sync values for heights higher than current height in consensus and replay when running consensus for those heights ([#1149](https://github.com/informalsystems/malachite/pull/1149))
+- Add value batching to sync messages ([#1070](https://github.com/informalsystems/malachite/issues/1070))
+
+## 0.4.0
+
+*July 8th, 2025*
+
+- Add parallel requests for the sync module ([#1092](https://github.com/informalsystems/malachite/issues/1092))
+
+## 0.3.1
+
+*July 7th, 2025*
+
+- Derive [Borsh](https://borsh.io) encoding for all core types, behind a `borsh` feature flag ([#1098](https://github.com/informalsystems/malachite/pull/1098))
+- Fixed a bug where the consensus engine would panic when the validator set is empty, now an error is properly emitted in the logs ([#1111](https://github.com/informalsystems/malachite/pull/1111))
+- When the sync module receives an invalid commit certificate from another peer, it will now drop the associated synced value altogether instead of passing it up to the application ([#1112](https://github.com/informalsystems/malachite/pull/1112))
+
+## 0.3.0
+
+*June 17th, 2025*
+
+- Removed the VoteSet synchronization protocol, as it is neither required nor sufficient for liveness ([#998](https://github.com/informalsystems/malachite/issues/998))
 - Reply to `GetValidatorSet` is now optional ([#990](https://github.com/informalsystems/malachite/issues/990))
 - Clarify and improve the application handling of multiple proposals for same height and round ([#833](https://github.com/informalsystems/malachite/issues/833))
+- Prune votes and polka certificates that are from lower rounds than node's `locked_round` ([#1019](https://github.com/informalsystems/malachite/issues/1019))
+- Add support for making progress in the presence of equivocating proposals ([#1018](https://github.com/informalsystems/malachite/issues/1018))
+- Take minimum available height into account when requesting values from peers ([#1074](https://github.com/informalsystems/malachite/issues/1074))
+- Add peer scoring system to the sync module with customizable scoring strategy ([#1072](https://github.com/informalsystems/malachite/issues/1072))
+  [See the corresponding PR](https://github.com/informalsystems/malachite/pull/1071) for more details.
 
 ## 0.2.0
 
@@ -20,10 +112,6 @@
 
 This is the first release of the Malachite consensus engine intended for general use.
 This version introduces production-ready functionality with improved performance and reliability.
-
-### Changes
-
-See the full list of changes in the [CHANGELOG](CHANGELOG.md#0.1.0).
 
 ### Resources
 
@@ -43,7 +131,3 @@ See the full list of changes in the [CHANGELOG](CHANGELOG.md#0.1.0).
 
 First open-source release of Malachite.
 This initial version provides the foundational consensus implementation but is not recommended for production use.
-
-### Changes
-
-See the full list of changes in the [CHANGELOG](CHANGELOG.md#0.0.1).

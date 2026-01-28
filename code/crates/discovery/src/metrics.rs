@@ -17,12 +17,20 @@ pub(crate) struct Metrics {
     /// Total number of discovered peers
     total_discovered: Counter,
 
+    /// Number of active peers (unique peers with at least one connection)
+    num_active_peers: Gauge,
     /// Number of active connections
     num_active_connections: Gauge,
+    /// Number of managed outbound peers (peers we dial/maintain)
+    num_outbound_peers: Gauge,
     /// Number of outbound connections
     num_outbound_connections: Gauge,
+    /// Number of accepted inbound peers (peers we accepted that dialed us, not in outbound_peers)
+    num_inbound_peers: Gauge,
     /// Number of inbound connections
     num_inbound_connections: Gauge,
+    /// Number of ephemeral peers (temporary connections, neither outbound nor inbound)
+    num_ephemeral_peers: Gauge,
     /// Number of ephemeral connections
     num_ephemeral_connections: Gauge,
 
@@ -53,9 +61,13 @@ impl Metrics {
 
             total_discovered: Counter::default(),
 
+            num_active_peers: Gauge::default(),
             num_active_connections: Gauge::default(),
+            num_outbound_peers: Gauge::default(),
             num_outbound_connections: Gauge::default(),
+            num_inbound_peers: Gauge::default(),
             num_inbound_connections: Gauge::default(),
+            num_ephemeral_peers: Gauge::default(),
             num_ephemeral_connections: Gauge::default(),
 
             total_dials: Counter::default(),
@@ -74,9 +86,21 @@ impl Metrics {
         );
 
         registry.register(
+            "num_active_peers",
+            "Number of active peers (unique peers with at least one connection)",
+            this.num_active_peers.clone(),
+        );
+
+        registry.register(
             "num_active_connections",
             "Number of active connections",
             this.num_active_connections.clone(),
+        );
+
+        registry.register(
+            "num_outbound_peers",
+            "Number of managed outbound peers (peers we dial/maintain)",
+            this.num_outbound_peers.clone(),
         );
 
         registry.register(
@@ -86,9 +110,21 @@ impl Metrics {
         );
 
         registry.register(
+            "num_inbound_peers",
+            "Number of accepted inbound peers (peers that dialed us, not in outbound_peers)",
+            this.num_inbound_peers.clone(),
+        );
+
+        registry.register(
             "num_inbound_connections",
             "Number of inbound connections",
             this.num_inbound_connections.clone(),
+        );
+
+        registry.register(
+            "num_ephemeral_peers",
+            "Number of ephemeral peers (temporary connections)",
+            this.num_ephemeral_peers.clone(),
         );
 
         registry.register(
@@ -172,17 +208,30 @@ impl Metrics {
         self.total_discovered.inc();
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn set_connections_status(
         &self,
-        num_active: usize,
-        num_outbound: usize,
-        num_inbound: usize,
-        num_ephemeral: usize,
+        num_active_peers: usize,
+        num_active_connections: usize,
+        num_outbound_peers: usize,
+        num_outbound_connections: usize,
+        num_inbound_peers: usize,
+        num_inbound_connections: usize,
+        num_ephemeral_peers: usize,
+        num_ephemeral_connections: usize,
     ) {
-        self.num_active_connections.set(num_active as i64);
-        self.num_outbound_connections.set(num_outbound as i64);
-        self.num_inbound_connections.set(num_inbound as i64);
-        self.num_ephemeral_connections.set(num_ephemeral as i64);
+        self.num_active_peers.set(num_active_peers as i64);
+        self.num_active_connections
+            .set(num_active_connections as i64);
+        self.num_outbound_peers.set(num_outbound_peers as i64);
+        self.num_outbound_connections
+            .set(num_outbound_connections as i64);
+        self.num_inbound_peers.set(num_inbound_peers as i64);
+        self.num_inbound_connections
+            .set(num_inbound_connections as i64);
+        self.num_ephemeral_peers.set(num_ephemeral_peers as i64);
+        self.num_ephemeral_connections
+            .set(num_ephemeral_connections as i64);
     }
 
     pub(crate) fn increment_total_dials(&self) {

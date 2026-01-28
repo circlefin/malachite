@@ -89,6 +89,9 @@ impl ThresholdParam {
 
 #[cfg(test)]
 mod tests {
+    use core::iter;
+    use rand::{rngs::StdRng, Rng, SeedableRng};
+
     use super::*;
 
     #[test]
@@ -107,5 +110,54 @@ mod tests {
     #[should_panic(expected = "attempt to multiply with overflow")]
     fn threshold_param_is_met_overflow() {
         assert!(!ThresholdParam::TWO_F_PLUS_ONE.is_met(1, u64::MAX));
+    }
+
+    #[test]
+    fn threshold_params_corner_cases() {
+        let mut rng = StdRng::seed_from_u64(123456789);
+        let max_total_power: u64 = 1u64 << 20; // ~10^6
+        let mut total_power: u64 = 0;
+
+        let steps = iter::from_fn(|| {
+            let step = rng.gen_range(1..=20);
+            total_power += step;
+            Some(total_power)
+        });
+
+        for total in steps.take_while(|&v| v <= max_total_power) {
+            let one_third_expected = ThresholdParam::F_PLUS_ONE.min_expected(total);
+            let two_thirds_expected = ThresholdParam::TWO_F_PLUS_ONE.min_expected(total);
+            // Assumption: f < n/3, take a margin before and after
+            let power_margin = 3;
+            let min_power = core::cmp::max(total / 3, power_margin + 1) - power_margin;
+            let max_power = core::cmp::min(total / 3 + power_margin, total);
+            for power in min_power..max_power {
+                // Assumption: a quorum Q has more than 1/3 of the voting power
+                let one_third = ThresholdParam::F_PLUS_ONE.is_met(power, total);
+                assert!(
+                    one_third == (3 * power > total),
+                    "power = {power}, 3*power = {}, total = {total}, {one_third}",
+                    3 * power,
+                );
+                assert!(
+                    one_third == (power >= one_third_expected),
+                    "power = {power}, total = {total}, one_third_expected = {one_third_expected}"
+                );
+
+                // Assumption: a quorum Q has twice more voting power than the remaining
+                // Q = total - power; if Q is even, Q/2 > power; else (Q+1)/2 > power
+                let two_thirds = ThresholdParam::TWO_F_PLUS_ONE.is_met(total - power, total);
+                assert!(
+                    two_thirds == ((total - power).div_ceil(2) > power),
+                    "power = {power}, total - power = {}, total = {total}, {two_thirds}",
+                    total - power,
+                );
+                assert!(
+                    two_thirds == (total - power >= two_thirds_expected),
+                    "power = {}, total = {total}, two_thirds_expected = {two_thirds_expected}",
+                    total - power,
+                );
+            }
+        }
     }
 }

@@ -47,16 +47,16 @@ where
     #[cfg(feature = "metrics")]
     metrics.consensus_start();
 
-    // If this is the first time we see this value in the current round, append it to the WAL
-    if !state.value_exists(&proposed_value) {
-        perform!(
-            co,
-            Effect::WalAppend(
-                WalEntry::ProposedValue(proposed_value.clone()),
-                Default::default()
-            )
-        );
-    }
+    // We may consider in the future some optimization to avoid multiple identical entries in the
+    // WAL, in the case of multiple node restarts. For now we write every ProposedValue to it.
+    perform!(
+        co,
+        Effect::WalAppend(
+            proposed_value.height,
+            WalEntry::ProposedValue(proposed_value.clone()),
+            Default::default()
+        )
+    );
 
     state.store_value(&proposed_value);
 
@@ -89,18 +89,18 @@ fn verify_propose_value<Ctx>(
 where
     Ctx: Context,
 {
-    if state.driver.height() != local_value.height {
+    if state.height() != local_value.height {
         warn!(
-            "Ignoring value for height {}, current height: {}",
+            "Received locally proposed value for wrong height {}, current height: {}",
             local_value.height,
-            state.driver.height()
+            state.height()
         );
 
         return Ok(false);
     }
 
-    if state.driver.round() != local_value.round {
-        warn!(
+    if state.round() != local_value.round {
+        debug!(
             "Ignoring value for round {}, current round: {}",
             local_value.round,
             state.driver.round()

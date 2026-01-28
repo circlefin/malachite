@@ -78,3 +78,20 @@ where
 
     Ok(result)
 }
+
+pub async fn verify_round_certificate<Ctx>(
+    co: &Co<Ctx>,
+    certificate: RoundCertificate<Ctx>,
+    validator_set: Ctx::ValidatorSet,
+    threshold_params: ThresholdParams,
+) -> Result<Result<(), CertificateError<Ctx>>, Error<Ctx>>
+where
+    Ctx: Context,
+{
+    let result = perform!(co,
+        Effect::VerifyRoundCertificate(certificate, validator_set, threshold_params, Default::default()),
+        Resume::CertificateValidity(result) => result
+    );
+
+    Ok(result)
+}

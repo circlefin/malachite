@@ -51,10 +51,6 @@ impl Vote {
         }
     }
 
-    pub fn to_bytes(&self) -> Bytes {
-        Protobuf::to_bytes(self).unwrap()
-    }
-
     pub fn to_sign_bytes(&self) -> Bytes {
         let vote = Self {
             extension: None,
@@ -62,6 +58,10 @@ impl Vote {
         };
 
         Protobuf::to_bytes(&vote).unwrap()
+    }
+
+    pub fn from_sign_bytes(bytes: &[u8]) -> Result<Self, ProtoError> {
+        Protobuf::from_bytes(bytes)
     }
 }
 
@@ -144,7 +144,7 @@ impl Protobuf for Vote {
 }
 
 #[cfg_attr(coverage_nightly, coverage(off))]
-fn encode_votetype(vote_type: VoteType) -> proto::VoteType {
+pub fn encode_votetype(vote_type: VoteType) -> proto::VoteType {
     match vote_type {
         VoteType::Prevote => proto::VoteType::Prevote,
         VoteType::Precommit => proto::VoteType::Precommit,
@@ -152,7 +152,7 @@ fn encode_votetype(vote_type: VoteType) -> proto::VoteType {
 }
 
 #[cfg_attr(coverage_nightly, coverage(off))]
-fn decode_votetype(vote_type: proto::VoteType) -> VoteType {
+pub fn decode_votetype(vote_type: proto::VoteType) -> VoteType {
     match vote_type {
         proto::VoteType::Prevote => VoteType::Prevote,
         proto::VoteType::Precommit => VoteType::Precommit,

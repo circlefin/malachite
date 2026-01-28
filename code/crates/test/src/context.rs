@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 
+use malachitebft_core_types::LinearTimeouts;
 use malachitebft_core_types::{Context, NilOrVal, Round, ValidatorSet as _};
 
 use crate::address::*;
@@ -68,6 +69,7 @@ impl Context for TestContext {
     type Proposal = Proposal;
     type ValidatorSet = ValidatorSet;
     type Validator = Validator;
+    type Timeouts = LinearTimeouts;
     type Value = Value;
     type Vote = Vote;
     type Extension = Bytes;

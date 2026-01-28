@@ -1,13 +1,10 @@
 //! Implementation of a host actor for bridiging consensus and the application via a set of channels.
 
-use derive_where::derive_where;
 use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, SpawnErr};
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
-use tracing::error;
+use tracing::{error, warn};
 
-use malachitebft_app::types::core::ValueOrigin;
-use malachitebft_engine::consensus::ConsensusMsg;
 use malachitebft_engine::host::HostMsg;
 
 use crate::app::metrics::Metrics;
@@ -49,11 +46,6 @@ where
     }
 }
 
-#[derive_where(Default)]
-pub struct State<Ctx: Context> {
-    consensus: Option<ActorRef<ConsensusMsg<Ctx>>>,
-}
-
 impl<Ctx> Connector<Ctx>
 where
     Ctx: Context,
@@ -62,57 +54,37 @@ where
         &self,
         _myself: ActorRef<HostMsg<Ctx>>,
         msg: HostMsg<Ctx>,
-        state: &mut State<Ctx>,
+        _state: &mut (),
     ) -> Result<(), ActorProcessingErr> {
         match msg {
-            HostMsg::ConsensusReady(consensus_ref) => {
+            HostMsg::ConsensusReady { reply_to } => {
                 let (reply, rx) = oneshot::channel();
                 self.sender.send(AppMsg::ConsensusReady { reply }).await?;
 
-                let (start_height, validator_set) = rx.await?;
-                consensus_ref.cast(ConsensusMsg::StartHeight(start_height, validator_set))?;
-
-                state.consensus = Some(consensus_ref);
+                let (start_height, updates) = rx.await?;
+                reply_to.send((start_height, updates))?;
             }
 
             HostMsg::StartedRound {
                 height,
                 round,
                 proposer,
+                role,
+                reply_to,
             } => {
-                let (reply_value, rx_value) = oneshot::channel();
+                let (reply_value, rx) = oneshot::channel();
 
                 self.sender
                     .send(AppMsg::StartedRound {
                         height,
                         round,
                         proposer,
+                        role,
                         reply_value,
                     })
                     .await?;
 
-                let Some(consensus) = &state.consensus else {
-                    error!("Consensus actor not set");
-                    return Ok(());
-                };
-
-                // Do not block processing of other messages while waiting for the values
-                tokio::spawn({
-                    let consensus = consensus.clone();
-                    async move {
-                        if let Ok(values) = rx_value.await {
-                            for value in values {
-                                let msg = ConsensusMsg::ReceivedProposedValue(
-                                    value,
-                                    ValueOrigin::Consensus,
-                                );
-                                if let Err(e) = consensus.cast(msg) {
-                                    error!("Failed to send back undecided value to consensus: {e}");
-                                }
-                            }
-                        }
-                    }
-                });
+                reply_to.send(rx.await?)?;
             }
 
             HostMsg::GetValue {
@@ -221,20 +193,10 @@ where
                 }
             }
 
-            HostMsg::GetValidatorSet { height, reply_to } => {
-                let (reply, rx) = oneshot::channel();
-
-                self.sender
-                    .send(AppMsg::GetValidatorSet { height, reply })
-                    .await?;
-
-                reply_to.send(rx.await?)?;
-            }
-
             HostMsg::Decided {
                 certificate,
                 extensions,
-                consensus,
+                reply_to,
             } => {
                 let (reply, rx) = oneshot::channel();
 
@@ -246,14 +208,21 @@ where
                     })
                     .await?;
 
-                consensus.cast(rx.await?.into())?;
+                // Do not block processing of other messages while waiting for the next height
+                tokio::spawn(async move {
+                    if let Ok(next) = rx.await {
+                        if let Err(e) = reply_to.send(next) {
+                            error!("Failed to send next height and validator set: {e}");
+                        }
+                    }
+                });
             }
 
-            HostMsg::GetDecidedValue { height, reply_to } => {
+            HostMsg::GetDecidedValues { range, reply_to } => {
                 let (reply, rx) = oneshot::channel();
 
                 self.sender
-                    .send(AppMsg::GetDecidedValue { height, reply })
+                    .send(AppMsg::GetDecidedValues { range, reply })
                     .await?;
 
                 reply_to.send(rx.await?)?;
@@ -262,7 +231,7 @@ where
             HostMsg::ProcessSyncedValue {
                 height,
                 round,
-                validator_address,
+                proposer,
                 value_bytes,
                 reply_to,
             } => {
@@ -272,13 +241,19 @@ where
                     .send(AppMsg::ProcessSyncedValue {
                         height,
                         round,
-                        proposer: validator_address,
+                        proposer,
                         value_bytes,
                         reply,
                     })
                     .await?;
 
-                reply_to.send(rx.await?)?;
+                if let Some(value) = rx.await? {
+                    if let Err(e) = reply_to.send(value) {
+                        error!("Failed to send processed synced value: {e}");
+                    }
+                } else {
+                    warn!("Failed to decode synced value");
+                }
             }
         };
 
@@ -292,7 +267,7 @@ where
     Ctx: Context,
 {
     type Msg = HostMsg<Ctx>;
-    type State = State<Ctx>;
+    type State = ();
     type Arguments = ();
 
     async fn pre_start(
@@ -300,7 +275,7 @@ where
         _myself: ActorRef<Self::Msg>,
         _args: Self::Arguments,
     ) -> Result<Self::State, ActorProcessingErr> {
-        Ok(State::default())
+        Ok(())
     }
 
     async fn handle(

@@ -1,11 +1,11 @@
+use async_trait::async_trait;
 use bytes::Bytes;
-use malachitebft_core_types::{
-    SignedExtension, SignedProposal, SignedProposalPart, SignedVote, SigningProvider,
-};
+use malachitebft_core_types::{SignedExtension, SignedProposal, SignedVote};
 
+use malachitebft_signing::{Error, SigningProvider, VerificationResult};
 pub use malachitebft_signing_ed25519::{Ed25519, PrivateKey, PublicKey, Signature};
 
-use crate::{MockContext, Proposal, ProposalPart, Vote};
+use crate::{MockContext, Proposal, Vote};
 
 #[derive(Debug)]
 pub struct Ed25519Provider {
@@ -30,64 +30,73 @@ impl Ed25519Provider {
     }
 }
 
+#[async_trait]
 impl SigningProvider<MockContext> for Ed25519Provider {
-    fn sign_vote(&self, vote: Vote) -> SignedVote<MockContext> {
-        // Votes are not signed for now
-        SignedVote::new(vote, Signature::test())
+    async fn sign_bytes(&self, bytes: &[u8]) -> Result<Signature, Error> {
+        Ok(self.sign(bytes))
     }
 
-    fn verify_signed_vote(
+    async fn verify_signed_bytes(
+        &self,
+        bytes: &[u8],
+        signature: &Signature,
+        public_key: &PublicKey,
+    ) -> Result<VerificationResult, Error> {
+        if self.verify(bytes, signature, public_key) {
+            Ok(VerificationResult::Valid)
+        } else {
+            Ok(VerificationResult::Invalid)
+        }
+    }
+
+    async fn sign_vote(&self, vote: Vote) -> Result<SignedVote<MockContext>, Error> {
+        // Votes are not signed for now
+        Ok(SignedVote::new(vote, Signature::test()))
+    }
+
+    async fn verify_signed_vote(
         &self,
         _vote: &Vote,
         _signature: &Signature,
         _public_key: &PublicKey,
-    ) -> bool {
+    ) -> Result<VerificationResult, Error> {
         // Votes are not signed for now
-        true
+        Ok(VerificationResult::Valid)
     }
 
-    fn sign_proposal(&self, proposal: Proposal) -> SignedProposal<MockContext> {
+    async fn sign_proposal(
+        &self,
+        proposal: Proposal,
+    ) -> Result<SignedProposal<MockContext>, Error> {
         // Proposals are never sent over the network
-        SignedProposal::new(proposal, Signature::test())
+        Ok(SignedProposal::new(proposal, Signature::test()))
     }
 
-    fn verify_signed_proposal(
+    async fn verify_signed_proposal(
         &self,
         _proposal: &Proposal,
         _signature: &Signature,
         _public_key: &PublicKey,
-    ) -> bool {
+    ) -> Result<VerificationResult, Error> {
         // Proposals are never sent over the network
-        true
+        Ok(VerificationResult::Valid)
     }
 
-    fn sign_proposal_part(&self, proposal_part: ProposalPart) -> SignedProposalPart<MockContext> {
-        // Proposal parts are not signed for now
-        SignedProposalPart::new(proposal_part, Signature::test())
-    }
-
-    fn verify_signed_proposal_part(
+    async fn sign_vote_extension(
         &self,
-        _proposal_part: &ProposalPart,
-        _signature: &Signature,
-        _public_key: &PublicKey,
-    ) -> bool {
-        // Proposal parts are not signed for now
-        true
-    }
-
-    fn sign_vote_extension(&self, extension: Bytes) -> SignedExtension<MockContext> {
+        extension: Bytes,
+    ) -> Result<SignedExtension<MockContext>, Error> {
         // Vote extensions are not enabled
-        SignedExtension::new(extension, Signature::test())
+        Ok(SignedExtension::new(extension, Signature::test()))
     }
 
-    fn verify_signed_vote_extension(
+    async fn verify_signed_vote_extension(
         &self,
         _extension: &Bytes,
         _signature: &Signature,
         _public_key: &PublicKey,
-    ) -> bool {
+    ) -> Result<VerificationResult, Error> {
         // Vote extensions are not enabled
-        true
+        Ok(VerificationResult::Valid)
     }
 }

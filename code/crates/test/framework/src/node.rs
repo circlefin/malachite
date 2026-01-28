@@ -4,16 +4,19 @@ use std::time::Duration;
 use eyre::bail;
 use tracing::info;
 
+use malachitebft_app::config::NodeConfig;
 use malachitebft_core_consensus::{LocallyProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{
-    CommitCertificate, Context, Height, SignedProposal, SignedVote, Vote, VotingPower,
+    CommitCertificate, Context, Height, SignedProposal, SignedVote, Vote, VoteType, VotingPower,
 };
 use malachitebft_engine::{consensus::ConsensusMsg, util::events::Event};
 use malachitebft_test::middleware::{DefaultMiddleware, Middleware};
+use malachitebft_test_app::config::Config as TestConfig;
 
 use crate::Expected;
 
 pub type NodeId = usize;
+pub type ConfigModifier<Config> = Arc<dyn Fn(&mut Config) + Send + Sync>;
 
 pub enum Step<Ctx, S>
 where
@@ -40,7 +43,7 @@ pub enum HandlerResult {
 pub type EventHandler<Ctx, S> =
     Box<dyn Fn(Event<Ctx>, &mut S) -> Result<HandlerResult, eyre::Report> + Send + Sync>;
 
-pub struct TestNode<Ctx, State = ()>
+pub struct TestNode<Ctx, State = (), Cfg = TestConfig>
 where
     Ctx: Context,
 {
@@ -51,11 +54,14 @@ where
     pub steps: Vec<Step<Ctx, State>>,
     pub state: State,
     pub middleware: Arc<dyn Middleware>,
+    pub config_modifier: ConfigModifier<Cfg>,
+    pub consensus_enabled: bool,
 }
 
-impl<Ctx, State> TestNode<Ctx, State>
+impl<Ctx, State, Cfg> TestNode<Ctx, State, Cfg>
 where
     Ctx: Context,
+    Cfg: 'static,
 {
     pub fn new(id: usize) -> Self
     where
@@ -73,6 +79,8 @@ where
             steps: vec![],
             state,
             middleware: Arc::new(DefaultMiddleware),
+            config_modifier: Arc::new(|_config| {}),
+            consensus_enabled: true,
         }
     }
 
@@ -163,25 +171,14 @@ where
         })
     }
 
-    pub fn expect_vote_set_request(&mut self, at_height: u64) -> &mut Self {
+    pub fn expect_vote_rebroadcast(
+        &mut self,
+        at_height: u64,
+        at_round: u32,
+        vote_type: VoteType,
+    ) -> &mut Self {
         self.on_event(move |event, _| {
-            let Event::RequestedVoteSet(height, round) = event else {
-                return Ok(HandlerResult::WaitForNextEvent);
-            };
-
-            info!("Requested vote set for height {height} and round {round}");
-
-            if height.as_u64() != at_height {
-                bail!("Unexpected vote set request for height {height}, expected {at_height}")
-            }
-
-            Ok(HandlerResult::ContinueTest)
-        })
-    }
-
-    pub fn expect_vote_rebroadcast(&mut self, at_height: u64) -> &mut Self {
-        self.on_event(move |event, _| {
-            let Event::Rebroadcast(msg) = event else {
+            let Event::RepublishVote(msg) = event else {
                 return Ok(HandlerResult::WaitForNextEvent);
             };
 
@@ -191,7 +188,88 @@ where
                 bail!("Unexpected vote rebroadcast for height {height}, expected {at_height}")
             }
 
-            info!(%height, %round, "Rebroadcasted vote");
+            if round.as_u32() != Some(at_round) {
+                bail!("Unexpected vote rebroadcast for round {round}, expected {at_round}")
+            }
+
+            if vote_type != msg.vote_type() {
+                bail!(
+                    "Unexpected vote type {vote_type:?}, expected {:?}",
+                    msg.vote_type()
+                )
+            }
+
+            info!(%height, %round, ?vote_type, "Rebroadcasted vote");
+
+            Ok(HandlerResult::ContinueTest)
+        })
+    }
+
+    pub fn expect_round_certificate_rebroadcast(
+        &mut self,
+        at_height: u64,
+        at_round: u32,
+    ) -> &mut Self {
+        self.on_event(move |event, _| {
+            let Event::RebroadcastRoundCertificate(msg) = event else {
+                return Ok(HandlerResult::WaitForNextEvent);
+            };
+
+            let (height, round) = (msg.height, msg.round);
+
+            if height.as_u64() != at_height {
+                bail!("Unexpected round certificate rebroadcast for height {height}, expected {at_height}")
+            }
+
+            if round.as_u32() != Some(at_round) {
+                bail!("Unexpected round certificate rebroadcast for round {round}, expected {at_round}")
+            }
+
+            info!(%height, %round, "Rebroadcasted round certificate");
+
+            Ok(HandlerResult::ContinueTest)
+        })
+    }
+
+    pub fn expect_skip_round_certificate(&mut self, at_height: u64, at_round: u32) -> &mut Self {
+        self.on_event(move |event, _| {
+            let Event::SkipRoundCertificate(msg) = event else {
+                return Ok(HandlerResult::WaitForNextEvent);
+            };
+
+            let (height, round) = (msg.height, msg.round);
+
+            if height.as_u64() != at_height {
+                bail!("Unexpected round certificate broadcast for height {height}, expected {at_height}")
+            }
+
+            if round.as_u32() != Some(at_round) {
+                bail!("Unexpected round certificate broadcast for round {round}, expected {at_round}")
+            }
+
+            info!(%height, %round, "Broadcasted skip round certificate");
+
+            Ok(HandlerResult::ContinueTest)
+        })
+    }
+
+    pub fn expect_polka_certificate(&mut self, at_height: u64, at_round: u32) -> &mut Self {
+        self.on_event(move |event, _| {
+            let Event::PolkaCertificate(msg) = event else {
+                return Ok(HandlerResult::WaitForNextEvent);
+            };
+
+            let (height, round) = (msg.height, msg.round);
+
+            if height.as_u64() != at_height {
+                bail!("Unexpected round certificate rebroadcast for height {height}, expected {at_height}")
+            }
+
+            if round.as_u32() != Some(at_round) {
+                bail!("Unexpected round certificate rebroadcast for round {round}, expected {at_round}")
+            }
+
+            info!(%height, %round, "Broadcasted round certificate");
 
             Ok(HandlerResult::ContinueTest)
         })
@@ -319,5 +397,41 @@ where
 
     pub fn is_full_node(&self) -> bool {
         self.voting_power == 0
+    }
+
+    pub fn with(&mut self, f: impl FnOnce(&mut Self)) -> &mut Self {
+        f(self);
+        self
+    }
+
+    pub fn add_config_modifier<F>(&mut self, f: F) -> &mut Self
+    where
+        F: Fn(&mut Cfg) + Send + Sync + 'static,
+    {
+        let existing = Arc::clone(&self.config_modifier);
+
+        self.config_modifier = Arc::new(move |config| {
+            // Apply existing customizations first.
+            (existing)(config);
+
+            // Then apply the new customization.
+            f(config);
+        });
+
+        self
+    }
+}
+
+impl<Ctx, State, Cfg> TestNode<Ctx, State, Cfg>
+where
+    Ctx: Context,
+    Cfg: NodeConfig + 'static,
+{
+    pub fn disable_consensus(&mut self) -> &mut Self {
+        self.consensus_enabled = false;
+
+        self.add_config_modifier(|config| {
+            config.consensus_mut().enabled = false;
+        })
     }
 }

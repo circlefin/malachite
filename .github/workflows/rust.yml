@@ -18,7 +18,7 @@ env:
 jobs:
   changes:
     name: Detect changes
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-small
     permissions:
       pull-requests: read
     outputs:
@@ -36,23 +36,19 @@ jobs:
     name: Unit Tests
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-small
     defaults:
       run:
         working-directory: code
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Setup Node
-        uses: actions/setup-node@v3
-        with:
-          node-version: "18"
-      - name: Install Quint
-        run: npm install -g @informalsystems/quint
+      # - name: Setup Node
+      #   uses: actions/setup-node@v3
+      #   with:
+      #     node-version: "18"
+      # - name: Install Quint
+      #   run: npm install -g @informalsystems/quint
       - name: Setup Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
@@ -67,6 +63,7 @@ jobs:
             --no-fail-fast \
             --failure-output final \
             --exclude informalsystems-malachitebft-test \
+            --exclude informalsystems-malachitebft-test-mbt \
             --exclude informalsystems-malachitebft-starknet-test \
             --exclude informalsystems-malachitebft-starknet-test-mbt \
             --exclude informalsystems-malachitebft-discovery-test
@@ -75,23 +72,19 @@ jobs:
     name: Integration Tests
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-small
     defaults:
       run:
         working-directory: code
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Setup Node
-        uses: actions/setup-node@v3
-        with:
-          node-version: "18"
-      - name: Install Quint
-        run: npm install -g @informalsystems/quint
+      # - name: Setup Node
+      #   uses: actions/setup-node@v3
+      #   with:
+      #     node-version: "18"
+      # - name: Install Quint
+      #   run: npm install -g @informalsystems/quint
       - name: Setup Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
@@ -124,17 +117,13 @@ jobs:
     name: no_std compatibility
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-small
     defaults:
       run:
         working-directory: code
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Setup Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
@@ -147,14 +136,10 @@ jobs:
     name: Clippy
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-small
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Setup Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
@@ -170,7 +155,7 @@ jobs:
     name: Formatting
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-small
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -188,7 +173,7 @@ jobs:
     name: MSRV
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-small
     defaults:
       run:
         working-directory: code
@@ -198,10 +183,6 @@ jobs:
         with:
           toolchain: stable
           cache-workspaces: "code"
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install cargo-msrv
         uses: taiki-e/install-action@v2
         with:
@@ -213,7 +194,7 @@ jobs:
     name: Standalone
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-small
     defaults:
       run:
         working-directory: code
@@ -223,10 +204,6 @@ jobs:
         with:
           toolchain: stable
           cache-workspaces: "code"
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install cargo-hack
         uses: taiki-e/install-action@v2
         with:

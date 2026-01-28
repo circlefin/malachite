@@ -1,5 +1,21 @@
 use std::time::Duration;
 
+use libp2p::Multiaddr;
+
+/// Strip /p2p/<peer_id> component from a Multiaddr for address comparison.
+/// This allows comparing addresses regardless of whether they include a peer ID.
+pub fn strip_peer_id_from_multiaddr(addr: &Multiaddr) -> Multiaddr {
+    use libp2p::multiaddr::Protocol;
+
+    let mut result = Multiaddr::empty();
+    for protocol in addr.iter() {
+        if !matches!(protocol, Protocol::P2p(_)) {
+            result.push(protocol);
+        }
+    }
+    result
+}
+
 #[derive(Debug, Clone)]
 struct FibonacciBackoff {
     current: u64,

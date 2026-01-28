@@ -118,7 +118,7 @@ fn restart() -> io::Result<()> {
 
     {
         let mut wal = setup_wal(&path, ENTRIES_1)?;
-        wal.restart(1)?;
+        wal.reset(1)?;
 
         assert_eq!(wal.sequence(), 1);
         assert_eq!(wal.len(), 0);

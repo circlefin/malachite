@@ -33,6 +33,13 @@ where
 /// Defines the requirements for a validator set.
 ///
 /// A validator set is a collection of validators.
+///
+/// # Important
+/// The validators must be unique and sorted in a deterministic order.
+///
+/// Such an ordering can be defined as in CometBFT:
+/// - first by validator power (descending)
+/// - then lexicographically by address (ascending)
 pub trait ValidatorSet<Ctx>
 where
     Self: Clone + Debug + Eq + Send + Sync,
@@ -40,6 +47,11 @@ where
 {
     /// The number of validators in the set.
     fn count(&self) -> usize;
+
+    /// Return an iterator over the validators in the set.
+    fn iter(&self) -> impl Iterator<Item = &Ctx::Validator> {
+        (0..self.count()).filter_map(|i| self.get_by_index(i))
+    }
 
     /// The total voting power of the validator set.
     fn total_voting_power(&self) -> VotingPower;

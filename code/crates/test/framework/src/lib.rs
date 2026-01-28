@@ -11,17 +11,17 @@ use tracing::{debug, error, error_span, info, Instrument};
 
 use malachitebft_core_types::{Context, Height};
 
-pub use malachitebft_app::node::{
-    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, EngineHandle,
-    Node, NodeHandle,
-};
 pub use malachitebft_engine::util::events::{Event, RxEvent, TxEvent};
+pub use malachitebft_test::node::{Node, NodeHandle};
+pub use malachitebft_test::traits::{
+    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile,
+};
 
 mod logging;
 use logging::init_logging;
 
 mod node;
-pub use node::{HandlerResult, NodeId, TestNode};
+pub use node::{ConfigModifier, HandlerResult, NodeId, TestNode};
 
 mod params;
 pub use params::TestParams;
@@ -218,6 +218,7 @@ where
     let current_height = Arc::new(AtomicUsize::new(0));
     let failure = Arc::new(Mutex::new(None));
     let is_full_node = node.is_full_node();
+    let consensus_enabled = node.consensus_enabled;
 
     let spawn_event_monitor = |mut rx: RxEvent<Ctx>| {
         tokio::spawn({
@@ -238,6 +239,18 @@ where
                             error!("Full node unexpectedly published a consensus message: {msg:?}");
                             *failure.lock().await = Some(format!(
                                 "Full node unexpectedly published a consensus message: {msg:?}"
+                            ));
+                        }
+                        Event::Published(msg) if !consensus_enabled => {
+                            error!("Node with consensus disabled unexpectedly published a consensus message: {msg:?}");
+                            *failure.lock().await = Some(format!(
+                                "Node with consensus disabled unexpectedly published a consensus message: {msg:?}"
+                            ));
+                        }
+                        Event::Received(msg) if !consensus_enabled => {
+                            error!("Node with consensus disabled unexpectedly received a consensus message: {msg:?}");
+                            *failure.lock().await = Some(format!(
+                                "Node with consensus disabled unexpectedly received a consensus message: {msg:?}"
                             ));
                         }
                         Event::WalReplayError(e) => {
@@ -292,11 +305,11 @@ where
                         return TestResult::Failure(failure);
                     }
 
-                    let Event::StartedRound(_, round) = event else {
+                    let Event::StartedRound(_, round, _, role) = event else {
                         continue 'inner;
                     };
 
-                    info!("Node started round {round}");
+                    info!(%round, ?role, "Node started round");
 
                     if round.as_u32() == Some(target_round) {
                         break 'inner;
@@ -350,6 +363,8 @@ where
                             break 'inner;
                         }
                         Err(e) => {
+                            error!("Event handler returned an error: {e}");
+
                             event_monitor.abort();
                             handle.kill(Some("Test failed".to_string())).await.unwrap();
 
