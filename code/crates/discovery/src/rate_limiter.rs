@@ -54,7 +54,9 @@ impl RateLimitResult {
     pub fn violation_count(&self) -> u32 {
         match self {
             RateLimitResult::Allowed => 0,
-            RateLimitResult::RateLimited { violation_count, .. } => *violation_count,
+            RateLimitResult::RateLimited {
+                violation_count, ..
+            } => *violation_count,
         }
     }
 }
@@ -198,7 +200,9 @@ impl DiscoveryRateLimiter {
         let now = Instant::now();
         self.violations
             .get(peer_id)
-            .filter(|(_, last_violation)| now.duration_since(*last_violation) < self.violation_expiry)
+            .filter(|(_, last_violation)| {
+                now.duration_since(*last_violation) < self.violation_expiry
+            })
             .map(|(count, _)| *count)
             .unwrap_or(0)
     }
