@@ -296,15 +296,6 @@ Notice that, in particular, logging an input to the WAL is an `Effect`, but in
 this case does it make sense to append to WAL inputs that were originally
 replayed from that same WAL?
 
-> I am not sure on how this is handled in the current implementation.
-> From the `wal_replay` method from `engine/src/consensus.rs`, replayed inputs
-> are processed using the `process_input` method, the same used for ordinary
-> inputs.
->
-> At the same time, there is a `Recovering` phase set during replay, that
-> should change some behaviors.
-> From what I could check, it only prevents logging replayed inputs to the WAL.
-
 ## Decision
 
 > This section explains all of the details of the proposed solution, including implementation details.
@@ -337,10 +328,19 @@ new `Effect` to request the WAL to log an input:
 ```
 
 Notice that a `WalEntry` type defines the consensus inputs that are persisted,
-as discussed in the [Inputs](#inputs2) section.
+as discussed in the [Inputs](#inputs-1) section.
 
 > TODO: add some discussion of why this is the right layer for the WAL.
 > I think the main reason is still the need of signatures etc.
+
+The WAL is implemented as an [Actor](./adr-002-node-actor.md#write-ahead-log-(wal)-actor)
+and runs in its own thread.
+The interaction of the consensus engine and the WAL thread is performed using a
+set of messages (`enum WalMsg`), the most relevant being `Append`, `Flush`, `Reset`
+and `StartedHeight`.
+The first two are related to the [persistence](#persistence-1) of inputs to the WAL;
+`Reset` is related to [checkpoints](#reset);
+and `StartedHeight` is actually related to [replaying inputs](#replay-1).
 
 ### Inputs
 
@@ -375,13 +375,76 @@ To conclude the list of `Input`s, `StartHeight` is not persisted to the WAL but
 this input leads to either:
 
 1. The [reset](#reset) of the WAL, namely clearing it to start a new height;
-2. Or the [replay](#replay) of the WAL, from the collection of all logged `WalEntry` instances.
+2. Or the [replay](#replay-1) of the WAL, from the collection of all logged `WalEntry` instances.
 
 ### Reset
 
-### Persistence
+The implementation adopted the strategy of producing [checkpoints](#checkpoints)
+at every height, so that the WAL only contains inputs belonging to the latest
+started height.
+The `reset` operation of the `Log` type, implementing the WAL, receives a
+height number, write it to the WAL header, and truncates the WAL.
+It is invoked whenever `StartHeight` input is received from the application
+for the first time for a height.
+
+> It is also use in the case of the `RestartHeight` input, an _unsafe command_
+> that instructs Malachite to _ignore_ the WAL's contents.
+
+Note that all entries in the WAL must belong to the height the WAL is
+configured for, written as part of its header.
+This means that messages from future heights `H'> H`, where `H` is the highest
+height for which a `StartHeight` input was processed, are not persisted.
+The are only buffered in main memory and therefore lost upon restarts.
+Which is safe, since they do not (immediately) produce state transitions.
 
 ### Replay
+
+The replay of the WAL is triggered by the reception of `StartHeight` input from
+the application for a height matching the WAL's height.
+The `fetch_entries` method is used to iterate through the WAL and collect all stored
+`WalEntry` instances, that are returned to the consensus engine.
+If `WalEntry` instances are returned, the consensus engine is set to
+`Phase::Recovering` and the persisted inputs are replayed by the `wal_replay` method.
+This method reconstructs the associated consensus `Input`s and apply then using the
+`process_input` method, which is the same used to process ordinary inputs.
+The `Phase::Recovering` flag is actually only used to block the `WalAppend`
+effect from appending again to the WAL inputs that are being replayed,
+as long as blocking calls to the associated WAL's `flush()` method.
+
+As a result, replayed inputs produce outputs, `Effect`s in the consensus engine
+parlance, in the same way as ordinary inputs, the exception being only the
+effects related to persisting inputs to the WAL.
+In any case, the existence of the `Phase::Recovering` flag allows filtering out
+behaviors, effects, an inputs that are not needed or redundant
+in recovery mode - although it should be used very carefully.
+Once replaying is done, the `Phase::Recovering` flag is cleared and processed
+inputs are appended to the existing WAL, which is not [reset](#reset-1) in this case.
+
+> FIXME: is there any effect whose replay requires particular attention?
+
+### Persistence
+
+The commands for persisting inputs to the WAL are `WalMsg::Append`, receiving a
+`WalEntry` instance, and `WalMsg::Flush`.
+This is in line with the previous described [persistence strategy](#persistence):
+inputs can be appended in a non-blocking way using asynchronous writes, while
+when an input produces outputs or relevant state transitions, a blocking
+`flush()` call is needed, implementing a synchronous batch write.
+
+Synchronous writes, using the `wal_flush` consensus engine method, are performed:
+
+1. When a new round of consensus is started, via the `StartRound` effect;
+2. When a consensus message is broadcast, via the `PublishConsensusMsg` effect;
+3. When a value is finalized by the consensus, via the `Decide` effect.
+
+> FIXME: is there any particular reason for item 1, i.e. starting a round?
+
+A current limitation of the persistence approach, however, is the fact that
+calls to `wal_append` are also blocking, while they do not have to.
+This is possibly associated with error handling, but it would be good to find a
+way to propagate and handle errors asynchronously.
+
+> For reviewers: can you double check the above affirmation?
 
 ### Corruption
 
@@ -401,11 +464,12 @@ Accepted
 * No important changes were needed at core components of Tendentermin implementation
 * The consensus Engine implements a WAL actor that should suit most use cases
 * Per-height WALs render the WAL file most of the time small, no need for rotations
+* Costly synchronous writes to the WAL are reduced to the required scenarios
 
 ### Negative
 
 * Persisting inputs to the WAL are in the critical path of consensus execution
-* By not implementing asynchronous WAL writes, the implementation has a higher overhead than needed
+* By having blocking WAL append calls, the implementation has a higher overhead than needed
 * With the current design, testing the WAL operation is relatively complex
 * With the current design, existing driver test units cannot evaluate the WAL
 
