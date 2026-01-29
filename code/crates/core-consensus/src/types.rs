@@ -134,9 +134,12 @@ pub enum LivenessMsg<Ctx: Context> {
     SkipRoundCertificate(RoundCertificate<Ctx>),
 }
 
+/// Misbehavior evidence collected during a height.
+///
+/// Contains both proposal and vote equivocation records indexed by validator addr.
 #[derive_where(Clone, Debug)]
 pub struct MisbehaviorEvidence<Ctx: Context> {
-    pub proposals: malachitebft_core_driver::EvidenceMap<Ctx>,
+    pub proposals: malachitebft_core_driver::proposal_keeper::EvidenceMap<Ctx>,
     pub votes: malachitebft_core_votekeeper::EvidenceMap<Ctx>,
 }
 
