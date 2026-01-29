@@ -110,12 +110,9 @@ where
         channel: ResponseChannel<Response>,
         signed_records: Vec<SignedPeerRecordBytes>,
     ) {
-        // Always check rate limit for protection, even if discovery is disabled.
-        // Note: This updates violation tracking and may disconnect the peer.
-        let rate_limit_ok = self.check_rate_limit(swarm, &peer);
-
-        // Respond with empty list if discovery is disabled or peer is rate limited
-        if !self.is_enabled() || !rate_limit_ok {
+        // Check rate limit and update violation tracking, may disconnect the peer.
+        // Note: If discovery is disabled, this handler is never called (protocol not registered).
+        if !self.check_rate_limit(swarm, &peer) {
             self.send_peers_response(swarm, peer, channel, Vec::new());
             return;
         }
