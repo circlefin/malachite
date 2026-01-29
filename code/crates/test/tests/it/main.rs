@@ -77,6 +77,7 @@ impl NodeRunner<TestContext> for TestRunner {
 
     fn new<S>(id: usize, nodes: &[TestNode<TestContext, S>], params: TestParams) -> Self {
         let base_port = 20_000 + id * 1000;
+
         let (validators, private_keys) = make_validators(nodes, &params);
         let validator_set = ValidatorSet::new(validators);
 

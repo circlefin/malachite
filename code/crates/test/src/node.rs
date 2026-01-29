@@ -24,7 +24,6 @@ where
 {
     fn subscribe(&self) -> RxEvent<Ctx>;
     async fn kill(&self, reason: Option<String>) -> eyre::Result<()>;
-    fn inject(&self, message: Msg<Ctx>) -> eyre::Result<()>;
 }
 
 #[async_trait]

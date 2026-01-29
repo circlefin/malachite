@@ -31,7 +31,6 @@ where
     Expect(Expected),
     Success,
     Fail(String),
-    Inject(ConsensusMsg<Ctx>),
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -359,20 +358,23 @@ where
         })
     }
 
-    pub fn inject(&mut self, message: ConsensusMsg<Ctx>) -> &mut Self {
-        self.steps.push(Step::Inject(message));
-        self
-    }
-
     pub fn on_decided<F>(&mut self, f: F) -> &mut Self
     where
-        F: Fn(CommitCertificate<Ctx>, MisbehaviorEvidence<Ctx>, &mut State) -> Result<HandlerResult, eyre::Report>
+        F: Fn(
+                CommitCertificate<Ctx>,
+                MisbehaviorEvidence<Ctx>,
+                &mut State,
+            ) -> Result<HandlerResult, eyre::Report>
             + Send
             + Sync
             + 'static,
     {
         self.on_event(move |event, state| {
-            if let Event::Decided { commit_certificate, evidence } = event {
+            if let Event::Decided {
+                commit_certificate,
+                evidence,
+            } = event
+            {
                 f(commit_certificate, evidence, state)
             } else {
                 Ok(HandlerResult::WaitForNextEvent)

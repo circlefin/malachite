@@ -374,11 +374,6 @@ where
                 }
             }
 
-            Step::Inject(message) => {
-                info!("Injecting message: {message:?}");
-                handle.inject(message).unwrap();
-            }
-
             Step::Expect(expected) => {
                 let actual = decisions.load(Ordering::SeqCst);
 

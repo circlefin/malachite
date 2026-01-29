@@ -55,10 +55,6 @@ impl NodeHandle<TestContext> for Handle {
         self.engine.handle.abort();
         Ok(())
     }
-
-    fn inject(&self, message: Msg<TestContext>) -> eyre::Result<()> {
-        Ok(self.engine.consensus.cast(message)?)
-    }
 }
 
 /// Main application struct implementing the consensus node functionality

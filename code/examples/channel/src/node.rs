@@ -63,12 +63,6 @@ impl NodeHandle<TestContext> for Handle {
         self.engine.handle.abort();
         Ok(())
     }
-
-    fn inject(&self, _message: Msg<TestContext>) -> eyre::Result<()> {
-        Err(eyre::eyre!(
-            "Injecting messages into the node is not supported in this example application"
-        ))
-    }
 }
 
 #[async_trait]

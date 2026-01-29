@@ -66,12 +66,6 @@ impl NodeHandle<MockContext> for Handle {
         self.handle.abort();
         Ok(())
     }
-
-    fn inject(&self, _message: Msg<MockContext>) -> eyre::Result<()> {
-        Err(eyre::eyre!(
-            "Injecting messages into the node is not supported in this application"
-        ))
-    }
 }
 
 #[derive(Clone, Debug)]
