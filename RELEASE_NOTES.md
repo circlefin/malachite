@@ -30,6 +30,9 @@
 - Ensure polka certificate is matched against a proposal for the same value
 - Produce `InvalidProposalAndPolkaPrevious` when receiving a polka certificate matching the POL round of a proposal with an invalid value
 
+### `engine`
+- Add `ReceivedProposal` host message for `proposal-only` mode
+
 ### `network`
 - Add `persistent_peers_only` config option to allow connections ONLY from/to persistent peers
 - Add a mechanism to dump the network state
