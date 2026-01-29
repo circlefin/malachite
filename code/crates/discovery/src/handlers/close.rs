@@ -103,6 +103,9 @@ where
         // Remove signed peer record (no longer connected, record may be stale)
         self.signed_peer_records.remove(&peer_id);
 
+        // Clear rate limiter state for this peer
+        self.rate_limiter.remove_peer(&peer_id);
+
         // Clear connect_request done_on to allow re-upgrading the peer on reconnection
         self.controller.connect_request.remove_done_on(&peer_id);
 
