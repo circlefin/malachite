@@ -135,7 +135,9 @@ impl DiscoveryRateLimiter {
         // TODO: Remove this expiry logic once peer banning is implemented
         if let Some((_, last_violation)) = self.violations.get(peer_id) {
             if now.duration_since(*last_violation) >= self.violation_expiry {
+                // Clear both violations and request window for a fresh start
                 self.violations.remove(peer_id);
+                self.requests.remove(peer_id);
             }
         }
 
