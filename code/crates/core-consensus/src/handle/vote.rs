@@ -85,18 +85,43 @@ where
     );
 
     // Only process this vote if we have not yet seen it.
-    if !state.driver.votes().has_vote(&signed_vote) {
-        perform!(
-            co,
-            Effect::WalAppend(
-                signed_vote.height(),
-                WalEntry::ConsensusMsg(SignedConsensusMsg::Vote(signed_vote.clone())),
-                Default::default()
-            )
-        );
-
-        apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote)).await?;
+    if state.driver.votes().has_vote(&signed_vote) {
+        return Ok(());
     }
+
+    perform!(
+        co,
+        Effect::WalAppend(
+            signed_vote.height(),
+            WalEntry::ConsensusMsg(SignedConsensusMsg::Vote(signed_vote.clone())),
+            Default::default()
+        )
+    );
+
+    if state.driver.step_is_commit() {
+        // Directly add the vote to the vote keeper without going through state machine
+        // TODO: Do we want the state machine to process late votes in Commit step?
+        if signed_vote.vote_type() == VoteType::Precommit {
+            debug!(
+                consensus.height = %consensus_height,
+                vote.round = %vote_round,
+                validator = %validator_address,
+                "Recording late precommit during Commit step"
+            );
+            let _ = state
+                .driver
+                .votes_mut()
+                .apply_vote(signed_vote.clone(), signed_vote.round());
+        }
+        return Ok(());
+    }
+
+    // In Finalize step, ignore all votes
+    if state.driver.step_is_finalize() {
+        return Ok(());
+    }
+
+    apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote)).await?;
 
     Ok(())
 }

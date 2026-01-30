@@ -141,6 +141,8 @@ where
 
         DriverInput::TimeoutElapsed(_) => (),
 
+        DriverInput::TransitionToFinalize => (),
+
         DriverInput::SyncDecision(proposal) => {
             if proposal.height() != state.driver.height() {
                 warn!(

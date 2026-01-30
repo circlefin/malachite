@@ -1,3 +1,4 @@
+use std::time::{Duration, Instant};
 use tracing::info;
 
 use malachitebft_core_driver::Driver;
@@ -35,6 +36,12 @@ where
 
     /// Last precommit broadcasted by this node
     pub last_signed_precommit: Option<SignedVote<Ctx>>,
+
+    /// Target time for the current height
+    pub target_time: Option<Duration>,
+
+    /// Start time of the current height
+    pub height_start_time: Option<Instant>,
 }
 
 impl<Ctx> State<Ctx>
@@ -64,6 +71,8 @@ where
             full_proposal_keeper: Default::default(),
             last_signed_prevote: None,
             last_signed_precommit: None,
+            target_time: None,
+            height_start_time: None,
         }
     }
 
@@ -216,10 +225,13 @@ where
         &mut self,
         height: Ctx::Height,
         validator_set: Ctx::ValidatorSet,
+        target_time: Option<Duration>,
     ) {
         self.full_proposal_keeper.clear();
         self.last_signed_prevote = None;
         self.last_signed_precommit = None;
+        self.target_time = target_time;
+        self.height_start_time = Some(Instant::now());
 
         self.driver.move_to_height(height, validator_set);
     }

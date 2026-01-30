@@ -36,10 +36,11 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
                 // We can simply respond by telling the engine to start consensus
                 // at the next height, and provide it with the appropriate validator set
-                let params = HeightParams {
-                    validator_set: state.get_validator_set(start_height),
-                    timeouts: state.get_timeouts(start_height),
-                };
+                let params = HeightParams::new(
+                    state.get_validator_set(start_height),
+                    state.get_timeouts(start_height),
+                    None,
+                );
 
                 if reply.send((start_height, params)).is_err() {
                     error!("Failed to send ConsensusReady reply");
@@ -216,10 +217,23 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 evidence: _,
                 reply,
             } => {
+                let Some(reply) = reply else {
+                    info!(
+                        height = %certificate.height,
+                        round = %certificate.round,
+                        value = %certificate.value_id,
+                        signatures = certificate.commit_signatures.len(),
+                        "Consensus has decided on value, finalization will follow"
+                    );
+                    sleep(Duration::from_millis(500)).await; //TODO: Needed in this case?
+                    continue;
+                };
+
                 info!(
                     height = %certificate.height,
                     round = %certificate.round,
                     value = %certificate.value_id,
+                    signatures = certificate.commit_signatures.len(),
                     "Consensus has decided on value, committing..."
                 );
                 assert!(!certificate.commit_signatures.is_empty());
@@ -229,10 +243,11 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     Ok(_) => {
                         // And then we instruct consensus to start the next height
                         // NOTE: `current_height` has already been incremented in `commit()`
-                        let params = HeightParams {
-                            validator_set: state.get_validator_set(state.current_height),
-                            timeouts: state.get_timeouts(state.current_height),
-                        };
+                        let params = HeightParams::new(
+                            state.get_validator_set(state.current_height),
+                            state.get_timeouts(state.current_height),
+                            None,
+                        );
 
                         if reply
                             .send(Next::Start(state.current_height, params))
@@ -246,10 +261,66 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         error!("Commit failed: {e}");
                         error!("Restarting height {}", state.current_height);
 
-                        let params = HeightParams {
-                            validator_set: state.get_validator_set(state.current_height),
-                            timeouts: state.get_timeouts(state.current_height),
-                        };
+                        let params = HeightParams::new(
+                            state.get_validator_set(state.current_height),
+                            state.get_timeouts(state.current_height),
+                            None,
+                        );
+
+                        if reply
+                            .send(Next::Restart(state.current_height, params))
+                            .is_err()
+                        {
+                            error!("Failed to send RestartHeight reply");
+                        }
+                    }
+                }
+
+                sleep(Duration::from_millis(500)).await;
+            }
+
+            AppMsg::Finalized {
+                certificate,
+                extensions: _,
+                reply,
+            } => {
+                info!(
+                    height = %certificate.height,
+                    round = %certificate.round,
+                    value = %certificate.value_id,
+                    signatures = certificate.commit_signatures.len(),
+                    "Consensus has finalized height, committing..."
+                );
+                assert!(!certificate.commit_signatures.is_empty());
+
+                // When that happens, we store the decided value in our store
+                match state.commit(certificate).await {
+                    Ok(_) => {
+                        // And then we instruct consensus to start the next height
+                        // NOTE: `current_height` has already been incremented in `commit()`
+                        let params = HeightParams::new(
+                            state.get_validator_set(state.current_height),
+                            state.get_timeouts(state.current_height),
+                            None,
+                        );
+
+                        if reply
+                            .send(Next::Start(state.current_height, params))
+                            .is_err()
+                        {
+                            error!("Failed to send StartHeight reply");
+                        }
+                    }
+                    Err(e) => {
+                        // Commit failed, restart the height
+                        error!("Commit failed: {e}");
+                        error!("Restarting height {}", state.current_height);
+
+                        let params = HeightParams::new(
+                            state.get_validator_set(state.current_height),
+                            state.get_timeouts(state.current_height),
+                            None,
+                        );
 
                         if reply
                             .send(Next::Restart(state.current_height, params))

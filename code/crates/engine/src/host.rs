@@ -145,12 +145,12 @@ pub enum HostMsg<Ctx: Context> {
     /// and the aggregated signatures of the validators that committed to it.
     /// It also includes to the vote extensions received for that height.
     ///
-    /// In response to this message, the application MUST send a [`Next`]
-    /// message back to consensus, instructing it to either start the next height if
-    /// the application was able to commit the decided value, or to restart the current height
-    /// otherwise.
+    /// If `reply_to` is `Some`, the application MUST send a [`Next`] message back to consensus,
+    /// instructing it to either start the next height if the application was able to commit
+    /// the decided value, or to restart the current height otherwise.
     ///
-    /// If the application does not reply, consensus will stall.
+    /// If `reply_to` is `None`, the application should NOT reply. This happens when a target time
+    /// was set for the height, and a [`HostMsg::Finalized`] message will follow with the reply port.
     Decided {
         /// The commit certificate containing the ID of the value that was decided on,
         /// the the height and round at which it was decided, and the aggregated signatures
@@ -162,6 +162,30 @@ pub enum HostMsg<Ctx: Context> {
 
         /// Misbehavior evidence collected since last height was decided.
         evidence: MisbehaviorEvidence<Ctx>,
+
+        /// Use this reply port to instruct consensus to start the next height.
+        /// `None` when finalization will follow, `Some` when this is the final message.
+        reply_to: Option<RpcReplyPort<Next<Ctx>>>,
+    },
+
+    /// Notifies the application that consensus has finalized a height after collecting late precommits.
+    ///
+    /// This message is sent after a decision was made and a finalization period elapsed,
+    /// during which additional precommits were collected. The certificate may contain more
+    /// signatures than the one sent in the initial Decided message.
+    ///
+    /// In response to this message, the application MUST send a [`Next`]
+    /// message back to consensus, instructing it to either start the next height if
+    /// the application was able to commit the decided value, or to restart the current height
+    /// otherwise.
+    ///
+    /// If the application does not reply, consensus will stall.
+    Finalized {
+        /// The commit certificate with extended signatures collected during finalization period.
+        certificate: CommitCertificate<Ctx>,
+
+        /// Vote extensions that were received for this height (including late ones).
+        extensions: VoteExtensions<Ctx>,
 
         /// Use this reply port to instruct consensus to start the next height.
         reply_to: RpcReplyPort<Next<Ctx>>,

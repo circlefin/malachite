@@ -36,4 +36,7 @@ where
     /// The commit certificate must already be stored in the driver.
     /// Takes an unsigned proposal and goes through the state machine.
     SyncDecision(Ctx::Proposal),
+
+    /// Transition from Commit to Finalize step.
+    TransitionToFinalize,
 }

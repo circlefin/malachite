@@ -199,6 +199,18 @@ where
                 evidence,
                 reply_to,
             } => {
+                let Some(reply_to) = reply_to else {
+                    self.sender
+                        .send(AppMsg::Decided {
+                            certificate,
+                            extensions,
+                            evidence,
+                            reply: None,
+                        })
+                        .await?;
+                    return Ok(());
+                };
+
                 let (reply, rx) = oneshot::channel();
 
                 self.sender
@@ -206,18 +218,41 @@ where
                         certificate,
                         extensions,
                         evidence,
-                        reply,
+                        reply: Some(reply),
                     })
                     .await?;
 
                 // Do not block processing of other messages while waiting for the next height
+                // TODO: do we still want to spawn here?
                 tokio::spawn(async move {
                     if let Ok(next) = rx.await {
                         if let Err(e) = reply_to.send(next) {
-                            error!("Failed to send next height and validator set: {e}");
+                            error!("Decided: Failed to send next height and validator set: {e}");
                         }
                     }
                 });
+            }
+
+            HostMsg::Finalized {
+                certificate,
+                extensions,
+                reply_to,
+            } => {
+                let (reply, rx) = oneshot::channel();
+
+                self.sender
+                    .send(AppMsg::Finalized {
+                        certificate,
+                        extensions,
+                        reply,
+                    })
+                    .await?;
+
+                if let Ok(next) = rx.await {
+                    if let Err(e) = reply_to.send(next) {
+                        error!("Finalized: Failed to send next height and validator set: {e}");
+                    }
+                }
             }
 
             HostMsg::GetDecidedValues { range, reply_to } => {

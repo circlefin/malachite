@@ -45,6 +45,9 @@ pub enum Step {
 
     /// We have committed and decided on a value
     Commit,
+
+    /// We are finalizing the height
+    Finalize,
 }
 
 /// The state of the consensus state machine

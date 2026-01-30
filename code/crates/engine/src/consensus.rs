@@ -419,7 +419,12 @@ where
                     .process_input(
                         &myself,
                         state,
-                        ConsensusInput::StartHeight(height, params.validator_set, is_restart),
+                        ConsensusInput::StartHeight(
+                            height,
+                            params.validator_set,
+                            is_restart,
+                            params.target_time,
+                        ),
                     )
                     .await;
 
@@ -1263,12 +1268,13 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::Decide(certificate, extensions, evidence, r) => {
+            Effect::Decide(certificate, extensions, evidence, will_finalize, r) => {
                 assert!(!certificate.commit_signatures.is_empty());
 
                 // Sync the WAL to disk before we decide the value
                 self.wal_flush(state.phase).await?;
 
+                // Update metrics for equivocation evidence
                 let proposal_evidence_count = evidence
                     .proposals
                     .iter()
@@ -1299,12 +1305,61 @@ where
                 let height = certificate.height;
 
                 // Notify the host about the decided value
-                self.host
-                    .call_and_forward(
-                        |reply_to| HostMsg::Decided {
+                if will_finalize {
+                    // Finalization will follow, so don't request a reply
+                    self.host
+                        .cast(HostMsg::Decided {
                             certificate,
                             extensions,
                             evidence,
+                            reply_to: None,
+                        })
+                        .map_err(|e| eyre!("Error when casting decided value to host: {e:?}"))?;
+                } else {
+                    // No finalization, request reply to proceed to next height
+                    self.host
+                        .call_and_forward(
+                            |reply_to| HostMsg::Decided {
+                                certificate,
+                                extensions,
+                                evidence,
+                                reply_to: Some(reply_to),
+                            },
+                            myself,
+                            |next| match next {
+                                Next::Start(h, params) => Msg::StartHeight(h, params),
+                                Next::Restart(h, params) => Msg::RestartHeight(h, params),
+                            },
+                            None,
+                        )
+                        .map_err(|e| eyre!("Error when sending decided value to host: {e:?}"))?;
+                }
+
+                // Notify the sync actor about the decided height
+                self.sync.send(SyncMsg::Decided(height));
+
+                Ok(r.resume_with(()))
+            }
+
+            Effect::Finalize(certificate, extensions, r) => {
+                assert!(!certificate.commit_signatures.is_empty());
+
+                // Notify any subscribers about the finalized value
+                self.tx_event.send(|| Event::Finalized(certificate.clone()));
+
+                info!(
+                    height = %certificate.height,
+                    round = %certificate.round,
+                    total_signatures = certificate.commit_signatures.len(),
+                    "Height finalized with extended certificate"
+                );
+
+                // Notify the host about the finalized value
+                self.host
+                    .call_and_forward(
+                        |reply_to| HostMsg::Finalized {
+                            certificate,
+                            extensions,
                             reply_to,
                         },
                         myself,
@@ -1314,10 +1369,7 @@ where
                         },
                         None,
                     )
-                    .map_err(|e| eyre!("Error when sending decided value to host: {e:?}"))?;
-
-                // Notify the sync actor about the decided height
-                self.sync.send(SyncMsg::Decided(height));
+                    .map_err(|e| eyre!("Error when sending finalized value to host: {e:?}"))?;
 
                 Ok(r.resume_with(()))
             }

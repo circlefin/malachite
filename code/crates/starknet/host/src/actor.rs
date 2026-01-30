@@ -192,7 +192,16 @@ impl Host {
                 certificate,
                 reply_to,
                 ..
-            } => on_decided(state, reply_to, &self.mempool, certificate, &self.metrics).await,
+            } => {
+                let reply_to = reply_to.expect("Starknet never sets target_time");
+                on_decided(state, reply_to, &self.mempool, certificate, &self.metrics).await
+            }
+
+            HostMsg::Finalized { .. } => {
+                unreachable!(
+                    "Starknet never sets target_time, so should never receive HostMsg::Finalized"
+                )
+            }
 
             HostMsg::GetDecidedValues { range, reply_to } => {
                 on_get_decided_values(range, state, reply_to).await
@@ -220,10 +229,7 @@ async fn on_consensus_ready(
 
     reply_to.send((
         start_height,
-        HeightParams {
-            validator_set: state.host.validator_set.clone(),
-            timeouts: state.host.timeouts,
-        },
+        HeightParams::new(state.host.validator_set.clone(), state.host.timeouts, None),
     ))?;
 
     Ok(())
@@ -693,10 +699,7 @@ async fn on_decided(
     // Start the next height
     reply_to.send(Next::Start(
         state.height.increment(),
-        HeightParams {
-            validator_set: state.host.validator_set.clone(),
-            timeouts: state.host.timeouts,
-        },
+        HeightParams::new(state.host.validator_set.clone(), state.host.timeouts, None),
     ))?;
 
     Ok(())

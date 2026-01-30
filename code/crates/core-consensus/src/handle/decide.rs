@@ -1,5 +1,8 @@
+use malachitebft_core_driver::Input as DriverInput;
+
+use crate::handle::{driver::apply_driver_input, signature::verify_commit_certificate};
+use crate::prelude::*;
 use crate::MisbehaviorEvidence;
-use crate::{handle::signature::verify_commit_certificate, prelude::*};
 
 #[cfg_attr(not(feature = "metrics"), allow(unused_variables))]
 pub async fn decide<Ctx>(
@@ -53,7 +56,7 @@ where
         )
         .await?
         .is_ok(),
-        "Commit certificate is not valid"
+        "Decide: Commit certificate is not valid"
     );
 
     // Update metrics
@@ -75,10 +78,14 @@ where
             .observe(proposal_round.as_i64() as f64);
     }
 
+    let will_finalize = state.target_time.is_some();
+
     #[cfg(feature = "debug")]
     {
-        for trace in state.driver.get_traces() {
-            debug!(%trace, "Consensus trace");
+        if !will_finalize {
+            for trace in state.driver.get_traces() {
+                debug!(%trace, "Decide: Consensus trace");
+            }
         }
     }
 
@@ -89,8 +96,52 @@ where
 
     perform!(
         co,
-        Effect::Decide(certificate, extensions, evidence, Default::default())
+        Effect::Decide(
+            certificate.clone(),
+            extensions.clone(),
+            evidence,
+            will_finalize,
+            Default::default()
+        )
     );
+
+    let Some(target_time) = state.target_time else {
+        debug!(
+            height = %height,
+            "No target time set, transitioning to Finalize step, no Finalize effect"
+        );
+
+        apply_driver_input(co, state, metrics, DriverInput::TransitionToFinalize).await?;
+        return Ok(());
+    };
+
+    let start_time = state
+        .height_start_time
+        .expect("height_start_time must be set when target_time is set");
+    let elapsed = start_time.elapsed();
+    if elapsed < target_time {
+        // Do not transition to Finalize yet
+        let remaining = target_time - elapsed;
+
+        let timeout = Timeout::finalize_height(consensus_round, remaining);
+        perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
+
+        debug!(
+            height = %height,
+            remaining_ms = remaining.as_millis(),
+            "Staying in Commit step"
+        );
+    } else {
+        debug!(
+            height = %height,
+            elapsed_ms = elapsed.as_millis(),
+            target_ms = target_time.as_millis(),
+            "Target time exceeded, transitioning to Finalize immediately, Finalize effect"
+        );
+
+        apply_driver_input(co, state, metrics, DriverInput::TransitionToFinalize).await?;
+        super::finalize::log_and_finalize(co, state, certificate, extensions).await?;
+    }
 
     Ok(())
 }

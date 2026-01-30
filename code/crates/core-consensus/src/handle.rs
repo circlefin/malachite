@@ -1,5 +1,6 @@
 mod decide;
 mod driver;
+mod finalize;
 mod liveness;
 mod proposal;
 mod propose;
@@ -45,9 +46,50 @@ async fn handle_input<Ctx>(
 where
     Ctx: Context,
 {
+    // TODO is this redundant w.r.t. the state machine transitions?
+    if state.driver.step_is_commit() {
+        return match input {
+            Input::Vote(vote) => on_vote(co, state, metrics, vote).await,
+            Input::TimeoutElapsed(timeout) => on_timeout_elapsed(co, state, metrics, timeout).await,
+            Input::StartHeight(..) => {
+                panic!("Received StartHeight input during Commit step")
+            }
+            Input::Propose(..) => {
+                panic!("Received Propose input during Commit step")
+            }
+            _ => {
+                debug!("Ignoring input while in Commit step: {:?}", input);
+                Ok(())
+            }
+        };
+    }
+
+    // TODO is this redundant w.r.t. the state machine transitions?
+    if state.driver.step_is_finalize() {
+        match input {
+            Input::StartHeight(..) => {}
+            Input::Propose(..) => {
+                panic!("Received Propose input during Finalize step")
+            }
+            _ => {
+                debug!("Ignoring input during Finalize step: {:?}", input);
+                return Ok(());
+            }
+        }
+    }
+
     match input {
-        Input::StartHeight(height, validator_set, is_restart) => {
-            reset_and_start_height(co, state, metrics, height, validator_set, is_restart).await
+        Input::StartHeight(height, validator_set, is_restart, target_time) => {
+            reset_and_start_height(
+                co,
+                state,
+                metrics,
+                height,
+                validator_set,
+                is_restart,
+                target_time,
+            )
+            .await
         }
         Input::Vote(vote) => on_vote(co, state, metrics, vote).await,
         Input::Proposal(proposal) => on_proposal(co, state, metrics, proposal).await,

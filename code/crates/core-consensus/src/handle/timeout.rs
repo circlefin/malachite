@@ -1,4 +1,5 @@
 use crate::handle::driver::apply_driver_input;
+use crate::handle::finalize::finalize_height;
 use crate::handle::rebroadcast_timeout::on_rebroadcast_timeout;
 use crate::prelude::*;
 use crate::types::WalEntry;
@@ -32,6 +33,14 @@ where
         %round,
         "Timeout elapsed"
     );
+
+    if matches!(timeout.kind, TimeoutKind::FinalizeHeight(_)) {
+        if state.driver.step_is_commit() {
+            return finalize_height(co, state, metrics).await;
+        } else {
+            return Ok(());
+        }
+    }
 
     if matches!(
         timeout.kind,

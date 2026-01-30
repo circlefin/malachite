@@ -72,4 +72,8 @@ where
     /// Timeout waiting for precommits.
     /// L65
     TimeoutPrecommit,
+
+    /// Transition from Commit to Finalize step.
+    /// (not in the paper)
+    TransitionToFinalize,
 }

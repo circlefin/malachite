@@ -55,6 +55,7 @@ pub enum Event<Ctx: Context> {
         commit_certificate: CommitCertificate<Ctx>,
         evidence: MisbehaviorEvidence<Ctx>,
     },
+    Finalized(CommitCertificate<Ctx>),
     RepublishVote(SignedVote<Ctx>),
     RebroadcastRoundCertificate(RoundCertificate<Ctx>),
     SkipRoundCertificate(RoundCertificate<Ctx>),
@@ -90,15 +91,28 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
                 evidence,
             } => {
                 if evidence.is_empty() {
-                    write!(f, "Decided(value: {})", commit_certificate.value_id)
+                    write!(
+                        f,
+                        "Decided(value: {}, signatures: {})",
+                        commit_certificate.value_id,
+                        commit_certificate.commit_signatures.len()
+                    )
                 } else {
                     write!(
                         f,
-                        "Decided(value: {}, evidence: {:?})",
-                        commit_certificate.value_id, evidence
+                        "Decided(value: {}, signatures: {}, evidence: {:?})",
+                        commit_certificate.value_id,
+                        commit_certificate.commit_signatures.len(),
+                        evidence
                     )
                 }
             }
+            Event::Finalized(commit_certificate) => write!(
+                f,
+                "Finalized(value: {}, signatures: {})",
+                commit_certificate.value_id,
+                commit_certificate.commit_signatures.len()
+            ),
             Event::RepublishVote(vote) => write!(f, "RepublishVote(vote: {vote:?})"),
             Event::RebroadcastRoundCertificate(certificate) => write!(
                 f,
