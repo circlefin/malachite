@@ -193,6 +193,36 @@ where
                 }
             }
 
+            // Received a Proposal message in proposal-only mode
+            HostMsg::ReceivedProposal {
+                proposal,
+                reply_to: Some(reply_to),
+            } => {
+                let (reply, rx) = oneshot::channel();
+
+                self.sender
+                    .send(AppMsg::ReceivedProposal {
+                        proposal,
+                        reply: Some(reply),
+                    })
+                    .await?;
+
+                reply_to.send(rx.await?)?;
+            }
+
+            // Received a Proposal message in proposal-and-parts mode
+            HostMsg::ReceivedProposal {
+                proposal,
+                reply_to: None,
+            } => {
+                self.sender
+                    .send(AppMsg::ReceivedProposal {
+                        proposal,
+                        reply: None,
+                    })
+                    .await?;
+            }
+
             HostMsg::Decided {
                 certificate,
                 extensions,

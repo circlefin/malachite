@@ -309,26 +309,28 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             } => {
                 info!(%height, %round, "Processing synced value");
 
-                if let Some(value) = decode_value(value_bytes) {
+                let proposed_value = if let Some(value) = decode_value(value_bytes) {
                     let proposed_value = ProposedValue {
                         height,
                         round,
                         valid_round: Round::Nil,
                         proposer,
                         value,
-                        validity: Validity::Valid,
+                        validity: Validity::Valid, // NOTE: Values are always valid in this example app
                     };
 
-                    // TODO: We plan to add some validation here in the future.
                     state
                         .store
                         .store_undecided_proposal(proposed_value.clone())
                         .await?;
 
-                    if reply.send(Some(proposed_value)).is_err() {
-                        error!("Failed to send ProcessSyncedValue reply");
-                    }
-                } else if reply.send(None).is_err() {
+                    Some(proposed_value)
+                } else {
+                    error!(%height, %round, "Failed to decode synced value");
+                    None
+                };
+
+                if reply.send(proposed_value).is_err() {
                     error!("Failed to send ProcessSyncedValue reply");
                 }
             }
@@ -380,7 +382,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 } else {
                     valid_round
                 };
-                info!(%height, %proposal_round, "Restreaming existing propos*al...");
+                info!(%height, %proposal_round, "Restreaming existing proposal...");
 
                 let proposal = state
                     .store
@@ -404,6 +406,21 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                             .await?;
                     }
                 }
+            }
+
+            AppMsg::ReceivedProposal { proposal, reply } => {
+                assert!(
+                    reply.is_none(),
+                    "Example app runs in proposal-and-parts mode"
+                );
+
+                info!(
+                    height = %state.current_height, round = %state.current_round,
+                    "Received proposal: {proposal:?}"
+                );
+
+                // NOTE: In proposal-and-parts mode, the application does not need
+                // to process this message any further.
             }
         }
     }

@@ -277,7 +277,8 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             } => {
                 info!(%height, %round, "Processing synced value");
 
-                if let Some(value) = decode_value(value_bytes) {
+                let result = if let Some(value) = decode_value(value_bytes) {
+                    // TODO: Verify the validity of value
                     let proposal = ProposedValue {
                         height,
                         round,
@@ -289,15 +290,14 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
                     // TODO: We plan to add some validation here in the future.
                     state.store_synced_value(proposal.clone()).await?;
-
-                    if reply.send(Some(proposal)).is_err() {
-                        error!("Failed to send ProcessSyncedValue reply");
-                    }
+                    Some(proposal)
                 } else {
                     error!(%height, %round, "Failed to decode synced value");
-                    if reply.send(None).is_err() {
-                        error!("Failed to send ProcessSyncedValue reply");
-                    }
+                    None
+                };
+
+                if reply.send(result).is_err() {
+                    error!("Failed to send ProcessSyncedValue reply");
                 }
             }
 
@@ -392,6 +392,18 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 if reply.send(Ok(())).is_err() {
                     error!("Failed to send VerifyVoteExtension reply");
                 }
+            }
+
+            AppMsg::ReceivedProposal { proposal, reply } => {
+                assert!(reply.is_none(), "Test app runs in proposal-and-parts mode");
+
+                info!(
+                    height = %state.current_height, round = %state.current_round,
+                    "Received proposal: {proposal:?}"
+                );
+
+                // NOTE: In proposal-and-parts mode, the application does not need
+                // to process this message any further.
             }
         }
     }

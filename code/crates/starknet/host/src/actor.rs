@@ -205,6 +205,10 @@ impl Host {
                 value_bytes,
                 reply_to,
             } => on_process_synced_value(value_bytes, height, round, proposer, reply_to),
+
+            HostMsg::ReceivedProposal { .. } => {
+                panic!("ProposalOnly not supported");
+            }
         }
     }
 }

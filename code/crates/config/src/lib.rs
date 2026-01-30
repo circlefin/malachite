@@ -625,7 +625,7 @@ impl Default for ConsensusConfig {
 pub enum ValuePayload {
     #[default]
     PartsOnly,
-    ProposalOnly, // TODO - add small block app to test this option
+    ProposalOnly,
     ProposalAndParts,
 }
 

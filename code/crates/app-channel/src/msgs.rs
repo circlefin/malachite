@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use derive_where::derive_where;
+use malachitebft_app::types::core::SignedProposal;
 use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
@@ -319,6 +320,18 @@ pub enum AppMsg<Ctx: Context> {
         part: StreamMessage<Ctx::ProposalPart>,
         /// Channel for returning the complete value if the proposal is now complete
         reply: Reply<Option<ProposedValue<Ctx>>>,
+    },
+
+    /// Notifies the application that consensus has received a Proposal message over the network.
+    ///
+    /// If consensus is running in proposal-only mode, `reply` will be `Some` and
+    /// the application MUST respond with the complete proposed value.
+    ReceivedProposal {
+        /// The signed Proposal message
+        proposal: SignedProposal<Ctx>,
+        /// Channel for returning validity of the proposal
+        /// If consensus is not running in proposal-only mode, this will be `None`.
+        reply: Option<Reply<ProposedValue<Ctx>>>,
     },
 
     /// Notifies the application that consensus has decided on a value.
