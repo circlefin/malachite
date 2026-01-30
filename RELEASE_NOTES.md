@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### `app-channel`
+- Add builder pattern for custom actor injection
 - Make consensus request channel capacity configurable
 - Refactor infrastructure for spawning a channel-based application
 
