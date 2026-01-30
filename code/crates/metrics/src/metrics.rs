@@ -90,6 +90,12 @@ pub struct Inner {
     /// Number of inputs in the consensus input queue across all heights
     pub queue_size: Gauge,
 
+    /// Number of equivocating votes
+    pub equivocation_votes: Counter,
+
+    /// Number of equivocating proposals
+    pub equivocation_proposals: Counter,
+
     /// Internal state for measuring time taken for consensus
     instant_consensus_started: Arc<AtomicInstant>,
 
@@ -118,6 +124,8 @@ impl Metrics {
             signature_verification_time: Histogram::new(exponential_buckets(0.001, 2.0, 10)),
             queue_heights: Gauge::default(),
             queue_size: Gauge::default(),
+            equivocation_votes: Counter::default(),
+            equivocation_proposals: Counter::default(),
             instant_consensus_started: Arc::new(AtomicInstant::empty()),
             instant_block_started: Arc::new(AtomicInstant::empty()),
             instant_step_started: Arc::new(Mutex::new((Step::Unstarted, Instant::now()))),
@@ -204,6 +212,18 @@ impl Metrics {
                 "queue_size",
                 "Number of inputs in the consensus input queue across all heights",
                 metrics.queue_size.clone(),
+            );
+
+            registry.register(
+                "equivocation_votes",
+                "Number of equivocating votes",
+                metrics.equivocation_votes.clone(),
+            );
+
+            registry.register(
+                "equivocation_proposals",
+                "Number of equivocating proposals",
+                metrics.equivocation_proposals.clone(),
             );
         });
 

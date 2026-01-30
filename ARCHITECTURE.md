@@ -94,12 +94,14 @@ These include synchronization support enabling peers to catch up in terms of Vot
 There are currently three ways to decentralize an application using Malachite:
 
 #### Channel-based interface
+
 The first one is to make us of the high-level channel-based interface to the consensus engine that is provided by the `malachite-app-channel` crate.
 Using the high-level interface will provide the application with all the features built into Malachite, such as synchronization, crash recovery and networking. The downside is that the application cannot choose a different networking layer or define its own synchronization protocol.
 
 [See the corresponding tutorial](/docs/tutorials/channels.md) for a detailed walkthrough.
 
 #### Actor-based interface
+
 The other way is to make use of the slightly lower level actor-based interface, which allows application developers to switch one actor implementation for another, in order to for instance use a different networking layer than the libp2p-based one.
 It will then be up to the application to spawn and wire the actors together, which is more complex than using the channel-based interface, but allows for more flexibility.
 
@@ -107,6 +109,7 @@ There is not tutorial for doing this at the moment.
 Please [open a discussion](https://github.com/circlefin/malachite/discussions) on GitHub if you want to discuss this approach or get help for swapping parts of the engine in and out.
 
 #### Low-level interface
+
 If none of these approaches are flexible enough for your application, another way to leverage Malachite is to use its low-level core consensus library, which is fully agnostic with regard to all aspects outside of core consensus.
 It therefore allows an application to define its own networking layer, synchronization protocol, execution environment (eg. in a browser when compiled to WASM or using system threads for concurrency instead of actors or Tokio).
 
@@ -182,9 +185,31 @@ it only constraints that any implementation satisfies the `Ctx::Proposal` trait.
 Furthermore, this trait is generic over a type which we call a `Context`.
 The full definition of `Ctx::Proposal` trait looks like this:
 
-https://github.com/circlefin/malachite/blob/53a9d9e071e773ff959465f2836648d8ad2a5c74/code/crates/core-types/src/proposal.rs#L5-L28
+<https://github.com/circlefin/malachite/blob/53a9d9e071e773ff959465f2836648d8ad2a5c74/code/crates/core-types/src/proposal.rs#L5-L28>
 
 Inputs, Effects, and the Context are the three key types that make up the Malachite consensus library.
+
+### Equivocation Evidence
+
+Malachite detects and surfaces validator equivocation in two ways:
+
+- Immediate events: When a conflicting proposal or vote is received, the engine emits `Event::ProposalEquivocationEvidence` or `Event::VoteEquivocationEvidence` with the full pair of signed artifacts.
+  These are useful for real-time telemetry and alerting.
+- Decide-time evidence: On `Effect::Decide`, Malachite includes a `MisbehaviorEvidence` payload that aggregates all proposal and vote equivocations observed during the height.
+  This is delivered to the host and application alongside the `CommitCertificate`.
+
+Evidence structure:
+
+- `MisbehaviorEvidence<Ctx>` contains:
+  - `proposals`: evidence of proposal equivocation keyed by validator address
+  - `votes`: evidence of vote equivocation keyed by validator address
+
+Metrics:
+
+- `malachitebft_core_consensus_equivocation_proposals`: counter incremented on each detected proposal equivocation
+- `malachitebft_core_consensus_equivocation_votes`: counter incremented on each detected vote equivocation
+
+Applications can subscribe to engine events for immediate signals and also consume decide-time evidence to persist or act on aggregated misbehavior per height.
 
 ## Going further
 

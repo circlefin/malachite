@@ -17,7 +17,7 @@ use malachitebft_core_votekeeper::keeper::VoteKeeper;
 
 use crate::input::Input;
 use crate::output::Output;
-use crate::proposal_keeper::ProposalKeeper;
+use crate::proposal_keeper::{self, ProposalKeeper};
 use crate::Error;
 use crate::ThresholdParams;
 
@@ -210,6 +210,16 @@ where
     /// Return the proposer address for the current round, if any.
     pub fn proposer_address(&self) -> Option<&Ctx::Address> {
         self.proposer.as_ref()
+    }
+
+    /// Return recorded evidence of proposal equivocation for this height.
+    pub fn proposal_evidence(&self) -> &proposal_keeper::EvidenceMap<Ctx> {
+        self.proposal_keeper.evidence()
+    }
+
+    /// Return recorded evidence of vote equivocation for this height.
+    pub fn vote_evidence(&self) -> &malachitebft_core_votekeeper::EvidenceMap<Ctx> {
+        self.votes().evidence()
     }
 
     /// Return the proposer for the current round.
@@ -511,8 +521,10 @@ where
         let vote_round = vote.round();
         let this_round = self.round();
 
-        let Some(output) = self.vote_keeper.apply_vote(vote, this_round) else {
-            return Ok(None);
+        let output = match self.vote_keeper.apply_vote(vote, this_round) {
+            Ok(Some(output)) => output,
+            Ok(None) => return Ok(None),
+            Err(_) => return Ok(None),
         };
 
         match &output {

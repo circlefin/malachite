@@ -25,14 +25,19 @@ use crate::msgs::{ConsensusRequest, NetworkRequest};
 use crate::spawn::{spawn_host_actor, spawn_network_actor};
 use crate::Channels;
 
-pub struct EngineHandle {
+pub struct EngineHandle<Ctx: Context> {
     pub actor: NodeRef,
+    pub consensus: ConsensusRef<Ctx>,
     pub handle: JoinHandle<()>,
 }
 
-impl EngineHandle {
-    pub fn new(actor: NodeRef, handle: JoinHandle<()>) -> Self {
-        Self { actor, handle }
+impl<Ctx: Context> EngineHandle<Ctx> {
+    pub fn new(actor: NodeRef, consensus: ConsensusRef<Ctx>, handle: JoinHandle<()>) -> Self {
+        Self {
+            actor,
+            consensus,
+            handle,
+        }
     }
 }
 
@@ -90,7 +95,7 @@ pub async fn start_engine<Ctx, Config, Signer, WalCodec, NetCodec>(
     network_ctx: NetworkContext<NetCodec>,
     consensus_ctx: ConsensusContext<Ctx, Signer>,
     request_ctx: RequestContext,
-) -> Result<(Channels<Ctx>, EngineHandle)>
+) -> Result<(Channels<Ctx>, EngineHandle<Ctx>)>
 where
     Ctx: Context,
     Config: NodeConfig,
@@ -161,7 +166,7 @@ where
     .await?;
 
     let (tx_request, rx_request) = mpsc::channel(request_ctx.channel_size);
-    spawn_consensus_request_task(rx_request, consensus);
+    spawn_consensus_request_task(rx_request, consensus.clone());
 
     let (tx_net_request, rx_net_request) = mpsc::channel(request_ctx.channel_size);
     spawn_network_request_task(rx_net_request, network);
@@ -176,6 +181,7 @@ where
 
     let handle = EngineHandle {
         actor: node,
+        consensus,
         handle,
     };
 

@@ -243,12 +243,14 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             AppMsg::Decided {
                 certificate,
                 extensions,
+                evidence,
                 reply,
             } => {
                 info!(
                     height = %certificate.height,
                     round = %certificate.round,
                     value = %certificate.value_id,
+                    evidence = ?evidence,
                     "Consensus has decided on value, committing..."
                 );
 

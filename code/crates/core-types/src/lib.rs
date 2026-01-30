@@ -47,11 +47,17 @@ pub type PrivateKey<Ctx> = <<Ctx as Context>::SigningScheme as SigningScheme>::P
 /// Type alias to make it easier to refer the `Signature` type.
 pub type Signature<Ctx> = <<Ctx as Context>::SigningScheme as SigningScheme>::Signature;
 
-/// A signed vote
+/// A signed vote.
 pub type SignedVote<Ctx> = SignedMessage<Ctx, <Ctx as Context>::Vote>;
+
+/// A double signed vote (e.g., conflicting votes).
+pub type DoubleVote<Ctx> = (SignedVote<Ctx>, SignedVote<Ctx>);
 
 /// A signed proposal
 pub type SignedProposal<Ctx> = SignedMessage<Ctx, <Ctx as Context>::Proposal>;
+
+/// Double signed proposal (e.g., conflicting proposals).
+pub type DoubleProposal<Ctx> = (SignedProposal<Ctx>, SignedProposal<Ctx>);
 
 /// A signed vote extension
 pub type SignedExtension<Ctx> = SignedMessage<Ctx, <Ctx as Context>::Extension>;

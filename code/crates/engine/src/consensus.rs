@@ -528,10 +528,24 @@ where
                             .send(|| Event::Received(SignedConsensusMsg::Vote(vote.clone())));
 
                         if let Err(e) = self
-                            .process_input(&myself, state, ConsensusInput::Vote(vote))
+                            .process_input(&myself, state, ConsensusInput::Vote(vote.clone()))
                             .await
                         {
                             error!(%from, "Error when processing vote: {e}");
+                        }
+
+                        if let Some((address, evidence)) =
+                            state.consensus.as_ref().and_then(|consensus| {
+                                consensus.driver.vote_evidence().is_last_equivocation(&vote)
+                            })
+                        {
+                            self.metrics.equivocation_votes.inc();
+
+                            self.tx_event.send(|| Event::VoteEquivocationEvidence {
+                                vote_height: vote.height(),
+                                address,
+                                evidence,
+                            });
                         }
                     }
 
@@ -546,10 +560,26 @@ where
                         }
 
                         if let Err(e) = self
-                            .process_input(&myself, state, ConsensusInput::Proposal(proposal))
+                            .process_input(
+                                &myself,
+                                state,
+                                ConsensusInput::Proposal(proposal.clone()),
+                            )
                             .await
                         {
                             error!(%from, "Error when processing proposal: {e}");
+                        }
+
+                        if let Some((address, evidence)) = state.consensus.as_ref().and_then(|c| {
+                            c.driver.proposal_evidence().is_last_equivocation(&proposal)
+                        }) {
+                            self.metrics.equivocation_proposals.inc();
+
+                            self.tx_event.send(|| Event::ProposalEquivocationEvidence {
+                                proposal_height: proposal.height(),
+                                address,
+                                evidence,
+                            });
                         }
                     }
 
@@ -1249,12 +1279,15 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::Decide(certificate, extensions, r) => {
+            Effect::Decide(certificate, extensions, evidence, r) => {
                 assert!(!certificate.commit_signatures.is_empty());
 
                 self.wal_flush(state.phase).await?;
 
-                self.tx_event.send(|| Event::Decided(certificate.clone()));
+                self.tx_event.send(|| Event::Decided {
+                    commit_certificate: certificate.clone(),
+                    evidence: evidence.clone(),
+                });
 
                 let height = certificate.height;
 
@@ -1263,6 +1296,7 @@ where
                         |reply_to| HostMsg::Decided {
                             certificate,
                             extensions,
+                            evidence,
                             reply_to,
                         },
                         myself,

@@ -1,3 +1,4 @@
+mod equivocation;
 mod full_nodes;
 mod liveness;
 mod middlewares;
@@ -77,7 +78,7 @@ impl NodeRunner<TestContext> for TestRunner {
     fn new<S>(id: usize, nodes: &[TestNode<TestContext, S>], params: TestParams) -> Self {
         let base_port = 20_000 + id * 1000;
 
-        let (validators, private_keys) = make_validators(nodes);
+        let (validators, private_keys) = make_validators(nodes, &params);
         let validator_set = ValidatorSet::new(validators);
 
         let nodes_info = nodes
@@ -206,13 +207,33 @@ fn transport_from_env(default: TransportProtocol) -> TransportProtocol {
 
 fn make_validators<S>(
     nodes: &[TestNode<TestContext, S>],
+    params: &TestParams,
 ) -> (Vec<Validator>, HashMap<NodeId, PrivateKey>) {
     let mut rng = StdRng::seed_from_u64(0x42);
 
     let mut validators = Vec::new();
     let mut private_keys = HashMap::new();
 
+    let sk = PrivateKey::generate(&mut rng);
+    // Assign the same private key to all nodes in the shared group
+    for &nid in params.shared_key_group.iter() {
+        private_keys.insert(nid, sk.clone());
+    }
+    // Combine voting power of all nodes in the group into a single validator entry
+    let total_power: u64 = params
+        .shared_key_group
+        .iter()
+        .filter_map(|nid| nodes.iter().find(|n| n.id == *nid))
+        .map(|n| n.voting_power)
+        .sum();
+    if total_power > 0 {
+        validators.push(Validator::new(sk.public_key(), total_power));
+    }
+
     for node in nodes {
+        if params.shared_key_group.contains(&node.id) {
+            continue;
+        }
         let sk = PrivateKey::generate(&mut rng);
         let val = Validator::new(sk.public_key(), node.voting_power);
 

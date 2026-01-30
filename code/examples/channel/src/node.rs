@@ -46,7 +46,7 @@ pub struct App {
 
 pub struct Handle {
     pub app: JoinHandle<()>,
-    pub engine: EngineHandle,
+    pub engine: EngineHandle<TestContext>,
     pub tx_event: TxEvent<TestContext>,
 }
 

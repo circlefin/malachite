@@ -6,11 +6,12 @@ use derive_where::derive_where;
 use tokio::sync::broadcast;
 
 use malachitebft_core_consensus::{
-    Error as ConsensusError, LocallyProposedValue, ProposedValue, Role, SignedConsensusMsg,
-    WalEntry,
+    Error as ConsensusError, LocallyProposedValue, MisbehaviorEvidence, ProposedValue, Role,
+    SignedConsensusMsg, WalEntry,
 };
 use malachitebft_core_types::{
-    CommitCertificate, Context, PolkaCertificate, Round, RoundCertificate, SignedVote, ValueOrigin,
+    CommitCertificate, Context, DoubleProposal, DoubleVote, PolkaCertificate, Round,
+    RoundCertificate, SignedVote, ValueOrigin,
 };
 
 pub type RxEvent<Ctx> = broadcast::Receiver<Event<Ctx>>;
@@ -51,7 +52,10 @@ pub enum Event<Ctx: Context> {
     Received(SignedConsensusMsg<Ctx>),
     ProposedValue(LocallyProposedValue<Ctx>),
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
-    Decided(CommitCertificate<Ctx>),
+    Decided {
+        commit_certificate: CommitCertificate<Ctx>,
+        evidence: MisbehaviorEvidence<Ctx>,
+    },
     RepublishVote(SignedVote<Ctx>),
     RebroadcastRoundCertificate(RoundCertificate<Ctx>),
     SkipRoundCertificate(RoundCertificate<Ctx>),
@@ -62,6 +66,16 @@ pub enum Event<Ctx: Context> {
     WalReplayError(Arc<ConsensusError<Ctx>>),
     WalResetError(Arc<eyre::Report>),
     WalCorrupted(Arc<io::Error>),
+    ProposalEquivocationEvidence {
+        proposal_height: Ctx::Height,
+        address: Ctx::Address,
+        evidence: DoubleProposal<Ctx>,
+    },
+    VoteEquivocationEvidence {
+        vote_height: Ctx::Height,
+        address: Ctx::Address,
+        evidence: DoubleVote<Ctx>,
+    },
 }
 
 impl<Ctx: Context> fmt::Display for Event<Ctx> {
@@ -82,7 +96,16 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
                     "ReceivedProposedValue(value: {value:?}, origin: {origin:?})"
                 )
             }
-            Event::Decided(cert) => write!(f, "Decided(value: {})", cert.value_id),
+            Event::Decided {
+                commit_certificate,
+                evidence,
+            } => {
+                write!(
+                    f,
+                    "Decided(value: {}, evidence: {:?})",
+                    commit_certificate.value_id, evidence
+                )
+            }
             Event::RepublishVote(vote) => write!(f, "RepublishVote(vote: {vote:?})"),
             Event::RebroadcastRoundCertificate(certificate) => write!(
                 f,
@@ -102,6 +125,20 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
             }
             Event::SkipRoundCertificate(certificate) => {
                 write!(f, "SkipRoundCertificate: {certificate:?})")
+            }
+            Event::ProposalEquivocationEvidence {
+                proposal_height,
+                address,
+                evidence,
+            } => {
+                write!(f, "ProposalEquivocationEvidence(height: {proposal_height}, address: {address}, evidence: {evidence:?})")
+            }
+            Event::VoteEquivocationEvidence {
+                vote_height,
+                address,
+                evidence,
+            } => {
+                write!(f, "VoteEquivocationEvidence(height: {vote_height}, address: {address}, evidence: {evidence:?})")
             }
         }
     }

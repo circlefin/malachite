@@ -11,6 +11,7 @@ use tracing::error;
 use malachitebft_app::consensus::Role;
 use malachitebft_app::consensus::VoteExtensionError;
 use malachitebft_app::types::core::ValueOrigin;
+use malachitebft_app::types::MisbehaviorEvidence;
 use malachitebft_engine::consensus::state_dump::StateDump;
 use malachitebft_engine::consensus::Msg as ConsensusActorMsg;
 use malachitebft_engine::host::{HeightParams, Next};
@@ -340,6 +341,9 @@ pub enum AppMsg<Ctx: Context> {
 
         /// The vote extensions received for that height
         extensions: VoteExtensions<Ctx>,
+
+        /// Misbehavior evidence observed since last decide
+        evidence: MisbehaviorEvidence<Ctx>,
 
         /// Channel for instructing consensus to start the next height, if desired
         reply: Reply<Next<Ctx>>,

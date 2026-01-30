@@ -1,3 +1,4 @@
+use crate::MisbehaviorEvidence;
 use crate::{handle::signature::verify_commit_certificate, prelude::*};
 
 #[cfg_attr(not(feature = "metrics"), allow(unused_variables))]
@@ -81,9 +82,14 @@ where
         }
     }
 
+    let evidence = MisbehaviorEvidence {
+        proposals: state.driver.proposal_evidence().to_owned(),
+        votes: state.driver.vote_evidence().to_owned(),
+    };
+
     perform!(
         co,
-        Effect::Decide(certificate, extensions, Default::default())
+        Effect::Decide(certificate, extensions, evidence, Default::default())
     );
 
     Ok(())

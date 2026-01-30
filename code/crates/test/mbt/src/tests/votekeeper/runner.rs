@@ -96,10 +96,14 @@ impl ItfRunner for VoteKeeperRunner {
                 debug_assert_eq!(*weight as u64, validator.voting_power);
 
                 // Execute step.
-                Ok(actual.apply_vote(
-                    SignedVote::new(vote, Signature::test()),
-                    Round::from(*current_round),
-                ))
+                actual
+                    .apply_vote(
+                        SignedVote::new(vote, Signature::test()),
+                        Round::from(*current_round),
+                    )
+                    .map_err(|err| {
+                        println!("Error applying vote: {:?}", err);
+                    })
             }
         }
     }

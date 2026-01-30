@@ -232,7 +232,7 @@ where
                         Event::StartedHeight(height, _is_restart) => {
                             current_height.store(height.as_u64() as usize, Ordering::SeqCst);
                         }
-                        Event::Decided(_) => {
+                        Event::Decided { .. } => {
                             decisions.fetch_add(1, Ordering::SeqCst);
                         }
                         Event::Published(msg) if is_full_node => {
