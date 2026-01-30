@@ -653,22 +653,7 @@ where
             break;
         };
 
-        // Send the request
-        let Some((request_id, final_range)) =
-            send_request_to_peer(&co, state, metrics, range, peer).await?
-        else {
-            continue; // Request was skipped (empty range, etc.), try next iteration
-        };
-
-        // Store the pending request
-        state
-            .pending_requests
-            .insert(request_id, (final_range.clone(), peer));
-
-        // Update sync_height to the next uncovered height after this range
-        let starting_height = final_range.end().increment();
-        state.sync_height =
-            find_next_uncovered_height::<Ctx>(starting_height, &state.pending_requests);
+        send_and_track_request_to_peer(&co, state, metrics, peer, range).await?;
     }
 
     Ok(())
@@ -707,7 +692,36 @@ where
         return Ok(());
     };
 
-    send_request_to_peer(&co, state, metrics, range, peer).await?;
+    send_and_track_request_to_peer(&co, state, metrics, peer, range).await?;
+
+    Ok(())
+}
+
+async fn send_and_track_request_to_peer<Ctx>(
+    co: &Co<Ctx>,
+    state: &mut State<Ctx>,
+    metrics: &Metrics,
+    peer: PeerId,
+    range: RangeInclusive<<Ctx as Context>::Height>,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    // Send the request
+    let Some((request_id, final_range)) =
+        send_request_to_peer(co, state, metrics, range, peer).await?
+    else {
+        return Ok(()); // Request was skipped (empty range, etc.)
+    };
+
+    // Store the pending request
+    state
+        .pending_requests
+        .insert(request_id, (final_range.clone(), peer));
+
+    // Update sync_height to the next uncovered height after this range
+    let next_sync_base = final_range.end().increment();
+    state.sync_height = find_next_uncovered_height::<Ctx>(next_sync_base, &state.pending_requests);
 
     Ok(())
 }
@@ -801,17 +815,7 @@ where
         return Ok(());
     };
 
-    // Send the request
-    let Some((request_id, final_range)) =
-        send_request_to_peer(&co, state, metrics, peer_range, peer).await?
-    else {
-        return Ok(()); // Request was skipped (empty range, etc.)
-    };
-
-    // Store the pending request (replacing the removed one)
-    state
-        .pending_requests
-        .insert(request_id, (final_range.clone(), peer));
+    send_and_track_request_to_peer(&co, state, metrics, peer, peer_range).await?;
 
     Ok(())
 }

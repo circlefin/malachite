@@ -295,6 +295,8 @@ where
                             },
                         );
 
+                        info!(%peer_id, %request_id, "Sent value request to peer");
+
                         Ok(r.resume_with(Some(request_id)))
                     }
                     Err(e) => {
