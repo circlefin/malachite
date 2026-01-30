@@ -1,0 +1,16 @@
+# Handle line endings automatically for files detected as text 
+# and leave binary files untouched.
+* text=auto
+
+# Standardize line endings for specific files
+*.go text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+
+# Ensure Makefile always uses tabs and LF
+Makefile whitespace=tab-in-indent eol=lf
+
+# Denote generated files
+go.sum linguist-generated=true
