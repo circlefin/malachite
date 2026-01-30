@@ -5,7 +5,7 @@ use alloc::{vec, vec::Vec};
 
 use derive_where::derive_where;
 
-use malachitebft_core_types::{Context, SignedVote, Vote};
+use malachitebft_core_types::{Context, DoubleVote, SignedVote, Vote};
 
 /// Keeps track of evidence of equivocation.
 #[derive_where(Clone, Debug, Default)]
@@ -14,8 +14,8 @@ where
     Ctx: Context,
 {
     #[allow(clippy::type_complexity)]
-    map: BTreeMap<Ctx::Address, Vec<(SignedVote<Ctx>, SignedVote<Ctx>)>>,
-    last: Option<(Ctx::Address, (SignedVote<Ctx>, SignedVote<Ctx>))>,
+    map: BTreeMap<Ctx::Address, Vec<DoubleVote<Ctx>>>,
+    last: Option<(Ctx::Address, DoubleVote<Ctx>)>,
 }
 
 impl<Ctx> EvidenceMap<Ctx>
@@ -33,7 +33,7 @@ where
     }
 
     /// Return the evidence of equivocation for a given address, if any.
-    pub fn get(&self, address: &Ctx::Address) -> Option<&Vec<(SignedVote<Ctx>, SignedVote<Ctx>)>> {
+    pub fn get(&self, address: &Ctx::Address) -> Option<&Vec<DoubleVote<Ctx>>> {
         self.map.get(address)
     }
 
@@ -42,7 +42,7 @@ where
     pub fn is_last_equivocation(
         &self,
         vote: &SignedVote<Ctx>,
-    ) -> Option<(Ctx::Address, (SignedVote<Ctx>, SignedVote<Ctx>))> {
+    ) -> Option<(Ctx::Address, DoubleVote<Ctx>)> {
         self.last
             .as_ref()
             .filter(|(address, (_, conflicting))| {

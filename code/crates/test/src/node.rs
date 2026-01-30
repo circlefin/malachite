@@ -12,8 +12,6 @@ use malachitebft_signing::SigningProvider;
 
 use malachitebft_core_types::{Context, PrivateKey, PublicKey};
 
-use malachitebft_engine::consensus::Msg;
-
 pub use libp2p_identity::Keypair;
 
 #[async_trait]

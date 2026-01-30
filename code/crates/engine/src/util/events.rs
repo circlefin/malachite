@@ -10,8 +10,8 @@ use malachitebft_core_consensus::{
     SignedConsensusMsg, WalEntry,
 };
 use malachitebft_core_types::{
-    CommitCertificate, Context, PolkaCertificate, Round, RoundCertificate, SignedProposal,
-    SignedVote, ValueOrigin,
+    CommitCertificate, Context, DoubleProposal, DoubleVote, PolkaCertificate, Round,
+    RoundCertificate, SignedVote, ValueOrigin,
 };
 
 pub type RxEvent<Ctx> = broadcast::Receiver<Event<Ctx>>;
@@ -69,12 +69,12 @@ pub enum Event<Ctx: Context> {
     ProposalEquivocationEvidence {
         proposal_height: Ctx::Height,
         address: Ctx::Address,
-        evidence: (SignedProposal<Ctx>, SignedProposal<Ctx>),
+        evidence: DoubleProposal<Ctx>,
     },
     VoteEquivocationEvidence {
         vote_height: Ctx::Height,
         address: Ctx::Address,
-        evidence: (SignedVote<Ctx>, SignedVote<Ctx>),
+        evidence: DoubleVote<Ctx>,
     },
 }
 

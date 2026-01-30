@@ -4,7 +4,6 @@
 use std::path::PathBuf;
 
 use async_trait::async_trait;
-use malachitebft_app_channel::app::engine::consensus::Msg;
 use rand::{CryptoRng, RngCore};
 use tokio::task::JoinHandle;
 use tracing::Instrument;

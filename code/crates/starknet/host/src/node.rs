@@ -2,7 +2,6 @@
 
 use std::path::PathBuf;
 
-use malachitebft_engine::consensus::Msg;
 use ractor::async_trait;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};

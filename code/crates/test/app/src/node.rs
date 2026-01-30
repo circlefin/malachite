@@ -9,7 +9,6 @@ use tokio::task::JoinHandle;
 use tracing::Instrument;
 
 use malachitebft_app_channel::app::config::*;
-use malachitebft_app_channel::app::engine::consensus::Msg;
 use malachitebft_app_channel::app::events::{RxEvent, TxEvent};
 use malachitebft_app_channel::app::types::core::VotingPower;
 use malachitebft_app_channel::app::types::Keypair;

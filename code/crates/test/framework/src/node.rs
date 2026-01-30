@@ -7,9 +7,10 @@ use tracing::info;
 use malachitebft_app::config::NodeConfig;
 use malachitebft_core_consensus::{LocallyProposedValue, MisbehaviorEvidence, SignedConsensusMsg};
 use malachitebft_core_types::{
-    CommitCertificate, Context, Height, SignedProposal, SignedVote, Vote, VoteType, VotingPower,
+    CommitCertificate, Context, DoubleProposal, DoubleVote, Height, SignedVote, Vote, VoteType,
+    VotingPower,
 };
-use malachitebft_engine::{consensus::ConsensusMsg, util::events::Event};
+use malachitebft_engine::util::events::Event;
 use malachitebft_test::middleware::{DefaultMiddleware, Middleware};
 use malachitebft_test_app::config::Config as TestConfig;
 
@@ -311,7 +312,7 @@ where
         F: Fn(
                 Ctx::Height,
                 Ctx::Address,
-                (SignedVote<Ctx>, SignedVote<Ctx>),
+                DoubleVote<Ctx>,
                 &mut State,
             ) -> Result<HandlerResult, eyre::Report>
             + Send
@@ -337,7 +338,7 @@ where
         F: Fn(
                 Ctx::Height,
                 Ctx::Address,
-                (SignedProposal<Ctx>, SignedProposal<Ctx>),
+                DoubleProposal<Ctx>,
                 &mut State,
             ) -> Result<HandlerResult, eyre::Report>
             + Send

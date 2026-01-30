@@ -7,7 +7,9 @@ use alloc::vec::Vec;
 use derive_where::derive_where;
 use thiserror::Error;
 
-use malachitebft_core_types::{Context, Proposal, Round, SignedProposal, Validity, Value, ValueId};
+use malachitebft_core_types::{
+    Context, DoubleProposal, Proposal, Round, SignedProposal, Validity, Value, ValueId,
+};
 use tracing::{error, warn};
 
 /// Errors can that be yielded when recording a proposal.
@@ -263,8 +265,8 @@ where
     Ctx: Context,
 {
     #[allow(clippy::type_complexity)]
-    map: BTreeMap<Ctx::Address, Vec<(SignedProposal<Ctx>, SignedProposal<Ctx>)>>,
-    last: Option<(Ctx::Address, (SignedProposal<Ctx>, SignedProposal<Ctx>))>,
+    map: BTreeMap<Ctx::Address, Vec<DoubleProposal<Ctx>>>,
+    last: Option<(Ctx::Address, DoubleProposal<Ctx>)>,
 }
 
 impl<Ctx> EvidenceMap<Ctx>
@@ -282,10 +284,7 @@ where
     }
 
     /// Return the evidence of equivocation for a given address, if any.
-    pub fn get(
-        &self,
-        address: &Ctx::Address,
-    ) -> Option<&Vec<(SignedProposal<Ctx>, SignedProposal<Ctx>)>> {
+    pub fn get(&self, address: &Ctx::Address) -> Option<&Vec<DoubleProposal<Ctx>>> {
         self.map.get(address)
     }
 
@@ -294,7 +293,7 @@ where
     pub fn is_last_equivocation(
         &self,
         proposal: &SignedProposal<Ctx>,
-    ) -> Option<(Ctx::Address, (SignedProposal<Ctx>, SignedProposal<Ctx>))> {
+    ) -> Option<(Ctx::Address, DoubleProposal<Ctx>)> {
         self.last
             .as_ref()
             .filter(|(address, (_, conflicting))| {
