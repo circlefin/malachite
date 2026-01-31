@@ -1,0 +1,8 @@
+# Handle line endings automatically
+* text=auto
+
+# Ensure Go files always use LF
+*.go text eol=lf
+
+# Explicitly mark certain files as documentation
+*.md text
