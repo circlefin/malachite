@@ -44,70 +44,67 @@ and how the consensus WAL can be implemented.
 
 ### Layers
 
-The core of the BFT Tendermint consensus implementation in Malachite,
-the [malachitebft-core-state-machine][smr-crate] crate,
-is a deterministic state machine.
-Its [inputs](./adr-001-architecture.md#input-events-(internal-apis)-1),
-however, are aligned with the `upon` clauses of Tendermint's
-[pseudo-code][pseudo-code] and represent the so-called _complex events_.
+The BFT Tendermint consensus implementation in Malachite consists of multiple
+layers, each of which could host the WAL implementation.
+
+The core of Tendermint's implementation in Malachite is a deterministic state
+machine: the [malachitebft-core-state-machine][smr-crate] crate.
+The state-machine [inputs](./adr-001-architecture.md#input-events-(internal-apis)-1)
+are aligned with the `upon` clauses of Tendermint's
+[pseudo-code][pseudo-code] and represent the so-called **complex events**.
 For instance, the reception of a single `Precommit` vote message does not
 constitute an input for this state machine, while the reception of `Precommit`
 messages for the same round from `2f + 1` voting-power equivalent processes
 is an input (e.g., `PrecommitAny`) for it.
-While only complex events do produce state transitions and outputs,
-the definition of consistency above requires the logging of single inputs.
 
-> For reviewers: the affirmation above is true, but can be contested.
-
-The second layer of the consensus implementation,
-the [malachitebft-core-driver][driver-crate] crate,
-collects single inputs to produce complex events for the consensus state machine.
-The [driver](./adr-001-architecture.md#consensus-driver) is also responsible for
-removing the non-determinism present in Tendermint's [pseudo-code][pseudo-code],
-where in the case when multiple `upon` clauses can be activated, any of them
-could be chosen.
-The driver establishes priorities between them so that to render the operation
-deterministic.
-So, ideally, it should be the right layer to invoke the WAL primitive for the
-logging of inputs and for replaying WAL entries retrieved from persistent
-storage upon recovery.
-
-There are some issues, however, for implementing the WAL primitives at the
-driver's layer.
-The first is the fact that it adopts the Tendermint concept of `Proposal`, as a
-self-contained message carrying the proposed value.
-As discussed in [ADR 003](./adr-003-values-propagation.md), in Malachite the
-dissemination and ordering of values are detached.
-The dissemination is usually a role implemented by the application, that reports
-to Malachite received values and their validity, via the `ProposedValue` event.
-This event, typically but not necessarily combined with the reception of
-consensus `Proposal` message, form the `Proposal` input provided to the driver.
-Thus, the driver receives a complex event but does not keep record of the
-single inputs, whose persistence is required by the adopted definition of
-consistency.
-
-> For reviewers: again, the affirmation above is true, but can be contested.
-
-A second reason that prevents the driver from being the right layer to insert
-the WAL logic is related to the signatures included in consensus messages.
-Signature verification is not performed by the driver, that only receives a
-message if its authenticity was certified. 
-The problem is that messages logged to the WAL are supposed to be complete and
-contain their signatures.
-In particular because signatures are included in some outputs produced
-Malachite, mainly the `Decision` output that includes signatures from a set of
-`Precommit` messages.
+The second layer of the consensus implementation is the
+[driver](./adr-001-architecture.md#consensus-driver) that collects
+single inputs to produce complex events for the consensus state machine.
+Implemented in the [malachitebft-core-driver][driver-crate] crate,
+the driver is also responsible for removing the non-determinism present in
+Tendermint's [pseudo-code][pseudo-code], which in situations when multiple
+`upon` clauses can be activated, assumes that any of them could be chosen at
+random.
+The driver establishes priorities between the potentially complex events, so
+that to render Malachite's operation deterministic.
 
 The third layer of the consensus implementation,
 the [malachitebft-core-consensus][consensus-crate] crate,
-interacts with external resources to request some actions to be performed,
-either synchronously or asynchronously.
-This includes signing and verifying message signatures, via the `Sign*` and
-`VerifySignature` effects.
-And could also include the implementation of the WAL primitives: append or
-replay an input.
-Notice that, whichever layer employs the WAL append primitive, at the end is
-the `core-consensus` layer that will interact with its implementation.
+is the interface between consensus and the host.
+On the one hand, it receives inputs from the network, the application, or other
+components, process and forward them to the driver.
+On the other hand, it interacts the host to request some actions
+([Effects](./adr-004-coroutine-effect-system.md#effect) in in Malachite's parlance)
+to be performed.
+For instance, core consensus layer receives messages from the network
+(`Proposal` or `Vote` inputs), verifies its signatures (`VerifySignature`
+effect), and forwards it to the driver.
+It the result of this processing is a message, core consensus layer requests
+its signing (`SignProposal` or `SignVote` effects) to the signer and its
+broadcast (`PublishConsensusMsg` effect) to the network.
+Since the WAL is a functionality implemented by the host, the interaction of
+the consensus implementation with the WAL will happen through effects, produced
+by core consensus layer.
+
+The core consensus layer is also responsible for implementing the value
+dissemination feature of Malachite.
+As discussed in [ADR 003](./adr-003-values-propagation.md), in Malachite the
+dissemination and ordering of values are detached.
+The dissemination is usually a role implemented by the application, that
+reports to Malachite received values and their validity via the
+`ProposedValue` core consensus input.
+This input is then typically combined with `Proposal` core consensus input,
+representing the reception of the corresponding message from the network,
+to form the `Proposal` input provided to the driver and the state machine,
+which are unaware of the operation of the value dissemination protocol.
+
+The fourth and last layer of the consensus implementation is the 
+[malachitebft-engine][engine-crate] crate, which provide a standard
+implementation for all the effects, i.e., interactions with the host system,
+requested the core consensus layer.
+It is the engine the actually implements or interacts with the network layer,
+and it would be the engine to provide the interaction with the file system
+needed to implement the consensus WAL.
 
 ### Inputs
 
@@ -308,16 +305,8 @@ This section is built atop the extensive discussion of options presented in the
 
 ### Layers
 
-The Write-Ahead Log (WAL) is implemented by the consensus **engine**,
-as part of the [malachitebft-engine][engine-crate] crate.
-This crate can be seen as the default implementation of all the effects, i.e.,
-the interaction with the host system, needed by
-the [malachitebft-core-consensus][consensus-crate] crate.
-The handling of storage, files, formatting, versioning etc. is implemented and
-tested in the [malachitebft-wal][wal-crate] crate.
-
-The [malachitebft-core-consensus][consensus-crate] crate defines the following
-new `Effect` to request the WAL to log an input:
+A new `Effect` was defined in the [malachitebft-core-consensus][consensus-crate] crate
+to request the logging of an input to the WAL:
 
 ```rust
     /// Append an entry to the Write-Ahead Log for crash recovery
@@ -328,19 +317,65 @@ new `Effect` to request the WAL to log an input:
 ```
 
 Notice that a `WalEntry` type defines the consensus inputs that are persisted,
-as discussed in the [Inputs](#inputs-1) section.
+as discussed in the [Inputs](#inputs-1) section below.
 
-> TODO: add some discussion of why this is the right layer for the WAL.
-> I think the main reason is still the need of signatures etc.
-
-The WAL is implemented as an [Actor](./adr-002-node-actor.md#write-ahead-log-(wal)-actor)
-and runs in its own thread.
-The interaction of the consensus engine and the WAL thread is performed using a
-set of messages (`enum WalMsg`), the most relevant being `Append`, `Flush`, `Reset`
+The Write-Ahead Log (WAL) is implemented as an
+[Actor](./adr-002-node-actor.md#write-ahead-log-(wal)-actor)
+and runs in its own thread, as part of the
+[malachitebft-engine][engine-crate] crate.
+The interaction between the consensus engine and the WAL routine uses a set of
+messages (`enum WalMsg`), the most relevant being `Append` and `Flush`, `Reset`
 and `StartedHeight`.
-The first two are related to the [persistence](#persistence-1) of inputs to the WAL;
+The first messages two are related to the [persistence](#persistence-1) of
+inputs to the WAL;
 `Reset` is related to [checkpoints](#reset);
-and `StartedHeight` is actually related to [replaying inputs](#replay-1).
+and `StartedHeight` is actually related to [replaying inputs](#replay-1),
+an operation that is conducted by consensus engine.
+
+The handling of storage, files, formatting, versioning etc. is
+implemented and tested in the [malachitebft-wal][wal-crate] crate.
+
+#### Discussion
+
+The persistence of inputs could in thesis be implemented in any of the three
+abstract layers of Malachite.
+
+The [malachitebft-core-state-machine][smr-crate] layer operates on complex
+inputs, which are the only ones that produce relevant state transitions and
+outputs.
+However, the adopted definition of consistency (see [Context](#context))
+requires the logging of single inputs.
+For instance, if a process only receives `2f` matching `Precommit` messages,
+there is no complex input to process or persist, nor produced output.
+But the reception of an additional matching `Precommit` message leads to a
+complex input and an observable state transition.
+If the first `2f Precommit` messages are not persisted to the WAL, a recovering
+process will not produce the same state transition when receiving the missing
+`Precommit`.
+
+> For reviewers: the affirmation above is true, but can be contested.
+
+The [malachitebft-driver](./adr-001-architecture.md#consensus-driver) layer do
+handles single inputs and it is responsible for producing complex inputs to the
+consensus state machine.
+It would be the right layer to define what inputs to persist to the WAL and for
+replaying persisted inputs upon recovery.
+The driver, however, is not aware of the value dissemination mechanism.
+It operates on `Proposal` inputs produced by the core consensus layer,
+which are actually the combination of single inputs,
+for instance, the reception of a `Proposal` message from the network
+and of a matching `ProposedValue` input from the application.
+In addition to that, the driver is _supposed_ to operate on _unsigned_ inputs,
+previously validated by the underlying core consensus layer.
+Signatures, however, have to be persisted and are part of outputs, such as the
+decision of a value.
+
+> For reviewers: again, the affirmations above are true, but can be contested.
+
+So, all in all, since the interaction with the WAL has to be managed by the
+[malachitebft-core-consensus][consensus-crate] layer, this layer is aware of
+the value dissemination protocol, and is able to handle signatures,
+the logic interacting with the WAL was naturally implemented at this layer.
 
 ### Inputs
 
