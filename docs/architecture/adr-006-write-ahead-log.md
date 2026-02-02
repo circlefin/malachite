@@ -3,6 +3,7 @@
 ## Changelog
 
 * 2026-01-27: Initial version
+* 2026-02-02: Version submitted for revision
 
 ## Context
 
@@ -88,7 +89,7 @@ by core consensus layer.
 
 The core consensus layer is also responsible for implementing the value
 dissemination feature of Malachite.
-As discussed in [ADR 003](./adr-003-values-propagation.md), in Malachite the
+As discussed in [ADR 003][adr-003], in Malachite the
 dissemination and ordering of values are detached.
 The dissemination is usually a role implemented by the application, that
 reports to Malachite received values and their validity via the
@@ -154,12 +155,12 @@ crash-recovery behavior, returning the same value upon multiple calls to
 But since the return of a `getValue()` call produces a `Proposal` message that
 is broadcast, it is safer to just store the value returned by the application,
 which it is supposed to be small as large values are propagated by the
-application (see [ADR 003](./adr-003-values-propagation.md)).
+application (see [ADR 003][adr-003]).
 
 The `ProposedValue` inputs received from the application are typically combined
 with the `Proposal` consensus message received by the process to produce the
 `Proposal` input that is processed by Tendermint's state machine.
-This operation is also discussed in [ADR 003](./adr-003-values-propagation.md).
+This operation is also discussed in [ADR 003][adr-003].
 In the same way as for the `LocallyProposedValue` input, the application is
 supposed to be deterministic and consistent, replaying the same inputs when the
 process recovers.
@@ -530,9 +531,12 @@ Accepted
 
 ## References
 
-> Are there any relevant PR comments, issues that led up to this, or articles referenced for why we made the given design choice? If so link them here!
-
-* {reference link}
+* [Tendermint pseudo-code][pseudo-code]
+* [spec: Consensus Write-Ahead Log (WAL) #469](https://github.com/circlefin/malachite/issues/469)
+* [Jira ticket 771: Consensus WAL may contain corrupted data][jira-corrupt]
+* [ADR 001: High Level Architecture for Tendermint Consensus Implementation in Rust](./adr-001-architecture.md)
+* [ADR 003: Propagation of Proposed Values][adr-003]
+* [ADR 004: Coroutine-Based Effect System for Consensus](./adr-004-coroutine-effect-system.md)
 
 [smr-crate]: https://github.com/circlefin/malachite/tree/main/code/crates/core-state-machine
 [driver-crate]: https://github.com/circlefin/malachite/tree/main/code/crates/core-driver
@@ -541,3 +545,4 @@ Accepted
 [wal-crate]: https://github.com/circlefin/malachite/tree/main/code/crates/wal
 [pseudo-code]: https://github.com/circlefin/malachite/blob/main/specs/consensus/pseudo-code.md
 [jira-corrupt]: https://circlepay.atlassian.net/browse/CCHAIN-771
+[adr-003]: ./adr-003-values-propagation.md
