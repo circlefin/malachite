@@ -483,6 +483,36 @@ impl State {
         lines.join("\n")
     }
 
+    /// Update peer's persistent status, recalculate score, and update GossipSub
+    fn update_peer_persistent_status(
+        peer_id: libp2p::PeerId,
+        peer_info: Option<&mut PeerInfo>,
+        is_persistent: bool,
+        swarm: &mut libp2p::Swarm<Behaviour>,
+    ) {
+        let Some(peer_info) = peer_info else {
+            return;
+        };
+
+        peer_info.peer_type = peer_info.peer_type.with_persistent(is_persistent);
+
+        // Recalculate score
+        let new_score = crate::peer_scoring::get_peer_score(peer_info.peer_type);
+        peer_info.score = new_score;
+
+        // Update GossipSub score
+        if let Some(gossipsub) = swarm.behaviour_mut().gossipsub.as_mut() {
+            gossipsub.set_application_score(&peer_id, new_score);
+        }
+
+        tracing::debug!(
+            %peer_id,
+            %is_persistent,
+            peer_type = ?peer_info.peer_type,
+            "Updated peer persistent status"
+        );
+    }
+
     /// Add a persistent peer at runtime
     pub(crate) fn add_persistent_peer(
         &mut self,
@@ -497,6 +527,14 @@ impl State {
         // Extract PeerId from multiaddr if present
         if let Some(peer_id) = extract_peer_id_from_multiaddr(&addr) {
             self.persistent_peer_ids.insert(peer_id);
+
+            // Update peer type and score if already connected
+            Self::update_peer_persistent_status(
+                peer_id,
+                self.peer_info.get_mut(&peer_id),
+                true,
+                swarm,
+            );
         }
 
         // Add to persistent peer list
@@ -539,24 +577,27 @@ impl State {
             self.persistent_peer_ids.remove(&peer_id);
 
             // Update peer type and score if connected
-            if let Some(peer_info) = self.peer_info.get_mut(&peer_id) {
-                // Mark as no longer persistent
-                peer_info.peer_type = peer_info.peer_type.with_persistent(false);
+            Self::update_peer_persistent_status(
+                peer_id,
+                self.peer_info.get_mut(&peer_id),
+                false,
+                swarm,
+            );
 
-                // Recalculate score
-                let new_score = crate::peer_scoring::get_peer_score(peer_info.peer_type);
-                peer_info.score = new_score;
-
-                // Update GossipSub score
-                if let Some(gossipsub) = swarm.behaviour_mut().gossipsub.as_mut() {
-                    gossipsub.set_application_score(&peer_id, new_score);
-                }
-            }
-
-            // Disconnect from the peer if currently connected
+            // Decide whether to disconnect:
+            // - if persistent_peers_only always disconnect (they're no longer allowed)
+            // - else only disconnect if no inbound connection exists
+            //   (keep inbound: they connected to us, might have us as their persistent peer)
+            // Note: Check discovery directly since peer might have both inbound and outbound
             if swarm.is_connected(&peer_id) {
-                let _ = swarm.disconnect_peer_id(peer_id);
-                tracing::info!(%peer_id, %addr, "Disconnecting from removed persistent peer");
+                let has_inbound = self.discovery.is_inbound_peer(&peer_id);
+
+                let should_disconnect = self.local_node.persistent_peers_only || !has_inbound;
+
+                if should_disconnect {
+                    let _ = swarm.disconnect_peer_id(peer_id);
+                    tracing::info!(%peer_id, %addr, "Disconnecting from removed persistent peer");
+                }
             }
         }
 
