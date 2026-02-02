@@ -68,7 +68,7 @@ pub struct App {
 }
 
 impl App {
-    fn get_nw_keypair(&self) -> Keypair {
+    fn get_network_keypair(&self) -> Keypair {
         // Separate network identity
         let rng = rand::thread_rng();
         let net_pk = self.generate_private_key(rng);
