@@ -55,7 +55,7 @@ where
     /// but with different values but for the same height and round.
     ///
     /// # Precondition
-    /// - Panics if the two conflicting votes were not proposed by the same validator.
+    /// - Panics if the two conflicting votes are not from the same validator.
     pub fn add(&mut self, existing: SignedVote<Ctx>, conflicting: SignedVote<Ctx>) {
         debug_assert_eq!(
             existing.validator_address(),
