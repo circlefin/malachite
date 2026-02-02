@@ -148,7 +148,7 @@ libp2p-broadcast   = { version = "0.3.0", package = "libp2p-scatter" }
 libp2p-gossipsub   = { version = "0.49.0", features = ["metrics"] }
 multiaddr          = "0.18.2"
 multihash          = { version = "0.19.3", default-features = false }
-nix                = { version = "0.29.0", features = ["signal"] }
+nix                = { version = "0.31.1", features = ["signal"] }
 num-bigint         = "0.4.4"
 num-traits         = "0.2.17"
 pretty_assertions  = "1.4"
