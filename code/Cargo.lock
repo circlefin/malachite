@@ -2419,7 +2419,7 @@ name = "informalsystems-malachitebft-metrics"
 version = "0.7.0-pre"
 dependencies = [
  "informalsystems-malachitebft-core-state-machine",
- "prometheus-client",
+ "prometheus-client 0.24.0",
 ]
 
 [[package]]
@@ -3111,7 +3111,7 @@ dependencies = [
  "libp2p-core",
  "libp2p-identity",
  "libp2p-swarm",
- "prometheus-client",
+ "prometheus-client 0.23.1",
  "quick-protobuf",
  "quick-protobuf-codec",
  "rand 0.8.5",
@@ -3226,7 +3226,7 @@ dependencies = [
  "libp2p-ping",
  "libp2p-swarm",
  "pin-project",
- "prometheus-client",
+ "prometheus-client 0.23.1",
  "web-time",
 ]
 
@@ -3320,7 +3320,7 @@ dependencies = [
  "fnv",
  "futures",
  "libp2p",
- "prometheus-client",
+ "prometheus-client 0.23.1",
  "tracing",
  "unsigned-varint 0.8.0",
 ]
@@ -4249,7 +4249,19 @@ dependencies = [
  "dtoa",
  "itoa",
  "parking_lot",
- "prometheus-client-derive-encode",
+ "prometheus-client-derive-encode 0.4.2",
+]
+
+[[package]]
+name = "prometheus-client"
+version = "0.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4500adecd7af8e0e9f4dbce15cfee07ce913fbf6ad605cc468b83f2d531ee94"
+dependencies = [
+ "dtoa",
+ "itoa",
+ "parking_lot",
+ "prometheus-client-derive-encode 0.5.0",
 ]
 
 [[package]]
@@ -4257,6 +4269,17 @@ name = "prometheus-client-derive-encode"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "440f724eba9f6996b75d63681b0a92b06947f1457076d503a4d2e2c8f56442b8"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.100",
+]
+
+[[package]]
+name = "prometheus-client-derive-encode"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9adf1691c04c0a5ff46ff8f262b58beb07b0dbb61f96f9f54f6cbd82106ed87f"
 dependencies = [
  "proc-macro2",
  "quote",

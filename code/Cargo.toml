@@ -152,7 +152,7 @@ nix                = { version = "0.29.0", features = ["signal"] }
 num-bigint         = "0.4.4"
 num-traits         = "0.2.17"
 pretty_assertions  = "1.4"
-prometheus-client  = "0.23.1"
+prometheus-client  = "0.24.0"
 prost              = "0.13"
 prost-build        = "0.13"
 prost-types        = "0.13"
