@@ -295,12 +295,7 @@ replayed from that same WAL?
 
 ## Decision
 
-> This section explains all of the details of the proposed solution, including implementation details.
-It should also describe affects / corollary items that may need to be changed as a part of this.
-If the proposed change will be large, please also indicate a way to do the change to maximize ease of review.
-(e.g. the optimal split of things to do between separate PR's)
-
-This section is built atop the extensive discussion of options presented in the
+This section is built atop the discussion of options presented in the
 [Implementation](#implementation) section.
 
 ### Layers
@@ -481,17 +476,38 @@ way to propagate and handle errors asynchronously.
 
 > For reviewers: can you double check the above affirmation?
 
-### Corruption
+### Error Handling
 
-TODO: entries in the WAL can be corrupted, see https://circlepay.atlassian.net/browse/CCHAIN-771
+The Write-Ahead Log is a crucial component for the operation of a consensus
+process.
+As a result, errors when attempting to append inputs to the WAL
+**must be critical**.
+At the moment, from this [commit](https://github.com/circlefin/malachite/commit/38f113f6c81da0af32a748718b2d87ab64e3a72f),
+consensus hangs forever in case of any WAL operational error.
+
+A second source of errors is when replaying the WAL, where one particular error
+requires attention: the corruption of the last entries of the WAL.
+Notice that crashes can happen at any time of the execution, including the
+instant at which a WAL entry is being persisted to stable storage.
+A crash at this point will likely render a suffix of the WAL corrupted.
+This, however, is not a treat for safety because the outputs produced by the
+associated state-machine transition are only emitted after the WAL is
+[persisted](#persistence-1).
+Since the append operation has not been concluded with success, the output was
+not emitted, therefore it is just like it has never been produced.
+
+In summary, as discussed in this [Jira ticket][jira-corrupt], corruptions at
+the tail of the WAL should not produce a critical error.
+The entries successfully decoded should be replayed, and the WAL should be
+truncated to the end of the latest successfully decoded entry.
+The last step is needed to enable further appending inputs to the WAL when the
+recovery is concluded and new inputs are processed in "normal" operation.
 
 ## Status
 
 Accepted
 
 ## Consequences
-
-> This section describes the consequences, after applying the decision. All consequences should be summarized here, not just the "positive" ones.
 
 ### Positive
 
@@ -524,3 +540,4 @@ Accepted
 [engine-crate]: https://github.com/circlefin/malachite/tree/main/code/crates/engine
 [wal-crate]: https://github.com/circlefin/malachite/tree/main/code/crates/wal
 [pseudo-code]: https://github.com/circlefin/malachite/blob/main/specs/consensus/pseudo-code.md
+[jira-corrupt]: https://circlepay.atlassian.net/browse/CCHAIN-771
