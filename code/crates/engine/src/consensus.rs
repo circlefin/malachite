@@ -11,7 +11,7 @@ use derive_where::derive_where;
 use eyre::eyre;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::time::Instant;
-use tracing::{debug, error, error_span, info, warn};
+use tracing::{debug, error, error_span, info};
 
 use malachitebft_codec as codec;
 use malachitebft_config::ConsensusConfig;
@@ -24,14 +24,14 @@ use malachitebft_core_types::{
 };
 use malachitebft_metrics::Metrics;
 use malachitebft_signing::{SigningProvider, SigningProviderExt};
-use malachitebft_sync::{self as sync, HeightStartType, ValueResponse};
+use malachitebft_sync::{self as sync, HeightStartType};
 
 use crate::host::{HeightParams, HostMsg, HostRef, LocallyProposedValue, Next, ProposedValue};
 use crate::network::{NetworkEvent, NetworkMsg, NetworkRef};
 use crate::sync::Msg as SyncMsg;
-use crate::sync::SyncRef;
 use crate::util::events::{Event, TxEvent};
 use crate::util::msg_buffer::MessageBuffer;
+use crate::util::output_port::OutputPort;
 use crate::util::streaming::StreamMessage;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 use crate::wal::{Msg as WalMsg, WalEntry, WalRef};
@@ -83,7 +83,7 @@ where
     network: NetworkRef<Ctx>,
     host: HostRef<Ctx>,
     wal: WalRef<Ctx>,
-    sync: Option<SyncRef<Ctx>>,
+    sync: Arc<OutputPort<SyncMsg<Ctx>>>,
     metrics: Metrics,
     tx_event: TxEvent<Ctx>,
     span: tracing::Span,
@@ -107,6 +107,14 @@ pub enum Msg<Ctx: Context> {
 
     /// Received and assembled the full value proposed by a validator
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
+
+    /// Process a sync response
+    ProcessSyncResponse(
+        /// The peer that sent the response
+        PeerId,
+        // The value response
+        sync::ValueResponse<Ctx>,
+    ),
 
     /// Instructs consensus to restart at a given height with the provided parameters.
     ///
@@ -158,6 +166,14 @@ impl<Ctx: Context> fmt::Display for Msg<Ctx> {
                 "ReceivedProposedValue(height={} round={} origin={origin:?})",
                 value.height, value.round
             ),
+            Msg::ProcessSyncResponse(peer, response) => {
+                write!(
+                    f,
+                    "ProcessSyncResponse(peer={peer} height={} values={})",
+                    response.start_height,
+                    response.values.len()
+                )
+            }
             Msg::RestartHeight(height, params) => {
                 write!(f, "RestartHeight(height={height} params={params:?})")
             }
@@ -261,7 +277,7 @@ where
         network: NetworkRef<Ctx>,
         host: HostRef<Ctx>,
         wal: WalRef<Ctx>,
-        sync: Option<SyncRef<Ctx>>,
+        sync: Arc<OutputPort<SyncMsg<Ctx>>>,
         metrics: Metrics,
         tx_event: TxEvent<Ctx>,
         span: tracing::Span,
@@ -392,13 +408,8 @@ where
                 }
 
                 // Notify the sync actor that we have started a new height
-                if let Some(sync) = &self.sync {
-                    let start_type = HeightStartType::from_is_restart(is_restart);
-
-                    if let Err(e) = sync.cast(SyncMsg::StartedHeight(height, start_type)) {
-                        error!(%height, "Error when notifying sync of started height: {e}")
-                    }
-                }
+                let start_type = HeightStartType::from_is_restart(is_restart);
+                self.sync.send(SyncMsg::StartedHeight(height, start_type));
 
                 // Update the timeouts
                 state.timeouts = params.timeouts;
@@ -483,43 +494,6 @@ where
 
                         if state.connected_peers.remove(&peer_id) {
                             self.metrics.connected_peers.dec();
-                        }
-                    }
-
-                    NetworkEvent::SyncResponse(
-                        request_id,
-                        peer,
-                        Some(sync::Response::ValueResponse(ValueResponse {
-                            start_height,
-                            values,
-                        })),
-                    ) => {
-                        debug!(%start_height, %request_id, "Received sync response with {} values", values.len());
-
-                        if values.is_empty() {
-                            error!(%start_height, %request_id, "Received empty value sync response");
-                            return Ok(());
-                        };
-
-                        // Process values sequentially starting from the lowest height
-                        let mut height = start_height;
-                        for value in values.iter() {
-                            if let Err(e) = self
-                                .process_sync_response(&myself, state, peer, height, value)
-                                .await
-                            {
-                                // At this point, `process_sync_response` has already sent a message
-                                // about an invalid value, etc. to the sync actor. The sync actor
-                                // will then, re-request this range again from some peer.
-                                // Because of this, in case of failing to process the response, we need
-                                // to exit early this loop to avoid issuing multiple parallel requests
-                                // for the same range of values. There's also no benefit in processing
-                                // the rest of the values.
-                                error!(%start_height, %height, %request_id, "Failed to process sync response:{e:?}");
-                                break;
-                            }
-
-                            height = height.increment();
                         }
                     }
 
@@ -632,6 +606,46 @@ where
 
                 if let Err(e) = result {
                     error!("Error when processing ReceivedProposedValue message: {e}");
+                }
+
+                Ok(())
+            }
+
+            Msg::ProcessSyncResponse(
+                peer,
+                sync::ValueResponse {
+                    start_height,
+                    values,
+                },
+            ) => {
+                debug!(%start_height, "Received sync response with {} values", values.len());
+
+                if values.is_empty() {
+                    error!(%start_height, "Received empty value sync response");
+                    return Ok(());
+                };
+
+                // Process values sequentially starting from the lowest height
+                let mut height = start_height;
+
+                for value in values.iter() {
+                    if let Err(e) = self
+                        .process_sync_response(&myself, state, peer, height, value)
+                        .await
+                    {
+                        // At this point, `process_sync_response` has already sent a message
+                        // about an invalid value, etc. to the sync actor. The sync actor
+                        // will then, re-request this range again from some peer.
+                        // Because of this, in case of failing to process the response, we need
+                        // to exit early this loop to avoid issuing multiple parallel requests
+                        // for the same range of values. There's also no benefit in processing
+                        // the rest of the values.
+                        error!(%start_height, %height, "Failed to process sync response: {e:?}");
+
+                        break;
+                    }
+
+                    height = height.increment();
                 }
 
                 Ok(())
@@ -1252,12 +1266,15 @@ where
             Effect::Decide(certificate, extensions, r) => {
                 assert!(!certificate.commit_signatures.is_empty());
 
+                // Sync the WAL to disk before we decide the value
                 self.wal_flush(state.phase).await?;
 
+                // Notify any subscribers about the decided value
                 self.tx_event.send(|| Event::Decided(certificate.clone()));
 
                 let height = certificate.height;
 
+                // Notify the host about the decided value
                 self.host
                     .call_and_forward(
                         |reply_to| HostMsg::Decided {
@@ -1274,34 +1291,25 @@ where
                     )
                     .map_err(|e| eyre!("Error when sending decided value to host: {e:?}"))?;
 
-                if let Some(sync) = &self.sync {
-                    sync.cast(SyncMsg::Decided(height))
-                        .map_err(|e| eyre!("Error when sending decided height to sync: {e:?}"))?;
-                }
+                // Notify the sync actor about the decided height
+                self.sync.send(SyncMsg::Decided(height));
 
                 Ok(r.resume_with(()))
             }
 
             Effect::InvalidSyncValue(peer, height, error, r) => {
-                if let Some(sync) = &self.sync {
-                    if let ConsensusError::InvalidCommitCertificate(certificate, e) = error {
-                        error!(
-                            %peer,
-                            %certificate.height,
-                            %certificate.round,
-                            "Invalid certificate received: {e}"
-                        );
+                if let ConsensusError::InvalidCommitCertificate(certificate, e) = error {
+                    error!(
+                        %peer,
+                        %certificate.height,
+                        %certificate.round,
+                        "Invalid certificate received: {e}"
+                    );
 
-                        sync.cast(SyncMsg::InvalidValue(peer, certificate.height))
-                            .map_err(|e| {
-                                eyre!("Error when notifying sync of invalid certificate: {e}")
-                            })?;
-                    } else {
-                        sync.cast(SyncMsg::ValueProcessingError(peer, height))
-                            .map_err(|e| {
-                                eyre!("Error when notifying sync of value processing error: {e}")
-                            })?;
-                    }
+                    self.sync
+                        .send(SyncMsg::InvalidValue(peer, certificate.height));
+                } else {
+                    self.sync.send(SyncMsg::ValueProcessingError(peer, height));
                 }
 
                 Ok(r.resume_with(()))
@@ -1311,10 +1319,7 @@ where
                 let certificate_height = value.certificate.height;
                 let certificate_round = value.certificate.round;
 
-                let Some(sync) = self.sync.clone() else {
-                    warn!("Received sync response but sync actor is not available");
-                    return Ok(r.resume_with(()));
-                };
+                let sync = Arc::clone(&self.sync);
 
                 self.host.call_and_forward(
                     |reply_to| HostMsg::ProcessSyncedValue {
@@ -1329,17 +1334,14 @@ where
                         if proposed.validity == Validity::Invalid
                             || proposed.value.id() != value.certificate.value_id
                         {
-                            if let Err(e) =
-                                sync.cast(SyncMsg::InvalidValue(value.peer, certificate_height))
-                            {
-                                error!("Error when notifying sync of received proposed value: {e}");
-                            }
+                            sync.send(SyncMsg::InvalidValue(value.peer, certificate_height));
                         }
 
                         Msg::<Ctx>::ReceivedProposedValue(proposed, ValueOrigin::Sync)
                     },
                     None,
                 )?;
+
                 Ok(r.resume_with(()))
             }
 

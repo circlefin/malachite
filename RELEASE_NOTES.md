@@ -44,7 +44,9 @@
 - Remove signing of proposal parts
 
 ### `sync`
+- Fix partial range request not being tracked in pending requests
 - Initial random (fixed) period adjustment in sync status ticker
+- Refactor sync actor to notify consensus of sync responses
 - Support batch retrieval of decided values
 - Validate value request ranges before processing
 

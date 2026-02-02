@@ -21,6 +21,7 @@ use malachitebft_sync::{
     Response, Resumable,
 };
 
+use crate::consensus::{ConsensusMsg, ConsensusRef};
 use crate::host::{HostMsg, HostRef};
 use crate::network::{NetworkEvent, NetworkMsg, NetworkRef, Status};
 use crate::util::ticker::ticker;
@@ -60,6 +61,7 @@ pub enum Timeout {
 type Timers = TimerScheduler<Timeout>;
 
 pub type SyncRef<Ctx> = ActorRef<Msg<Ctx>>;
+pub type SyncMsg<Ctx> = Msg<Ctx>;
 
 #[derive_where(Clone, Debug)]
 pub struct RawDecidedBlock<Ctx: Context> {
@@ -77,7 +79,7 @@ pub struct InflightRequest<Ctx: Context> {
 
 pub type InflightRequests<Ctx> = HashMap<OutboundRequestId, InflightRequest<Ctx>>;
 
-#[derive_where(Debug)]
+#[derive_where(Clone, Debug)]
 pub enum Msg<Ctx: Context> {
     /// Internal tick
     Tick,
@@ -158,8 +160,9 @@ where
     Codec: SyncCodec<Ctx>,
 {
     ctx: Ctx,
-    gossip: NetworkRef<Ctx>,
+    network: NetworkRef<Ctx>,
     host: HostRef<Ctx>,
+    consensus: ConsensusRef<Ctx>,
     params: Params,
     sync_codec: Codec,
     sync_config: sync::Config,
@@ -175,8 +178,9 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         ctx: Ctx,
-        gossip: NetworkRef<Ctx>,
+        network: NetworkRef<Ctx>,
         host: HostRef<Ctx>,
+        consensus: ConsensusRef<Ctx>,
         params: Params,
         sync_codec: Codec,
         sync_config: sync::Config,
@@ -185,8 +189,9 @@ where
     ) -> Self {
         Self {
             ctx,
-            gossip,
+            network,
             host,
+            consensus,
             params,
             sync_codec,
             sync_config,
@@ -198,8 +203,9 @@ where
     #[allow(clippy::too_many_arguments)]
     pub async fn spawn(
         ctx: Ctx,
-        gossip: NetworkRef<Ctx>,
+        network: NetworkRef<Ctx>,
         host: HostRef<Ctx>,
+        consensus: ConsensusRef<Ctx>,
         params: Params,
         sync_codec: Codec,
         sync_config: sync::Config,
@@ -208,8 +214,9 @@ where
     ) -> Result<SyncRef<Ctx>, ractor::SpawnErr> {
         let actor = Self::new(
             ctx,
-            gossip,
+            network,
             host,
+            consensus,
             params,
             sync_codec,
             sync_config,
@@ -256,7 +263,7 @@ where
             Effect::BroadcastStatus(height, r) => {
                 let history_min_height = self.get_history_min_height().await?;
 
-                self.gossip.cast(NetworkMsg::BroadcastStatus(Status::new(
+                self.network.cast(NetworkMsg::BroadcastStatus(Status::new(
                     height,
                     history_min_height,
                 )))?;
@@ -266,7 +273,7 @@ where
 
             Effect::SendValueRequest(peer_id, value_request, r) => {
                 let request = Request::ValueRequest(value_request);
-                let result = ractor::call!(self.gossip, |reply_to| {
+                let result = ractor::call!(self.network, |reply_to| {
                     NetworkMsg::OutgoingRequest(peer_id, request.clone(), reply_to)
                 });
 
@@ -288,6 +295,8 @@ where
                             },
                         );
 
+                        info!(%peer_id, %request_id, "Sent value request to peer");
+
                         Ok(r.resume_with(Some(request_id)))
                     }
                     Err(e) => {
@@ -299,7 +308,7 @@ where
 
             Effect::SendValueResponse(request_id, value_response, r) => {
                 let response = Response::ValueResponse(value_response);
-                self.gossip
+                self.network
                     .cast(NetworkMsg::OutgoingResponse(request_id, response))?;
 
                 Ok(r.resume_with(()))
@@ -315,6 +324,17 @@ where
                     |values| Msg::<Ctx>::GotDecidedValues(request_id, range, values),
                     None,
                 )?;
+
+                Ok(r.resume_with(()))
+            }
+
+            Effect::ProcessValueResponse(peer_id, response, r) => {
+                if let Err(e) = self
+                    .consensus
+                    .cast(ConsensusMsg::ProcessSyncResponse(peer_id, response))
+                {
+                    error!("Failed to forward value response to consensus: {e}");
+                }
 
                 Ok(r.resume_with(()))
             }
@@ -535,7 +555,7 @@ where
         myself: ActorRef<Self::Msg>,
         _args: Self::Arguments,
     ) -> Result<Self::State, ActorProcessingErr> {
-        self.gossip
+        self.network
             .cast(NetworkMsg::Subscribe(Box::new(myself.clone())))?;
 
         let mut rng = Box::new(rand::rngs::StdRng::from_entropy());

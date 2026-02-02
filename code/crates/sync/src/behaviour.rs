@@ -1,6 +1,5 @@
 use bytes::Bytes;
 use eyre::Result;
-use libp2p::metrics::Registry;
 use libp2p::request_response::{self as rpc, OutboundRequestId, ProtocolSupport};
 use libp2p::swarm::NetworkBehaviour;
 use libp2p::{PeerId, StreamProtocol};
@@ -9,8 +8,6 @@ use thiserror::Error;
 use crate::rpc::Codec;
 use crate::types::{RawRequest, RawResponse, ResponseChannel};
 use crate::Config;
-
-// use crate::Metrics;
 
 #[derive(NetworkBehaviour)]
 #[behaviour(to_swarm = "Event")]
@@ -30,24 +27,6 @@ impl Behaviour {
 
         Ok(Self {
             rpc: rpc::Behaviour::with_codec(Codec::new(config), protocol, rpc_config),
-            // metrics: None,
-        })
-    }
-
-    pub fn new_with_metrics(
-        config: Config,
-        sync_protocol: String,
-        _registry: &mut Registry,
-    ) -> Result<Self> {
-        let protocol = [(
-            StreamProtocol::try_from_owned(sync_protocol)?,
-            ProtocolSupport::Full,
-        )];
-        let rpc_config = rpc::Config::default().with_request_timeout(config.request_timeout);
-
-        Ok(Self {
-            rpc: rpc::Behaviour::with_codec(Codec::new(config), protocol, rpc_config),
-            // metrics: Some(Metrics::new(registry)),
         })
     }
 

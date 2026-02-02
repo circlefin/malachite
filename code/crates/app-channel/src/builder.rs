@@ -5,6 +5,7 @@
 //! only available when all required actors have been configured.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use eyre::Result;
 use tokio::sync::mpsc::{self, Sender};
@@ -12,6 +13,7 @@ use tokio::sync::mpsc::{self, Sender};
 use malachitebft_engine::network::{NetworkIdentity, NetworkRef};
 use malachitebft_engine::sync::SyncRef;
 use malachitebft_engine::util::events::TxEvent;
+use malachitebft_engine::util::output_port::{OutputPort, OutputPortSubscriberTrait};
 use malachitebft_engine::wal::WalRef;
 use malachitebft_signing::SigningProvider;
 
@@ -443,15 +445,14 @@ where
     /// This method is only available when all required actors have been configured:
     /// - WAL (via `with_wal_builder`)
     /// - Network (via `with_network_builder`)
-    /// - Sync (via `with_sync_builder`)
     /// - Consensus (via `with_consensus_builder`)
+    /// - Sync (via `with_sync_builder`)
     /// - Request (via `with_request_builder`)
     ///
     /// The build process will:
-    /// 1. Spawn actors in dependency order (network → wal → host → sync → consensus → node)
+    /// 1. Spawn actors in dependency order (network → wal → host → consensus → sync → node)
     /// 2. Set up request handling tasks
     /// 3. Return channels for the application and the engine handle
-    #[must_use]
     pub async fn build(self) -> Result<(Channels<Ctx>, EngineHandle)> {
         // SAFETY: All these unwrap() calls are safe because the const generic
         // constraints guarantee that all configurations are present.
@@ -491,25 +492,10 @@ where
         // 3. Host actor (use the default channel-based Connector)
         let (connector, rx_consensus) = spawn_host_actor(metrics.clone()).await?;
 
-        // 4. Sync actor (default or custom)
-        let sync = match sync_builder {
-            SyncBuilder::Custom(sync_ref) => sync_ref,
-            SyncBuilder::Default(sync_ctx) => {
-                spawn_sync_actor(
-                    self.ctx.clone(),
-                    network.clone(),
-                    connector.clone(),
-                    sync_ctx.codec,
-                    self.config.value_sync(),
-                    &registry,
-                )
-                .await?
-            }
-        };
-
         let tx_event = TxEvent::new();
+        let sync_port = Arc::new(OutputPort::new());
 
-        // 5. Consensus actor
+        // 4. Consensus actor (spawned before sync so sync can reference it)
         let consensus = spawn_consensus_actor(
             self.ctx.clone(),
             consensus_ctx.address,
@@ -519,11 +505,33 @@ where
             network.clone(),
             connector.clone(),
             wal.clone(),
-            sync.clone(),
+            sync_port.clone(),
             metrics,
             tx_event.clone(),
         )
         .await?;
+
+        // 5. Sync actor (default or custom)
+        let sync = match sync_builder {
+            SyncBuilder::Custom(sync_ref) => sync_ref,
+            SyncBuilder::Default(sync_ctx) => {
+                spawn_sync_actor(
+                    self.ctx.clone(),
+                    network.clone(),
+                    connector.clone(),
+                    consensus.clone(),
+                    sync_ctx.codec,
+                    self.config.value_sync(),
+                    &registry,
+                )
+                .await?
+            }
+        };
+
+        // Subscribe sync actor to the sync port
+        if let Some(sync) = &sync {
+            sync.subscribe_to_port(&sync_port);
+        }
 
         // 6. Node actor
         let (node, handle) = spawn_node_actor(

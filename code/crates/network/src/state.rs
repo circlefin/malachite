@@ -399,13 +399,20 @@ impl State {
             None
         };
 
-        // Extract address from identify info (use first listen address or placeholder)
-        // TODO: filter out unreachable addresses (?)
-        let address = info
-            .listen_addrs
-            .first()
-            .cloned()
-            .unwrap_or_else(|| "/ip4/0.0.0.0/tcp/0".parse().expect("valid multiaddr"));
+        // Use actual connection address (dialed for outbound, source for inbound)
+        // This is more reliable than self-reported listen_addrs from identify
+        let address = self
+            .discovery
+            .connections
+            .get(&connection_id)
+            .map(|conn| conn.remote_addr.clone())
+            .unwrap_or_else(|| {
+                // Fallback to identify listen_addrs if connection info not available
+                info.listen_addrs
+                    .first()
+                    .cloned()
+                    .unwrap_or_else(|| "/ip4/0.0.0.0/tcp/0".parse().expect("valid multiaddr"))
+            });
 
         // Parse agent_version to extract moniker and consensus address
         let agent_info = crate::utils::parse_agent_version(&info.agent_version);
@@ -427,22 +434,29 @@ impl State {
         // Compute the peer score based on peer type
         let score = crate::peer_scoring::get_peer_score(peer_type);
 
-        // Record peer information in State
-        let peer_info = PeerInfo {
-            address,
-            consensus_address,
-            moniker: agent_info.moniker,
-            peer_type,
-            connection_direction,
-            score,
-            topics: Default::default(), // Empty set, will be updated by update_peer_info
-        };
+        // Only update peer_info if:
+        // - there is no existing entry for this peer, OR
+        // - this is an outbound connection (prefer dialed addresses over inbound source addresses)
+        let should_update = !self.peer_info.contains_key(&peer_id)
+            || connection_direction == Some(ConnectionDirection::Outbound);
 
-        // Record peer information in metrics (subject to 100 slot limit)
-        self.metrics.record_peer_info(&peer_id, &peer_info);
+        if should_update {
+            let peer_info = PeerInfo {
+                address,
+                consensus_address,
+                moniker: agent_info.moniker,
+                peer_type,
+                connection_direction,
+                score,
+                topics: Default::default(), // Empty set, will be updated by update_peer_info
+            };
 
-        // Store in State
-        self.peer_info.insert(peer_id, peer_info);
+            // Record peer information in metrics (subject to 100 slot limit)
+            self.metrics.record_peer_info(&peer_id, &peer_info);
+
+            // Store in State
+            self.peer_info.insert(peer_id, peer_info);
+        }
 
         score
     }

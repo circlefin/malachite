@@ -1,9 +1,10 @@
 //! Run Malachite consensus with the given configuration and context.
 //! Provides the application with a channel for receiving messages from consensus.
 
-use eyre::Result;
 use tokio::sync::mpsc::Receiver;
 use tokio::task::JoinHandle;
+
+use eyre::Result;
 
 use malachitebft_engine::consensus::{ConsensusMsg, ConsensusRef};
 use malachitebft_engine::network::{NetworkMsg, NetworkRef};
