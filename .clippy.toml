@@ -1,0 +1,5 @@
+# Clippy configuration to maintain code quality
+msrv = "1.70.0"
+cognitive-complexity-threshold = 30
+excessive-nesting-threshold = 10
+enum-variant-name-threshold = 3
