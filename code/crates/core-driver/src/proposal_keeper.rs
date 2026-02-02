@@ -264,7 +264,6 @@ pub struct EvidenceMap<Ctx>
 where
     Ctx: Context,
 {
-    #[allow(clippy::type_complexity)]
     map: BTreeMap<Ctx::Address, Vec<DoubleProposal<Ctx>>>,
     last: Option<(Ctx::Address, DoubleProposal<Ctx>)>,
 }
@@ -304,7 +303,15 @@ where
 
     /// Add evidence of equivocating proposals, ie. two proposals submitted by the same validator,
     /// but with different values but for the same height and round.
+    ///
+    /// # Precondition
+    /// - Both proposals must be from the same validator (debug-asserted).
     pub(crate) fn add(&mut self, existing: SignedProposal<Ctx>, conflicting: SignedProposal<Ctx>) {
+        debug_assert_eq!(
+            existing.validator_address(),
+            conflicting.validator_address()
+        );
+
         if let Some(evidence) = self.map.get_mut(conflicting.validator_address()) {
             evidence.push((existing.clone(), conflicting.clone()));
             self.last = Some((

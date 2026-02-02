@@ -143,7 +143,7 @@ impl Node for App {
 
         let public_key = self.get_public_key(&self.private_key);
         let address = self.get_address(&public_key);
-        let keypair = self.get_nw_keypair(); // Separate network identity
+        let keypair = self.get_network_keypair(); // Separate network identity
         let genesis = self.load_genesis()?;
         let wal_path = self.get_home_dir().join("wal").join("consensus.wal");
         let identity =
