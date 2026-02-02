@@ -1,0 +1,7 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Circle"
+  given-names: "Malachite Developers"
+title: "Malachite: A library for MPC and Cryptography"
+url: "https://github.com/circlefin/malachite"
