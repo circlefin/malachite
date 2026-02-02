@@ -13,7 +13,6 @@ pub struct EvidenceMap<Ctx>
 where
     Ctx: Context,
 {
-    #[allow(clippy::type_complexity)]
     map: BTreeMap<Ctx::Address, Vec<DoubleVote<Ctx>>>,
     last: Option<(Ctx::Address, DoubleVote<Ctx>)>,
 }
