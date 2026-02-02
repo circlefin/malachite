@@ -14,6 +14,30 @@ And should do so in a **consistent** way, which can be generally defined as
 follows: a recovering process should be indistinguishable, in terms of its
 outputs, from a process that paused its computation for a long while.
 
+> Notice that consistency is not only a "nice to have" property, but a required one.
+> A process that is not consistent, does operate arbitrarily and becomes a
+> potential Byzantine process.
+>
+> A textbook example of the impact of not properly handling the recovery of a
+> process is the locking mechanism present in multiple consensus algorithms.
+> In Tendermint, a process that emits a `Precommit` for a value `v` also
+> _locks_ `v` at that round.
+> The lock is a promise to not accept a value different than `v` in future
+> rounds.
+> So, if a value different than `v` is proposed in the next round `r`, the
+> process rejects it by emitting a `Prevote` for `nil`.
+>
+> The lock on `v` is part of the state of the process.
+> If the process is restarted but its consensus state is not properly
+> recovered, then the process can receive a proposal for a value `v'` in round
+> `r` and misbehave in two ways:
+>
+> * Amnesia: by "forgetting" about the promise associated to the pre-crash
+>   lock on `v`, accept the proposed value `v' != v`;
+> * Equivocation: for accepting `v'`, to emit a `Prevote` for `id(v')` in
+>   round `r`, while before crashing it has emitted a `Prevote` for `nil` in
+>   round `r`.
+
 In order to maintain correctness, i.e. to behave in a consistent way after a
 crash, a process needs to:
 
@@ -33,7 +57,7 @@ the consensus implementation is **deterministic**.
 This means that given an initial state and a sequence of inputs,
 the consensus state and the outputs produced when applying each input
 will always be the same.
-It this is not the case, the outputs produced by a recovering process may
+If this is not the case, the outputs produced by a recovering process may
 differ from the ones produced before crashing, with an associated risk of
 producing _equivocating_ outputs -- which renders the recovering process
 a slashable Byzantine process.
@@ -513,7 +537,7 @@ Accepted
 ### Positive
 
 * Malachite supports crash-recovery behaviour, preventing processes from equivocating
-* No important changes were needed at core components of Tendentermin implementation
+* No important changes were needed at core components of Tendermint implementation
 * The consensus Engine implements a WAL actor that should suit most use cases
 * Per-height WALs render the WAL file most of the time small, no need for rotations
 * Costly synchronous writes to the WAL are reduced to the required scenarios
