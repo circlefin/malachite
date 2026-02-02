@@ -38,7 +38,7 @@ use crate::store::Store;
 
 pub struct Handle {
     pub app: JoinHandle<()>,
-    pub engine: EngineHandle<TestContext>,
+    pub engine: EngineHandle,
     pub tx_event: TxEvent<TestContext>,
 }
 

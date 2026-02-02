@@ -1,5 +1,7 @@
-use informalsystems_malachitebft_core_votekeeper::keeper::{Output, RecordVoteError, VoteKeeper};
 use malachitebft_core_types::{NilOrVal, Round, SignedVote};
+
+use informalsystems_malachitebft_core_votekeeper::keeper::{Output, VoteKeeper};
+
 use malachitebft_test::{
     Address, Height, PrivateKey, Signature, TestContext, Validator, ValidatorSet, ValueId, Vote,
 };
@@ -49,15 +51,15 @@ fn prevote_apply_nil() {
 
     let vote = new_signed_prevote(height, round, NilOrVal::Nil, addr1);
     let msg = keeper.apply_vote(vote.clone(), round);
-    assert!(matches!(msg, Ok(None)));
+    assert_eq!(msg, None);
 
     let vote = new_signed_prevote(height, round, NilOrVal::Nil, addr2);
     let msg = keeper.apply_vote(vote.clone(), round);
-    assert!(matches!(msg, Ok(None)));
+    assert_eq!(msg, None);
 
     let vote = new_signed_prevote(height, round, NilOrVal::Nil, addr3);
     let msg = keeper.apply_vote(vote, round);
-    assert!(matches!(msg, Ok(Some(Output::PolkaNil))));
+    assert_eq!(msg, Some(Output::PolkaNil));
 }
 
 #[test]
@@ -69,15 +71,15 @@ fn precommit_apply_nil() {
 
     let vote = new_signed_precommit(height, round, NilOrVal::Nil, addr1);
     let msg = keeper.apply_vote(vote.clone(), round);
-    assert!(matches!(msg, Ok(None)));
+    assert_eq!(msg, None);
 
     let vote = new_signed_precommit(height, Round::new(0), NilOrVal::Nil, addr2);
     let msg = keeper.apply_vote(vote.clone(), round);
-    assert!(matches!(msg, Ok(None)));
+    assert_eq!(msg, None);
 
     let vote = new_signed_precommit(height, Round::new(0), NilOrVal::Nil, addr3);
     let msg = keeper.apply_vote(vote, round);
-    assert!(matches!(msg, Ok(Some(Output::PrecommitAny))));
+    assert_eq!(msg, Some(Output::PrecommitAny));
 }
 
 #[test]
@@ -91,19 +93,19 @@ fn prevote_apply_single_value() {
 
     let vote = new_signed_prevote(height, Round::new(0), val, addr1);
     let msg = keeper.apply_vote(vote.clone(), round);
-    assert!(matches!(msg, Ok(None)));
+    assert_eq!(msg, None);
 
     let vote = new_signed_prevote(height, Round::new(0), val, addr2);
     let msg = keeper.apply_vote(vote.clone(), round);
-    assert!(matches!(msg, Ok(None)));
+    assert_eq!(msg, None);
 
     let vote_nil = new_signed_prevote(height, Round::new(0), NilOrVal::Nil, addr3);
     let msg = keeper.apply_vote(vote_nil, round);
-    assert!(matches!(msg, Ok(Some(Output::PolkaAny))));
+    assert_eq!(msg, Some(Output::PolkaAny));
 
     let vote = new_signed_prevote(height, Round::new(0), val, addr4);
     let msg = keeper.apply_vote(vote, round);
-    assert!(matches!(msg, Ok(Some(Output::PolkaValue(x))) if x == id));
+    assert_eq!(msg, Some(Output::PolkaValue(id)));
 }
 
 #[test]
@@ -117,19 +119,19 @@ fn precommit_apply_single_value() {
 
     let vote = new_signed_precommit(height, Round::new(0), val, addr1);
     let msg = keeper.apply_vote(vote.clone(), round);
-    assert!(matches!(msg, Ok(None)));
+    assert_eq!(msg, None);
 
     let vote = new_signed_precommit(height, Round::new(0), val, addr2);
     let msg = keeper.apply_vote(vote.clone(), round);
-    assert!(matches!(msg, Ok(None)));
+    assert_eq!(msg, None);
 
     let vote_nil = new_signed_precommit(height, Round::new(0), NilOrVal::Nil, addr3);
     let msg = keeper.apply_vote(vote_nil, round);
-    assert!(matches!(msg, Ok(Some(Output::PrecommitAny))));
+    assert_eq!(msg, Some(Output::PrecommitAny));
 
     let vote = new_signed_precommit(height, Round::new(0), val, addr4);
     let msg = keeper.apply_vote(vote, round);
-    assert!(matches!(msg, Ok(Some(Output::PrecommitValue(x))) if x == id));
+    assert_eq!(msg, Some(Output::PrecommitValue(id)));
 }
 
 #[test]
@@ -144,15 +146,15 @@ fn skip_round_small_quorum_prevotes_two_vals() {
 
     let vote = new_signed_prevote(height, cur_round, val, addr1);
     let msg = keeper.apply_vote(vote.clone(), cur_round);
-    assert!(matches!(msg, Ok(None)));
+    assert_eq!(msg, None);
 
     let vote = new_signed_prevote(height, fut_round, val, addr2);
     let msg = keeper.apply_vote(vote.clone(), cur_round);
-    assert!(matches!(msg, Ok(None)));
+    assert_eq!(msg, None);
 
     let vote = new_signed_prevote(height, fut_round, val, addr3);
     let msg = keeper.apply_vote(vote, cur_round);
-    assert!(matches!(msg, Ok(Some(Output::SkipRound(r))) if r == Round::new(1)));
+    assert_eq!(msg, Some(Output::SkipRound(Round::new(1))));
 }
 
 #[test]
@@ -167,15 +169,15 @@ fn skip_round_small_quorum_with_prevote_precommit_two_vals() {
 
     let vote = new_signed_prevote(height, cur_round, val, addr1);
     let msg = keeper.apply_vote(vote.clone(), cur_round);
-    assert!(matches!(msg, Ok(None)));
+    assert_eq!(msg, None);
 
     let vote = new_signed_prevote(height, fut_round, val, addr2);
     let msg = keeper.apply_vote(vote.clone(), cur_round);
-    assert!(matches!(msg, Ok(None)));
+    assert_eq!(msg, None);
 
     let vote = new_signed_precommit(height, fut_round, val, addr3);
     let msg = keeper.apply_vote(vote, cur_round);
-    assert!(matches!(msg, Ok(Some(Output::SkipRound(r))) if r == Round::new(1)));
+    assert_eq!(msg, Some(Output::SkipRound(Round::new(1))));
 }
 
 #[test]
@@ -190,15 +192,15 @@ fn skip_round_full_quorum_with_prevote_precommit_two_vals() {
 
     let vote = new_signed_prevote(height, cur_round, val, addr1);
     let msg = keeper.apply_vote(vote.clone(), cur_round);
-    assert!(matches!(msg, Ok(None)));
+    assert_eq!(msg, None);
 
     let vote = new_signed_prevote(height, fut_round, val, addr2);
     let msg = keeper.apply_vote(vote.clone(), cur_round);
-    assert!(matches!(msg, Ok(None)));
+    assert_eq!(msg, None);
 
     let vote = new_signed_precommit(height, fut_round, val, addr3);
     let msg = keeper.apply_vote(vote, cur_round);
-    assert!(matches!(msg, Ok(Some(Output::SkipRound(r))) if r == Round::new(1)));
+    assert_eq!(msg, Some(Output::SkipRound(Round::new(1))));
 }
 
 #[test]
@@ -213,15 +215,15 @@ fn no_skip_round_small_quorum_with_same_val() {
 
     let vote = new_signed_prevote(height, cur_round, val, addr1);
     let msg = keeper.apply_vote(vote.clone(), cur_round);
-    assert!(matches!(msg, Ok(None)));
+    assert_eq!(msg, None);
 
     let vote = new_signed_prevote(height, fut_round, val, addr2);
     let msg = keeper.apply_vote(vote.clone(), cur_round);
-    assert!(matches!(msg, Ok(None)));
+    assert_eq!(msg, None);
 
     let vote = new_signed_precommit(height, fut_round, val, addr2);
     let msg = keeper.apply_vote(vote, cur_round);
-    assert!(matches!(msg, Ok(None)));
+    assert_eq!(msg, None);
 }
 
 #[test]
@@ -236,15 +238,15 @@ fn no_skip_round_full_quorum_with_same_val() {
 
     let vote = new_signed_prevote(height, cur_round, val, addr1);
     let msg = keeper.apply_vote(vote.clone(), cur_round);
-    assert!(matches!(msg, Ok(None)));
+    assert_eq!(msg, None);
 
     let vote = new_signed_prevote(height, fut_round, val, addr2);
     let msg = keeper.apply_vote(vote.clone(), cur_round);
-    assert!(matches!(msg, Ok(None)));
+    assert_eq!(msg, None);
 
     let vote = new_signed_precommit(height, fut_round, val, addr2);
     let msg = keeper.apply_vote(vote, cur_round);
-    assert!(matches!(msg, Ok(None)));
+    assert_eq!(msg, None);
 }
 
 #[test]
@@ -259,11 +261,11 @@ fn same_votes() {
 
     let vote1 = new_signed_prevote(height, round, val, addr1);
     let msg = keeper.apply_vote(vote1.clone(), round);
-    assert!(matches!(msg, Ok(None)));
+    assert_eq!(msg, None);
 
     let vote2 = new_signed_prevote(height, round, val, addr1);
     let msg = keeper.apply_vote(vote2.clone(), round);
-    assert!(matches!(msg, Ok(None)));
+    assert_eq!(msg, None);
 
     assert!(keeper.evidence().is_empty());
     assert_eq!(keeper.evidence().get(&addr1), None);
@@ -281,36 +283,25 @@ fn equivocation() {
 
     let vote11 = new_signed_prevote(height, round, val1, addr1);
     let msg = keeper.apply_vote(vote11.clone(), round);
-    assert!(matches!(msg, Ok(None)));
+    assert_eq!(msg, None);
 
     let vote12 = new_signed_prevote(height, round, NilOrVal::Nil, addr1);
     let msg = keeper.apply_vote(vote12.clone(), round);
-    assert!(matches!(
-        msg,
-        Err(RecordVoteError::ConflictingVote {
-            existing,
-            conflicting
-        }) if existing == vote11 && conflicting == vote12
-    ));
+    assert_eq!(msg, None);
 
     assert!(!keeper.evidence().is_empty());
     assert_eq!(keeper.evidence().get(&addr1), Some(&vec![(vote11, vote12)]));
 
     let vote21 = new_signed_prevote(height, round, val1, addr2);
     let msg = keeper.apply_vote(vote21.clone(), round);
-    assert!(matches!(msg, Ok(None)));
+    assert_eq!(msg, None);
 
     let id2 = ValueId::new(2);
     let val2 = NilOrVal::Val(id2);
 
     let vote22 = new_signed_prevote(height, round, val2, addr2);
     let msg = keeper.apply_vote(vote22.clone(), round);
-    assert!(matches!(msg,
-        Err(RecordVoteError::ConflictingVote {
-            existing,
-            conflicting
-        }) if existing == vote21 && conflicting == vote22
-    ));
+    assert_eq!(msg, None);
 
     assert_eq!(keeper.evidence().get(&addr2), Some(&vec![(vote21, vote22)]));
 }

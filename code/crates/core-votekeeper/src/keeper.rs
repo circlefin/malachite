@@ -57,7 +57,7 @@ where
 }
 
 /// Errors can that be yielded when recording a vote.
-#[derive(Error, Debug, PartialEq, Eq)]
+#[derive(Error)]
 pub enum RecordVoteError<Ctx>
 where
     Ctx: Context,
@@ -232,7 +232,7 @@ where
         &mut self,
         vote: SignedVote<Ctx>,
         round: Round,
-    ) -> Result<Option<Output<ValueId<Ctx>>>, RecordVoteError<Ctx>> {
+    ) -> Option<Output<ValueId<Ctx>>> {
         let total_weight = self.total_weight();
         let per_round =
             self.per_round
@@ -243,7 +243,7 @@ where
 
         let Some(validator) = self.validator_set.get_by_address(vote.validator_address()) else {
             // Vote from unknown validator, let's discard it.
-            return Ok(None);
+            return None;
         };
 
         match per_round.add(vote.clone(), validator.voting_power()) {
@@ -257,12 +257,8 @@ where
                     "Received equivocating vote {:?}, existing {:?}",
                     conflicting, existing
                 );
-                self.evidence.add(existing.clone(), conflicting.clone());
-
-                return Err(RecordVoteError::ConflictingVote {
-                    existing,
-                    conflicting,
-                });
+                self.evidence.add(existing, conflicting);
+                return None;
             }
         }
 
@@ -277,7 +273,7 @@ where
             if skip_round {
                 let output = Output::SkipRound(vote.round());
                 per_round.emitted_outputs.insert(output.clone());
-                return Ok(Some(output));
+                return Some(output);
             }
         }
 
@@ -295,9 +291,9 @@ where
             // Ensure we do not output the same message twice
             Some(output) if !per_round.emitted_outputs.contains(&output) => {
                 per_round.emitted_outputs.insert(output.clone());
-                Ok(Some(output))
+                Some(output)
             }
-            _ => Ok(None),
+            _ => None,
         }
     }
 

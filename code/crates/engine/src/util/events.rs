@@ -100,11 +100,15 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
                 commit_certificate,
                 evidence,
             } => {
-                write!(
-                    f,
-                    "Decided(value: {}, evidence: {:?})",
-                    commit_certificate.value_id, evidence
-                )
+                if evidence.is_empty() {
+                    write!(f, "Decided(value: {})", commit_certificate.value_id)
+                } else {
+                    write!(
+                        f,
+                        "Decided(value: {}, evidence: {:?})",
+                        commit_certificate.value_id, evidence
+                    )
+                }
             }
             Event::RepublishVote(vote) => write!(f, "RepublishVote(vote: {vote:?})"),
             Event::RebroadcastRoundCertificate(certificate) => write!(

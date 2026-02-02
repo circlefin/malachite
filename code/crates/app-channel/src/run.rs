@@ -25,19 +25,14 @@ use crate::msgs::{ConsensusRequest, NetworkRequest};
 use crate::spawn::{spawn_host_actor, spawn_network_actor};
 use crate::Channels;
 
-pub struct EngineHandle<Ctx: Context> {
+pub struct EngineHandle {
     pub actor: NodeRef,
-    pub consensus: ConsensusRef<Ctx>,
     pub handle: JoinHandle<()>,
 }
 
-impl<Ctx: Context> EngineHandle<Ctx> {
-    pub fn new(actor: NodeRef, consensus: ConsensusRef<Ctx>, handle: JoinHandle<()>) -> Self {
-        Self {
-            actor,
-            consensus,
-            handle,
-        }
+impl EngineHandle {
+    pub fn new(actor: NodeRef, handle: JoinHandle<()>) -> Self {
+        Self { actor, handle }
     }
 }
 
@@ -95,7 +90,7 @@ pub async fn start_engine<Ctx, Config, Signer, WalCodec, NetCodec>(
     network_ctx: NetworkContext<NetCodec>,
     consensus_ctx: ConsensusContext<Ctx, Signer>,
     request_ctx: RequestContext,
-) -> Result<(Channels<Ctx>, EngineHandle<Ctx>)>
+) -> Result<(Channels<Ctx>, EngineHandle)>
 where
     Ctx: Context,
     Config: NodeConfig,
@@ -181,7 +176,6 @@ where
 
     let handle = EngineHandle {
         actor: node,
-        consensus,
         handle,
     };
 

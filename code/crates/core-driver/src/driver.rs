@@ -521,10 +521,8 @@ where
         let vote_round = vote.round();
         let this_round = self.round();
 
-        let output = match self.vote_keeper.apply_vote(vote, this_round) {
-            Ok(Some(output)) => output,
-            Ok(None) => return Ok(None),
-            Err(_) => return Ok(None),
+        let Some(output) = self.vote_keeper.apply_vote(vote, this_round) else {
+            return Ok(None);
         };
 
         match &output {
