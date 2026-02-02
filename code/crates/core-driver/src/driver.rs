@@ -219,7 +219,7 @@ where
 
     /// Return recorded evidence of vote equivocation for this height.
     pub fn vote_evidence(&self) -> &malachitebft_core_votekeeper::EvidenceMap<Ctx> {
-        self.votes().evidence()
+        self.vote_keeper.evidence()
     }
 
     /// Return the proposer for the current round.
