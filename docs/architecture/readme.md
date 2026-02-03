@@ -25,9 +25,11 @@ To suggest an ADR, please make use of the [ADR template](./adr-template.md) prov
 
 ## Table of Contents
 
-| ADR \#                                      | Description                                 | Status   |
-|---------------------------------------------|---------------------------------------------|----------|
-| [001](./adr-001-architecture.md)            | High Level Architecture                     | Accepted |
-| [002](./adr-002-node-actor.md)              | Node Architecture using the Actor Model     | Accepted |
-| [003](./adr-003-values-propagation.md)      | Propagation of Proposed Values              | Accepted |
-| [004](./adr-004-coroutine-effect-system.md) | Coroutine-Based Effect System for Consensus | Accepted |
+| ADR \#                                      | Description                                 | Status                |
+|---------------------------------------------|---------------------------------------------|-----------------------|
+| [001](./adr-001-architecture.md)            | High Level Architecture                     | Accepted              |
+| [002](./adr-002-node-actor.md)              | Node Architecture using the Actor Model     | Accepted              |
+| [003](./adr-003-values-propagation.md)      | Propagation of Proposed Values              | Accepted              |
+| [004](./adr-004-coroutine-effect-system.md) | Coroutine-Based Effect System for Consensus | Accepted              |
+| [005](./adr-005-value-sync.md)              | Value Sync Protocol                         | Accepted              |
+| [006](./adr-006-proof-of-validator.md)      | Proof-of-Validator Protocol                 | Partially implemented |
