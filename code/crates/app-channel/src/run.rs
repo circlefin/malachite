@@ -170,7 +170,7 @@ where
     .await?;
 
     let (tx_request, rx_request) = mpsc::channel(request_ctx.channel_size);
-    spawn_consensus_request_task(rx_request, consensus.clone());
+    spawn_consensus_request_task(rx_request, consensus);
 
     let (tx_net_request, rx_net_request) = mpsc::channel(request_ctx.channel_size);
     spawn_network_request_task(rx_net_request, network);
