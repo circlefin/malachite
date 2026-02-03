@@ -620,6 +620,7 @@ fn add_explicit_peer_if_persistent(
     swarm: &mut swarm::Swarm<Behaviour>,
     state: &State,
     peer_id: libp2p::PeerId,
+    connection_id: libp2p::swarm::ConnectionId,
     info: &identify::Info,
     enable_explicit_peering: bool,
 ) {
@@ -627,7 +628,7 @@ fn add_explicit_peer_if_persistent(
         return;
     }
 
-    let peer_type = state.peer_type(&peer_id, info);
+    let peer_type = state.peer_type(&peer_id, connection_id, info);
     if peer_type.is_persistent() {
         if let Some(gossipsub) = swarm.behaviour_mut().gossipsub.as_mut() {
             gossipsub.add_explicit_peer(&peer_id);
@@ -762,12 +763,10 @@ async fn handle_swarm_event(
                         swarm,
                         state,
                         peer_id,
+                        connection_id,
                         &info,
                         config.gossipsub.enable_explicit_peering,
                     );
-
-                    // Record peer info in State and metrics
-                    state.record_peer_info(peer_id, &info);
 
                     if !is_already_connected {
                         if let Err(e) = tx_event

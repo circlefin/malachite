@@ -397,10 +397,6 @@ impl GossipSubConfig {
 mod gossipsub {
     use super::utils::{bool_from_anything, usize_from_anything};
 
-    fn default_enable_peer_scoring() -> bool {
-        true
-    }
-
     fn default_enable_explicit_peering() -> bool {
         false
     }
