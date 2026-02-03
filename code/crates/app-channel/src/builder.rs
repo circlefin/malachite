@@ -10,6 +10,7 @@ use std::sync::Arc;
 use eyre::Result;
 use tokio::sync::mpsc::{self, Sender};
 
+use malachitebft_app::types::codec::HasEncodedLen;
 use malachitebft_engine::network::{NetworkIdentity, NetworkRef};
 use malachitebft_engine::sync::SyncRef;
 use malachitebft_engine::util::events::TxEvent;
@@ -38,6 +39,12 @@ impl<T> codec::Codec<T> for NoCodec {
     }
 
     fn encode(&self, _: &T) -> std::result::Result<bytes::Bytes, Self::Error> {
+        unreachable!()
+    }
+}
+
+impl<T> HasEncodedLen<T> for NoCodec {
+    fn encoded_len(&self, _: &T) -> Result<usize, Self::Error> {
         unreachable!()
     }
 }
@@ -606,5 +613,58 @@ where
         let handle = EngineHandle::new(node, handle);
 
         Ok((channels, handle))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use malachitebft_test::codec::json::JsonCodec;
+    use malachitebft_test::{Ed25519Provider, TestContext};
+
+    use super::*;
+
+    fn fake<A>() -> A {
+        unreachable!()
+    }
+
+    struct Config;
+
+    impl NodeConfig for Config {
+        fn moniker(&self) -> &str {
+            "test-node"
+        }
+
+        fn consensus(&self) -> &malachitebft_config::ConsensusConfig {
+            todo!()
+        }
+
+        fn consensus_mut(&mut self) -> &mut malachitebft_config::ConsensusConfig {
+            todo!()
+        }
+
+        fn value_sync(&self) -> &malachitebft_config::ValueSyncConfig {
+            todo!()
+        }
+
+        fn value_sync_mut(&mut self) -> &mut malachitebft_config::ValueSyncConfig {
+            todo!()
+        }
+    }
+
+    #[allow(dead_code)]
+    async fn custom_builder_compiles() {
+        let ctx = TestContext::default();
+
+        let _ = EngineBuilder::new(ctx, Config)
+            .with_wal_builder(WalBuilder::custom(fake()))
+            .with_network_builder(NetworkBuilder::custom(fake(), fake()))
+            .with_sync_builder(SyncBuilder::default(SyncContext::new(JsonCodec)))
+            .with_consensus_builder(ConsensusBuilder::default(ConsensusContext::new(
+                fake(),
+                fake::<Ed25519Provider>(),
+            )))
+            .with_request_builder(RequestBuilder::Default(RequestContext::new(100)))
+            .build()
+            .await;
     }
 }
