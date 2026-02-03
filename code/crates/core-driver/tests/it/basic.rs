@@ -1254,6 +1254,268 @@ fn driver_steps_skip_round_quorum_threshold() {
     run_steps(&mut driver, steps, sel.as_ref(), &vs);
 }
 
+#[test]
+fn driver_steps_proposer_with_finalization() {
+    let value = Value::new(9999);
+
+    let [(v1, sk1), (v2, _sk2), (v3, _sk3)] = make_validators([1, 2, 3]);
+    let (_my_sk, my_addr) = (sk1, v1.address);
+
+    let height = Height::new(1);
+    let ctx = TestContext::new();
+    let sel = Arc::new(FixedProposer::new(my_addr));
+    let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
+
+    let proposal = new_signed_proposal(
+        Height::new(1),
+        Round::new(0),
+        value.clone(),
+        Round::Nil,
+        my_addr,
+    );
+
+    let steps = vec![
+        TestStep {
+            desc: "Start round 0, we are proposer, ask for a value to propose",
+            input: Some(Input::NewRound(Height::new(1), Round::new(0), my_addr)),
+            expected_outputs: vec![
+                Output::ScheduleTimeout(Timeout::new(Round::new(0), TimeoutKind::Propose)),
+                Output::GetValue(
+                    Height::new(1),
+                    Round::new(0),
+                    Timeout::new(Round::new(0), TimeoutKind::Propose),
+                ),
+            ],
+            expected_round: Round::new(0),
+            new_state: State {
+                height: Height::new(1),
+                round: Round::new(0),
+                step: Step::Propose,
+                ..Default::default()
+            },
+        },
+        TestStep {
+            desc: "Feed a value to propose, propose that value",
+            input: Some(Input::ProposeValue(Round::new(0), value.clone())),
+            expected_outputs: vec![Output::Propose(proposal.message.clone())],
+            expected_round: Round::new(0),
+            new_state: State {
+                height: Height::new(1),
+                round: Round::new(0),
+                step: Step::Propose,
+                ..Default::default()
+            },
+        },
+        TestStep {
+            desc: "Receive our own proposal, prevote it",
+            input: None,
+            expected_outputs: vec![Output::Vote(Vote::new_prevote(
+                Height::new(1),
+                Round::new(0),
+                NilOrVal::Val(value.id()),
+                my_addr,
+            ))],
+            expected_round: Round::new(0),
+            new_state: State {
+                height: Height::new(1),
+                round: Round::new(0),
+                step: Step::Prevote,
+                ..Default::default()
+            },
+        },
+        TestStep {
+            desc: "Receive our own prevote",
+            input: None,
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: State {
+                height: Height::new(1),
+                round: Round::new(0),
+                step: Step::Prevote,
+                ..Default::default()
+            },
+        },
+        TestStep {
+            desc: "v2 prevotes our proposal",
+            input: Some(Input::Vote(new_signed_prevote(
+                Height::new(1),
+                Round::new(0),
+                NilOrVal::Val(value.id()),
+                v2.address,
+            ))),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: State {
+                height: Height::new(1),
+                round: Round::new(0),
+                step: Step::Prevote,
+                ..Default::default()
+            },
+        },
+        TestStep {
+            desc: "v3 prevotes our proposal, we got a polka, precommit it",
+            input: Some(Input::Vote(new_signed_prevote(
+                Height::new(1),
+                Round::new(0),
+                NilOrVal::Val(value.id()),
+                v3.address,
+            ))),
+            expected_outputs: vec![Output::Vote(Vote::new_precommit(
+                Height::new(1),
+                Round::new(0),
+                NilOrVal::Val(value.id()),
+                my_addr,
+            ))],
+            expected_round: Round::new(0),
+            new_state: State {
+                height: Height::new(1),
+                round: Round::new(0),
+                step: Step::Precommit,
+                locked: Some(RoundValue {
+                    value: value.clone(),
+                    round: Round::new(0),
+                }),
+                valid: Some(RoundValue {
+                    value: value.clone(),
+                    round: Round::new(0),
+                }),
+                ..Default::default()
+            },
+        },
+        TestStep {
+            desc: "Receive our own precommit",
+            input: None,
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: State {
+                height: Height::new(1),
+                round: Round::new(0),
+                step: Step::Precommit,
+                locked: Some(RoundValue {
+                    value: value.clone(),
+                    round: Round::new(0),
+                }),
+                valid: Some(RoundValue {
+                    value: value.clone(),
+                    round: Round::new(0),
+                }),
+                ..Default::default()
+            },
+        },
+        TestStep {
+            desc: "v2 precommits our proposal",
+            input: Some(Input::Vote(new_signed_precommit(
+                Height::new(1),
+                Round::new(0),
+                NilOrVal::Val(value.id()),
+                v2.address,
+            ))),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: State {
+                height: Height::new(1),
+                round: Round::new(0),
+                step: Step::Precommit,
+                locked: Some(RoundValue {
+                    value: value.clone(),
+                    round: Round::new(0),
+                }),
+                valid: Some(RoundValue {
+                    value: value.clone(),
+                    round: Round::new(0),
+                }),
+                ..Default::default()
+            },
+        },
+        TestStep {
+            desc: "v3 precommits our proposal, we got +2/3 precommits, decide it",
+            input: Some(Input::Vote(new_signed_precommit(
+                Height::new(1),
+                Round::new(0),
+                NilOrVal::Val(value.id()),
+                v3.address,
+            ))),
+            expected_outputs: vec![Output::Decide(Round::new(0), proposal.message.clone())],
+            expected_round: Round::new(0),
+            new_state: State {
+                height: Height::new(1),
+                round: Round::new(0),
+                step: Step::Commit,
+                locked: Some(RoundValue {
+                    value: value.clone(),
+                    round: Round::new(0),
+                }),
+                valid: Some(RoundValue {
+                    value: value.clone(),
+                    round: Round::new(0),
+                }),
+                decision: Some(RoundValue {
+                    value: value.clone(),
+                    round: Round::new(0),
+                }),
+                ..Default::default()
+            },
+        },
+        TestStep {
+            desc: "Transition from Commit to Finalize step",
+            input: Some(Input::TransitionToFinalize),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: State {
+                height: Height::new(1),
+                round: Round::new(0),
+                step: Step::Finalize,
+                locked: Some(RoundValue {
+                    value: value.clone(),
+                    round: Round::new(0),
+                }),
+                valid: Some(RoundValue {
+                    value: value.clone(),
+                    round: Round::new(0),
+                }),
+                decision: Some(RoundValue {
+                    value: value.clone(),
+                    round: Round::new(0),
+                }),
+                ..Default::default()
+            },
+        },
+        TestStep {
+            desc: "In Finalize step, further votes are ignored",
+            input: Some(Input::Vote(new_signed_precommit(
+                Height::new(1),
+                Round::new(0),
+                NilOrVal::Val(value.id()),
+                v2.address,
+            ))),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: State {
+                height: Height::new(1),
+                round: Round::new(0),
+                step: Step::Finalize,
+                locked: Some(RoundValue {
+                    value: value.clone(),
+                    round: Round::new(0),
+                }),
+                valid: Some(RoundValue {
+                    value: value.clone(),
+                    round: Round::new(0),
+                }),
+                decision: Some(RoundValue {
+                    value: value.clone(),
+                    round: Round::new(0),
+                }),
+                ..Default::default()
+            },
+        },
+    ];
+
+    run_steps(&mut driver, steps, sel.as_ref(), &vs);
+}
+
 fn run_steps(
     driver: &mut Driver<TestContext>,
     steps: Vec<TestStep>,
