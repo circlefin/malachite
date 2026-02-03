@@ -492,7 +492,8 @@ Synchronous writes, using the `wal_flush` consensus engine method, are performed
 2. When a consensus message is broadcast, via the `PublishConsensusMsg` effect;
 3. When a value is finalized by the consensus, via the `Decide` effect.
 
-> FIXME: is there any particular reason for item 1, i.e. starting a round?
+Notice that synchronous writes are performed whenever the effect is
+externalized, either to the application (1 and 3) or the network (2).
 
 A current limitation of the persistence approach, however, is the fact that
 calls to `wal_append` are also blocking, while they do not have to.
