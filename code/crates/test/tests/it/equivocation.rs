@@ -58,7 +58,7 @@ pub async fn equivocation_two_vals_same_pk() {
     test.add_node()
         .start()
         .on_vote(|_v, _s| Ok(HandlerResult::SleepAndContinueTest(VOTE_DURATION)))
-        .on_decided(move |_c, evidence, _s| {
+        .on_decided(|_c, evidence, _s| {
             check_decided_impl(&evidence);
             let result = if evidence.proposals.is_empty() {
                 HandlerResult::WaitForNextEvent
@@ -73,7 +73,7 @@ pub async fn equivocation_two_vals_same_pk() {
     test.add_node()
         .start()
         .on_vote(|_v, _s| Ok(HandlerResult::SleepAndContinueTest(VOTE_DURATION)))
-        .on_decided(move |_c, evidence, _s| {
+        .on_decided(|_c, evidence, _s| {
             check_decided_impl(&evidence);
             let result = if evidence.votes.is_empty() {
                 HandlerResult::WaitForNextEvent
