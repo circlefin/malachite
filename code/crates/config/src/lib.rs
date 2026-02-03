@@ -397,6 +397,10 @@ impl GossipSubConfig {
 mod gossipsub {
     use super::utils::{bool_from_anything, usize_from_anything};
 
+    fn default_enable_peer_scoring() -> bool {
+        true
+    }
+
     fn default_enable_explicit_peering() -> bool {
         false
     }
@@ -419,7 +423,10 @@ mod gossipsub {
         mesh_n_low: usize,
         #[serde(default = "default_zero", deserialize_with = "usize_from_anything")]
         mesh_outbound_min: usize,
-        #[serde(default, deserialize_with = "bool_from_anything")]
+        #[serde(
+            default = "default_enable_peer_scoring",
+            deserialize_with = "bool_from_anything"
+        )]
         enable_peer_scoring: bool,
         #[serde(
             default = "default_enable_explicit_peering",
@@ -1053,9 +1060,9 @@ mod tests {
     }
 
     #[test]
-    fn gossipsub_config_default_disables_peer_scoring() {
+    fn gossipsub_config_default_enables_peer_scoring() {
         let config = GossipSubConfig::default();
-        assert!(!config.enable_peer_scoring());
+        assert!(config.enable_peer_scoring());
     }
 
     #[test]
@@ -1068,12 +1075,12 @@ mod tests {
 
         let cases = [
             TestCase {
-                name: "missing field defaults to false",
+                name: "missing field defaults to true",
                 toml: r#"
                     [p2p.protocol]
                     type = "gossipsub"
                 "#,
-                expected: false,
+                expected: true,
             },
             TestCase {
                 name: "explicit true",
