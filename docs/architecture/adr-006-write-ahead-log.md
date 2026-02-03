@@ -497,10 +497,8 @@ externalized, either to the application (1 and 3) or the network (2).
 
 A current limitation of the persistence approach, however, is the fact that
 calls to `wal_append` are also blocking, while they do not have to.
-This is possibly associated with error handling, but it would be good to find a
-way to propagate and handle errors asynchronously.
-
-> For reviewers: can you double check the above affirmation?
+This is currently associated with error handling, but it would be good to find a
+way to propagate and handle errors asynchronously ([#1435][issue-async]).
 
 ### Error Handling
 
@@ -556,9 +554,10 @@ Accepted
 
 ## References
 
-* [Tendermint pseudo-code][pseudo-code]
-* [spec: Consensus Write-Ahead Log (WAL) #469](https://github.com/circlefin/malachite/issues/469)
+* [spec: Consensus Write-Ahead Log (WAL) #469](https://github.com/circlefin/malachite/issues/469):
+  initial discussion of requirements for the WAL
 * [Consensus WAL may contain corrupted data #1434][issue-corrupt]
+* [Consensus WAL should not block upon asynchronous writes #1435][issue-async]
 * [ADR 001: High Level Architecture for Tendermint Consensus Implementation in Rust](./adr-001-architecture.md)
 * [ADR 003: Propagation of Proposed Values][adr-003]
 * [ADR 004: Coroutine-Based Effect System for Consensus](./adr-004-coroutine-effect-system.md)
@@ -570,4 +569,5 @@ Accepted
 [wal-crate]: https://github.com/circlefin/malachite/tree/main/code/crates/wal
 [pseudo-code]: https://github.com/circlefin/malachite/blob/main/specs/consensus/pseudo-code.md
 [issue-corrupt]: https://github.com/circlefin/malachite/issues/1434
+[issue-async]: https://github.com/circlefin/malachite/issues/1435
 [adr-003]: ./adr-003-values-propagation.md
