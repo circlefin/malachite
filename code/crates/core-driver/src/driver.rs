@@ -212,19 +212,9 @@ where
         self.proposer.as_ref()
     }
 
-    /// Return recorded evidence of proposal equivocation.
-    pub fn proposal_evidence(&self) -> &proposal_keeper::EvidenceMap<Ctx> {
-        self.proposal_keeper.evidence()
-    }
-
     /// Remove and return recorded evidence of proposal equivocation.
     pub fn take_proposal_evidence(&mut self) -> proposal_keeper::EvidenceMap<Ctx> {
         self.proposal_keeper.take_evidence()
-    }
-
-    /// Return recorded evidence of vote equivocation.
-    pub fn vote_evidence(&self) -> &malachitebft_core_votekeeper::EvidenceMap<Ctx> {
-        self.vote_keeper.evidence()
     }
 
     /// Remove and return recorded evidence of vote equivocation.
