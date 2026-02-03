@@ -175,7 +175,7 @@ clients, it is unlikely that the return value of `getValue()` when a process is
 recovering will be the same as it was before the process has crashed.
 It is true that the application should be consistent and also support the
 crash-recovery behavior, returning the same value upon multiple calls to
-`getValue()`: this is actually a [requirement](TODO-link).
+`getValue()`: this is actually a [requirement][issue-values].
 But since the return of a `getValue()` call produces a `Proposal` message that
 is broadcast, it is safer to just store the value returned by the application,
 which it is supposed to be small as large values are propagated by the
@@ -261,9 +261,6 @@ to a relevant state transition, can be logged in background and in a best
 effort manner.
 While the production of an output demands a synchronous, blocking call to
 persist all the outstanding inputs.
-
-> TODO: remove this comment, as this is discussed in [Persistence](#persistence-1).
-> I have the impression that all WAL append calls are synchronous.
 
 ### Replay
 
@@ -558,6 +555,7 @@ Accepted
   initial discussion of requirements for the WAL
 * [Consensus WAL may contain corrupted data #1434][issue-corrupt]
 * [Consensus WAL should not block upon asynchronous writes #1435][issue-async]
+* [spec: Candidate blocks (full proposed values) store #579][issue-values]
 * [ADR 001: High Level Architecture for Tendermint Consensus Implementation in Rust](./adr-001-architecture.md)
 * [ADR 003: Propagation of Proposed Values][adr-003]
 * [ADR 004: Coroutine-Based Effect System for Consensus](./adr-004-coroutine-effect-system.md)
@@ -570,4 +568,5 @@ Accepted
 [pseudo-code]: https://github.com/circlefin/malachite/blob/main/specs/consensus/pseudo-code.md
 [issue-corrupt]: https://github.com/circlefin/malachite/issues/1434
 [issue-async]: https://github.com/circlefin/malachite/issues/1435
+[issue-values]: https://github.com/circlefin/malachite/issues/579
 [adr-003]: ./adr-003-values-propagation.md
