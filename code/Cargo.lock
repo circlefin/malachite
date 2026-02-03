@@ -2440,6 +2440,7 @@ dependencies = [
  "libp2p-scatter",
  "seahash",
  "serde",
+ "thiserror 2.0.16",
  "tokio",
  "tracing",
 ]

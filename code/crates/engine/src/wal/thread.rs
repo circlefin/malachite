@@ -113,23 +113,29 @@ where
             let entry_type = wal_entry_type(&entry);
 
             let mut buf = Vec::new();
-            encode_entry(&entry, codec, &mut buf)?;
 
-            if !buf.is_empty() {
-                let result = log.append(&buf).map_err(Into::into);
+            // Capture encoding result and always send a reply to prevent deadlock
+            let result = encode_entry(&entry, codec, &mut buf)
+                .and_then(|_| {
+                    if !buf.is_empty() {
+                        log.append(&buf)
+                    } else {
+                        Ok(())
+                    }
+                })
+                .map_err(Into::into);
 
-                if let Err(e) = &result {
-                    error!("ATTENTION: Failed to append entry to WAL: {e}");
-                } else {
-                    debug!(
-                        type = %entry_type, entry.size = %buf.len(), log.entries = %log.len(),
-                        "Wrote log entry"
-                    );
-                }
+            if let Err(e) = &result {
+                error!("ATTENTION: Failed to append entry to WAL: {e}");
+            } else if !buf.is_empty() {
+                debug!(
+                    type = %entry_type, entry.size = %buf.len(), log.entries = %log.len(),
+                    "Wrote log entry"
+                );
+            }
 
-                if reply.send(result).is_err() {
-                    error!("Failed to send WAL append reply");
-                }
+            if reply.send(result).is_err() {
+                error!("Failed to send WAL append reply");
             }
         }
 

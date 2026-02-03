@@ -7,7 +7,7 @@ use eyre::eyre;
 use libp2p::request_response;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
-use tracing::{error, info, trace};
+use tracing::{error, info, trace, warn};
 
 use malachitebft_codec as codec;
 use malachitebft_core_consensus::{LivenessMsg, SignedConsensusMsg};
@@ -17,9 +17,11 @@ use malachitebft_core_types::{
 };
 use malachitebft_metrics::SharedRegistry;
 use malachitebft_network::handle::CtrlHandle;
-use malachitebft_network::{Channel, Config, Event, Multiaddr, PeerId};
+use malachitebft_network::{Channel, Config, Event, PeerId};
 
-pub use malachitebft_network::NetworkIdentity;
+pub use malachitebft_network::{
+    Multiaddr, NetworkIdentity, NetworkStateDump, PersistentPeerError, PersistentPeersOp,
+};
 
 use malachitebft_sync::{
     self as sync, InboundRequestId, OutboundRequestId, RawMessage, Request, Response,
@@ -29,8 +31,6 @@ use crate::consensus::ConsensusCodec;
 use crate::sync::SyncCodec;
 use crate::util::output_port::{OutputPort, OutputPortSubscriberTrait};
 use crate::util::streaming::StreamMessage;
-
-pub use malachitebft_network::NetworkStateDump;
 
 pub type NetworkRef<Ctx> = ActorRef<Msg<Ctx>>;
 pub type NetworkMsg<Ctx> = Msg<Ctx>;
@@ -175,6 +175,12 @@ pub enum Msg<Ctx: Context> {
     /// Request to dump the current network state
     DumpState(RpcReplyPort<Option<NetworkStateDump>>),
 
+    /// Add or remove a persistent peer at runtime
+    UpdatePersistentPeers(
+        PersistentPeersOp,
+        RpcReplyPort<Result<(), PersistentPeerError>>,
+    ),
+
     /// Update the validator set for the current height
     UpdateValidatorSet(Ctx::ValidatorSet),
 
@@ -244,6 +250,11 @@ where
         // We need to handle before deconstructing `state` to always reply.
         if let Msg::DumpState(reply_to) = msg {
             handle_dump_state(state, reply_to).await;
+            return Ok(());
+        }
+
+        if let Msg::UpdatePersistentPeers(op, reply_to) = msg {
+            handle_update_persistent_peers(state, op, reply_to).await;
             return Ok(());
         }
 
@@ -509,6 +520,9 @@ where
             }
 
             Msg::DumpState(_) => unreachable!("DumpState handled above to ensure a reply"),
+            Msg::UpdatePersistentPeers(_, _) => {
+                unreachable!("UpdatePersistentPeers handled above to ensure a reply")
+            }
         }
 
         Ok(())
@@ -557,5 +571,55 @@ async fn handle_dump_state<Ctx>(
 
     if let Err(error) = reply_to.send(dump) {
         error!(%error, "Failed to reply with network state dump");
+    }
+}
+
+async fn handle_update_persistent_peers<Ctx>(
+    state: &mut State<Ctx>,
+    op: PersistentPeersOp,
+    reply_to: RpcReplyPort<Result<(), PersistentPeerError>>,
+) where
+    Ctx: Context,
+{
+    fn log_result(result: &Result<(), PersistentPeerError>, op: &PersistentPeersOp) {
+        match result {
+            Ok(_) => match op {
+                PersistentPeersOp::Add(addr) => {
+                    info!("Successfully added persistent peer: {addr}");
+                }
+                PersistentPeersOp::Remove(addr) => {
+                    info!("Successfully removed persistent peer: {addr}");
+                }
+            },
+            Err(error) => {
+                error!(%error, "Failed to update persistent peers");
+            }
+        }
+    }
+
+    let result = match state {
+        State::Stopped => {
+            warn!("Cannot update persistent peers: network not started");
+            Err(PersistentPeerError::NetworkStopped)
+        }
+        State::Running { ctrl_handle, .. } => {
+            let op_result = match &op {
+                PersistentPeersOp::Add(addr) => ctrl_handle.add_persistent_peer(addr.clone()).await,
+                PersistentPeersOp::Remove(addr) => {
+                    ctrl_handle.remove_persistent_peer(addr.clone()).await
+                }
+            };
+
+            op_result
+                .inspect(|res| log_result(res, &op))
+                .unwrap_or_else(|error| {
+                    error!(%error, "Internal error: failed to update persistent peers");
+                    Err(PersistentPeerError::InternalError(error.to_string()))
+                })
+        }
+    };
+
+    if let Err(error) = reply_to.send(result) {
+        error!(%error, "Failed to reply to UpdatePersistentPeers");
     }
 }

@@ -5,7 +5,7 @@ use tokio::task;
 
 use malachitebft_peer::PeerId;
 
-use crate::{Channel, CtrlMsg, Event};
+use crate::{Channel, CtrlMsg, Event, Multiaddr, PersistentPeerError, PersistentPeersOp};
 
 pub struct RecvHandle {
     peer_id: PeerId,
@@ -86,6 +86,38 @@ impl CtrlHandle {
         Ok(rx.await?)
     }
 
+    pub async fn add_persistent_peer(
+        &self,
+        addr: Multiaddr,
+    ) -> Result<Result<(), PersistentPeerError>, eyre::Report> {
+        let (tx, rx) = oneshot::channel();
+
+        self.tx_ctrl
+            .send(CtrlMsg::UpdatePersistentPeers(
+                PersistentPeersOp::Add(addr),
+                tx,
+            ))
+            .await?;
+
+        Ok(rx.await?)
+    }
+
+    pub async fn remove_persistent_peer(
+        &self,
+        addr: Multiaddr,
+    ) -> Result<Result<(), PersistentPeerError>, eyre::Report> {
+        let (tx, rx) = oneshot::channel();
+
+        self.tx_ctrl
+            .send(CtrlMsg::UpdatePersistentPeers(
+                PersistentPeersOp::Remove(addr),
+                tx,
+            ))
+            .await?;
+
+        Ok(rx.await?)
+    }
+
     pub async fn wait_shutdown(self) -> Result<(), eyre::Report> {
         self.shutdown().await?;
         self.join().await?;
@@ -137,6 +169,20 @@ impl Handle {
 
     pub async fn recv(&mut self) -> Option<Event> {
         self.recv.recv().await
+    }
+
+    pub async fn add_persistent_peer(
+        &self,
+        addr: Multiaddr,
+    ) -> Result<Result<(), PersistentPeerError>, eyre::Report> {
+        self.ctrl.add_persistent_peer(addr).await
+    }
+
+    pub async fn remove_persistent_peer(
+        &self,
+        addr: Multiaddr,
+    ) -> Result<Result<(), PersistentPeerError>, eyre::Report> {
+        self.ctrl.remove_persistent_peer(addr).await
     }
 
     pub async fn wait_shutdown(self) -> Result<(), eyre::Report> {
