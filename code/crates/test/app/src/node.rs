@@ -12,10 +12,11 @@ use malachitebft_app_channel::app::config::*;
 use malachitebft_app_channel::app::events::{RxEvent, TxEvent};
 use malachitebft_app_channel::app::types::core::VotingPower;
 use malachitebft_app_channel::app::types::Keypair;
-use malachitebft_app_channel::NetworkIdentity;
 use malachitebft_app_channel::{
-    ConsensusContext, EngineHandle, NetworkContext, RequestContext, SyncContext, WalContext,
+    ConsensusBuilder, ConsensusContext, EngineHandle, NetworkBuilder, NetworkContext,
+    RequestBuilder, RequestContext, SyncBuilder, SyncContext, WalBuilder, WalContext,
 };
+use malachitebft_app_channel::{EngineBuilder, NetworkIdentity};
 use malachitebft_test::codec::json::JsonCodec;
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::node::{Node, NodeHandle};
@@ -139,16 +140,23 @@ impl Node for App {
         let wal_path = self.get_home_dir().join("wal").join("consensus.wal");
         let identity =
             NetworkIdentity::new(config.moniker.clone(), keypair, Some(address.to_string()));
-        let (mut channels, engine_handle) = malachitebft_app_channel::start_engine(
-            ctx.clone(),
-            config.clone(),
-            WalContext::new(wal_path, ProtobufCodec),
-            NetworkContext::new(identity, JsonCodec),
-            ConsensusContext::new(address, self.get_signing_provider(self.private_key.clone())),
-            SyncContext::new(JsonCodec),
-            RequestContext::new(100), // Request channel size
-        )
-        .await?;
+
+        let (mut channels, engine_handle) = EngineBuilder::new(ctx.clone(), config.clone())
+            .with_wal_builder(WalBuilder::Default(WalContext::new(
+                wal_path,
+                ProtobufCodec,
+            )))
+            .with_network_builder(NetworkBuilder::Default(NetworkContext::new(
+                identity, JsonCodec,
+            )))
+            .with_consensus_builder(ConsensusBuilder::Default(ConsensusContext::new(
+                address,
+                self.get_signing_provider(self.private_key.clone()),
+            )))
+            .with_sync_builder(SyncBuilder::Default(SyncContext::new(JsonCodec)))
+            .with_request_builder(RequestBuilder::Default(RequestContext::new(100)))
+            .build()
+            .await?;
 
         drop(_guard);
 
