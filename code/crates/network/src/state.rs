@@ -584,19 +584,16 @@ impl State {
                 swarm,
             );
 
-            // Disconnect from this peer that is not a persistent peer if:
-            // - `persistent_peers_only` is configured
+            // If peer is connected, disconnect it if
+            // - `persistent_peers_only` is configured,
             // - or outbound connection exists
             // Do not disconnect if there are inbound connections as the peer might have us as their persistent peer
-            if swarm.is_connected(&peer_id) {
-                let has_inbound = self.discovery.is_inbound_peer(&peer_id);
+            let should_disconnect =
+                self.local_node.persistent_peers_only || !self.discovery.is_inbound_peer(&peer_id);
 
-                let should_disconnect = self.local_node.persistent_peers_only || !has_inbound;
-
-                if should_disconnect {
-                    let _ = swarm.disconnect_peer_id(peer_id);
-                    tracing::info!(%peer_id, %addr, "Disconnecting from removed persistent peer");
-                }
+            if swarm.is_connected(&peer_id) && should_disconnect {
+                let _ = swarm.disconnect_peer_id(peer_id);
+                tracing::info!(%peer_id, %addr, "Disconnecting from removed persistent peer");
             }
         }
 
