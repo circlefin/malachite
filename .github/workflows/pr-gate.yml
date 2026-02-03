@@ -7,7 +7,7 @@ on:
 jobs:
   check-eligibility:
     name: Check eligibility
-    runs-on: github-hosted-small
+    runs-on: ubuntu-latest
     steps:
       - name: Check if author is codeowner
         id: check-codeowner

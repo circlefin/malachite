@@ -15,7 +15,7 @@ concurrency:
 jobs:
   changes:
     name: Detect changes
-    runs-on: github-hosted-small
+    runs-on: ubuntu-latest
     permissions:
       pull-requests: read
     outputs:
@@ -33,7 +33,7 @@ jobs:
     name: Build
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: github-hosted-small
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: code
@@ -62,7 +62,7 @@ jobs:
 
   deploy:
     name: Deploy
-    runs-on: github-hosted-small
+    runs-on: ubuntu-latest
     needs: build
     # Grant GITHUB_TOKEN the permissions required to make a Pages deployment
     permissions:

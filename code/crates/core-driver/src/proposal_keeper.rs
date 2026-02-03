@@ -7,7 +7,9 @@ use alloc::vec::Vec;
 use derive_where::derive_where;
 use thiserror::Error;
 
-use malachitebft_core_types::{Context, Proposal, Round, SignedProposal, Validity, Value, ValueId};
+use malachitebft_core_types::{
+    Context, DoubleProposal, Proposal, Round, SignedProposal, Validity, Value, ValueId,
+};
 use tracing::{error, warn};
 
 /// Errors can that be yielded when recording a proposal.
@@ -225,6 +227,11 @@ where
         &self.evidence
     }
 
+    /// Remove and return all recorded evidence.
+    pub fn take_evidence(&mut self) -> EvidenceMap<Ctx> {
+        core::mem::take(&mut self.evidence)
+    }
+
     /// Store a proposal, checking for conflicts and storing evidence of equivocation if necessary.
     pub fn store_proposal(&mut self, proposal: SignedProposal<Ctx>, validity: Validity) {
         let per_round = self.per_round.entry(proposal.round()).or_default();
@@ -253,8 +260,7 @@ pub struct EvidenceMap<Ctx>
 where
     Ctx: Context,
 {
-    #[allow(clippy::type_complexity)]
-    map: BTreeMap<Ctx::Address, Vec<(SignedProposal<Ctx>, SignedProposal<Ctx>)>>,
+    map: BTreeMap<Ctx::Address, Vec<DoubleProposal<Ctx>>>,
 }
 
 impl<Ctx> EvidenceMap<Ctx>
@@ -272,23 +278,35 @@ where
     }
 
     /// Return the evidence of equivocation for a given address, if any.
-    pub fn get(
-        &self,
-        address: &Ctx::Address,
-    ) -> Option<&Vec<(SignedProposal<Ctx>, SignedProposal<Ctx>)>> {
+    pub fn get(&self, address: &Ctx::Address) -> Option<&Vec<DoubleProposal<Ctx>>> {
         self.map.get(address)
     }
 
     /// Add evidence of equivocating proposals, ie. two proposals submitted by the same validator,
     /// but with different values but for the same height and round.
+    ///
+    /// # Precondition
+    /// - Both proposals must be from the same validator (debug-asserted).
     pub(crate) fn add(&mut self, existing: SignedProposal<Ctx>, conflicting: SignedProposal<Ctx>) {
+        debug_assert_eq!(
+            existing.validator_address(),
+            conflicting.validator_address()
+        );
+
         if let Some(evidence) = self.map.get_mut(conflicting.validator_address()) {
-            evidence.push((existing, conflicting));
+            evidence.push((existing.to_owned(), conflicting));
         } else {
             self.map.insert(
                 conflicting.validator_address().clone(),
-                vec![(existing, conflicting)],
+                vec![(existing.to_owned(), conflicting)],
             );
         }
+    }
+
+    /// Iterate over all addresses with recorded proposal equivocations.
+    pub fn iter(
+        &self,
+    ) -> alloc::collections::btree_map::Keys<'_, Ctx::Address, Vec<DoubleProposal<Ctx>>> {
+        self.map.keys()
     }
 }

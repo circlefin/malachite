@@ -14,10 +14,10 @@ all-features = true
 
 [dependencies]
 malachitebft-core-types = { workspace = true }
-tracing = { workspace = true, default-features = false }
 
 derive-where = { workspace = true }
 thiserror = { workspace = true, default-features = false }
+tracing = { workspace = true, default-features = false }
 
 [dev-dependencies]
 malachitebft-test = { workspace = true }

@@ -1263,14 +1263,38 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::Decide(certificate, extensions, r) => {
+            Effect::Decide(certificate, extensions, evidence, r) => {
                 assert!(!certificate.commit_signatures.is_empty());
 
                 // Sync the WAL to disk before we decide the value
                 self.wal_flush(state.phase).await?;
 
+                let proposal_evidence_count = evidence
+                    .proposals
+                    .iter()
+                    .map(|addr| evidence.proposals.get(addr).map_or(0, |v| v.len()))
+                    .sum::<usize>();
+                let vote_evidence_count = evidence
+                    .votes
+                    .iter()
+                    .map(|addr| evidence.votes.get(addr).map_or(0, |v| v.len()))
+                    .sum::<usize>();
+                if proposal_evidence_count > 0 {
+                    self.metrics
+                        .equivocation_proposals
+                        .inc_by(proposal_evidence_count as u64);
+                }
+                if vote_evidence_count > 0 {
+                    self.metrics
+                        .equivocation_votes
+                        .inc_by(vote_evidence_count as u64);
+                }
+
                 // Notify any subscribers about the decided value
-                self.tx_event.send(|| Event::Decided(certificate.clone()));
+                self.tx_event.send(|| Event::Decided {
+                    commit_certificate: certificate.clone(),
+                    evidence: evidence.clone(),
+                });
 
                 let height = certificate.height;
 
@@ -1280,6 +1304,7 @@ where
                         |reply_to| HostMsg::Decided {
                             certificate,
                             extensions,
+                            evidence,
                             reply_to,
                         },
                         myself,
