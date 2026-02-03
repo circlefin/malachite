@@ -169,18 +169,13 @@ pub struct EngineBuilder<
     WalCodec,
     NetCodec,
     SyncCodec,
-    const HAS_WAL: bool,
-    const HAS_NETWORK: bool,
-    const HAS_SYNC: bool,
-    const HAS_CONSENSUS: bool,
-    const HAS_REQUEST: bool,
+    const HAS_WAL: bool = false,
+    const HAS_NETWORK: bool = false,
+    const HAS_SYNC: bool = false,
+    const HAS_CONSENSUS: bool = false,
+    const HAS_REQUEST: bool = false,
 > where
     Ctx: Context,
-    Config: NodeConfig,
-    Signer: SigningProvider<Ctx> + 'static,
-    WalCodec: codec::WalCodec<Ctx>,
-    NetCodec: codec::ConsensusCodec<Ctx> + codec::SyncCodec<Ctx>,
-    SyncCodec: codec::SyncCodec<Ctx>,
 {
     // Required context parameters
     ctx: Ctx,
@@ -196,26 +191,9 @@ pub struct EngineBuilder<
 
 // Implementation for creating a new builder (all flags start as false)
 impl<Ctx, Config, Signer, WalCodec, NetCodec, SyncCodec>
-    EngineBuilder<
-        Ctx,
-        Config,
-        Signer,
-        WalCodec,
-        NetCodec,
-        SyncCodec,
-        false,
-        false,
-        false,
-        false,
-        false,
-    >
+    EngineBuilder<Ctx, Config, Signer, WalCodec, NetCodec, SyncCodec>
 where
     Ctx: Context,
-    Config: NodeConfig,
-    Signer: SigningProvider<Ctx>,
-    WalCodec: codec::WalCodec<Ctx>,
-    NetCodec: codec::ConsensusCodec<Ctx> + codec::SyncCodec<Ctx>,
-    SyncCodec: codec::SyncCodec<Ctx>,
 {
     /// Create a new engine builder with the required context and configuration.
     ///
@@ -263,11 +241,6 @@ impl<
     >
 where
     Ctx: Context,
-    Config: NodeConfig,
-    Signer: SigningProvider<Ctx>,
-    WalCodec: codec::WalCodec<Ctx>,
-    NetCodec: codec::ConsensusCodec<Ctx> + codec::SyncCodec<Ctx>,
-    SyncCodec: codec::SyncCodec<Ctx>,
 {
     /// Set the WAL builder.
     ///
@@ -435,7 +408,7 @@ impl<Ctx, Config, Signer, WalCodec, NetCodec, SyncCodec>
 where
     Ctx: Context,
     Config: NodeConfig,
-    Signer: SigningProvider<Ctx>,
+    Signer: SigningProvider<Ctx> + 'static,
     WalCodec: codec::WalCodec<Ctx>,
     NetCodec: codec::ConsensusCodec<Ctx> + codec::SyncCodec<Ctx>,
     SyncCodec: codec::SyncCodec<Ctx>,
