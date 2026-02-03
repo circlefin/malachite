@@ -843,6 +843,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use malachitebft_test::codec::json::JsonCodec;
+    use malachitebft_test::codec::proto::ProtobufCodec;
     use malachitebft_test::{Ed25519Provider, TestContext};
 
     use super::*;
@@ -875,8 +877,24 @@ mod tests {
         }
     }
 
+    // All default actors
     #[allow(dead_code)]
-    async fn builder_compiles() {
+    async fn all_defaults_compiles() {
+        let ctx = TestContext::default();
+
+        let _ = EngineBuilder::new(ctx, Config)
+            .with_default_wal(WalContext::new(fake(), ProtobufCodec))
+            .with_default_network(NetworkContext::new(fake(), JsonCodec))
+            .with_default_sync(SyncContext::new(JsonCodec))
+            .with_default_consensus(ConsensusContext::new(fake(), fake::<Ed25519Provider>()))
+            .with_default_request(RequestContext::new(100))
+            .build()
+            .await;
+    }
+
+    // All custom actors
+    #[allow(dead_code)]
+    async fn all_custom_compiles() {
         let ctx = TestContext::default();
 
         let _ = EngineBuilder::new(ctx, Config)
@@ -885,6 +903,111 @@ mod tests {
             .with_custom_sync(fake())
             .with_default_consensus(ConsensusContext::new(fake(), fake::<Ed25519Provider>()))
             .with_default_request(RequestContext::new(100))
+            .build()
+            .await;
+    }
+
+    // Custom WAL, default everything else
+    #[allow(dead_code)]
+    async fn custom_wal_compiles() {
+        let ctx = TestContext::default();
+
+        let _ = EngineBuilder::new(ctx, Config)
+            .with_custom_wal(fake())
+            .with_default_network(NetworkContext::new(fake(), JsonCodec))
+            .with_default_sync(SyncContext::new(JsonCodec))
+            .with_default_consensus(ConsensusContext::new(fake(), fake::<Ed25519Provider>()))
+            .with_default_request(RequestContext::new(100))
+            .build()
+            .await;
+    }
+
+    // Custom network, default everything else
+    #[allow(dead_code)]
+    async fn custom_network_compiles() {
+        let ctx = TestContext::default();
+
+        let _ = EngineBuilder::new(ctx, Config)
+            .with_default_wal(WalContext::new(fake(), ProtobufCodec))
+            .with_custom_network(fake(), fake())
+            .with_default_sync(SyncContext::new(JsonCodec))
+            .with_default_consensus(ConsensusContext::new(fake(), fake::<Ed25519Provider>()))
+            .with_default_request(RequestContext::new(100))
+            .build()
+            .await;
+    }
+
+    // Custom sync, default everything else
+    #[allow(dead_code)]
+    async fn custom_sync_compiles() {
+        let ctx = TestContext::default();
+
+        let _ = EngineBuilder::new(ctx, Config)
+            .with_default_wal(WalContext::new(fake(), ProtobufCodec))
+            .with_default_network(NetworkContext::new(fake(), JsonCodec))
+            .with_custom_sync(fake())
+            .with_default_consensus(ConsensusContext::new(fake(), fake::<Ed25519Provider>()))
+            .with_default_request(RequestContext::new(100))
+            .build()
+            .await;
+    }
+
+    // Disabled sync (with_no_sync)
+    #[allow(dead_code)]
+    async fn no_sync_compiles() {
+        let ctx = TestContext::default();
+
+        let _ = EngineBuilder::new(ctx, Config)
+            .with_default_wal(WalContext::new(fake(), ProtobufCodec))
+            .with_default_network(NetworkContext::new(fake(), JsonCodec))
+            .with_no_sync()
+            .with_default_consensus(ConsensusContext::new(fake(), fake::<Ed25519Provider>()))
+            .with_default_request(RequestContext::new(100))
+            .build()
+            .await;
+    }
+
+    // Mixed: custom WAL and network, default sync
+    #[allow(dead_code)]
+    async fn custom_wal_and_network_compiles() {
+        let ctx = TestContext::default();
+
+        let _ = EngineBuilder::new(ctx, Config)
+            .with_custom_wal(fake())
+            .with_custom_network(fake(), fake())
+            .with_default_sync(SyncContext::new(JsonCodec))
+            .with_default_consensus(ConsensusContext::new(fake(), fake::<Ed25519Provider>()))
+            .with_default_request(RequestContext::new(100))
+            .build()
+            .await;
+    }
+
+    // Mixed: default WAL, custom network and sync
+    #[allow(dead_code)]
+    async fn custom_network_and_sync_compiles() {
+        let ctx = TestContext::default();
+
+        let _ = EngineBuilder::new(ctx, Config)
+            .with_default_wal(WalContext::new(fake(), ProtobufCodec))
+            .with_custom_network(fake(), fake())
+            .with_custom_sync(fake())
+            .with_default_consensus(ConsensusContext::new(fake(), fake::<Ed25519Provider>()))
+            .with_default_request(RequestContext::new(100))
+            .build()
+            .await;
+    }
+
+    // Different order of configuration (should still work)
+    #[allow(dead_code)]
+    async fn different_order_compiles() {
+        let ctx = TestContext::default();
+
+        let _ = EngineBuilder::new(ctx, Config)
+            .with_default_consensus(ConsensusContext::new(fake(), fake::<Ed25519Provider>()))
+            .with_default_request(RequestContext::new(100))
+            .with_default_wal(WalContext::new(fake(), ProtobufCodec))
+            .with_default_network(NetworkContext::new(fake(), JsonCodec))
+            .with_default_sync(SyncContext::new(JsonCodec))
             .build()
             .await;
     }
