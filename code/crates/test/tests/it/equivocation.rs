@@ -28,6 +28,11 @@ fn check_decided_impl<Ctx: Context>(evidence: &MisbehaviorEvidence<Ctx>) {
     }
 }
 
+// Verifies that sharing a validator key across two nodes
+// induces equivocation and that decide-time `MisbehaviorEvidence`
+// contains double proposals and double prevotes for the equivocator.
+// Nodes 3 and 4 check for proposal and vote equivocation evidence, respectively.
+// They are "specialized" so that the test fails if one type of stops working.
 #[tokio::test]
 pub async fn equivocation_two_vals_same_pk() {
     // Nodes 1 and 2 share a validator key to induce proposal equivocation
