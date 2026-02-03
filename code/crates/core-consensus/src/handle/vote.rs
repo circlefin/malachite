@@ -108,6 +108,10 @@ where
                 validator = %validator_address,
                 "Recording late precommit during Commit step"
             );
+
+            #[cfg(feature = "metrics")]
+            metrics.late_precommits.inc();
+
             let _ = state
                 .driver
                 .votes_mut()

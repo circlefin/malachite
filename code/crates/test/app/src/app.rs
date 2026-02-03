@@ -39,7 +39,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 let params = HeightParams::new(
                     state.get_validator_set(start_height),
                     state.get_timeouts(start_height),
-                    None,
+                    state.config.test.target_time,
                 );
 
                 if reply.send((start_height, params)).is_err() {
@@ -246,7 +246,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         let params = HeightParams::new(
                             state.get_validator_set(state.current_height),
                             state.get_timeouts(state.current_height),
-                            None,
+                            state.config.test.target_time,
                         );
 
                         if reply
@@ -264,7 +264,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         let params = HeightParams::new(
                             state.get_validator_set(state.current_height),
                             state.get_timeouts(state.current_height),
-                            None,
+                            state.config.test.target_time,
                         );
 
                         if reply
@@ -301,7 +301,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         let params = HeightParams::new(
                             state.get_validator_set(state.current_height),
                             state.get_timeouts(state.current_height),
-                            None,
+                            state.config.test.target_time,
                         );
 
                         if reply
@@ -319,7 +319,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         let params = HeightParams::new(
                             state.get_validator_set(state.current_height),
                             state.get_timeouts(state.current_height),
-                            None,
+                            state.config.test.target_time,
                         );
 
                         if reply

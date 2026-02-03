@@ -1,4 +1,5 @@
 mod equivocation;
+mod finalization;
 mod full_nodes;
 mod liveness;
 mod middlewares;

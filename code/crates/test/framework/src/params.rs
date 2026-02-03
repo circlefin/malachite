@@ -78,5 +78,6 @@ impl TestParams {
         config.test.vote_extensions.size = self.vote_extensions.unwrap_or_default();
         config.test.max_retain_blocks = self.max_retain_blocks;
         config.test.stable_block_times = self.stable_block_times;
+        config.test.target_time = self.target_time;
     }
 }

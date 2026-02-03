@@ -177,3 +177,31 @@ fn commit_certificate_with_mixed_valid_and_invalid_votes() {
             expected: 67,
         });
 }
+
+/// Tests extended certificate.
+#[test]
+fn valid_extended_commit_certificate() {
+    // Minimal certificate
+    CertificateTest::<Commit>::new()
+        .with_validators([20, 20, 20, 20, 20, 20, 20])
+        .with_votes(0..5, VoteType::Precommit)
+        .expect_valid();
+
+    // Extended certificate
+    CertificateTest::<Commit>::new()
+        .with_validators([20, 20, 20, 20, 20, 20, 20])
+        .with_votes(1..7, VoteType::Precommit)
+        .expect_valid();
+
+    // Full certificate
+    CertificateTest::<Commit>::new()
+        .with_validators([20, 20, 20, 20, 20, 20, 20])
+        .with_votes(0..7, VoteType::Precommit)
+        .expect_valid();
+
+    // Extended certificate with varied weights; total VP: 100
+    CertificateTest::<Commit>::new()
+        .with_validators([10, 15, 20, 25, 30])
+        .with_votes(1..5, VoteType::Precommit) // validator 1 not needed
+        .expect_valid();
+}

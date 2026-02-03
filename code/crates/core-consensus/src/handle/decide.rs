@@ -122,7 +122,6 @@ where
     if elapsed < target_time {
         // Do not transition to Finalize yet
         let remaining = target_time - elapsed;
-
         let timeout = Timeout::finalize_height(consensus_round, remaining);
         perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
 

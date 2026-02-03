@@ -22,7 +22,7 @@ pub struct TestStep {
     new_state: State<TestContext>,
 }
 
-fn new_signed_proposal(
+pub(crate) fn new_signed_proposal(
     height: Height,
     round: Round,
     value: Value,
@@ -35,7 +35,7 @@ fn new_signed_proposal(
     )
 }
 
-fn new_signed_prevote(
+pub(crate) fn new_signed_prevote(
     height: Height,
     round: Round,
     value: NilOrVal<ValueId>,
@@ -47,7 +47,7 @@ fn new_signed_prevote(
     )
 }
 
-fn new_signed_precommit(
+pub(crate) fn new_signed_precommit(
     height: Height,
     round: Round,
     value: NilOrVal<ValueId>,
@@ -59,7 +59,7 @@ fn new_signed_precommit(
     )
 }
 
-pub fn output_to_input(
+pub(crate) fn output_to_input(
     output: Output<TestContext>,
     sel: &dyn ProposerSelector<TestContext>,
     vs: &ValidatorSet,

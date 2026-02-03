@@ -331,6 +331,22 @@ where
         })
     }
 
+    pub fn on_finalized<F>(&mut self, f: F) -> &mut Self
+    where
+        F: Fn(CommitCertificate<Ctx>, &mut State) -> Result<HandlerResult, eyre::Report>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.on_event(move |event, state| {
+            if let Event::Finalized(commit_certificate) = event {
+                f(commit_certificate, state)
+            } else {
+                Ok(HandlerResult::WaitForNextEvent)
+            }
+        })
+    }
+
     pub fn expect_decisions(&mut self, expected: Expected) -> &mut Self {
         self.steps.push(Step::Expect(expected));
         self
