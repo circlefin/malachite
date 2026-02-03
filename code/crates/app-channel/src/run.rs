@@ -13,10 +13,9 @@ use malachitebft_signing::SigningProvider;
 
 pub use malachitebft_engine::network::NetworkIdentity;
 
-// Re-export context structs and builders from builder module
+// Re-export context structs from builder module
 pub use crate::builder::{
-    ConsensusBuilder, ConsensusContext, NetworkBuilder, NetworkContext, RequestBuilder,
-    RequestContext, SyncBuilder, SyncContext, WalBuilder, WalContext,
+    ConsensusContext, NetworkContext, RequestContext, SyncContext, WalContext,
 };
 
 use crate::app::config::NodeConfig;
@@ -72,11 +71,11 @@ where
     SyncCodec: Clone + codec::SyncCodec<Ctx>,
 {
     EngineBuilder::new(ctx, cfg)
-        .with_wal_builder(WalBuilder::Default(wal_ctx))
-        .with_network_builder(NetworkBuilder::Default(network_ctx))
-        .with_sync_builder(SyncBuilder::Default(sync_ctx))
-        .with_consensus_builder(ConsensusBuilder::Default(consensus_ctx))
-        .with_request_builder(RequestBuilder::Default(request_ctx))
+        .with_default_wal(wal_ctx)
+        .with_default_network(network_ctx)
+        .with_default_sync(sync_ctx)
+        .with_default_consensus(consensus_ctx)
+        .with_default_request(request_ctx)
         .build()
         .await
 }

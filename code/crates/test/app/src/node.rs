@@ -13,10 +13,9 @@ use malachitebft_app_channel::app::events::{RxEvent, TxEvent};
 use malachitebft_app_channel::app::types::core::VotingPower;
 use malachitebft_app_channel::app::types::Keypair;
 use malachitebft_app_channel::{
-    ConsensusBuilder, ConsensusContext, EngineHandle, NetworkBuilder, NetworkContext,
-    RequestBuilder, RequestContext, SyncBuilder, SyncContext, WalBuilder, WalContext,
+    ConsensusContext, EngineBuilder, EngineHandle, NetworkContext, NetworkIdentity, RequestContext,
+    SyncContext, WalContext,
 };
-use malachitebft_app_channel::{EngineBuilder, NetworkIdentity};
 use malachitebft_test::codec::json::JsonCodec;
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::node::{Node, NodeHandle};
@@ -142,19 +141,14 @@ impl Node for App {
             NetworkIdentity::new(config.moniker.clone(), keypair, Some(address.to_string()));
 
         let (mut channels, engine_handle) = EngineBuilder::new(ctx.clone(), config.clone())
-            .with_wal_builder(WalBuilder::default(WalContext::new(
-                wal_path,
-                ProtobufCodec,
-            )))
-            .with_network_builder(NetworkBuilder::default(NetworkContext::new(
-                identity, JsonCodec,
-            )))
-            .with_consensus_builder(ConsensusBuilder::default(ConsensusContext::new(
+            .with_default_wal(WalContext::new(wal_path, ProtobufCodec))
+            .with_default_network(NetworkContext::new(identity, JsonCodec))
+            .with_default_consensus(ConsensusContext::new(
                 address,
                 self.get_signing_provider(self.private_key.clone()),
-            )))
-            .with_sync_builder(SyncBuilder::default(SyncContext::new(JsonCodec)))
-            .with_request_builder(RequestBuilder::default(RequestContext::new(100)))
+            ))
+            .with_default_sync(SyncContext::new(JsonCodec))
+            .with_default_request(RequestContext::new(100))
             .build()
             .await?;
 

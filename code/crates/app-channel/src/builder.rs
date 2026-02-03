@@ -118,19 +118,6 @@ pub enum WalBuilder<Ctx: Context, Codec> {
     Custom(WalRef<Ctx>),
 }
 
-impl<Ctx: Context, Codec> WalBuilder<Ctx, Codec> {
-    /// Use the default WAL actor with the given context.
-    pub fn default(context: WalContext<Codec>) -> Self {
-        Self::Default(context)
-    }
-}
-
-impl<Ctx: Context> WalBuilder<Ctx, NoCodec> {
-    /// Use a custom WAL actor reference.
-    pub fn custom(wal_ref: WalRef<Ctx>) -> Self {
-        Self::Custom(wal_ref)
-    }
-}
 
 /// Builder for the Network actor - either default or custom.
 #[allow(clippy::large_enum_variant)]
@@ -141,20 +128,6 @@ pub enum NetworkBuilder<Ctx: Context, Codec> {
     Custom((NetworkRef<Ctx>, Sender<NetworkMsg<Ctx>>)),
 }
 
-impl<Ctx: Context, Codec> NetworkBuilder<Ctx, Codec> {
-    /// Use the default Network actor with the given context.
-    pub fn default(context: NetworkContext<Codec>) -> Self {
-        Self::Default(context)
-    }
-}
-
-impl<Ctx: Context> NetworkBuilder<Ctx, NoCodec> {
-    /// Use a custom Network actor reference and message sender.
-    pub fn custom(network_ref: NetworkRef<Ctx>, tx_network: Sender<NetworkMsg<Ctx>>) -> Self {
-        Self::Custom((network_ref, tx_network))
-    }
-}
-
 /// Builder for the Sync actor - either default, custom, or disabled.
 pub enum SyncBuilder<Ctx: Context, Codec> {
     /// Use the default Sync actor with the given context.
@@ -163,44 +136,16 @@ pub enum SyncBuilder<Ctx: Context, Codec> {
     Custom(Option<SyncRef<Ctx>>),
 }
 
-impl<Ctx: Context, Codec> SyncBuilder<Ctx, Codec> {
-    /// Use the default Sync actor with the given context.
-    pub fn default(context: SyncContext<Codec>) -> Self {
-        Self::Default(context)
-    }
-}
-
-impl<Ctx: Context> SyncBuilder<Ctx, NoCodec> {
-    /// Use a custom Sync actor reference, or `None` to disable sync.
-    pub fn custom(sync_ref: Option<SyncRef<Ctx>>) -> Self {
-        Self::Custom(sync_ref)
-    }
-}
-
 /// Builder for the Consensus actor.
 pub enum ConsensusBuilder<Ctx: Context, Signer> {
     /// Use the default Consensus actor with the given context.
     Default(ConsensusContext<Ctx, Signer>),
 }
 
-impl<Ctx: Context, Signer> ConsensusBuilder<Ctx, Signer> {
-    /// Use the default Consensus actor with the given context.
-    pub fn default(context: ConsensusContext<Ctx, Signer>) -> Self {
-        Self::Default(context)
-    }
-}
-
 /// Builder for request channels.
 pub enum RequestBuilder {
     /// Use the default request channel configuration.
     Default(RequestContext),
-}
-
-impl RequestBuilder {
-    /// Use the default request channel configuration.
-    pub fn default(context: RequestContext) -> Self {
-        Self::Default(context)
-    }
 }
 
 /// Builder for constructing the consensus engine with optional custom actors.
@@ -217,11 +162,11 @@ impl RequestBuilder {
 /// # Example: All defaults
 /// ```rust,ignore
 /// let (channels, handle) = EngineBuilder::new(ctx, config)
-///     .with_wal_builder(WalBuilder::Default(WalContext::new(path, codec)))
-///     .with_network_builder(NetworkBuilder::Default(NetworkContext::new(identity, codec)))
-///     .with_sync_builder(SyncBuilder::Default(SyncContext::new(sync_codec)))
-///     .with_consensus_builder(ConsensusBuilder::Default(ConsensusContext::new(address, signer)))
-///     .with_request_builder(RequestBuilder::Default(RequestContext::new(100)))
+///     .with_default_wal(WalContext::new(path, codec))
+///     .with_default_network(NetworkContext::new(identity, codec))
+///     .with_default_sync(SyncContext::new(sync_codec))
+///     .with_default_consensus(ConsensusContext::new(address, signer))
+///     .with_default_request(RequestContext::new(100))
 ///     .build()
 ///     .await?;
 /// ```
@@ -231,11 +176,11 @@ impl RequestBuilder {
 /// let (network_ref, tx_network) = spawn_custom_network_actor().await?;
 ///
 /// let (channels, handle) = EngineBuilder::new(ctx, config)
-///     .with_wal_builder(WalBuilder::Default(WalContext::new(path, codec)))
-///     .with_network_builder(NetworkBuilder::Custom((network_ref, tx_network)))
-///     .with_sync_builder(SyncBuilder::Default(SyncContext::new(sync_codec)))
-///     .with_consensus_builder(ConsensusBuilder::Default(ConsensusContext::new(address, signer)))
-///     .with_request_builder(RequestBuilder::Default(RequestContext::new(100)))
+///     .with_default_wal(WalContext::new(path, codec))
+///     .with_custom_network(network_ref, tx_network)
+///     .with_default_sync(SyncContext::new(sync_codec))
+///     .with_default_consensus(ConsensusContext::new(address, signer))
+///     .with_default_request(RequestContext::new(100))
 ///     .build()
 ///     .await?;
 /// ```
@@ -266,9 +211,8 @@ pub struct EngineBuilder<
     request: Option<RequestBuilder>,
 }
 
-// Implementation for creating a new builder (all flags start as false)
-impl<Ctx, Config, Signer, WalCodec, NetCodec, SyncCodec>
-    EngineBuilder<Ctx, Config, Signer, WalCodec, NetCodec, SyncCodec>
+// Implementation for creating a new builder (all flags start as false, codec types default to NoCodec)
+impl<Ctx, Config, Signer> EngineBuilder<Ctx, Config, Signer, NoCodec, NoCodec, NoCodec>
 where
     Ctx: Context,
 {
@@ -276,6 +220,11 @@ where
     ///
     /// All actor configurations start unconfigured. You must configure all required
     /// actors (WAL, Network, Sync, Consensus, Request) before `build()` becomes available.
+    ///
+    /// The codec type parameters default to `NoCodec` and will be inferred based on
+    /// the methods used to configure each actor:
+    /// - `with_default_*` methods will set the codec type based on the context provided
+    /// - `with_custom_*` methods keep the codec type as `NoCodec`
     pub fn new(ctx: Ctx, config: Config) -> Self {
         Self {
             ctx,
@@ -319,110 +268,11 @@ impl<
 where
     Ctx: Context,
 {
-    /// Set the WAL builder.
-    ///
-    /// Use `WalBuilder::Default(WalContext::new(...))` for the default WAL actor,
-    /// or `WalBuilder::Custom(wal_ref)` for a custom implementation.
+    /// Use the default Consensus actor with the given context.
     #[must_use]
-    pub fn with_wal_builder(
+    pub fn with_default_consensus(
         self,
-        builder: WalBuilder<Ctx, WalCodec>,
-    ) -> EngineBuilder<
-        Ctx,
-        Config,
-        Signer,
-        WalCodec,
-        NetCodec,
-        SyncCodec,
-        true,
-        HAS_NETWORK,
-        HAS_SYNC,
-        HAS_CONSENSUS,
-        HAS_REQUEST,
-    > {
-        EngineBuilder {
-            ctx: self.ctx,
-            config: self.config,
-            wal: Some(builder),
-            network: self.network,
-            sync: self.sync,
-            consensus: self.consensus,
-            request: self.request,
-        }
-    }
-
-    /// Set the Network builder.
-    ///
-    /// Use `NetworkBuilder::Default(NetworkContext::new(...))` for the default Network actor,
-    /// or `NetworkBuilder::Custom((network_ref, tx_network))` for a custom implementation.
-    #[must_use]
-    pub fn with_network_builder(
-        self,
-        builder: NetworkBuilder<Ctx, NetCodec>,
-    ) -> EngineBuilder<
-        Ctx,
-        Config,
-        Signer,
-        WalCodec,
-        NetCodec,
-        SyncCodec,
-        HAS_WAL,
-        true,
-        HAS_SYNC,
-        HAS_CONSENSUS,
-        HAS_REQUEST,
-    > {
-        EngineBuilder {
-            ctx: self.ctx,
-            config: self.config,
-            wal: self.wal,
-            network: Some(builder),
-            sync: self.sync,
-            consensus: self.consensus,
-            request: self.request,
-        }
-    }
-
-    /// Set the Sync builder.
-    ///
-    /// Use `SyncBuilder::Default(SyncContext::new(...))` for the default Sync actor,
-    /// or `SyncBuilder::Custom(Some(sync_ref))` for a custom implementation,
-    /// or `SyncBuilder::Custom(None)` to disable sync.
-    #[must_use]
-    pub fn with_sync_builder(
-        self,
-        builder: SyncBuilder<Ctx, SyncCodec>,
-    ) -> EngineBuilder<
-        Ctx,
-        Config,
-        Signer,
-        WalCodec,
-        NetCodec,
-        SyncCodec,
-        HAS_WAL,
-        HAS_NETWORK,
-        true,
-        HAS_CONSENSUS,
-        HAS_REQUEST,
-    > {
-        EngineBuilder {
-            ctx: self.ctx,
-            config: self.config,
-            wal: self.wal,
-            network: self.network,
-            sync: Some(builder),
-            consensus: self.consensus,
-            request: self.request,
-        }
-    }
-
-    /// Set the Consensus builder.
-    ///
-    /// Use `ConsensusBuilder::Default(ConsensusContext::new(...))` for the default Consensus actor.
-    #[must_use]
-    pub fn with_consensus_builder(
-        self,
-        builder: ConsensusBuilder<Ctx, Signer>,
+        context: ConsensusContext<Ctx, Signer>,
     ) -> EngineBuilder<
         Ctx,
         Config,
@@ -442,18 +292,16 @@ where
             wal: self.wal,
             network: self.network,
             sync: self.sync,
-            consensus: Some(builder),
+            consensus: Some(ConsensusBuilder::Default(context)),
             request: self.request,
         }
     }
 
-    /// Set the Request builder.
-    ///
-    /// Use `RequestBuilder::Default(RequestContext::new(...))` for the default request channels.
+    /// Use the default request channel configuration.
     #[must_use]
-    pub fn with_request_builder(
+    pub fn with_default_request(
         self,
-        builder: RequestBuilder,
+        context: RequestContext,
     ) -> EngineBuilder<
         Ctx,
         Config,
@@ -474,7 +322,384 @@ where
             network: self.network,
             sync: self.sync,
             consensus: self.consensus,
-            request: Some(builder),
+            request: Some(RequestBuilder::Default(context)),
+        }
+    }
+}
+
+// Implementation for default WAL actor (allows changing the WalCodec type)
+impl<
+        Ctx,
+        Config,
+        Signer,
+        NetCodec,
+        SyncCodec,
+        const HAS_NETWORK: bool,
+        const HAS_SYNC: bool,
+        const HAS_CONSENSUS: bool,
+        const HAS_REQUEST: bool,
+    >
+    EngineBuilder<
+        Ctx,
+        Config,
+        Signer,
+        NoCodec,
+        NetCodec,
+        SyncCodec,
+        false,
+        HAS_NETWORK,
+        HAS_SYNC,
+        HAS_CONSENSUS,
+        HAS_REQUEST,
+    >
+where
+    Ctx: Context,
+{
+    /// Use the default WAL actor with the given context.
+    #[must_use]
+    pub fn with_default_wal<WalCodec>(
+        self,
+        context: WalContext<WalCodec>,
+    ) -> EngineBuilder<
+        Ctx,
+        Config,
+        Signer,
+        WalCodec,
+        NetCodec,
+        SyncCodec,
+        true,
+        HAS_NETWORK,
+        HAS_SYNC,
+        HAS_CONSENSUS,
+        HAS_REQUEST,
+    > {
+        EngineBuilder {
+            ctx: self.ctx,
+            config: self.config,
+            wal: Some(WalBuilder::Default(context)),
+            network: self.network,
+            sync: self.sync,
+            consensus: self.consensus,
+            request: self.request,
+        }
+    }
+}
+
+// Implementation for default Network actor (allows changing the NetCodec type)
+impl<
+        Ctx,
+        Config,
+        Signer,
+        WalCodec,
+        SyncCodec,
+        const HAS_WAL: bool,
+        const HAS_SYNC: bool,
+        const HAS_CONSENSUS: bool,
+        const HAS_REQUEST: bool,
+    >
+    EngineBuilder<
+        Ctx,
+        Config,
+        Signer,
+        WalCodec,
+        NoCodec,
+        SyncCodec,
+        HAS_WAL,
+        false,
+        HAS_SYNC,
+        HAS_CONSENSUS,
+        HAS_REQUEST,
+    >
+where
+    Ctx: Context,
+{
+    /// Use the default Network actor with the given context.
+    #[must_use]
+    pub fn with_default_network<NetCodec>(
+        self,
+        context: NetworkContext<NetCodec>,
+    ) -> EngineBuilder<
+        Ctx,
+        Config,
+        Signer,
+        WalCodec,
+        NetCodec,
+        SyncCodec,
+        HAS_WAL,
+        true,
+        HAS_SYNC,
+        HAS_CONSENSUS,
+        HAS_REQUEST,
+    > {
+        EngineBuilder {
+            ctx: self.ctx,
+            config: self.config,
+            wal: self.wal,
+            network: Some(NetworkBuilder::Default(context)),
+            sync: self.sync,
+            consensus: self.consensus,
+            request: self.request,
+        }
+    }
+}
+
+// Implementation for default Sync actor (allows changing the SyncCodec type)
+impl<
+        Ctx,
+        Config,
+        Signer,
+        WalCodec,
+        NetCodec,
+        const HAS_WAL: bool,
+        const HAS_NETWORK: bool,
+        const HAS_CONSENSUS: bool,
+        const HAS_REQUEST: bool,
+    >
+    EngineBuilder<
+        Ctx,
+        Config,
+        Signer,
+        WalCodec,
+        NetCodec,
+        NoCodec,
+        HAS_WAL,
+        HAS_NETWORK,
+        false,
+        HAS_CONSENSUS,
+        HAS_REQUEST,
+    >
+where
+    Ctx: Context,
+{
+    /// Use the default Sync actor with the given context.
+    #[must_use]
+    pub fn with_default_sync<SyncCodec>(
+        self,
+        context: SyncContext<SyncCodec>,
+    ) -> EngineBuilder<
+        Ctx,
+        Config,
+        Signer,
+        WalCodec,
+        NetCodec,
+        SyncCodec,
+        HAS_WAL,
+        HAS_NETWORK,
+        true,
+        HAS_CONSENSUS,
+        HAS_REQUEST,
+    > {
+        EngineBuilder {
+            ctx: self.ctx,
+            config: self.config,
+            wal: self.wal,
+            network: self.network,
+            sync: Some(SyncBuilder::Default(context)),
+            consensus: self.consensus,
+            request: self.request,
+        }
+    }
+}
+
+// Implementation for custom WAL actor
+impl<
+        Ctx,
+        Config,
+        Signer,
+        NetCodec,
+        SyncCodec,
+        const HAS_NETWORK: bool,
+        const HAS_SYNC: bool,
+        const HAS_CONSENSUS: bool,
+        const HAS_REQUEST: bool,
+    >
+    EngineBuilder<
+        Ctx,
+        Config,
+        Signer,
+        NoCodec,
+        NetCodec,
+        SyncCodec,
+        false,
+        HAS_NETWORK,
+        HAS_SYNC,
+        HAS_CONSENSUS,
+        HAS_REQUEST,
+    >
+where
+    Ctx: Context,
+{
+    /// Use a custom WAL actor reference.
+    #[must_use]
+    pub fn with_custom_wal(
+        self,
+        wal_ref: WalRef<Ctx>,
+    ) -> EngineBuilder<
+        Ctx,
+        Config,
+        Signer,
+        NoCodec,
+        NetCodec,
+        SyncCodec,
+        true,
+        HAS_NETWORK,
+        HAS_SYNC,
+        HAS_CONSENSUS,
+        HAS_REQUEST,
+    > {
+        EngineBuilder {
+            ctx: self.ctx,
+            config: self.config,
+            wal: Some(WalBuilder::Custom(wal_ref)),
+            network: self.network,
+            sync: self.sync,
+            consensus: self.consensus,
+            request: self.request,
+        }
+    }
+}
+
+// Implementation for custom Network actor
+impl<
+        Ctx,
+        Config,
+        Signer,
+        WalCodec,
+        SyncCodec,
+        const HAS_WAL: bool,
+        const HAS_SYNC: bool,
+        const HAS_CONSENSUS: bool,
+        const HAS_REQUEST: bool,
+    >
+    EngineBuilder<
+        Ctx,
+        Config,
+        Signer,
+        WalCodec,
+        NoCodec,
+        SyncCodec,
+        HAS_WAL,
+        false,
+        HAS_SYNC,
+        HAS_CONSENSUS,
+        HAS_REQUEST,
+    >
+where
+    Ctx: Context,
+{
+    /// Use a custom Network actor reference and message sender.
+    #[must_use]
+    pub fn with_custom_network(
+        self,
+        network_ref: NetworkRef<Ctx>,
+        tx_network: Sender<NetworkMsg<Ctx>>,
+    ) -> EngineBuilder<
+        Ctx,
+        Config,
+        Signer,
+        WalCodec,
+        NoCodec,
+        SyncCodec,
+        HAS_WAL,
+        true,
+        HAS_SYNC,
+        HAS_CONSENSUS,
+        HAS_REQUEST,
+    > {
+        EngineBuilder {
+            ctx: self.ctx,
+            config: self.config,
+            wal: self.wal,
+            network: Some(NetworkBuilder::Custom((network_ref, tx_network))),
+            sync: self.sync,
+            consensus: self.consensus,
+            request: self.request,
+        }
+    }
+}
+
+// Implementation for custom Sync actor
+impl<
+        Ctx,
+        Config,
+        Signer,
+        WalCodec,
+        NetCodec,
+        const HAS_WAL: bool,
+        const HAS_NETWORK: bool,
+        const HAS_CONSENSUS: bool,
+        const HAS_REQUEST: bool,
+    >
+    EngineBuilder<
+        Ctx,
+        Config,
+        Signer,
+        WalCodec,
+        NetCodec,
+        NoCodec,
+        HAS_WAL,
+        HAS_NETWORK,
+        false,
+        HAS_CONSENSUS,
+        HAS_REQUEST,
+    >
+where
+    Ctx: Context,
+{
+    /// Use a custom Sync actor reference.
+    #[must_use]
+    pub fn with_custom_sync(
+        self,
+        sync_ref: SyncRef<Ctx>,
+    ) -> EngineBuilder<
+        Ctx,
+        Config,
+        Signer,
+        WalCodec,
+        NetCodec,
+        NoCodec,
+        HAS_WAL,
+        HAS_NETWORK,
+        true,
+        HAS_CONSENSUS,
+        HAS_REQUEST,
+    > {
+        EngineBuilder {
+            ctx: self.ctx,
+            config: self.config,
+            wal: self.wal,
+            network: self.network,
+            sync: Some(SyncBuilder::Custom(Some(sync_ref))),
+            consensus: self.consensus,
+            request: self.request,
+        }
+    }
+
+    /// Disable the Sync actor.
+    #[must_use]
+    pub fn with_no_sync(
+        self,
+    ) -> EngineBuilder<
+        Ctx,
+        Config,
+        Signer,
+        WalCodec,
+        NetCodec,
+        NoCodec,
+        HAS_WAL,
+        HAS_NETWORK,
+        true,
+        HAS_CONSENSUS,
+        HAS_REQUEST,
+    > {
+        EngineBuilder {
+            ctx: self.ctx,
+            config: self.config,
+            wal: self.wal,
+            network: self.network,
+            sync: Some(SyncBuilder::Custom(None)),
+            consensus: self.consensus,
+            request: self.request,
         }
     }
 }
@@ -618,7 +843,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use malachitebft_test::codec::json::JsonCodec;
     use malachitebft_test::{Ed25519Provider, TestContext};
 
     use super::*;
@@ -652,18 +876,15 @@ mod tests {
     }
 
     #[allow(dead_code)]
-    async fn custom_builder_compiles() {
+    async fn builder_compiles() {
         let ctx = TestContext::default();
 
         let _ = EngineBuilder::new(ctx, Config)
-            .with_wal_builder(WalBuilder::custom(fake()))
-            .with_network_builder(NetworkBuilder::custom(fake(), fake()))
-            .with_sync_builder(SyncBuilder::default(SyncContext::new(JsonCodec)))
-            .with_consensus_builder(ConsensusBuilder::default(ConsensusContext::new(
-                fake(),
-                fake::<Ed25519Provider>(),
-            )))
-            .with_request_builder(RequestBuilder::Default(RequestContext::new(100)))
+            .with_custom_wal(fake())
+            .with_custom_network(fake(), fake())
+            .with_custom_sync(fake())
+            .with_default_consensus(ConsensusContext::new(fake(), fake::<Ed25519Provider>()))
+            .with_default_request(RequestContext::new(100))
             .build()
             .await;
     }
