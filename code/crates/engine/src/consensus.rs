@@ -533,17 +533,6 @@ where
                         {
                             error!(%from, "Error when processing vote: {e}");
                         }
-
-                        if state
-                            .consensus
-                            .as_ref()
-                            .and_then(|consensus| {
-                                consensus.driver.vote_evidence().is_last_equivocation(&vote)
-                            })
-                            .is_some()
-                        {
-                            self.metrics.equivocation_votes.inc();
-                        }
                     }
 
                     NetworkEvent::Proposal(from, proposal) => {
@@ -565,17 +554,6 @@ where
                             .await
                         {
                             error!(%from, "Error when processing proposal: {e}");
-                        }
-
-                        if state
-                            .consensus
-                            .as_ref()
-                            .and_then(|c| {
-                                c.driver.proposal_evidence().is_last_equivocation(&proposal)
-                            })
-                            .is_some()
-                        {
-                            self.metrics.equivocation_proposals.inc();
                         }
                     }
 
@@ -1279,6 +1257,27 @@ where
                 assert!(!certificate.commit_signatures.is_empty());
 
                 self.wal_flush(state.phase).await?;
+
+                let proposal_evidence_count = evidence
+                    .proposals
+                    .iter()
+                    .map(|addr| evidence.proposals.get(addr).map_or(0, |v| v.len()))
+                    .sum::<usize>();
+                let vote_evidence_count = evidence
+                    .votes
+                    .iter()
+                    .map(|addr| evidence.votes.get(addr).map_or(0, |v| v.len()))
+                    .sum::<usize>();
+                if proposal_evidence_count > 0 {
+                    self.metrics
+                        .equivocation_proposals
+                        .inc_by(proposal_evidence_count as u64);
+                }
+                if vote_evidence_count > 0 {
+                    self.metrics
+                        .equivocation_votes
+                        .inc_by(vote_evidence_count as u64);
+                }
 
                 self.tx_event.send(|| Event::Decided {
                     commit_certificate: certificate.clone(),

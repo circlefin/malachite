@@ -217,9 +217,19 @@ where
         self.proposal_keeper.evidence()
     }
 
+    /// Remove and return recorded evidence of proposal equivocation for this height.
+    pub fn take_proposal_evidence(&mut self) -> proposal_keeper::EvidenceMap<Ctx> {
+        self.proposal_keeper.take_evidence()
+    }
+
     /// Return recorded evidence of vote equivocation for this height.
     pub fn vote_evidence(&self) -> &malachitebft_core_votekeeper::EvidenceMap<Ctx> {
         self.vote_keeper.evidence()
+    }
+
+    /// Remove and return recorded evidence of vote equivocation for this height.
+    pub fn take_vote_evidence(&mut self) -> malachitebft_core_votekeeper::EvidenceMap<Ctx> {
+        self.vote_keeper.take_evidence()
     }
 
     /// Return the proposer for the current round.

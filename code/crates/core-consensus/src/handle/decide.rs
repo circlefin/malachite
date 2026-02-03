@@ -83,8 +83,8 @@ where
     }
 
     let evidence = MisbehaviorEvidence {
-        proposals: state.driver.proposal_evidence().to_owned(),
-        votes: state.driver.vote_evidence().to_owned(),
+        proposals: state.driver.take_proposal_evidence(),
+        votes: state.driver.take_vote_evidence(),
     };
 
     perform!(

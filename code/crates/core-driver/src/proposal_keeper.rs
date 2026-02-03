@@ -227,6 +227,11 @@ where
         &self.evidence
     }
 
+    /// Remove and return all recorded evidence.
+    pub fn take_evidence(&mut self) -> EvidenceMap<Ctx> {
+        core::mem::take(&mut self.evidence)
+    }
+
     /// Store a proposal, checking for conflicts and storing evidence of equivocation if necessary.
     pub fn store_proposal(&mut self, proposal: SignedProposal<Ctx>, validity: Validity) {
         let per_round = self.per_round.entry(proposal.round()).or_default();
@@ -256,7 +261,6 @@ where
     Ctx: Context,
 {
     map: BTreeMap<Ctx::Address, Vec<DoubleProposal<Ctx>>>,
-    last: Option<(Ctx::Address, DoubleProposal<Ctx>)>,
 }
 
 impl<Ctx> EvidenceMap<Ctx>
@@ -278,20 +282,6 @@ where
         self.map.get(address)
     }
 
-    /// Check if the given proposal is the last equivocation recorded. If it is, return the
-    /// address of the validator and the evidence.
-    pub fn is_last_equivocation(
-        &self,
-        proposal: &SignedProposal<Ctx>,
-    ) -> Option<(Ctx::Address, DoubleProposal<Ctx>)> {
-        self.last
-            .as_ref()
-            .filter(|(address, (_, conflicting))| {
-                address == proposal.validator_address() && conflicting == proposal
-            })
-            .cloned()
-    }
-
     /// Add evidence of equivocating proposals, ie. two proposals submitted by the same validator,
     /// but with different values but for the same height and round.
     ///
@@ -305,19 +295,11 @@ where
 
         if let Some(evidence) = self.map.get_mut(conflicting.validator_address()) {
             evidence.push((existing.clone(), conflicting.clone()));
-            self.last = Some((
-                conflicting.validator_address().clone(),
-                (existing, conflicting),
-            ));
         } else {
             self.map.insert(
                 conflicting.validator_address().clone(),
                 vec![(existing.clone(), conflicting.clone())],
             );
-            self.last = Some((
-                conflicting.validator_address().clone(),
-                (existing, conflicting),
-            ));
         }
     }
 

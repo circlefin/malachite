@@ -14,7 +14,6 @@ where
     Ctx: Context,
 {
     map: BTreeMap<Ctx::Address, Vec<DoubleVote<Ctx>>>,
-    last: Option<(Ctx::Address, DoubleVote<Ctx>)>,
 }
 
 impl<Ctx> EvidenceMap<Ctx>
@@ -36,20 +35,6 @@ where
         self.map.get(address)
     }
 
-    /// Check if the given vote is the last equivocation recorded. If it is, return the
-    /// address of the validator and the evidence.
-    pub fn is_last_equivocation(
-        &self,
-        vote: &SignedVote<Ctx>,
-    ) -> Option<(Ctx::Address, DoubleVote<Ctx>)> {
-        self.last
-            .as_ref()
-            .filter(|(address, (_, conflicting))| {
-                address == vote.validator_address() && conflicting == vote
-            })
-            .cloned()
-    }
-
     /// Add evidence of equivocating votes, ie. two votes submitted by the same validator,
     /// but with different values but for the same height and round.
     ///
@@ -63,19 +48,11 @@ where
 
         if let Some(evidence) = self.map.get_mut(conflicting.validator_address()) {
             evidence.push((existing.clone(), conflicting.clone()));
-            self.last = Some((
-                conflicting.validator_address().clone(),
-                (existing, conflicting),
-            ));
         } else {
             self.map.insert(
                 conflicting.validator_address().clone(),
                 vec![(existing.clone(), conflicting.clone())],
             );
-            self.last = Some((
-                conflicting.validator_address().clone(),
-                (existing, conflicting),
-            ));
         }
     }
 

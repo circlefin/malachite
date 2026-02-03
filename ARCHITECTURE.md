@@ -191,12 +191,8 @@ Inputs, Effects, and the Context are the three key types that make up the Malach
 
 ### Equivocation Evidence
 
-Malachite detects and surfaces validator equivocation in two ways:
-
-- Immediate events: When a conflicting proposal or vote is received, the engine emits `Event::ProposalEquivocationEvidence` or `Event::VoteEquivocationEvidence` with the full pair of signed messages.
-  These are useful for real-time telemetry and alerting.
-- Decide-time evidence: On `Effect::Decide`, Malachite includes a `MisbehaviorEvidence` that aggregates all equivocating proposals and votes observed in the decided height.
-  This is delivered to the host and application alongside the `CommitCertificate`.
+Malachite detects and surfaces validator equivocation at decide time: on `Effect::Decide`, Malachite includes a `MisbehaviorEvidence` that aggregates all equivocating proposals and votes observed in the decided height.
+This is delivered to the host and application alongside the `CommitCertificate`.
 
 Evidence structure:
 
@@ -209,7 +205,7 @@ Metrics:
 - `malachitebft_core_consensus_equivocation_proposals`: counter incremented on each detected proposal equivocation
 - `malachitebft_core_consensus_equivocation_votes`: counter incremented on each detected vote equivocation
 
-Applications can subscribe to engine events for immediate signals and also consume decide-time evidence to persist or act on aggregated misbehavior per height.
+Applications can consume decide-time evidence to persist or act on aggregated misbehavior per height.
 
 ## Going further
 
