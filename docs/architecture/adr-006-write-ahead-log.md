@@ -102,9 +102,9 @@ On the other hand, it interacts the host to request some actions
 ([Effects](./adr-004-coroutine-effect-system.md#effect) in in Malachite's parlance)
 to be performed.
 For instance, core consensus layer receives messages from the network
-(`Proposal` or `Vote` inputs), verifies its signatures (`VerifySignature`
-effect), and forwards it to the driver.
-It the result of this processing is a message, core consensus layer requests
+(`Proposal` or `Vote` inputs), verifies their signatures (`VerifySignature`
+effect), and forwards them to the driver.
+If the result of this processing is a message, core consensus layer requests
 its signing (`SignProposal` or `SignVote` effects) to the signer and its
 broadcast (`PublishConsensusMsg` effect) to the network.
 Since the WAL is a functionality implemented by the host, the interaction of
@@ -152,7 +152,7 @@ progress in the consensus protocol.
 The case of expired timeouts is less evident.
 Timeouts are scheduled when some conditions on the received messages are
 observed.
-While their expiration leads to state transitions, provided that the process is
+Their expiration leads to state transitions, provided that the process is
 still in the same consensus step when they were scheduled.
 When the process is replaying inputs from the WAL during recovery, the ordinary
 consensus execution should schedule the same timeouts scheduled before the
@@ -200,7 +200,7 @@ it is supposed to be small, together with its application-evaluated validity.
 
 A WAL enables crash-recovery behavior in systems that can be modelled as
 deterministic state machines.
-This, for example, that starting from an initial state `s0` and applying
+For example when starting from an initial state `s0` and applying
 inputs `i1` and `i2`, the system transitions to states `s1` and `s2`, respectively.
 This also means that starting from state `s1` and only applying input `i2`,
 the state machine is also replayed until it reaches the same state `s2`.
@@ -257,7 +257,7 @@ This definition enables the following operational design for the WAL component:
    were not yet persisted -> synchronous writes or `flush()`.
 
 Put in different words, inputs that do not (immediately) lead to an output, or
-to a relevant state transition, can be logged in foreground and in a best
+to a relevant state transition, can be logged in background and in a best
 effort manner.
 While the production of an output demands a synchronous, blocking call to
 persist all the outstanding inputs.
@@ -267,7 +267,7 @@ persist all the outstanding inputs.
 
 ### Replay
 
-All discussion of previous boils down to this point: how is the operation of a
+All previous discussion boils down to this point: how is the operation of a
 recovery process?
 A first and relevant consideration is that Malachite, a priori, does not
 know if it either in ordinary or recovery operation.
@@ -277,7 +277,7 @@ At this point Malachite should open and load the WAL contents to check if it
 includes entries (inputs) belonging to height `H`:
 if there are, it is in recovery mode; otherwise, in regular operation.
 If the concept of [Checkpoints](#checkpoints) is adopted, this verification is
-even simpler and already described on the associated section (Case 2).
+even simpler and already described in the associated section (Case 2).
 
 When the application requests Malachite to start height `H` via `StartHeight`
 input, the consensus [driver](./adr-001-architecture.md#consensus-driver) is
@@ -442,14 +442,14 @@ height number, write it to the WAL header, and truncates the WAL.
 It is invoked whenever `StartHeight` input is received from the application
 for the first time for a height.
 
-> It is also use in the case of the `RestartHeight` input, an _unsafe command_
+> It is also used in the case of the `RestartHeight` input, an _unsafe command_
 > that instructs Malachite to _ignore_ the WAL's contents.
 
 Note that all entries in the WAL must belong to the height the WAL is
 configured for, written as part of its header.
 This means that messages from future heights `H'> H`, where `H` is the highest
 height for which a `StartHeight` input was processed, are not persisted.
-The are only buffered in main memory and therefore lost upon restarts.
+They are only buffered in main memory and therefore lost upon restarts.
 Which is safe, since they do not (immediately) produce state transitions.
 
 ### Replay
@@ -515,7 +515,7 @@ requires attention: the corruption of the last entries of the WAL.
 Notice that crashes can happen at any time of the execution, including the
 instant at which a WAL entry is being persisted to stable storage.
 A crash at this point will likely render a suffix of the WAL corrupted.
-This, however, is not a treat for safety because the outputs produced by the
+This, however, is not a threat for safety because the outputs produced by the
 associated state-machine transition are only emitted after the WAL is
 [persisted](#persistence-1).
 Since the append operation has not been concluded with success, the output was
