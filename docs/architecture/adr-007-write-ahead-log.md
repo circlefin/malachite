@@ -1,4 +1,4 @@
-# ADR 006: Consensus Write-Ahead Log (WAL)
+# ADR 007: Consensus Write-Ahead Log (WAL)
 
 ## Changelog
 
