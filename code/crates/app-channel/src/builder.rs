@@ -28,6 +28,20 @@ use crate::msgs::NetworkMsg;
 use crate::spawn::{spawn_host_actor, spawn_network_actor};
 use crate::{Channels, EngineHandle};
 
+enum NoCodec {}
+
+impl<T> codec::Codec<T> for NoCodec {
+    type Error = std::convert::Infallible;
+
+    fn decode(&self, _: bytes::Bytes) -> std::result::Result<T, Self::Error> {
+        unreachable!()
+    }
+
+    fn encode(&self, _: &T) -> std::result::Result<bytes::Bytes, Self::Error> {
+        unreachable!()
+    }
+}
+
 /// Context for spawning the WAL actor.
 pub struct WalContext<Codec> {
     pub path: PathBuf,
@@ -97,6 +111,20 @@ pub enum WalBuilder<Ctx: Context, Codec> {
     Custom(WalRef<Ctx>),
 }
 
+impl<Ctx: Context, Codec> WalBuilder<Ctx, Codec> {
+    /// Use the default WAL actor with the given context.
+    pub fn default(context: WalContext<Codec>) -> Self {
+        Self::Default(context)
+    }
+}
+
+impl<Ctx: Context> WalBuilder<Ctx, NoCodec> {
+    /// Use a custom WAL actor reference.
+    pub fn custom(wal_ref: WalRef<Ctx>) -> Self {
+        Self::Custom(wal_ref)
+    }
+}
+
 /// Builder for the Network actor - either default or custom.
 #[allow(clippy::large_enum_variant)]
 pub enum NetworkBuilder<Ctx: Context, Codec> {
@@ -104,6 +132,20 @@ pub enum NetworkBuilder<Ctx: Context, Codec> {
     Default(NetworkContext<Codec>),
     /// Use a custom Network actor reference and message sender.
     Custom((NetworkRef<Ctx>, Sender<NetworkMsg<Ctx>>)),
+}
+
+impl<Ctx: Context, Codec> NetworkBuilder<Ctx, Codec> {
+    /// Use the default Network actor with the given context.
+    pub fn default(context: NetworkContext<Codec>) -> Self {
+        Self::Default(context)
+    }
+}
+
+impl<Ctx: Context> NetworkBuilder<Ctx, NoCodec> {
+    /// Use a custom Network actor reference and message sender.
+    pub fn custom(network_ref: NetworkRef<Ctx>, tx_network: Sender<NetworkMsg<Ctx>>) -> Self {
+        Self::Custom((network_ref, tx_network))
+    }
 }
 
 /// Builder for the Sync actor - either default, custom, or disabled.
@@ -114,16 +156,44 @@ pub enum SyncBuilder<Ctx: Context, Codec> {
     Custom(Option<SyncRef<Ctx>>),
 }
 
+impl<Ctx: Context, Codec> SyncBuilder<Ctx, Codec> {
+    /// Use the default Sync actor with the given context.
+    pub fn default(context: SyncContext<Codec>) -> Self {
+        Self::Default(context)
+    }
+}
+
+impl<Ctx: Context> SyncBuilder<Ctx, NoCodec> {
+    /// Use a custom Sync actor reference, or `None` to disable sync.
+    pub fn custom(sync_ref: Option<SyncRef<Ctx>>) -> Self {
+        Self::Custom(sync_ref)
+    }
+}
+
 /// Builder for the Consensus actor.
 pub enum ConsensusBuilder<Ctx: Context, Signer> {
     /// Use the default Consensus actor with the given context.
     Default(ConsensusContext<Ctx, Signer>),
 }
 
+impl<Ctx: Context, Signer> ConsensusBuilder<Ctx, Signer> {
+    /// Use the default Consensus actor with the given context.
+    pub fn default(context: ConsensusContext<Ctx, Signer>) -> Self {
+        Self::Default(context)
+    }
+}
+
 /// Builder for request channels.
 pub enum RequestBuilder {
     /// Use the default request channel configuration.
     Default(RequestContext),
+}
+
+impl RequestBuilder {
+    /// Use the default request channel configuration.
+    pub fn default(context: RequestContext) -> Self {
+        Self::Default(context)
+    }
 }
 
 /// Builder for constructing the consensus engine with optional custom actors.

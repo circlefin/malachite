@@ -142,19 +142,19 @@ impl Node for App {
             NetworkIdentity::new(config.moniker.clone(), keypair, Some(address.to_string()));
 
         let (mut channels, engine_handle) = EngineBuilder::new(ctx.clone(), config.clone())
-            .with_wal_builder(WalBuilder::Default(WalContext::new(
+            .with_wal_builder(WalBuilder::default(WalContext::new(
                 wal_path,
                 ProtobufCodec,
             )))
-            .with_network_builder(NetworkBuilder::Default(NetworkContext::new(
+            .with_network_builder(NetworkBuilder::default(NetworkContext::new(
                 identity, JsonCodec,
             )))
-            .with_consensus_builder(ConsensusBuilder::Default(ConsensusContext::new(
+            .with_consensus_builder(ConsensusBuilder::default(ConsensusContext::new(
                 address,
                 self.get_signing_provider(self.private_key.clone()),
             )))
-            .with_sync_builder(SyncBuilder::Default(SyncContext::new(JsonCodec)))
-            .with_request_builder(RequestBuilder::Default(RequestContext::new(100)))
+            .with_sync_builder(SyncBuilder::default(SyncContext::new(JsonCodec)))
+            .with_request_builder(RequestBuilder::default(RequestContext::new(100)))
             .build()
             .await?;
 
