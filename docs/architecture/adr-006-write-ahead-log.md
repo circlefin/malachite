@@ -262,7 +262,7 @@ effort manner.
 While the production of an output demands a synchronous, blocking call to
 persist all the outstanding inputs.
 
-> It is not 100% clear to me if we adopted this approach.
+> TODO: remove this comment, as this is discussed in [Persistence](#persistence-1).
 > I have the impression that all WAL append calls are synchronous.
 
 ### Replay
