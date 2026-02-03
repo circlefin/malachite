@@ -284,8 +284,8 @@ If there are WAL entries belonging to height `H`, the process is in recovery
 mode: all height `H` inputs are replayed in the order with which they appear in
 the WAL.
 Once there are no (further) inputs to be replayed, the process starts its
-ordinary operation, processing received inputs, starting from the network
-inputs buffered in recovery mode.
+ordinary operation, processing received inputs, starting from the ones buffered
+while in recovery mode.
 
 It remains to clarify what is the difference between replaying (during recovery)
 and processing (in regular operation) an input?
