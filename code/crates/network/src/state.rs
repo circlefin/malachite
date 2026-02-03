@@ -584,11 +584,10 @@ impl State {
                 swarm,
             );
 
-            // Decide whether to disconnect:
-            // - if persistent_peers_only always disconnect (they're no longer allowed)
-            // - else only disconnect if no inbound connection exists
-            //   (keep inbound: they connected to us, might have us as their persistent peer)
-            // Note: Check discovery directly since peer might have both inbound and outbound
+            // Disconnect from this peer that is not a persistent peer if:
+            // - `persistent_peers_only` is configured
+            // - or outbound connection exists
+            // Do not disconnect if there are inbound connections as the peer might have us as their persistent peer
             if swarm.is_connected(&peer_id) {
                 let has_inbound = self.discovery.is_inbound_peer(&peer_id);
 
