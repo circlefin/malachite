@@ -185,7 +185,7 @@ it only constraints that any implementation satisfies the `Ctx::Proposal` trait.
 Furthermore, this trait is generic over a type which we call a `Context`.
 The full definition of `Ctx::Proposal` trait looks like this:
 
-<https://github.com/circlefin/malachite/blob/53a9d9e071e773ff959465f2836648d8ad2a5c74/code/crates/core-types/src/proposal.rs#L5-L28>
+https://github.com/circlefin/malachite/blob/53a9d9e071e773ff959465f2836648d8ad2a5c74/code/crates/core-types/src/proposal.rs#L5-L28
 
 Inputs, Effects, and the Context are the three key types that make up the Malachite consensus library.
 
