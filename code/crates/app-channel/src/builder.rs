@@ -29,7 +29,7 @@ use crate::msgs::NetworkMsg;
 use crate::spawn::{spawn_host_actor, spawn_network_actor};
 use crate::{Channels, EngineHandle};
 
-enum NoCodec {}
+pub enum NoCodec {}
 
 impl<T> codec::Codec<T> for NoCodec {
     type Error = std::convert::Infallible;
