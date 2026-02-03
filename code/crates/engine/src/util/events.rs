@@ -10,8 +10,7 @@ use malachitebft_core_consensus::{
     SignedConsensusMsg, WalEntry,
 };
 use malachitebft_core_types::{
-    CommitCertificate, Context, DoubleProposal, DoubleVote, PolkaCertificate, Round,
-    RoundCertificate, SignedVote, ValueOrigin,
+    CommitCertificate, Context, PolkaCertificate, Round, RoundCertificate, SignedVote, ValueOrigin,
 };
 
 pub type RxEvent<Ctx> = broadcast::Receiver<Event<Ctx>>;
@@ -66,16 +65,6 @@ pub enum Event<Ctx: Context> {
     WalReplayError(Arc<ConsensusError<Ctx>>),
     WalResetError(Arc<eyre::Report>),
     WalCorrupted(Arc<io::Error>),
-    ProposalEquivocationEvidence {
-        proposal_height: Ctx::Height,
-        address: Ctx::Address,
-        evidence: DoubleProposal<Ctx>,
-    },
-    VoteEquivocationEvidence {
-        vote_height: Ctx::Height,
-        address: Ctx::Address,
-        evidence: DoubleVote<Ctx>,
-    },
 }
 
 impl<Ctx: Context> fmt::Display for Event<Ctx> {
@@ -129,20 +118,6 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
             }
             Event::SkipRoundCertificate(certificate) => {
                 write!(f, "SkipRoundCertificate: {certificate:?})")
-            }
-            Event::ProposalEquivocationEvidence {
-                proposal_height,
-                address,
-                evidence,
-            } => {
-                write!(f, "ProposalEquivocationEvidence(height: {proposal_height}, address: {address}, evidence: {evidence:?})")
-            }
-            Event::VoteEquivocationEvidence {
-                vote_height,
-                address,
-                evidence,
-            } => {
-                write!(f, "VoteEquivocationEvidence(height: {vote_height}, address: {address}, evidence: {evidence:?})")
             }
         }
     }

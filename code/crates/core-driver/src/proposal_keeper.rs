@@ -228,15 +228,11 @@ where
     }
 
     /// Store a proposal, checking for conflicts and storing evidence of equivocation if necessary.
-    pub fn store_proposal(
-        &mut self,
-        proposal: SignedProposal<Ctx>,
-        validity: Validity,
-    ) -> Result<(), RecordProposalError<Ctx>> {
+    pub fn store_proposal(&mut self, proposal: SignedProposal<Ctx>, validity: Validity) {
         let per_round = self.per_round.entry(proposal.round()).or_default();
 
         match per_round.add(proposal, validity) {
-            Ok(()) => Ok(()),
+            Ok(()) => (),
 
             Err(RecordProposalError::ConflictingProposal {
                 existing,
@@ -247,12 +243,7 @@ where
                     "Received equivocating proposal {:?}, existing {:?}",
                     conflicting, existing
                 );
-                self.evidence.add(existing.clone(), conflicting.clone());
-
-                Err(RecordProposalError::ConflictingProposal {
-                    existing,
-                    conflicting,
-                })
+                self.evidence.add(existing, conflicting);
             }
         }
     }
@@ -328,5 +319,12 @@ where
                 (existing, conflicting),
             ));
         }
+    }
+
+    /// Iterate over all addresses with recorded proposal equivocations.
+    pub fn iter(
+        &self,
+    ) -> alloc::collections::btree_map::Keys<'_, Ctx::Address, Vec<DoubleProposal<Ctx>>> {
+        self.map.keys()
     }
 }

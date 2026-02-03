@@ -195,8 +195,7 @@ where
         let proposal = signed_proposal.message.clone();
 
         // Store the proposal and its validity
-        let _ = self
-            .proposal_keeper
+        self.proposal_keeper
             .store_proposal(signed_proposal, validity);
 
         self.multiplex_proposal(proposal, validity)

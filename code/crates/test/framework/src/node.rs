@@ -7,8 +7,7 @@ use tracing::info;
 use malachitebft_app::config::NodeConfig;
 use malachitebft_core_consensus::{LocallyProposedValue, MisbehaviorEvidence, SignedConsensusMsg};
 use malachitebft_core_types::{
-    CommitCertificate, Context, DoubleProposal, DoubleVote, Height, SignedVote, Vote, VoteType,
-    VotingPower,
+    CommitCertificate, Context, Height, SignedVote, Vote, VoteType, VotingPower,
 };
 use malachitebft_engine::util::events::Event;
 use malachitebft_test::middleware::{DefaultMiddleware, Middleware};
@@ -38,6 +37,7 @@ where
 pub enum HandlerResult {
     WaitForNextEvent,
     ContinueTest,
+    SleepAndContinueTest(Duration),
 }
 
 pub type EventHandler<Ctx, S> =
@@ -301,58 +301,6 @@ where
         self.on_event(move |event, state| {
             if let Event::Published(SignedConsensusMsg::Vote(vote)) = event {
                 f(vote, state)
-            } else {
-                Ok(HandlerResult::WaitForNextEvent)
-            }
-        })
-    }
-
-    pub fn on_vote_equivocation_evidence<F>(&mut self, f: F) -> &mut Self
-    where
-        F: Fn(
-                Ctx::Height,
-                Ctx::Address,
-                DoubleVote<Ctx>,
-                &mut State,
-            ) -> Result<HandlerResult, eyre::Report>
-            + Send
-            + Sync
-            + 'static,
-    {
-        self.on_event(move |event, state| {
-            if let Event::VoteEquivocationEvidence {
-                vote_height,
-                address,
-                evidence,
-            } = event
-            {
-                f(vote_height, address, evidence, state)
-            } else {
-                Ok(HandlerResult::WaitForNextEvent)
-            }
-        })
-    }
-
-    pub fn on_proposal_equivocation_evidence<F>(&mut self, f: F) -> &mut Self
-    where
-        F: Fn(
-                Ctx::Height,
-                Ctx::Address,
-                DoubleProposal<Ctx>,
-                &mut State,
-            ) -> Result<HandlerResult, eyre::Report>
-            + Send
-            + Sync
-            + 'static,
-    {
-        self.on_event(move |event, state| {
-            if let Event::ProposalEquivocationEvidence {
-                proposal_height,
-                address,
-                evidence,
-            } = event
-            {
-                f(proposal_height, address, evidence, state)
             } else {
                 Ok(HandlerResult::WaitForNextEvent)
             }

@@ -78,4 +78,11 @@ where
             ));
         }
     }
+
+    /// Iterate over all addresses with recorded vote equivocations.
+    pub fn iter(
+        &self,
+    ) -> alloc::collections::btree_map::Keys<'_, Ctx::Address, Vec<DoubleVote<Ctx>>> {
+        self.map.keys()
+    }
 }
