@@ -13,7 +13,7 @@ concurrency:
 jobs:
   codespell:
     name: Check spelling
-    runs-on: github-hosted-small
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: crate-ci/typos@master
