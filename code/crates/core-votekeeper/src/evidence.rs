@@ -47,11 +47,11 @@ where
         );
 
         if let Some(evidence) = self.map.get_mut(conflicting.validator_address()) {
-            evidence.push((existing.clone(), conflicting.clone()));
+            evidence.push((existing, conflicting));
         } else {
             self.map.insert(
                 conflicting.validator_address().clone(),
-                vec![(existing.clone(), conflicting.clone())],
+                vec![(existing, conflicting)],
             );
         }
     }

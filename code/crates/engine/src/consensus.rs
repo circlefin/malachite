@@ -528,7 +528,7 @@ where
                             .send(|| Event::Received(SignedConsensusMsg::Vote(vote.clone())));
 
                         if let Err(e) = self
-                            .process_input(&myself, state, ConsensusInput::Vote(vote.clone()))
+                            .process_input(&myself, state, ConsensusInput::Vote(vote))
                             .await
                         {
                             error!(%from, "Error when processing vote: {e}");
@@ -546,11 +546,7 @@ where
                         }
 
                         if let Err(e) = self
-                            .process_input(
-                                &myself,
-                                state,
-                                ConsensusInput::Proposal(proposal.clone()),
-                            )
+                            .process_input(&myself, state, ConsensusInput::Proposal(proposal))
                             .await
                         {
                             error!(%from, "Error when processing proposal: {e}");
