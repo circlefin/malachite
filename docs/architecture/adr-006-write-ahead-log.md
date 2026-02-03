@@ -200,8 +200,8 @@ it is supposed to be small, together with its application-evaluated validity.
 
 A WAL enables crash-recovery behavior in systems that can be modelled as
 deterministic state machines.
-For example when starting from an initial state `s0` and applying
-inputs `i1` and `i2`, the system transitions to states `s1` and `s2`, respectively.
+For example, when starting from an initial state `s0` and applying inputs `i1`
+and `i2`, the system transitions first to state `s1`, then to state `s2`.
 This also means that starting from state `s1` and only applying input `i2`,
 the state machine is also replayed until it reaches the same state `s2`.
 State `s1` in the example is a checkpoint.
@@ -521,7 +521,7 @@ associated state-machine transition are only emitted after the WAL is
 Since the append operation has not been concluded with success, the output was
 not emitted, therefore it is just like it has never been produced.
 
-In summary, as discussed in this [Jira ticket][jira-corrupt], corruptions at
+In summary, as discussed in [issue #1434][issue-corrupt], corruptions at
 the tail of the WAL should not produce a critical error.
 The entries successfully decoded should be replayed, and the WAL should be
 truncated to the end of the latest successfully decoded entry.
@@ -557,7 +557,7 @@ Accepted
 
 * [Tendermint pseudo-code][pseudo-code]
 * [spec: Consensus Write-Ahead Log (WAL) #469](https://github.com/circlefin/malachite/issues/469)
-* [Jira ticket 771: Consensus WAL may contain corrupted data][jira-corrupt]
+* [Consensus WAL may contain corrupted data #1434][issue-corrupt]
 * [ADR 001: High Level Architecture for Tendermint Consensus Implementation in Rust](./adr-001-architecture.md)
 * [ADR 003: Propagation of Proposed Values][adr-003]
 * [ADR 004: Coroutine-Based Effect System for Consensus](./adr-004-coroutine-effect-system.md)
@@ -568,5 +568,5 @@ Accepted
 [engine-crate]: https://github.com/circlefin/malachite/tree/main/code/crates/engine
 [wal-crate]: https://github.com/circlefin/malachite/tree/main/code/crates/wal
 [pseudo-code]: https://github.com/circlefin/malachite/blob/main/specs/consensus/pseudo-code.md
-[jira-corrupt]: https://circlepay.atlassian.net/browse/CCHAIN-771
+[issue-corrupt]: https://github.com/circlefin/malachite/issues/1434
 [adr-003]: ./adr-003-values-propagation.md
