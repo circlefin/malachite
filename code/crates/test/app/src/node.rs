@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use rand::{CryptoRng, RngCore};
+use rand::{CryptoRng, Rng, RngCore};
 use tokio::task::JoinHandle;
 use tracing::Instrument;
 
@@ -65,6 +65,15 @@ pub struct App {
     pub private_key: PrivateKey,
     pub start_height: Option<Height>,
     pub middleware: Option<Arc<dyn Middleware>>,
+}
+
+impl App {
+    fn get_network_keypair(&self) -> Keypair {
+        // Separate network identity
+        let rng = rand::thread_rng();
+        let net_pk = self.generate_private_key(rng);
+        Keypair::ed25519_from_bytes(net_pk.inner().to_bytes()).unwrap()
+    }
 }
 
 #[async_trait]
@@ -134,7 +143,7 @@ impl Node for App {
 
         let public_key = self.get_public_key(&self.private_key);
         let address = self.get_address(&public_key);
-        let keypair = self.get_keypair(self.private_key.clone());
+        let keypair = self.get_network_keypair(); // Separate network identity
         let genesis = self.load_genesis()?;
         let wal_path = self.get_home_dir().join("wal").join("consensus.wal");
         let identity =
@@ -229,7 +238,6 @@ impl CanMakeConfig for App {
 fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Config {
     use itertools::Itertools;
     use rand::seq::IteratorRandom;
-    use rand::Rng;
 
     const CONSENSUS_BASE_PORT: usize = 27000;
     const METRICS_BASE_PORT: usize = 29000;

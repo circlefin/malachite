@@ -18,7 +18,7 @@ env:
 jobs:
   changes:
     name: Detect changes
-    runs-on: github-hosted-small
+    runs-on: ubuntu-latest
     permissions:
       pull-requests: read
     outputs:
@@ -36,7 +36,7 @@ jobs:
     name: Unit Tests
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: github-hosted-small
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: code
@@ -72,7 +72,7 @@ jobs:
     name: Integration Tests
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: github-hosted-small
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: code
@@ -117,7 +117,7 @@ jobs:
     name: no_std compatibility
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: github-hosted-small
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: code
@@ -136,7 +136,7 @@ jobs:
     name: Clippy
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: github-hosted-small
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -155,7 +155,7 @@ jobs:
     name: Formatting
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: github-hosted-small
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -173,7 +173,7 @@ jobs:
     name: MSRV
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: github-hosted-small
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: code
@@ -194,7 +194,7 @@ jobs:
     name: Standalone
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: github-hosted-small
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: code
