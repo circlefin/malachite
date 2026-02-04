@@ -217,14 +217,20 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 evidence: _,
                 reply,
             } => {
+                assert!(!certificate.commit_signatures.is_empty());
+
                 let Some(reply) = reply else {
                     info!(
                         height = %certificate.height,
                         round = %certificate.round,
                         value = %certificate.value_id,
                         signatures = certificate.commit_signatures.len(),
-                        "Consensus has decided on value, finalization will follow"
+                        "Consensus has decided on value, Finalized message will follow"
                     );
+                    // Storing now so Sync can see it
+                    if let Err(e) = state.store_decided(certificate).await {
+                        error!("Failed to store decided value: {e}");
+                    }
                     sleep(Duration::from_millis(500)).await; //TODO: Needed in this case?
                     continue;
                 };
@@ -236,7 +242,6 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     signatures = certificate.commit_signatures.len(),
                     "Consensus has decided on value, committing..."
                 );
-                assert!(!certificate.commit_signatures.is_empty());
 
                 // When that happens, we store the decided value in our store
                 match state.commit(certificate).await {
