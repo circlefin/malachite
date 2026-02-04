@@ -7,16 +7,17 @@ use eyre::eyre;
 use libp2p::request_response;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
-use tracing::{error, info, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 
 use malachitebft_codec as codec;
 use malachitebft_core_consensus::{LivenessMsg, SignedConsensusMsg};
 use malachitebft_core_types::{
-    Context, PolkaCertificate, RoundCertificate, SignedProposal, SignedVote, Validator,
-    ValidatorSet,
+    Context, PolkaCertificate, RoundCertificate, SignedProposal, SignedVote, SigningScheme,
+    Validator, ValidatorProof, ValidatorSet,
 };
 use malachitebft_metrics::SharedRegistry;
 use malachitebft_network::handle::CtrlHandle;
+use malachitebft_network::validator_proof::VerificationResult;
 use malachitebft_network::{Channel, Config, Event, PeerId};
 
 pub use malachitebft_network::{
@@ -117,6 +118,12 @@ pub enum NetworkEvent<Ctx: Context> {
 
     RoundCertificate(PeerId, RoundCertificate<Ctx>),
 
+    /// A validator proof received from a peer (one-way, no response expected).
+    ValidatorProofReceived {
+        peer_id: PeerId,
+        proof: ValidatorProof<Ctx>,
+    },
+
     Status(PeerId, Status<Ctx>),
 
     SyncRequest(InboundRequestId, PeerId, Request<Ctx>),
@@ -184,6 +191,15 @@ pub enum Msg<Ctx: Context> {
     /// Update the validator set for the current height
     UpdateValidatorSet(Ctx::ValidatorSet),
 
+    /// Send a validator proof verification result.
+    /// If result is Valid and public_key is Some, stores the proof for this peer.
+    ValidatorProofVerified {
+        peer_id: PeerId,
+        result: VerificationResult,
+        /// Public key bytes from verified proof (only set on Valid)
+        public_key: Option<Vec<u8>>,
+    },
+
     // Event emitted by the gossip layer
     #[doc(hidden)]
     NewEvent(Event),
@@ -198,6 +214,7 @@ where
     Codec: codec::Codec<SignedConsensusMsg<Ctx>>,
     Codec: codec::Codec<StreamMessage<Ctx::ProposalPart>>,
     Codec: codec::Codec<LivenessMsg<Ctx>>,
+    Codec: codec::Codec<ValidatorProof<Ctx>>,
     Codec: SyncCodec<Ctx>,
 {
     type Msg = Msg<Ctx>;
@@ -458,6 +475,40 @@ where
                 return Ok(());
             }
 
+            Msg::NewEvent(Event::ValidatorProofReceived {
+                peer_id,
+                proof_bytes,
+            }) => {
+                let proof: ValidatorProof<Ctx> = match self.codec.decode(proof_bytes) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        error!(%peer_id, "Failed to decode validator proof: {e:?}");
+                        // Send invalid signature result - peer will be disconnected
+                        ctrl_handle
+                            .validator_proof_verified(peer_id, VerificationResult::Invalid, None)
+                            .await?;
+                        return Ok(());
+                    }
+                };
+
+                // Verify peer_id in proof matches sender
+                let sender_peer_id_bytes = peer_id.to_bytes();
+                if proof.peer_id != sender_peer_id_bytes {
+                    warn!(
+                        %peer_id,
+                        proof_peer_id = %hex::encode(&proof.peer_id),
+                        "Validator proof peer_id does not match sender, rejecting"
+                    );
+                    ctrl_handle
+                        .validator_proof_verified(peer_id, VerificationResult::Invalid, None)
+                        .await?;
+                    return Ok(());
+                }
+
+                debug!(%peer_id, public_key = %hex::encode(&proof.public_key), "Received validator proof");
+                output_port.send(NetworkEvent::ValidatorProofReceived { peer_id, proof });
+            }
+
             Msg::NewEvent(Event::Sync(raw_msg)) => match raw_msg {
                 RawMessage::Request {
                     request_id,
@@ -507,16 +558,29 @@ where
                     "Updating validator set: {} validators",
                     validator_set.count()
                 );
+
                 // Convert ValidatorSet to Vec<ValidatorInfo>
-                // Note: We don't pass the Ctx to the network layer
+                // Note: We encode public keys to bytes for network layer matching
                 let validators: Vec<_> = validator_set
                     .iter()
                     .map(|v| malachitebft_network::ValidatorInfo {
                         address: v.address().to_string(),
+                        public_key: Ctx::SigningScheme::encode_public_key(v.public_key()),
                         voting_power: v.voting_power(),
                     })
                     .collect();
                 ctrl_handle.update_validator_set(validators).await?;
+            }
+
+            Msg::ValidatorProofVerified {
+                peer_id,
+                result,
+                public_key,
+            } => {
+                debug!(%peer_id, ?result, public_key = ?public_key.as_ref().map(hex::encode), "Sending validator proof verification result");
+                ctrl_handle
+                    .validator_proof_verified(peer_id, result, public_key)
+                    .await?;
             }
 
             Msg::DumpState(_) => unreachable!("DumpState handled above to ensure a reply"),

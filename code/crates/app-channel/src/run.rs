@@ -13,7 +13,7 @@ use malachitebft_engine::network::{NetworkMsg, NetworkRef};
 use malachitebft_engine::node::NodeRef;
 use malachitebft_engine::util::events::TxEvent;
 use malachitebft_engine::util::output_port::{OutputPort, OutputPortSubscriberTrait};
-use malachitebft_signing::SigningProvider;
+use malachitebft_signing::{SigningProvider, SigningProviderExt};
 
 pub use malachitebft_engine::network::NetworkIdentity;
 
@@ -24,6 +24,7 @@ use crate::app::spawn::{
 };
 use crate::app::types::codec;
 use crate::app::types::core::Context;
+pub use crate::app::types::Keypair;
 use crate::msgs::{ConsensusRequest, NetworkRequest};
 use crate::spawn::{spawn_host_actor, spawn_network_actor};
 use crate::Channels;
@@ -40,25 +41,32 @@ impl EngineHandle {
 }
 
 pub struct NetworkContext<Codec> {
-    pub identity: NetworkIdentity,
+    pub moniker: String,
+    pub keypair: Keypair,
     pub codec: Codec,
 }
 
 impl<Codec> NetworkContext<Codec> {
-    pub fn new(identity: NetworkIdentity, codec: Codec) -> Self {
-        Self { identity, codec }
+    pub fn new(moniker: String, keypair: Keypair, codec: Codec) -> Self {
+        Self {
+            moniker,
+            keypair,
+            codec,
+        }
     }
 }
 
 pub struct ConsensusContext<Ctx: Context, Signer> {
     pub address: Ctx::Address,
+    pub public_key_bytes: Vec<u8>,
     pub signing_provider: Signer,
 }
 
 impl<Ctx: Context, Signer> ConsensusContext<Ctx, Signer> {
-    pub fn new(address: Ctx::Address, signing_provider: Signer) -> Self {
+    pub fn new(address: Ctx::Address, public_key_bytes: Vec<u8>, signing_provider: Signer) -> Self {
         Self {
             address,
+            public_key_bytes,
             signing_provider,
         }
     }
@@ -110,9 +118,32 @@ where
         return Err(eyre!("Value sync batch size cannot be zero"));
     }
 
+    // Create and sign a validator certificate
+    // The certificate proves ownership of the consensus public key via the libp2p peer ID
+    let peer_id_bytes = network_ctx.keypair.public().to_peer_id().to_bytes();
+    let certificate = consensus_ctx
+        .signing_provider
+        .sign_validator_proof(consensus_ctx.public_key_bytes.clone(), peer_id_bytes)
+        .await
+        .map_err(|e| eyre!("Failed to sign validator certificate: {e:?}"))?;
+
+    // Encode the certificate to bytes for broadcasting
+    let proof_bytes = network_ctx
+        .codec
+        .encode(&certificate)
+        .map_err(|e| eyre!("Failed to encode validator certificate: {e:?}"))?;
+
+    // Create node identity with signed proof
+    let identity = NetworkIdentity::new_validator(
+        network_ctx.moniker,
+        network_ctx.keypair,
+        consensus_ctx.address.to_string(),
+        proof_bytes,
+    );
+
     // Spawn consensus gossip
     let (network, tx_network) = spawn_network_actor(
-        network_ctx.identity,
+        identity,
         cfg.consensus(),
         cfg.value_sync(),
         &registry,

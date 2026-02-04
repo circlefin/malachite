@@ -47,14 +47,11 @@ impl PeerInfo {
             peer_id: peer_id.to_string(),
             address: self.address.to_string(),
             peer_type: self.peer_type,
-            // Only include consensus_address for validators, otherwise "none"
-            consensus_address: if self.peer_type.is_validator()
-                && self.consensus_address != "unknown"
-            {
-                self.consensus_address.clone()
-            } else {
-                "none".to_string()
-            },
+            // Show verified consensus_address if known, "none" if never verified
+            consensus_address: self
+                .consensus_address
+                .clone()
+                .unwrap_or_else(|| "none".to_string()),
         }
     }
 }
@@ -234,34 +231,35 @@ impl Metrics {
     }
 
     /// Update peer type in metrics (e.g., when validator set changes)
-    /// Note: Due to Prometheus label immutability, old metrics with the old peer_type will remain stale
+    /// Note: Due to Prometheus label immutability, old metrics with the old labels will remain stale
+    ///
+    /// Takes both old_peer_info (for stale labels) and new_peer_info (for current labels)
+    /// because consensus_address may change along with peer_type.
     pub(crate) fn update_peer_type(
         &mut self,
         peer_id: &PeerId,
         old_peer_info: &PeerInfo,
-        new_peer_type: PeerType,
+        new_peer_info: &PeerInfo,
+        new_score: f64,
     ) {
         if let Some(slot) = self.peer_slots.get(peer_id) {
-            // Mark old peer_type entry as stale
+            // Mark old entry as stale
             let old_labels = old_peer_info.to_labels(peer_id, slot);
             self.discovered_peers
                 .get_or_create(&old_labels)
                 .set(i64::MIN);
 
-            // Create new peer_info with updated type for new labels
-            let mut new_peer_info = old_peer_info.clone();
-            new_peer_info.peer_type = new_peer_type;
-
-            // Create new metric entry with updated peer_type
+            // Create new metric entry with current labels
             let new_labels = new_peer_info.to_labels(peer_id, slot);
+            tracing::debug!(
+                %peer_id,
+                ?new_labels,
+                new_score,
+                "Setting metric for peer type change"
+            );
             self.discovered_peers
                 .get_or_create(&new_labels)
-                .set(old_peer_info.score as i64);
-
-            debug!(
-                "Updated peer type for {peer_id} from {:?} to {:?}",
-                old_peer_info.peer_type, new_peer_type
-            );
+                .set(new_score as i64);
         }
     }
 }

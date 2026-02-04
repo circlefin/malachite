@@ -2427,10 +2427,13 @@ dependencies = [
 name = "informalsystems-malachitebft-network"
 version = "0.7.0-pre"
 dependencies = [
+ "async-trait",
+ "asynchronous-codec",
  "bytes",
  "either",
  "eyre",
  "futures",
+ "hex",
  "informalsystems-malachitebft-discovery",
  "informalsystems-malachitebft-metrics",
  "informalsystems-malachitebft-peer",
@@ -2438,11 +2441,13 @@ dependencies = [
  "libp2p",
  "libp2p-gossipsub",
  "libp2p-scatter",
+ "libp2p-stream",
  "seahash",
  "serde",
  "thiserror 2.0.16",
  "tokio",
  "tracing",
+ "unsigned-varint 0.8.0",
 ]
 
 [[package]]
@@ -3324,6 +3329,20 @@ dependencies = [
  "prometheus-client",
  "tracing",
  "unsigned-varint 0.8.0",
+]
+
+[[package]]
+name = "libp2p-stream"
+version = "0.4.0-alpha"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d6bd8025c80205ec2810cfb28b02f362ab48a01bee32c50ab5f12761e033464"
+dependencies = [
+ "futures",
+ "libp2p-core",
+ "libp2p-identity",
+ "libp2p-swarm",
+ "rand 0.8.5",
+ "tracing",
 ]
 
 [[package]]
@@ -5730,6 +5749,11 @@ name = "unsigned-varint"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb066959b24b5196ae73cb057f45598450d2c5f71460e98c49b738086eff9c06"
+dependencies = [
+ "asynchronous-codec",
+ "bytes",
+ "tokio-util",
+]
 
 [[package]]
 name = "untrusted"

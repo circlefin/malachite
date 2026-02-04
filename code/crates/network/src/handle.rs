@@ -5,7 +5,9 @@ use tokio::task;
 
 use malachitebft_peer::PeerId;
 
-use crate::{Channel, CtrlMsg, Event, Multiaddr, PersistentPeerError, PersistentPeersOp};
+use crate::{
+    validator_proof, Channel, CtrlMsg, Event, Multiaddr, PersistentPeerError, PersistentPeersOp,
+};
 
 pub struct RecvHandle {
     peer_id: PeerId,
@@ -74,6 +76,24 @@ impl CtrlHandle {
     ) -> Result<(), eyre::Report> {
         self.tx_ctrl
             .send(CtrlMsg::UpdateValidatorSet(validators))
+            .await?;
+        Ok(())
+    }
+
+    /// Send a validator proof verification result.
+    /// If result is Acknowledged, provide the public_key to store the proof.
+    pub async fn validator_proof_verified(
+        &self,
+        peer_id: crate::PeerId,
+        result: validator_proof::VerificationResult,
+        public_key: Option<Vec<u8>>,
+    ) -> Result<(), eyre::Report> {
+        self.tx_ctrl
+            .send(CtrlMsg::ValidatorProofVerified {
+                peer_id,
+                result,
+                public_key,
+            })
             .await?;
         Ok(())
     }

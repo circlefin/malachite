@@ -11,19 +11,17 @@ const VOTE_DURATION: Duration = Duration::from_millis(50);
 fn check_decided_impl<Ctx: Context>(evidence: &MisbehaviorEvidence<Ctx>) {
     for addr in evidence.proposals.iter() {
         let list = evidence.proposals.get(addr).unwrap();
-        for (p1, p2) in list {
+        if let Some((p1, p2)) = list.first() {
             assert_ne!(p1.value(), p2.value());
-            break;
         }
     }
 
     for addr in evidence.votes.iter() {
         let list = evidence.votes.get(addr).unwrap();
-        for (v1, v2) in list {
+        if let Some((v1, v2)) = list.first() {
             assert_eq!(v1.round(), v2.round());
             assert_eq!(v1.vote_type(), v2.vote_type());
             assert_ne!(v1.value(), v2.value());
-            break;
         }
     }
 }

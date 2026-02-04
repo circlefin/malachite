@@ -46,6 +46,17 @@ impl SigningScheme for Ed25519 {
     fn decode_signature(bytes: &[u8]) -> Result<Self::Signature, Self::DecodingError> {
         Signature::try_from(bytes)
     }
+
+    fn encode_public_key(public_key: &PublicKey) -> Vec<u8> {
+        public_key.as_bytes().to_vec()
+    }
+
+    fn decode_public_key(bytes: &[u8]) -> Result<Self::PublicKey, Self::DecodingError> {
+        let arr: [u8; 32] = bytes
+            .try_into()
+            .map_err(|_| ed25519_consensus::Error::InvalidSliceLength)?;
+        Ok(PublicKey::from_bytes(arr))
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
