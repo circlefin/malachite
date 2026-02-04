@@ -32,4 +32,4 @@ To suggest an ADR, please make use of the [ADR template](./adr-template.md) prov
 | [003](./adr-003-values-propagation.md)      | Propagation of Proposed Values              | Accepted              |
 | [004](./adr-004-coroutine-effect-system.md) | Coroutine-Based Effect System for Consensus | Accepted              |
 | [005](./adr-005-value-sync.md)              | Value Sync Protocol                         | Accepted              |
-| [006](./adr-006-proof-of-validator.md)      | Proof-of-Validator Protocol                 | Partially implemented |
+| [006](./adr-006-proof-of-validator.md)      | Proof-of-Validator Protocol                 | Accepted              |

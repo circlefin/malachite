@@ -23,9 +23,6 @@ Knowing which peers are validators enables better decisions about connection man
 
 This protocol operates as an independent module. It receives validator set updates from an external component (e.g., the application layer in Malachite's model) and maintains its own copy of the current validator set. The protocol is agnostic to when or how often these updates occur—it simply uses the latest validator set to evaluate validator proofs.
 
-**Implementation Note:** In Malachite, we plan to implement this protocol as part of the network layer. The 
-validator set is already broadcast to the network component.  
-
 ## Decision
 
 ### Architecture
@@ -52,6 +49,8 @@ validator set is already broadcast to the network component.
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+**Implementation Note:** In Malachite, we plan to implement this protocol as part of the network layer. The validator set is already broadcast to the network component.
 
 ### Terminology
 
@@ -319,9 +318,10 @@ Consensus keys must be securely stored.
 
 Network key theft is more probable than consensus key theft because network keys are typically stored in less secure mediums.
 If an attacker steals a validator's network private key, it can operate a replay attack:
+
+1. Retrieve a proof produced by the legit validator (via eavesdropping)
 2. Connect to a node using the legit's validator NodeId
 3. Submit the retrieved and legit validator's proof
-1. Retrieve a proof produced by the legit validator (via eavesdropping)
 4. Pass all verification checks
 
 The impact depends on which feature uses the validator information:
@@ -379,7 +379,7 @@ By including `consensus_pub_key` in the proof, we can verify the signature immed
 
 ## Status
 
-Partially implemented
+Accepted
 
 ## Consequences
 
