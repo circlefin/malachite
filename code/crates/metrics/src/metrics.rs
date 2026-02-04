@@ -96,8 +96,8 @@ pub struct Inner {
     /// Number of equivocating proposals
     pub equivocation_proposals: Counter,
 
-    /// Number of late precommits received during finalization period
-    pub late_precommits: Counter,
+    /// Number of additional precommits received during finalization period
+    pub additional_precommits: Counter,
 
     /// Internal state for measuring time taken for consensus
     instant_consensus_started: Arc<AtomicInstant>,
@@ -129,7 +129,7 @@ impl Metrics {
             queue_size: Gauge::default(),
             equivocation_votes: Counter::default(),
             equivocation_proposals: Counter::default(),
-            late_precommits: Counter::default(),
+            additional_precommits: Counter::default(),
             instant_consensus_started: Arc::new(AtomicInstant::empty()),
             instant_block_started: Arc::new(AtomicInstant::empty()),
             instant_step_started: Arc::new(Mutex::new((Step::Unstarted, Instant::now()))),

@@ -100,17 +100,17 @@ where
 
     if state.driver.step_is_commit() {
         // Directly add the vote to the vote keeper without going through state machine
-        // TODO: Do we want the state machine to process late votes in Commit step?
+        // TODO: Do we want the state machine to process additional votes in Commit step?
         if signed_vote.vote_type() == VoteType::Precommit {
             debug!(
                 consensus.height = %consensus_height,
                 vote.round = %vote_round,
                 validator = %validator_address,
-                "Recording late precommit during Commit step"
+                "Recording additional precommit during Commit step"
             );
 
             #[cfg(feature = "metrics")]
-            metrics.late_precommits.inc();
+            metrics.additional_precommits.inc();
 
             let _ = state
                 .driver

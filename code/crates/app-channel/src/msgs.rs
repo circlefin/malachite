@@ -351,7 +351,7 @@ pub enum AppMsg<Ctx: Context> {
         reply: Option<Reply<Next<Ctx>>>,
     },
 
-    /// Notifies the application that a height has been finalized after collecting late precommits.
+    /// Notifies the application that a height has been finalized after collecting additional precommits.
     ///
     /// This message is sent when the target time for the height has been reached,
     /// which may include a delay between `Decided` and `Finalized` messages.
@@ -368,7 +368,7 @@ pub enum AppMsg<Ctx: Context> {
         /// The certificate with extended signatures collected during finalization period
         certificate: CommitCertificate<Ctx>,
 
-        /// The vote extensions received for that height (including late ones)
+        /// The vote extensions received for that height (including additional ones)
         extensions: VoteExtensions<Ctx>,
 
         /// Channel for instructing consensus to start the next height, if desired

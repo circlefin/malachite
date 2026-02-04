@@ -168,7 +168,7 @@ pub enum HostMsg<Ctx: Context> {
         reply_to: Option<RpcReplyPort<Next<Ctx>>>,
     },
 
-    /// Notifies the application that consensus has finalized a height after collecting late precommits.
+    /// Notifies the application that consensus has finalized a height after collecting additional precommits.
     ///
     /// This message is sent when the target time for the height has been reached,
     /// which may include a delay between `Decided` and `Finalized` messages.
@@ -185,7 +185,7 @@ pub enum HostMsg<Ctx: Context> {
         /// The commit certificate with extended signatures collected during finalization period.
         certificate: CommitCertificate<Ctx>,
 
-        /// Vote extensions that were received for this height (including late ones).
+        /// Vote extensions that were received for this height (including additional ones).
         extensions: VoteExtensions<Ctx>,
 
         /// Use this reply port to instruct consensus to start the next height.
