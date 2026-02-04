@@ -196,6 +196,7 @@ where
             HostMsg::Decided {
                 certificate,
                 extensions,
+                evidence,
                 reply_to,
             } => {
                 let (reply, rx) = oneshot::channel();
@@ -204,6 +205,7 @@ where
                     .send(AppMsg::Decided {
                         certificate,
                         extensions,
+                        evidence,
                         reply,
                     })
                     .await?;

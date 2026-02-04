@@ -17,7 +17,7 @@ use malachitebft_core_votekeeper::keeper::VoteKeeper;
 
 use crate::input::Input;
 use crate::output::Output;
-use crate::proposal_keeper::ProposalKeeper;
+use crate::proposal_keeper::{self, ProposalKeeper};
 use crate::Error;
 use crate::ThresholdParams;
 
@@ -210,6 +210,16 @@ where
     /// Return the proposer address for the current round, if any.
     pub fn proposer_address(&self) -> Option<&Ctx::Address> {
         self.proposer.as_ref()
+    }
+
+    /// Remove and return recorded evidence of proposal equivocation.
+    pub fn take_proposal_evidence(&mut self) -> proposal_keeper::EvidenceMap<Ctx> {
+        self.proposal_keeper.take_evidence()
+    }
+
+    /// Remove and return recorded evidence of vote equivocation.
+    pub fn take_vote_evidence(&mut self) -> malachitebft_core_votekeeper::EvidenceMap<Ctx> {
+        self.vote_keeper.take_evidence()
     }
 
     /// Return the proposer for the current round.

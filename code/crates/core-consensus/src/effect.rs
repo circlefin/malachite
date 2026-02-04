@@ -2,7 +2,7 @@ use derive_where::derive_where;
 
 use malachitebft_core_types::*;
 
-use crate::types::{LivenessMsg, SignedConsensusMsg};
+use crate::types::{LivenessMsg, MisbehaviorEvidence, SignedConsensusMsg};
 use crate::{ConsensusMsg, Error, PeerId, Role, VoteExtensionError, WalEntry};
 
 /// Provides a way to construct the appropriate [`Resume`] value to
@@ -153,12 +153,15 @@ where
     /// the value that was decided on, the height and round at which it was decided,
     /// and the aggregated signatures of the validators that committed to it.
     ///
-    /// It also includes the vote extensions that were received for this height.
+    /// In addition, it includes
+    ///   * the vote extensions that were received for this height
+    ///   * any misbehavior evidence (vote/proposal equivocation) detected during the height.
     ///
     /// Resume with: [`resume::Continue`]
     Decide(
         CommitCertificate<Ctx>,
         VoteExtensions<Ctx>,
+        MisbehaviorEvidence<Ctx>,
         resume::Continue,
     ),
 

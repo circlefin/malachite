@@ -213,6 +213,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             AppMsg::Decided {
                 certificate,
                 extensions: _,
+                evidence: _,
                 reply,
             } => {
                 info!(

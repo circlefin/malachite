@@ -20,6 +20,8 @@ pub mod round_votes;
 pub mod round_weights;
 pub mod value_weights;
 
+pub use evidence::EvidenceMap;
+
 /// Represents the weight of a vote,
 /// ie. the voting power of the validator that cast the vote.
 pub type Weight = malachitebft_core_types::VotingPower;

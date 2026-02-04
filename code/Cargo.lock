@@ -2265,6 +2265,7 @@ dependencies = [
  "genawaiter",
  "informalsystems-malachitebft-core-driver",
  "informalsystems-malachitebft-core-types",
+ "informalsystems-malachitebft-core-votekeeper",
  "informalsystems-malachitebft-metrics",
  "informalsystems-malachitebft-peer",
  "informalsystems-malachitebft-signing",

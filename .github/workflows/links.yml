@@ -8,7 +8,7 @@ on:
 
 jobs:
   linkChecker:
-    runs-on: github-hosted-small
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
