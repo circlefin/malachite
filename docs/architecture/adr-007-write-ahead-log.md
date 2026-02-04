@@ -14,9 +14,11 @@ And should do so in a **consistent** way, which can be generally defined as
 follows: a recovering process should be indistinguishable, in terms of its
 outputs, from a process that paused its computation for a long while.
 
-> Notice that consistency is not only a "nice to have" property, but a required one.
+> Notice that consistency is not a "nice to have" property, but a required one.
 > A process that is not consistent, does operate arbitrarily and becomes a
 > potential Byzantine process.
+> Recall that arbitrary behavior does not necessarily mean malicious behaviour:
+> it can the result of bugs or misconfiguration.
 >
 > A textbook example of the impact of not properly handling the recovery of a
 > process is the locking mechanism present in multiple consensus algorithms.
@@ -24,19 +26,19 @@ outputs, from a process that paused its computation for a long while.
 > _locks_ `v` at that round.
 > The lock is a promise to not accept a value different than `v` in future
 > rounds.
-> So, if a value different than `v` is proposed in the next round `r`, the
-> process rejects it by emitting a `Prevote` for `nil`.
+> So, if a value `v' != v` is proposed in the next round `r`, the process
+> must not issue a `Prevote` for `id(v')`: it must reject `v'` it by issuing a
+> `Prevote` for `nil`.
 >
 > The lock on `v` is part of the state of the process.
 > If the process is restarted but its consensus state is not properly
-> recovered, then the process can receive a proposal for a value `v'` in round
-> `r` and misbehave in two ways:
+> recovered, then the process can, considering the example above, receive a
+> proposal for `v' != v` in round `r` and misbehave in two ways:
 >
 > * Amnesia: by "forgetting" about the promise associated to the pre-crash
 >   lock on `v`, accept the proposed value `v' != v`;
-> * Equivocation: for accepting `v'`, to emit a `Prevote` for `id(v')` in
->   round `r`, while before crashing it has emitted a `Prevote` for `nil` in
->   round `r`.
+> * Equivocation: emit a `Prevote` for `id(v')` in round `r`, while before
+>   crashing it has emitted a `Prevote` for `nil` in round `r`.
 
 In order to maintain correctness, i.e. to behave in a consistent way after a
 crash, a process needs to:
@@ -192,9 +194,10 @@ But since the reception of these inputs typically lead to state transitions and
 outputs, it is safer to just store the value returned by the application, which
 it is supposed to be small, together with its application-evaluated validity.
 
-> For reviewers: while looked obvious in the first design, persisting the
-> application inputs (values) appears not to be so crucial, when a
-> well-behaving application is considered.
+> Notice that, while apparently obvious in the first design, persisting the
+> application inputs carrying proposed values and their validity is not really
+> required if Malachite assumes a well-behaving (i.e., deterministic)
+> application that replies consistently to Malachite requests.
 
 ### Checkpoints
 
@@ -370,8 +373,6 @@ If the first `2f Precommit` messages are not persisted to the WAL, a recovering
 process will not produce the same state transition when receiving the missing
 `Precommit`.
 
-> For reviewers: the affirmation above is true, but can be contested.
-
 The [malachitebft-driver](./adr-001-architecture.md#consensus-driver) layer do
 handles single inputs and it is responsible for producing complex inputs to the
 consensus state machine.
@@ -387,7 +388,11 @@ previously validated by the underlying core consensus layer.
 Signatures, however, have to be persisted and are part of outputs, such as the
 decision of a value.
 
-> For reviewers: again, the affirmations above are true, but can be contested.
+> Notice that the driver layer has the most advanced unit test primitives, that
+> can be easily extended and for which Model-Based Testing instances can be
+> produced.
+> By not having WAL-related events at this layer, testing the WAL correctness
+> becomes more challenging.
 
 So, all in all, since the interaction with the WAL has to be managed by the
 [malachitebft-core-consensus][consensus-crate] layer, this layer is aware of
@@ -471,8 +476,6 @@ behaviors, effects, an inputs that are not needed or redundant
 in recovery mode - although it should be used very carefully.
 Once replaying is done, the `Phase::Recovering` flag is cleared and processed
 inputs are appended to the existing WAL, which is not [reset](#reset-1) in this case.
-
-> FIXME: is there any effect whose replay requires particular attention?
 
 ### Persistence
 
