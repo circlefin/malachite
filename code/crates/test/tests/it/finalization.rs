@@ -18,54 +18,24 @@ fn validate_certificate(certificate: &CommitCertificate<TestContext>) {
         "Should have at least quorum signatures"
     );
 }
-
-/// Test finalization WITHOUT target_time set.
-#[tokio::test]
-pub async fn finalize_immediately_without_target_time() {
-    const HEIGHT: u64 = 4;
-
-    let mut test = TestBuilder::<()>::new();
-
-    test.add_node().start().wait_until(HEIGHT).success();
-    test.add_node()
-        .start()
-        .on_decided(|certificate, _m, _s| {
-            validate_certificate(&certificate);
-            Ok(HandlerResult::ContinueTest)
-        })
-        .success();
-    test.add_node()
-        .start()
-        .on_decided(|certificate, _m, _s| {
-            validate_certificate(&certificate);
-            Ok(HandlerResult::ContinueTest)
-        })
-        .success();
-
-    test.build()
-        .run_with_params(
-            Duration::from_secs(10),
-            TestParams {
-                target_time: None, // No target_time - skip finalization period
-                ..TestParams::default()
-            },
-        )
-        .await
-}
-
 #[derive(Default)]
 struct SignatureCountTracker {
     decided_signatures: Option<usize>,
 }
 
-/// Test finalization WITH target_time set.
 #[rstest]
-#[case::default(ValuePayload::ProposalAndParts, false)]
-#[case::with_parts_only(ValuePayload::PartsOnly, false)]
-#[case::with_stable_block_times(ValuePayload::ProposalAndParts, true)]
-#[case::with_both(ValuePayload::PartsOnly, true)]
+#[case::no_target_time(None, ValuePayload::ProposalAndParts, false)]
+#[case::o_target_time(Some(Duration::from_millis(10)), ValuePayload::ProposalAndParts, false)]
+#[case::with_parts_only(Some(Duration::from_millis(1)), ValuePayload::PartsOnly, false)]
+#[case::with_stable_block_times(
+    Some(Duration::from_millis(5)),
+    ValuePayload::ProposalAndParts,
+    true
+)]
+#[case::with_both(Some(Duration::from_millis(15)), ValuePayload::PartsOnly, true)]
 #[tokio::test]
 pub async fn finalize_with_target_time(
+    #[case] target_time: Option<Duration>,
     #[case] value_payload: ValuePayload,
     #[case] stable_block_times: bool,
 ) {
@@ -121,7 +91,7 @@ pub async fn finalize_with_target_time(
         .run_with_params(
             Duration::from_secs(10),
             TestParams {
-                target_time: Some(Duration::from_millis(10)),
+                target_time,
                 value_payload,
                 stable_block_times,
                 ..TestParams::default()

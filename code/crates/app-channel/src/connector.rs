@@ -197,39 +197,15 @@ where
                 certificate,
                 extensions,
                 evidence,
-                reply_to,
             } => {
-                let Some(reply_to) = reply_to else {
-                    self.sender
-                        .send(AppMsg::Decided {
-                            certificate,
-                            extensions,
-                            evidence,
-                            reply: None,
-                        })
-                        .await?;
-                    return Ok(());
-                };
-
-                let (reply, rx) = oneshot::channel();
-
+                // Decided never expects a reply; Finalized will always follow
                 self.sender
                     .send(AppMsg::Decided {
                         certificate,
                         extensions,
                         evidence,
-                        reply: Some(reply),
                     })
                     .await?;
-
-                // Do not block processing of other messages while waiting for the next height
-                tokio::spawn(async move {
-                    if let Ok(next) = rx.await {
-                        if let Err(e) = reply_to.send(next) {
-                            error!("Decided: Failed to send next height and validator set: {e}");
-                        }
-                    }
-                });
             }
 
             HostMsg::Finalized {

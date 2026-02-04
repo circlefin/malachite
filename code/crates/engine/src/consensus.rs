@@ -1268,7 +1268,7 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::Decide(certificate, extensions, evidence, will_finalize, r) => {
+            Effect::Decide(certificate, extensions, evidence, r) => {
                 assert!(!certificate.commit_signatures.is_empty());
 
                 // Sync the WAL to disk before we decide the value
@@ -1305,35 +1305,14 @@ where
                 let height = certificate.height;
 
                 // Notify the host about the decided value
-                if will_finalize {
-                    // Finalization will follow, so don't request a reply
-                    self.host
-                        .cast(HostMsg::Decided {
-                            certificate,
-                            extensions,
-                            evidence,
-                            reply_to: None,
-                        })
-                        .map_err(|e| eyre!("Error when casting decided value to host: {e:?}"))?;
-                } else {
-                    // No finalization, request reply to proceed to next height
-                    self.host
-                        .call_and_forward(
-                            |reply_to| HostMsg::Decided {
-                                certificate,
-                                extensions,
-                                evidence,
-                                reply_to: Some(reply_to),
-                            },
-                            myself,
-                            |next| match next {
-                                Next::Start(h, params) => Msg::StartHeight(h, params),
-                                Next::Restart(h, params) => Msg::RestartHeight(h, params),
-                            },
-                            None,
-                        )
-                        .map_err(|e| eyre!("Error when sending decided value to host: {e:?}"))?;
-                }
+                // Finalization will follow, so don't request a reply
+                self.host
+                    .cast(HostMsg::Decided {
+                        certificate,
+                        extensions,
+                        evidence,
+                    })
+                    .map_err(|e| eyre!("Error when casting decided value to host: {e:?}"))?;
 
                 // Notify the sync actor about the decided height
                 self.sync.send(SyncMsg::Decided(height));

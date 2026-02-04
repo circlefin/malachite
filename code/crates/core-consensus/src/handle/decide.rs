@@ -78,17 +78,6 @@ where
             .observe(proposal_round.as_i64() as f64);
     }
 
-    let will_finalize = state.target_time.is_some();
-
-    #[cfg(feature = "debug")]
-    {
-        if !will_finalize {
-            for trace in state.driver.get_traces() {
-                debug!(%trace, "Decide: Consensus trace");
-            }
-        }
-    }
-
     let evidence = MisbehaviorEvidence {
         proposals: state.driver.take_proposal_evidence(),
         votes: state.driver.take_vote_evidence(),
@@ -100,7 +89,6 @@ where
             certificate.clone(),
             extensions.clone(),
             evidence,
-            will_finalize,
             Default::default()
         )
     );
@@ -108,10 +96,12 @@ where
     let Some(target_time) = state.target_time else {
         debug!(
             height = %height,
-            "No target time set, transitioning to Finalize step, no Finalize effect"
+            "No target time set, finalizing immediately"
         );
 
         apply_driver_input(co, state, metrics, DriverInput::TransitionToFinalize).await?;
+        super::finalize::log_and_finalize(co, state, certificate, extensions).await?;
+
         return Ok(());
     };
 
@@ -128,14 +118,14 @@ where
         debug!(
             height = %height,
             remaining_ms = remaining.as_millis(),
-            "Scheduled Finalized effect"
+            "Scheduled finalization after target time"
         );
     } else {
         debug!(
             height = %height,
             elapsed_ms = elapsed.as_millis(),
             target_ms = target_time.as_millis(),
-            "Target time exceeded, transitioning to Finalize immediately, Finalize effect"
+            "Target time exceeded, finalizing immediately"
         );
 
         apply_driver_input(co, state, metrics, DriverInput::TransitionToFinalize).await?;

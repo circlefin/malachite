@@ -188,20 +188,16 @@ impl Host {
                 reply_to,
             } => on_received_proposal_part(state, part, from, reply_to).await,
 
-            HostMsg::Decided {
+            HostMsg::Decided { certificate, .. } => {
+                // Store the decided certificate so it's available during finalization
+                on_decided_notification(state, certificate).await
+            }
+
+            HostMsg::Finalized {
                 certificate,
                 reply_to,
                 ..
-            } => {
-                let reply_to = reply_to.expect("Starknet never sets target_time");
-                on_decided(state, reply_to, &self.mempool, certificate, &self.metrics).await
-            }
-
-            HostMsg::Finalized { .. } => {
-                unreachable!(
-                    "Starknet never sets target_time, so should never receive HostMsg::Finalized"
-                )
-            }
+            } => on_finalized(state, reply_to, &self.mempool, certificate, &self.metrics).await,
 
             HostMsg::GetDecidedValues { range, reply_to } => {
                 on_get_decided_values(range, state, reply_to).await
@@ -636,12 +632,9 @@ async fn store_proposed_value(
     }
 }
 
-async fn on_decided(
+async fn on_decided_notification(
     state: &mut HostState,
-    reply_to: RpcReplyPort<Next<MockContext>>,
-    mempool: &MempoolRef,
     certificate: CommitCertificate<MockContext>,
-    metrics: &Metrics,
 ) -> Result<(), ActorProcessingErr> {
     let (height, round) = (certificate.height, certificate.round);
 
@@ -666,6 +659,25 @@ async fn on_decided(
     {
         error!(%e, %height, %round, "Failed to store the block");
     }
+
+    info!(%height, %round, "Decided on value, awaiting finalization...");
+
+    Ok(())
+}
+
+async fn on_finalized(
+    state: &mut HostState,
+    reply_to: RpcReplyPort<Next<MockContext>>,
+    mempool: &MempoolRef,
+    certificate: CommitCertificate<MockContext>,
+    metrics: &Metrics,
+) -> Result<(), ActorProcessingErr> {
+    let (height, round) = (certificate.height, certificate.round);
+
+    let all_parts = state
+        .host
+        .part_store
+        .all_parts_by_value_id(&certificate.value_id);
 
     // Update metrics
     let tx_count: usize = all_parts.iter().map(|p| p.tx_count()).sum();
@@ -695,6 +707,8 @@ async fn on_decided(
 
     // Notify Starknet Host of the decision
     state.host.decision(certificate).await;
+
+    info!(%height, %round, "Height finalized");
 
     // Start the next height
     reply_to.send(Next::Start(

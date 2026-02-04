@@ -243,70 +243,20 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             // ie. the precommits together with their (aggregated) signatures.
             AppMsg::Decided {
                 certificate,
-                extensions,
+                extensions: _,
                 evidence,
-                reply,
             } => {
-                let Some(reply) = reply else {
-                    info!(
-                        height = %certificate.height,
-                        round = %certificate.round,
-                        value = %certificate.value_id,
-                        signatures = certificate.commit_signatures.len(),
-                        "Consensus has decided on value (Finalized will follow)"
-                    );
-                    continue;
-                };
-
                 info!(
                     height = %certificate.height,
                     round = %certificate.round,
                     value = %certificate.value_id,
+                    signatures = certificate.commit_signatures.len(),
                     evidence = ?evidence,
-                    "Consensus has decided on value, committing..."
+                    "Consensus has decided on value, awaiting Finalized..."
                 );
 
-                // When that happens, we store the decided value in our store
-                match state.commit(certificate, extensions).await {
-                    Ok(_) => {
-                        // Sleep a bit to slow down the app.
-                        sleep(Duration::from_millis(500)).await;
-
-                        // And then we instruct consensus to start the next height
-                        if reply
-                            .send(Next::Start(
-                                state.current_height,
-                                HeightParams::new(
-                                    state.get_validator_set(state.current_height),
-                                    state.get_timeouts(state.current_height),
-                                    None,
-                                ),
-                            ))
-                            .is_err()
-                        {
-                            error!("Decided: Failed to send StartHeight reply");
-                        }
-                    }
-                    Err(_) => {
-                        let height = state.current_height;
-
-                        // Commit failed, restart the height
-                        error!("Decided: Commit failed, restarting height {height}");
-                        if reply
-                            .send(Next::Restart(
-                                height,
-                                HeightParams::new(
-                                    state.get_validator_set(height),
-                                    state.get_timeouts(height),
-                                    None,
-                                ),
-                            ))
-                            .is_err()
-                        {
-                            error!("Decided: Failed to send RestartHeight reply");
-                        }
-                    }
-                }
+                // Sleep a bit to slow down the app.
+                sleep(Duration::from_millis(500)).await;
             }
 
             AppMsg::Finalized {

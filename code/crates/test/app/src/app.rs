@@ -215,70 +215,20 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 certificate,
                 extensions: _,
                 evidence: _,
-                reply,
             } => {
                 assert!(!certificate.commit_signatures.is_empty());
-
-                let Some(reply) = reply else {
-                    info!(
-                        height = %certificate.height,
-                        round = %certificate.round,
-                        value = %certificate.value_id,
-                        signatures = certificate.commit_signatures.len(),
-                        "Consensus has decided on value, Finalized message will follow"
-                    );
-                    // Storing now so Sync can see it
-                    if let Err(e) = state.store_decided(certificate).await {
-                        error!("Failed to store decided value: {e}");
-                    }
-                    sleep(Duration::from_millis(500)).await; //TODO: Needed in this case?
-                    continue;
-                };
 
                 info!(
                     height = %certificate.height,
                     round = %certificate.round,
                     value = %certificate.value_id,
                     signatures = certificate.commit_signatures.len(),
-                    "Consensus has decided on value, committing..."
+                    "Consensus has decided on value, awaiting Finalized message..."
                 );
 
-                // When that happens, we store the decided value in our store
-                match state.commit(certificate).await {
-                    Ok(_) => {
-                        // And then we instruct consensus to start the next height
-                        // NOTE: `current_height` has already been incremented in `commit()`
-                        let params = HeightParams::new(
-                            state.get_validator_set(state.current_height),
-                            state.get_timeouts(state.current_height),
-                            state.config.test.target_time,
-                        );
-
-                        if reply
-                            .send(Next::Start(state.current_height, params))
-                            .is_err()
-                        {
-                            error!("Failed to send StartHeight reply");
-                        }
-                    }
-                    Err(e) => {
-                        // Commit failed, restart the height
-                        error!("Commit failed: {e}");
-                        error!("Restarting height {}", state.current_height);
-
-                        let params = HeightParams::new(
-                            state.get_validator_set(state.current_height),
-                            state.get_timeouts(state.current_height),
-                            state.config.test.target_time,
-                        );
-
-                        if reply
-                            .send(Next::Restart(state.current_height, params))
-                            .is_err()
-                        {
-                            error!("Failed to send RestartHeight reply");
-                        }
-                    }
+                // Storing now so Sync can see it
+                if let Err(e) = state.store_decided(certificate).await {
+                    error!("Failed to store decided value: {e}");
                 }
 
                 sleep(Duration::from_millis(500)).await;

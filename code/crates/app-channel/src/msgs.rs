@@ -328,14 +328,6 @@ pub enum AppMsg<Ctx: Context> {
     /// the value that was decided on, the height and round at which it was decided,
     /// and the aggregated signatures of the validators that committed to it.
     /// It also includes to the vote extensions received for that height.
-    ///
-    /// When `reply` is `Some`, the application MUST send a [`Next`] message back to consensus,
-    /// instructing it to either start the next height if the application was able to commit
-    /// the decided value, or to restart the current height otherwise.
-    /// If the application does not reply, consensus will stall.
-    ///
-    /// When `reply` is `None`, no reply is expected because a [`Finalized`] message will follow
-    /// after the finalization period. This happens when a target time was configured for the height.
     Decided {
         /// The certificate for the decided value
         certificate: CommitCertificate<Ctx>,
@@ -345,10 +337,6 @@ pub enum AppMsg<Ctx: Context> {
 
         /// Misbehavior evidence observed since last decide
         evidence: MisbehaviorEvidence<Ctx>,
-
-        /// Channel for instructing consensus to start the next height, if desired.
-        /// `None` if `Finalized` will follow.
-        reply: Option<Reply<Next<Ctx>>>,
     },
 
     /// Notifies the application that a height has been finalized after collecting additional precommits.

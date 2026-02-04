@@ -156,16 +156,12 @@ where
     /// In addition, it includes
     ///   * the vote extensions that were received for this height
     ///   * any misbehavior evidence (vote/proposal equivocation) detected during the height.
-    ///   * a boolean flag indicating whether a Finalize effect will follow.
-    ///     * if true, the application must not reply to this Decide message.
-    ///     * if false, the application must reply with Next.
     ///
     /// Resume with: [`resume::Continue`]
     Decide(
         CommitCertificate<Ctx>,
         VoteExtensions<Ctx>,
         MisbehaviorEvidence<Ctx>,
-        bool, // will_finalize
         resume::Continue,
     ),
 

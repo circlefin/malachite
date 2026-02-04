@@ -144,13 +144,6 @@ pub enum HostMsg<Ctx: Context> {
     /// the value that was decided on, the height and round at which it was decided,
     /// and the aggregated signatures of the validators that committed to it.
     /// It also includes to the vote extensions received for that height.
-    ///
-    /// If `reply_to` is `Some`, the application MUST send a [`Next`] message back to consensus,
-    /// instructing it to either start the next height if the application was able to commit
-    /// the decided value, or to restart the current height otherwise.
-    ///
-    /// If `reply_to` is `None`, the application should NOT reply. This happens when a target time
-    /// was set for the height, and a [`HostMsg::Finalized`] message will follow with the reply port.
     Decided {
         /// The commit certificate containing the ID of the value that was decided on,
         /// the the height and round at which it was decided, and the aggregated signatures
@@ -162,10 +155,6 @@ pub enum HostMsg<Ctx: Context> {
 
         /// Misbehavior evidence collected since last height was decided.
         evidence: MisbehaviorEvidence<Ctx>,
-
-        /// Use this reply port to instruct consensus to start the next height.
-        /// `None` when finalization will follow, `Some` when this is the final message.
-        reply_to: Option<RpcReplyPort<Next<Ctx>>>,
     },
 
     /// Notifies the application that consensus has finalized a height after collecting additional precommits.
