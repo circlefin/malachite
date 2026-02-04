@@ -33,12 +33,18 @@ outputs, from a process that paused its computation for a long while.
 > The lock on `v` is part of the state of the process.
 > If the process is restarted but its consensus state is not properly
 > recovered, then the process can, considering the example above, receive a
-> proposal for `v' != v` in round `r` and misbehave in two ways:
+> proposal for `v' != v` in round `r` and misbehave in the following ways:
 >
 > * Amnesia: by "forgetting" about the promise associated to the pre-crash
 >   lock on `v`, accept the proposed value `v' != v`;
 > * Equivocation: emit a `Prevote` for `id(v')` in round `r`, while before
 >   crashing it has emitted a `Prevote` for `nil` in round `r`.
+>
+> Note that this is just an example scenario.
+> There are multiple ways in which a process can misbehave if it loses its
+> state upon recovery.
+> For instance, in the same example, if `v` becomes a locked value, then the
+> proposer of round `r` must re-proposed the valid value `v`.
 
 In order to maintain correctness, i.e. to behave in a consistent way after a
 crash, a process needs to:
