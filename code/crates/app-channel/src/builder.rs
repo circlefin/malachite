@@ -118,7 +118,6 @@ pub enum WalBuilder<Ctx: Context, Codec> {
     Custom(WalRef<Ctx>),
 }
 
-
 /// Builder for the Network actor - either default or custom.
 #[allow(clippy::large_enum_variant)]
 pub enum NetworkBuilder<Ctx: Context, Codec> {

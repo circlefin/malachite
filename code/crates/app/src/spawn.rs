@@ -8,13 +8,13 @@ use eyre::{eyre, Result};
 use tokio::task::JoinHandle;
 use tracing::Span;
 
-use malachitebft_engine::util::output_port::OutputPort;
 use malachitebft_engine::consensus::{Consensus, ConsensusCodec, ConsensusParams, ConsensusRef};
 use malachitebft_engine::host::HostRef;
 use malachitebft_engine::network::{Network, NetworkRef};
 use malachitebft_engine::node::{Node, NodeRef};
 use malachitebft_engine::sync::{Params as SyncParams, Sync, SyncCodec, SyncMsg, SyncRef};
 use malachitebft_engine::util::events::TxEvent;
+use malachitebft_engine::util::output_port::OutputPort;
 use malachitebft_engine::wal::{Wal, WalCodec, WalRef};
 use malachitebft_network::{
     ChannelNames, Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, NetworkIdentity,
