@@ -25,7 +25,7 @@ outputs, from a process that paused its computation for a long while.
 > In Tendermint, a process that emits a `Precommit` for a value `v` also
 > _locks_ `v` at that round.
 > The lock is a promise to not accept a value different than `v` in future
-> rounds.
+> rounds, except if a higher-round lock is produced.
 > So, if a value `v' != v` is proposed in the next round `r`, the process
 > must not issue a `Prevote` for `id(v')`: it must reject `v'` it by issuing a
 > `Prevote` for `nil`.
@@ -112,7 +112,7 @@ Since the WAL is a functionality implemented by the host, the interaction of
 the consensus implementation with the WAL will happen through effects, produced
 by core consensus layer.
 
-The core consensus layer is also responsible for implementing the value
+The core consensus layer also intermediates the value
 dissemination feature of Malachite.
 As discussed in [ADR 003][adr-003], in Malachite the
 dissemination and ordering of values are detached.
@@ -168,9 +168,9 @@ before crashing.
 In other words, since _time_ is non deterministic, time-based event should be
 logged.
 
-The values proposed by the local instance of the application, when the
-process is the proposer of a round, are also an important source of
-non-determinism.
+The values proposed by the local instance of the application when the process
+is the proposer of a round, via the `LocallyProposedValue` input, are also an
+important source of non-determinism.
 As typical applications produce consensus values from values received from
 clients, it is unlikely that the return value of `getValue()` when a process is
 recovering will be the same as it was before the process has crashed.
@@ -234,8 +234,8 @@ Namely, to remove all inputs possibly present in the WAL,
 that by design must refer to previous heights,
 and set up the WAL to log inputs of height `H`.
 
-Case 2. refers to when the process is restarting or recovering,
-and has to replay the WAL content, as described in the [Replay](#replay) section.
+Case 2. refers to when the process is recovering and has to replay the WAL
+content, as described in the [Replay](#replay) section.
 
 ### Persistence
 
@@ -461,9 +461,9 @@ If `WalEntry` instances are returned, the consensus engine is set to
 `Phase::Recovering` and the persisted inputs are replayed by the `wal_replay` method.
 This method reconstructs the associated consensus `Input`s and apply them using the
 `process_input` method, which is the same used to process ordinary inputs.
-The `Phase::Recovering` flag is actually only used to block the `WalAppend`
+The `Phase::Recovering` flag is only used for: (i) blocking the `WalAppend`
 effect from appending again to the WAL inputs that are being replayed,
-as long as blocking calls to the associated WAL's `flush()` method.
+and (ii) blocking calls to the associated WAL's `flush()` method.
 
 As a result, replayed inputs produce outputs, `Effect`s in the consensus engine
 parlance, in the same way as ordinary inputs, the exception being only the
@@ -471,8 +471,11 @@ effects related to persisting inputs to the WAL.
 In any case, the existence of the `Phase::Recovering` flag allows filtering out
 behaviors, effects, an inputs that are not needed or redundant
 in recovery mode - although it should be used very carefully.
-Once replaying is done, the `Phase::Recovering` flag is cleared and processed
-inputs are appended to the existing WAL, which is not [reset](#reset-1) in this case.
+Once replaying is done, the `Phase::Recovering` flag is cleared.
+The WAL is not [reset](#reset-1) and the replayed inputs remain in the WAL for
+the case in which the process crashes or is shut down again.
+In addition, all inputs processed during normal operation are appended to the
+WAL as usual.
 
 ### Persistence
 
