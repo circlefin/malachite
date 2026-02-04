@@ -78,15 +78,28 @@ impl ScoringStrategy for ExponentialMovingAverage {
     fn update_score(&mut self, previous_score: Score, result: SyncResult) -> Score {
         match result {
             SyncResult::Success(response_time) => {
+                let response_time_secs = response_time.as_secs_f64();
+                let threshold_secs = self.slow_threshold.as_secs_f64();
+
                 // Calculate quality score between 0-1 based on response time
-                // We use an exponential decay function to penalize slow responses more heavily
-                let quality = if response_time < self.slow_threshold {
-                    // Fast responses get a high quality score
+                // We use an exponential decay function to penalize slow responses more heavily.
+                let quality = if response_time_secs <= threshold_secs {
                     1.0
                 } else {
-                    // Slow responses get a low quality score based on how slow they were
-                    (-response_time.as_secs_f64() / self.slow_threshold.as_secs_f64()).exp()
+                    // Decay from the threshold, ensuring a smooth drop-off
+                    (-(response_time_secs - threshold_secs) / threshold_secs).exp()
                 };
+
+                println!(
+                    "Response time: {:.3}s, Quality: {:.3}, Previous Score: {:.3}",
+                    response_time_secs, quality, previous_score
+                );
+
+                println!(
+                    "       Updating score: alpha_success: {:.3}, New Score: {:.3}",
+                    self.alpha_success,
+                    self.alpha_success * quality + (1.0 - self.alpha_success) * previous_score
+                );
 
                 // Update score with EMA using alpha_success
                 self.alpha_success * quality + (1.0 - self.alpha_success) * previous_score
