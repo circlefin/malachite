@@ -52,10 +52,10 @@ where
             Input::Vote(vote) => on_vote(co, state, metrics, vote).await,
             Input::TimeoutElapsed(timeout) => on_timeout_elapsed(co, state, metrics, timeout).await,
             Input::StartHeight(..) => {
-                panic!("Received StartHeight input during Commit step")
+                Err(Error::UnexpectedInputInStep("StartHeight", "Commit"))
             }
             Input::Propose(..) => {
-                panic!("Received Propose input during Commit step")
+                Err(Error::UnexpectedInputInStep("Propose", "Commit"))
             }
             _ => {
                 debug!("Ignoring input while in Commit step: {:?}", input);
@@ -69,7 +69,7 @@ where
         match input {
             Input::StartHeight(..) => {}
             Input::Propose(..) => {
-                panic!("Received Propose input during Finalize step")
+                return Err(Error::UnexpectedInputInStep("Propose", "Finalize"));
             }
             _ => {
                 debug!("Ignoring input during Finalize step: {:?}", input);

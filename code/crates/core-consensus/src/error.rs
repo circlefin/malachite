@@ -57,4 +57,8 @@ where
     /// The write-ahead log is corrupted.
     #[error("Write-ahead log is corrupted: {0}")]
     WalCorrupted(Arc<io::Error>),
+
+    /// Received unexpected input during Commit or Finalize step.
+    #[error("Received unexpected input {0} during {1} step")]
+    UnexpectedInputInStep(&'static str, &'static str),
 }

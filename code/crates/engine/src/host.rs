@@ -170,8 +170,9 @@ pub enum HostMsg<Ctx: Context> {
 
     /// Notifies the application that consensus has finalized a height after collecting late precommits.
     ///
-    /// This message is sent after a decision was made and a finalization period elapsed,
-    /// during which additional precommits were collected. The certificate may contain more
+    /// This message is sent when the target time for the height has been reached,
+    /// which may include a delay between `Decided` and `Finalized` messages.
+    /// During this delay, additional precommits may have been collected. The certificate may contain more
     /// signatures than the one sent in the initial Decided message.
     ///
     /// In response to this message, the application MUST send a [`Next`]

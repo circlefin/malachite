@@ -223,7 +223,6 @@ where
                     .await?;
 
                 // Do not block processing of other messages while waiting for the next height
-                // TODO: do we still want to spawn here? I would say we do (app may still want to do stable times itself)
                 tokio::spawn(async move {
                     if let Ok(next) = rx.await {
                         if let Err(e) = reply_to.send(next) {
@@ -248,11 +247,14 @@ where
                     })
                     .await?;
 
-                if let Ok(next) = rx.await {
-                    if let Err(e) = reply_to.send(next) {
-                        error!("Finalized: Failed to send next height and validator set: {e}");
+                // Do not block processing of other messages while waiting for the next height
+                tokio::spawn(async move {
+                    if let Ok(next) = rx.await {
+                        if let Err(e) = reply_to.send(next) {
+                            error!("Finalized: Failed to send next height and validator set: {e}");
+                        }
                     }
-                }
+                });
             }
 
             HostMsg::GetDecidedValues { range, reply_to } => {

@@ -34,7 +34,6 @@ where
         "Timeout elapsed"
     );
 
-    // TODO Is it correct to call finalize_height from here?
     if matches!(timeout.kind, TimeoutKind::FinalizeHeight(_)) {
         if state.driver.step_is_commit() {
             return finalize_height(co, state, metrics).await;
