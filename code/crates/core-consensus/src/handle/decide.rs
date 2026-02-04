@@ -128,7 +128,7 @@ where
         debug!(
             height = %height,
             remaining_ms = remaining.as_millis(),
-            "Staying in Commit step"
+            "Scheduled Finalized effect"
         );
     } else {
         debug!(

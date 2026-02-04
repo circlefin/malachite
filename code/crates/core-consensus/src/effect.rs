@@ -172,7 +172,7 @@ where
     /// Notifies the application that a height has been finalized.
     ///
     /// This message includes an extended commit certificate containing all precommits
-    /// (both timely and late) that were received before the target time expired.
+    /// for the decided value received until the target duration for the height.
     ///
     /// Resume with: [`resume::Continue`]
     Finalize(
