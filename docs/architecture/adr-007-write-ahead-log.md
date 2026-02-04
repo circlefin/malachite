@@ -424,9 +424,8 @@ synchronization protocol (`SyncValueResponse`, which includes a `CommitCertifica
 and by the liveness protocol (`PolkaCertificate` and `RoundCertificate`) are
 not persisted.
 They are all **Certificate**s, namely types that aggregate multiple `Vote` inputs.
-
-> TODO: by not persisting those inputs we may produced inconsistent behavior.
-> If this is not the case, we should explain why they do not need persistence.
+By not persisting those inputs - namely, the `Vote` inputs not already persisted -
+recovering processes may behave inconsistently (see [issue #1445][issue-certs]).
 
 To conclude the list of `Input`s, `StartHeight` is not persisted to the WAL but
 this input leads to either:
@@ -558,6 +557,7 @@ Accepted
   initial discussion of requirements for the WAL
 * [Consensus WAL may contain corrupted data #1434][issue-corrupt]
 * [Consensus WAL should not block upon asynchronous writes #1435][issue-async]
+* [Consensus WAL must store received certificates #1445][issue-certs]
 * [spec: Candidate blocks (full proposed values) store #579][issue-values]
 * [ADR 001: High Level Architecture for Tendermint Consensus Implementation in Rust](./adr-001-architecture.md)
 * [ADR 003: Propagation of Proposed Values][adr-003]
@@ -572,4 +572,5 @@ Accepted
 [issue-corrupt]: https://github.com/circlefin/malachite/issues/1434
 [issue-async]: https://github.com/circlefin/malachite/issues/1435
 [issue-values]: https://github.com/circlefin/malachite/issues/579
+[issue-certs]: https://github.com/circlefin/malachite/issues/1445
 [adr-003]: ./adr-003-values-propagation.md
