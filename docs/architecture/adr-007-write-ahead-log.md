@@ -92,23 +92,22 @@ the driver is also responsible for removing the non-determinism present in
 Tendermint's [pseudo-code][pseudo-code], which in situations when multiple
 `upon` clauses can be activated, assumes that any of them could be chosen at
 random.
-The driver establishes priorities between the potentially complex events, so
-that to render Malachite's operation deterministic.
+The driver establishes priorities among potentially complex events, thereby making Malachite’s operation deterministic.
 
 The third layer of the consensus implementation,
 the [malachitebft-core-consensus][consensus-crate] crate,
 is the interface between consensus and the host.
 On the one hand, it receives inputs from the network, the application, or other
 components, process and forward them to the driver.
-On the other hand, it interacts the host to request some actions
-([Effects](./adr-004-coroutine-effect-system.md#effect) in in Malachite's parlance)
+On the other hand, it interacts with the host to request some actions
+([Effects](./adr-004-coroutine-effect-system.md#effect) in Malachite's parlance)
 to be performed.
 For instance, core consensus layer receives messages from the network
 (`Proposal` or `Vote` inputs), verifies their signatures (`VerifySignature`
 effect), and forwards them to the driver.
-If the result of this processing is a message, core consensus layer requests
-its signing (`SignProposal` or `SignVote` effects) to the signer and its
-broadcast (`PublishConsensusMsg` effect) to the network.
+If this processing results in a message, core consensus layer requests
+its signing from the signer (`SignProposal` or `SignVote` effects) and its
+broadcast to the network (`PublishConsensusMsg` effect) .
 Since the WAL is a functionality implemented by the host, the interaction of
 the consensus implementation with the WAL will happen through effects, produced
 by core consensus layer.
@@ -126,10 +125,10 @@ to form the `Proposal` input provided to the driver and the state machine,
 which are unaware of the operation of the value dissemination protocol.
 
 The fourth and last layer of the consensus implementation is the 
-[malachitebft-engine][engine-crate] crate, which provide a standard
+[malachitebft-engine][engine-crate] crate, which provides a standard
 implementation for all the effects, i.e., interactions with the host system,
-requested the core consensus layer.
-It is the engine the actually implements or interacts with the network layer,
+requested by the core consensus layer.
+It is the engine that actually implements or interacts with the network layer,
 and it would be the engine to provide the interaction with the file system
 needed to implement the consensus WAL.
 
@@ -142,7 +141,7 @@ More specifically:
 1. Consensus messages: `Proposal` and `Vote`, the last representing both
    `Prevote` and `Precomit` votes;
 2. Expired timeouts `TimeoutElapsed(step)`, where `step` is one of
-   `{propose,prevote, precommit}`;
+   `{propose, prevote, precommit}`;
 3. Application input `LocallyProposedValue`: the return of `getValue()` helper
    at the proposer;
 4. Application input `ProposedValue`: received consensus value `v` and its
@@ -192,7 +191,7 @@ supposed to be deterministic and consistent, replaying the same inputs when the
 process recovers.
 But since the reception of these inputs typically lead to state transitions and
 outputs, it is safer to just store the value returned by the application, which
-it is supposed to be small, together with its application-evaluated validity.
+is supposed to be small, together with its application-evaluated validity.
 
 > Notice that, while apparently obvious in the first design, persisting the
 > application inputs carrying proposed values and their validity is not really
@@ -250,7 +249,7 @@ The reason is the adopted definition of consistency, which is derived from the
 outputs produced by a process during regular execution and recovery.
 
 Although seemingly complex, there is very simple definition of
-"all inputs that have lead to the production of an output":
+"all inputs that have led to the production of an output":
 every processed input preceding the production of the output.
 This definition enables the following operational design for the WAL component:
 
@@ -269,8 +268,7 @@ persist all the outstanding inputs.
 
 All previous discussion boils down to this point: how is the operation of a
 recovery process?
-A first and relevant consideration is that Malachite, a priori, does not
-know if it either in ordinary or recovery operation.
+A key initial consideration is that, a priori, Malachite does not know whether it is operating in ordinary or recovery mode.
 The consensus layer, in either operation mode, waits for a `StartHeight` input
 from the application indicating the height number `H` to start.
 At this point Malachite should open and load the WAL contents to check if it
@@ -308,9 +306,9 @@ replayed inputs are produced but not emitted.
 So there is a case where the process transitions to a particular state (say,
 the `precommit` step of a round) but no process sees the output produced by
 that state transition (in the case, a `Precommit` message for that round)
-because it is not emitted during recover.
+because it is not emitted during recovery.
 
-In practical terms, however, the question is whether is acceptable, during recovery,
+In practical terms, however, the question is whether it is acceptable, during recovery,
 to emit the same outputs "again"?
 Or which outputs and associated [Effects](./adr-004-coroutine-effect-system.md#effect)
 should be produced and handled during recovery?
@@ -346,7 +344,7 @@ and runs in its own thread, as part of the
 The interaction between the consensus engine and the WAL routine uses a set of
 messages (`enum WalMsg`), the most relevant being `Append` and `Flush`, `Reset`
 and `StartedHeight`.
-The first messages two are related to the [persistence](#persistence-1) of
+The first two messages are related to the [persistence](#persistence-1) of
 inputs to the WAL;
 `Reset` is related to [checkpoints](#reset);
 and `StartedHeight` is actually related to [replaying inputs](#replay-1),
@@ -461,7 +459,7 @@ The `fetch_entries` method is used to iterate through the WAL and collect all st
 `WalEntry` instances, that are returned to the consensus engine.
 If `WalEntry` instances are returned, the consensus engine is set to
 `Phase::Recovering` and the persisted inputs are replayed by the `wal_replay` method.
-This method reconstructs the associated consensus `Input`s and apply then using the
+This method reconstructs the associated consensus `Input`s and apply them using the
 `process_input` method, which is the same used to process ordinary inputs.
 The `Phase::Recovering` flag is actually only used to block the `WalAppend`
 effect from appending again to the WAL inputs that are being replayed,
@@ -508,8 +506,7 @@ As a result, errors when attempting to append inputs to the WAL
 At the moment, from this [commit](https://github.com/circlefin/malachite/commit/38f113f6c81da0af32a748718b2d87ab64e3a72f),
 consensus hangs forever in case of any WAL operational error.
 
-A second source of errors is when replaying the WAL, where one particular error
-requires attention: the corruption of the last entries of the WAL.
+A second source of errors occurs during WAL replay and requires special attention: an error at a given entry implies that all subsequent WAL entries are corrupted.
 Notice that crashes can happen at any time of the execution, including the
 instant at which a WAL entry is being persisted to stable storage.
 A crash at this point will likely render a suffix of the WAL corrupted.
