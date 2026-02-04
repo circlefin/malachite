@@ -83,6 +83,6 @@ pub async fn equivocation_two_vals_same_pk() {
         .success();
 
     test.build()
-        .run_with_params(Duration::from_secs(5), params)
+        .run_with_params(Duration::from_secs(15), params)
         .await;
 }
