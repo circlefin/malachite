@@ -223,7 +223,7 @@ where
                     .await?;
 
                 // Do not block processing of other messages while waiting for the next height
-                // TODO: do we still want to spawn here?
+                // TODO: do we still want to spawn here? I would say we do (app may still want to do stable times itself)
                 tokio::spawn(async move {
                     if let Ok(next) = rx.await {
                         if let Err(e) = reply_to.send(next) {
