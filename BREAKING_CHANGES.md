@@ -4,8 +4,16 @@
 
 ### `malachitebft-core-types`
 
+- Added new `ValidatorProof<Ctx>` type for the Proof-of-Validator protocol (ADR-006)
 - Added new associated type `Timeouts` to the `Context` trait (use `LinearTimeouts` for default implementation) ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Remove `initial_validator_set` and `initial_height` fields from `Params` struct ([#1190](https://github.com/circlefin/malachite/pull/1190))
+
+### `malachitebft-signing`
+
+- Added two new methods to `SigningProviderExt` trait for Proof-of-Validator (ADR-006):
+  - `sign_validator_certificate(&self, public_key: Vec<u8>, peer_id: Vec<u8>) -> Result<ValidatorProof<Ctx>, Error>`
+  - `verify_validator_certificate(&self, certificate: &ValidatorProof<Ctx>) -> Result<VerificationResult, Error>`
+  - These have default implementations using `sign_bytes`/`verify_signed_bytes`
 
 ### `malachitebft-core-driver`
 
@@ -24,6 +32,9 @@
 
 ### `malachitebft-engine`
 
+- Added new `NetworkEvent::ValidatorProofReceived` variant for receiving validator proofs (ADR-006)
+- Added new `Msg::ValidatorProofVerified` variant for communicating proof verification results
+- Network codec trait bounds now require `Codec<ValidatorProof<Ctx>>` implementation
 - Changed `Next::Start` variant from `Start(Height, ValidatorSet)` to `Start(Height, HeightParams)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Changed `Next::Restart` variant from `Restart(Height, ValidatorSet)` to `Restart(Height, HeightParams)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Changed `HostMsg::ConsensusReady` reply type from `(Ctx::Height, Ctx::ValidatorSet)` to `(Ctx::Height, HeightParams<Ctx>)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
@@ -38,6 +49,15 @@
 
 ### `malachitebft-app-channel`
 
+- Changed `NetworkContext` struct for Proof-of-Validator support (ADR-006):
+  - Replaced `identity: NetworkIdentity` with `moniker: String` and `keypair: Keypair`
+  - Old: `NetworkContext::new(identity: NetworkIdentity, codec: Codec)`
+  - New: `NetworkContext::new(moniker: String, keypair: Keypair, codec: Codec)`
+- Added `public_key_bytes: Vec<u8>` field to `ConsensusContext` struct (ADR-006)
+  - Old: `ConsensusContext::new(address, signing_provider)`
+  - New: `ConsensusContext::new(address, public_key_bytes, signing_provider)`
+- Re-exported `Keypair` type from `malachitebft_app_channel::run`
+- Network codec now requires `Codec<ValidatorProof<Ctx>>` implementation
 - Changed `AppMsg::ConsensusReady` reply type from `(Ctx::Height, Ctx::ValidatorSet)` to `(Ctx::Height, HeightParams<Ctx>)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Changed `ConsensusMsg::StartHeight` from `StartHeight(Height, ValidatorSet)` to `StartHeight(Height, HeightParams)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Changed `ConsensusMsg::RestartHeight` from `RestartHeight(Height, ValidatorSet)` to `RestartHeight(Height, HeightParams)` ([#1227](https://github.com/circlefin/malachite/pull/1227))

@@ -11,7 +11,7 @@ use derive_where::derive_where;
 use eyre::eyre;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::time::Instant;
-use tracing::{debug, error, error_span, info};
+use tracing::{debug, error, error_span, info, warn};
 
 use malachitebft_codec as codec;
 use malachitebft_config::ConsensusConfig;
@@ -19,8 +19,8 @@ use malachitebft_core_consensus::{
     Effect, LivenessMsg, PeerId, Resumable, Resume, SignedConsensusMsg, VoteExtensionError,
 };
 use malachitebft_core_types::{
-    Context, Height, Proposal, Round, Timeout, TimeoutKind, Timeouts, ValidatorSet, Validity,
-    Value, ValueId, ValueOrigin, ValueResponse as CoreValueResponse, Vote,
+    Context, Height, Proposal, Round, Timeout, TimeoutKind, Timeouts, ValidatorProof, ValidatorSet,
+    Validity, Value, ValueId, ValueOrigin, ValueResponse as CoreValueResponse, Vote,
 };
 use malachitebft_metrics::Metrics;
 use malachitebft_signing::{SigningProvider, SigningProviderExt};
@@ -50,6 +50,7 @@ use state_dump::StateDump;
 /// - [`codec::Codec<SignedConsensusMsg<Ctx>>`]
 /// - [`codec::Codec<PolkaCertificate<Ctx>>`]
 /// - [`codec::Codec<StreamMessage<Ctx::ProposalPart>>`]
+/// - [`codec::Codec<ValidatorProof<Ctx>>`]
 pub trait ConsensusCodec<Ctx>
 where
     Ctx: Context,
@@ -57,6 +58,7 @@ where
     Self: codec::Codec<SignedConsensusMsg<Ctx>>,
     Self: codec::Codec<LivenessMsg<Ctx>>,
     Self: codec::Codec<StreamMessage<Ctx::ProposalPart>>,
+    Self: codec::Codec<ValidatorProof<Ctx>>,
 {
 }
 
@@ -67,6 +69,7 @@ where
     Self: codec::Codec<SignedConsensusMsg<Ctx>>,
     Self: codec::Codec<LivenessMsg<Ctx>>,
     Self: codec::Codec<StreamMessage<Ctx::ProposalPart>>,
+    Self: codec::Codec<ValidatorProof<Ctx>>,
 {
 }
 
@@ -575,6 +578,44 @@ where
                             .map_err(|e| {
                                 eyre!("Error when forwarding proposal parts to host: {e}")
                             })?;
+                    }
+
+                    NetworkEvent::ValidatorProofReceived { peer_id, proof } => {
+                        use malachitebft_network::validator_proof::VerificationResult;
+
+                        // Note: peer_id match is already verified in network layer
+
+                        // Verify signature using public_key in proof
+                        let verification =
+                            self.signing_provider.verify_validator_proof(&proof).await;
+
+                        let (result, public_key_bytes) = match verification {
+                            Ok(v) if v.is_valid() => {
+                                debug!(
+                                    %peer_id,
+                                    public_key = %hex::encode(&proof.public_key),
+                                    "Valid validator proof received"
+                                );
+                                (VerificationResult::Valid, Some(proof.public_key.clone()))
+                            }
+                            Ok(_) => {
+                                warn!(%peer_id, "Invalid validator proof signature");
+                                (VerificationResult::Invalid, None)
+                            }
+                            Err(e) => {
+                                warn!(%peer_id, "Error verifying validator proof: {e}");
+                                (VerificationResult::Invalid, None)
+                            }
+                        };
+
+                        // Send verification result to network layer
+                        if let Err(e) = self.network.cast(NetworkMsg::ValidatorProofVerified {
+                            peer_id,
+                            result,
+                            public_key: public_key_bytes,
+                        }) {
+                            error!(%peer_id, ?result, "Error sending validator proof result: {e}");
+                        }
                     }
 
                     _ => {}

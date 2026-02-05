@@ -17,6 +17,7 @@ use malachitebft_metrics::Registry;
 use malachitebft_sync as sync;
 use tracing::info;
 
+use crate::validator_proof;
 use crate::{ip_limits, peer_scoring, Config, GossipSubConfig};
 
 /// Multiplier for connection limits.
@@ -50,6 +51,7 @@ pub enum NetworkEvent {
     Broadcast(broadcast::Event),
     Sync(sync::Event),
     Discovery(Box<discovery::NetworkEvent>),
+    ValidatorProof(validator_proof::Event),
 }
 
 impl From<identify::Event> for NetworkEvent {
@@ -88,6 +90,12 @@ impl From<discovery::NetworkEvent> for NetworkEvent {
     }
 }
 
+impl From<validator_proof::Event> for NetworkEvent {
+    fn from(event: validator_proof::Event) -> Self {
+        Self::ValidatorProof(event)
+    }
+}
+
 // connection_limits::Behaviour never emits events (uses Infallible),
 // but the NetworkBehaviour derive macro requires this implementation.
 impl From<Infallible> for NetworkEvent {
@@ -107,6 +115,7 @@ pub struct Behaviour {
     pub broadcast: Toggle<broadcast::Behaviour>,
     pub sync: Toggle<sync::Behaviour>,
     pub discovery: Toggle<discovery::Behaviour>,
+    pub validator_proof: Toggle<validator_proof::Behaviour>,
 }
 
 /// Dummy implementation of Debug for Behaviour.
@@ -191,13 +200,8 @@ impl Behaviour {
         identity: &crate::NetworkIdentity,
         registry: &mut Registry,
     ) -> Result<Self> {
-        // Build agent_version for peer identification
-        // Only include consensus address if this node has one (potential validator)
-        // Note: This is a temporary solution and will be replaced by a custom protocol
-        let agent_version = match &identity.consensus_address {
-            Some(address) => format!("moniker={},address={}", identity.moniker, address),
-            None => format!("moniker={}", identity.moniker),
-        };
+        // Build agent_version for peer identification (moniker only)
+        let agent_version = format!("moniker={}", identity.moniker);
 
         // Use signed peer records to prevent peer ID spoofing.
         // Peers will sign their addresses with their private key, allowing verification.
@@ -269,6 +273,10 @@ impl Behaviour {
             None
         };
 
+        // Enable validator proof verification if consensus is enabled
+        let validator_proof = config
+            .enable_consensus
+            .then(validator_proof::Behaviour::new);
         // Limits for transport layer defense against connection attacks
         let connection_limits = connection_limits::Behaviour::new(connection_limits(config));
 
@@ -284,6 +292,7 @@ impl Behaviour {
             gossipsub: Toggle::from(gossipsub),
             broadcast: Toggle::from(broadcast),
             discovery: Toggle::from(discovery),
+            validator_proof: Toggle::from(validator_proof),
         })
     }
 }

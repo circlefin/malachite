@@ -7,7 +7,7 @@ use malachitebft_core_consensus::{LivenessMsg, ProposedValue, SignedConsensusMsg
 use malachitebft_core_types::{
     CommitCertificate, CommitSignature, NilOrVal, PolkaCertificate, PolkaSignature, Round,
     RoundCertificate, RoundCertificateType, RoundSignature, SignedExtension, SignedProposal,
-    SignedVote, Validity,
+    SignedVote, ValidatorProof, Validity,
 };
 use malachitebft_proto::{Error as ProtoError, Protobuf};
 use malachitebft_signing_ed25519::Signature;
@@ -641,6 +641,35 @@ pub fn decode_signature(signature: proto::Signature) -> Result<Signature, ProtoE
     let bytes = <[u8; 64]>::try_from(signature.bytes.as_ref())
         .map_err(|_| ProtoError::Other("Invalid signature length".to_string()))?;
     Ok(Signature::from_bytes(bytes))
+}
+
+impl Codec<ValidatorProof<TestContext>> for ProtobufCodec {
+    type Error = ProtoError;
+
+    fn decode(&self, bytes: Bytes) -> Result<ValidatorProof<TestContext>, Self::Error> {
+        let proto = proto::ValidatorProof::decode(bytes.as_ref())?;
+
+        let signature = proto
+            .signature
+            .ok_or_else(|| ProtoError::missing_field::<proto::ValidatorProof>("signature"))
+            .and_then(decode_signature)?;
+
+        Ok(ValidatorProof::new(
+            proto.consensus_pub_key.to_vec(),
+            proto.peer_id.to_vec(),
+            signature,
+        ))
+    }
+
+    fn encode(&self, msg: &ValidatorProof<TestContext>) -> Result<Bytes, Self::Error> {
+        let proto = proto::ValidatorProof {
+            consensus_pub_key: Bytes::from(msg.public_key.clone()),
+            peer_id: Bytes::from(msg.peer_id.clone()),
+            signature: Some(encode_signature(&msg.signature)),
+        };
+
+        Ok(Bytes::from(proto.encode_to_vec()))
+    }
 }
 
 #[cfg(test)]

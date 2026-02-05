@@ -232,6 +232,14 @@ impl<C: CurveConfig> SigningScheme for Ecdsa<C> {
     fn decode_signature(bytes: &[u8]) -> Result<Self::Signature, Self::DecodingError> {
         Signature::from_slice(bytes)
     }
+
+    fn encode_public_key(public_key: &Self::PublicKey) -> Vec<u8> {
+        public_key.to_vec()
+    }
+
+    fn decode_public_key(bytes: &[u8]) -> Result<Self::PublicKey, Self::DecodingError> {
+        PublicKey::from_sec1_bytes(bytes)
+    }
 }
 
 #[cfg(all(test, feature = "serde", feature = "k256"))]
