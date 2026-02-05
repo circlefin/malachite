@@ -2,6 +2,7 @@ pub use async_recursion::async_recursion;
 pub use tracing::{debug, error, info, warn};
 
 pub use malachitebft_core_driver::Input as DriverInput;
+pub use malachitebft_core_driver::Step;
 pub use malachitebft_core_types::*;
 
 pub use crate::effect::{Effect, Resume};

@@ -13,6 +13,7 @@ mod timeout;
 mod vote;
 
 use liveness::{on_polka_certificate, on_round_certificate};
+use malachitebft_core_driver::Step;
 use proposal::on_proposal;
 use propose::on_propose;
 use proposed_value::on_proposed_value;
@@ -55,11 +56,11 @@ where
             }
             Input::StartHeight(..) => {
                 if state.finalization_period {
-                    return Err(Error::UnexpectedInputInStep("StartHeight", "Commit"));
+                    return Err(Error::UnexpectedInputInStep("StartHeight", Step::Commit));
                 }
             }
             Input::Propose(..) => {
-                return Err(Error::UnexpectedInputInStep("Propose", "Commit"));
+                return Err(Error::UnexpectedInputInStep("Propose", Step::Commit));
             }
             _ => {
                 debug!("Ignoring input while in Commit step: {:?}", input);
