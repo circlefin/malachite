@@ -8,6 +8,7 @@ use crate::TestBuilder;
 
 const VOTE_DURATION: Duration = Duration::from_millis(50);
 
+#[allow(clippy::never_loop)]
 fn check_decided_impl<Ctx: Context>(evidence: &MisbehaviorEvidence<Ctx>) {
     for addr in evidence.proposals.iter() {
         let list = evidence.proposals.get(addr).unwrap();
