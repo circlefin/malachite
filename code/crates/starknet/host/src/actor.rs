@@ -190,7 +190,7 @@ impl Host {
 
             HostMsg::Decided { certificate, .. } => {
                 // Store the decided certificate so it's available during finalization
-                on_decided_notification(state, certificate).await
+                on_decided(state, certificate).await
             }
 
             HostMsg::Finalized {
@@ -632,7 +632,7 @@ async fn store_proposed_value(
     }
 }
 
-async fn on_decided_notification(
+async fn on_decided(
     state: &mut HostState,
     certificate: CommitCertificate<MockContext>,
 ) -> Result<(), ActorProcessingErr> {

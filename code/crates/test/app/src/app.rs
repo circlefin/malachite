@@ -230,8 +230,6 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 if let Err(e) = state.store_decided(certificate).await {
                     error!("Failed to store decided value: {e}");
                 }
-
-                sleep(Duration::from_millis(500)).await;
             }
 
             AppMsg::Finalized {
