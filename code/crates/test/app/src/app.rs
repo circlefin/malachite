@@ -284,7 +284,9 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     }
                 }
 
-                sleep(Duration::from_millis(500)).await;
+                if state.config.test.target_time.is_none() {
+                    sleep(Duration::from_millis(500)).await;
+                }
             }
 
             // It may happen that our node is lagging behind its peers. In that case,
