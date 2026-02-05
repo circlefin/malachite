@@ -198,7 +198,6 @@ where
                 extensions,
                 evidence,
             } => {
-                // Decided never expects a reply; Finalized will always follow
                 self.sender
                     .send(AppMsg::Decided {
                         certificate,

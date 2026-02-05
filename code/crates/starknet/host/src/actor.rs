@@ -705,8 +705,11 @@ async fn on_finalized(
     // Notify the mempool to remove corresponding txs
     mempool.cast(MempoolMsg::Update { tx_hashes })?;
 
-    // Notify Starknet Host of the decision
-    state.host.decision(certificate).await;
+    if let Some(decided_block) = state.block_store.get(height).await? {
+        state.host.decision(decided_block.certificate).await;
+    } else {
+        error!(%height, "Could not retrieve stored certificate for finalization");
+    }
 
     info!(%height, %round, "Height finalized");
 

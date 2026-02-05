@@ -34,7 +34,7 @@ struct SignatureCountTracker {
 )]
 #[case::with_both(Some(Duration::from_millis(15)), ValuePayload::PartsOnly, true)]
 #[tokio::test]
-pub async fn finalize_with_target_time(
+pub async fn test_finalize_with_params(
     #[case] target_time: Option<Duration>,
     #[case] value_payload: ValuePayload,
     #[case] stable_block_times: bool,
