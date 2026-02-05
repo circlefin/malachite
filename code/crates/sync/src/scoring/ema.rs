@@ -90,19 +90,17 @@ impl ScoringStrategy for ExponentialMovingAverage {
                     (-(response_time_secs - threshold_secs) / threshold_secs).exp()
                 };
 
-                println!(
-                    "Response time: {:.3}s, Quality: {:.3}, Previous Score: {:.3}",
-                    response_time_secs, quality, previous_score
-                );
-
-                println!(
-                    "       Updating score: alpha_success: {:.3}, New Score: {:.3}",
-                    self.alpha_success,
-                    self.alpha_success * quality + (1.0 - self.alpha_success) * previous_score
-                );
-
                 // Update score with EMA using alpha_success
-                self.alpha_success * quality + (1.0 - self.alpha_success) * previous_score
+                let new_score =
+                    self.alpha_success * quality + (1.0 - self.alpha_success) * previous_score;
+
+                #[cfg(test)]
+                {
+                    println!("Response time: {response_time_secs:.3}s, Quality: {quality:.3}");
+                    println!(" => Updating score: prev={previous_score:.3}, new={new_score:.3}");
+                }
+
+                new_score
             }
 
             SyncResult::Timeout => {
