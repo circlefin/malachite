@@ -9,8 +9,19 @@ jobs:
     name: Check eligibility
     runs-on: ubuntu-latest
     steps:
+      - name: Check if author is Dependabot
+        id: check-dependabot
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prAuthor = context.payload.pull_request.user.login;
+            const isDependabot = prAuthor === 'dependabot[bot]';
+            console.log(`PR author: ${prAuthor}, is Dependabot: ${isDependabot}`);
+            core.setOutput('is_dependabot', isDependabot ? 'true' : 'false');
+
       - name: Check if author is codeowner
         id: check-codeowner
+        if: steps.check-dependabot.outputs.is_dependabot == 'false'
         uses: actions/github-script@v7
         with:
           script: |
@@ -45,7 +56,9 @@ jobs:
 
       - name: Check if author is org member
         id: check-org-member
-        if: steps.check-codeowner.outputs.is_codeowner == 'false'
+        if: |
+          steps.check-dependabot.outputs.is_dependabot == 'false' &&
+          steps.check-codeowner.outputs.is_codeowner == 'false'
         uses: actions/github-script@v7
         with:
           script: |
@@ -70,6 +83,7 @@ jobs:
       - name: Check issue assignment
         id: check-assignment
         if: |
+          steps.check-dependabot.outputs.is_dependabot == 'false' &&
           steps.check-codeowner.outputs.is_codeowner == 'false' &&
           steps.check-org-member.outputs.is_org_member == 'false'
         uses: actions/github-script@v7
@@ -78,8 +92,10 @@ jobs:
             const prBody = context.payload.pull_request.body || '';
             const prAuthor = context.payload.pull_request.user.login;
 
-            // Extract issue number from PR body (matches "Closes: #123" or "Closes #123")
-            const issueMatch = prBody.match(/[Cc]loses:?\s*#(\d+)/);
+            // Extract issue number from PR body
+            const issuePrefixes = ['closes', 'fixes', 'fix', 'close', 'resolve', 'resolves'];
+            const prefixPattern = issuePrefixes.join('|');
+            const issueMatch = prBody.match(new RegExp(`(?:${prefixPattern}):?\\s*#(\\d+)`, 'i'));
 
             if (!issueMatch) {
               console.log('No issue reference found in PR body');
@@ -120,6 +136,7 @@ jobs:
       - name: Check if author is tagged by codeowner
         id: check-tagged-by-codeowner
         if: |
+          steps.check-dependabot.outputs.is_dependabot == 'false' &&
           steps.check-codeowner.outputs.is_codeowner == 'false' &&
           steps.check-org-member.outputs.is_org_member == 'false' &&
           steps.check-assignment.outputs.is_assigned == 'false' &&
@@ -195,6 +212,7 @@ jobs:
 
       - name: Close ineligible PR
         if: |
+          steps.check-dependabot.outputs.is_dependabot == 'false' &&
           steps.check-codeowner.outputs.is_codeowner == 'false' &&
           steps.check-org-member.outputs.is_org_member == 'false' &&
           steps.check-assignment.outputs.is_assigned == 'false' &&
