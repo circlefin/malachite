@@ -13,7 +13,6 @@ mod timeout;
 mod vote;
 
 use liveness::{on_polka_certificate, on_round_certificate};
-use malachitebft_core_driver::Step;
 use proposal::on_proposal;
 use propose::on_propose;
 use proposed_value::on_proposed_value;
