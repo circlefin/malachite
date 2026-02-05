@@ -53,9 +53,11 @@ pub enum Event<Ctx: Context> {
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
     Decided {
         commit_certificate: CommitCertificate<Ctx>,
+    },
+    Finalized {
+        commit_certificate: CommitCertificate<Ctx>,
         evidence: MisbehaviorEvidence<Ctx>,
     },
-    Finalized(CommitCertificate<Ctx>),
     RepublishVote(SignedVote<Ctx>),
     RebroadcastRoundCertificate(RoundCertificate<Ctx>),
     SkipRoundCertificate(RoundCertificate<Ctx>),
@@ -88,31 +90,35 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
             }
             Event::Decided {
                 commit_certificate,
+            } => {
+                write!(
+                    f,
+                    "Decided(value: {}, signatures: {})",
+                    commit_certificate.value_id,
+                    commit_certificate.commit_signatures.len()
+                )
+            }
+            Event::Finalized {
+                commit_certificate,
                 evidence,
             } => {
                 if evidence.is_empty() {
                     write!(
                         f,
-                        "Decided(value: {}, signatures: {})",
+                        "Finalized(value: {}, signatures: {})",
                         commit_certificate.value_id,
                         commit_certificate.commit_signatures.len()
                     )
                 } else {
                     write!(
                         f,
-                        "Decided(value: {}, signatures: {}, evidence: {:?})",
+                        "Finalized(value: {}, signatures: {}, evidence: {:?})",
                         commit_certificate.value_id,
                         commit_certificate.commit_signatures.len(),
                         evidence
                     )
                 }
             }
-            Event::Finalized(commit_certificate) => write!(
-                f,
-                "Finalized(value: {}, signatures: {})",
-                commit_certificate.value_id,
-                commit_certificate.commit_signatures.len()
-            ),
             Event::RepublishVote(vote) => write!(f, "RepublishVote(vote: {vote:?})"),
             Event::RebroadcastRoundCertificate(certificate) => write!(
                 f,

@@ -1,4 +1,4 @@
-use crate::{handle::signature::verify_commit_certificate, prelude::*};
+use crate::{handle::signature::verify_commit_certificate, prelude::*, MisbehaviorEvidence};
 
 pub async fn finalize_height<Ctx>(
     co: &Co<Ctx>,
@@ -51,7 +51,7 @@ where
 /// Emit the Finalize effect with a pre-built certificate and extensions.
 pub async fn log_and_finalize<Ctx>(
     co: &Co<Ctx>,
-    _state: &State<Ctx>, // Only used behind a feature flag
+    state: &mut State<Ctx>,
     certificate: CommitCertificate<Ctx>,
     extensions: VoteExtensions<Ctx>,
 ) -> Result<(), Error<Ctx>>
@@ -66,14 +66,19 @@ where
 
     #[cfg(feature = "debug")]
     {
-        for trace in _state.driver.get_traces() {
+        for trace in state.driver.get_traces() {
             debug!(%trace, "Finalize: Consensus trace");
         }
     }
 
+    let evidence = MisbehaviorEvidence {
+        proposals: state.driver.take_proposal_evidence(),
+        votes: state.driver.take_vote_evidence(),
+    };
+
     perform!(
         co,
-        Effect::Finalize(certificate, extensions, Default::default())
+        Effect::Finalize(certificate, extensions, evidence, Default::default())
     );
 
     Ok(())

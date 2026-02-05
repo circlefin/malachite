@@ -214,7 +214,6 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             AppMsg::Decided {
                 certificate,
                 extensions: _,
-                evidence: _,
             } => {
                 assert!(!certificate.commit_signatures.is_empty());
 
@@ -235,6 +234,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             AppMsg::Finalized {
                 certificate,
                 extensions: _,
+                evidence: _,
                 reply,
             } => {
                 info!(

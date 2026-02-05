@@ -152,9 +152,6 @@ pub enum HostMsg<Ctx: Context> {
 
         /// Vote extensions that were received for this height.
         extensions: VoteExtensions<Ctx>,
-
-        /// Misbehavior evidence collected since last height was decided.
-        evidence: MisbehaviorEvidence<Ctx>,
     },
 
     /// Notifies the application that consensus has finalized a height after collecting additional precommits.
@@ -176,6 +173,9 @@ pub enum HostMsg<Ctx: Context> {
 
         /// Vote extensions that were received for this height (including additional ones).
         extensions: VoteExtensions<Ctx>,
+
+        /// Misbehavior evidence collected since last height was decided.
+        evidence: MisbehaviorEvidence<Ctx>,
 
         /// Use this reply port to instruct consensus to start the next height.
         reply_to: RpcReplyPort<Next<Ctx>>,

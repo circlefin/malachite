@@ -244,14 +244,12 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             AppMsg::Decided {
                 certificate,
                 extensions: _,
-                evidence,
             } => {
                 info!(
                     height = %certificate.height,
                     round = %certificate.round,
                     value = %certificate.value_id,
                     signatures = certificate.commit_signatures.len(),
-                    evidence = ?evidence,
                     "Consensus has decided on value, awaiting Finalized..."
                 );
 
@@ -262,6 +260,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             AppMsg::Finalized {
                 certificate,
                 extensions,
+                evidence,
                 reply,
             } => {
                 info!(
@@ -269,6 +268,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     round = %certificate.round,
                     value = %certificate.value_id,
                     signatures = certificate.commit_signatures.len(),
+                    evidence = ?evidence,
                     "Consensus has finalized height, committing..."
                 );
 

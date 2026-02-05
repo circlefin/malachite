@@ -334,9 +334,6 @@ pub enum AppMsg<Ctx: Context> {
 
         /// The vote extensions received for that height
         extensions: VoteExtensions<Ctx>,
-
-        /// Misbehavior evidence observed since last decide
-        evidence: MisbehaviorEvidence<Ctx>,
     },
 
     /// Notifies the application that a height has been finalized after collecting additional precommits.
@@ -358,6 +355,9 @@ pub enum AppMsg<Ctx: Context> {
 
         /// The vote extensions received for that height (including additional ones)
         extensions: VoteExtensions<Ctx>,
+
+        /// Misbehavior evidence observed since last decide
+        evidence: MisbehaviorEvidence<Ctx>,
 
         /// Channel for instructing consensus to start the next height, if desired
         reply: Reply<Next<Ctx>>,

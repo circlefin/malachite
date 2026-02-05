@@ -47,14 +47,14 @@ pub async fn test_finalize_with_params(
     test.add_node()
         .start()
         .with_state(SignatureCountTracker::default())
-        .on_decided(|certificate, _m, state| {
+        .on_decided(|certificate, state| {
             validate_certificate(&certificate);
             assert!(state.decided_signatures.is_none(), "No sigs before decided");
             state.decided_signatures = Some(certificate.commit_signatures.len());
 
             Ok(HandlerResult::ContinueTest)
         })
-        .on_finalized(|certificate, state| {
+        .on_finalized(|certificate, _evidence, state| {
             validate_certificate(&certificate);
             let decided_sigs = state.decided_signatures.take().unwrap();
             assert!(
@@ -68,14 +68,14 @@ pub async fn test_finalize_with_params(
     test.add_node()
         .start()
         .with_state(SignatureCountTracker::default())
-        .on_decided(|certificate, _m, state| {
+        .on_decided(|certificate, state| {
             validate_certificate(&certificate);
             assert!(state.decided_signatures.is_none(), "No sigs before decided");
             state.decided_signatures = Some(certificate.commit_signatures.len());
 
             Ok(HandlerResult::ContinueTest)
         })
-        .on_finalized(|certificate, state| {
+        .on_finalized(|certificate, _evidence, state| {
             validate_certificate(&certificate);
             let decided_sigs = state.decided_signatures.take().unwrap();
             assert!(

@@ -1,6 +1,5 @@
 use crate::handle::signature::verify_commit_certificate;
 use crate::prelude::*;
-use crate::MisbehaviorEvidence;
 
 #[cfg_attr(not(feature = "metrics"), allow(unused_variables))]
 pub async fn decide<Ctx>(
@@ -76,17 +75,11 @@ where
             .observe(proposal_round.as_i64() as f64);
     }
 
-    let evidence = MisbehaviorEvidence {
-        proposals: state.driver.take_proposal_evidence(),
-        votes: state.driver.take_vote_evidence(),
-    };
-
     perform!(
         co,
         Effect::Decide(
             certificate.clone(),
             extensions.clone(),
-            evidence,
             Default::default()
         )
     );
