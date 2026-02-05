@@ -99,6 +99,7 @@ where
     );
 
     // Directly add the precommit to the vote keeper without going through state machine
+    // Reason: we keep driver and state machine out of functionality not related to the Tendermint algorithm
     if state.driver.step_is_commit() && state.finalization_period {
         if signed_vote.vote_type() == VoteType::Precommit {
             debug!(
