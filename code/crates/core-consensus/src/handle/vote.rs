@@ -98,15 +98,14 @@ where
         )
     );
 
-    if state.driver.step_is_commit() {
-        // Directly add the vote to the vote keeper without going through state machine
-        // TODO: Do we want the state machine to process additional votes in Commit step?
+    // Directly add the precommit to the vote keeper without going through state machine
+    if state.driver.step_is_commit() && state.finalization_period {
         if signed_vote.vote_type() == VoteType::Precommit {
             debug!(
                 consensus.height = %consensus_height,
                 vote.round = %vote_round,
                 validator = %validator_address,
-                "Recording additional precommit during Commit step"
+                "Recording additional precommit during finalization period"
             );
 
             #[cfg(feature = "metrics")]
@@ -120,8 +119,8 @@ where
         return Ok(());
     }
 
-    // In Finalize step, ignore all votes
-    if state.driver.step_is_finalize() {
+    // If we're in Commit step but not in finalization period, ignore all votes
+    if state.driver.step_is_commit() {
         return Ok(());
     }
 

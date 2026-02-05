@@ -42,6 +42,9 @@ where
 
     /// Start time of the current height
     pub height_start_time: Option<Instant>,
+
+    /// Whether we are in the finalization period
+    pub finalization_period: bool,
 }
 
 impl<Ctx> State<Ctx>
@@ -73,6 +76,7 @@ where
             last_signed_precommit: None,
             target_time: None,
             height_start_time: None,
+            finalization_period: false,
         }
     }
 

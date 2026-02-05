@@ -169,11 +169,6 @@ where
         self.round_state.step == Step::Commit
     }
 
-    /// Returns true if the current step is finalize.
-    pub fn step_is_finalize(&self) -> bool {
-        self.round_state.step == Step::Finalize
-    }
-
     /// Return the valid value (the value for which we saw a polka) for the current round, if any.
     pub fn valid_value(&self) -> Option<&RoundValue<Ctx::Value>> {
         self.round_state.valid.as_ref()
@@ -423,7 +418,6 @@ where
             Input::Vote(vote) => self.apply_vote(vote),
             Input::TimeoutElapsed(timeout) => self.apply_timeout(timeout),
             Input::SyncDecision(proposal) => self.apply_decide_on_sync(proposal),
-            Input::TransitionToFinalize => self.apply_transition_to_finalize(),
         }
     }
 
@@ -647,11 +641,6 @@ where
         };
 
         self.apply_input(timeout.round, input)
-    }
-
-    /// Apply the transition from Commit to Finalize step.
-    fn apply_transition_to_finalize(&mut self) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
-        self.apply_input(self.round_state.round, RoundInput::TransitionToFinalize)
     }
 
     /// Apply a sync decision using the provided unsigned proposal.

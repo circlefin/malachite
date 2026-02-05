@@ -211,21 +211,12 @@ where
         }
 
         //
-        // From Commit. Accept transition to Finalize, otherwise invalid.
+        // From Commit. No more state transitions.
         //
-        (Step::Commit, Input::TransitionToFinalize) => {
-            Transition::to(state.with_step(Step::Finalize))
-        }
-
         (Step::Commit, _) => Transition::invalid(state),
 
         //
-        // From Finalize. No more state transitions.
-        //
-        (Step::Finalize, _) => Transition::invalid(state),
-
-        //
-        // From all (except Commit and Finalize). Various round guards.
+        // From all (except Commit). Various round guards.
         //
 
         // L47

@@ -48,31 +48,21 @@ where
 {
     // TODO is this redundant w.r.t. the state machine transitions?
     if state.driver.step_is_commit() {
-        return match input {
-            Input::Vote(vote) => on_vote(co, state, metrics, vote).await,
-            Input::TimeoutElapsed(timeout) => on_timeout_elapsed(co, state, metrics, timeout).await,
+        match input {
+            Input::Vote(vote) => return on_vote(co, state, metrics, vote).await,
+            Input::TimeoutElapsed(timeout) => {
+                return on_timeout_elapsed(co, state, metrics, timeout).await
+            }
             Input::StartHeight(..) => {
-                Err(Error::UnexpectedInputInStep("StartHeight", "Commit"))
+                if state.finalization_period {
+                    return Err(Error::UnexpectedInputInStep("StartHeight", "Commit"));
+                }
             }
             Input::Propose(..) => {
-                Err(Error::UnexpectedInputInStep("Propose", "Commit"))
+                return Err(Error::UnexpectedInputInStep("Propose", "Commit"));
             }
             _ => {
                 debug!("Ignoring input while in Commit step: {:?}", input);
-                Ok(())
-            }
-        };
-    }
-
-    // TODO is this redundant w.r.t. the state machine transitions?
-    if state.driver.step_is_finalize() {
-        match input {
-            Input::StartHeight(..) => {}
-            Input::Propose(..) => {
-                return Err(Error::UnexpectedInputInStep("Propose", "Finalize"));
-            }
-            _ => {
-                debug!("Ignoring input during Finalize step: {:?}", input);
                 return Ok(());
             }
         }

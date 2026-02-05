@@ -1,6 +1,4 @@
-use malachitebft_core_driver::Input as DriverInput;
-
-use crate::handle::{driver::apply_driver_input, signature::verify_commit_certificate};
+use crate::handle::signature::verify_commit_certificate;
 use crate::prelude::*;
 use crate::MisbehaviorEvidence;
 
@@ -99,9 +97,7 @@ where
             "No target time set, finalizing immediately"
         );
 
-        apply_driver_input(co, state, metrics, DriverInput::TransitionToFinalize).await?;
         super::finalize::log_and_finalize(co, state, certificate, extensions).await?;
-
         return Ok(());
     };
 
@@ -109,8 +105,10 @@ where
         .height_start_time
         .expect("height_start_time must be set when target_time is set");
     let elapsed = start_time.elapsed();
+
     if elapsed < target_time {
-        // Do not transition to Finalize yet
+        state.finalization_period = true;
+
         let remaining = target_time - elapsed;
         let timeout = Timeout::finalize_height(consensus_round, remaining);
         perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
@@ -118,7 +116,7 @@ where
         debug!(
             height = %height,
             remaining_ms = remaining.as_millis(),
-            "Scheduled finalization after target time"
+            "Entering finalization period"
         );
     } else {
         debug!(
@@ -128,7 +126,6 @@ where
             "Target time exceeded, finalizing immediately"
         );
 
-        apply_driver_input(co, state, metrics, DriverInput::TransitionToFinalize).await?;
         super::finalize::log_and_finalize(co, state, certificate, extensions).await?;
     }
 

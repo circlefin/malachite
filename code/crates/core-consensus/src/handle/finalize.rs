@@ -1,12 +1,9 @@
-use malachitebft_core_driver::Input as DriverInput;
-
-use crate::handle::driver::apply_driver_input;
 use crate::{handle::signature::verify_commit_certificate, prelude::*};
 
 pub async fn finalize_height<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: &Metrics,
+    _metrics: &Metrics,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
@@ -14,6 +11,10 @@ where
     assert!(
         state.driver.step_is_commit(),
         "finalize_height can only be called in Commit step"
+    );
+    assert!(
+        state.finalization_period,
+        "finalize_height can only be called during finalization period"
     );
 
     let height = state.height();
@@ -40,7 +41,8 @@ where
         "Finalize: Commit certificate is not valid"
     );
 
-    apply_driver_input(co, state, metrics, DriverInput::TransitionToFinalize).await?;
+    state.finalization_period = false;
+
     log_and_finalize(co, state, certificate, extensions).await?;
 
     Ok(())
