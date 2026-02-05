@@ -77,11 +77,7 @@ where
 
     perform!(
         co,
-        Effect::Decide(
-            certificate.clone(),
-            extensions.clone(),
-            Default::default()
-        )
+        Effect::Decide(certificate.clone(), extensions.clone(), Default::default())
     );
 
     let Some(target_time) = state.target_time else {

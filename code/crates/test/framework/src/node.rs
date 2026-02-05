@@ -315,10 +315,7 @@ where
             + 'static,
     {
         self.on_event(move |event, state| {
-            if let Event::Decided {
-                commit_certificate,
-            } = event
-            {
+            if let Event::Decided { commit_certificate } = event {
                 f(commit_certificate, state)
             } else {
                 Ok(HandlerResult::WaitForNextEvent)

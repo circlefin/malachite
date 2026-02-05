@@ -88,9 +88,7 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
                     "ReceivedProposedValue(value: {value:?}, origin: {origin:?})"
                 )
             }
-            Event::Decided {
-                commit_certificate,
-            } => {
+            Event::Decided { commit_certificate } => {
                 write!(
                     f,
                     "Decided(value: {}, signatures: {})",
