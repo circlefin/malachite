@@ -485,39 +485,40 @@ impl State {
         // If peer already exists (additional connection), just update Identify-provided fields.
         // Keep existing state since they never fully disconnected.
         if let Some(existing) = self.peer_info.get_mut(&peer_id) {
-            existing.address = address;
+            let old_peer_info = existing.clone();
             existing.moniker = agent_info.moniker;
-            existing.connection_direction = connection_direction;
+            // Prefer outbound (dialed) addresses over inbound
+            if connection_direction == Some(ConnectionDirection::Outbound)
+                || existing.connection_direction != Some(ConnectionDirection::Outbound)
+            {
+                existing.address = address;
+                existing.connection_direction = connection_direction;
+            }
             // Preserve: peer_type, consensus_public_key, consensus_address, score, topics
+
+            self.metrics
+                .update_peer_labels(&peer_id, &old_peer_info, existing);
             return crate::peer_scoring::get_peer_score(existing.peer_type);
         }
 
-        // Only update peer_info if:
-        // - there is no existing entry for this peer, OR
-        // - this is an outbound connection (prefer dialed addresses over inbound source addresses)
-        let should_update = !self.peer_info.contains_key(&peer_id)
-            || connection_direction == Some(ConnectionDirection::Outbound);
-
+        // New peer - create entry
         let mut score = crate::peer_scoring::get_peer_score(peer_type);
+        let peer_info = PeerInfo {
+            address,
+            consensus_public_key: None,
+            consensus_address: None,
+            moniker: agent_info.moniker,
+            peer_type,
+            connection_direction,
+            score,
+            topics: Default::default(),
+        };
 
-        if should_update {
-            let peer_info = PeerInfo {
-                address,
-                consensus_public_key: None,
-                consensus_address: None,
-                moniker: agent_info.moniker,
-                peer_type,
-                connection_direction,
-                score,
-                topics: Default::default(),
-            };
+        // Record peer information in metrics (subject to 100 slot limit)
+        self.metrics.record_new_peer(&peer_id, &peer_info);
 
-            // Record peer information in metrics (subject to 100 slot limit)
-            self.metrics.record_peer_info(&peer_id, &peer_info);
-
-            // Store in State
-            self.peer_info.insert(peer_id, peer_info);
-        }
+        // Store in State
+        self.peer_info.insert(peer_id, peer_info);
 
         // Check for pending verified proof (proof verification completed before Identify).
         // If found, apply it now that PeerInfo exists.
@@ -655,7 +656,7 @@ fn extract_peer_id_from_multiaddr(addr: &Multiaddr) -> Option<libp2p::PeerId> {
 ///
 /// Takes old_peer_info for stale metric labels (before any modifications)
 /// and uses peer_info for current metric labels (after modifications).
-/// Returns Some(new_score) if the type changed, None otherwise.
+/// Returns Some(new_score) if any label field changed, None otherwise.
 fn apply_peer_type_change(
     peer_id: &libp2p::PeerId,
     peer_info: &mut PeerInfo,
@@ -663,26 +664,13 @@ fn apply_peer_type_change(
     new_type: PeerType,
     metrics: &mut NetworkMetrics,
 ) -> Option<f64> {
-    let old_type = peer_info.peer_type;
+    // Update peer type and score
+    let new_score = crate::peer_scoring::get_peer_score(new_type);
+    peer_info.peer_type = new_type;
+    peer_info.score = new_score;
 
-    if new_type != old_type {
-        tracing::debug!(
-            %peer_id,
-            ?old_type,
-            ?new_type,
-            "Peer type changed"
-        );
-
-        // Update peer type and score
-        let new_score = crate::peer_scoring::get_peer_score(new_type);
-        peer_info.peer_type = new_type;
-        peer_info.score = new_score;
-
-        // Update metrics using the old_peer_info for stale labels, peer_info for current labels
-        metrics.update_peer_type(peer_id, old_peer_info, peer_info, new_score);
-
-        Some(new_score)
-    } else {
-        None
-    }
+    // Update metrics (marks old stale if labels changed)
+    metrics
+        .update_peer_labels(peer_id, old_peer_info, peer_info)
+        .then_some(new_score)
 }

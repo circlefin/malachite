@@ -54,6 +54,15 @@ impl PeerInfo {
                 .unwrap_or_else(|| "none".to_string()),
         }
     }
+
+    /// Check if label-relevant fields match another PeerInfo.
+    /// Used to determine if metrics need to be updated (stale marking).
+    pub(crate) fn labels_match(&self, other: &PeerInfo) -> bool {
+        self.moniker == other.moniker
+            && self.address == other.address
+            && self.peer_type == other.peer_type
+            && self.consensus_address == other.consensus_address
+    }
 }
 
 /// Labels for local node info (peer_id and listen address)
@@ -210,56 +219,58 @@ impl Metrics {
         }
     }
 
-    pub(crate) fn record_peer_info(&mut self, peer_id: &PeerId, peer_info: &PeerInfo) {
-        // Check if peer already has a slot (re-identification case)
-        if self.peer_slots.contains(peer_id) {
-            // Peer already tracked in metrics, labels are already set
-            // Score will be updated by update_peer_info
-            return;
-        }
-
-        // Try to assign a new slot (subject to 100 slot limit)
-        let Some(slot) = self.peer_slots.assign(*peer_id) else {
-            // Failed to assign slot (all slots full)
-            warn!("No available metric slots for peer {peer_id}");
-            return;
+    /// Record metrics for a new peer (assigns slot if needed).
+    pub(crate) fn record_new_peer(&mut self, peer_id: &PeerId, peer_info: &PeerInfo) {
+        let slot = if let Some(existing_slot) = self.peer_slots.get(peer_id) {
+            existing_slot
+        } else {
+            let Some(new_slot) = self.peer_slots.assign(*peer_id) else {
+                warn!("No available metric slots for peer {peer_id}");
+                return;
+            };
+            new_slot
         };
 
-        // Create labels for initial metrics (score will be updated by update_peer_info)
         let labels = peer_info.to_labels(peer_id, slot);
-        self.discovered_peers.get_or_create(&labels).set(0);
+        self.discovered_peers
+            .get_or_create(&labels)
+            .set(peer_info.score as i64);
     }
 
-    /// Update peer type in metrics (e.g., when validator set changes)
-    /// Note: Due to Prometheus label immutability, old metrics with the old labels will remain stale
+    /// Update metrics for an existing peer when labels may have changed.
     ///
-    /// Takes both old_peer_info (for stale labels) and new_peer_info (for current labels)
-    /// because consensus_address may change along with peer_type.
-    pub(crate) fn update_peer_type(
+    /// Compares old and new peer info:
+    /// - If labels changed: marks old entry stale, creates new entry
+    /// - If labels unchanged: just updates the score
+    ///
+    /// Returns true if labels changed.
+    pub(crate) fn update_peer_labels(
         &mut self,
         peer_id: &PeerId,
         old_peer_info: &PeerInfo,
         new_peer_info: &PeerInfo,
-        new_score: f64,
-    ) {
-        if let Some(slot) = self.peer_slots.get(peer_id) {
+    ) -> bool {
+        let Some(slot) = self.peer_slots.get(peer_id) else {
+            return false;
+        };
+
+        let labels_changed = !old_peer_info.labels_match(new_peer_info);
+
+        if labels_changed {
             // Mark old entry as stale
             let old_labels = old_peer_info.to_labels(peer_id, slot);
+            tracing::debug!(%peer_id, ?old_labels, "Marking peer metric stale");
             self.discovered_peers
                 .get_or_create(&old_labels)
                 .set(i64::MIN);
-
-            // Create new metric entry with current labels
-            let new_labels = new_peer_info.to_labels(peer_id, slot);
-            tracing::debug!(
-                %peer_id,
-                ?new_labels,
-                new_score,
-                "Setting metric for peer type change"
-            );
-            self.discovered_peers
-                .get_or_create(&new_labels)
-                .set(new_score as i64);
         }
+
+        // Create/update metric entry with current labels
+        let new_labels = new_peer_info.to_labels(peer_id, slot);
+        self.discovered_peers
+            .get_or_create(&new_labels)
+            .set(new_peer_info.score as i64);
+
+        labels_changed
     }
 }
