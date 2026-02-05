@@ -34,30 +34,27 @@ where
         "Timeout elapsed"
     );
 
-    if matches!(timeout.kind, TimeoutKind::FinalizeHeight(_)) {
-        if state.driver.step_is_commit() {
-            return finalize_height(co, state, metrics).await;
-        } else {
-            return Ok(());
+    match timeout.kind {
+        TimeoutKind::FinalizeHeight(_) => {
+            if state.driver.step_is_commit() {
+                finalize_height(co, state, metrics).await?;
+            }
         }
-    }
 
-    if matches!(
-        timeout.kind,
-        TimeoutKind::Propose | TimeoutKind::Prevote | TimeoutKind::Precommit
-    ) {
-        // Persist the timeout in the Write-ahead Log.
-        // Time-limit and rebroadcast timeouts are not persisted because they only occur when consensus is stuck.
-        perform!(
-            co,
-            Effect::WalAppend(height, WalEntry::Timeout(timeout), Default::default())
-        );
-    }
+        TimeoutKind::Rebroadcast => {
+            on_rebroadcast_timeout(co, state, metrics).await?;
+        }
 
-    apply_driver_input(co, state, metrics, DriverInput::TimeoutElapsed(timeout)).await?;
+        // Consensus timeouts go to the driver
+        TimeoutKind::Propose | TimeoutKind::Prevote | TimeoutKind::Precommit => {
+            // Persist the timeout in the Write-ahead Log.
+            perform!(
+                co,
+                Effect::WalAppend(height, WalEntry::Timeout(timeout), Default::default())
+            );
 
-    if matches!(timeout.kind, TimeoutKind::Rebroadcast) {
-        on_rebroadcast_timeout(co, state, metrics).await?;
+            apply_driver_input(co, state, metrics, DriverInput::TimeoutElapsed(timeout)).await?;
+        }
     }
 
     Ok(())
