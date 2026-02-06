@@ -17,7 +17,7 @@ env:
 jobs:
   changes:
     name: Detect changes
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-small
     permissions:
       pull-requests: read
     outputs:
@@ -40,7 +40,7 @@ jobs:
     name: Integration
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' || needs.changes.outputs.codecov == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-large
     defaults:
       run:
         working-directory: code
@@ -90,7 +90,7 @@ jobs:
   #   name: MBT
   #   needs: changes
   #   if: ${{ needs.changes.outputs.code == 'true' || needs.changes.outputs.specs == 'true' || needs.changes.outputs.codecov == 'true' || github.ref == 'refs/heads/main' }}
-  #   runs-on: ubuntu-latest
+  #   runs-on: github-hosted-large
   #   defaults:
   #     run:
   #       working-directory: code
@@ -144,7 +144,7 @@ jobs:
     name: Upload coverage to Codecov
     # needs: [changes, integration, mbt]
     # needs: [changes, integration]
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-small
     if: ${{ !cancelled() && (needs.changes.outputs.code == 'true' || needs.changes.outputs.specs == 'true' || needs.changes.outputs.codecov == 'true' || github.ref == 'refs/heads/main') }}
     steps:
       - name: Checkout

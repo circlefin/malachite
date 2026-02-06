@@ -10,7 +10,7 @@ name: Quint
 jobs:
   changes:
     name: Detect changes
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-small
     permissions:
       pull-requests: read
     outputs:
@@ -28,7 +28,7 @@ jobs:
     name: Typecheck
     needs: changes
     if: ${{ needs.changes.outputs.specs == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-small
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v3
@@ -41,7 +41,7 @@ jobs:
     name: Test
     needs: changes
     if: ${{ needs.changes.outputs.specs == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-large
     env:
       MAX_SAMPLES: 100
     steps:

@@ -1,3 +1,5 @@
+//! Spawning facility and re-exports for building an application on top of Malachite.
+
 // TODO: Enforce proper documentation
 // #![warn(
 //     missing_docs,

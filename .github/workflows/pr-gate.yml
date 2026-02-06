@@ -7,7 +7,7 @@ on:
 jobs:
   check-eligibility:
     name: Check eligibility
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-small
     steps:
       - name: Check if author is Dependabot
         id: check-dependabot
