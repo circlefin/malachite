@@ -1,5 +1,5 @@
-use crate::MisbehaviorEvidence;
-use crate::{handle::signature::verify_commit_certificate, prelude::*};
+use crate::handle::signature::verify_commit_certificate;
+use crate::prelude::*;
 
 #[cfg_attr(not(feature = "metrics"), allow(unused_variables))]
 pub async fn decide<Ctx>(
@@ -53,7 +53,7 @@ where
         )
         .await?
         .is_ok(),
-        "Commit certificate is not valid"
+        "Decide: Commit certificate is not valid"
     );
 
     // Update metrics
@@ -75,22 +75,48 @@ where
             .observe(proposal_round.as_i64() as f64);
     }
 
-    #[cfg(feature = "debug")]
-    {
-        for trace in state.driver.get_traces() {
-            debug!(%trace, "Consensus trace");
-        }
-    }
-
-    let evidence = MisbehaviorEvidence {
-        proposals: state.driver.take_proposal_evidence(),
-        votes: state.driver.take_vote_evidence(),
-    };
-
     perform!(
         co,
-        Effect::Decide(certificate, extensions, evidence, Default::default())
+        Effect::Decide(certificate.clone(), extensions.clone(), Default::default())
     );
+
+    let Some(target_time) = state.target_time else {
+        debug!(
+            height = %height,
+            "No target time set, finalizing immediately"
+        );
+
+        super::finalize::log_and_finalize(co, state, certificate, extensions).await?;
+        return Ok(());
+    };
+
+    let start_time = state
+        .height_start_time
+        .expect("height_start_time must be set when target_time is set");
+    let elapsed = start_time.elapsed();
+
+    if elapsed < target_time {
+        state.finalization_period = true;
+
+        let remaining = target_time - elapsed;
+        let timeout = Timeout::finalize_height(consensus_round, remaining);
+        perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
+
+        debug!(
+            height = %height,
+            remaining_ms = remaining.as_millis(),
+            "Entering finalization period"
+        );
+    } else {
+        debug!(
+            height = %height,
+            elapsed_ms = elapsed.as_millis(),
+            target_ms = target_time.as_millis(),
+            "Target time exceeded, finalizing immediately"
+        );
+
+        super::finalize::log_and_finalize(co, state, certificate, extensions).await?;
+    }
 
     Ok(())
 }

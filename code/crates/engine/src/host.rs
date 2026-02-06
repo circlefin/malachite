@@ -144,13 +144,6 @@ pub enum HostMsg<Ctx: Context> {
     /// the value that was decided on, the height and round at which it was decided,
     /// and the aggregated signatures of the validators that committed to it.
     /// It also includes to the vote extensions received for that height.
-    ///
-    /// In response to this message, the application MUST send a [`Next`]
-    /// message back to consensus, instructing it to either start the next height if
-    /// the application was able to commit the decided value, or to restart the current height
-    /// otherwise.
-    ///
-    /// If the application does not reply, consensus will stall.
     Decided {
         /// The commit certificate containing the ID of the value that was decided on,
         /// the the height and round at which it was decided, and the aggregated signatures
@@ -158,6 +151,27 @@ pub enum HostMsg<Ctx: Context> {
         certificate: CommitCertificate<Ctx>,
 
         /// Vote extensions that were received for this height.
+        extensions: VoteExtensions<Ctx>,
+    },
+
+    /// Notifies the application that consensus has finalized a height after collecting additional precommits.
+    ///
+    /// This message is sent when the target time for the height has been reached,
+    /// which may include a delay between `Decided` and `Finalized` messages.
+    /// During this delay, additional precommits may have been collected. The certificate may contain more
+    /// signatures than the one sent in the initial Decided message.
+    ///
+    /// In response to this message, the application MUST send a [`Next`]
+    /// message back to consensus, instructing it to either start the next height if
+    /// the application was able to commit the decided value, or to restart the current height
+    /// otherwise.
+    ///
+    /// If the application does not reply, consensus will stall.
+    Finalized {
+        /// The commit certificate with extended signatures collected during finalization period.
+        certificate: CommitCertificate<Ctx>,
+
+        /// Vote extensions that were received for this height (including additional ones).
         extensions: VoteExtensions<Ctx>,
 
         /// Misbehavior evidence collected since last height was decided.

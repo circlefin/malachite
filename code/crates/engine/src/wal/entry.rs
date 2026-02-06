@@ -126,6 +126,10 @@ fn encode_timeout(tag: u8, timeout: &Timeout, mut buf: impl Write) -> io::Result
         // Consensus will typically not want to store these timeouts in the WAL,
         // but we still need to handle them here.
         TimeoutKind::Rebroadcast => 7,
+        TimeoutKind::FinalizeHeight(_) => {
+            // FinalizeHeight timeouts are not persisted to WAL
+            panic!("FinalizeHeight timeout should not be written to WAL")
+        }
     };
 
     buf.write_u8(tag)?;
@@ -164,6 +168,14 @@ fn decode_timeout(mut buf: impl Read) -> io::Result<Timeout> {
         // Consensus will typically not want to store these timeouts in the WAL,
         // but we still need to handle them here.
         7 => TimeoutKind::Rebroadcast,
+
+        // FinalizeHeight timeouts were never actually persisted
+        8 => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "FinalizeHeight timeouts are not persisted to WAL, ignoring",
+            ))
+        }
 
         _ => {
             return Err(io::Error::new(

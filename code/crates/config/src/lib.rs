@@ -705,6 +705,8 @@ pub struct TestConfig {
     pub vote_extensions: VoteExtensionsConfig,
     #[serde(default)]
     pub stable_block_times: bool,
+    #[serde(default, with = "humantime_serde")]
+    pub target_time: Option<Duration>,
 }
 
 impl Default for TestConfig {
@@ -717,6 +719,7 @@ impl Default for TestConfig {
             max_retain_blocks: 1000,
             vote_extensions: VoteExtensionsConfig::default(),
             stable_block_times: false,
+            target_time: None,
         }
     }
 }

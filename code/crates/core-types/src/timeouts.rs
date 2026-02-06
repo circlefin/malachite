@@ -93,6 +93,7 @@ impl LinearTimeouts {
                 self.rebroadcast
                     + (self.propose_delta + self.prevote_delta + self.precommit_delta) * round
             }
+            TimeoutKind::FinalizeHeight(duration) => duration,
         }
     }
 }

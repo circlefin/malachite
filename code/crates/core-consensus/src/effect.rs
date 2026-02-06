@@ -153,12 +153,23 @@ where
     /// the value that was decided on, the height and round at which it was decided,
     /// and the aggregated signatures of the validators that committed to it.
     ///
-    /// In addition, it includes
-    ///   * the vote extensions that were received for this height
-    ///   * any misbehavior evidence (vote/proposal equivocation) detected during the height.
+    /// In addition, it includes the vote extensions that were received for this height.
     ///
     /// Resume with: [`resume::Continue`]
     Decide(
+        CommitCertificate<Ctx>,
+        VoteExtensions<Ctx>,
+        resume::Continue,
+    ),
+
+    /// Notifies the application that a height has been finalized.
+    ///
+    /// This message includes an extended commit certificate containing the ID of the value
+    /// that was decided on, the height and round at which it was decided, and all precommits
+    /// for the decided value received until the target duration for the height.
+    ///
+    /// Resume with: [`resume::Continue`]
+    Finalize(
         CommitCertificate<Ctx>,
         VoteExtensions<Ctx>,
         MisbehaviorEvidence<Ctx>,

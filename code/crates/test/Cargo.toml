@@ -45,6 +45,7 @@ malachitebft-test-app.workspace = true
 malachitebft-test-framework.workspace = true
 
 bytesize.workspace = true
+rstest.workspace = true
 tempfile.workspace = true
 tokio.workspace = true
 

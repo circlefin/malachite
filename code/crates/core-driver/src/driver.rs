@@ -179,6 +179,11 @@ where
         &self.vote_keeper
     }
 
+    /// Return a mutable reference to the votekeper
+    pub fn votes_mut(&mut self) -> &mut VoteKeeper<Ctx> {
+        &mut self.vote_keeper
+    }
+
     /// Return a reference to the proposal keeper
     pub fn proposals(&self) -> &ProposalKeeper<Ctx> {
         &self.proposal_keeper
@@ -632,6 +637,7 @@ where
 
             // The driver never receives these events, so we can just ignore them.
             TimeoutKind::Rebroadcast => return Ok(None),
+            TimeoutKind::FinalizeHeight(_) => return Ok(None),
         };
 
         self.apply_input(timeout.round, input)

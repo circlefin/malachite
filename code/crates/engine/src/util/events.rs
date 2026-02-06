@@ -53,6 +53,9 @@ pub enum Event<Ctx: Context> {
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
     Decided {
         commit_certificate: CommitCertificate<Ctx>,
+    },
+    Finalized {
+        commit_certificate: CommitCertificate<Ctx>,
         evidence: MisbehaviorEvidence<Ctx>,
     },
     RepublishVote(SignedVote<Ctx>),
@@ -85,17 +88,32 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
                     "ReceivedProposedValue(value: {value:?}, origin: {origin:?})"
                 )
             }
-            Event::Decided {
+            Event::Decided { commit_certificate } => {
+                write!(
+                    f,
+                    "Decided(value: {}, signatures: {})",
+                    commit_certificate.value_id,
+                    commit_certificate.commit_signatures.len()
+                )
+            }
+            Event::Finalized {
                 commit_certificate,
                 evidence,
             } => {
                 if evidence.is_empty() {
-                    write!(f, "Decided(value: {})", commit_certificate.value_id)
+                    write!(
+                        f,
+                        "Finalized(value: {}, signatures: {})",
+                        commit_certificate.value_id,
+                        commit_certificate.commit_signatures.len()
+                    )
                 } else {
                     write!(
                         f,
-                        "Decided(value: {}, evidence: {:?})",
-                        commit_certificate.value_id, evidence
+                        "Finalized(value: {}, signatures: {}, evidence: {:?})",
+                        commit_certificate.value_id,
+                        commit_certificate.commit_signatures.len(),
+                        evidence
                     )
                 }
             }

@@ -1,4 +1,5 @@
 use crate::handle::driver::apply_driver_input;
+use crate::handle::finalize::finalize_height;
 use crate::handle::rebroadcast_timeout::on_rebroadcast_timeout;
 use crate::prelude::*;
 use crate::types::WalEntry;
@@ -33,22 +34,27 @@ where
         "Timeout elapsed"
     );
 
-    if matches!(
-        timeout.kind,
-        TimeoutKind::Propose | TimeoutKind::Prevote | TimeoutKind::Precommit
-    ) {
-        // Persist the timeout in the Write-ahead Log.
-        // Time-limit and rebroadcast timeouts are not persisted because they only occur when consensus is stuck.
-        perform!(
-            co,
-            Effect::WalAppend(height, WalEntry::Timeout(timeout), Default::default())
-        );
-    }
+    match timeout.kind {
+        TimeoutKind::FinalizeHeight(_) => {
+            if state.driver.step_is_commit() {
+                finalize_height(co, state, metrics).await?;
+            }
+        }
 
-    apply_driver_input(co, state, metrics, DriverInput::TimeoutElapsed(timeout)).await?;
+        TimeoutKind::Rebroadcast => {
+            on_rebroadcast_timeout(co, state, metrics).await?;
+        }
 
-    if matches!(timeout.kind, TimeoutKind::Rebroadcast) {
-        on_rebroadcast_timeout(co, state, metrics).await?;
+        // Consensus timeouts go to the driver
+        TimeoutKind::Propose | TimeoutKind::Prevote | TimeoutKind::Precommit => {
+            // Persist the timeout in the Write-ahead Log.
+            perform!(
+                co,
+                Effect::WalAppend(height, WalEntry::Timeout(timeout), Default::default())
+            );
+
+            apply_driver_input(co, state, metrics, DriverInput::TimeoutElapsed(timeout)).await?;
+        }
     }
 
     Ok(())
