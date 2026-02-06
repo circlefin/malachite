@@ -1,7 +1,5 @@
 use std::time::Duration;
 
-use malachitebft_peer::PeerId;
-
 use super::{Score, ScoringStrategy, SyncResult};
 
 /// Exponential Moving Average scoring strategy
@@ -71,11 +69,18 @@ impl ExponentialMovingAverage {
 }
 
 impl ScoringStrategy for ExponentialMovingAverage {
-    fn initial_score(&self, _peer_id: PeerId) -> Score {
+    type State = (); // Stateless - no per-peer data needed
+
+    fn initial_score(&self) -> Score {
         0.5 // All peers start with a neutral score of 0.5
     }
 
-    fn update_score(&mut self, previous_score: Score, result: SyncResult) -> Score {
+    fn update_score(
+        &self,
+        _state: &mut Self::State,
+        previous_score: Score,
+        result: SyncResult,
+    ) -> Score {
         match result {
             SyncResult::Success(response_time) => {
                 // Calculate quality score between 0-1 based on response time

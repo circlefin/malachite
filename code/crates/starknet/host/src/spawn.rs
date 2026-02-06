@@ -161,6 +161,7 @@ async fn spawn_sync_actor(
 
     let scoring_strategy = match config.scoring_strategy {
         config::ScoringStrategy::Ema => sync::scoring::Strategy::Ema,
+        config::ScoringStrategy::Credit => sync::scoring::Strategy::Credit,
     };
 
     let sync_config = sync::Config {
