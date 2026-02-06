@@ -48,7 +48,7 @@ readme       = "README.md"
 repository   = "https://github.com/informalsystems/malachite"
 license      = "Apache-2.0"
 publish      = true
-rust-version = "1.85"
+rust-version = "1.88"
 
 [profile.dev]
 opt-level = 1
