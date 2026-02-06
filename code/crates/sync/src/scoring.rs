@@ -341,24 +341,23 @@ mod tests {
         });
     }
 
-    // Property: Slow responses should decrease the score
+    // Property: Slow responses should decrease the score if it was already high
     #[test]
-    fn slow_responses_decrease_score() {
+    fn slow_responses_decrease_high_score() {
         arbtest(|u| {
             let strategy = arb_strategy(u)?;
             let response_time = arb_response_time_slow(u, strategy.slow_threshold)?;
 
             let mut scorer = PeerScorer::new(strategy);
-            let peer_id = PeerId::random();
 
-            let initial_score = scorer.get_score(&peer_id);
+            let initial_score = 1.0;
             let update_score = scorer
                 .strategy
                 .update_score(initial_score, SyncResult::Success(response_time));
 
             assert!(
                 update_score < initial_score,
-                "Slow response should decrease score: {initial_score} -> {update_score}",
+                "Slow response ({response_time:?}) should decrease score: {initial_score} -> {update_score}",
             );
 
             Ok(())
@@ -528,7 +527,9 @@ mod tests {
     }
 
     // Property: Score updates should be monotonic for sequences of same result type
+    // Note: This test does not apply to EMA anymore, but it can be useful for testing other strategies that have more deterministic score changes.
     #[test]
+    #[ignore]
     fn monotonic_score_updates() {
         arbtest(|u| {
             let strategy = arb_strategy(u)?;
@@ -538,6 +539,11 @@ mod tests {
             let mut scorer = PeerScorer::new(strategy);
             let mut current_score = scorer.strategy.initial_score(PeerId::random());
             let mut scores = vec![current_score];
+
+            println!(
+                "Testing monotonicity for result {:?} over {} updates, threshold={:?}",
+                result, update_count, strategy.slow_threshold
+            );
 
             for _ in 0..update_count {
                 current_score = scorer.strategy.update_score(current_score, result);
@@ -552,18 +558,18 @@ mod tests {
                         let diff = window[1] - window[0];
                         assert!(
                             diff >= 0.0,
-                            "Fast response should improve score: {} -> {}",
+                            "Fast response ({rt:?}) should improve score: {} -> {}",
                             window[0],
                             window[1]
                         );
                     }
                 }
-                SyncResult::Success(_) => {
+                SyncResult::Success(rt) => {
                     // For slow responses, scores should decrease
                     for window in scores.windows(2) {
                         assert!(
                             window[1] <= window[0],
-                            "Slow response should decrease score: {} -> {}",
+                            "Slow response ({rt:?}) should decrease score: {} -> {}",
                             window[0],
                             window[1]
                         );

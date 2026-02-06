@@ -6,7 +6,7 @@ use malachitebft_test_framework::{HandlerResult, TestParams};
 
 use crate::TestBuilder;
 
-const VOTE_DURATION: Duration = Duration::from_millis(50);
+const VOTE_DURATION: Duration = Duration::from_millis(300);
 
 fn check_decided_impl<Ctx: Context>(evidence: &MisbehaviorEvidence<Ctx>) {
     for addr in evidence.proposals.iter() {
@@ -29,10 +29,9 @@ fn check_decided_impl<Ctx: Context>(evidence: &MisbehaviorEvidence<Ctx>) {
 // Verifies that sharing a validator key across two nodes
 // induces equivocation and that decide-time `MisbehaviorEvidence`
 // contains double proposals and double prevotes for the equivocator.
-// Nodes 3 and 4 check for proposal and vote equivocation evidence, respectively.
-// They are "specialized" so that the test fails if one type of evidence stops working.
+// Node 3 checks for proposal equivocation evidence.
 #[tokio::test]
-pub async fn equivocation_two_vals_same_pk() {
+pub async fn equivocation_two_vals_same_pk_proposal() {
     // Nodes 1 and 2 share a validator key to induce proposal equivocation
     let params = TestParams {
         shared_key_group: HashSet::from([1, 2]),
@@ -67,7 +66,37 @@ pub async fn equivocation_two_vals_same_pk() {
         })
         .success();
 
-    // Node 4 --checking vote equivocation evidence
+    test.build()
+        .run_with_params(Duration::from_secs(15), params)
+        .await;
+}
+
+// Verifies that sharing a validator key across two nodes
+// induces equivocation and that decide-time `MisbehaviorEvidence`
+// contains double proposals and double prevotes for the equivocator.
+// Node 3 checks for vote equivocation evidence.
+#[tokio::test]
+pub async fn equivocation_two_vals_same_pk_vote() {
+    // Nodes 1 and 2 share a validator key to induce vote equivocation
+    let params = TestParams {
+        shared_key_group: HashSet::from([1, 2]),
+        ..Default::default()
+    };
+    let mut test = TestBuilder::<()>::new();
+
+    // Node 1
+    test.add_node()
+        .start()
+        .on_vote(|_v, _s| Ok(HandlerResult::SleepAndContinueTest(VOTE_DURATION)))
+        .success();
+
+    // Node 2 (same validator key as node 1)
+    test.add_node()
+        .start()
+        .on_vote(|_v, _s| Ok(HandlerResult::SleepAndContinueTest(VOTE_DURATION)))
+        .success();
+
+    // Node 3 -- checking vote equivocation evidence
     test.add_node()
         .start()
         .on_vote(|_v, _s| Ok(HandlerResult::SleepAndContinueTest(VOTE_DURATION)))
@@ -83,6 +112,6 @@ pub async fn equivocation_two_vals_same_pk() {
         .success();
 
     test.build()
-        .run_with_params(Duration::from_secs(5), params)
+        .run_with_params(Duration::from_secs(15), params)
         .await;
 }

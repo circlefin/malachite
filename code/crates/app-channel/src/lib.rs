@@ -12,6 +12,7 @@
 
 pub use malachitebft_app as app;
 
+mod builder;
 mod connector;
 mod spawn;
 
@@ -23,3 +24,7 @@ pub use msgs::{
 
 mod run;
 pub use run::*;
+
+pub use builder::{
+    ConsensusContext, EngineBuilder, NetworkContext, RequestContext, SyncContext, WalContext,
+};

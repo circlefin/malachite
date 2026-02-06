@@ -4,8 +4,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
-use eyre::Result;
-use malachitebft_engine::util::output_port::OutputPort;
+use eyre::{eyre, Result};
 use tokio::task::JoinHandle;
 use tracing::Span;
 
@@ -15,6 +14,7 @@ use malachitebft_engine::network::{Network, NetworkRef};
 use malachitebft_engine::node::{Node, NodeRef};
 use malachitebft_engine::sync::{Params as SyncParams, Sync, SyncCodec, SyncMsg, SyncRef};
 use malachitebft_engine::util::events::TxEvent;
+use malachitebft_engine::util::output_port::OutputPort;
 use malachitebft_engine::wal::{Wal, WalCodec, WalRef};
 use malachitebft_network::{
     ChannelNames, Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, NetworkIdentity,
@@ -166,6 +166,10 @@ where
 {
     if !config.enabled {
         return Ok(None);
+    }
+
+    if config.enabled && config.batch_size == 0 {
+        return Err(eyre!("Value sync batch size cannot be zero"));
     }
 
     let params = SyncParams {
