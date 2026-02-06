@@ -1,5 +1,5 @@
 use core::fmt;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
 use rand::distributions::weighted::WeightedIndex;
@@ -9,6 +9,7 @@ use tracing::debug;
 
 use malachitebft_peer::PeerId;
 
+pub mod credit;
 pub mod ema;
 pub mod metrics;
 
@@ -41,14 +42,51 @@ pub trait ScoringStrategy: Send + Sync {
     ///
     /// ## Important
     /// The updated score must be in the `0.0..=1.0` range.
-    fn update_score(&mut self, previous_score: Score, result: SyncResult) -> Score;
+    fn update_score(&mut self, peer_id: PeerId, previous_score: Score, result: SyncResult)
+        -> Score;
+
+    /// Indicates whether the strategy maintains state per peer.
+    fn is_stateful(&self) -> bool {
+        false
+    }
+
+    /// Retain only the scores for the given peer IDs, removing any others.
+    /// This is used to prune scores for peers that are no longer active.
+    fn retain_only(&mut self, _peer_ids: HashSet<&PeerId>) {
+        // By default, do nothing
+    }
 }
 
+impl<T> ScoringStrategy for Box<T>
+where
+    T: ScoringStrategy + ?Sized,
+{
+    fn initial_score(&self, peer_id: PeerId) -> Score {
+        self.as_ref().initial_score(peer_id)
+    }
+
+    fn update_score(
+        &mut self,
+        peer_id: PeerId,
+        previous_score: Score,
+        result: SyncResult,
+    ) -> Score {
+        self.as_mut().update_score(peer_id, previous_score, result)
+    }
+
+    fn retain_only(&mut self, peer_ids: HashSet<&PeerId>) {
+        self.as_mut().retain_only(peer_ids)
+    }
+}
+
+/// Scoring strategies
 #[derive(Copy, Clone, Debug, Default)]
 pub enum Strategy {
     /// Exponential moving average strategy
     #[default]
     Ema,
+    /// Credit-based strategy
+    Credit,
 }
 
 #[derive(Copy, Clone)]
@@ -122,7 +160,7 @@ impl PeerScorer {
         debug!("  Result = {result:?}");
         debug!("    Prev = {previous_score}");
 
-        let new_score = self.strategy.update_score(previous_score, result);
+        let new_score = self.strategy.update_score(peer_id, previous_score, result);
         debug!("     New = {new_score}");
 
         peer_score.score = new_score;
@@ -173,6 +211,10 @@ impl PeerScorer {
 
         self.scores
             .retain(|_, score| now.duration_since(score.last_update) < inactive_threshold);
+
+        if self.strategy.is_stateful() {
+            self.strategy.retain_only(self.scores.keys().collect());
+        }
     }
 }
 
@@ -238,18 +280,59 @@ mod tests {
         })
     }
 
-    fn arb_strategy(u: &mut Unstructured) -> Result<ema::ExponentialMovingAverage> {
+    fn arb_slow_threshold(u: &mut Unstructured) -> Result<Duration> {
+        u.int_in_range(1000..=5000).map(Duration::from_millis)
+    }
+
+    fn arb_strategy(u: &mut Unstructured) -> Result<(Box<dyn ScoringStrategy>, Duration)> {
+        let slow_threshold = arb_slow_threshold(u)?;
+        eprintln!("slow_threshold = {slow_threshold:?}");
+
+        let strategy = if u.arbitrary()? {
+            eprintln!("Testing with EMA strategy");
+            arb_ema_strategy(u, slow_threshold).map(|s| Box::new(s) as Box<dyn ScoringStrategy>)
+        } else {
+            eprintln!("Testing with Credit strategy");
+            arb_credit_strategy(u, slow_threshold).map(|s| Box::new(s) as Box<dyn ScoringStrategy>)
+        }?;
+
+        Ok((strategy, slow_threshold))
+    }
+
+    fn arb_ema_strategy(
+        u: &mut Unstructured,
+        slow_threshold: Duration,
+    ) -> Result<ema::ExponentialMovingAverage> {
         let alpha_success = u.choose(&[0.20, 0.25, 0.30])?;
         let alpha_timeout = u.choose(&[0.10, 0.15, 0.20])?;
         let alpha_failure = u.choose(&[0.10, 0.15, 0.20])?;
-        let slow_threshold = u.int_in_range(1000..=5000)?;
 
         Ok(ema::ExponentialMovingAverage::new(
             *alpha_success,
             *alpha_timeout,
             *alpha_failure,
-            Duration::from_millis(slow_threshold),
+            slow_threshold,
         ))
+    }
+
+    fn arb_credit_strategy(
+        u: &mut Unstructured,
+        slow_threshold: Duration,
+    ) -> Result<credit::Credit> {
+        let credit_fast_success = *u.choose(&[30, 40, 50])?;
+        let credit_slow_success = *u.choose(&[-5, -10, -15])?;
+        let credit_failure = *u.choose(&[-15, -20, -25])?;
+        let credit_timeout = *u.choose(&[-10, -15, -20])?;
+
+        Ok(credit::Credit::new(credit::CreditConfig {
+            slow_threshold,
+            credit_fast_success,
+            credit_slow_success,
+            credit_failure,
+            credit_timeout,
+            min_credit: -100,
+            max_credit: 100,
+        }))
     }
 
     fn arb_vec<T>(
@@ -265,10 +348,10 @@ mod tests {
     #[test]
     fn scores_are_bounded() {
         arbtest(|u| {
-            let strategy = arb_strategy(u)?;
+            let (strategy, slow_threshold) = arb_strategy(u)?;
             let results = arb_vec(
                 u,
-                |u| arb_sync_result_success_fast(u, strategy.slow_threshold),
+                |u| arb_sync_result_success_fast(u, slow_threshold),
                 10..=100,
             )?;
 
@@ -293,7 +376,7 @@ mod tests {
         });
 
         arbtest(|u| {
-            let strategy = arb_strategy(u)?;
+            let (strategy, _) = arb_strategy(u)?;
             let results = arb_vec(u, arb_sync_result_failure, 10..=100)?;
 
             let mut scorer = PeerScorer::new(strategy);
@@ -321,16 +404,18 @@ mod tests {
     #[test]
     fn fast_responses_improve_score() {
         arbtest(|u| {
-            let strategy = arb_strategy(u)?;
-            let response_time = arb_response_time_fast(u, strategy.slow_threshold)?;
+            let (strategy, slow_threshold) = arb_strategy(u)?;
+            let response_time = arb_response_time_fast(u, slow_threshold)?;
 
             let mut scorer = PeerScorer::new(strategy);
             let peer_id = PeerId::random();
 
             let initial_score = scorer.get_score(&peer_id);
-            let update_score = scorer
-                .strategy
-                .update_score(initial_score, SyncResult::Success(response_time));
+            let update_score = scorer.strategy.update_score(
+                peer_id,
+                initial_score,
+                SyncResult::Success(response_time),
+            );
 
             assert!(
                 update_score > initial_score,
@@ -345,15 +430,17 @@ mod tests {
     #[test]
     fn slow_responses_decrease_high_score() {
         arbtest(|u| {
-            let strategy = arb_strategy(u)?;
-            let response_time = arb_response_time_slow(u, strategy.slow_threshold)?;
+            let (strategy, slow_threshold) = arb_strategy(u)?;
+            let response_time = arb_response_time_slow(u, slow_threshold)?;
 
             let mut scorer = PeerScorer::new(strategy);
 
             let initial_score = 1.0;
-            let update_score = scorer
-                .strategy
-                .update_score(initial_score, SyncResult::Success(response_time));
+            let update_score = scorer.strategy.update_score(
+                PeerId::random(),
+                initial_score,
+                SyncResult::Success(response_time),
+            );
 
             assert!(
                 update_score < initial_score,
@@ -368,14 +455,16 @@ mod tests {
     #[test]
     fn failures_decrease_score() {
         arbtest(|u| {
-            let strategy = arb_strategy(u)?;
+            let (strategy, _) = arb_strategy(u)?;
             let failure_type = u.choose(&[SyncResult::Timeout, SyncResult::Failure])?;
 
             let mut scorer = PeerScorer::new(strategy);
             let peer_id = PeerId::random();
 
             let initial_score = scorer.get_score(&peer_id);
-            let update_score = scorer.strategy.update_score(initial_score, *failure_type);
+            let update_score = scorer
+                .strategy
+                .update_score(peer_id, initial_score, *failure_type);
 
             assert!(
                 update_score < initial_score,
@@ -527,32 +616,36 @@ mod tests {
     }
 
     // Property: Score updates should be monotonic for sequences of same result type
-    // Note: This test does not apply to EMA anymore, but it can be useful for testing other strategies that have more deterministic score changes.
+    //
+    // Note: This test does not apply to EMA but does apply to Credit strategy,
+    // where we expect consistent improvements for fast successes and consistent
+    // penalties for failures and timeouts.
     #[test]
-    #[ignore]
     fn monotonic_score_updates() {
         arbtest(|u| {
-            let strategy = arb_strategy(u)?;
+            let slow_threshold = arb_slow_threshold(u)?;
+            let strategy = arb_credit_strategy(u, slow_threshold)?;
             let result = arb_sync_result(u)?;
             let update_count = u.int_in_range(1_usize..=20)?;
+            let peer_id = PeerId::random();
 
             let mut scorer = PeerScorer::new(strategy);
-            let mut current_score = scorer.strategy.initial_score(PeerId::random());
+            let mut current_score = scorer.strategy.initial_score(peer_id);
             let mut scores = vec![current_score];
 
             println!(
                 "Testing monotonicity for result {:?} over {} updates, threshold={:?}",
-                result, update_count, strategy.slow_threshold
+                result, update_count, slow_threshold
             );
 
             for _ in 0..update_count {
-                current_score = scorer.strategy.update_score(current_score, result);
+                current_score = scorer.strategy.update_score(peer_id, current_score, result);
                 scores.push(current_score);
             }
 
             // Check monotonicity based on result type
             match result {
-                SyncResult::Success(rt) if rt < strategy.slow_threshold => {
+                SyncResult::Success(rt) if rt < slow_threshold => {
                     // For fast response, scores should increase
                     for window in scores.windows(2) {
                         let diff = window[1] - window[0];
@@ -636,18 +729,25 @@ mod tests {
     #[test]
     fn response_time_affects_success_score() {
         arbtest(|u| {
-            let strategy = arb_strategy(u)?;
+            let (strategy, _) = arb_strategy(u)?;
             let fast_time = u.int_in_range(10_u64..=100)?;
             let slow_time = u.int_in_range(1000_u64..=5000)?;
 
             let mut scorer = PeerScorer::new(strategy);
+            let peer1 = PeerId::random();
+            let peer2 = PeerId::random();
+
             let initial_score = scorer.strategy.initial_score(PeerId::random());
 
             let fast_result = SyncResult::Success(Duration::from_millis(fast_time));
             let slow_result = SyncResult::Success(Duration::from_millis(slow_time));
 
-            let fast_score = scorer.strategy.update_score(initial_score, fast_result);
-            let slow_score = scorer.strategy.update_score(initial_score, slow_result);
+            let fast_score = scorer
+                .strategy
+                .update_score(peer1, initial_score, fast_result);
+            let slow_score = scorer
+                .strategy
+                .update_score(peer2, initial_score, slow_result);
 
             assert!(
                 fast_score >= slow_score,
@@ -662,7 +762,7 @@ mod tests {
     #[test]
     fn updating_one_peer_does_not_affect_others() {
         arbtest(|u| {
-            let strategy = arb_strategy(u)?;
+            let (strategy, _) = arb_strategy(u)?;
             let results = arb_vec(u, arb_sync_result, 0..=10)?;
 
             let mut scorer = PeerScorer::new(strategy);
@@ -694,8 +794,8 @@ mod tests {
     #[test]
     fn fast_response_help_recover_score_quickly() {
         arbtest(|u| {
-            let strategy = arb_strategy(u)?;
-            let response_time = arb_response_time_fast(u, strategy.slow_threshold)?;
+            let (strategy, slow_threshold) = arb_strategy(u)?;
+            let response_time = arb_response_time_fast(u, slow_threshold)?;
 
             let mut scorer = PeerScorer::new(strategy);
             let peer_id = PeerId::random();
@@ -730,9 +830,12 @@ mod tests {
     #[test]
     fn pruning_inactive_peers_resets_scores() {
         arbtest(|u| {
-            let strategy = arb_strategy(u)?;
-            let mut scorer = PeerScorer::new(strategy);
+            let (strategy, _) = arb_strategy(u)?;
+
             let peer_id = PeerId::random();
+            let initial_score = strategy.initial_score(peer_id);
+
+            let mut scorer = PeerScorer::new(strategy);
 
             // Update score for the peer
             scorer.update_score(peer_id, SyncResult::Success(Duration::from_millis(100)));
@@ -745,7 +848,7 @@ mod tests {
 
             // Peer should be removed
             assert!(!scorer.get_scores().contains_key(&peer_id));
-            assert_eq!(scorer.get_score(&peer_id), strategy.initial_score(peer_id));
+            assert_eq!(scorer.get_score(&peer_id), initial_score);
 
             Ok(())
         });

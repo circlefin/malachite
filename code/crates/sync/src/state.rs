@@ -5,7 +5,7 @@ use std::ops::RangeInclusive;
 use malachitebft_core_types::{Context, Height};
 use malachitebft_peer::PeerId;
 
-use crate::scoring::{ema, PeerScorer, Strategy};
+use crate::scoring::{credit, ema, PeerScorer, Strategy};
 use crate::{Config, OutboundRequestId, Status};
 
 pub struct State<Ctx>
@@ -49,6 +49,7 @@ where
     ) -> Self {
         let peer_scorer = match config.scoring_strategy {
             Strategy::Ema => PeerScorer::new(ema::ExponentialMovingAverage::default()),
+            Strategy::Credit => PeerScorer::new(credit::Credit::default()),
         };
 
         Self {

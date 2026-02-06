@@ -179,6 +179,7 @@ where
 
     let scoring_strategy = match config.scoring_strategy {
         malachitebft_config::ScoringStrategy::Ema => sync::scoring::Strategy::Ema,
+        malachitebft_config::ScoringStrategy::Credit => sync::scoring::Strategy::Credit,
     };
 
     let sync_config = sync::Config {
