@@ -133,9 +133,12 @@ pub fn get_peer_score(peer_type: PeerType) -> f64 {
 /// Constructs the peer score parameters for GossipSub.
 ///
 /// Configures application-specific scoring with a weight multiplier to amplify score differences.
+/// Disables IP colocation penalty since nodes may share IPs in test/local environments.
 pub fn peer_score_params() -> gossipsub::PeerScoreParams {
     gossipsub::PeerScoreParams {
         app_specific_weight: APP_SPECIFIC_WEIGHT,
+        // Disable IP colocation penalty (all nodes may be on same IP in test/local environments)
+        ip_colocation_factor_weight: 0.0,
         ..Default::default()
     }
 }

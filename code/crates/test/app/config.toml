@@ -164,6 +164,13 @@ mesh_outbound_min = 2
 # Override with MALACHITE__CONSENSUS__P2P__PROTOCOL__ENABLE_PEER_SCORING env variable
 enable_peer_scoring = false
 
+# GossipSub only. Enable explicit peering for persistent peers.
+# When enabled, persistent peers are added as explicit peers in GossipSub, ensuring guaranteed
+# message delivery outside the mesh. This eliminates mesh partitioning and backoff issues.
+# Also sets flood_publish to false when enabled (explicit peers handle delivery).
+# Override with MALACHITE__CONSENSUS__P2P__PROTOCOL__ENABLE_EXPLICIT_PEERING env variable
+enable_explicit_peering = false
+
 #######################################################
 ###         ValueSync Configuration Options         ###
 #######################################################
