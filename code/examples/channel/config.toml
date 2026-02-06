@@ -267,6 +267,7 @@ sleep_interval = { start = 1000, end = 5000 } # Random delay between 1-5 seconds
 enabled = true
 
 # Interval at which to update other peers of our status
+# If set to 0s, status updates are sent eagerly right after each decision.
 # Override with MALACHITE__VALUE_SYNC__STATUS_UPDATE_INTERVAL env variable
 status_update_interval = "10s"
 

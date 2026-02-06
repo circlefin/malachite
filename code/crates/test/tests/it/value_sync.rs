@@ -799,3 +799,39 @@ pub async fn response_size_limit_exceeded() {
         )
         .await
 }
+
+#[tokio::test]
+pub async fn status_update_on_decision() {
+    const HEIGHT: u64 = 10;
+
+    let mut test = TestBuilder::<()>::new();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT * 2)
+        .success();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT * 2)
+        .success();
+
+    test.add_node()
+        .with_voting_power(0)
+        .start_after(1, Duration::from_secs(10))
+        .wait_until(HEIGHT)
+        .success();
+
+    test.build()
+        .run_with_params(
+            Duration::from_secs(60),
+            TestParams {
+                enable_value_sync: true,
+                status_update_interval: Duration::ZERO,
+                ..Default::default()
+            },
+        )
+        .await
+}

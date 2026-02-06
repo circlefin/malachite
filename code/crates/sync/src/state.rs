@@ -12,7 +12,7 @@ pub struct State<Ctx>
 where
     Ctx: Context,
 {
-    rng: Box<dyn rand::RngCore + Send>,
+    pub rng: Box<dyn rand::RngCore + Send>,
 
     /// Configuration for the sync state and behaviour.
     pub config: Config,

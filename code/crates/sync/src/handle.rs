@@ -17,8 +17,8 @@ use crate::{
 
 #[derive_where(Debug)]
 pub enum Input<Ctx: Context> {
-    /// A tick has occurred
-    Tick,
+    /// Periodical event triggering the broadcast of a status update
+    SendStatusUpdate,
 
     /// A status update has been received from a peer
     Status(Status<Ctx>),
@@ -63,7 +63,7 @@ where
     Ctx: Context,
 {
     match input {
-        Input::Tick => on_tick(co, state, metrics).await,
+        Input::SendStatusUpdate => on_send_status_update(co, state, metrics).await,
 
         Input::Status(status) => on_status(co, state, metrics, status).await,
 
@@ -152,7 +152,7 @@ where
     on_valid_value_response(co, state, metrics, request_id, peer_id, response).await
 }
 
-pub async fn on_tick<Ctx>(
+pub async fn on_send_status_update<Ctx>(
     co: Co<Ctx>,
     state: &mut State<Ctx>,
     _metrics: &Metrics,
