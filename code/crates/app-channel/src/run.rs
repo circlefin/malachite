@@ -1,32 +1,28 @@
 //! Run Malachite consensus with the given configuration and context.
 //! Provides the application with a channel for receiving messages from consensus.
 
-use std::path::PathBuf;
-use std::sync::Arc;
-
-use eyre::{eyre, Result};
-use tokio::sync::mpsc::{self, Receiver};
+use tokio::sync::mpsc::Receiver;
 use tokio::task::JoinHandle;
+
+use eyre::Result;
 
 use malachitebft_engine::consensus::{ConsensusMsg, ConsensusRef};
 use malachitebft_engine::network::{NetworkMsg, NetworkRef};
 use malachitebft_engine::node::NodeRef;
-use malachitebft_engine::util::events::TxEvent;
-use malachitebft_engine::util::output_port::{OutputPort, OutputPortSubscriberTrait};
 use malachitebft_signing::SigningProvider;
 
 pub use malachitebft_engine::network::NetworkIdentity;
 
-use crate::app::config::NodeConfig;
-use crate::app::metrics::{Metrics, SharedRegistry};
-use crate::app::spawn::{
-    spawn_consensus_actor, spawn_node_actor, spawn_sync_actor, spawn_wal_actor,
+// Re-export context structs from builder module
+pub use crate::builder::{
+    ConsensusContext, NetworkContext, RequestContext, SyncContext, WalContext,
 };
+
+use crate::app::config::NodeConfig;
 use crate::app::types::codec;
 use crate::app::types::core::Context;
 use crate::msgs::{ConsensusRequest, NetworkRequest};
-use crate::spawn::{spawn_host_actor, spawn_network_actor};
-use crate::Channels;
+use crate::{Channels, EngineBuilder};
 
 pub struct EngineHandle {
     pub actor: NodeRef,
@@ -39,59 +35,31 @@ impl EngineHandle {
     }
 }
 
-pub struct NetworkContext<Codec> {
-    pub identity: NetworkIdentity,
-    pub codec: Codec,
-}
-
-impl<Codec> NetworkContext<Codec> {
-    pub fn new(identity: NetworkIdentity, codec: Codec) -> Self {
-        Self { identity, codec }
-    }
-}
-
-pub struct ConsensusContext<Ctx: Context, Signer> {
-    pub address: Ctx::Address,
-    pub signing_provider: Signer,
-}
-
-impl<Ctx: Context, Signer> ConsensusContext<Ctx, Signer> {
-    pub fn new(address: Ctx::Address, signing_provider: Signer) -> Self {
-        Self {
-            address,
-            signing_provider,
-        }
-    }
-}
-
-pub struct WalContext<Codec> {
-    pub path: PathBuf,
-    pub codec: Codec,
-}
-
-impl<Codec> WalContext<Codec> {
-    pub fn new(path: PathBuf, codec: Codec) -> Self {
-        Self { path, codec }
-    }
-}
-
-pub struct RequestContext {
-    pub channel_size: usize,
-}
-
-impl RequestContext {
-    pub fn new(channel_size: usize) -> Self {
-        Self { channel_size }
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-pub async fn start_engine<Ctx, Config, Signer, WalCodec, NetCodec>(
+/// Start the consensus engine with default actors.
+///
+/// This is a convenience function that uses [`EngineBuilder`](crate::EngineBuilder) internally.
+/// For more control over actor spawning (e.g., providing custom actor implementations),
+/// use [`EngineBuilder`](crate::EngineBuilder) directly.
+///
+/// # Example
+/// ```rust,ignore
+/// let (channels, handle) = start_engine(
+///     ctx,
+///     config,
+///     WalContext::new(path, wal_codec),
+///     NetworkContext::new(identity, net_codec),
+///     ConsensusContext::new(address, signer),
+///     SyncContext::new(sync_codec),
+///     RequestContext::new(100),
+/// ).await?;
+/// ```
+pub async fn start_engine<Ctx, Config, Signer, WalCodec, NetCodec, SyncCodec>(
     ctx: Ctx,
     cfg: Config,
     wal_ctx: WalContext<WalCodec>,
     network_ctx: NetworkContext<NetCodec>,
     consensus_ctx: ConsensusContext<Ctx, Signer>,
+    sync_ctx: SyncContext<SyncCodec>,
     request_ctx: RequestContext,
 ) -> Result<(Channels<Ctx>, EngineHandle)>
 where
@@ -99,99 +67,20 @@ where
     Config: NodeConfig,
     Signer: SigningProvider<Ctx> + 'static,
     WalCodec: codec::WalCodec<Ctx> + Clone,
-    NetCodec: Clone,
-    NetCodec: codec::ConsensusCodec<Ctx>,
-    NetCodec: codec::SyncCodec<Ctx>,
+    NetCodec: Clone + codec::ConsensusCodec<Ctx> + codec::SyncCodec<Ctx>,
+    SyncCodec: Clone + codec::SyncCodec<Ctx>,
 {
-    let registry = SharedRegistry::global().with_moniker(cfg.moniker());
-    let metrics = Metrics::register(&registry);
-
-    if cfg.value_sync().enabled && cfg.value_sync().batch_size == 0 {
-        return Err(eyre!("Value sync batch size cannot be zero"));
-    }
-
-    // Spawn consensus gossip
-    let (network, tx_network) = spawn_network_actor(
-        network_ctx.identity,
-        cfg.consensus(),
-        cfg.value_sync(),
-        &registry,
-        network_ctx.codec.clone(),
-    )
-    .await?;
-
-    let wal = spawn_wal_actor(&ctx, wal_ctx.codec, &wal_ctx.path, &registry).await?;
-
-    // Spawn the host actor
-    let (connector, rx_consensus) = spawn_host_actor(metrics.clone()).await?;
-
-    let tx_event = TxEvent::new();
-    let sync_port = Arc::new(OutputPort::new());
-
-    // Spawn consensus
-    let consensus = spawn_consensus_actor(
-        ctx.clone(),
-        consensus_ctx.address,
-        cfg.consensus().clone(),
-        cfg.value_sync(),
-        Box::new(consensus_ctx.signing_provider),
-        network.clone(),
-        connector.clone(),
-        wal.clone(),
-        sync_port.clone(),
-        metrics,
-        tx_event.clone(),
-    )
-    .await?;
-
-    let sync = spawn_sync_actor(
-        ctx.clone(),
-        network.clone(),
-        connector.clone(),
-        consensus.clone(),
-        network_ctx.codec,
-        cfg.value_sync(),
-        &registry,
-    )
-    .await?;
-
-    if let Some(sync) = &sync {
-        sync.subscribe_to_port(&sync_port);
-    }
-
-    let (node, handle) = spawn_node_actor(
-        ctx,
-        network.clone(),
-        consensus.clone(),
-        wal,
-        sync,
-        connector,
-    )
-    .await?;
-
-    let (tx_request, rx_request) = mpsc::channel(request_ctx.channel_size);
-    spawn_consensus_request_task(rx_request, consensus);
-
-    let (tx_net_request, rx_net_request) = mpsc::channel(request_ctx.channel_size);
-    spawn_network_request_task(rx_net_request, network);
-
-    let channels = Channels {
-        consensus: rx_consensus,
-        network: tx_network,
-        events: tx_event,
-        requests: tx_request,
-        net_requests: tx_net_request,
-    };
-
-    let handle = EngineHandle {
-        actor: node,
-        handle,
-    };
-
-    Ok((channels, handle))
+    EngineBuilder::new(ctx, cfg)
+        .with_default_wal(wal_ctx)
+        .with_default_network(network_ctx)
+        .with_default_sync(sync_ctx)
+        .with_default_consensus(consensus_ctx)
+        .with_default_request(request_ctx)
+        .build()
+        .await
 }
 
-fn spawn_consensus_request_task<Ctx>(
+pub(crate) fn spawn_consensus_request_task<Ctx>(
     mut rx_request: Receiver<ConsensusRequest<Ctx>>,
     consensus: ConsensusRef<Ctx>,
 ) where
@@ -210,7 +99,7 @@ fn spawn_consensus_request_task<Ctx>(
     });
 }
 
-fn spawn_network_request_task<Ctx>(
+pub(crate) fn spawn_network_request_task<Ctx>(
     mut rx_request: Receiver<NetworkRequest>,
     network: NetworkRef<Ctx>,
 ) where

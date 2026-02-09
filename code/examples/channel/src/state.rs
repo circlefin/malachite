@@ -566,7 +566,7 @@ fn factor_value(value: Value) -> Vec<u64> {
 
     let mut i = 2;
     while i * i <= n {
-        if n % i == 0 {
+        if n.is_multiple_of(i) {
             factors.push(i);
             n /= i;
         } else {
