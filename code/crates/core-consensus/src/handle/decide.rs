@@ -21,7 +21,8 @@ where
 
     let decided_id = decided_value.id();
 
-    // Look for an existing certificate (from sync) or build one from precommits
+    // Look for an existing certificate.
+    // NOTE: this curretly means the decision is reached via Sync protocol.
     let existing_certificate = state
         .driver
         .commit_certificate(proposal_round, &decided_id)
@@ -29,8 +30,8 @@ where
 
     // FIXME: there is actual no guarantee that associated vote extensions can be found,
     // in particular when deciding via sync, see: https://circlepay.atlassian.net/browse/CCHAIN-915.
-    let (certificate, extensions) = existing_certificate
-        .map(|certificate| (certificate, VoteExtensions::default()))
+    let (certificate, extensions, sync_decision) = existing_certificate
+        .map(|certificate| (certificate, VoteExtensions::default(), true))
         .unwrap_or_else(|| {
             // Restore the commits. Note that they will be removed from `state`
             let mut commits = state.restore_precommits(height, proposal_round, &decided_value);
@@ -40,7 +41,7 @@ where
             let certificate =
                 CommitCertificate::new(height, proposal_round, decided_id.clone(), commits);
 
-            (certificate, extensions)
+            (certificate, extensions, false)
         });
 
     // The certificate must be valid in Commit step
@@ -89,6 +90,18 @@ where
         super::finalize::log_and_finalize(co, state, certificate, extensions).await?;
         return Ok(());
     };
+
+    // FIXME: based on the assumption that a decision reached via Sync protocol implies
+    // that the configured target_time should not be observed by Malachite.
+    if sync_decision {
+        debug!(
+            height = %height,
+            "Decision via sync, finalizing immediately"
+        );
+
+        super::finalize::log_and_finalize(co, state, certificate, extensions).await?;
+        return Ok(());
+    }
 
     let start_time = state
         .height_start_time
