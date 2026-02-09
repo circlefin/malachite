@@ -226,7 +226,7 @@ where
                 tokio::spawn(async move {
                     if let Ok(next) = rx.await {
                         if let Err(e) = reply_to.send(next) {
-                            error!("Finalized: Failed to send next height and validator set: {e}");
+                            error!("Finalized: connector failed to send StartHeight: {e}");
                         }
                     }
                 });
