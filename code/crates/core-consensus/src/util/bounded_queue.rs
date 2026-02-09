@@ -25,6 +25,9 @@ where
     }
 
     /// Push a value into the queue associated with the given index.
+    ///
+    /// Returns `true` if the value was successfully added,
+    /// or `false` if the queue is full and the value could not be added.
     pub fn push(&mut self, index: I, value: T) -> bool
     where
         I: Clone + Ord,
@@ -80,6 +83,11 @@ where
             .remove(index)
             .into_iter()
             .flat_map(|values| values.into_iter())
+    }
+
+    /// Remove all entries from the queue.
+    pub fn clear(&mut self) {
+        self.queue.clear();
     }
 
     /// Whether the queue is full

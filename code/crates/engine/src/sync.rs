@@ -13,8 +13,10 @@ use tokio::task::JoinHandle;
 use tracing::{debug, error, info, warn, Instrument};
 
 use malachitebft_codec as codec;
+use malachitebft_core_consensus::util::bounded_queue::BoundedQueue;
 use malachitebft_core_consensus::PeerId;
 use malachitebft_core_types::utils::height::DisplayRange;
+use malachitebft_core_types::ValueResponse as CoreValueResponse;
 use malachitebft_core_types::{CommitCertificate, Context};
 use malachitebft_sync::{
     self as sync, HeightStartType, InboundRequestId, OutboundRequestId, RawDecidedValue, Request,
@@ -139,6 +141,8 @@ impl Default for Params {
     }
 }
 
+type SyncQueue<Ctx> = BoundedQueue<<Ctx as Context>::Height, CoreValueResponse<Ctx>>;
+
 pub struct State<Ctx: Context> {
     /// The state of the sync state machine
     sync: sync::State<Ctx>,
@@ -151,6 +155,12 @@ pub struct State<Ctx: Context> {
 
     /// Task for sending status updates
     ticker: JoinHandle<()>,
+
+    /// Consensus height, updated via StartedHeight/Decided messages
+    consensus_height: Ctx::Height,
+
+    /// Queue of sync value responses for heights ahead of consensus
+    sync_queue: SyncQueue<Ctx>,
 }
 
 #[allow(dead_code)]
@@ -238,7 +248,14 @@ where
             state: &mut state.sync,
             metrics: &self.metrics,
             with: effect => {
-                self.handle_effect(myself, &mut state.timers, &mut state.inflight, effect).await
+                self.handle_effect(
+                    myself,
+                    &mut state.timers,
+                    &mut state.inflight,
+                    &mut state.sync_queue,
+                    state.consensus_height,
+                    effect,
+                ).await
             }
         )
     }
@@ -250,11 +267,14 @@ where
         .map_err(|e| eyre!("Failed to get earliest history height: {e:?}").into())
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn handle_effect(
         &self,
         myself: &ActorRef<Msg<Ctx>>,
         timers: &mut Timers,
         inflight: &mut InflightRequests<Ctx>,
+        sync_queue: &mut SyncQueue<Ctx>,
+        consensus_height: Ctx::Height,
         effect: sync::Effect<Ctx>,
     ) -> Result<sync::Resume<Ctx>, ActorProcessingErr> {
         use sync::Effect;
@@ -329,11 +349,54 @@ where
             }
 
             Effect::ProcessValueResponse(peer_id, response, r) => {
-                if let Err(e) = self
-                    .consensus
-                    .cast(ConsensusMsg::ProcessSyncResponse(peer_id, response))
-                {
-                    error!("Failed to forward value response to consensus: {e}");
+                let mut ignored = Vec::new();
+                let mut buffered = Vec::new();
+
+                for raw_value in response.values {
+                    let value_height = raw_value.certificate.height;
+
+                    let value = CoreValueResponse {
+                        peer: peer_id,
+                        value_bytes: raw_value.value_bytes,
+                        certificate: raw_value.certificate,
+                    };
+
+                    if value_height < consensus_height {
+                        ignored.push(value_height);
+                    } else if value_height > consensus_height {
+                        if sync_queue.push(value_height, value) {
+                            buffered.push(value_height);
+                        } else {
+                            warn!(
+                                %peer_id, %value_height,
+                                "Failed to buffer sync response, queue is full"
+                            );
+                        }
+
+                        self.metrics.sync_queue_heights.set(sync_queue.len() as i64);
+                        self.metrics.sync_queue_size.set(sync_queue.size() as i64);
+                    } else {
+                        info!(
+                            %peer_id,
+                            %value_height,
+                            "Processing value for current consensus height"
+                        );
+
+                        if let Err(e) = self
+                            .consensus
+                            .cast(ConsensusMsg::ProcessSyncResponse(value))
+                        {
+                            error!("Failed to forward value response to consensus: {e}");
+                        }
+                    }
+                }
+
+                if !ignored.is_empty() {
+                    debug!(%peer_id, ?ignored, "Ignored {} values for already decided heights", ignored.len());
+                }
+
+                if !buffered.is_empty() {
+                    debug!(%peer_id, ?buffered, "Buffered {} values for heights ahead of consensus", buffered.len());
                 }
 
                 Ok(r.resume_with(()))
@@ -417,12 +480,39 @@ where
 
             // (Re)Started a new height
             Msg::StartedHeight(height, restart) => {
+                state.consensus_height = height;
+
+                if restart.is_restart() {
+                    state.sync_queue.clear();
+                }
+
                 self.process_input(&myself, state, sync::Input::StartedHeight(height, restart))
-                    .await?
+                    .await?;
+
+                // Drain buffered sync responses for this height
+                let pending: Vec<_> = state.sync_queue.shift_and_take(&height).collect();
+
+                for response in pending {
+                    if let Err(e) = self
+                        .consensus
+                        .cast(ConsensusMsg::ProcessSyncResponse(response))
+                    {
+                        error!("Failed to forward buffered sync response to consensus: {e}");
+                    }
+                }
+
+                // Update metrics
+                self.metrics
+                    .sync_queue_heights
+                    .set(state.sync_queue.len() as i64);
+                self.metrics
+                    .sync_queue_size
+                    .set(state.sync_queue.size() as i64);
             }
 
             // Decided on a value
             Msg::Decided(height) => {
+                state.consensus_height = height;
                 self.process_input(&myself, state, sync::Input::Decided(height))
                     .await?;
             }
@@ -579,6 +669,10 @@ where
             timers: Timers::new(Box::new(myself.clone())),
             inflight: HashMap::new(),
             ticker,
+            consensus_height: Ctx::Height::default(),
+            sync_queue: SyncQueue::new(
+                2 * self.sync_config.parallel_requests as usize * self.sync_config.batch_size,
+            ),
         })
     }
 

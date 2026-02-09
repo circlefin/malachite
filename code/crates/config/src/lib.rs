@@ -599,11 +599,10 @@ pub struct ConsensusConfig {
     /// Message types that can carry values
     pub value_payload: ValuePayload,
 
-    /// Size of the consensus input queue
-    ///
-    /// # Deprecated
-    /// This setting is deprecated and will be removed in the future.
-    /// The queue capacity is now derived from the `sync.parallel_requests` setting.
+    /// Size of the gossip input queue (number of unique heights).
+    /// Controls how many unique future heights of gossip messages
+    /// (votes, proposals, proposed values) can be buffered.
+    /// Default: 10
     #[serde(default)]
     pub queue_capacity: usize,
 }
@@ -614,7 +613,7 @@ impl Default for ConsensusConfig {
             enabled: true,
             p2p: P2pConfig::default(),
             value_payload: ValuePayload::default(),
-            queue_capacity: 0,
+            queue_capacity: 10,
         }
     }
 }

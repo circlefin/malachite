@@ -76,8 +76,7 @@ where
 pub async fn spawn_consensus_actor<Ctx>(
     ctx: Ctx,
     address: Ctx::Address,
-    mut cfg: ConsensusConfig,
-    sync_cfg: &ValueSyncConfig,
+    cfg: ConsensusConfig,
     signing_provider: Box<dyn SigningProvider<Ctx>>,
     network: NetworkRef<Ctx>,
     host: HostRef<Ctx>,
@@ -103,9 +102,6 @@ where
         value_payload,
         enabled: cfg.enabled,
     };
-
-    // Derive the consensus queue capacity from `sync.parallel_requests` and `sync.batch_size`
-    cfg.queue_capacity = sync_cfg.parallel_requests * sync_cfg.batch_size;
 
     Consensus::spawn(
         ctx,
