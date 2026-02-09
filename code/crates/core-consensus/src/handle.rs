@@ -46,28 +46,6 @@ async fn handle_input<Ctx>(
 where
     Ctx: Context,
 {
-    // TODO is this redundant w.r.t. the state machine transitions?
-    if state.driver.step_is_commit() {
-        match input {
-            Input::Vote(vote) => return on_vote(co, state, metrics, vote).await,
-            Input::TimeoutElapsed(timeout) => {
-                return on_timeout_elapsed(co, state, metrics, timeout).await
-            }
-            Input::StartHeight(..) => {
-                if state.finalization_period {
-                    return Err(Error::UnexpectedInputInStep("StartHeight", Step::Commit));
-                }
-            }
-            Input::Propose(..) => {
-                return Err(Error::UnexpectedInputInStep("Propose", Step::Commit));
-            }
-            _ => {
-                debug!("Ignoring input while in Commit step: {:?}", input);
-                return Ok(());
-            }
-        }
-    }
-
     match input {
         Input::StartHeight(height, validator_set, is_restart, target_time) => {
             reset_and_start_height(
