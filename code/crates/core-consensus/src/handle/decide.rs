@@ -22,7 +22,7 @@ where
     let decided_id = decided_value.id();
 
     // Look for an existing certificate.
-    // NOTE: this curretly means the decision is reached via Sync protocol.
+    // NOTE: this currently means the decision is reached via Sync protocol.
     let existing_certificate = state
         .driver
         .commit_certificate(proposal_round, &decided_id)
