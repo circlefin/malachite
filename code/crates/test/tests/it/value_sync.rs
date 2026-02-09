@@ -55,6 +55,7 @@ pub async fn crash_restart_from_start(params: TestParams) {
         .run_with_params(
             Duration::from_secs(60), // Timeout for the whole test
             TestParams {
+                target_time: Some(Duration::from_millis(15)),
                 enable_value_sync: true, // Enable Sync
                 ..params
             },
