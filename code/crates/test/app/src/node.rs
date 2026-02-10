@@ -192,7 +192,15 @@ impl Node for App {
             )
             .await?;
 
-            // Spawn the proxy in front of the real network
+            // Spawn the proxy in front of the real network.
+            // Provide a value factory for proposal equivocation: create a
+            // conflicting value by incrementing the original value's u64.
+            let conflicting_value_fn: Option<
+                malachitebft_engine_byzantine::ConflictingValueFn<TestContext>,
+            > = Some(Box::new(|original: &malachitebft_test::Value| {
+                malachitebft_test::Value::new(original.value.wrapping_add(1))
+            }));
+
             let proxy_ref = ByzantineNetworkProxy::spawn(
                 byz_cfg,
                 real_network,
@@ -200,6 +208,7 @@ impl Node for App {
                 ctx.clone(),
                 address,
                 span.clone(),
+                conflicting_value_fn,
             )
             .await?;
 

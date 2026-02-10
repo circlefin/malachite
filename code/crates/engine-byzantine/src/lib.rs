@@ -12,10 +12,10 @@
 //! Byzantine behavior is configured via [`ByzantineConfig`], which is used to
 //! configure the [`ByzantineNetworkProxy`] and [`ByzantineMiddleware`].
 
+pub mod config;
 pub mod middleware;
 pub mod proxy;
-pub mod config;
 
-pub use middleware::ByzantineMiddleware;
-pub use proxy::ByzantineNetworkProxy;
 pub use config::{ByzantineConfig, Trigger};
+pub use middleware::ByzantineMiddleware;
+pub use proxy::{ByzantineNetworkProxy, ConflictingValueFn};

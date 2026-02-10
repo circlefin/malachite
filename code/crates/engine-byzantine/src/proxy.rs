@@ -17,11 +17,18 @@ use rand::rngs::StdRng;
 use tracing::{debug, warn};
 
 use malachitebft_core_consensus::SignedConsensusMsg;
-use malachitebft_core_types::{Context, NilOrVal, Proposal, Vote, VoteType};
+use malachitebft_core_types::{Context, NilOrVal, Proposal, Round, Vote, VoteType};
 use malachitebft_engine::network::{Msg as NetworkMsg, NetworkRef};
 use malachitebft_signing::SigningProvider;
 
 use crate::config::{make_rng, ByzantineConfig};
+
+/// A function that creates a conflicting value from an original one.
+///
+/// Used for proposal equivocation: the proxy sends the original proposal
+/// and then a second proposal with the value returned by this function.
+pub type ConflictingValueFn<Ctx> =
+    Box<dyn Fn(&<Ctx as Context>::Value) -> <Ctx as Context>::Value + Send + Sync>;
 
 /// A ractor actor that proxies [`NetworkMsg`] between consensus and the real
 /// network, applying Byzantine behavior according to a [`ByzantineConfig`].
@@ -36,6 +43,9 @@ pub struct ByzantineNetworkProxy<Ctx: Context> {
     ctx: Ctx,
     address: Ctx::Address,
     span: tracing::Span,
+    /// Optional factory for creating a conflicting value for proposal equivocation.
+    /// If `None`, proposal equivocation sends the original proposal with a flipped `pol_round`.
+    conflicting_value_fn: Option<ConflictingValueFn<Ctx>>,
 }
 
 /// Internal mutable state for the proxy actor.
@@ -45,6 +55,11 @@ pub struct ProxyState {
 
 impl<Ctx: Context> ByzantineNetworkProxy<Ctx> {
     /// Spawn the proxy actor and return its ref (which is a `NetworkRef<Ctx>`).
+    ///
+    /// The optional `conflicting_value_fn` is used for proposal equivocation:
+    /// given the original proposed value, it returns a different value to use
+    /// in the conflicting proposal. If `None`, proposal equivocation sends a
+    /// proposal with a flipped `pol_round` instead.
     pub async fn spawn(
         config: ByzantineConfig,
         real_network: NetworkRef<Ctx>,
@@ -52,6 +67,7 @@ impl<Ctx: Context> ByzantineNetworkProxy<Ctx> {
         ctx: Ctx,
         address: Ctx::Address,
         span: tracing::Span,
+        conflicting_value_fn: Option<ConflictingValueFn<Ctx>>,
     ) -> Result<NetworkRef<Ctx>, eyre::Report> {
         let seed = config.seed;
         let proxy = Self {
@@ -61,6 +77,7 @@ impl<Ctx: Context> ByzantineNetworkProxy<Ctx> {
             ctx,
             address,
             span,
+            conflicting_value_fn,
         };
 
         let (actor_ref, _) = Actor::spawn(None, proxy, seed)
@@ -182,12 +199,18 @@ impl<Ctx: Context> ByzantineNetworkProxy<Ctx> {
                     if trigger.fires(height, round, &mut state.rng) {
                         warn!(
                             %height, %round,
-                            "BYZANTINE: Equivocating proposal (sending original only; \
-                             conflicting proposal construction requires application-level value)"
+                            "BYZANTINE: Equivocating proposal"
                         );
-                        // For proposals, equivocation requires constructing a different Value,
-                        // which is application-specific. We send the original and log a warning.
-                        // A future extension could accept a value factory.
+
+                        // Send the original proposal first
+                        self.forward_consensus_msg(msg)?;
+
+                        // Construct and send a conflicting proposal
+                        if let Err(e) = self.send_conflicting_proposal(proposal).await {
+                            warn!("Failed to send conflicting proposal: {e}");
+                        }
+
+                        return Ok(());
                     }
                 }
 
@@ -212,6 +235,68 @@ impl<Ctx: Context> ByzantineNetworkProxy<Ctx> {
                     "Failed to forward consensus message to network: {e:?}"
                 ))
             })
+    }
+
+    /// Construct a conflicting proposal and send it.
+    ///
+    /// If a [`ConflictingValueFn`] was provided, creates a proposal with a
+    /// different value. Otherwise, creates a proposal with a flipped `pol_round`
+    /// (Nil if original had a pol_round, Round(0) if original was Nil).
+    async fn send_conflicting_proposal(
+        &self,
+        original: &Ctx::Proposal,
+    ) -> Result<(), eyre::Report> {
+        let height = original.height();
+        let round = original.round();
+        let pol_round = original.pol_round();
+
+        let conflicting_proposal = if let Some(ref make_value) = self.conflicting_value_fn {
+            let conflicting_value = make_value(original.value());
+            warn!(
+                %height, %round,
+                "BYZANTINE: Sending conflicting proposal with different value"
+            );
+            self.ctx.new_proposal(
+                height,
+                round,
+                conflicting_value,
+                pol_round,
+                self.address.clone(),
+            )
+        } else {
+            // No value factory: flip pol_round to create a structurally different proposal.
+            let conflicting_pol_round = if pol_round == Round::Nil {
+                Round::new(0)
+            } else {
+                Round::Nil
+            };
+            warn!(
+                %height, %round,
+                "BYZANTINE: Sending conflicting proposal with flipped pol_round \
+                 (no conflicting value factory configured)"
+            );
+            self.ctx.new_proposal(
+                height,
+                round,
+                original.value().clone(),
+                conflicting_pol_round,
+                self.address.clone(),
+            )
+        };
+
+        let signed = self
+            .signing_provider
+            .sign_proposal(conflicting_proposal)
+            .await
+            .map_err(|e| eyre!("Failed to sign conflicting proposal: {e}"))?;
+
+        self.real_network
+            .cast(NetworkMsg::PublishConsensusMsg(
+                SignedConsensusMsg::Proposal(signed),
+            ))
+            .map_err(|e| eyre!("Failed to send conflicting proposal to network: {e:?}"))?;
+
+        Ok(())
     }
 
     /// Construct a conflicting vote (flipping value <-> nil) and send it.
