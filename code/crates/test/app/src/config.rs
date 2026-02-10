@@ -3,6 +3,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use malachitebft_app_channel::app::config::NodeConfig;
+use malachitebft_engine_byzantine::ByzantineConfig;
 
 pub use malachitebft_app_channel::app::config::{
     ConsensusConfig, LogFormat, LogLevel, LoggingConfig, MetricsConfig, RuntimeConfig, TestConfig,
@@ -32,6 +33,13 @@ pub struct Config {
 
     /// Test configuration
     pub test: TestConfig,
+
+    /// Byzantine behavior configuration (optional).
+    ///
+    /// When present and active, the node will exhibit configurable Byzantine
+    /// faults such as vote equivocation, proposal dropping, or amnesia attacks.
+    #[serde(default)]
+    pub byzantine: Option<ByzantineConfig>,
 }
 
 impl NodeConfig for Config {

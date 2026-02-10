@@ -14,7 +14,7 @@ pub use malachitebft_app as app;
 
 mod builder;
 mod connector;
-mod spawn;
+pub mod spawn;
 
 mod msgs;
 pub use msgs::{

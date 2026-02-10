@@ -726,13 +726,12 @@ name = "arc-malachitebft-test-app"
 version = "0.7.0-pre"
 dependencies = [
  "arc-malachitebft-app-channel",
+ "arc-malachitebft-engine-byzantine",
  "arc-malachitebft-proto",
  "arc-malachitebft-test",
- "arc-malachitebft-test-cli",
  "arc-malachitebft-test-framework",
  "async-trait",
  "bytes",
- "color-eyre",
  "config",
  "derive-where",
  "eyre",
