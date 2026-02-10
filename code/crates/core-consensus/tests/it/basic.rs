@@ -1,6 +1,6 @@
 #![allow(clippy::needless_update)]
 
-use informalsystems_malachitebft_core_consensus::{Effect, Params, Resumable, Resume, State, WalEntry};
+use informalsystems_malachitebft_core_consensus::{process, Effect, Error, Params, Resumable, Resume, State, WalEntry};
 use malachitebft_core_types::{Round, ThresholdParams, ValuePayload};
 use malachitebft_metrics::Metrics;
 use malachitebft_test::utils::validators::make_validators;
@@ -48,13 +48,12 @@ impl Harness {
         metrics.step_start(state.driver.step());
 
         let _res: Result<(), informalsystems_malachitebft_core_consensus::Error<TestContext>> =
-            informalsystems_malachitebft_core_consensus::process!(
+            process!(
                 input: input,
                 state: state,
                 metrics: &metrics,
                 with: effect => {
-                    let res: Result<Resume<TestContext>, informalsystems_malachitebft_core_consensus::Error<TestContext>> =
-                        match effect {
+                    let res: Result<Resume<TestContext>, Error<TestContext>> = match effect {
                             Effect::WalAppend(height, entry, r) => {
                                 wal.push((height, entry));
                                 Ok(r.resume_with(()))
