@@ -400,6 +400,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "arc-malachitebft-engine-byzantine"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-core-consensus",
+ "arc-malachitebft-core-types",
+ "arc-malachitebft-engine",
+ "arc-malachitebft-signing",
+ "arc-malachitebft-test",
+ "async-trait",
+ "eyre",
+ "ractor",
+ "rand 0.8.5",
+ "serde",
+ "toml",
+ "tracing",
+]
+
+[[package]]
 name = "arc-malachitebft-example-channel"
 version = "0.7.0-pre"
 dependencies = [
