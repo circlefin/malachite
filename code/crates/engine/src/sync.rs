@@ -377,7 +377,7 @@ where
                             );
                         }
                     } else {
-                        info!(
+                        debug!(
                             %peer_id,
                             %value_height,
                             "Processing value for current consensus height"
