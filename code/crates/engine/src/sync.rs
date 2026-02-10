@@ -371,9 +371,6 @@ where
                                 "Failed to buffer sync response, queue is full"
                             );
                         }
-
-                        self.metrics.sync_queue_heights.set(sync_queue.len() as i64);
-                        self.metrics.sync_queue_size.set(sync_queue.size() as i64);
                     } else {
                         info!(
                             %peer_id,
@@ -389,6 +386,7 @@ where
                         }
                     }
                 }
+                self.metrics.sync_queue_updated(sync_queue.len(), sync_queue.size());
 
                 if !ignored.is_empty() {
                     debug!(%peer_id, ?ignored, "Ignored {} values for already decided heights", ignored.len());

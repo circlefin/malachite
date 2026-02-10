@@ -214,6 +214,11 @@ impl Metrics {
         }
         *last_recv_guard = Some(now);
     }
+
+    pub fn sync_queue_updated(&self, heights: usize, size: usize) {
+        self.sync_queue_heights.set(heights as _);
+        self.sync_queue_size.set(size as _);
+    }
 }
 
 impl Default for Metrics {
