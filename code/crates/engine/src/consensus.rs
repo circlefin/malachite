@@ -428,7 +428,8 @@ where
                 // Set the phase to `Running` now that we have replayed the WAL
                 state.set_phase(Phase::Running);
 
-                // Notify the sync actor that we have started a new height
+                // Notify the sync actor that we have started a new height.
+                // We want the sync actor to drain buffered values only after consensus is ready and running.
                 let start_type = HeightStartType::from_is_restart(is_restart);
                 self.sync.send(SyncMsg::StartedHeight(height, start_type));
 
