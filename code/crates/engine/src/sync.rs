@@ -666,14 +666,16 @@ where
             .in_current_span(),
         );
 
+        // NOTE: The queue capacity is set to accommodate all individual values for the
+        // maximum number of parallel requests and batch size, with some additional buffer.
+        let queue_capacity = 2 * self.sync_config.parallel_requests * self.sync_config.batch_size;
+
         Ok(State {
             sync: sync::State::new(rng, self.sync_config),
             timers: Timers::new(Box::new(myself.clone())),
             inflight: HashMap::new(),
             ticker,
-            sync_queue: SyncQueue::new(
-                2 * self.sync_config.parallel_requests as usize * self.sync_config.batch_size,
-            ),
+            sync_queue: SyncQueue::new(queue_capacity),
         })
     }
 
