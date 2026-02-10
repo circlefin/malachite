@@ -484,7 +484,9 @@ where
             // (Re)Started a new height
             Msg::StartedHeight(height, restart) => {
                 if restart.is_restart() {
+                    // Clear the sync queue
                     state.sync_queue.clear();
+                    self.metrics.sync_queue_updated(0, 0);
                 }
 
                 self.process_input(&myself, state, sync::Input::StartedHeight(height, restart))
