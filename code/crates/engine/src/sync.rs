@@ -156,9 +156,6 @@ pub struct State<Ctx: Context> {
     /// Task for sending status updates
     ticker: JoinHandle<()>,
 
-    /// Consensus height, updated via StartedHeight/Decided messages
-    consensus_height: Ctx::Height,
-
     /// Queue of sync value responses for heights ahead of consensus
     sync_queue: SyncQueue<Ctx>,
 }
@@ -243,6 +240,8 @@ where
         state: &mut State<Ctx>,
         input: sync::Input<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
+        let consensus_height = state.sync.consensus_height;
+
         malachitebft_sync::process!(
             input: input,
             state: &mut state.sync,
@@ -253,7 +252,7 @@ where
                     &mut state.timers,
                     &mut state.inflight,
                     &mut state.sync_queue,
-                    state.consensus_height,
+                    consensus_height,
                     effect,
                 ).await
             }
@@ -480,8 +479,6 @@ where
 
             // (Re)Started a new height
             Msg::StartedHeight(height, restart) => {
-                state.consensus_height = height;
-
                 if restart.is_restart() {
                     state.sync_queue.clear();
                 }
@@ -512,7 +509,6 @@ where
 
             // Decided on a value
             Msg::Decided(height) => {
-                state.consensus_height = height;
                 self.process_input(&myself, state, sync::Input::Decided(height))
                     .await?;
             }
@@ -669,7 +665,6 @@ where
             timers: Timers::new(Box::new(myself.clone())),
             inflight: HashMap::new(),
             ticker,
-            consensus_height: Ctx::Height::default(),
             sync_queue: SyncQueue::new(
                 2 * self.sync_config.parallel_requests as usize * self.sync_config.batch_size,
             ),

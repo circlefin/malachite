@@ -230,6 +230,7 @@ where
     debug!(%height, is_restart = %start_type.is_restart(), "Consensus started new height");
 
     state.started = true;
+    state.consensus_height = height;
 
     // The tip is the last decided value.
     state.tip_height = height.decrement().unwrap_or_default();

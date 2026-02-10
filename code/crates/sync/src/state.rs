@@ -20,6 +20,9 @@ where
     /// Consensus has started
     pub started: bool,
 
+    /// The height that consensus is at, but has not decided yet.
+    pub consensus_height: Ctx::Height,
+
     /// Height of last decided value
     pub tip_height: Ctx::Height,
 
@@ -55,6 +58,7 @@ where
             rng,
             config,
             started: false,
+            consensus_height: Ctx::Height::ZERO,
             tip_height: Ctx::Height::ZERO,
             sync_height: Ctx::Height::ZERO,
             pending_requests: BTreeMap::new(),
