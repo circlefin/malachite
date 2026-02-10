@@ -46,22 +46,24 @@ where
             return true;
         }
 
+        let queue_length = self.queue.len();
+
         // If the queue is full, evict the highest index and insert the new value.
-        if let Some((max_index, _)) = self.queue.last_key_value() {
+        if let Some(max_entry) = self.queue.last_entry() {
+            let max_index = max_entry.key();
+
             // If the new index is less than the maximum index, we can evict the maximum index.
             if &index < max_index {
-                let max_index = max_index.clone();
-
                 debug!(
                     index = %index,
                     evicted_index = %max_index,
                     capacity = self.capacity,
-                    len = self.queue.len(),
+                    len = queue_length,
                     "Bounded queue is full, evicting highest index"
                 );
 
-                // Remove the highest index
-                self.queue.remove(&max_index);
+                // Remove the entry at the highest index
+                max_entry.remove();
 
                 // Insert the new index with its value
                 self.queue.insert(index, vec![value]);
