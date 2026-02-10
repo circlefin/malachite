@@ -160,6 +160,13 @@ pub struct State<Ctx: Context> {
     sync_queue: SyncQueue<Ctx>,
 }
 
+struct HandlerState<'a, Ctx: Context> {
+    timers: &'a mut Timers,
+    inflight: &'a mut InflightRequests<Ctx>,
+    sync_queue: &'a mut SyncQueue<Ctx>,
+    consensus_height: Ctx::Height,
+}
+
 #[allow(dead_code)]
 pub struct Sync<Ctx, Codec>
 where
@@ -240,7 +247,12 @@ where
         state: &mut State<Ctx>,
         input: sync::Input<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
-        let consensus_height = state.sync.consensus_height;
+        let mut handler_state = HandlerState {
+            timers: &mut state.timers,
+            inflight: &mut state.inflight,
+            sync_queue: &mut state.sync_queue,
+            consensus_height: state.sync.consensus_height,
+        };
 
         malachitebft_sync::process!(
             input: input,
@@ -249,10 +261,7 @@ where
             with: effect => {
                 self.handle_effect(
                     myself,
-                    &mut state.timers,
-                    &mut state.inflight,
-                    &mut state.sync_queue,
-                    consensus_height,
+                    &mut handler_state,
                     effect,
                 ).await
             }
@@ -266,14 +275,10 @@ where
         .map_err(|e| eyre!("Failed to get earliest history height: {e:?}").into())
     }
 
-    #[allow(clippy::too_many_arguments)]
     async fn handle_effect(
         &self,
         myself: &ActorRef<Msg<Ctx>>,
-        timers: &mut Timers,
-        inflight: &mut InflightRequests<Ctx>,
-        sync_queue: &mut SyncQueue<Ctx>,
-        consensus_height: Ctx::Height,
+        state: &mut HandlerState<'_, Ctx>,
         effect: sync::Effect<Ctx>,
     ) -> Result<sync::Resume<Ctx>, ActorProcessingErr> {
         use sync::Effect;
@@ -300,12 +305,12 @@ where
                     Ok(request_id) => {
                         let request_id = OutboundRequestId::new(request_id);
 
-                        timers.start_timer(
+                        state.timers.start_timer(
                             Timeout::Request(request_id.clone()),
                             self.params.request_timeout,
                         );
 
-                        inflight.insert(
+                        state.inflight.insert(
                             request_id.clone(),
                             InflightRequest {
                                 peer_id,
@@ -360,10 +365,10 @@ where
                         certificate: raw_value.certificate,
                     };
 
-                    if value_height < consensus_height {
+                    if value_height < state.consensus_height {
                         ignored.push(value_height);
-                    } else if value_height > consensus_height {
-                        if sync_queue.push(value_height, value) {
+                    } else if value_height > state.consensus_height {
+                        if state.sync_queue.push(value_height, value) {
                             buffered.push(value_height);
                         } else {
                             warn!(
@@ -386,7 +391,8 @@ where
                         }
                     }
                 }
-                self.metrics.sync_queue_updated(sync_queue.len(), sync_queue.size());
+                self.metrics
+                    .sync_queue_updated(state.sync_queue.len(), state.sync_queue.size());
 
                 if !ignored.is_empty() {
                     debug!(%peer_id, ?ignored, "Ignored {} values for already decided heights", ignored.len());
