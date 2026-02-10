@@ -1,6 +1,8 @@
 #![allow(clippy::needless_update)]
 
-use informalsystems_malachitebft_core_consensus::{process, Effect, Error, Input, Params, Resumable, Resume, State, WalEntry};
+use informalsystems_malachitebft_core_consensus::{
+    process, Effect, Error, Input, Params, Resumable, Resume, State, WalEntry,
+};
 use malachitebft_core_types::{Round, ThresholdParams, ValuePayload};
 use malachitebft_metrics::Metrics;
 use malachitebft_test::utils::validators::make_validators;
@@ -47,27 +49,26 @@ impl Harness {
         // Metrics expects step_start/step_end pairing; initialize it to the current driver step.
         metrics.step_start(state.driver.step());
 
-        let _res: Result<(), informalsystems_malachitebft_core_consensus::Error<TestContext>> =
-            process!(
-                input: input,
-                state: state,
-                metrics: &metrics,
-                with: effect => {
-                    let res: Result<Resume<TestContext>, Error<TestContext>> = match effect {
-                            Effect::WalAppend(height, entry, r) => {
-                                wal.push((height, entry));
-                                Ok(r.resume_with(()))
-                            }
-                            // For this PR we keep the effect handler conservative: always continue.
-                            // Follow-up PRs will add specific effect simulation (signing, publishing, etc.).
-                            other => {
-                                let _ = other;
-                                Ok(Resume::Continue)
-                            }
-                        };
-                    res
-                }
-            );
+        let _res: Result<(), informalsystems_malachitebft_core_consensus::Error<TestContext>> = process!(
+            input: input,
+            state: state,
+            metrics: &metrics,
+            with: effect => {
+                let res: Result<Resume<TestContext>, Error<TestContext>> = match effect {
+                        Effect::WalAppend(height, entry, r) => {
+                            wal.push((height, entry));
+                            Ok(r.resume_with(()))
+                        }
+                        // For this PR we keep the effect handler conservative: always continue.
+                        // Follow-up PRs will add specific effect simulation (signing, publishing, etc.).
+                        other => {
+                            let _ = other;
+                            Ok(Resume::Continue)
+                        }
+                    };
+                res
+            }
+        );
 
         let _ = _res;
     }
@@ -94,7 +95,9 @@ fn wal_entries_can_be_captured_and_replayed_in_memory() {
 
     let wal_entries = h1.drain_wal_entries(Height::new(1));
     assert!(
-        wal_entries.iter().any(|e| matches!(e, WalEntry::Timeout(t) if t.round == Round::new(0))),
+        wal_entries
+            .iter()
+            .any(|e| matches!(e, WalEntry::Timeout(t) if t.round == Round::new(0))),
         "expected a timeout WAL entry for round 0"
     );
 
@@ -110,7 +113,9 @@ fn wal_entries_can_be_captured_and_replayed_in_memory() {
     // After replay, we should have persisted the same timeout again deterministically.
     let wal_entries_2 = h2.drain_wal_entries(Height::new(1));
     assert!(
-        wal_entries_2.iter().any(|e| matches!(e, WalEntry::Timeout(t) if t.round == Round::new(0))),
+        wal_entries_2
+            .iter()
+            .any(|e| matches!(e, WalEntry::Timeout(t) if t.round == Round::new(0))),
         "expected timeout WAL entry after replay"
     );
 }
