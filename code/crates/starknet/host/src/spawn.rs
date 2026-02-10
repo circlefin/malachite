@@ -168,7 +168,7 @@ async fn spawn_sync_actor(
         max_request_size: config.max_request_size.as_u64() as usize,
         max_response_size: config.max_response_size.as_u64() as usize,
         request_timeout: config.request_timeout,
-        parallel_requests: config.parallel_requests as u64,
+        parallel_requests: config.parallel_requests,
         scoring_strategy,
         inactive_threshold: (!config.inactive_threshold.is_zero())
             .then_some(config.inactive_threshold),

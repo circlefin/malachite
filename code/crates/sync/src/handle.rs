@@ -628,17 +628,17 @@ where
 {
     let max_parallel_requests = state.max_parallel_requests();
 
-    if state.pending_requests.len() as u64 >= max_parallel_requests {
+    if state.pending_requests.len() >= max_parallel_requests {
         info!(
-            %max_parallel_requests,
-            pending_requests = %state.pending_requests.len(),
+            max_parallel_requests,
+            pending_requests = state.pending_requests.len(),
             "Maximum number of parallel requests reached, skipping request for values"
         );
 
         return Ok(());
     };
 
-    while (state.pending_requests.len() as u64) < max_parallel_requests {
+    while state.pending_requests.len() < max_parallel_requests {
         // Find the next uncovered range starting from current sync_height
         let initial_height = state.sync_height;
         let range = find_next_uncovered_range_from::<Ctx>(
@@ -678,7 +678,7 @@ where
     // from peers and hints to potential reconfiguration.
     let max_parallel_requests = state.max_parallel_requests();
 
-    if state.pending_requests.len() as u64 >= max_parallel_requests {
+    if state.pending_requests.len() >= max_parallel_requests {
         info!(
             %max_parallel_requests,
             pending_requests = %state.pending_requests.len(),
