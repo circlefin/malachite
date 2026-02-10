@@ -1,6 +1,6 @@
 #![allow(clippy::needless_update)]
 
-use informalsystems_malachitebft_core_consensus::{process, Effect, Error, Params, Resumable, Resume, State, WalEntry};
+use informalsystems_malachitebft_core_consensus::{process, Effect, Error, Input, Params, Resumable, Resume, State, WalEntry};
 use malachitebft_core_types::{Round, ThresholdParams, ValuePayload};
 use malachitebft_metrics::Metrics;
 use malachitebft_test::utils::validators::make_validators;
@@ -37,7 +37,7 @@ impl Harness {
         }
     }
 
-    fn run(&mut self, input: informalsystems_malachitebft_core_consensus::Input<TestContext>) {
+    fn run(&mut self, input: Input<TestContext>) {
         let metrics = Metrics::new();
 
         // Split borrows so the effect handler doesn't need to borrow `self` while `state` is mutably borrowed.
@@ -88,15 +88,9 @@ fn wal_entries_can_be_captured_and_replayed_in_memory() {
     // First run: start height and trigger a persisted timeout.
     let mut h1 = Harness::new(Height::new(1), vs.clone());
 
-    h1.run(informalsystems_malachitebft_core_consensus::Input::StartHeight(
-        Height::new(1),
-        vs.clone(),
-        false,
-    ));
+    h1.run(Input::StartHeight(Height::new(1), vs.clone(), false));
 
-    h1.run(informalsystems_malachitebft_core_consensus::Input::TimeoutElapsed(
-        propose_timeout(0),
-    ));
+    h1.run(Input::TimeoutElapsed(propose_timeout(0)));
 
     let wal_entries = h1.drain_wal_entries(Height::new(1));
     assert!(
@@ -107,11 +101,7 @@ fn wal_entries_can_be_captured_and_replayed_in_memory() {
     // Simulated crash/restart: new harness, replay WAL entries as inputs.
     let vs2 = vs;
     let mut h2 = Harness::new(Height::new(1), vs2.clone());
-    h2.run(informalsystems_malachitebft_core_consensus::Input::StartHeight(
-        Height::new(1),
-        vs2,
-        true,
-    ));
+    h2.run(Input::StartHeight(Height::new(1), vs2, true));
 
     for entry in wal_entries {
         h2.run(wal_entry_to_input(entry));
