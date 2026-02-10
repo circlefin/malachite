@@ -1,5 +1,7 @@
 use std::collections::BTreeMap;
-use tracing::warn;
+use std::fmt::Display;
+
+use tracing::{debug, trace};
 
 /// A data structure that maintains a queue of values associated with monotonically increasing indices.
 ///
@@ -30,7 +32,7 @@ where
     /// or `false` if the queue is full and the value could not be added.
     pub fn push(&mut self, index: I, value: T) -> bool
     where
-        I: Clone + Ord,
+        I: Clone + Display + Ord,
     {
         // If the index already exists, append the value to the existing vector.
         if let Some(values) = self.queue.get_mut(&index) {
@@ -39,7 +41,7 @@ where
         }
 
         // If the index does not exist, check if we can add a new entry.
-        if self.queue.len() < self.capacity {
+        if !self.is_full() {
             self.queue.insert(index, vec![value]);
             return true;
         }
@@ -50,7 +52,13 @@ where
             if &index < max_index {
                 let max_index = max_index.clone();
 
-                warn!("Bounded queue is full, dropping value");
+                debug!(
+                    index = %index,
+                    evicted_index = %max_index,
+                    capacity = self.capacity,
+                    len = self.queue.len(),
+                    "Bounded queue is full, evicting highest index"
+                );
 
                 // Remove the highest index
                 self.queue.remove(&max_index);
@@ -62,19 +70,43 @@ where
             }
         }
 
-        warn!("Bounded queue is full, no value is inserted");
+        debug!(
+            index = %index,
+            capacity = self.capacity,
+            len = self.queue.len(),
+            "Bounded queue is full, rejecting value"
+        );
+
         false
     }
 
     /// Combination of `shift` and `take` methods.
-    pub fn shift_and_take(&mut self, min_index: &I) -> impl Iterator<Item = T> {
+    pub fn shift_and_take(&mut self, min_index: &I) -> impl Iterator<Item = T>
+    where
+        I: Display,
+    {
         self.shift(min_index);
         self.take(min_index)
     }
 
     /// Remove all entries with indices less than `min_index`.
-    pub fn shift(&mut self, min_index: &I) {
+    pub fn shift(&mut self, min_index: &I)
+    where
+        I: Display,
+    {
+        let before = self.queue.len();
+
         self.queue.retain(|index, _| index >= min_index);
+
+        let removed = before - self.queue.len();
+        if removed > 0 {
+            trace!(
+                min_index = %min_index,
+                removed,
+                remaining = self.queue.len(),
+                "Shifted bounded queue"
+            );
+        }
     }
 
     /// Take all entries with indices equal to `index` and return them.
