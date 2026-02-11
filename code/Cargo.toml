@@ -126,7 +126,7 @@ clap               = "4.5"
 color-eyre         = "0.6"
 config             = { version = "0.14", features = ["toml"], default-features = false }
 crc32fast          = "1.5.0"
-criterion          = "0.6.0"
+criterion          = "0.8.2"
 dashmap            = "6.1.0"
 derive-where       = "1.6.0"
 directories        = "5.0.1"
@@ -157,7 +157,7 @@ prost              = "0.13"
 prost-build        = "0.13"
 prost-types        = "0.13"
 protox             = "0.8.0"
-ractor             = { version = "0.14.6", default-features = false, features = ["async-trait", "tokio_runtime"] }
+ractor             = { version = "0.15.10", default-features = false, features = ["async-trait", "tokio_runtime"] }
 rand               = { version = "0.8.5", features = ["std_rng", "small_rng"] }
 rand_chacha        = "0.3.1"
 redb               = "2.6.3"
