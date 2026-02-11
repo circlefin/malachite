@@ -392,6 +392,13 @@ impl BlockStore {
         let db = Arc::clone(&self.db);
         tokio::task::spawn_blocking(move || db.insert_decided_block(decided_block)).await?
     }
+    pub async fn update_decided_block(
+        &self,
+        decided_block: DecidedBlock,
+    ) -> Result<(), StoreError> {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.insert_decided_block(decided_block)).await?
+    }
 
     pub async fn store_undecided_value(
         &self,

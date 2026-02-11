@@ -705,7 +705,13 @@ async fn on_finalized(
     // Notify the mempool to remove corresponding txs
     mempool.cast(MempoolMsg::Update { tx_hashes })?;
 
-    if let Some(decided_block) = state.block_store.get(height).await? {
+    if let Some(mut decided_block) = state.block_store.get(height).await? {
+        decided_block.certificate = certificate.clone();
+        state
+            .block_store
+            .update_decided_block(decided_block.clone())
+            .await?;
+
         state.host.decision(decided_block.certificate).await;
     } else {
         error!(%height, "Could not retrieve stored certificate for finalization");
