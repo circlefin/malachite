@@ -236,6 +236,7 @@ where
         self.last_signed_precommit = None;
         self.target_time = target_time;
         self.height_start_time = Some(Instant::now());
+        self.finalization_period = false;
 
         self.driver.move_to_height(height, validator_set);
     }
