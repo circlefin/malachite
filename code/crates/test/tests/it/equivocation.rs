@@ -6,9 +6,7 @@ use malachitebft_test_framework::{HandlerResult, TestParams};
 
 use crate::TestBuilder;
 
-const VOTE_DURATION: Duration = Duration::from_millis(300);
-
-fn check_decided_impl<Ctx: Context>(evidence: &MisbehaviorEvidence<Ctx>) {
+fn check_evidence<Ctx: Context>(evidence: &MisbehaviorEvidence<Ctx>) {
     for addr in evidence.proposals.iter() {
         let list = evidence.proposals.get(addr).unwrap();
         if let Some((p1, p2)) = list.first() {
@@ -28,7 +26,7 @@ fn check_decided_impl<Ctx: Context>(evidence: &MisbehaviorEvidence<Ctx>) {
 
 // Verifies that sharing a validator key across two nodes
 // induces equivocation and that decide-time `MisbehaviorEvidence`
-// contains double proposals and double prevotes for the equivocator.
+// contains double proposals for the equivocator.
 // Node 3 checks for proposal equivocation evidence.
 #[tokio::test]
 #[ignore] // Flaky test
@@ -41,40 +39,34 @@ pub async fn equivocation_two_vals_same_pk_proposal() {
     let mut test = TestBuilder::<()>::new();
 
     // Node 1
-    test.add_node()
-        .start()
-        .on_vote(|_v, _s| Ok(HandlerResult::SleepAndContinueTest(VOTE_DURATION)))
-        .success();
+    test.add_node().start().success();
 
     // Node 2 (same validator key as node 1)
-    test.add_node()
-        .start()
-        .on_vote(|_v, _s| Ok(HandlerResult::SleepAndContinueTest(VOTE_DURATION)))
-        .success();
+    test.add_node().start().success();
 
     // Node 3 -- checking proposal equivocation evidence
     test.add_node()
         .start()
-        .on_vote(|_v, _s| Ok(HandlerResult::SleepAndContinueTest(VOTE_DURATION)))
         .on_decided(|_c, evidence, _s| {
-            check_decided_impl(&evidence);
-            let result = if evidence.proposals.is_empty() {
-                HandlerResult::WaitForNextEvent
-            } else {
-                HandlerResult::ContinueTest
-            };
-            Ok(result)
+            dbg!(&evidence);
+
+            if evidence.proposals.is_empty() {
+                eyre::bail!("Expected proposal equivocation evidence, but none was found");
+            }
+
+            check_evidence(&evidence);
+            Ok(HandlerResult::ContinueTest)
         })
         .success();
 
     test.build()
-        .run_with_params(Duration::from_secs(15), params)
+        .run_with_params(Duration::from_secs(30), params)
         .await;
 }
 
 // Verifies that sharing a validator key across two nodes
 // induces equivocation and that decide-time `MisbehaviorEvidence`
-// contains double proposals and double prevotes for the equivocator.
+// contains double prevotes for the equivocator.
 // Node 3 checks for vote equivocation evidence.
 #[tokio::test]
 #[ignore] // Flaky test
@@ -87,33 +79,27 @@ pub async fn equivocation_two_vals_same_pk_vote() {
     let mut test = TestBuilder::<()>::new();
 
     // Node 1
-    test.add_node()
-        .start()
-        .on_vote(|_v, _s| Ok(HandlerResult::SleepAndContinueTest(VOTE_DURATION)))
-        .success();
+    test.add_node().start().success();
 
     // Node 2 (same validator key as node 1)
-    test.add_node()
-        .start()
-        .on_vote(|_v, _s| Ok(HandlerResult::SleepAndContinueTest(VOTE_DURATION)))
-        .success();
+    test.add_node().start().success();
 
     // Node 3 -- checking vote equivocation evidence
     test.add_node()
         .start()
-        .on_vote(|_v, _s| Ok(HandlerResult::SleepAndContinueTest(VOTE_DURATION)))
         .on_decided(|_c, evidence, _s| {
-            check_decided_impl(&evidence);
-            let result = if evidence.votes.is_empty() {
-                HandlerResult::WaitForNextEvent
-            } else {
-                HandlerResult::ContinueTest
-            };
-            Ok(result)
+            dbg!(&evidence);
+
+            if evidence.votes.is_empty() {
+                eyre::bail!("Expected vote equivocation evidence, but none was found");
+            }
+
+            check_evidence(&evidence);
+            Ok(HandlerResult::ContinueTest)
         })
         .success();
 
     test.build()
-        .run_with_params(Duration::from_secs(15), params)
+        .run_with_params(Duration::from_secs(30), params)
         .await;
 }
