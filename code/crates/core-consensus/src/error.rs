@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use derive_where::derive_where;
 
-use malachitebft_core_driver::{Error as DriverError, Step};
+use malachitebft_core_driver::Error as DriverError;
 use malachitebft_core_types::{CertificateError, CommitCertificate, Context, Round, ValueId};
 
 use crate::effect::Resume;
@@ -57,8 +57,4 @@ where
     /// The write-ahead log is corrupted.
     #[error("Write-ahead log is corrupted: {0}")]
     WalCorrupted(Arc<io::Error>),
-
-    /// Received unexpected input during a step.
-    #[error("Received unexpected input {0} during {1:?} step")]
-    UnexpectedInputInStep(&'static str, Step),
 }
