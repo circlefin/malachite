@@ -8,6 +8,7 @@ use eyre::{eyre, Result};
 use tokio::task::JoinHandle;
 use tracing::Span;
 
+use malachitebft_engine::config::EngineConsensusConfig;
 use malachitebft_engine::consensus::{Consensus, ConsensusCodec, ConsensusParams, ConsensusRef};
 use malachitebft_engine::host::HostRef;
 use malachitebft_engine::network::{Network, NetworkRef};
@@ -76,7 +77,7 @@ where
 pub async fn spawn_consensus_actor<Ctx>(
     ctx: Ctx,
     address: Ctx::Address,
-    mut cfg: ConsensusConfig,
+    cfg: ConsensusConfig,
     sync_cfg: &ValueSyncConfig,
     signing_provider: Box<dyn SigningProvider<Ctx>>,
     network: NetworkRef<Ctx>,
@@ -105,12 +106,13 @@ where
     };
 
     // Derive the consensus queue capacity from `sync.parallel_requests` and `sync.batch_size`
-    cfg.queue_capacity = sync_cfg.parallel_requests * sync_cfg.batch_size;
+    let queue_capacity = sync_cfg.parallel_requests * sync_cfg.batch_size;
+    let engine_config = EngineConsensusConfig::new(&cfg, queue_capacity);
 
     Consensus::spawn(
         ctx,
         consensus_params,
-        cfg,
+        engine_config,
         signing_provider,
         network,
         host,

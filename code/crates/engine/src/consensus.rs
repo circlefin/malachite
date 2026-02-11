@@ -14,7 +14,7 @@ use tokio::time::Instant;
 use tracing::{debug, error, error_span, info};
 
 use malachitebft_codec as codec;
-use malachitebft_config::ConsensusConfig;
+use crate::config::EngineConsensusConfig;
 use malachitebft_core_consensus::{
     Effect, LivenessMsg, PeerId, Resumable, Resume, SignedConsensusMsg, VoteExtensionError,
 };
@@ -78,7 +78,7 @@ where
 {
     ctx: Ctx,
     params: ConsensusParams<Ctx>,
-    consensus_config: ConsensusConfig,
+    consensus_config: EngineConsensusConfig,
     signing_provider: Box<dyn SigningProvider<Ctx>>,
     network: NetworkRef<Ctx>,
     host: HostRef<Ctx>,
@@ -272,7 +272,7 @@ where
     pub async fn spawn(
         ctx: Ctx,
         params: ConsensusParams<Ctx>,
-        consensus_config: ConsensusConfig,
+        consensus_config: EngineConsensusConfig,
         signing_provider: Box<dyn SigningProvider<Ctx>>,
         network: NetworkRef<Ctx>,
         host: HostRef<Ctx>,

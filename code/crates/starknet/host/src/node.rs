@@ -251,7 +251,6 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
         consensus: ConsensusConfig {
             enabled: true,
             value_payload: ValuePayload::PartsOnly,
-            queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),
                 listen_addr: settings.transport.multiaddr("127.0.0.1", consensus_port),
@@ -348,7 +347,6 @@ fn make_distributed_config(
         moniker: format!("starknet-{index}"),
         consensus: ConsensusConfig {
             enabled: true,
-            queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`
             value_payload: ValuePayload::PartsOnly,
             p2p: P2pConfig {
                 protocol: PubSubProtocol::default(),

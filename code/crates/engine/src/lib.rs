@@ -1,3 +1,4 @@
+pub mod config;
 pub mod consensus;
 pub mod host;
 pub mod network;

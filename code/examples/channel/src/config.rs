@@ -74,13 +74,11 @@ mod tests {
     fn parse_default_config_file() {
         let file = include_str!("../config.toml");
         let config = toml::from_str::<Config>(file).unwrap();
-        assert_eq!(config.consensus.queue_capacity, 0);
-
         let tmp_file = std::env::temp_dir().join("config-test.toml");
         std::fs::write(&tmp_file, file).unwrap();
 
         let config = load_config(&tmp_file, None).unwrap();
-        assert_eq!(config.consensus.queue_capacity, 0);
+        assert!(config.consensus.enabled);
 
         std::fs::remove_file(tmp_file).unwrap();
     }

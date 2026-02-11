@@ -146,7 +146,6 @@ impl TestRunner {
             consensus: ConsensusConfig {
                 enabled: true,
                 value_payload: ValuePayload::PartsOnly,
-                queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`
                 p2p: P2pConfig {
                     protocol,
                     discovery: DiscoveryConfig::default(),

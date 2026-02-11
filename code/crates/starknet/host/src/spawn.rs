@@ -8,6 +8,7 @@ use tracing::warn;
 
 use malachitebft_config::{self as config, MempoolConfig, MempoolLoadConfig, ValueSyncConfig};
 use malachitebft_core_types::{LinearTimeouts, ValuePayload};
+use malachitebft_engine::config::EngineConsensusConfig;
 use malachitebft_engine::consensus::{Consensus, ConsensusParams, ConsensusRef};
 use malachitebft_engine::host::HostRef;
 use malachitebft_engine::network::{Network, NetworkRef};
@@ -196,7 +197,7 @@ async fn spawn_sync_actor(
 async fn spawn_consensus_actor(
     address: Address,
     ctx: MockContext,
-    mut cfg: Config,
+    cfg: Config,
     signing_provider: Ed25519Provider,
     network: NetworkRef<MockContext>,
     host: HostRef<MockContext>,
@@ -214,12 +215,13 @@ async fn spawn_consensus_actor(
     };
 
     // Derive the consensus queue capacity from `sync.parallel_requests` and `sync.batch_size`
-    cfg.consensus.queue_capacity = cfg.value_sync.parallel_requests * cfg.value_sync.batch_size;
+    let queue_capacity = cfg.value_sync.parallel_requests * cfg.value_sync.batch_size;
+    let engine_config = EngineConsensusConfig::new(&cfg.consensus, queue_capacity);
 
     Consensus::spawn(
         ctx,
         consensus_params,
-        cfg.consensus,
+        engine_config,
         Box::new(signing_provider),
         network,
         host,
