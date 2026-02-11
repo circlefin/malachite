@@ -43,7 +43,13 @@ where
     /// Start time of the current height
     pub height_start_time: Option<Instant>,
 
-    /// Whether we are in the finalization period
+    /// Whether we are in the finalization period.
+    ///
+    /// The finalization period is entered in decide, cleared in finalize_height,
+    /// and only valid during the commit step.
+    ///
+    /// It allows collecting additional precommits for the decided value after
+    /// the decision is made in decide, which can be included in the commit certificate.
     pub finalization_period: bool,
 }
 
