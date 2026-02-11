@@ -309,6 +309,22 @@ where
 
     pub fn on_decided<F>(&mut self, f: F) -> &mut Self
     where
+        F: Fn(CommitCertificate<Ctx>, &mut State) -> Result<HandlerResult, eyre::Report>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.on_event(move |event, state| {
+            if let Event::Decided { commit_certificate } = event {
+                f(commit_certificate, state)
+            } else {
+                Ok(HandlerResult::WaitForNextEvent)
+            }
+        })
+    }
+
+    pub fn on_finalized<F>(&mut self, f: F) -> &mut Self
+    where
         F: Fn(
                 CommitCertificate<Ctx>,
                 MisbehaviorEvidence<Ctx>,
@@ -319,7 +335,7 @@ where
             + 'static,
     {
         self.on_event(move |event, state| {
-            if let Event::Decided {
+            if let Event::Finalized {
                 commit_certificate,
                 evidence,
             } = event

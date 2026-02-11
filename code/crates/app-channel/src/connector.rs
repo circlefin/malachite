@@ -196,13 +196,25 @@ where
             HostMsg::Decided {
                 certificate,
                 extensions,
+            } => {
+                self.sender
+                    .send(AppMsg::Decided {
+                        certificate,
+                        extensions,
+                    })
+                    .await?;
+            }
+
+            HostMsg::Finalized {
+                certificate,
+                extensions,
                 evidence,
                 reply_to,
             } => {
                 let (reply, rx) = oneshot::channel();
 
                 self.sender
-                    .send(AppMsg::Decided {
+                    .send(AppMsg::Finalized {
                         certificate,
                         extensions,
                         evidence,
@@ -214,7 +226,7 @@ where
                 tokio::spawn(async move {
                     if let Ok(next) = rx.await {
                         if let Err(e) = reply_to.send(next) {
-                            error!("Failed to send next height and validator set: {e}");
+                            error!("Finalized: connector failed to send StartHeight: {e}");
                         }
                     }
                 });
