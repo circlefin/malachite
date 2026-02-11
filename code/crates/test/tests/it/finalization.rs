@@ -25,7 +25,7 @@ struct SignatureCountTracker {
 
 #[rstest]
 #[case::no_target_time(None, ValuePayload::ProposalAndParts, false)]
-#[case::o_target_time(Some(Duration::from_millis(10)), ValuePayload::ProposalAndParts, false)]
+#[case::target_time(Some(Duration::from_millis(10)), ValuePayload::ProposalAndParts, false)]
 #[case::with_parts_only(Some(Duration::from_millis(1)), ValuePayload::PartsOnly, false)]
 #[case::with_stable_block_times(
     Some(Duration::from_millis(5)),
