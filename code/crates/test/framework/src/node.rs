@@ -37,7 +37,6 @@ where
 pub enum HandlerResult {
     WaitForNextEvent,
     ContinueTest,
-    SleepAndContinueTest(Duration),
 }
 
 pub type EventHandler<Ctx, S> =

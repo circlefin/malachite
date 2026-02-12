@@ -362,10 +362,6 @@ where
                         Ok(HandlerResult::ContinueTest) => {
                             break 'inner;
                         }
-                        Ok(HandlerResult::SleepAndContinueTest(duration)) => {
-                            sleep(duration).await;
-                            break 'inner;
-                        }
                         Err(e) => {
                             error!("Event handler returned an error: {e}");
 
