@@ -29,8 +29,8 @@ crc32fast = "1.5.0"
 lz4_flex = { version = "0.11.5", optional = true }
 
 [dev-dependencies]
-criterion = "0.6.0"
+criterion = "0.8.2"
 nix = { version = "0.29.0", features = ["signal"] }
 rand = "0.8.5"
-tempfile = "3.21.0"
+tempfile = "3.25.0"
 testdir = "0.9.1"

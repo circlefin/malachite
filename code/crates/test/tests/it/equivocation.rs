@@ -8,6 +8,7 @@ use crate::TestBuilder;
 
 const VOTE_DURATION: Duration = Duration::from_millis(300);
 
+#[allow(clippy::never_loop)]
 fn check_decided_impl<Ctx: Context>(evidence: &MisbehaviorEvidence<Ctx>) {
     for addr in evidence.proposals.iter() {
         let list = evidence.proposals.get(addr).unwrap();
@@ -56,7 +57,7 @@ pub async fn equivocation_two_vals_same_pk_proposal() {
     test.add_node()
         .start()
         .on_vote(|_v, _s| Ok(HandlerResult::SleepAndContinueTest(VOTE_DURATION)))
-        .on_decided(|_c, evidence, _s| {
+        .on_finalized(|_c, evidence, _s| {
             check_decided_impl(&evidence);
             let result = if evidence.proposals.is_empty() {
                 HandlerResult::WaitForNextEvent
@@ -102,7 +103,7 @@ pub async fn equivocation_two_vals_same_pk_vote() {
     test.add_node()
         .start()
         .on_vote(|_v, _s| Ok(HandlerResult::SleepAndContinueTest(VOTE_DURATION)))
-        .on_decided(|_c, evidence, _s| {
+        .on_finalized(|_c, evidence, _s| {
             check_decided_impl(&evidence);
             let result = if evidence.votes.is_empty() {
                 HandlerResult::WaitForNextEvent

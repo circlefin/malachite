@@ -1,5 +1,7 @@
-use crate::MisbehaviorEvidence;
-use crate::{handle::signature::verify_commit_certificate, prelude::*};
+use crate::handle::signature::verify_commit_certificate;
+use crate::prelude::*;
+
+use super::finalize::log_and_finalize;
 
 #[cfg_attr(not(feature = "metrics"), allow(unused_variables))]
 pub async fn decide<Ctx>(
@@ -21,27 +23,24 @@ where
 
     let decided_id = decided_value.id();
 
-    // Look for an existing certificate (from sync) or build one from precommits
+    // Look for an existing certificate in the driver. This may be present if the decision was reached via Sync protocol.
     let existing_certificate = state
         .driver
         .commit_certificate(proposal_round, &decided_id)
         .cloned();
 
-    // FIXME: there is actual no guarantee that associated vote extensions can be found,
-    // in particular when deciding via sync, see: https://circlepay.atlassian.net/browse/CCHAIN-915.
-    let (certificate, extensions) = existing_certificate
-        .map(|certificate| (certificate, VoteExtensions::default()))
-        .unwrap_or_else(|| {
-            // Restore the commits. Note that they will be removed from `state`
-            let mut commits = state.restore_precommits(height, proposal_round, &decided_value);
-
-            let extensions = extract_vote_extensions(&mut commits);
-
-            let certificate =
-                CommitCertificate::new(height, proposal_round, decided_id.clone(), commits);
-
-            (certificate, extensions)
-        });
+    // Determine if we have an existing certificate or need to restore one.
+    let (certificate, extensions, sync_decision) = if let Some(certificate) = existing_certificate {
+        // NOTE: Existence implies the decision was reached via Sync protocol.
+        // FIXME: No guarantee vote extensions are found in sync. (CCHAIN-915)
+        (certificate, VoteExtensions::default(), true)
+    } else {
+        // Restore the precommits (removes them from `state`).
+        let mut commits = state.restore_precommits(height, proposal_round, &decided_value);
+        let extensions = extract_vote_extensions(&mut commits);
+        let certificate = CommitCertificate::new(height, proposal_round, decided_id, commits);
+        (certificate, extensions, false)
+    };
 
     // The certificate must be valid in Commit step
     assert!(
@@ -53,7 +52,7 @@ where
         )
         .await?
         .is_ok(),
-        "Commit certificate is not valid"
+        "Decide: Commit certificate is not valid"
     );
 
     // Update metrics
@@ -65,32 +64,50 @@ where
         }
 
         metrics.block_end();
-
         metrics
             .consensus_round
             .observe(consensus_round.as_i64() as f64);
-
         metrics
             .proposal_round
             .observe(proposal_round.as_i64() as f64);
     }
 
-    #[cfg(feature = "debug")]
-    {
-        for trace in state.driver.get_traces() {
-            debug!(%trace, "Consensus trace");
-        }
-    }
-
-    let evidence = MisbehaviorEvidence {
-        proposals: state.driver.take_proposal_evidence(),
-        votes: state.driver.take_vote_evidence(),
-    };
-
     perform!(
         co,
-        Effect::Decide(certificate, extensions, evidence, Default::default())
+        Effect::Decide(certificate.clone(), extensions.clone(), Default::default())
     );
+
+    let Some(target_time) = state.target_time else {
+        debug!(%height, "No target time set, finalizing immediately");
+        return log_and_finalize(co, state, certificate, extensions).await;
+    };
+
+    // FIXME: based on the assumption that a decision reached via Sync protocol implies
+    // that the configured target_time should not be observed by Malachite.
+    if sync_decision {
+        debug!(%height, "Decision via sync, finalizing immediately");
+        return log_and_finalize(co, state, certificate, extensions).await;
+    }
+
+    let elapsed = state
+        .height_start_time
+        .expect("height_start_time must be set when target_time is set")
+        .elapsed();
+
+    if elapsed >= target_time {
+        debug!(%height, ?elapsed, ?target_time, "Target time exceeded, finalizing immediately");
+        return log_and_finalize(co, state, certificate, extensions).await;
+    }
+
+    // Time remaining until target time is reached
+    let remaining = target_time - elapsed;
+
+    // Enter finalization period
+    debug!(%height, ?remaining, "Entering finalization period");
+    state.finalization_period = true;
+
+    let timeout = Timeout::finalize_height(consensus_round, remaining);
+    perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
 
     Ok(())
 }
