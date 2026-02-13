@@ -177,7 +177,10 @@ impl<S: ScoringStrategy> PeerScorer<S> {
             return None;
         }
 
-        let scores = peers.iter().map(|id| self.get_score(id).max(0.0));
+        // Use a minimum floor so that even the lowest-scoring peers
+        // retain a non-zero probability of being selected.
+        const MIN_WEIGHT: f64 = 0.01;
+        let scores = peers.iter().map(|id| self.get_score(id).max(MIN_WEIGHT));
 
         // Sample from peers using a weighted distribution based on their scores
         let distr = WeightedIndex::new(scores).ok()?;
