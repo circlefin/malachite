@@ -1,3 +1,4 @@
+use std::time::{Duration, Instant};
 use tracing::info;
 
 use malachitebft_core_driver::Driver;
@@ -35,6 +36,21 @@ where
 
     /// Last precommit broadcasted by this node
     pub last_signed_precommit: Option<SignedVote<Ctx>>,
+
+    /// Target time for the current height
+    pub target_time: Option<Duration>,
+
+    /// Start time of the current height
+    pub height_start_time: Option<Instant>,
+
+    /// Whether we are in the finalization period.
+    ///
+    /// The finalization period is entered in decide, cleared in finalize_height,
+    /// and only valid during the commit step.
+    ///
+    /// It allows collecting additional precommits for the decided value after
+    /// the decision is made in decide, which can be included in the commit certificate.
+    pub finalization_period: bool,
 }
 
 impl<Ctx> State<Ctx>
@@ -64,6 +80,9 @@ where
             full_proposal_keeper: Default::default(),
             last_signed_prevote: None,
             last_signed_precommit: None,
+            target_time: None,
+            height_start_time: None,
+            finalization_period: false,
         }
     }
 
@@ -216,10 +235,14 @@ where
         &mut self,
         height: Ctx::Height,
         validator_set: Ctx::ValidatorSet,
+        target_time: Option<Duration>,
     ) {
         self.full_proposal_keeper.clear();
         self.last_signed_prevote = None;
         self.last_signed_precommit = None;
+        self.target_time = target_time;
+        self.height_start_time = Some(Instant::now());
+        self.finalization_period = false;
 
         self.driver.move_to_height(height, validator_set);
     }
