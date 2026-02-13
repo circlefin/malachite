@@ -529,6 +529,10 @@ pub struct ValueSyncConfig {
     #[serde(default)]
     pub scoring_strategy: ScoringStrategy,
 
+    /// Initial score for peers
+    #[serde(default = "default_initial_score")]
+    pub initial_score: f64,
+
     /// Threshold for considering a peer inactive
     #[serde(with = "humantime_serde")]
     pub inactive_threshold: Duration,
@@ -547,10 +551,15 @@ impl Default for ValueSyncConfig {
             max_response_size: ByteSize::mib(10),
             parallel_requests: 5,
             scoring_strategy: ScoringStrategy::default(),
+            initial_score: default_initial_score(),
             inactive_threshold: Duration::from_secs(60),
             batch_size: 5,
         }
     }
+}
+
+fn default_initial_score() -> f64 {
+    0.5
 }
 
 /// Peer scoring strategy

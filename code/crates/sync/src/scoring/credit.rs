@@ -1,7 +1,4 @@
-use std::collections::{HashMap, HashSet};
 use std::time::Duration;
-
-use malachitebft_peer::PeerId;
 
 use super::{Score, ScoringStrategy, SyncResult};
 
@@ -48,9 +45,6 @@ impl Default for CreditConfig {
 #[derive(Clone, Debug)]
 pub struct Credit {
     config: CreditConfig,
-
-    /// Per-peer credits
-    credits: HashMap<PeerId, i32>,
 }
 
 impl Default for Credit {
@@ -71,10 +65,12 @@ impl Credit {
             "min_credit must be < max_credit"
         );
 
-        Self {
-            config,
-            credits: HashMap::new(),
-        }
+        Self { config }
+    }
+
+    pub fn initial_credit(&self) -> i32 {
+        // Neutral: midpoint of the clamp range.
+        self.config.min_credit + (self.config.max_credit - self.config.min_credit) / 2
     }
 
     fn clamp_credit(&self, c: i32) -> i32 {
@@ -96,40 +92,25 @@ impl Credit {
         ((c - min) / (max - min)).clamp(0.0, 1.0)
     }
 
-    fn initial_credit(&self) -> i32 {
-        // Neutral: midpoint of the clamp range.
-        self.config.min_credit + (self.config.max_credit - self.config.min_credit) / 2
-    }
-
-    fn get_credit(&mut self, peer_id: PeerId) -> i32 {
-        let init = self.initial_credit();
-        *self.credits.entry(peer_id).or_insert(init)
-    }
-
-    fn set_credit(&mut self, peer_id: PeerId, credit: i32) -> i32 {
-        let new_credit = self.clamp_credit(credit);
-        self.credits.insert(peer_id, new_credit);
-        new_credit
-    }
-
     fn is_fast(&self, response_time: Duration) -> bool {
         response_time < self.config.slow_threshold
     }
 }
 
 impl ScoringStrategy for Credit {
-    fn initial_score(&self, _peer_id: PeerId) -> Score {
-        // Note: this returns a neutral score, but actual per-peer credit is created on first update.
-        self.credit_to_score(self.initial_credit())
-    }
+    type State = i32; // The credit value per peer
 
     fn update_score(
-        &mut self,
-        peer_id: PeerId,
+        &self,
+        credit: &mut Self::State,
         _previous_score: Score,
         result: SyncResult,
     ) -> Score {
-        let credit = self.get_credit(peer_id);
+        // Initialize credit if it's at the default value (0)
+        // This handles the case where PeerState::default() is used
+        if *credit == 0 {
+            *credit = self.initial_credit();
+        }
 
         let delta = match result {
             SyncResult::Success(rt) => {
@@ -143,22 +124,15 @@ impl ScoringStrategy for Credit {
             SyncResult::Timeout => self.config.credit_timeout,
         };
 
-        let new_credit = self.set_credit(peer_id, credit.saturating_add(delta));
+        let old_credit = *credit;
+        *credit = self.clamp_credit(credit.saturating_add(delta));
 
         eprintln!(
-            "result={result:?}, credit={credit}, delta={delta}, new={}, score={:.2}",
-            new_credit,
-            self.credit_to_score(new_credit)
+            "result={result:?}, credit={old_credit}, delta={delta}, new={}, score={:.2}",
+            *credit,
+            self.credit_to_score(*credit)
         );
 
-        self.credit_to_score(new_credit)
-    }
-
-    fn is_stateful(&self) -> bool {
-        true
-    }
-
-    fn retain_only(&mut self, peer_ids: HashSet<&PeerId>) {
-        self.credits.retain(|peer_id, _| peer_ids.contains(peer_id));
+        self.credit_to_score(*credit)
     }
 }

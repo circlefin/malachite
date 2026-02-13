@@ -5,7 +5,7 @@ use std::ops::RangeInclusive;
 use malachitebft_core_types::{Context, Height};
 use malachitebft_peer::PeerId;
 
-use crate::scoring::{credit, ema, PeerScorer, Strategy};
+use crate::scoring::{credit, ema, PeerScorer, ScorerVariant, Strategy};
 use crate::{Config, OutboundRequestId, Status};
 
 pub struct State<Ctx>
@@ -34,7 +34,7 @@ where
     pub peers: BTreeMap<PeerId, Status<Ctx>>,
 
     /// Peer scorer for scoring peers based on their performance.
-    pub peer_scorer: PeerScorer,
+    pub peer_scorer: ScorerVariant,
 }
 
 impl<Ctx> State<Ctx>
@@ -47,9 +47,16 @@ where
         // Sync configuration
         config: Config,
     ) -> Self {
+        let initial_score = config.initial_score;
+
         let peer_scorer = match config.scoring_strategy {
-            Strategy::Ema => PeerScorer::new(ema::ExponentialMovingAverage::default()),
-            Strategy::Credit => PeerScorer::new(credit::Credit::default()),
+            Strategy::Ema => ScorerVariant::Ema(PeerScorer::new(
+                initial_score,
+                ema::ExponentialMovingAverage::default(),
+            )),
+            Strategy::Credit => {
+                ScorerVariant::Credit(PeerScorer::new(initial_score, credit::Credit::default()))
+            }
         };
 
         Self {

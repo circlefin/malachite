@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::scoring::Strategy;
+use crate::scoring::{Score, Strategy};
 
 const DEFAULT_PARALLEL_REQUESTS: u64 = 5;
 const DEFAULT_BATCH_SIZE: usize = 5;
@@ -13,6 +13,7 @@ pub struct Config {
     pub max_response_size: usize,
     pub parallel_requests: u64,
     pub scoring_strategy: Strategy,
+    pub initial_score: Score,
     pub inactive_threshold: Option<Duration>,
     pub batch_size: usize,
 }
@@ -50,6 +51,11 @@ impl Config {
         self
     }
 
+    pub fn with_initial_score(mut self, initial_score: Score) -> Self {
+        self.initial_score = initial_score;
+        self
+    }
+
     pub fn with_inactive_threshold(mut self, inactive_threshold: Option<Duration>) -> Self {
         self.inactive_threshold = inactive_threshold;
         self
@@ -70,6 +76,7 @@ impl Default for Config {
             max_response_size: 10 * 1024 * 1024, // 10 MiB
             parallel_requests: DEFAULT_PARALLEL_REQUESTS,
             scoring_strategy: Strategy::default(),
+            initial_score: 0.5,
             inactive_threshold: None,
             batch_size: DEFAULT_BATCH_SIZE,
         }
