@@ -2121,78 +2121,6 @@ fn driver_step_change_mux_with_proposal_and_polka() {
 }
 
 #[test]
-fn driver_step_change_mux_with_proposal_and_commit_quorum() {
-    let value: Value = Value::new(9999);
-
-    let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
-    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
-
-    let height = Height::new(1);
-    let ctx = TestContext::new();
-    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
-
-    let proposal = Proposal::new(
-        Height::new(1),
-        Round::new(1),
-        value.clone(),
-        Round::Nil,
-        v1.address,
-    );
-
-    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
-
-    let steps = vec![
-        TestStep {
-            desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
-            input: new_round_input(Round::new(0), v1.address),
-            expected_outputs: vec![start_propose_timer_output(Round::new(0))],
-            expected_round: Round::new(0),
-            new_state: propose_state(Round::new(0)),
-        },
-        TestStep {
-            desc: "Receive proposal for round 1, store",
-            input: proposal_input(
-                Round::new(1),
-                value.clone(),
-                Round::Nil,
-                Validity::Valid,
-                v1.address,
-            ),
-            expected_outputs: vec![],
-            expected_round: Round::new(0),
-            new_state: propose_state(Round::new(0)),
-        },
-        TestStep {
-            desc: "v1 precommits value for round 1",
-            input: precommit_input_at(Round::new(1), value.clone(), &v1.address),
-            expected_outputs: vec![],
-            expected_round: Round::new(0),
-            new_state: propose_state(Round::new(0)),
-        },
-        TestStep {
-            desc: "v2 precommits value for round 1, we hit f+1 threshold, move to round 1",
-            input: precommit_input_at(Round::new(1), value.clone(), &v2.address),
-            expected_outputs: vec![new_round_output(Round::new(1))],
-            expected_round: Round::new(1),
-            new_state: new_round(Round::new(1)),
-        },
-        TestStep {
-            desc:
-                "Start round 1, change step to propose, start propose timer, mux proposal, decide",
-            input: new_round_input(Round::new(1), v2.address),
-            expected_outputs: vec![
-                start_propose_timer_output(Round::new(1)),
-                decide_output(Round::new(1), proposal),
-            ],
-            expected_round: Round::new(1),
-            new_state: decided_state(Round::new(1), Round::new(1), value),
-        },
-    ];
-
-    run_steps(&mut driver, steps);
-}
-
-#[test]
 fn proposal_mux_with_polka() {
     let value: Value = Value::new(9999);
 
@@ -3646,6 +3574,9 @@ fn sync_decision_certificate_then_proposal() {
     run_steps(&mut driver, steps);
 }
 
+/// Replaces the old driver_step_change_mux_with_proposal_and_commit_quorum.
+/// When a node has SkipVote(r) and (r, PrecommitValue(v)) possible events at the same time,
+/// the latter must have precedence: we decide as soon as possible, without starting rounds.
 #[test]
 fn round_1_decision_during_round_0() {
     let value = Value::new(9999);
