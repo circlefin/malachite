@@ -1,7 +1,6 @@
-use malachitebft_core_types::{NilOrVal, Round, SignedVote, VoteType};
+use malachitebft_core_types::{NilOrVal, Round, SignedVote};
 
 use informalsystems_malachitebft_core_votekeeper::keeper::{Output, VoteKeeper};
-use informalsystems_malachitebft_core_votekeeper::Threshold;
 
 use malachitebft_test::{
     Address, Height, PrivateKey, Signature, TestContext, Validator, ValidatorSet, ValueId, Vote,
@@ -266,12 +265,7 @@ fn skip_round_and_precommit_value_future_round() {
 
     let vote = new_signed_precommit(height, fut_round, val, addr2);
     let msg = keeper.apply_vote(vote, cur_round);
-    assert_eq!(msg, Some(Output::SkipRound(fut_round)));
-
-    // A PrecommitValue(id) could be produced
-    assert!(keeper.is_threshold_met(&fut_round, VoteType::Precommit, Threshold::Value(id)));
-    // FIXME: should we instead expect it to be produced?
-    // assert_eq!(msg, Some(Output::PrecommitValue(id)));
+    assert_eq!(msg, Some(Output::PrecommitValue(id)));
 }
 
 #[test]
