@@ -355,27 +355,31 @@ where
 }
 
 /// Map a vote type and a threshold to a state machine output.
-/// Also considers a potential honest threshold for a future round.
+/// Also considers an optional honest threshold for a future round.
 fn threshold_to_output<Value>(
     typ: VoteType,
     threshold: Threshold<Value>,
     future_round: Option<Round>,
 ) -> Option<Output<Value>> {
-    match (typ, threshold) {
-        (_, Threshold::Unreached) => {
-            if future_round.is_some() {
-                Some(Output::SkipRound(future_round.unwrap()))
-            } else {
-                None
-            }
+    if future_round.is_none() {
+        // Thresholds for the current round
+        match (typ, threshold) {
+            (_, Threshold::Unreached) => None,
+
+            (VoteType::Prevote, Threshold::Any) => Some(Output::PolkaAny),
+            (VoteType::Prevote, Threshold::Nil) => Some(Output::PolkaNil),
+            (VoteType::Prevote, Threshold::Value(v)) => Some(Output::PolkaValue(v)),
+
+            (VoteType::Precommit, Threshold::Any) => Some(Output::PrecommitAny),
+            (VoteType::Precommit, Threshold::Nil) => Some(Output::PrecommitAny),
+            (VoteType::Precommit, Threshold::Value(v)) => Some(Output::PrecommitValue(v)),
         }
+    } else {
+        // Only PrecommitValue(v) has larger priority than SkipRound(r)
+        match (typ, threshold) {
+            (VoteType::Precommit, Threshold::Value(v)) => Some(Output::PrecommitValue(v)),
 
-        (VoteType::Prevote, Threshold::Any) => Some(Output::PolkaAny),
-        (VoteType::Prevote, Threshold::Nil) => Some(Output::PolkaNil),
-        (VoteType::Prevote, Threshold::Value(v)) => Some(Output::PolkaValue(v)),
-
-        (VoteType::Precommit, Threshold::Any) => Some(Output::PrecommitAny),
-        (VoteType::Precommit, Threshold::Nil) => Some(Output::PrecommitAny),
-        (VoteType::Precommit, Threshold::Value(v)) => Some(Output::PrecommitValue(v)),
+            (_, _) => Some(Output::SkipRound(future_round.unwrap())),
+        }
     }
 }
