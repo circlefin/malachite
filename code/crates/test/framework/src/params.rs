@@ -29,6 +29,8 @@ pub struct TestParams {
     /// Group of node IDs that share the same validator private key.
     /// The validator set will contain a single entry with the combined voting power of the group.
     pub shared_key_group: HashSet<usize>,
+    /// Target time for heights. If present Finalized effect will be emitted.
+    pub target_time: Option<Duration>,
 }
 
 impl Default for TestParams {
@@ -52,6 +54,7 @@ impl Default for TestParams {
             enable_discovery: false,
             exclude_from_persistent_peers: Vec::new(),
             shared_key_group: HashSet::new(),
+            target_time: None,
         }
     }
 }
@@ -81,5 +84,6 @@ impl TestParams {
         config.test.vote_extensions.size = self.vote_extensions.unwrap_or_default();
         config.test.max_retain_blocks = self.max_retain_blocks;
         config.test.stable_block_times = self.stable_block_times;
+        config.test.target_time = self.target_time;
     }
 }

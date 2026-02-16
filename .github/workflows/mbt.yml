@@ -8,7 +8,7 @@ on:
 jobs:
   changes:
     name: Detect changes
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-small
     permissions:
       pull-requests: read
     outputs:
@@ -29,7 +29,7 @@ jobs:
     name: MBT Tests
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' || needs.changes.outputs.specs == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-large
     env:
       CARGO_INCREMENTAL: 0
       CARGO_PROFILE_DEV_DEBUG: 1

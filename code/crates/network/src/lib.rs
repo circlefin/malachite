@@ -450,7 +450,7 @@ async fn run(
                 }
 
                 periodic_tick_count = periodic_tick_count.wrapping_add(1);
-                if periodic_tick_count % 5 == 0 {
+                if periodic_tick_count.is_multiple_of(5) {
                     info!("Network peer state\n{}", state.format_peer_info());
                 }
 

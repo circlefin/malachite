@@ -188,11 +188,16 @@ impl Host {
                 reply_to,
             } => on_received_proposal_part(state, part, from, reply_to).await,
 
-            HostMsg::Decided {
+            HostMsg::Decided { certificate, .. } => {
+                // Store the decided certificate so it's available during finalization
+                on_decided(state, certificate).await
+            }
+
+            HostMsg::Finalized {
                 certificate,
                 reply_to,
                 ..
-            } => on_decided(state, reply_to, &self.mempool, certificate, &self.metrics).await,
+            } => on_finalized(state, reply_to, &self.mempool, certificate, &self.metrics).await,
 
             HostMsg::GetDecidedValues { range, reply_to } => {
                 on_get_decided_values(range, state, reply_to).await
@@ -220,10 +225,7 @@ async fn on_consensus_ready(
 
     reply_to.send((
         start_height,
-        HeightParams {
-            validator_set: state.host.validator_set.clone(),
-            timeouts: state.host.timeouts,
-        },
+        HeightParams::new(state.host.validator_set.clone(), state.host.timeouts, None),
     ))?;
 
     Ok(())
@@ -632,10 +634,7 @@ async fn store_proposed_value(
 
 async fn on_decided(
     state: &mut HostState,
-    reply_to: RpcReplyPort<Next<MockContext>>,
-    mempool: &MempoolRef,
     certificate: CommitCertificate<MockContext>,
-    metrics: &Metrics,
 ) -> Result<(), ActorProcessingErr> {
     let (height, round) = (certificate.height, certificate.round);
 
@@ -660,6 +659,25 @@ async fn on_decided(
     {
         error!(%e, %height, %round, "Failed to store the block");
     }
+
+    info!(%height, %round, "Decided on value, awaiting finalization...");
+
+    Ok(())
+}
+
+async fn on_finalized(
+    state: &mut HostState,
+    reply_to: RpcReplyPort<Next<MockContext>>,
+    mempool: &MempoolRef,
+    certificate: CommitCertificate<MockContext>,
+    metrics: &Metrics,
+) -> Result<(), ActorProcessingErr> {
+    let (height, round) = (certificate.height, certificate.round);
+
+    let all_parts = state
+        .host
+        .part_store
+        .all_parts_by_value_id(&certificate.value_id);
 
     // Update metrics
     let tx_count: usize = all_parts.iter().map(|p| p.tx_count()).sum();
@@ -687,16 +705,24 @@ async fn on_decided(
     // Notify the mempool to remove corresponding txs
     mempool.cast(MempoolMsg::Update { tx_hashes })?;
 
-    // Notify Starknet Host of the decision
-    state.host.decision(certificate).await;
+    if let Some(mut decided_block) = state.block_store.get(height).await? {
+        decided_block.certificate = certificate.clone();
+        state
+            .block_store
+            .update_decided_block(decided_block.clone())
+            .await?;
+
+        state.host.decision(decided_block.certificate).await;
+    } else {
+        error!(%height, "Could not retrieve stored certificate for finalization");
+    }
+
+    info!(%height, %round, "Height finalized");
 
     // Start the next height
     reply_to.send(Next::Start(
         state.height.increment(),
-        HeightParams {
-            validator_set: state.host.validator_set.clone(),
-            timeouts: state.host.timeouts,
-        },
+        HeightParams::new(state.host.validator_set.clone(), state.host.timeouts, None),
     ))?;
 
     Ok(())
