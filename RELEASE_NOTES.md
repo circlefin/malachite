@@ -49,6 +49,7 @@
 - Refactor sync actor to notify consensus of sync responses
 - Support batch retrieval of decided values
 - Validate value request ranges before processing
+- Add a credit-based strategy for scoring peers in the sync protocol ([#1448](https://github.com/circlefin/malachite/pull/1448))
 
 ## 0.6.0
 
