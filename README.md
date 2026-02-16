@@ -27,6 +27,8 @@
 
 </div>
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/circlefin/malachite)](https://goreportcard.com/report/github.com/circlefin/malachite)
+
 ## About
 
 Malachite is a Byzantine-fault tolerant (BFT) consensus engine implemented in Rust.
