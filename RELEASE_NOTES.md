@@ -49,6 +49,9 @@
 - Refactor sync actor to notify consensus of sync responses
 - Support batch retrieval of decided values
 - Validate value request ranges before processing
+- Queue sync responses for future heights in the Sync actor ([#1467](https://github.com/circlefin/malachite/pull/1467))
+  Instead of buffering sync responses in the core-consensus input queue, sync responses are now buffered directly in the Sync actor.
+  This prevents sync responses and consensus messages from contending over the input queue.
 
 ## 0.6.0
 
