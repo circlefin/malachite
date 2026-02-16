@@ -8,14 +8,70 @@ on:
       - edited
       - synchronize
 
-permissions:
-  pull-requests: read
-
 jobs:
   lint:
     name: Check PR title
     runs-on: github-hosted-small
+    permissions:
+      pull-requests: read
     steps:
       - uses: step-security/action-semantic-pull-request@v5
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+
+  verify-signatures:
+    name: Verify commit signatures
+    runs-on: github-hosted-small
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Check signatures and cleanup comments
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // 1. Fetch all commits in the PR (handling pagination)
+            const commits = await github.paginate(github.rest.pulls.listCommits, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+
+            const unsigned = commits
+              .filter(c => !c.commit.verification.verified)
+              .map(c => `- \`${c.sha.substring(0, 7)}\` by **${c.commit.author.name}**`);
+
+            // 2. Find and delete previous bot comments to avoid spam
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botCommentIdentifier = "### ⚠️ Unsigned Commits Detected";
+            const previousComments = comments.filter(c => c.body.includes(botCommentIdentifier));
+
+            for (const comment of previousComments) {
+              await github.rest.issues.deleteComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: comment.id,
+              });
+            }
+
+            // 3. Post new comment if unsigned commits exist
+            if (unsigned.length > 0) {
+              const body = `${botCommentIdentifier}\n\n` +
+                           `The following commits are missing a verified signature:\n\n` +
+                           unsigned.join('\n') +
+                           `\n\n**How to fix:** [Sign your commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).`;
+
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+
+              core.setFailed("Unsigned commits detected.");
+            }
