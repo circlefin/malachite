@@ -38,6 +38,7 @@
 - Add network metrics for peer identification and tracking
 - Add transport level connection limits
 - Limit the number of peers that can connect from same IP address
+- Update `libp2p-scatter` to v0.4.0-rc.1 ([#1473](https://github.com/circlefin/malachite/pull/1473))
 
 ### `signing`
 - Implement `SigningProvider` for `Arc<T>` where `T: SigningProvider`
