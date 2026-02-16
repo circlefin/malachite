@@ -150,8 +150,8 @@ enum StatusUpdateMode {
     /// Send status updates at regular intervals
     Interval(JoinHandle<()>), // the ticker task handle
 
-    /// Send status updates only upon decisions
-    OnDecision,
+    /// Send status updates with tip height when starting a new height
+    OnStartedHeight,
 }
 
 pub struct State<Ctx: Context> {
@@ -435,10 +435,10 @@ where
                 self.process_input(&myself, state, sync::Input::StartedHeight(height, restart))
                     .await?;
 
-                // If in OnDecision mode, send a status update for the previous decision,
+                // If in OnStartedHeight mode, send a status update for the previous decision,
                 // now that we know for sure that the application has stored the decided value,
                 // and we have updated our tip height.
-                if let StatusUpdateMode::OnDecision = &state.status_update_mode {
+                if let StatusUpdateMode::OnStartedHeight = &state.status_update_mode {
                     self.process_input(&myself, state, sync::Input::SendStatusUpdate)
                         .await?;
                 }
@@ -532,8 +532,8 @@ where
     R: rand::Rng,
 {
     if interval == Duration::ZERO {
-        info!("Using status update mode: OnDecision");
-        StatusUpdateMode::OnDecision
+        info!("Using status update mode: OnStartedHeight");
+        StatusUpdateMode::OnStartedHeight
     } else {
         info!("Using status update mode: Interval");
 
