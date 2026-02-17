@@ -1,7 +1,7 @@
+use std::time::Duration;
+
 use crate::handle::signature::verify_commit_certificate;
 use crate::prelude::*;
-
-use super::finalize::log_and_finalize;
 
 #[cfg_attr(not(feature = "metrics"), allow(unused_variables))]
 pub async fn decide<Ctx>(
@@ -30,16 +30,16 @@ where
         .cloned();
 
     // Determine if we have an existing certificate or need to restore one.
-    let (certificate, extensions, sync_decision) = if let Some(certificate) = existing_certificate {
+    let (certificate, extensions) = if let Some(certificate) = existing_certificate {
         // NOTE: Existence implies the decision was reached via Sync protocol.
         // FIXME: No guarantee vote extensions are found in sync. (CCHAIN-915)
-        (certificate, VoteExtensions::default(), true)
+        (certificate, VoteExtensions::default())
     } else {
         // Restore the precommits (removes them from `state`).
         let mut commits = state.restore_precommits(height, proposal_round, &decided_value);
         let extensions = extract_vote_extensions(&mut commits);
         let certificate = CommitCertificate::new(height, proposal_round, decided_id, commits);
-        (certificate, extensions, false)
+        (certificate, extensions)
     };
 
     // The certificate must be valid in Commit step
@@ -77,30 +77,17 @@ where
         Effect::Decide(certificate.clone(), extensions.clone(), Default::default())
     );
 
-    let Some(target_time) = state.target_time else {
-        debug!(%height, "No target time set, finalizing immediately");
-        return log_and_finalize(co, state, certificate, extensions).await;
-    };
-
-    // FIXME: based on the assumption that a decision reached via Sync protocol implies
-    // that the configured target_time should not be observed by Malachite.
-    if sync_decision {
-        debug!(%height, "Decision via sync, finalizing immediately");
-        return log_and_finalize(co, state, certificate, extensions).await;
-    }
-
-    let elapsed = state
-        .height_start_time
-        .expect("height_start_time must be set when target_time is set")
-        .elapsed();
-
-    if elapsed >= target_time {
-        debug!(%height, ?elapsed, ?target_time, "Target time exceeded, finalizing immediately");
-        return log_and_finalize(co, state, certificate, extensions).await;
-    }
-
-    // Time remaining until target time is reached
-    let remaining = target_time - elapsed;
+    // Calculate remaining time until target (0 if no target or already exceeded)
+    let remaining = state
+        .target_time
+        .and_then(|target| {
+            let elapsed = state
+                .height_start_time
+                .expect("height_start_time must be set when target_time is set")
+                .elapsed();
+            target.checked_sub(elapsed)
+        })
+        .unwrap_or(Duration::ZERO);
 
     // Enter finalization period
     debug!(%height, ?remaining, "Entering finalization period");

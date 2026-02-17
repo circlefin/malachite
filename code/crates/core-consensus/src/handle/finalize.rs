@@ -49,7 +49,7 @@ where
 }
 
 /// Emit the Finalize effect with a pre-built certificate and extensions.
-pub async fn log_and_finalize<Ctx>(
+async fn log_and_finalize<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     certificate: CommitCertificate<Ctx>,
