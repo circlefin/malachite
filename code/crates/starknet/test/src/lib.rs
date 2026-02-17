@@ -13,9 +13,9 @@ use malachitebft_network::Keypair;
 use malachitebft_starknet_host::config::Config;
 use malachitebft_starknet_host::node::{ConfigSource, Handle, StarknetNode};
 use malachitebft_starknet_host::types::{Height, MockContext, PrivateKey, Validator, ValidatorSet};
-use multiaddr::Multiaddr;
 use malachitebft_test_framework::HasTestRunner;
 use malachitebft_test_framework::{NodeRunner, TestNode};
+use multiaddr::Multiaddr;
 
 pub use malachitebft_test_framework::TestBuilder as GenTestBuilder;
 pub use malachitebft_test_framework::{
@@ -142,11 +142,8 @@ impl TestRunner {
         let protocol = PubSubProtocol::default();
         let i = node - 1;
 
-        let consensus_persistent_peers = self.persistent_peers_with_peer_id(
-            &transport,
-            i,
-            self.consensus_base_port,
-        );
+        let consensus_persistent_peers =
+            self.persistent_peers_with_peer_id(&transport, i, self.consensus_base_port);
         let mempool_persistent_peers =
             self.persistent_peers_with_peer_id(&transport, i, self.mempool_base_port);
 
@@ -225,12 +222,7 @@ impl TestRunner {
             .map(|j| {
                 let node_id = j + 1;
                 let pk = &self.private_keys[&node_id];
-                persistent_peer_addr_with_id(
-                    transport,
-                    "127.0.0.1",
-                    base_port + j,
-                    pk,
-                )
+                persistent_peer_addr_with_id(transport, "127.0.0.1", base_port + j, pk)
             })
             .collect()
     }

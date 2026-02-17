@@ -229,7 +229,9 @@ pub enum PersistentPeerError {
     #[error("Persistent peer not found")]
     NotFound,
     /// Address must include PeerId (e.g. /ip4/1.2.3.4/tcp/9000/p2p/12D3KooW...)
-    #[error("Persistent peer address must include PeerId (e.g. /ip4/1.2.3.4/tcp/9000/p2p/12D3KooW...)")]
+    #[error(
+        "Persistent peer address must include PeerId (e.g. /ip4/1.2.3.4/tcp/9000/p2p/12D3KooW...)"
+    )]
     PeerIdRequired,
     /// Network is not started
     #[error("Network not started")]
@@ -767,7 +769,8 @@ async fn handle_swarm_event(
                                 }
                             }
                         }
-                        Err(PeerRejectReason::IdentityMismatch { expected, actual }) => {
+                        Err(PeerRejectReason::IdentityMismatch(expected_actual)) => {
+                            let (expected, actual) = &*expected_actual;
                             warn!(
                                 expected = %expected,
                                 actual = %actual,

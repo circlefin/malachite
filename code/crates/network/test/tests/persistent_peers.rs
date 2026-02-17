@@ -8,7 +8,11 @@ use malachitebft_network::{
 use tokio::time::sleep;
 
 /// Build a Quic multiaddr with PeerId (required for persistent peers).
-fn quic_multiaddr_with_peer_id(host: &str, port: usize, peer_id: impl std::fmt::Display) -> Multiaddr {
+fn quic_multiaddr_with_peer_id(
+    host: &str,
+    port: usize,
+    peer_id: impl std::fmt::Display,
+) -> Multiaddr {
     format!("/ip4/{host}/udp/{port}/quic-v1/p2p/{peer_id}")
         .parse()
         .expect("valid multiaddr")
@@ -543,10 +547,14 @@ async fn test_add_persistent_peer_requires_peer_id() {
     .await
     .unwrap();
 
-    let addr_without_peer_id: Multiaddr =
-        "/ip4/127.0.0.1/udp/37001/quic-v1".parse().expect("valid multiaddr");
+    let addr_without_peer_id: Multiaddr = "/ip4/127.0.0.1/udp/37001/quic-v1"
+        .parse()
+        .expect("valid multiaddr");
 
-    let result = handle.add_persistent_peer(addr_without_peer_id).await.unwrap();
+    let result = handle
+        .add_persistent_peer(addr_without_peer_id)
+        .await
+        .unwrap();
     assert_eq!(result, Err(PersistentPeerError::PeerIdRequired));
 
     handle.shutdown().await.unwrap();

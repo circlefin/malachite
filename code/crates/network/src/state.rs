@@ -18,11 +18,8 @@ use malachitebft_discovery::ConnectionDirection;
 /// Reason to reject a peer (e.g. identity mismatch for persistent peers)
 #[derive(Debug)]
 pub(crate) enum PeerRejectReason {
-    /// Connected peer's PeerId does not match the expected PeerId for this persistent peer address
-    IdentityMismatch {
-        expected: libp2p::PeerId,
-        actual: libp2p::PeerId,
-    },
+    /// Connected peer's PeerId does not match the expected PeerId for this persistent peer address.
+    IdentityMismatch(Box<(libp2p::PeerId, libp2p::PeerId)>),
 }
 
 /// Public network state dump for external consumers
@@ -413,10 +410,10 @@ impl State {
         // Verify identity for persistent peers: reject if actual PeerId does not match expected
         if let Some(expected) = self.expected_persistent_peer_id(connection_id) {
             if expected != peer_id {
-                return Err(PeerRejectReason::IdentityMismatch {
+                return Err(PeerRejectReason::IdentityMismatch(Box::new((
                     expected,
-                    actual: peer_id,
-                });
+                    peer_id,
+                ))));
             }
         }
 
@@ -564,18 +561,13 @@ impl State {
         }
 
         // Require PeerId in address for identity verification and reliable remove
-        let peer_id = extract_peer_id_from_multiaddr(&addr)
-            .ok_or(PersistentPeerError::PeerIdRequired)?;
+        let peer_id =
+            extract_peer_id_from_multiaddr(&addr).ok_or(PersistentPeerError::PeerIdRequired)?;
 
         self.persistent_peer_ids.insert(peer_id);
 
         // Update peer type and score if already connected
-        Self::update_peer_persistent_status(
-            peer_id,
-            self.peer_info.get_mut(&peer_id),
-            true,
-            swarm,
-        );
+        Self::update_peer_persistent_status(peer_id, self.peer_info.get_mut(&peer_id), true, swarm);
 
         // Add to persistent peer list
         self.persistent_peer_addrs.push(addr.clone());
@@ -610,8 +602,8 @@ impl State {
         self.persistent_peer_addrs.remove(pos);
 
         // PeerId is required (same as at config load and add time)
-        let peer_id = extract_peer_id_from_multiaddr(&addr)
-            .ok_or(PersistentPeerError::PeerIdRequired)?;
+        let peer_id =
+            extract_peer_id_from_multiaddr(&addr).ok_or(PersistentPeerError::PeerIdRequired)?;
 
         self.persistent_peer_ids.remove(&peer_id);
 

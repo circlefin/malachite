@@ -210,9 +210,15 @@ impl TestRunner {
                                         .contains(&((*j + 1) as u64)))
                             .map(|j| {
                                 let node_id = j + 1;
-                                let peer_id = self.nodes_info[&node_id].network_keypair.public().to_peer_id();
-                                let base = transport.multiaddr("127.0.0.1", self.consensus_base_port + j);
-                                format!("{base}/p2p/{peer_id}").parse().expect("valid multiaddr with peer id")
+                                let peer_id = self.nodes_info[&node_id]
+                                    .network_keypair
+                                    .public()
+                                    .to_peer_id();
+                                let base =
+                                    transport.multiaddr("127.0.0.1", self.consensus_base_port + j);
+                                format!("{base}/p2p/{peer_id}")
+                                    .parse()
+                                    .expect("valid multiaddr with peer id")
                             })
                             .collect()
                     },

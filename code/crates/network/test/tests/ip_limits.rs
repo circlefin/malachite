@@ -19,12 +19,22 @@ fn init_logging() {
 }
 
 /// Build a Quic multiaddr with PeerId (required for persistent peers).
-fn quic_multiaddr_with_peer_id(host: &str, port: u16, peer_id: impl std::fmt::Display) -> Multiaddr {
+fn quic_multiaddr_with_peer_id(
+    host: &str,
+    port: u16,
+    peer_id: impl std::fmt::Display,
+) -> Multiaddr {
     let base = TransportProtocol::Quic.multiaddr(host, port as usize);
-    format!("{base}/p2p/{peer_id}").parse().expect("valid multiaddr with peer id")
+    format!("{base}/p2p/{peer_id}")
+        .parse()
+        .expect("valid multiaddr with peer id")
 }
 
-fn make_config(port: u16, persistent_peers: Vec<Multiaddr>, max_connections_per_ip: usize) -> Config {
+fn make_config(
+    port: u16,
+    persistent_peers: Vec<Multiaddr>,
+    max_connections_per_ip: usize,
+) -> Config {
     Config {
         listen_addr: TransportProtocol::Quic.multiaddr("127.0.0.1", port as usize),
         persistent_peers,
