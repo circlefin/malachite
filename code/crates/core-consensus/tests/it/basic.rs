@@ -89,7 +89,7 @@ fn wal_entries_can_be_captured_and_replayed_in_memory() {
     // First run: start height and trigger a persisted timeout.
     let mut h1 = Harness::new(Height::new(1), vs.clone());
 
-    h1.run(Input::StartHeight(Height::new(1), vs.clone(), false));
+    h1.run(Input::StartHeight(Height::new(1), vs.clone(), false, None));
 
     h1.run(Input::TimeoutElapsed(propose_timeout(0)));
 
@@ -104,7 +104,7 @@ fn wal_entries_can_be_captured_and_replayed_in_memory() {
     // Simulated crash/restart: new harness, replay WAL entries as inputs.
     let vs2 = vs;
     let mut h2 = Harness::new(Height::new(1), vs2.clone());
-    h2.run(Input::StartHeight(Height::new(1), vs2, true));
+    h2.run(Input::StartHeight(Height::new(1), vs2, true, None));
 
     for entry in wal_entries {
         h2.run(wal_entry_to_input(entry));
