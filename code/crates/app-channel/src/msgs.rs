@@ -328,6 +328,20 @@ pub enum AppMsg<Ctx: Context> {
     /// the value that was decided on, the height and round at which it was decided,
     /// and the aggregated signatures of the validators that committed to it.
     /// It also includes to the vote extensions received for that height.
+    Decided {
+        /// The certificate for the decided value
+        certificate: CommitCertificate<Ctx>,
+
+        /// The vote extensions received for that height
+        extensions: VoteExtensions<Ctx>,
+    },
+
+    /// Notifies the application that a height has been finalized after collecting additional precommits.
+    ///
+    /// This message is sent when the target time for the height has been reached,
+    /// which may include a delay between `Decided` and `Finalized` messages.
+    /// During this delay, additional precommits may have been collected. The certificate may contain more
+    /// signatures than the one sent in the previous Decided message.
     ///
     /// In response to this message, the application MUST send a [`Next`]
     /// message back to consensus, instructing it to either start the next height if
@@ -335,11 +349,11 @@ pub enum AppMsg<Ctx: Context> {
     /// otherwise.
     ///
     /// If the application does not reply, consensus will stall.
-    Decided {
-        /// The certificate for the decided value
+    Finalized {
+        /// The certificate with extended signatures collected during finalization period
         certificate: CommitCertificate<Ctx>,
 
-        /// The vote extensions received for that height
+        /// The vote extensions received for that height (including additional ones)
         extensions: VoteExtensions<Ctx>,
 
         /// Misbehavior evidence observed since last decide

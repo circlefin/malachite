@@ -1,5 +1,6 @@
 use bytesize::ByteSize;
 use std::collections::HashSet;
+use std::time::Duration;
 
 use malachitebft_config::{PubSubProtocol, ValuePayload};
 use malachitebft_test_app::config::Config;
@@ -7,6 +8,7 @@ use malachitebft_test_app::config::Config;
 #[derive(Clone, Debug)]
 pub struct TestParams {
     pub enable_value_sync: bool,
+    pub status_update_interval: Duration,
     pub consensus_enabled: bool,
     pub parallel_requests: usize,
     pub batch_size: usize,
@@ -27,12 +29,15 @@ pub struct TestParams {
     /// Group of node IDs that share the same validator private key.
     /// The validator set will contain a single entry with the combined voting power of the group.
     pub shared_key_group: HashSet<usize>,
+    /// Target time for heights. If present Finalized effect will be emitted.
+    pub target_time: Option<Duration>,
 }
 
 impl Default for TestParams {
     fn default() -> Self {
         Self {
             enable_value_sync: false,
+            status_update_interval: Duration::from_secs(1),
             consensus_enabled: true,
             parallel_requests: 1,
             batch_size: 1,
@@ -49,6 +54,7 @@ impl Default for TestParams {
             enable_discovery: false,
             exclude_from_persistent_peers: Vec::new(),
             shared_key_group: HashSet::new(),
+            target_time: None,
         }
     }
 }
@@ -59,20 +65,25 @@ impl TestParams {
         config.value_sync.parallel_requests = self.parallel_requests;
         config.value_sync.batch_size = self.batch_size;
         config.value_sync.max_response_size = self.max_response_size;
+        config.value_sync.status_update_interval = self.status_update_interval;
+
         config.consensus.enabled = self.consensus_enabled;
         config.consensus.p2p.protocol = self.protocol;
         config.consensus.p2p.rpc_max_size = self.rpc_max_size;
         config.consensus.value_payload = self.value_payload;
         config.consensus.p2p.discovery.enabled = self.enable_discovery;
+
         // When discovery is enabled, set reasonable defaults for outbound peers
         if self.enable_discovery {
             config.consensus.p2p.discovery.num_outbound_peers = 3;
         }
+
         config.test.max_block_size = self.block_size;
         config.test.txs_per_part = self.txs_per_part;
         config.test.vote_extensions.enabled = self.vote_extensions.is_some();
         config.test.vote_extensions.size = self.vote_extensions.unwrap_or_default();
         config.test.max_retain_blocks = self.max_retain_blocks;
         config.test.stable_block_times = self.stable_block_times;
+        config.test.target_time = self.target_time;
     }
 }

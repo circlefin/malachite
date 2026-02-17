@@ -64,10 +64,11 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
                 sleep(Duration::from_millis(200)).await;
 
-                let params = HeightParams {
-                    validator_set: state.get_validator_set(start_height),
-                    timeouts: state.get_timeouts(start_height),
-                };
+                let params = HeightParams::new(
+                    state.get_validator_set(start_height),
+                    state.get_timeouts(start_height),
+                    None,
+                );
 
                 if reply.send((start_height, params)).is_err() {
                     error!("Failed to send ConsensusReady reply");
@@ -242,6 +243,22 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             // ie. the precommits together with their (aggregated) signatures.
             AppMsg::Decided {
                 certificate,
+                extensions: _,
+            } => {
+                info!(
+                    height = %certificate.height,
+                    round = %certificate.round,
+                    value = %certificate.value_id,
+                    signatures = certificate.commit_signatures.len(),
+                    "Consensus has decided on value, awaiting Finalized..."
+                );
+
+                // Sleep a bit to slow down the app.
+                sleep(Duration::from_millis(500)).await;
+            }
+
+            AppMsg::Finalized {
+                certificate,
                 extensions,
                 evidence,
                 reply,
@@ -250,8 +267,9 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     height = %certificate.height,
                     round = %certificate.round,
                     value = %certificate.value_id,
+                    signatures = certificate.commit_signatures.len(),
                     evidence = ?evidence,
-                    "Consensus has decided on value, committing..."
+                    "Consensus has finalized height, committing..."
                 );
 
                 // When that happens, we store the decided value in our store
@@ -264,33 +282,34 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         if reply
                             .send(Next::Start(
                                 state.current_height,
-                                HeightParams {
-                                    validator_set: state.get_validator_set(state.current_height),
-                                    timeouts: state.get_timeouts(state.current_height),
-                                },
+                                HeightParams::new(
+                                    state.get_validator_set(state.current_height),
+                                    state.get_timeouts(state.current_height),
+                                    None,
+                                ),
                             ))
                             .is_err()
                         {
-                            error!("Failed to send StartHeight reply");
+                            error!("Finalized: Failed to send StartHeight reply");
                         }
                     }
                     Err(_) => {
                         let height = state.current_height;
 
                         // Commit failed, restart the height
-                        error!("Commit failed, restarting height {height}");
-
+                        error!("Finalized: Commit failed, restarting height {height}");
                         if reply
                             .send(Next::Restart(
                                 height,
-                                HeightParams {
-                                    validator_set: state.get_validator_set(height),
-                                    timeouts: state.get_timeouts(height),
-                                },
+                                HeightParams::new(
+                                    state.get_validator_set(height),
+                                    state.get_timeouts(height),
+                                    None,
+                                ),
                             ))
                             .is_err()
                         {
-                            error!("Failed to send RestartHeight reply");
+                            error!("Finalized: Failed to send RestartHeight reply");
                         }
                     }
                 }
