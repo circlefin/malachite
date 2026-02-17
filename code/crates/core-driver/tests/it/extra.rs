@@ -3574,9 +3574,9 @@ fn sync_decision_certificate_then_proposal() {
     run_steps(&mut driver, steps);
 }
 
-/// Replaces the old driver_step_change_mux_with_proposal_and_commit_quorum.
-/// When a node has SkipVote(r) and (r, PrecommitValue(v)) possible events at the same time,
-/// the latter must have precedence: we decide as soon as possible, without starting rounds.
+// Replaces the old driver_step_change_mux_with_proposal_and_commit_quorum.
+// When a node has SkipVote(r) and (r, PrecommitValue(v)) possible events at the same time,
+// the latter must have precedence: we decide as soon as possible, without starting rounds.
 #[test]
 fn round_1_decision_during_round_0() {
     let value = Value::new(9999);

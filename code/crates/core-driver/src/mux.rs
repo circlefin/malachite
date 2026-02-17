@@ -310,9 +310,13 @@ where
                             threshold_round,
                             RoundInput::ProposalAndPrecommitValue(proposal.message.clone()),
                         )
+                    } else if threshold_round > self.round() {
+                        (threshold_round, RoundInput::SkipRound(threshold_round))
                     } else {
                         (threshold_round, RoundInput::PrecommitAny)
                     }
+                } else if threshold_round > self.round() {
+                    (threshold_round, RoundInput::SkipRound(threshold_round))
                 } else {
                     (threshold_round, RoundInput::PrecommitAny)
                 }
