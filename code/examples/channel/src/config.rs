@@ -9,6 +9,39 @@ pub use malachitebft_app_channel::app::config::{
     ValueSyncConfig,
 };
 
+/// Configuration for validator set rotation
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ValidatorRotationConfig {
+    /// Whether to enable validator rotation. Default: false (no rotation)
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// Rotate the validator set every N blocks. Default: 10
+    /// Only used when `enabled` is true.
+    #[serde(default = "default_rotation_period")]
+    pub rotation_period: u64,
+
+    /// Number of validators to select from the full set. Default: 0 (use all)
+    /// If 0 or >= total validators, uses all validators.
+    /// Only used when `enabled` is true.
+    #[serde(default)]
+    pub selection_size: usize,
+}
+
+fn default_rotation_period() -> u64 {
+    10
+}
+
+impl Default for ValidatorRotationConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            rotation_period: default_rotation_period(),
+            selection_size: 0,
+        }
+    }
+}
+
 /// Malachite configuration options
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Config {
@@ -29,6 +62,10 @@ pub struct Config {
 
     /// Runtime configuration options
     pub runtime: RuntimeConfig,
+
+    /// Validator rotation configuration options
+    #[serde(default)]
+    pub validator_rotation: ValidatorRotationConfig,
 }
 
 impl NodeConfig for Config {

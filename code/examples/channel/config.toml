@@ -334,6 +334,27 @@ flavor = "single_threaded"
 
 
 #######################################################
+###      Validator Rotation Configuration Options    ###
+#######################################################
+[validator_rotation]
+
+# Enable validator set rotation. Default: false (no rotation)
+# When disabled, the full genesis validator set is used for all heights.
+# Override with MALACHITE__VALIDATOR_ROTATION__ENABLED env variable
+enabled = false
+
+# Rotate the validator set every N blocks. Default: 10
+# Only used when rotation is enabled.
+# Override with MALACHITE__VALIDATOR_ROTATION__ROTATION_PERIOD env variable
+rotation_period = 10
+
+# Number of validators to select from the full set. Default: 0 (use all)
+# If 0 or >= total validators, uses all validators (effectively no rotation).
+# Only used when rotation is enabled.
+# Override with MALACHITE__VALIDATOR_ROTATION__SELECTION_SIZE env variable
+selection_size = 0
+
+#######################################################
 ###          Test Node Configuration Options         ###
 #######################################################
 [test]
