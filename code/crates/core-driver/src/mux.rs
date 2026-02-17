@@ -219,9 +219,9 @@ where
             self.proposal_and_validity_for_round_and_value(certificate_round, certificate_value_id)
         {
             if validity.is_valid() {
-                Some(RoundInput::ProposalAndPrecommitValue(
+                return Some(RoundInput::ProposalAndPrecommitValue(
                     signed_proposal.message.clone(),
-                ))
+                ));
             }
         }
         // Proposal not received or deemed invalid
