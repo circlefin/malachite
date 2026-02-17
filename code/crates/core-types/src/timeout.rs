@@ -1,4 +1,4 @@
-use core::fmt;
+use core::{fmt, time::Duration};
 
 use crate::Round;
 
@@ -15,8 +15,11 @@ pub enum TimeoutKind {
     /// Timeout for the precommit step.
     Precommit,
 
-    /// Timeout to rebroadcast the round synchronization messages
+    /// Timeout to rebroadcast the round synchronization messages.
     Rebroadcast,
+
+    /// Timeout to finalize a height after decision.
+    FinalizeHeight(Duration),
 }
 
 /// A timeout for a round step.
@@ -54,6 +57,11 @@ impl Timeout {
     /// Create a new timeout for rebroadcasting the round synchronization messages.
     pub const fn rebroadcast(round: Round) -> Self {
         Self::new(round, TimeoutKind::Rebroadcast)
+    }
+
+    /// Create a new timeout for finalizing a height after decision.
+    pub const fn finalize_height(round: Round, duration: Duration) -> Self {
+        Self::new(round, TimeoutKind::FinalizeHeight(duration))
     }
 }
 

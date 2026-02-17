@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
 
+use malachitebft_engine::util::output_port::{OutputPort, OutputPortSubscriberTrait};
 use tokio::task::JoinHandle;
 use tracing::warn;
 
@@ -10,7 +12,7 @@ use malachitebft_engine::consensus::{Consensus, ConsensusParams, ConsensusRef};
 use malachitebft_engine::host::HostRef;
 use malachitebft_engine::network::{Network, NetworkRef};
 use malachitebft_engine::node::{Node, NodeRef};
-use malachitebft_engine::sync::{Params as SyncParams, Sync, SyncRef};
+use malachitebft_engine::sync::{Params as SyncParams, Sync, SyncMsg, SyncRef};
 use malachitebft_engine::util::events::TxEvent;
 use malachitebft_engine::wal::{Wal, WalRef};
 use malachitebft_metrics::{Metrics as ConsensusMetrics, SharedRegistry};
@@ -80,33 +82,40 @@ pub async fn spawn_node_actor(
     )
     .await;
 
+    let wal = spawn_wal_actor(&ctx, ProtobufCodec, &home_dir, &registry, &span).await;
+
+    let sync_port = Arc::new(OutputPort::new());
+
+    // Spawn consensus
+    let consensus = spawn_consensus_actor(
+        address,
+        ctx,
+        cfg.clone(),
+        signing_provider,
+        network.clone(),
+        host.clone(),
+        wal.clone(),
+        sync_port.clone(),
+        consensus_metrics,
+        tx_event,
+        &span,
+    )
+    .await;
+
     let sync = spawn_sync_actor(
         ctx,
         network.clone(),
         host.clone(),
+        consensus.clone(),
         &cfg.value_sync,
         sync_metrics,
         &span,
     )
     .await;
 
-    let wal = spawn_wal_actor(&ctx, ProtobufCodec, &home_dir, &registry, &span).await;
-
-    // Spawn consensus
-    let consensus = spawn_consensus_actor(
-        address,
-        ctx,
-        cfg,
-        signing_provider,
-        network.clone(),
-        host.clone(),
-        wal.clone(),
-        sync.clone(),
-        consensus_metrics,
-        tx_event,
-        &span,
-    )
-    .await;
+    if let Some(sync) = &sync {
+        sync.subscribe_to_port(&sync_port);
+    }
 
     // Spawn the node actor
     let node = Node::new(ctx, network, consensus, wal, sync, host, span);
@@ -136,6 +145,7 @@ async fn spawn_sync_actor(
     ctx: MockContext,
     network: NetworkRef<MockContext>,
     host: HostRef<MockContext>,
+    consensus: ConsensusRef<MockContext>,
     config: &ValueSyncConfig,
     sync_metrics: sync::Metrics,
     span: &tracing::Span,
@@ -169,6 +179,7 @@ async fn spawn_sync_actor(
         ctx,
         network,
         host,
+        consensus,
         params,
         ProtobufCodec,
         sync_config,
@@ -190,7 +201,7 @@ async fn spawn_consensus_actor(
     network: NetworkRef<MockContext>,
     host: HostRef<MockContext>,
     wal: WalRef<MockContext>,
-    sync: Option<SyncRef<MockContext>>,
+    sync: Arc<OutputPort<SyncMsg<MockContext>>>,
     consensus_metrics: ConsensusMetrics,
     tx_event: TxEvent<MockContext>,
     span: &tracing::Span,

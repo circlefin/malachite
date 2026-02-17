@@ -2,7 +2,7 @@ use derive_where::derive_where;
 
 use malachitebft_core_types::*;
 
-use crate::types::{LivenessMsg, SignedConsensusMsg};
+use crate::types::{LivenessMsg, MisbehaviorEvidence, SignedConsensusMsg};
 use crate::{ConsensusMsg, Error, PeerId, Role, VoteExtensionError, WalEntry};
 
 /// Provides a way to construct the appropriate [`Resume`] value to
@@ -153,12 +153,26 @@ where
     /// the value that was decided on, the height and round at which it was decided,
     /// and the aggregated signatures of the validators that committed to it.
     ///
-    /// It also includes the vote extensions that were received for this height.
+    /// In addition, it includes the vote extensions that were received for this height.
     ///
     /// Resume with: [`resume::Continue`]
     Decide(
         CommitCertificate<Ctx>,
         VoteExtensions<Ctx>,
+        resume::Continue,
+    ),
+
+    /// Notifies the application that a height has been finalized.
+    ///
+    /// This message includes an extended commit certificate containing the ID of the value
+    /// that was decided on, the height and round at which it was decided, and all precommits
+    /// for the decided value received until the target duration for the height.
+    ///
+    /// Resume with: [`resume::Continue`]
+    Finalize(
+        CommitCertificate<Ctx>,
+        VoteExtensions<Ctx>,
+        MisbehaviorEvidence<Ctx>,
         resume::Continue,
     ),
 

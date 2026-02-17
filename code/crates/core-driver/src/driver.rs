@@ -17,7 +17,7 @@ use malachitebft_core_votekeeper::keeper::VoteKeeper;
 
 use crate::input::Input;
 use crate::output::Output;
-use crate::proposal_keeper::ProposalKeeper;
+use crate::proposal_keeper::{self, ProposalKeeper};
 use crate::Error;
 use crate::ThresholdParams;
 
@@ -179,6 +179,11 @@ where
         &self.vote_keeper
     }
 
+    /// Return a mutable reference to the votekeper
+    pub fn votes_mut(&mut self) -> &mut VoteKeeper<Ctx> {
+        &mut self.vote_keeper
+    }
+
     /// Return a reference to the proposal keeper
     pub fn proposals(&self) -> &ProposalKeeper<Ctx> {
         &self.proposal_keeper
@@ -210,6 +215,16 @@ where
     /// Return the proposer address for the current round, if any.
     pub fn proposer_address(&self) -> Option<&Ctx::Address> {
         self.proposer.as_ref()
+    }
+
+    /// Remove and return recorded evidence of proposal equivocation.
+    pub fn take_proposal_evidence(&mut self) -> proposal_keeper::EvidenceMap<Ctx> {
+        self.proposal_keeper.take_evidence()
+    }
+
+    /// Remove and return recorded evidence of vote equivocation.
+    pub fn take_vote_evidence(&mut self) -> malachitebft_core_votekeeper::EvidenceMap<Ctx> {
+        self.vote_keeper.take_evidence()
     }
 
     /// Return the proposer for the current round.
@@ -622,6 +637,7 @@ where
 
             // The driver never receives these events, so we can just ignore them.
             TimeoutKind::Rebroadcast => return Ok(None),
+            TimeoutKind::FinalizeHeight(_) => return Ok(None),
         };
 
         self.apply_input(timeout.round, input)

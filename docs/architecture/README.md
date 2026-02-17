@@ -31,3 +31,6 @@ To suggest an ADR, please make use of the [ADR template](./adr-template.md) prov
 | [002](./adr-002-node-actor.md)              | Node Architecture using the Actor Model     | Accepted |
 | [003](./adr-003-values-propagation.md)      | Propagation of Proposed Values              | Accepted |
 | [004](./adr-004-coroutine-effect-system.md) | Coroutine-Based Effect System for Consensus | Accepted |
+| [005](./adr-005-value-sync.md)              | Value Sync Protocol                         | Accepted |
+| [006](./adr-006-proof-of-validator.md)      | Proof-of-Validator Protocol                 | Accepted |
+| [007](./adr-007-write-ahead-log.md)         | Consensus Write-Ahead Log (WAL)             | Accepted |

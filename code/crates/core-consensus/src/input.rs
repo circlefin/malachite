@@ -3,6 +3,7 @@ use malachitebft_core_types::{
     Context, PolkaCertificate, RoundCertificate, SignedProposal, SignedVote, Timeout, ValueOrigin,
     ValueResponse,
 };
+use std::time::Duration;
 
 use crate::types::{LocallyProposedValue, ProposedValue};
 
@@ -14,7 +15,8 @@ where
 {
     /// Start consensus for the given height with an optional validator set update.
     /// The boolean indicates whether this is a restart of consensus for the given height.
-    StartHeight(Ctx::Height, Ctx::ValidatorSet, bool),
+    /// The optional Duration is the target time for this height.
+    StartHeight(Ctx::Height, Ctx::ValidatorSet, bool, Option<Duration>),
 
     /// Process a vote received over the network.
     Vote(SignedVote<Ctx>),

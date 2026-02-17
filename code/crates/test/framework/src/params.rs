@@ -1,4 +1,6 @@
 use bytesize::ByteSize;
+use std::collections::HashSet;
+use std::time::Duration;
 
 use malachitebft_config::{PubSubProtocol, ValuePayload};
 use malachitebft_test_app::config::Config;
@@ -23,6 +25,11 @@ pub struct TestParams {
     /// Node IDs that should not be added as persistent peers for other nodes
     /// (simulates nodes that joined after initial network setup)
     pub exclude_from_persistent_peers: Vec<u64>,
+    /// Group of node IDs that share the same validator private key.
+    /// The validator set will contain a single entry with the combined voting power of the group.
+    pub shared_key_group: HashSet<usize>,
+    /// Target time for heights. If present Finalized effect will be emitted.
+    pub target_time: Option<Duration>,
 }
 
 impl Default for TestParams {
@@ -44,6 +51,8 @@ impl Default for TestParams {
             max_response_size: ByteSize::mib(1),
             enable_discovery: false,
             exclude_from_persistent_peers: Vec::new(),
+            shared_key_group: HashSet::new(),
+            target_time: None,
         }
     }
 }
@@ -69,5 +78,6 @@ impl TestParams {
         config.test.vote_extensions.size = self.vote_extensions.unwrap_or_default();
         config.test.max_retain_blocks = self.max_retain_blocks;
         config.test.stable_block_times = self.stable_block_times;
+        config.test.target_time = self.target_time;
     }
 }

@@ -27,5 +27,7 @@ pub use driver::Driver;
 pub use error::Error;
 pub use input::Input;
 pub use output::Output;
+pub use proposal_keeper::EvidenceMap;
 
+pub use malachitebft_core_state_machine::state::Step;
 pub use malachitebft_core_votekeeper::ThresholdParams;

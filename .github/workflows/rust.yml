@@ -72,7 +72,7 @@ jobs:
     name: Integration Tests
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: github-hosted-small
+    runs-on: github-hosted-large
     defaults:
       run:
         working-directory: code

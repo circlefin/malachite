@@ -220,6 +220,11 @@ where
         &self.evidence
     }
 
+    /// Remove and return all recorded evidence.
+    pub fn take_evidence(&mut self) -> EvidenceMap<Ctx> {
+        core::mem::take(&mut self.evidence)
+    }
+
     /// Check if we have already seen a vote.
     pub fn has_vote(&self, vote: &SignedVote<Ctx>) -> bool {
         self.per_round

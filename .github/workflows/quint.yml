@@ -41,7 +41,7 @@ jobs:
     name: Test
     needs: changes
     if: ${{ needs.changes.outputs.specs == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: github-hosted-small
+    runs-on: github-hosted-large
     env:
       MAX_SAMPLES: 100
     steps:

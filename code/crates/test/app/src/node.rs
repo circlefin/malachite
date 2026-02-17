@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use rand::{CryptoRng, RngCore};
+use rand::{CryptoRng, Rng, RngCore};
 use tokio::task::JoinHandle;
 use tracing::Instrument;
 
@@ -12,9 +12,9 @@ use malachitebft_app_channel::app::config::*;
 use malachitebft_app_channel::app::events::{RxEvent, TxEvent};
 use malachitebft_app_channel::app::types::core::VotingPower;
 use malachitebft_app_channel::app::types::Keypair;
-use malachitebft_app_channel::NetworkIdentity;
 use malachitebft_app_channel::{
-    ConsensusContext, EngineHandle, NetworkContext, RequestContext, WalContext,
+    ConsensusContext, EngineBuilder, EngineHandle, NetworkContext, NetworkIdentity, RequestContext,
+    SyncContext, WalContext,
 };
 use malachitebft_test::codec::json::JsonCodec;
 use malachitebft_test::codec::proto::ProtobufCodec;
@@ -65,6 +65,15 @@ pub struct App {
     pub private_key: PrivateKey,
     pub start_height: Option<Height>,
     pub middleware: Option<Arc<dyn Middleware>>,
+}
+
+impl App {
+    fn get_network_keypair(&self) -> Keypair {
+        // Separate network identity
+        let rng = rand::thread_rng();
+        let net_pk = self.generate_private_key(rng);
+        Keypair::ed25519_from_bytes(net_pk.inner().to_bytes()).unwrap()
+    }
 }
 
 #[async_trait]
@@ -134,20 +143,23 @@ impl Node for App {
 
         let public_key = self.get_public_key(&self.private_key);
         let address = self.get_address(&public_key);
-        let keypair = self.get_keypair(self.private_key.clone());
+        let keypair = self.get_network_keypair(); // Separate network identity
         let genesis = self.load_genesis()?;
         let wal_path = self.get_home_dir().join("wal").join("consensus.wal");
         let identity =
             NetworkIdentity::new(config.moniker.clone(), keypair, Some(address.to_string()));
-        let (mut channels, engine_handle) = malachitebft_app_channel::start_engine(
-            ctx.clone(),
-            config.clone(),
-            WalContext::new(wal_path, ProtobufCodec),
-            NetworkContext::new(identity, JsonCodec),
-            ConsensusContext::new(address, self.get_signing_provider(self.private_key.clone())),
-            RequestContext::new(100), // Request channel size
-        )
-        .await?;
+
+        let (mut channels, engine_handle) = EngineBuilder::new(ctx.clone(), config.clone())
+            .with_default_wal(WalContext::new(wal_path, ProtobufCodec))
+            .with_default_network(NetworkContext::new(identity, JsonCodec))
+            .with_default_consensus(ConsensusContext::new(
+                address,
+                self.get_signing_provider(self.private_key.clone()),
+            ))
+            .with_default_sync(SyncContext::new(JsonCodec))
+            .with_default_request(RequestContext::new(100))
+            .build()
+            .await?;
 
         drop(_guard);
 
@@ -229,7 +241,6 @@ impl CanMakeConfig for App {
 fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Config {
     use itertools::Itertools;
     use rand::seq::IteratorRandom;
-    use rand::Rng;
 
     const CONSENSUS_BASE_PORT: usize = 27000;
     const METRICS_BASE_PORT: usize = 29000;
