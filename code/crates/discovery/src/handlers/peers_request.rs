@@ -41,7 +41,7 @@ where
             return true;
         }
 
-        let violation_count = result.violation_count();
+        let violation_count = self.rate_limiter.violation_count(peer);
         let should_disconnect = result.should_disconnect();
 
         warn!(

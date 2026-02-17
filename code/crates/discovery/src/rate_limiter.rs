@@ -24,13 +24,10 @@ const DEFAULT_VIOLATION_EXPIRY: Duration = Duration::from_secs(10 * 60); // 10 m
 pub enum RateLimitResult {
     /// Request is allowed
     Allowed,
-    /// Request is rate limited
-    RateLimited {
-        /// How many times this peer has violated the rate limit
-        violation_count: u32,
-        /// Whether the peer should be disconnected (exceeded max violations)
-        should_disconnect: bool,
-    },
+    /// Request is rate limited but peer can stay connected
+    RateLimited,
+    /// Request is rate limited and peer should be disconnected (exceeded max violations)
+    MaxViolations,
 }
 
 impl RateLimitResult {
@@ -41,23 +38,7 @@ impl RateLimitResult {
 
     /// Returns true if the peer should be disconnected.
     pub fn should_disconnect(&self) -> bool {
-        matches!(
-            self,
-            RateLimitResult::RateLimited {
-                should_disconnect: true,
-                ..
-            }
-        )
-    }
-
-    /// Returns the violation count, or 0 if allowed.
-    pub fn violation_count(&self) -> u32 {
-        match self {
-            RateLimitResult::Allowed => 0,
-            RateLimitResult::RateLimited {
-                violation_count, ..
-            } => *violation_count,
-        }
+        matches!(self, RateLimitResult::MaxViolations)
     }
 }
 
@@ -124,10 +105,10 @@ impl DiscoveryRateLimiter {
     /// Check if a request from the given peer should be served.
     ///
     /// Returns `RateLimitResult::Allowed` if the request should be served,
-    /// or `RateLimitResult::RateLimited` with violation information if rate limited.
+    /// `RateLimitResult::RateLimited` or `RateLimitResult::MaxViolations` if rate limited.
     ///
     /// When rate limited, the violation count is incremented. If the violation
-    /// count exceeds `max_violations`, `should_disconnect` will be true.
+    /// count reaches `max_violations`, returns `MaxViolations` to signal disconnect.
     pub fn check_request(&mut self, peer_id: &PeerId) -> RateLimitResult {
         let now = Instant::now();
 
@@ -148,10 +129,7 @@ impl DiscoveryRateLimiter {
             .map(|(count, _)| *count)
             .unwrap_or(0);
         if current_violations >= self.max_violations {
-            return RateLimitResult::RateLimited {
-                violation_count: current_violations,
-                should_disconnect: true,
-            };
+            return RateLimitResult::MaxViolations;
         }
 
         if let Some((window_start, count)) = self.requests.get_mut(peer_id) {
@@ -164,9 +142,10 @@ impl DiscoveryRateLimiter {
                     *violation_count += 1;
                     *last_violation = now;
 
-                    return RateLimitResult::RateLimited {
-                        violation_count: *violation_count,
-                        should_disconnect: *violation_count >= self.max_violations,
+                    return if *violation_count >= self.max_violations {
+                        RateLimitResult::MaxViolations
+                    } else {
+                        RateLimitResult::RateLimited
                     };
                 }
                 *count += 1;
@@ -197,7 +176,6 @@ impl DiscoveryRateLimiter {
 
     /// Get the current violation count for a peer.
     /// Returns 0 if no violations have been recorded or if violations have expired.
-    #[cfg(test)]
     pub fn violation_count(&self, peer_id: &PeerId) -> u32 {
         let now = Instant::now();
         self.violations
@@ -397,11 +375,11 @@ mod tests {
         // Requests 3-4 rate limited, accumulate violations
         let result = limiter.check_request(&peer);
         assert!(!result.is_allowed());
-        assert_eq!(result.violation_count(), 1);
+        assert_eq!(limiter.violation_count(&peer), 1);
 
         let result = limiter.check_request(&peer);
         assert!(!result.is_allowed());
-        assert_eq!(result.violation_count(), 2);
+        assert_eq!(limiter.violation_count(&peer), 2);
         assert!(result.should_disconnect()); // max violations reached
 
         // Simulate disconnect - clears request window but keeps violations
@@ -452,18 +430,12 @@ mod tests {
         assert!(allowed.is_allowed());
         assert!(!allowed.should_disconnect());
 
-        let limited_no_disconnect = RateLimitResult::RateLimited {
-            violation_count: 1,
-            should_disconnect: false,
-        };
-        assert!(!limited_no_disconnect.is_allowed());
-        assert!(!limited_no_disconnect.should_disconnect());
+        let rate_limited = RateLimitResult::RateLimited;
+        assert!(!rate_limited.is_allowed());
+        assert!(!rate_limited.should_disconnect());
 
-        let limited_disconnect = RateLimitResult::RateLimited {
-            violation_count: 3,
-            should_disconnect: true,
-        };
-        assert!(!limited_disconnect.is_allowed());
-        assert!(limited_disconnect.should_disconnect());
+        let max_violations = RateLimitResult::MaxViolations;
+        assert!(!max_violations.is_allowed());
+        assert!(max_violations.should_disconnect());
     }
 }
