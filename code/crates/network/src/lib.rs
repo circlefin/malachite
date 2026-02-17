@@ -774,7 +774,7 @@ async fn handle_swarm_event(
                             warn!(
                                 expected = %expected,
                                 actual = %actual,
-                                "Rejecting peer: PeerId does not match expected identity for persistent peer address"
+                                "Rejecting peer: actual PeerId does not match one from the persistent peer address"
                             );
                             let _ = swarm.disconnect_peer_id(peer_id);
                         }

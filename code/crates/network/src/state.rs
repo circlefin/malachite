@@ -15,10 +15,11 @@ use crate::metrics::Metrics as NetworkMetrics;
 use crate::{Channel, ChannelNames, PeerType, PersistentPeerError};
 use malachitebft_discovery::ConnectionDirection;
 
-/// Reason to reject a peer (e.g. identity mismatch for persistent peers)
+/// Reason to reject a peer
 #[derive(Debug)]
 pub(crate) enum PeerRejectReason {
     /// Connected peer's PeerId does not match the expected PeerId for this persistent peer address.
+    /// <expected_peer_id>, <actual_peer_id>
     IdentityMismatch(Box<(libp2p::PeerId, libp2p::PeerId)>),
 }
 
@@ -411,8 +412,7 @@ impl State {
         if let Some(expected) = self.expected_persistent_peer_id(connection_id) {
             if expected != peer_id {
                 return Err(PeerRejectReason::IdentityMismatch(Box::new((
-                    expected,
-                    peer_id,
+                    expected, peer_id,
                 ))));
             }
         }
@@ -560,7 +560,6 @@ impl State {
             return Err(PersistentPeerError::AlreadyExists);
         }
 
-        // Require PeerId in address for identity verification and reliable remove
         let peer_id =
             extract_peer_id_from_multiaddr(&addr).ok_or(PersistentPeerError::PeerIdRequired)?;
 
@@ -601,7 +600,6 @@ impl State {
 
         self.persistent_peer_addrs.remove(pos);
 
-        // PeerId is required (same as at config load and add time)
         let peer_id =
             extract_peer_id_from_multiaddr(&addr).ok_or(PersistentPeerError::PeerIdRequired)?;
 
