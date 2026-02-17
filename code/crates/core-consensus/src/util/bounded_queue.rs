@@ -119,6 +119,27 @@ where
             .flat_map(|values| values.into_iter())
     }
 
+    /// Retain only the values for which the predicate returns `true`.
+    ///
+    /// Values are tested per-entry: for each index, the predicate receives
+    /// the index and each value. If all values for a given index are removed,
+    /// the index entry itself is removed as well.
+    ///
+    /// Returns the number of values removed.
+    pub fn retain<F>(&mut self, mut f: F) -> usize
+    where
+        F: FnMut(&I, &T) -> bool,
+    {
+        let mut removed = 0;
+        self.queue.retain(|index, values| {
+            let before = values.len();
+            values.retain(|value| f(index, value));
+            removed += before - values.len();
+            !values.is_empty()
+        });
+        removed
+    }
+
     /// Remove all entries from the queue.
     pub fn clear(&mut self) {
         self.queue.clear();
@@ -502,5 +523,69 @@ mod tests {
             !queue.queue.contains_key(&30),
             "The high value element should be removed"
         );
+    }
+
+    #[test]
+    fn retain_removes_matching_values() {
+        let mut queue = BoundedQueue::new(5);
+        queue.push(10, "a");
+        queue.push(10, "b");
+        queue.push(20, "c");
+        queue.push(30, "d");
+
+        // Remove all values that are "a" or "c"
+        let removed = queue.retain(|_, v| *v != "a" && *v != "c");
+
+        assert_eq!(removed, 2);
+        // Index 10 should still exist with only "b"
+        assert_eq!(queue.queue.get(&10), Some(&vec!["b"]));
+        // Index 20 should be removed entirely since its only value was "c"
+        assert!(!queue.queue.contains_key(&20));
+        // Index 30 should remain unchanged
+        assert_eq!(queue.queue.get(&30), Some(&vec!["d"]));
+        assert_eq!(queue.len(), 2);
+    }
+
+    #[test]
+    fn retain_removes_all_values() {
+        let mut queue = BoundedQueue::new(5);
+        queue.push(10, "a");
+        queue.push(20, "b");
+
+        let removed = queue.retain(|_, _| false);
+
+        assert_eq!(removed, 2);
+        assert!(queue.is_empty());
+    }
+
+    #[test]
+    fn retain_keeps_all_values() {
+        let mut queue = BoundedQueue::new(5);
+        queue.push(10, "a");
+        queue.push(20, "b");
+
+        let removed = queue.retain(|_, _| true);
+
+        assert_eq!(removed, 0);
+        assert_eq!(queue.len(), 2);
+        assert_eq!(queue.size(), 2);
+    }
+
+    #[test]
+    fn retain_uses_index() {
+        let mut queue = BoundedQueue::new(5);
+        queue.push(10, "a");
+        queue.push(10, "b");
+        queue.push(20, "c");
+        queue.push(30, "d");
+
+        // Remove all values at index 10
+        let removed = queue.retain(|index, _| *index != 10);
+
+        assert_eq!(removed, 2);
+        assert!(!queue.queue.contains_key(&10));
+        assert!(queue.queue.contains_key(&20));
+        assert!(queue.queue.contains_key(&30));
+        assert_eq!(queue.len(), 2);
     }
 }

@@ -411,7 +411,7 @@ where
     // Tell consensus to process the response.
     perform!(
         co,
-        Effect::ProcessValueResponse(peer_id, response, Default::default())
+        Effect::ProcessValueResponse(peer_id, request_id.clone(), response, Default::default())
     );
 
     // If the response contains a prefix of the requested values, re-request the remaining values.

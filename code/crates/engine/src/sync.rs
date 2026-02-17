@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::ops::RangeInclusive;
 use std::time::Duration;
@@ -141,7 +142,21 @@ impl Default for Params {
     }
 }
 
-type SyncQueue<Ctx> = BoundedQueue<<Ctx as Context>::Height, CoreValueResponse<Ctx>>;
+/// A sync value buffered in the queue, tagged with the request that produced it.
+#[derive_where(Clone, Debug)]
+struct BufferedValue<Ctx: Context> {
+    request_id: OutboundRequestId,
+    value: CoreValueResponse<Ctx>,
+}
+
+impl<Ctx: Context> BufferedValue<Ctx> {
+    fn new(request_id: OutboundRequestId, value: CoreValueResponse<Ctx>) -> Self {
+        Self { request_id, value }
+    }
+}
+
+/// A queue of buffered sync values for heights ahead of consensus, keyed by height.
+type SyncQueue<Ctx> = BoundedQueue<<Ctx as Context>::Height, BufferedValue<Ctx>>;
 
 pub struct State<Ctx: Context> {
     /// The state of the sync state machine
@@ -161,9 +176,14 @@ pub struct State<Ctx: Context> {
 }
 
 struct HandlerState<'a, Ctx: Context> {
+    /// Scheduler for timers, used to start new timers for outgoing requests
+    /// and correlate elapsed timers to the original request and peer.
     timers: &'a mut Timers,
+    /// In-flight requests, used to correlate timeouts and responses to the original request and peer.
     inflight: &'a mut InflightRequests<Ctx>,
+    /// Buffer for sync responses for heights ahead of consensus, keyed by height.
     sync_queue: &'a mut SyncQueue<Ctx>,
+    /// The current consensus height according to the last processed input.
     consensus_height: Ctx::Height,
 }
 
@@ -352,58 +372,73 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::ProcessValueResponse(peer_id, response, r) => {
-                let mut ignored = Vec::new();
-                let mut buffered = Vec::new();
-
-                for raw_value in response.values {
-                    let value_height = raw_value.certificate.height;
-
-                    let value = CoreValueResponse {
-                        peer: peer_id,
-                        value_bytes: raw_value.value_bytes,
-                        certificate: raw_value.certificate,
-                    };
-
-                    if value_height < state.consensus_height {
-                        ignored.push(value_height);
-                    } else if value_height > state.consensus_height {
-                        if state.sync_queue.push(value_height, value) {
-                            buffered.push(value_height);
-                        } else {
-                            warn!(
-                                %peer_id, %value_height,
-                                "Failed to buffer sync response, queue is full"
-                            );
-                        }
-                    } else {
-                        debug!(
-                            %peer_id,
-                            %value_height,
-                            "Processing value for current consensus height"
-                        );
-
-                        if let Err(e) = self
-                            .consensus
-                            .cast(ConsensusMsg::ProcessSyncResponse(value))
-                        {
-                            error!("Failed to forward value response to consensus: {e}");
-                        }
-                    }
-                }
-                self.metrics
-                    .sync_queue_updated(state.sync_queue.len(), state.sync_queue.size());
-
-                if !ignored.is_empty() {
-                    debug!(%peer_id, ?ignored, "Ignored {} values for already decided heights", ignored.len());
-                }
-
-                if !buffered.is_empty() {
-                    debug!(%peer_id, ?buffered, "Buffered {} values for heights ahead of consensus", buffered.len());
-                }
-
+            Effect::ProcessValueResponse(peer_id, request_id, response, r) => {
+                self.process_value_response(state, peer_id, request_id, response);
                 Ok(r.resume_with(()))
             }
+        }
+    }
+
+    fn process_value_response(
+        &self,
+        state: &mut HandlerState<'_, Ctx>,
+        peer_id: PeerId,
+        request_id: OutboundRequestId,
+        response: sync::ValueResponse<Ctx>,
+    ) {
+        let consensus_height = state.consensus_height;
+        let mut ignored = Vec::new();
+        let mut buffered = Vec::new();
+
+        for raw_value in response.values {
+            let height = raw_value.height();
+            let value = raw_value.to_core(peer_id);
+
+            match height.cmp(&consensus_height) {
+                // The value is for a height that has already been decided, ignore it.
+                Ordering::Less => {
+                    ignored.push(height);
+                }
+
+                // The value is for a height ahead of consensus, buffer it for later processing when we reach that height.
+                Ordering::Greater => {
+                    let buffered_value = BufferedValue::new(request_id.clone(), value);
+                    if state.sync_queue.push(height, buffered_value) {
+                        buffered.push(height);
+                    } else {
+                        warn!(%peer_id, %request_id, %height, "Failed to buffer sync response, queue is full");
+                    }
+                }
+
+                // The value is for the current consensus height, process it immediately.
+                Ordering::Equal => {
+                    debug!(%peer_id, %request_id, %height, "Processing value for current consensus height");
+
+                    if let Err(e) = self
+                        .consensus
+                        .cast(ConsensusMsg::ProcessSyncResponse(value))
+                    {
+                        error!("Failed to forward value response to consensus: {e}");
+                    }
+                }
+            }
+        }
+
+        self.metrics
+            .sync_queue_updated(state.sync_queue.len(), state.sync_queue.size());
+
+        if !ignored.is_empty() {
+            debug!(
+                %peer_id, %request_id, ?ignored,
+                "Ignored {} values for already decided heights", ignored.len()
+            );
+        }
+
+        if !buffered.is_empty() {
+            debug!(
+                %peer_id, %request_id, ?buffered,
+                "Buffered {} values for heights ahead of consensus", buffered.len()
+            );
         }
     }
 
@@ -493,14 +528,13 @@ where
                     .await?;
 
                 // Drain buffered sync responses for this height
-                let pending: Vec<_> = state.sync_queue.shift_and_take(&height).collect();
-
-                for response in pending {
+                for buffered in state.sync_queue.shift_and_take(&height) {
                     if let Err(e) = self
                         .consensus
-                        .cast(ConsensusMsg::ProcessSyncResponse(response))
+                        .cast(ConsensusMsg::ProcessSyncResponse(buffered.value))
                     {
                         error!("Failed to forward buffered sync response to consensus: {e}");
+                        break;
                     }
                 }
 
@@ -545,6 +579,22 @@ where
             }
 
             Msg::InvalidValue(peer, height) => {
+                // Remove buffered values that came from the same request as the invalid value.
+                // This prevents stale values from a bad peer from being drained to consensus
+                // when the height advances.
+                if let Some((request_id, _)) = state.sync.get_request_id_by(height) {
+                    let removed = state.sync_queue.retain(|_, bv| bv.request_id != request_id);
+
+                    if removed > 0 {
+                        debug!(
+                            %peer, %height, %request_id, removed,
+                            "Removed buffered values from invalidated request"
+                        );
+                        self.metrics
+                            .sync_queue_updated(state.sync_queue.len(), state.sync_queue.size());
+                    }
+                }
+
                 self.process_input(&myself, state, sync::Input::InvalidValue(peer, height))
                     .await?
             }
