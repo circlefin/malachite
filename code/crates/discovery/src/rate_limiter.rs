@@ -63,7 +63,7 @@ impl RateLimitResult {
 
 /// Rate limiter for discovery peers requests.
 ///
-/// Uses a sliding window approach that allows burst requests (to accommodate
+/// Uses a fixed window approach that allows burst requests (to accommodate
 /// retries with Fibonacci backoff) while still protecting against abuse.
 ///
 /// Each peer gets a window that tracks:
