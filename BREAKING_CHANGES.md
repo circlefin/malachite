@@ -46,6 +46,10 @@
 
 - Removed `Node` trait
 
+### `malachitebft-network`
+
+- Persistent peer addresses must include `PeerId`. Config and API now require the `/p2p/<peer_id>` component in every persistent peer address (e.g. `/ip4/1.2.3.4/tcp/9000/p2p/12D3KooW...`)
+
 ## 0.6.0
 
 ### `malachitebft-core-types`

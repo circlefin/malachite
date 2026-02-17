@@ -15,6 +15,16 @@ use crate::metrics::Metrics as NetworkMetrics;
 use crate::{Channel, ChannelNames, PeerType, PersistentPeerError};
 use malachitebft_discovery::ConnectionDirection;
 
+/// Reason to reject a peer (e.g. identity mismatch for persistent peers)
+#[derive(Debug)]
+pub(crate) enum PeerRejectReason {
+    /// Connected peer's PeerId does not match the expected PeerId for this persistent peer address
+    IdentityMismatch {
+        expected: libp2p::PeerId,
+        actual: libp2p::PeerId,
+    },
+}
+
 /// Public network state dump for external consumers
 #[derive(Clone, Debug)]
 pub struct NetworkStateDump {
@@ -262,6 +272,24 @@ impl State {
         }
     }
 
+    /// Returns the expected PeerId for a connection if the remote address matches a persistent peer.
+    /// Used to verify peer identity on connection (reject if actual PeerId != expected).
+    fn expected_persistent_peer_id(
+        &self,
+        connection_id: libp2p::swarm::ConnectionId,
+    ) -> Option<libp2p::PeerId> {
+        let conn_info = self.discovery.connections.get(&connection_id)?;
+        let remote_stripped = strip_peer_id_from_multiaddr(&conn_info.remote_addr);
+
+        for persistent_addr in &self.persistent_peer_addrs {
+            let persistent_stripped = strip_peer_id_from_multiaddr(persistent_addr);
+            if remote_stripped == persistent_stripped {
+                return extract_peer_id_from_multiaddr(persistent_addr);
+            }
+        }
+        None
+    }
+
     /// Determine the peer type based on peer ID and identify info
     pub(crate) fn peer_type(
         &self,
@@ -370,17 +398,28 @@ impl State {
     /// Update the peer information after Identify completes and compute peer score.
     ///
     /// This method:
+    /// - Verifies peer identity for persistent peers (rejects if PeerId does not match config)
     /// - Determines the peer type (validator, persistent, etc.)
     /// - Records peer info in state and metrics
     /// - Computes the GossipSub score
     ///
-    /// Returns the score to set on the peer in GossipSub.
+    /// Returns the score to set on the peer in GossipSub, or Err to reject the connection.
     pub(crate) fn update_peer(
         &mut self,
         peer_id: libp2p::PeerId,
         connection_id: libp2p::swarm::ConnectionId,
         info: &identify::Info,
-    ) -> f64 {
+    ) -> Result<f64, PeerRejectReason> {
+        // Verify identity for persistent peers: reject if actual PeerId does not match expected
+        if let Some(expected) = self.expected_persistent_peer_id(connection_id) {
+            if expected != peer_id {
+                return Err(PeerRejectReason::IdentityMismatch {
+                    expected,
+                    actual: peer_id,
+                });
+            }
+        }
+
         // Determine peer type using actual remote address for inbound connections
         let peer_type = self.peer_type(&peer_id, connection_id, info);
 
@@ -458,7 +497,7 @@ impl State {
             self.peer_info.insert(peer_id, peer_info);
         }
 
-        score
+        Ok(score)
     }
 
     /// Format the peer information for logging (scrapable format):
@@ -524,18 +563,19 @@ impl State {
             return Err(PersistentPeerError::AlreadyExists);
         }
 
-        // Extract PeerId from multiaddr if present
-        if let Some(peer_id) = extract_peer_id_from_multiaddr(&addr) {
-            self.persistent_peer_ids.insert(peer_id);
+        // Require PeerId in address for identity verification and reliable remove
+        let peer_id = extract_peer_id_from_multiaddr(&addr)
+            .ok_or(PersistentPeerError::PeerIdRequired)?;
 
-            // Update peer type and score if already connected
-            Self::update_peer_persistent_status(
-                peer_id,
-                self.peer_info.get_mut(&peer_id),
-                true,
-                swarm,
-            );
-        }
+        self.persistent_peer_ids.insert(peer_id);
+
+        // Update peer type and score if already connected
+        Self::update_peer_persistent_status(
+            peer_id,
+            self.peer_info.get_mut(&peer_id),
+            true,
+            swarm,
+        );
 
         // Add to persistent peer list
         self.persistent_peer_addrs.push(addr.clone());
@@ -569,36 +609,34 @@ impl State {
 
         self.persistent_peer_addrs.remove(pos);
 
-        // Look up the peer_id from discovery, learned via TLS/noise handshake
-        // when we successfully connected to this address
-        let peer_id = self.discovery.get_peer_id_for_addr(&addr);
+        // PeerId is required (same as at config load and add time)
+        let peer_id = extract_peer_id_from_multiaddr(&addr)
+            .ok_or(PersistentPeerError::PeerIdRequired)?;
 
-        if let Some(peer_id) = peer_id {
-            self.persistent_peer_ids.remove(&peer_id);
+        self.persistent_peer_ids.remove(&peer_id);
 
-            // Update peer type and score if connected
-            Self::update_peer_persistent_status(
-                peer_id,
-                self.peer_info.get_mut(&peer_id),
-                false,
-                swarm,
-            );
+        // Update peer type and score if connected
+        Self::update_peer_persistent_status(
+            peer_id,
+            self.peer_info.get_mut(&peer_id),
+            false,
+            swarm,
+        );
 
-            // If peer is connected, disconnect it if
-            // - `persistent_peers_only` is configured,
-            // - or outbound connection exists
-            // Do not disconnect if there are inbound connections as the peer might have us as their persistent peer
-            let should_disconnect =
-                self.local_node.persistent_peers_only || !self.discovery.is_inbound_peer(&peer_id);
+        // If peer is connected, disconnect it if
+        // - `persistent_peers_only` is configured,
+        // - or outbound connection exists
+        // Do not disconnect if there are inbound connections as the peer might have us as their persistent peer
+        let should_disconnect =
+            self.local_node.persistent_peers_only || !self.discovery.is_inbound_peer(&peer_id);
 
-            if swarm.is_connected(&peer_id) && should_disconnect {
-                let _ = swarm.disconnect_peer_id(peer_id);
-                tracing::info!(%peer_id, %addr, "Disconnecting from removed persistent peer");
-            }
+        if swarm.is_connected(&peer_id) && should_disconnect {
+            let _ = swarm.disconnect_peer_id(peer_id);
+            tracing::info!(%peer_id, %addr, "Disconnecting from removed persistent peer");
         }
 
         // Cancel any in-progress dial attempts for this address and peer
-        self.discovery.cancel_dial_attempts(&addr, peer_id);
+        self.discovery.cancel_dial_attempts(&addr, Some(peer_id));
 
         // Update discovery layer
         self.discovery.remove_bootstrap_node(&addr);

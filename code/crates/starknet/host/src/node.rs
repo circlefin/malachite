@@ -416,12 +416,14 @@ fn make_distributed_config(
     }
 }
 
+// NOTE: `default_config()` is used only for the single-node test case, so
+// persistent peers are not needed.
 fn default_config() -> Config {
     use malachitebft_config::{DiscoveryConfig, RuntimeConfig, TransportProtocol, ValueSyncConfig};
 
     make_config(
+        0,
         1,
-        3,
         MakeConfigSettings {
             runtime: RuntimeConfig::single_threaded(),
             transport: TransportProtocol::Tcp,

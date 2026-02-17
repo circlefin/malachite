@@ -15,6 +15,8 @@ use malachitebft_discovery::{self as discovery};
 use malachitebft_metrics::SharedRegistry;
 use malachitebft_sync::{self as sync};
 
+use crate::state::PeerRejectReason;
+
 pub use malachitebft_peer::PeerId;
 
 pub use bytes::Bytes;
@@ -226,6 +228,9 @@ pub enum PersistentPeerError {
     /// Peer not found in the persistent peers list (for Remove operation)
     #[error("Persistent peer not found")]
     NotFound,
+    /// Address must include PeerId (e.g. /ip4/1.2.3.4/tcp/9000/p2p/12D3KooW...)
+    #[error("Persistent peer address must include PeerId (e.g. /ip4/1.2.3.4/tcp/9000/p2p/12D3KooW...)")]
+    PeerIdRequired,
     /// Network is not started
     #[error("Network not started")]
     NetworkStopped,
@@ -268,11 +273,31 @@ pub enum CtrlMsg {
     Shutdown,
 }
 
+/// Validates that every persistent peer address includes a PeerId (/p2p/<peer_id>).
+/// Returns an error describing the first invalid address.
+fn validate_persistent_peers(persistent_peers: &[Multiaddr]) -> Result<(), eyre::Report> {
+    use libp2p::multiaddr::Protocol;
+    for (i, addr) in persistent_peers.iter().enumerate() {
+        let has_p2p = addr.iter().any(|p| matches!(p, Protocol::P2p(_)));
+        if !has_p2p {
+            return Err(eyre::eyre!(
+                "Persistent peer at index {} is missing PeerId: {}. \
+                 Use format /ip4/<ip>/tcp/<port>/p2p/<peer_id> (e.g. /ip4/1.2.3.4/tcp/9000/p2p/12D3KooW...)",
+                i,
+                addr
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub async fn spawn(
     identity: NetworkIdentity,
     config: Config,
     registry: SharedRegistry,
 ) -> Result<Handle, eyre::Report> {
+    validate_persistent_peers(&config.persistent_peers)?;
+
     let swarm = registry.with_prefix(METRICS_PREFIX, |registry| -> Result<_, eyre::Report> {
         // Pass the libp2p keypair to the behaviour, it is included in the Identify protocol
         // Required for ALL nodes
@@ -727,16 +752,28 @@ async fn handle_swarm_event(
                     );
 
                     // Update peer info in State and metrics, set peer score in gossipsub
-                    let score = state.update_peer(peer_id, connection_id, &info);
-                    set_peer_score(swarm, peer_id, score);
+                    // Reject peer if identity verification fails (e.g. persistent peer PeerId mismatch)
+                    match state.update_peer(peer_id, connection_id, &info) {
+                        Ok(score) => {
+                            set_peer_score(swarm, peer_id, score);
 
-                    if !is_already_connected {
-                        if let Err(e) = tx_event
-                            .send(Event::PeerConnected(PeerId::from_libp2p(&peer_id)))
-                            .await
-                        {
-                            error!("Error sending peer connected event to handle: {e}");
-                            return ControlFlow::Break(());
+                            if !is_already_connected {
+                                if let Err(e) = tx_event
+                                    .send(Event::PeerConnected(PeerId::from_libp2p(&peer_id)))
+                                    .await
+                                {
+                                    error!("Error sending peer connected event to handle: {e}");
+                                    return ControlFlow::Break(());
+                                }
+                            }
+                        }
+                        Err(PeerRejectReason::IdentityMismatch { expected, actual }) => {
+                            warn!(
+                                expected = %expected,
+                                actual = %actual,
+                                "Rejecting peer: PeerId does not match expected identity for persistent peer address"
+                            );
+                            let _ = swarm.disconnect_peer_id(peer_id);
                         }
                     }
                 } else {

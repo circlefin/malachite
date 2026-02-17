@@ -153,8 +153,12 @@ impl<const N: usize> Test<N> {
                     .bootstrap_nodes
                     .iter()
                     .map(|j| {
-                        TransportProtocol::Quic
-                            .multiaddr("127.0.0.1", self.consensus_base_port + *j)
+                        let peer_id = self.keypairs[*j].public().to_peer_id();
+                        let base = TransportProtocol::Quic
+                            .multiaddr("127.0.0.1", self.consensus_base_port + *j);
+                        format!("{base}/p2p/{peer_id}")
+                            .parse()
+                            .expect("valid multiaddr with peer id")
                     })
                     .collect(),
                 persistent_peers_only: false,
