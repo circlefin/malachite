@@ -50,6 +50,9 @@
 - Support batch retrieval of decided values
 - Validate value request ranges before processing
 - Add a credit-based strategy for scoring peers in the sync protocol ([#1448](https://github.com/circlefin/malachite/pull/1448))
+- Introduce a new mode that sends a status update as soon as a new height is started rather than at a fixed interval ([#1452](https://github.com/circlefin/malachite/pull/1452))
+  To enable this mode, set `status_update_interval = 0`.
+
 
 ## 0.6.0
 
