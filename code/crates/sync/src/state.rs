@@ -172,9 +172,8 @@ where
         start..=*range.end()
     }
 
-    /// When the tip height is higher than the requested range, then the request
-    /// has been fully validated and it can be removed.
-    pub fn remove_fully_validated_requests(&mut self) {
+    /// Remove pending requests that are for heights that have already been validated by consensus.
+    pub fn prune_pending_requests(&mut self) {
         self.pending_requests
             .retain(|_, (range, _)| range.end() > &self.tip_height);
     }

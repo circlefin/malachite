@@ -236,7 +236,7 @@ where
     state.tip_height = height.decrement().unwrap_or_default();
 
     // Garbage collect fully-validated requests.
-    state.remove_fully_validated_requests();
+    state.prune_pending_requests();
 
     if start_type.is_restart() {
         // Consensus is retrying the height, so we should sync starting from it.
@@ -266,8 +266,8 @@ where
 
     state.tip_height = height;
 
-    // Garbage collect fully-validated requests.
-    state.remove_fully_validated_requests();
+    // Garbage collect pending requests for heights up to the new tip.
+    state.prune_pending_requests();
 
     // The next height to sync should always be higher than the tip.
     if state.sync_height == state.tip_height {
