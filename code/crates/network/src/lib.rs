@@ -100,6 +100,8 @@ pub struct GossipSubConfig {
     pub mesh_n_low: usize,
     pub mesh_outbound_min: usize,
     pub enable_peer_scoring: bool,
+    pub enable_explicit_peering: bool,
+    pub enable_flood_publish: bool,
 }
 
 impl Default for GossipSubConfig {
@@ -111,6 +113,8 @@ impl Default for GossipSubConfig {
             mesh_n_low: 4,
             mesh_outbound_min: 2,
             enable_peer_scoring: false,
+            enable_explicit_peering: false,
+            enable_flood_publish: true,
         }
     }
 }
@@ -609,6 +613,30 @@ fn set_peer_score(swarm: &mut swarm::Swarm<Behaviour>, peer_id: libp2p::PeerId, 
     }
 }
 
+/// Add a persistent peer as an explicit peer in gossipsub (if explicit peering is enabled).
+/// Explicit peers receive messages unconditionally, outside the mesh.
+/// This ensures reliable validator-to-validator communication.
+fn add_explicit_peer_if_persistent(
+    swarm: &mut swarm::Swarm<Behaviour>,
+    state: &State,
+    peer_id: libp2p::PeerId,
+    connection_id: libp2p::swarm::ConnectionId,
+    info: &identify::Info,
+    enable_explicit_peering: bool,
+) {
+    if !enable_explicit_peering {
+        return;
+    }
+
+    let peer_type = state.peer_type(&peer_id, connection_id, info);
+    if peer_type.is_persistent() {
+        if let Some(gossipsub) = swarm.behaviour_mut().gossipsub.as_mut() {
+            gossipsub.add_explicit_peer(&peer_id);
+            info!("Added persistent peer {peer_id} as explicit peer in gossipsub");
+        }
+    }
+}
+
 async fn handle_swarm_event(
     event: SwarmEvent<NetworkEvent>,
     config: &Config,
@@ -729,6 +757,16 @@ async fn handle_swarm_event(
                     // Update peer info in State and metrics, set peer score in gossipsub
                     let score = state.update_peer(peer_id, connection_id, &info);
                     set_peer_score(swarm, peer_id, score);
+
+                    // Add persistent peers as explicit peers for guaranteed delivery
+                    add_explicit_peer_if_persistent(
+                        swarm,
+                        state,
+                        peer_id,
+                        connection_id,
+                        &info,
+                        config.gossipsub.enable_explicit_peering,
+                    );
 
                     if !is_already_connected {
                         if let Err(e) = tx_event

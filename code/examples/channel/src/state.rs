@@ -493,16 +493,19 @@ impl State {
     /// Returns the validator set for the given height.
     /// The validator set is rotated every 10 heights, selecting floor((n+1)/2)
     /// validators from the genesis validator set.
-    pub fn get_validator_set(&self, height: Height) -> ValidatorSet {
+    pub fn get_validator_set(&self, _height: Height) -> ValidatorSet {
         let num_validators = self.genesis.validator_set.len();
-        let selection_size = num_validators.div_ceil(2);
+        let selection_size = num_validators.div_ceil(1);
 
         if num_validators <= selection_size {
             return self.genesis.validator_set.clone();
         }
 
+        // Disable rotation for easier debugging
+        let rotation_index = 0;
+
         // Rotate every 10 heights for easier debugging
-        let rotation_index = (height.as_u64() / 10) as usize % num_validators;
+        //let rotation_index = (height.as_u64() / 10) as usize % num_validators;
 
         ValidatorSet::new(
             self.genesis

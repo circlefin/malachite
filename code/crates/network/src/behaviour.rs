@@ -168,6 +168,14 @@ fn message_id(message: &gossipsub::Message) -> gossipsub::MessageId {
 }
 
 fn gossipsub_config(config: GossipSubConfig, max_transmit_size: usize) -> gossipsub::Config {
+    // When explicit peering is enabled, flood_publish is forced to false since explicit peers
+    // handle validator-to-validator communication. Otherwise use the configured flood_publish value.
+    let flood_publish = if config.enable_explicit_peering {
+        false
+    } else {
+        config.enable_flood_publish
+    };
+
     gossipsub::ConfigBuilder::default()
         .max_transmit_size(max_transmit_size)
         .opportunistic_graft_ticks(peer_scoring::OPPORTUNISTIC_GRAFT_TICKS)
@@ -180,6 +188,7 @@ fn gossipsub_config(config: GossipSubConfig, max_transmit_size: usize) -> gossip
         .mesh_n_low(config.mesh_n_low)
         .mesh_outbound_min(config.mesh_outbound_min)
         .mesh_n(config.mesh_n)
+        .flood_publish(flood_publish)
         .message_id_fn(message_id)
         .build()
         .unwrap()
