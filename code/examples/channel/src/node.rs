@@ -30,7 +30,7 @@ use malachitebft_test::{
 };
 use malachitebft_test_cli::metrics;
 
-use crate::config::{load_config, Config};
+use crate::config::{load_config, Config, ValidatorRotationConfig};
 use crate::metrics::DbMetrics;
 use crate::state::State;
 use crate::store::Store;
@@ -161,6 +161,7 @@ impl Node for App {
             address,
             start_height,
             store,
+            config.validator_rotation.clone(),
         );
 
         let span = tracing::error_span!("node", moniker = %config.moniker);
@@ -284,5 +285,6 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
         runtime: settings.runtime,
         logging: LoggingConfig::default(),
         value_sync: ValueSyncConfig::default(),
+        validator_rotation: ValidatorRotationConfig::default(),
     }
 }
