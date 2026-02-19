@@ -298,12 +298,22 @@ pub struct GossipSubConfig {
 
     /// Enable peer scoring to prioritize nodes based on their type in mesh formation
     enable_peer_scoring: bool,
+
+    /// Enable explicit peering for persistent peers.
+    /// When enabled, persistent peers are added as explicit peers in GossipSub,
+    /// ensuring guaranteed message delivery outside the mesh.
+    /// This eliminates mesh partitioning and backoff issues.
+    enable_explicit_peering: bool,
+
+    /// Enable flood publishing to send messages to all known peers, not just mesh peers.
+    /// When enable_explicit_peering is true, enable_flood_publish is forced to false.
+    enable_flood_publish: bool,
 }
 
 impl Default for GossipSubConfig {
     fn default() -> Self {
-        // Peer scoring disabled by default
-        Self::new(6, 12, 4, 2, false)
+        // Peer scoring disabled and explicit peering disabled by default, flood_publish enabled by default
+        Self::new(6, 12, 4, 2, false, false, true)
     }
 }
 
@@ -315,6 +325,8 @@ impl GossipSubConfig {
         mesh_n_low: usize,
         mesh_outbound_min: usize,
         enable_peer_scoring: bool,
+        enable_explicit_peering: bool,
+        enable_flood_publish: bool,
     ) -> Self {
         let mut result = Self {
             mesh_n,
@@ -322,6 +334,8 @@ impl GossipSubConfig {
             mesh_n_low,
             mesh_outbound_min,
             enable_peer_scoring,
+            enable_explicit_peering,
+            enable_flood_publish,
         };
 
         result.adjust();
@@ -371,10 +385,31 @@ impl GossipSubConfig {
     pub fn enable_peer_scoring(&self) -> bool {
         self.enable_peer_scoring
     }
+
+    pub fn enable_explicit_peering(&self) -> bool {
+        self.enable_explicit_peering
+    }
+
+    pub fn enable_flood_publish(&self) -> bool {
+        self.enable_flood_publish
+    }
 }
 
 mod gossipsub {
     use super::utils::bool_from_anything;
+
+    fn default_enable_peer_scoring() -> bool {
+        false
+    }
+
+    fn default_enable_explicit_peering() -> bool {
+        false
+    }
+
+    fn default_enable_flood_publish() -> bool {
+        true
+    }
+
     #[derive(serde::Deserialize)]
     pub struct RawConfig {
         #[serde(default)]
@@ -385,8 +420,21 @@ mod gossipsub {
         mesh_n_low: usize,
         #[serde(default)]
         mesh_outbound_min: usize,
-        #[serde(default, deserialize_with = "bool_from_anything")]
+        #[serde(
+            default = "default_enable_peer_scoring",
+            deserialize_with = "bool_from_anything"
+        )]
         enable_peer_scoring: bool,
+        #[serde(
+            default = "default_enable_explicit_peering",
+            deserialize_with = "bool_from_anything"
+        )]
+        enable_explicit_peering: bool,
+        #[serde(
+            default = "default_enable_flood_publish",
+            deserialize_with = "bool_from_anything"
+        )]
+        enable_flood_publish: bool,
     }
 
     impl From<RawConfig> for super::GossipSubConfig {
@@ -397,6 +445,8 @@ mod gossipsub {
                 raw.mesh_n_low,
                 raw.mesh_outbound_min,
                 raw.enable_peer_scoring,
+                raw.enable_explicit_peering,
+                raw.enable_flood_publish,
             )
         }
     }
