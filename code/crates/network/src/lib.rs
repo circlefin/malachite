@@ -632,6 +632,13 @@ fn add_explicit_peer_to_gossipsub(
     if peer_type.is_persistent() {
         if let Some(gossipsub) = swarm.behaviour_mut().gossipsub.as_mut() {
             gossipsub.add_explicit_peer(&peer_id);
+            // Get moniker from state if available, otherwise use peer_id
+            let moniker = state
+                .peer_info
+                .get(&peer_id)
+                .map(|p| p.moniker.as_str())
+                .unwrap_or("unknown");
+            state.metrics.record_explicit_peer(&peer_id, moniker);
             info!("Added persistent peer {peer_id} as explicit peer in gossipsub");
         }
     }
@@ -716,6 +723,17 @@ async fn handle_swarm_event(
                 .handle_closed_connection(swarm, peer_id, connection_id);
 
             if num_established == 0 {
+                // Mark explicit peer as stale if this peer was one
+                if config.gossipsub.enable_explicit_peering {
+                    if let Some(peer_info) = state.peer_info.get(&peer_id) {
+                        if peer_info.peer_type.is_persistent() {
+                            state
+                                .metrics
+                                .mark_explicit_peer_stale(&peer_id, &peer_info.moniker);
+                        }
+                    }
+                }
+
                 if let Err(e) = tx_event
                     .send(Event::PeerDisconnected(PeerId::from_libp2p(&peer_id)))
                     .await
