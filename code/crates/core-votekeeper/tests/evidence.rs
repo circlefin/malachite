@@ -33,12 +33,32 @@ fn make_vote_pair(
 
     let (v1, v2) = match vote_type {
         VoteType::Prevote => (
-            Vote::new_prevote(Height::new(1), round, NilOrVal::Val(ValueId::new(values[0])), addr),
-            Vote::new_prevote(Height::new(1), round, NilOrVal::Val(ValueId::new(values[1])), addr),
+            Vote::new_prevote(
+                Height::new(1),
+                round,
+                NilOrVal::Val(ValueId::new(values[0])),
+                addr,
+            ),
+            Vote::new_prevote(
+                Height::new(1),
+                round,
+                NilOrVal::Val(ValueId::new(values[1])),
+                addr,
+            ),
         ),
         VoteType::Precommit => (
-            Vote::new_precommit(Height::new(1), round, NilOrVal::Val(ValueId::new(values[0])), addr),
-            Vote::new_precommit(Height::new(1), round, NilOrVal::Val(ValueId::new(values[1])), addr),
+            Vote::new_precommit(
+                Height::new(1),
+                round,
+                NilOrVal::Val(ValueId::new(values[0])),
+                addr,
+            ),
+            Vote::new_precommit(
+                Height::new(1),
+                round,
+                NilOrVal::Val(ValueId::new(values[1])),
+                addr,
+            ),
         ),
     };
 
@@ -51,7 +71,7 @@ fn make_vote_pair(
 struct TestCase {
     name: &'static str,
     evidence: &'static [(&'static str, VoteType, u32, [u64; 2])], // (addr, type, round, [v1, v2])
-    expected: &'static [(&'static str, usize)],                    // (addr, count)
+    expected: &'static [(&'static str, usize)],                   // (addr, count)
 }
 
 use VoteType::*;
@@ -66,22 +86,34 @@ fn test_vote_evidence_deduplication() {
         },
         TestCase {
             name: "duplicate same order",
-            evidence: &[("Alice", Prevote, 0, [100, 200]), ("Alice", Prevote, 0, [100, 200])],
+            evidence: &[
+                ("Alice", Prevote, 0, [100, 200]),
+                ("Alice", Prevote, 0, [100, 200]),
+            ],
             expected: &[("Alice", 1)],
         },
         TestCase {
             name: "duplicate reversed order",
-            evidence: &[("Alice", Prevote, 0, [100, 200]), ("Alice", Prevote, 0, [200, 100])],
+            evidence: &[
+                ("Alice", Prevote, 0, [100, 200]),
+                ("Alice", Prevote, 0, [200, 100]),
+            ],
             expected: &[("Alice", 1)],
         },
         TestCase {
             name: "different rounds not deduped",
-            evidence: &[("Alice", Prevote, 0, [100, 200]), ("Alice", Prevote, 1, [100, 200])],
+            evidence: &[
+                ("Alice", Prevote, 0, [100, 200]),
+                ("Alice", Prevote, 1, [100, 200]),
+            ],
             expected: &[("Alice", 2)],
         },
         TestCase {
             name: "prevote and precommit not deduped",
-            evidence: &[("Alice", Prevote, 0, [100, 200]), ("Alice", Precommit, 0, [100, 200])],
+            evidence: &[
+                ("Alice", Prevote, 0, [100, 200]),
+                ("Alice", Precommit, 0, [100, 200]),
+            ],
             expected: &[("Alice", 2)],
         },
         TestCase {

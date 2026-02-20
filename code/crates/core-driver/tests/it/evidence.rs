@@ -24,8 +24,20 @@ fn make_proposal_pair(
     let addr = addr(addr_id);
     let round = Round::new(round);
 
-    let p1 = Proposal::new(Height::new(1), round, Value::new(values[0]), Round::Nil, addr);
-    let p2 = Proposal::new(Height::new(1), round, Value::new(values[1]), Round::Nil, addr);
+    let p1 = Proposal::new(
+        Height::new(1),
+        round,
+        Value::new(values[0]),
+        Round::Nil,
+        addr,
+    );
+    let p2 = Proposal::new(
+        Height::new(1),
+        round,
+        Value::new(values[1]),
+        Round::Nil,
+        addr,
+    );
 
     (
         SignedProposal::new(p1.clone(), pk.sign(&p1.to_sign_bytes())),
@@ -36,7 +48,7 @@ fn make_proposal_pair(
 struct TestCase {
     name: &'static str,
     evidence: &'static [(&'static str, u32, [u64; 2])], // (addr, round, [v1, v2])
-    expected: &'static [(&'static str, usize)],          // (addr, count)
+    expected: &'static [(&'static str, usize)],         // (addr, count)
 }
 
 #[test]
