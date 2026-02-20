@@ -98,20 +98,6 @@ where
         )
     );
 
-    if state.finalization_period {
-        debug!(
-            consensus.height = %consensus_height,
-            vote.round = %vote_round,
-            validator = %validator_address,
-            "Recording additional vote during finalization period"
-        );
-
-        #[cfg(feature = "metrics")]
-        if signed_vote.vote_type() == VoteType::Precommit {
-            metrics.additional_precommits.inc();
-        }
-    }
-
     apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote)).await?;
 
     Ok(())

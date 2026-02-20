@@ -1,5 +1,6 @@
 use malachitebft_core_driver::Input as DriverInput;
 use malachitebft_core_driver::Output as DriverOutput;
+use malachitebft_core_types::{NilOrVal, VoteType};
 
 use crate::handle::decide::decide;
 use crate::handle::on_proposal;
@@ -103,7 +104,7 @@ where
             }
         }
 
-        DriverInput::Vote(vote) => {
+        DriverInput::Vote(ref vote) => {
             if vote.height() != state.driver.height() {
                 warn!(
                     "Received vote for wrong height {}, current height: {}",
@@ -112,6 +113,17 @@ where
                 );
 
                 return Ok(());
+            }
+
+            #[cfg(feature = "metrics")]
+            if state.finalization_period && vote.vote_type() == VoteType::Precommit {
+                if let Some((decided_round, decided_value)) = state.driver.decided_value() {
+                    if vote.round() == decided_round
+                        && *vote.value() == NilOrVal::Val(decided_value.id())
+                    {
+                        metrics.additional_precommits.inc();
+                    }
+                }
             }
         }
 
