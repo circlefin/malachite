@@ -77,9 +77,6 @@ where
                 Effect::StartRound(*height, *round, proposer.clone(), role, Default::default())
             );
 
-            #[cfg(feature = "metrics")]
-            metrics.rebroadcast_timeouts.inc();
-
             // Schedule rebroadcast timer
             let timeout = Timeout::rebroadcast(*round);
             perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
