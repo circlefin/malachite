@@ -37,6 +37,7 @@ where
 
     /// Add evidence of equivocating votes, ie. two votes submitted by the same validator,
     /// but with different values but for the same height and round.
+    /// If evidence for the same pair of votes already exists, it will not be added again.
     ///
     /// # Precondition
     /// - Both votes must be from the same validator (debug-asserted).
@@ -47,7 +48,13 @@ where
         );
 
         if let Some(evidence) = self.map.get_mut(conflicting.validator_address()) {
-            evidence.push((existing, conflicting));
+            // Check if this evidence already exists (in either order)
+            let already_exists = evidence.iter().any(|(e, c)| {
+                (e == &existing && c == &conflicting) || (e == &conflicting && c == &existing)
+            });
+            if !already_exists {
+                evidence.push((existing, conflicting));
+            }
         } else {
             self.map.insert(
                 conflicting.validator_address().clone(),

@@ -98,33 +98,6 @@ where
         )
     );
 
-    // Directly add the precommit to the vote keeper without going through state machine
-    // Reason: we keep driver and state machine out of functionality not related to the Tendermint algorithm
-    if state.driver.step_is_commit() && state.finalization_period {
-        if signed_vote.vote_type() == VoteType::Precommit {
-            debug!(
-                consensus.height = %consensus_height,
-                vote.round = %vote_round,
-                validator = %validator_address,
-                "Recording additional precommit during finalization period"
-            );
-
-            #[cfg(feature = "metrics")]
-            metrics.additional_precommits.inc();
-
-            let _ = state
-                .driver
-                .votes_mut()
-                .apply_vote(signed_vote.clone(), signed_vote.round());
-        }
-        return Ok(());
-    }
-
-    // If we're in Commit step but not in finalization period, ignore all votes
-    if state.driver.step_is_commit() {
-        return Ok(());
-    }
-
     apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote)).await?;
 
     Ok(())
