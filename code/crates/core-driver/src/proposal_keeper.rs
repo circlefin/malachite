@@ -287,7 +287,7 @@ where
     ///
     /// # Precondition
     /// - Both proposals must be from the same validator (debug-asserted).
-    pub(crate) fn add(&mut self, existing: SignedProposal<Ctx>, conflicting: SignedProposal<Ctx>) {
+    pub fn add(&mut self, existing: SignedProposal<Ctx>, conflicting: SignedProposal<Ctx>) {
         debug_assert_eq!(
             existing.validator_address(),
             conflicting.validator_address()
