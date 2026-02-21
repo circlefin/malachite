@@ -65,10 +65,15 @@ pub struct App {
     pub private_key: PrivateKey,
     pub start_height: Option<Height>,
     pub middleware: Option<Arc<dyn Middleware>>,
+    /// Pre-generated network keypair (used by integration tests to build persistent_peers with PeerId)
+    pub network_keypair: Option<Keypair>,
 }
 
 impl App {
     fn get_network_keypair(&self) -> Keypair {
+        if let Some(ref kp) = self.network_keypair {
+            return kp.clone();
+        }
         // Separate network identity
         let rng = rand::thread_rng();
         let net_pk = self.generate_private_key(rng);

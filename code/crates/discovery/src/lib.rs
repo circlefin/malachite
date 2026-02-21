@@ -141,6 +141,24 @@ where
             State::Idle
         };
 
+        // Extract PeerId from each bootstrap address when present (/p2p/<peer_id>)
+        let bootstrap_nodes: Vec<(Option<PeerId>, Vec<Multiaddr>)> = bootstrap_nodes
+            .clone()
+            .into_iter()
+            .map(|addr| {
+                let peer_id = addr.iter().find_map(|p| {
+                    if let libp2p::multiaddr::Protocol::P2p(pid) = p {
+                        Some(pid)
+                    } else {
+                        None
+                    }
+                });
+                (peer_id, vec![addr])
+            })
+            .collect();
+
+        let bootstrap_empty = bootstrap_nodes.is_empty();
+
         Self {
             config,
             state,
@@ -151,11 +169,7 @@ where
                 config.selector,
             ),
 
-            bootstrap_nodes: bootstrap_nodes
-                .clone()
-                .into_iter()
-                .map(|addr| (None, vec![addr]))
-                .collect(),
+            bootstrap_nodes,
             discovered_peers: HashMap::new(),
             signed_peer_records: HashMap::new(),
             active_connections: HashMap::new(),
@@ -166,7 +180,7 @@ where
             rate_limiter: DiscoveryRateLimiter::default(),
 
             controller: Controller::new(),
-            metrics: Metrics::new(registry, !config.enabled || bootstrap_nodes.is_empty()),
+            metrics: Metrics::new(registry, !config.enabled || bootstrap_empty),
         }
     }
 

@@ -2,10 +2,21 @@ use std::time::Duration;
 
 use malachitebft_config::TransportProtocol;
 use malachitebft_network::{
-    spawn, Config, DiscoveryConfig, Event, Keypair, NetworkIdentity, PersistentPeerError,
-    ProtocolNames,
+    spawn, Config, DiscoveryConfig, Event, Keypair, Multiaddr, NetworkIdentity,
+    PersistentPeerError, ProtocolNames,
 };
 use tokio::time::sleep;
+
+/// Build a Quic multiaddr with PeerId (required for persistent peers).
+fn quic_multiaddr_with_peer_id(
+    host: &str,
+    port: usize,
+    peer_id: impl std::fmt::Display,
+) -> Multiaddr {
+    format!("/ip4/{host}/udp/{port}/quic-v1/p2p/{peer_id}")
+        .parse()
+        .expect("valid multiaddr")
+}
 
 fn make_config(port: usize) -> Config {
     Config {
@@ -36,6 +47,7 @@ async fn test_add_and_remove_persistent_peer() {
 
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
+    let node2_peer_id = keypair2.public().to_peer_id();
     let base_port = 31000;
 
     let handle1 = spawn(
@@ -63,9 +75,10 @@ async fn test_add_and_remove_persistent_peer() {
     .unwrap();
 
     sleep(Duration::from_millis(500)).await;
-
-    let node2_addr = TransportProtocol::Quic.multiaddr("127.0.0.1", base_port + 1);
-    let non_existent_addr = TransportProtocol::Quic.multiaddr("127.0.0.1", base_port + 100);
+    let node2_addr = quic_multiaddr_with_peer_id("127.0.0.1", base_port + 1, node2_peer_id);
+    let non_existent_peer_id = Keypair::generate_ed25519().public().to_peer_id();
+    let non_existent_addr =
+        quic_multiaddr_with_peer_id("127.0.0.1", base_port + 100, non_existent_peer_id);
 
     // Remove non-existent peer returns NotFound
     let result = handle1
@@ -110,6 +123,7 @@ async fn test_persistent_peer_establishes_connection() {
 
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
+    let node2_peer_id = keypair2.public().to_peer_id();
     let base_port = 32000;
 
     let mut handle1 = spawn(
@@ -139,7 +153,7 @@ async fn test_persistent_peer_establishes_connection() {
     sleep(Duration::from_millis(500)).await;
 
     // Add peer and verify connection is established
-    let node2_addr = TransportProtocol::Quic.multiaddr("127.0.0.1", base_port + 1);
+    let node2_addr = quic_multiaddr_with_peer_id("127.0.0.1", base_port + 1, node2_peer_id);
     let result = handle1.add_persistent_peer(node2_addr).await.unwrap();
     assert_eq!(result, Ok(()));
 
@@ -187,7 +201,9 @@ async fn test_remove_peer_during_dial() {
 
     // Add a persistent peer to a non-existent/unreachable address
     // This will start a dial attempt that will fail
-    let unreachable_addr = TransportProtocol::Quic.multiaddr("127.0.0.1", base_port + 50);
+    let unreachable_peer_id = Keypair::generate_ed25519().public().to_peer_id();
+    let unreachable_addr =
+        quic_multiaddr_with_peer_id("127.0.0.1", base_port + 50, unreachable_peer_id);
     let result = handle1
         .add_persistent_peer(unreachable_addr.clone())
         .await
@@ -220,6 +236,7 @@ async fn test_remove_connected_peer_in_persistent_only_mode() {
 
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
+    let node2_peer_id = keypair2.public().to_peer_id();
     let base_port = 34000;
 
     let mut config1 = make_config(base_port);
@@ -252,7 +269,7 @@ async fn test_remove_connected_peer_in_persistent_only_mode() {
     sleep(Duration::from_millis(500)).await;
 
     // Add peer and wait for connection
-    let node2_addr = TransportProtocol::Quic.multiaddr("127.0.0.1", base_port + 1);
+    let node2_addr = quic_multiaddr_with_peer_id("127.0.0.1", base_port + 1, node2_peer_id);
     let result = handle1
         .add_persistent_peer(node2_addr.clone())
         .await
@@ -319,7 +336,8 @@ async fn test_add_remove_race_with_periodic_dial() {
     let keypair2 = Keypair::generate_ed25519();
     let base_port = 35000;
 
-    let node2_addr = TransportProtocol::Quic.multiaddr("127.0.0.1", base_port + 1);
+    let node2_peer_id = keypair2.public().to_peer_id();
+    let node2_addr = quic_multiaddr_with_peer_id("127.0.0.1", base_port + 1, node2_peer_id);
 
     // Initialize node1 with node2 in persistent_peers to ensure
     // the periodic dial_bootstrap_nodes task is actively running
@@ -402,6 +420,144 @@ async fn test_add_remove_race_with_periodic_dial() {
 
     handle1.shutdown().await.unwrap();
     handle2.shutdown().await.unwrap();
+}
+
+/// Test that spawn fails when persistent_peers contains an address without PeerId
+#[tokio::test]
+async fn test_spawn_rejects_persistent_peers_without_peer_id() {
+    init_logging();
+
+    let keypair = Keypair::generate_ed25519();
+    let mut config = make_config(36000);
+    // Address without /p2p/<peer_id> must be rejected at startup
+    config.persistent_peers = vec!["/ip4/127.0.0.1/udp/36001/quic-v1"
+        .parse()
+        .expect("valid multiaddr")];
+
+    let result = spawn(
+        NetworkIdentity::new(
+            "node-1".to_string(),
+            keypair,
+            Some("test-address-1".to_string()),
+        ),
+        config,
+        malachitebft_metrics::SharedRegistry::global().with_moniker("node-1".to_string()),
+    )
+    .await;
+
+    let err = match result {
+        Ok(_) => panic!("expected spawn to fail with persistent_peers without PeerId"),
+        Err(e) => e,
+    };
+    assert!(
+        err.to_string().contains("missing PeerId"),
+        "expected 'missing PeerId' in error: {}",
+        err
+    );
+}
+
+/// Test that a connection is rejected when the remote peer's PeerId does not match
+/// the expected PeerId in the persistent peer address (identity verification).
+#[tokio::test]
+async fn test_persistent_peer_identity_verification_rejects_mismatch() {
+    init_logging();
+
+    let keypair_a = Keypair::generate_ed25519();
+    let keypair_b = Keypair::generate_ed25519(); // A expects this PeerId at the address
+    let keypair_c = Keypair::generate_ed25519(); // C will actually listen on the address
+    let base_port = 37500;
+
+    // A's config: persistent peer at C's port but with B's PeerId (B is never started)
+    let peer_id_b = keypair_b.public().to_peer_id();
+    let addr_expecting_b = quic_multiaddr_with_peer_id("127.0.0.1", base_port + 1, peer_id_b);
+
+    let mut config_a = make_config(base_port);
+    config_a.persistent_peers = vec![addr_expecting_b];
+    config_a.persistent_peers_only = true;
+
+    let mut handle_a = spawn(
+        NetworkIdentity::new(
+            "node-a".to_string(),
+            keypair_a,
+            Some("test-address-a".to_string()),
+        ),
+        config_a,
+        malachitebft_metrics::SharedRegistry::global().with_moniker("node-a".to_string()),
+    )
+    .await
+    .unwrap();
+
+    let handle_c = spawn(
+        NetworkIdentity::new(
+            "node-c".to_string(),
+            keypair_c,
+            Some("test-address-c".to_string()),
+        ),
+        make_config(base_port + 1),
+        malachitebft_metrics::SharedRegistry::global().with_moniker("node-c".to_string()),
+    )
+    .await
+    .unwrap();
+
+    sleep(Duration::from_millis(500)).await;
+
+    // A will dial the persistent peer addr (port of C, but expected PeerId is B).
+    // A connects to C; after Identify, A sees C's PeerId != B's -> must reject and disconnect.
+    // So A should never report PeerConnected for C (or connection drops quickly).
+    let mut connected_peers = 0u32;
+    for _ in 0..30 {
+        tokio::select! {
+            event = handle_a.recv() => {
+                match event {
+                    Some(Event::PeerConnected(_)) => connected_peers += 1,
+                    Some(_) => {}
+                    None => break,
+                }
+            }
+            _ = sleep(Duration::from_millis(100)) => break,
+        }
+    }
+
+    assert_eq!(
+        connected_peers, 0,
+        "Identity verification should reject peer with mismatched PeerId (no PeerConnected)"
+    );
+
+    handle_a.shutdown().await.unwrap();
+    handle_c.shutdown().await.unwrap();
+}
+
+/// Test that add_persistent_peer returns PeerIdRequired when address has no PeerId
+#[tokio::test]
+async fn test_add_persistent_peer_requires_peer_id() {
+    init_logging();
+
+    let keypair1 = Keypair::generate_ed25519();
+    let base_port = 37000;
+
+    let handle = spawn(
+        NetworkIdentity::new(
+            "node-1".to_string(),
+            keypair1,
+            Some("test-address-1".to_string()),
+        ),
+        make_config(base_port),
+        malachitebft_metrics::SharedRegistry::global().with_moniker("node-1".to_string()),
+    )
+    .await
+    .unwrap();
+
+    let addr_without_peer_id: Multiaddr = "/ip4/127.0.0.1/udp/37001/quic-v1"
+        .parse()
+        .expect("valid multiaddr");
+
+    let result = handle
+        .add_persistent_peer(addr_without_peer_id)
+        .await
+        .unwrap();
+    assert_eq!(result, Err(PersistentPeerError::PeerIdRequired));
+
+    handle.shutdown().await.unwrap();
 }
 
 fn init_logging() {

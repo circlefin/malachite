@@ -8,8 +8,8 @@ use std::time::Duration;
 use malachitebft_config::TransportProtocol;
 use malachitebft_metrics::SharedRegistry;
 use malachitebft_network::{
-    spawn, ChannelNames, Config, DiscoveryConfig, GossipSubConfig, Keypair, NetworkIdentity,
-    ProtocolNames, PubSubProtocol,
+    spawn, ChannelNames, Config, DiscoveryConfig, GossipSubConfig, Keypair, Multiaddr,
+    NetworkIdentity, ProtocolNames, PubSubProtocol,
 };
 
 fn init_logging() {
@@ -18,13 +18,26 @@ fn init_logging() {
         .try_init();
 }
 
-fn make_config(port: u16, persistent_peers: Vec<u16>, max_connections_per_ip: usize) -> Config {
+/// Build a Quic multiaddr with PeerId (required for persistent peers).
+fn quic_multiaddr_with_peer_id(
+    host: &str,
+    port: u16,
+    peer_id: impl std::fmt::Display,
+) -> Multiaddr {
+    let base = TransportProtocol::Quic.multiaddr(host, port as usize);
+    format!("{base}/p2p/{peer_id}")
+        .parse()
+        .expect("valid multiaddr with peer id")
+}
+
+fn make_config(
+    port: u16,
+    persistent_peers: Vec<Multiaddr>,
+    max_connections_per_ip: usize,
+) -> Config {
     Config {
         listen_addr: TransportProtocol::Quic.multiaddr("127.0.0.1", port as usize),
-        persistent_peers: persistent_peers
-            .iter()
-            .map(|p| TransportProtocol::Quic.multiaddr("127.0.0.1", *p as usize))
-            .collect(),
+        persistent_peers,
         discovery: DiscoveryConfig {
             enabled: false,
             num_inbound_peers: 10,
@@ -57,9 +70,10 @@ async fn same_ip_connection_attack() {
     let max_connections_per_ip = 2;
     let num_peers = 5; // More than the limit
 
-    // Target node with low per-IP limit
+    // Target node with low per-IP limit (no persistent peers)
     let target_config = make_config(target_port, vec![], max_connections_per_ip);
     let target_keypair = Keypair::generate_ed25519();
+    let target_peer_id = target_keypair.public().to_peer_id();
     let target_identity = NetworkIdentity::new("target".to_string(), target_keypair, None);
     let target_registry = SharedRegistry::global().with_moniker("ip-limit-target");
 
@@ -73,8 +87,9 @@ async fn same_ip_connection_attack() {
     let mut peer_handles = Vec::new();
     for i in 0..num_peers {
         let peer_port = base_port + 1 + i;
-        // Peers use default (no per-IP limit)
-        let peer_config = make_config(peer_port, vec![target_port], 100);
+        // Peers use default (no per-IP limit), connect to target as persistent peer with PeerId
+        let target_addr = quic_multiaddr_with_peer_id("127.0.0.1", target_port, target_peer_id);
+        let peer_config = make_config(peer_port, vec![target_addr], 100);
         let peer_keypair = Keypair::generate_ed25519();
         let peer_identity = NetworkIdentity::new(format!("peer-{}", i), peer_keypair, None);
         let peer_registry = SharedRegistry::global().with_moniker(format!("ip-limit-peer-{}", i));

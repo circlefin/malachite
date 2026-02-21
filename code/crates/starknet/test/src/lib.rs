@@ -9,11 +9,13 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 
 use malachitebft_config::mempool_load::UniformLoadConfig;
+use malachitebft_network::Keypair;
 use malachitebft_starknet_host::config::Config;
 use malachitebft_starknet_host::node::{ConfigSource, Handle, StarknetNode};
 use malachitebft_starknet_host::types::{Height, MockContext, PrivateKey, Validator, ValidatorSet};
 use malachitebft_test_framework::HasTestRunner;
 use malachitebft_test_framework::{NodeRunner, TestNode};
+use multiaddr::Multiaddr;
 
 pub use malachitebft_test_framework::TestBuilder as GenTestBuilder;
 pub use malachitebft_test_framework::{
@@ -140,6 +142,11 @@ impl TestRunner {
         let protocol = PubSubProtocol::default();
         let i = node - 1;
 
+        let consensus_persistent_peers =
+            self.persistent_peers_with_peer_id(&transport, i, self.consensus_base_port);
+        let mempool_persistent_peers =
+            self.persistent_peers_with_peer_id(&transport, i, self.mempool_base_port);
+
         Config {
             moniker: format!("node-{node}"),
             logging: LoggingConfig::default(),
@@ -151,10 +158,7 @@ impl TestRunner {
                     protocol,
                     discovery: DiscoveryConfig::default(),
                     listen_addr: transport.multiaddr("127.0.0.1", self.consensus_base_port + i),
-                    persistent_peers: (0..self.nodes_count)
-                        .filter(|j| i != *j)
-                        .map(|j| transport.multiaddr("127.0.0.1", self.consensus_base_port + j))
-                        .collect(),
+                    persistent_peers: consensus_persistent_peers,
                     ..Default::default()
                 },
             },
@@ -162,10 +166,7 @@ impl TestRunner {
                 p2p: P2pConfig {
                     protocol,
                     listen_addr: transport.multiaddr("127.0.0.1", self.mempool_base_port + i),
-                    persistent_peers: (0..self.nodes_count)
-                        .filter(|j| i != *j)
-                        .map(|j| transport.multiaddr("127.0.0.1", self.mempool_base_port + j))
-                        .collect(),
+                    persistent_peers: mempool_persistent_peers,
                     ..Default::default()
                 },
                 max_tx_count: 10000,
@@ -196,6 +197,36 @@ impl TestRunner {
 }
 
 use malachitebft_config::{TransportProtocol, ValuePayload};
+
+fn persistent_peer_addr_with_id(
+    transport: &TransportProtocol,
+    host: &str,
+    port: usize,
+    pk: &PrivateKey,
+) -> Multiaddr {
+    let keypair = Keypair::ed25519_from_bytes(pk.inner().to_bytes()).unwrap();
+    let peer_id = keypair.public().to_peer_id();
+    let base = transport.multiaddr(host, port);
+    format!("{base}/p2p/{peer_id}").parse().unwrap()
+}
+
+impl TestRunner {
+    fn persistent_peers_with_peer_id(
+        &self,
+        transport: &TransportProtocol,
+        self_node_index: usize,
+        base_port: usize,
+    ) -> Vec<Multiaddr> {
+        (0..self.nodes_count)
+            .filter(|j| self_node_index != *j)
+            .map(|j| {
+                let node_id = j + 1;
+                let pk = &self.private_keys[&node_id];
+                persistent_peer_addr_with_id(transport, "127.0.0.1", base_port + j, pk)
+            })
+            .collect()
+    }
+}
 
 fn transport_from_env(default: TransportProtocol) -> TransportProtocol {
     if let Ok(protocol) = std::env::var("MALACHITE_TRANSPORT") {

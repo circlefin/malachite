@@ -13,8 +13,10 @@ malachitebft-core-types.workspace = true
 malachitebft-config.workspace = true
 malachitebft-core-consensus.workspace = true
 malachitebft-metrics.workspace = true
+malachitebft-network.workspace = true
 malachitebft-starknet-host.workspace = true
 malachitebft-test-framework.workspace = true
+multiaddr.workspace = true
 
 async-trait.workspace = true
 axum.workspace = true

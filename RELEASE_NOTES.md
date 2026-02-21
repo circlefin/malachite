@@ -32,6 +32,7 @@
 - Produce `InvalidProposalAndPolkaPrevious` when receiving a polka certificate matching the POL round of a proposal with an invalid value
 
 ### `network`
+- Require `PeerId` in persistent peer configuration
 - Add `persistent_peers_only` config option to allow connections ONLY from/to persistent peers
 - Add a mechanism to dump the network state
 - Add application-specific peer scoring for Gossipsub to prioritize nodes based on their types, in mesh formation and maintenance

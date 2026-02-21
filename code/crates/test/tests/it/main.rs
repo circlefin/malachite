@@ -27,6 +27,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tempfile::TempDir;
 
+use malachitebft_app::types::Keypair as NetworkKeypair;
 use malachitebft_signing_ed25519::PrivateKey;
 use malachitebft_test_app::config::Config;
 use malachitebft_test_app::node::{App, Handle};
@@ -70,6 +71,8 @@ pub struct NodeInfo {
     home_dir: PathBuf,
     middleware: Arc<dyn Middleware>,
     config_modifier: ConfigModifier<Config>,
+    /// Pre-generated network keypair for this node (used to build persistent_peers with /p2p/<peer_id>)
+    network_keypair: NetworkKeypair,
 }
 
 fn global_slot() -> Option<usize> {
@@ -123,6 +126,7 @@ impl NodeRunner<TestContext> for TestRunner {
                         home_dir: temp_dir(node.id),
                         middleware: Arc::clone(&node.middleware),
                         config_modifier: Arc::clone(&node.config_modifier),
+                        network_keypair: NetworkKeypair::generate_ed25519(),
                     },
                 )
             })
@@ -148,6 +152,7 @@ impl NodeRunner<TestContext> for TestRunner {
             private_key: self.private_keys[&id].clone(),
             start_height: Some(self.nodes_info[&id].start_height),
             middleware: Some(Arc::clone(&self.nodes_info[&id].middleware)),
+            network_keypair: Some(self.nodes_info[&id].network_keypair.clone()),
         };
 
         app.start().await
@@ -203,7 +208,18 @@ impl TestRunner {
                                         .params
                                         .exclude_from_persistent_peers
                                         .contains(&((*j + 1) as u64)))
-                            .map(|j| transport.multiaddr("127.0.0.1", self.consensus_base_port + j))
+                            .map(|j| {
+                                let node_id = j + 1;
+                                let peer_id = self.nodes_info[&node_id]
+                                    .network_keypair
+                                    .public()
+                                    .to_peer_id();
+                                let base =
+                                    transport.multiaddr("127.0.0.1", self.consensus_base_port + j);
+                                format!("{base}/p2p/{peer_id}")
+                                    .parse()
+                                    .expect("valid multiaddr with peer id")
+                            })
                             .collect()
                     },
                     ..Default::default()
