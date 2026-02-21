@@ -12,10 +12,10 @@ pub mod types {
         Vote,
     };
     pub use malachitebft_core_types::{
-        CertificateError, Context, NilOrVal, Round, RoundCertificateType, SignedVote,
-        ThresholdParams, VoteType, VotingPower,
+        CertificateError, CommitSignature, Context, NilOrVal, PolkaSignature, Round,
+        RoundCertificateType, RoundSignature, SignedVote, ThresholdParams, VoteType, VotingPower,
     };
-    pub use malachitebft_signing::{SigningProvider, SigningProviderExt};
+    pub use malachitebft_signing::SigningProvider;
     pub use malachitebft_signing_ed25519::Signature;
 }
 
@@ -317,6 +317,29 @@ where
         if let Some(last_vote) = self.votes.last().cloned() {
             self.votes.push(last_vote);
         }
+        self
+    }
+
+    /// Add a vote where the address claims to be from `claimed_index` validator,
+    /// but the signature was produced by `actual_signer_index` validator's key.
+    /// Simulates CometBFT-style address spoofing attack.
+    pub fn with_spoofed_address_vote(
+        mut self,
+        claimed_index: usize,
+        actual_signer_index: usize,
+        vote_type: VoteType,
+    ) -> Self {
+        let vote = block_on(self.signers[actual_signer_index].sign_vote(C::make_vote(
+            &self.ctx,
+            self.height,
+            self.round,
+            NilOrVal::Val(self.value_id),
+            vote_type,
+            self.validators[claimed_index].address,
+        )))
+        .unwrap();
+
+        self.votes.push(vote);
         self
     }
 
