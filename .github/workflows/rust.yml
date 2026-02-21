@@ -34,8 +34,6 @@ jobs:
 
   test:
     name: Unit Tests
-    needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
     runs-on: github-hosted-small
     defaults:
       run:
@@ -70,8 +68,6 @@ jobs:
 
   integration:
     name: Integration Tests
-    needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
     runs-on: github-hosted-large
     defaults:
       run:
@@ -134,8 +130,6 @@ jobs:
 
   clippy:
     name: Clippy
-    needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
     runs-on: github-hosted-small
     steps:
       - name: Checkout
@@ -153,8 +147,6 @@ jobs:
 
   fmt:
     name: Formatting
-    needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
     runs-on: github-hosted-small
     steps:
       - name: Checkout
