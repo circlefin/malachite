@@ -250,6 +250,25 @@ fn no_skip_round_full_quorum_with_same_val() {
 }
 
 #[test]
+fn skip_round_and_precommit_value_future_round() {
+    let ([addr1, addr2, ..], mut keeper) = setup([2, 3, 2]);
+
+    let id = ValueId::new(1);
+    let val = NilOrVal::Val(id);
+    let height = Height::new(1);
+    let cur_round = Round::new(0);
+    let fut_round = Round::new(1);
+
+    let vote = new_signed_precommit(height, fut_round, val, addr1);
+    let msg = keeper.apply_vote(vote, cur_round);
+    assert_eq!(msg, None);
+
+    let vote = new_signed_precommit(height, fut_round, val, addr2);
+    let msg = keeper.apply_vote(vote, cur_round);
+    assert_eq!(msg, Some(Output::PrecommitValue(id)));
+}
+
+#[test]
 fn same_votes() {
     let ([addr1, ..], mut keeper) = setup([1, 1]);
 

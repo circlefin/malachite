@@ -267,21 +267,6 @@ where
             }
         }
 
-        if vote.round() > round {
-            let combined_weight = per_round.addresses_weights.sum();
-
-            let skip_round = self
-                .threshold_params
-                .honest
-                .is_met(combined_weight, total_weight);
-
-            if skip_round {
-                let output = Output::SkipRound(vote.round());
-                per_round.emitted_outputs.insert(output.clone());
-                return Some(output);
-            }
-        }
-
         let threshold = compute_threshold(
             vote.vote_type(),
             per_round,
@@ -290,7 +275,18 @@ where
             total_weight,
         );
 
-        let output = threshold_to_output(vote.vote_type(), threshold);
+        let skip_round = if vote.round() > round
+            && self
+                .threshold_params
+                .honest
+                .is_met(per_round.addresses_weights.sum(), total_weight)
+        {
+            Some(vote.round())
+        } else {
+            None
+        };
+
+        let output = threshold_to_output(vote.vote_type(), threshold, skip_round);
 
         match output {
             // Ensure we do not output the same message twice
@@ -359,16 +355,31 @@ where
 }
 
 /// Map a vote type and a threshold to a state machine output.
-fn threshold_to_output<Value>(typ: VoteType, threshold: Threshold<Value>) -> Option<Output<Value>> {
-    match (typ, threshold) {
-        (_, Threshold::Unreached) => None,
+/// Also considers an optional honest threshold for a future round.
+fn threshold_to_output<Value>(
+    typ: VoteType,
+    threshold: Threshold<Value>,
+    future_round: Option<Round>,
+) -> Option<Output<Value>> {
+    if future_round.is_none() {
+        // Thresholds for the current round
+        match (typ, threshold) {
+            (_, Threshold::Unreached) => None,
 
-        (VoteType::Prevote, Threshold::Any) => Some(Output::PolkaAny),
-        (VoteType::Prevote, Threshold::Nil) => Some(Output::PolkaNil),
-        (VoteType::Prevote, Threshold::Value(v)) => Some(Output::PolkaValue(v)),
+            (VoteType::Prevote, Threshold::Any) => Some(Output::PolkaAny),
+            (VoteType::Prevote, Threshold::Nil) => Some(Output::PolkaNil),
+            (VoteType::Prevote, Threshold::Value(v)) => Some(Output::PolkaValue(v)),
 
-        (VoteType::Precommit, Threshold::Any) => Some(Output::PrecommitAny),
-        (VoteType::Precommit, Threshold::Nil) => Some(Output::PrecommitAny),
-        (VoteType::Precommit, Threshold::Value(v)) => Some(Output::PrecommitValue(v)),
+            (VoteType::Precommit, Threshold::Any) => Some(Output::PrecommitAny),
+            (VoteType::Precommit, Threshold::Nil) => Some(Output::PrecommitAny),
+            (VoteType::Precommit, Threshold::Value(v)) => Some(Output::PrecommitValue(v)),
+        }
+    } else {
+        // Only PrecommitValue(v) has larger priority than SkipRound(r)
+        match (typ, threshold) {
+            (VoteType::Precommit, Threshold::Value(v)) => Some(Output::PrecommitValue(v)),
+
+            (_, _) => Some(Output::SkipRound(future_round.unwrap())),
+        }
     }
 }

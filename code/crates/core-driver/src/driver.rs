@@ -303,6 +303,22 @@ where
             .get_proposal_and_validity_for_round_and_value(round, value_id)
     }
 
+    /// Returns a valid proposal for the given round and value_id, if any.
+    pub fn valid_proposal_for_round_and_value(
+        &self,
+        round: Round,
+        value_id: ValueId<Ctx>,
+    ) -> Option<&SignedProposal<Ctx>> {
+        if let Some((proposal, validity)) =
+            self.proposal_and_validity_for_round_and_value(round, value_id)
+        {
+            if validity.is_valid() {
+                return Some(proposal);
+            }
+        }
+        None
+    }
+
     /// Returns the proposals and their validities for the given round, if any.
     pub fn proposals_and_validities_for_round(
         &self,

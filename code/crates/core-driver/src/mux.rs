@@ -302,17 +302,14 @@ where
             VKOutput::PrecommitAny => (threshold_round, RoundInput::PrecommitAny),
             VKOutput::SkipRound(r) => (threshold_round, RoundInput::SkipRound(r)),
             VKOutput::PrecommitValue(v) => {
-                if let Some((proposal, validity)) =
-                    self.proposal_and_validity_for_round_and_value(threshold_round, v)
+                if let Some(proposal) = self.valid_proposal_for_round_and_value(threshold_round, v)
                 {
-                    if validity.is_valid() {
-                        (
-                            threshold_round,
-                            RoundInput::ProposalAndPrecommitValue(proposal.message.clone()),
-                        )
-                    } else {
-                        (threshold_round, RoundInput::PrecommitAny)
-                    }
+                    (
+                        threshold_round,
+                        RoundInput::ProposalAndPrecommitValue(proposal.message.clone()),
+                    )
+                } else if threshold_round > self.round() {
+                    (threshold_round, RoundInput::SkipRound(threshold_round))
                 } else {
                     (threshold_round, RoundInput::PrecommitAny)
                 }
