@@ -161,6 +161,7 @@ async fn spawn_sync_actor(
 
     let scoring_strategy = match config.scoring_strategy {
         config::ScoringStrategy::Ema => sync::scoring::Strategy::Ema,
+        config::ScoringStrategy::Credit => sync::scoring::Strategy::Credit,
     };
 
     let sync_config = sync::Config {
@@ -170,6 +171,7 @@ async fn spawn_sync_actor(
         request_timeout: config.request_timeout,
         parallel_requests: config.parallel_requests as u64,
         scoring_strategy,
+        initial_score: config.initial_score,
         inactive_threshold: (!config.inactive_threshold.is_zero())
             .then_some(config.inactive_threshold),
         batch_size: config.batch_size,

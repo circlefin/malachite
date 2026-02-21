@@ -179,6 +179,7 @@ where
 
     let scoring_strategy = match config.scoring_strategy {
         malachitebft_config::ScoringStrategy::Ema => sync::scoring::Strategy::Ema,
+        malachitebft_config::ScoringStrategy::Credit => sync::scoring::Strategy::Credit,
     };
 
     let sync_config = sync::Config {
@@ -188,6 +189,7 @@ where
         request_timeout: config.request_timeout,
         parallel_requests: config.parallel_requests as u64,
         scoring_strategy,
+        initial_score: config.initial_score,
         inactive_threshold: (!config.inactive_threshold.is_zero())
             .then_some(config.inactive_threshold),
         batch_size: config.batch_size,

@@ -529,6 +529,10 @@ pub struct ValueSyncConfig {
     #[serde(default)]
     pub scoring_strategy: ScoringStrategy,
 
+    /// Initial score for peers
+    #[serde(default = "default_initial_score")]
+    pub initial_score: f64,
+
     /// Threshold for considering a peer inactive
     #[serde(with = "humantime_serde")]
     pub inactive_threshold: Duration,
@@ -547,23 +551,33 @@ impl Default for ValueSyncConfig {
             max_response_size: ByteSize::mib(10),
             parallel_requests: 5,
             scoring_strategy: ScoringStrategy::default(),
+            initial_score: default_initial_score(),
             inactive_threshold: Duration::from_secs(60),
             batch_size: 5,
         }
     }
 }
 
+fn default_initial_score() -> f64 {
+    0.5
+}
+
+/// Peer scoring strategy
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ScoringStrategy {
+    /// Exponential Moving Average
     #[default]
     Ema,
+    /// Credit-based scoring
+    Credit,
 }
 
 impl ScoringStrategy {
     pub fn name(&self) -> &'static str {
         match self {
             Self::Ema => "ema",
+            Self::Credit => "credit",
         }
     }
 }
@@ -574,7 +588,10 @@ impl FromStr for ScoringStrategy {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "ema" => Ok(Self::Ema),
-            e => Err(format!("unknown scoring strategy: {e}, available: ema")),
+            "credit" => Ok(Self::Credit),
+            e => Err(format!(
+                "unknown scoring strategy: {e}, available: ema, credit"
+            )),
         }
     }
 }
