@@ -836,3 +836,39 @@ pub async fn status_update_on_decision() {
         )
         .await
 }
+
+#[tokio::test]
+pub async fn start_late_with_target_time() {
+    const HEIGHT: u64 = 5;
+
+    let mut test = TestBuilder::<()>::new();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT * 2)
+        .success();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT * 2)
+        .success();
+
+    test.add_node()
+        .with_voting_power(5)
+        .start_after(1, Duration::from_secs(10))
+        .wait_until(HEIGHT)
+        .success();
+
+    test.build()
+        .run_with_params(
+            Duration::from_secs(30),
+            TestParams {
+                enable_value_sync: true,
+                //target_time: Some(Duration::from_millis(200)),
+                ..Default::default()
+            },
+        )
+        .await
+}

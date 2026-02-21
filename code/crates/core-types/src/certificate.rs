@@ -70,6 +70,35 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
             commit_signatures,
         }
     }
+
+    /// Extend the certificate with additional votes, deduplicating by address.
+    pub fn extend_votes(mut self, additional_commits: Vec<SignedVote<Ctx>>) -> Self {
+        // Add new signatures that aren't already present
+        for vote in additional_commits {
+            let is_valid = matches!(vote.value(), NilOrVal::Val(id) if id == &self.value_id)
+                && vote.vote_type() == VoteType::Precommit
+                && vote.round() == self.round
+                && vote.height() == self.height;
+
+            if !is_valid {
+                continue;
+            }
+
+            // Check if address already exists (linear search, but commit sets are small)
+            let already_exists = self
+                .commit_signatures
+                .iter()
+                .any(|sig| &sig.address == vote.validator_address());
+
+            if !already_exists {
+                self.commit_signatures.push(CommitSignature::new(
+                    vote.validator_address().clone(),
+                    vote.signature,
+                ));
+            }
+        }
+        self
+    }
 }
 
 /// Represents a signature for a polka certificate, with the address of the validator that produced it.

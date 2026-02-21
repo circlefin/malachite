@@ -25,9 +25,22 @@ where
 
     let decided_id = decided_value.id();
 
+    // Get any additional commits collected during finalization period
     let mut commits = state.restore_precommits(height, proposal_round, &decided_value);
     let extensions = super::decide::extract_vote_extensions(&mut commits);
-    let certificate = CommitCertificate::new(height, proposal_round, decided_id, commits);
+
+    // Check for existing certificate (from sync) and extend with additional commits
+    let certificate = if let Some(existing) = state
+        .driver
+        .commit_certificate(proposal_round, &decided_id)
+        .cloned()
+    {
+        // Extend the existing certificate with any additional commits from vote keeper
+        existing.extend_votes(commits)
+    } else {
+        // Build certificate from commits
+        CommitCertificate::new(height, proposal_round, decided_id, commits)
+    };
 
     assert!(
         verify_commit_certificate(
@@ -49,7 +62,7 @@ where
 }
 
 /// Emit the Finalize effect with a pre-built certificate and extensions.
-pub async fn log_and_finalize<Ctx>(
+async fn log_and_finalize<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     certificate: CommitCertificate<Ctx>,
