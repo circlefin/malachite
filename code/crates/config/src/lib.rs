@@ -553,17 +553,22 @@ impl Default for ValueSyncConfig {
     }
 }
 
+/// Peer scoring strategy
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ScoringStrategy {
+    /// Exponential Moving Average
     #[default]
     Ema,
+    /// Credit-based scoring
+    Credit,
 }
 
 impl ScoringStrategy {
     pub fn name(&self) -> &'static str {
         match self {
             Self::Ema => "ema",
+            Self::Credit => "credit",
         }
     }
 }
@@ -574,7 +579,10 @@ impl FromStr for ScoringStrategy {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "ema" => Ok(Self::Ema),
-            e => Err(format!("unknown scoring strategy: {e}, available: ema")),
+            "credit" => Ok(Self::Credit),
+            e => Err(format!(
+                "unknown scoring strategy: {e}, available: ema, credit"
+            )),
         }
     }
 }

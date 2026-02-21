@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::time::Duration;
 
 use malachitebft_peer::PeerId;
@@ -75,7 +76,12 @@ impl ScoringStrategy for ExponentialMovingAverage {
         0.5 // All peers start with a neutral score of 0.5
     }
 
-    fn update_score(&mut self, previous_score: Score, result: SyncResult) -> Score {
+    fn update_score(
+        &mut self,
+        _peer_id: PeerId,
+        previous_score: Score,
+        result: SyncResult,
+    ) -> Score {
         match result {
             SyncResult::Success(response_time) => {
                 let response_time_secs = response_time.as_secs_f64();
@@ -114,5 +120,13 @@ impl ScoringStrategy for ExponentialMovingAverage {
                 (1.0 - self.alpha_failure) * previous_score
             }
         }
+    }
+
+    fn is_stateful(&self) -> bool {
+        false
+    }
+
+    fn retain_only(&mut self, _peer_ids: HashSet<&PeerId>) {
+        // No per-peer state to retain in this strategy
     }
 }
