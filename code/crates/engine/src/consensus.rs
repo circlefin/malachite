@@ -19,12 +19,12 @@ use malachitebft_core_consensus::{
     Effect, LivenessMsg, PeerId, Resumable, Resume, SignedConsensusMsg, VoteExtensionError,
 };
 use malachitebft_core_types::{
-    Context, Height, Proposal, Round, Timeout, TimeoutKind, Timeouts, ValidatorSet, Validity,
-    Value, ValueId, ValueOrigin, ValueResponse as CoreValueResponse, Vote,
+    Context, Proposal, Round, Timeout, TimeoutKind, Timeouts, ValidatorSet, Validity, Value,
+    ValueId, ValueOrigin, ValueResponse as CoreValueResponse, Vote,
 };
 use malachitebft_metrics::Metrics;
 use malachitebft_signing::{SigningProvider, SigningProviderExt};
-use malachitebft_sync::{self as sync, HeightStartType};
+use malachitebft_sync::HeightStartType;
 
 use crate::host::{HeightParams, HostMsg, HostRef, LocallyProposedValue, Next, ProposedValue};
 use crate::network::{NetworkEvent, NetworkMsg, NetworkRef};
@@ -109,12 +109,7 @@ pub enum Msg<Ctx: Context> {
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
 
     /// Process a sync response
-    ProcessSyncResponse(
-        /// The peer that sent the response
-        PeerId,
-        // The value response
-        sync::ValueResponse<Ctx>,
-    ),
+    ProcessSyncResponse(CoreValueResponse<Ctx>),
 
     /// Instructs consensus to restart at a given height with the provided parameters.
     ///
@@ -166,12 +161,11 @@ impl<Ctx: Context> fmt::Display for Msg<Ctx> {
                 "ReceivedProposedValue(height={} round={} origin={origin:?})",
                 value.height, value.round
             ),
-            Msg::ProcessSyncResponse(peer, response) => {
+            Msg::ProcessSyncResponse(response) => {
                 write!(
                     f,
-                    "ProcessSyncResponse(peer={peer} height={} values={})",
-                    response.start_height,
-                    response.values.len()
+                    "ProcessSyncResponse(peer={} height={} value={})",
+                    response.peer, response.certificate.height, response.certificate.value_id
                 )
             }
             Msg::RestartHeight(height, params) => {
@@ -407,10 +401,6 @@ where
                     state.set_phase(Phase::Recovering);
                 }
 
-                // Notify the sync actor that we have started a new height
-                let start_type = HeightStartType::from_is_restart(is_restart);
-                self.sync.send(SyncMsg::StartedHeight(height, start_type));
-
                 // Update the timeouts
                 state.timeouts = params.timeouts;
 
@@ -442,6 +432,11 @@ where
 
                 // Set the phase to `Running` now that we have replayed the WAL
                 state.set_phase(Phase::Running);
+
+                // Notify the sync actor that we have started a new height.
+                // We want the sync actor to drain buffered values only after consensus is ready and running.
+                let start_type = HeightStartType::from_is_restart(is_restart);
+                self.sync.send(SyncMsg::StartedHeight(height, start_type));
 
                 // Process any buffered messages, now that we are in the `Running` phase
                 self.process_buffered_msgs(&myself, state, is_restart).await;
@@ -616,41 +611,25 @@ where
                 Ok(())
             }
 
-            Msg::ProcessSyncResponse(
-                peer,
-                sync::ValueResponse {
-                    start_height,
-                    values,
-                },
-            ) => {
-                debug!(%start_height, "Received sync response with {} values", values.len());
+            Msg::ProcessSyncResponse(response) => {
+                let height = response.certificate.height;
+                let round = response.certificate.round;
+                let value = response.certificate.value_id.clone();
+                let peer = response.peer;
 
-                if values.is_empty() {
-                    error!(%start_height, "Received empty value sync response");
-                    return Ok(());
-                };
+                debug!(
+                    %height, %round, %value, %peer,
+                    "Processing sync response"
+                );
 
-                // Process values sequentially starting from the lowest height
-                let mut height = start_height;
-
-                for value in values.iter() {
-                    if let Err(e) = self
-                        .process_sync_response(&myself, state, peer, height, value)
-                        .await
-                    {
-                        // At this point, `process_sync_response` has already sent a message
-                        // about an invalid value, etc. to the sync actor. The sync actor
-                        // will then, re-request this range again from some peer.
-                        // Because of this, in case of failing to process the response, we need
-                        // to exit early this loop to avoid issuing multiple parallel requests
-                        // for the same range of values. There's also no benefit in processing
-                        // the rest of the values.
-                        error!(%start_height, %height, "Failed to process sync response: {e:?}");
-
-                        break;
-                    }
-
-                    height = height.increment();
+                if let Err(e) = self
+                    .process_input(&myself, state, ConsensusInput::SyncValueResponse(response))
+                    .await
+                {
+                    error!(
+                        %height, %round, %value, %peer,
+                        "Failed to process sync response: {e:?}"
+                    );
                 }
 
                 Ok(())
@@ -677,33 +656,6 @@ where
                 Ok(())
             }
         }
-    }
-
-    async fn process_sync_response(
-        &self,
-        myself: &ActorRef<Msg<Ctx>>,
-        state: &mut State<Ctx>,
-        peer: PeerId,
-        height: <Ctx as Context>::Height,
-        value: &malachitebft_sync::RawDecidedValue<Ctx>,
-    ) -> Result<(), ActorProcessingErr>
-    where
-        Ctx: Context,
-    {
-        self.process_input(
-            myself,
-            state,
-            ConsensusInput::SyncValueResponse(CoreValueResponse::new(
-                peer,
-                value.value_bytes.clone(),
-                value.certificate.clone(),
-            )),
-        )
-        .await
-        .map_err(|e| {
-            error!(%height, error = ?e, "Error when processing received synced block");
-            e.into()
-        })
     }
 
     async fn timeout_elapsed(

@@ -1,5 +1,7 @@
 use std::collections::BTreeMap;
-use tracing::warn;
+use std::fmt::Display;
+
+use tracing::{debug, trace};
 
 /// A data structure that maintains a queue of values associated with monotonically increasing indices.
 ///
@@ -25,9 +27,12 @@ where
     }
 
     /// Push a value into the queue associated with the given index.
+    ///
+    /// Returns `true` if the value was successfully added,
+    /// or `false` if the queue is full and the value could not be added.
     pub fn push(&mut self, index: I, value: T) -> bool
     where
-        I: Clone + Ord,
+        I: Clone + Display + Ord,
     {
         // If the index already exists, append the value to the existing vector.
         if let Some(values) = self.queue.get_mut(&index) {
@@ -36,21 +41,29 @@ where
         }
 
         // If the index does not exist, check if we can add a new entry.
-        if self.queue.len() < self.capacity {
+        if !self.is_full() {
             self.queue.insert(index, vec![value]);
             return true;
         }
 
+        let queue_length = self.queue.len();
+
         // If the queue is full, evict the highest index and insert the new value.
-        if let Some((max_index, _)) = self.queue.last_key_value() {
+        if let Some(max_entry) = self.queue.last_entry() {
+            let max_index = max_entry.key();
+
             // If the new index is less than the maximum index, we can evict the maximum index.
             if &index < max_index {
-                let max_index = max_index.clone();
+                debug!(
+                    index = %index,
+                    evicted_index = %max_index,
+                    capacity = self.capacity,
+                    len = queue_length,
+                    "Bounded queue is full, evicting highest index"
+                );
 
-                warn!("Bounded queue is full, dropping value");
-
-                // Remove the highest index
-                self.queue.remove(&max_index);
+                // Remove the entry at the highest index
+                max_entry.remove();
 
                 // Insert the new index with its value
                 self.queue.insert(index, vec![value]);
@@ -59,19 +72,43 @@ where
             }
         }
 
-        warn!("Bounded queue is full, no value is inserted");
+        debug!(
+            index = %index,
+            capacity = self.capacity,
+            len = self.queue.len(),
+            "Bounded queue is full, rejecting value"
+        );
+
         false
     }
 
     /// Combination of `shift` and `take` methods.
-    pub fn shift_and_take(&mut self, min_index: &I) -> impl Iterator<Item = T> {
+    pub fn shift_and_take(&mut self, min_index: &I) -> impl Iterator<Item = T>
+    where
+        I: Display,
+    {
         self.shift(min_index);
         self.take(min_index)
     }
 
     /// Remove all entries with indices less than `min_index`.
-    pub fn shift(&mut self, min_index: &I) {
+    pub fn shift(&mut self, min_index: &I)
+    where
+        I: Display,
+    {
+        let before = self.queue.len();
+
         self.queue.retain(|index, _| index >= min_index);
+
+        let removed = before - self.queue.len();
+        if removed > 0 {
+            trace!(
+                min_index = %min_index,
+                removed,
+                remaining = self.queue.len(),
+                "Shifted bounded queue"
+            );
+        }
     }
 
     /// Take all entries with indices equal to `index` and return them.
@@ -80,6 +117,32 @@ where
             .remove(index)
             .into_iter()
             .flat_map(|values| values.into_iter())
+    }
+
+    /// Retain only the values for which the predicate returns `true`.
+    ///
+    /// Values are tested per-entry: for each index, the predicate receives
+    /// the index and each value. If all values for a given index are removed,
+    /// the index entry itself is removed as well.
+    ///
+    /// Returns the number of values removed.
+    pub fn retain<F>(&mut self, mut f: F) -> usize
+    where
+        F: FnMut(&I, &T) -> bool,
+    {
+        let mut removed = 0;
+        self.queue.retain(|index, values| {
+            let before = values.len();
+            values.retain(|value| f(index, value));
+            removed += before - values.len();
+            !values.is_empty()
+        });
+        removed
+    }
+
+    /// Remove all entries from the queue.
+    pub fn clear(&mut self) {
+        self.queue.clear();
     }
 
     /// Whether the queue is full
@@ -460,5 +523,69 @@ mod tests {
             !queue.queue.contains_key(&30),
             "The high value element should be removed"
         );
+    }
+
+    #[test]
+    fn retain_removes_matching_values() {
+        let mut queue = BoundedQueue::new(5);
+        queue.push(10, "a");
+        queue.push(10, "b");
+        queue.push(20, "c");
+        queue.push(30, "d");
+
+        // Remove all values that are "a" or "c"
+        let removed = queue.retain(|_, v| *v != "a" && *v != "c");
+
+        assert_eq!(removed, 2);
+        // Index 10 should still exist with only "b"
+        assert_eq!(queue.queue.get(&10), Some(&vec!["b"]));
+        // Index 20 should be removed entirely since its only value was "c"
+        assert!(!queue.queue.contains_key(&20));
+        // Index 30 should remain unchanged
+        assert_eq!(queue.queue.get(&30), Some(&vec!["d"]));
+        assert_eq!(queue.len(), 2);
+    }
+
+    #[test]
+    fn retain_removes_all_values() {
+        let mut queue = BoundedQueue::new(5);
+        queue.push(10, "a");
+        queue.push(20, "b");
+
+        let removed = queue.retain(|_, _| false);
+
+        assert_eq!(removed, 2);
+        assert!(queue.is_empty());
+    }
+
+    #[test]
+    fn retain_keeps_all_values() {
+        let mut queue = BoundedQueue::new(5);
+        queue.push(10, "a");
+        queue.push(20, "b");
+
+        let removed = queue.retain(|_, _| true);
+
+        assert_eq!(removed, 0);
+        assert_eq!(queue.len(), 2);
+        assert_eq!(queue.size(), 2);
+    }
+
+    #[test]
+    fn retain_uses_index() {
+        let mut queue = BoundedQueue::new(5);
+        queue.push(10, "a");
+        queue.push(10, "b");
+        queue.push(20, "c");
+        queue.push(30, "d");
+
+        // Remove all values at index 10
+        let removed = queue.retain(|index, _| *index != 10);
+
+        assert_eq!(removed, 2);
+        assert!(!queue.queue.contains_key(&10));
+        assert!(queue.queue.contains_key(&20));
+        assert!(queue.queue.contains_key(&30));
+        assert_eq!(queue.len(), 2);
     }
 }

@@ -168,7 +168,7 @@ async fn spawn_sync_actor(
         max_request_size: config.max_request_size.as_u64() as usize,
         max_response_size: config.max_response_size.as_u64() as usize,
         request_timeout: config.request_timeout,
-        parallel_requests: config.parallel_requests as u64,
+        parallel_requests: config.parallel_requests,
         scoring_strategy,
         inactive_threshold: (!config.inactive_threshold.is_zero())
             .then_some(config.inactive_threshold),
@@ -196,7 +196,7 @@ async fn spawn_sync_actor(
 async fn spawn_consensus_actor(
     address: Address,
     ctx: MockContext,
-    mut cfg: Config,
+    cfg: Config,
     signing_provider: Ed25519Provider,
     network: NetworkRef<MockContext>,
     host: HostRef<MockContext>,
@@ -212,9 +212,6 @@ async fn spawn_consensus_actor(
         value_payload: ValuePayload::PartsOnly,
         enabled: cfg.consensus.enabled,
     };
-
-    // Derive the consensus queue capacity from `sync.parallel_requests` and `sync.batch_size`
-    cfg.consensus.queue_capacity = cfg.value_sync.parallel_requests * cfg.value_sync.batch_size;
 
     Consensus::spawn(
         ctx,

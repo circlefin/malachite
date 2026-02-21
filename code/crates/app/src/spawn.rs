@@ -76,8 +76,7 @@ where
 pub async fn spawn_consensus_actor<Ctx>(
     ctx: Ctx,
     address: Ctx::Address,
-    mut cfg: ConsensusConfig,
-    sync_cfg: &ValueSyncConfig,
+    cfg: ConsensusConfig,
     signing_provider: Box<dyn SigningProvider<Ctx>>,
     network: NetworkRef<Ctx>,
     host: HostRef<Ctx>,
@@ -103,9 +102,6 @@ where
         value_payload,
         enabled: cfg.enabled,
     };
-
-    // Derive the consensus queue capacity from `sync.parallel_requests` and `sync.batch_size`
-    cfg.queue_capacity = sync_cfg.parallel_requests * sync_cfg.batch_size;
 
     Consensus::spawn(
         ctx,
@@ -186,7 +182,7 @@ where
         max_request_size: config.max_request_size.as_u64() as usize,
         max_response_size: config.max_response_size.as_u64() as usize,
         request_timeout: config.request_timeout,
-        parallel_requests: config.parallel_requests as u64,
+        parallel_requests: config.parallel_requests,
         scoring_strategy,
         inactive_threshold: (!config.inactive_threshold.is_zero())
             .then_some(config.inactive_threshold),
