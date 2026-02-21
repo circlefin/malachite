@@ -214,6 +214,7 @@ where
         // Store the certificate
         self.commit_certificates.push(certificate);
 
+        // Check for associated Proposal: if found and valid, decide it
         if let Some((signed_proposal, validity)) =
             self.proposal_and_validity_for_round_and_value(certificate_round, certificate_value_id)
         {
@@ -222,12 +223,9 @@ where
                     signed_proposal.message.clone(),
                 ));
             }
-        } else {
-            // Proposal exists but validity is not confirmed, start precommit timer
-            return Some(RoundInput::PrecommitAny);
         }
-
-        None
+        // Proposal not received or deemed invalid
+        Some(RoundInput::PrecommitAny)
     }
 
     /// Store the polka certificate and multiplex the proposal.

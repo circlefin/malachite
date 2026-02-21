@@ -436,7 +436,7 @@ where
 
         match self.store_and_multiplex_commit_certificate(certificate) {
             Some(round_input) => self.apply_input(round, round_input),
-            None => Ok(None),
+            None => Ok(None), // FIXME: Any scenario where this can happen?
         }
     }
 
