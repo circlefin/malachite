@@ -27,6 +27,8 @@
 
 </div>
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/circlefin/malachite.svg)](https://pkg.go.dev/github.com/circlefin/malachite) 
+
 ## About
 
 Malachite is a Byzantine-fault tolerant (BFT) consensus engine implemented in Rust.
