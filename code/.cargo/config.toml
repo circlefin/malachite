@@ -1,4 +1,4 @@
 [alias]
 lint      = "clippy --all-targets --all-features -- -D warnings"
-mbt       = "nextest run --package informalsystems-malachitebft-test-mbt --no-fail-fast"
-all-tests = "nextest run --exclude informalsystems-malachitebft-test-mbt --no-fail-fast --workspace --test-threads=1"
+mbt       = "nextest run --package arc-malachitebft-test-mbt --no-fail-fast"
+all-tests = "nextest run --exclude arc-malachitebft-test-mbt --no-fail-fast --workspace --test-threads=1"

@@ -22,8 +22,8 @@ integration-tests: ## Run the integration tests.
 		--no-fail-fast \
 		--failure-output final \
 		--test-threads 1 \
-		--exclude informalsystems-malachitebft-starknet-test \
-		--exclude informalsystems-malachitebft-discovery-test
+		--exclude arc-malachitebft-starknet-test \
+		--exclude arc-malachitebft-discovery-test
 
 starknet-tests: ## Run the Starknet integration tests
 	cargo nextest run \
@@ -31,7 +31,7 @@ starknet-tests: ## Run the Starknet integration tests
 		--no-fail-fast \
 		--failure-output final \
 		--test-threads 1 \
-		--package informalsystems-malachitebft-starknet-test
+		--package arc-malachitebft-starknet-test
 
 discovery-tests: ## Run the discovery tests
 	cargo nextest run \
@@ -39,7 +39,7 @@ discovery-tests: ## Run the discovery tests
 		--no-fail-fast \
 		--failure-output final \
 		--test-threads 1 \
-		--package informalsystems-malachitebft-discovery-test
+		--package arc-malachitebft-discovery-test
 
 tests: ## Run all the tests.
 	$(MAKE) integration-tests
