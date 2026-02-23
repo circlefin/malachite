@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+> [!IMPORTANT]
+> All crates were renamed from `informalsystems-malachitebft-$crate` to `arc-malachitebft-$crate`.
+
 ### `malachitebft-core-types`
 
 - Added new associated type `Timeouts` to the `Context` trait (use `LinearTimeouts` for default implementation) ([#1227](https://github.com/circlefin/malachite/pull/1227))

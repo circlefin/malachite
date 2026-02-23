@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+> [!IMPORTANT]
+> All crates were renamed from `informalsystems-malachitebft-$crate` to `arc-malachitebft-$crate`.
+
 ### `app-channel`
 - Add builder pattern for custom actor injection
 - Make consensus request channel capacity configurable
