@@ -435,7 +435,7 @@ fn default_config() -> Config {
 #[test]
 fn test_starknet_node() {
     // Create temp folder for configuration files
-    let temp_dir = tempfile::TempDir::with_prefix("informalsystems-malachitebft-node-")
+    let temp_dir = tempfile::TempDir::with_prefix("arc-malachitebft-node-")
         .expect("Failed to create temp dir");
 
     let temp_path = temp_dir.path().to_owned();
