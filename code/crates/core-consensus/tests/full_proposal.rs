@@ -5,9 +5,7 @@ use malachitebft_test::utils::validators::make_validators;
 use malachitebft_test::{Address, Ed25519Provider, Proposal, Value};
 use malachitebft_test::{Height, TestContext};
 
-use arc_malachitebft_core_consensus::full_proposal::{
-    FullProposal, FullProposalKeeper,
-};
+use arc_malachitebft_core_consensus::full_proposal::{FullProposal, FullProposalKeeper};
 use arc_malachitebft_core_consensus::{Input, ProposedValue};
 
 fn signed_proposal_pol(
