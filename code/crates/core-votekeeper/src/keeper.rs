@@ -104,6 +104,8 @@ where
                     conflicting: vote,
                 });
             }
+            // Do not add duplicate vote
+            return Ok(());
         }
 
         // Tally this vote
