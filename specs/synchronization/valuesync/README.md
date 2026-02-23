@@ -8,7 +8,7 @@ While the consensus algorithm is fault-tolerant, if too many nodes fall behind, 
 ## MVP Specification
 
 This specification refers to the initial, Minimum Viable Product (MVP), version of the ValueSync protocol.
-Notice that is was originally named "Blocksync", for instance in its [tracking issue](https://github.com/informalsystems/malachite/issues/425).
+Notice that is was originally named "Blocksync", for instance in its [tracking issue](https://github.com/circlefin/malachite/issues/425).
 
 We consider a composition of:
 
@@ -210,4 +210,4 @@ For details we refer to the [state machine in Quint](./quint/vsyncStatemachine.q
 ## Issues
 
 The description refers to a minimal version of the synchronization protocol.
-Its roadmap can be found in the issue [#425](https://github.com/informalsystems/malachite/issues/425).
+Its roadmap can be found in the issue [#425](https://github.com/circlefin/malachite/issues/425).

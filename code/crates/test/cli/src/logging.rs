@@ -121,7 +121,7 @@ fn build_tracing_filter(log_levels: &str) -> EnvFilter {
     if !log_levels.is_empty() {
         for log_level in log_levels.split(',') {
             // app_log_level: no target means only the application log should be targeted
-            // https://github.com/informalsystems/malachite/pull/287#discussion_r1684212675
+            // https://github.com/circlefin/malachite/pull/287#discussion_r1684212675
             let app_log_level = if !log_level.contains('=') {
                 default_directive(log_level)
             } else {
