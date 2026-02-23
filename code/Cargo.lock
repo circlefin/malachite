@@ -197,6 +197,648 @@ dependencies = [
 ]
 
 [[package]]
+name = "arc-malachitebft-app"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-codec",
+ "arc-malachitebft-config",
+ "arc-malachitebft-core-consensus",
+ "arc-malachitebft-core-types",
+ "arc-malachitebft-engine",
+ "arc-malachitebft-metrics",
+ "arc-malachitebft-network",
+ "arc-malachitebft-peer",
+ "arc-malachitebft-signing",
+ "arc-malachitebft-sync",
+ "arc-malachitebft-wal",
+ "async-trait",
+ "derive-where",
+ "eyre",
+ "libp2p",
+ "libp2p-identity",
+ "ractor",
+ "rand 0.8.5",
+ "serde",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "arc-malachitebft-app-channel"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-app",
+ "arc-malachitebft-config",
+ "arc-malachitebft-engine",
+ "arc-malachitebft-signing",
+ "arc-malachitebft-test",
+ "bytes",
+ "derive-where",
+ "eyre",
+ "ractor",
+ "rand 0.8.5",
+ "thiserror 2.0.16",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "arc-malachitebft-codec"
+version = "0.7.0-pre"
+dependencies = [
+ "bytes",
+]
+
+[[package]]
+name = "arc-malachitebft-config"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-core-types",
+ "bytesize",
+ "config",
+ "humantime-serde",
+ "multiaddr",
+ "serde",
+ "serde_json",
+ "toml",
+]
+
+[[package]]
+name = "arc-malachitebft-core-consensus"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-core-driver",
+ "arc-malachitebft-core-types",
+ "arc-malachitebft-core-votekeeper",
+ "arc-malachitebft-metrics",
+ "arc-malachitebft-peer",
+ "arc-malachitebft-signing",
+ "arc-malachitebft-test",
+ "async-recursion",
+ "borsh",
+ "derive-where",
+ "futures",
+ "genawaiter",
+ "multiaddr",
+ "thiserror 2.0.16",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "arc-malachitebft-core-driver"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-core-state-machine",
+ "arc-malachitebft-core-types",
+ "arc-malachitebft-core-votekeeper",
+ "arc-malachitebft-test",
+ "derive-where",
+ "thiserror 2.0.16",
+ "tracing",
+]
+
+[[package]]
+name = "arc-malachitebft-core-state-machine"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-core-types",
+ "derive-where",
+ "displaydoc",
+ "time",
+]
+
+[[package]]
+name = "arc-malachitebft-core-types"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-peer",
+ "async-trait",
+ "borsh",
+ "bytes",
+ "derive-where",
+ "rand 0.8.5",
+ "serde",
+ "thiserror 2.0.16",
+]
+
+[[package]]
+name = "arc-malachitebft-core-votekeeper"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-core-types",
+ "arc-malachitebft-test",
+ "derive-where",
+ "thiserror 2.0.16",
+ "tracing",
+]
+
+[[package]]
+name = "arc-malachitebft-discovery"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-metrics",
+ "either",
+ "eyre",
+ "libp2p",
+ "rand 0.8.5",
+ "serde",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "arc-malachitebft-discovery-test"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-config",
+ "arc-malachitebft-discovery-test",
+ "arc-malachitebft-metrics",
+ "arc-malachitebft-network",
+ "arc-malachitebft-starknet-host",
+ "futures",
+ "libp2p-identity",
+ "netstat2",
+ "rand 0.8.5",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "arc-malachitebft-engine"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-codec",
+ "arc-malachitebft-config",
+ "arc-malachitebft-core-consensus",
+ "arc-malachitebft-core-driver",
+ "arc-malachitebft-core-state-machine",
+ "arc-malachitebft-core-types",
+ "arc-malachitebft-core-votekeeper",
+ "arc-malachitebft-metrics",
+ "arc-malachitebft-network",
+ "arc-malachitebft-signing",
+ "arc-malachitebft-sync",
+ "arc-malachitebft-wal",
+ "async-recursion",
+ "async-trait",
+ "borsh",
+ "byteorder",
+ "bytes",
+ "bytesize",
+ "derive-where",
+ "eyre",
+ "hex",
+ "libp2p",
+ "ractor",
+ "rand 0.8.5",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "arc-malachitebft-example-channel"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-app-channel",
+ "arc-malachitebft-proto",
+ "arc-malachitebft-test",
+ "arc-malachitebft-test-cli",
+ "async-trait",
+ "bytes",
+ "color-eyre",
+ "config",
+ "derive-where",
+ "eyre",
+ "itertools 0.14.0",
+ "prost",
+ "rand 0.8.5",
+ "redb",
+ "serde",
+ "serde_json",
+ "sha3",
+ "thiserror 2.0.16",
+ "tokio",
+ "toml",
+ "tracing",
+]
+
+[[package]]
+name = "arc-malachitebft-metrics"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-core-state-machine",
+ "prometheus-client",
+]
+
+[[package]]
+name = "arc-malachitebft-network"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-discovery",
+ "arc-malachitebft-metrics",
+ "arc-malachitebft-peer",
+ "arc-malachitebft-sync",
+ "bytes",
+ "either",
+ "eyre",
+ "futures",
+ "libp2p",
+ "libp2p-gossipsub",
+ "libp2p-scatter",
+ "seahash",
+ "serde",
+ "thiserror 2.0.16",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "arc-malachitebft-peer"
+version = "0.7.0-pre"
+dependencies = [
+ "borsh",
+ "bs58",
+ "multihash",
+ "rand 0.8.5",
+ "serde",
+ "thiserror 2.0.16",
+]
+
+[[package]]
+name = "arc-malachitebft-proto"
+version = "0.7.0-pre"
+dependencies = [
+ "prost",
+ "prost-types",
+ "thiserror 2.0.16",
+]
+
+[[package]]
+name = "arc-malachitebft-signing"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-core-types",
+ "async-trait",
+ "signature",
+]
+
+[[package]]
+name = "arc-malachitebft-signing-ecdsa"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-core-types",
+ "base64 0.22.1",
+ "k256",
+ "p256",
+ "p384",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "signature",
+]
+
+[[package]]
+name = "arc-malachitebft-signing-ed25519"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-core-types",
+ "base64 0.22.1",
+ "ed25519-consensus",
+ "rand 0.8.5",
+ "serde",
+ "signature",
+]
+
+[[package]]
+name = "arc-malachitebft-starknet-app"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-app",
+ "arc-malachitebft-config",
+ "arc-malachitebft-starknet-host",
+ "arc-malachitebft-test",
+ "arc-malachitebft-test-cli",
+ "clap",
+ "color-eyre",
+ "tempfile",
+ "tikv-jemallocator",
+ "tracing",
+]
+
+[[package]]
+name = "arc-malachitebft-starknet-host"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-app",
+ "arc-malachitebft-codec",
+ "arc-malachitebft-config",
+ "arc-malachitebft-core-consensus",
+ "arc-malachitebft-core-types",
+ "arc-malachitebft-engine",
+ "arc-malachitebft-metrics",
+ "arc-malachitebft-network",
+ "arc-malachitebft-proto",
+ "arc-malachitebft-starknet-p2p-proto",
+ "arc-malachitebft-starknet-p2p-types",
+ "arc-malachitebft-sync",
+ "arc-malachitebft-test",
+ "arc-malachitebft-test-cli",
+ "arc-malachitebft-test-mempool",
+ "async-trait",
+ "bytes",
+ "bytesize",
+ "config",
+ "derive-where",
+ "eyre",
+ "itertools 0.14.0",
+ "libp2p-identity",
+ "prost",
+ "ractor",
+ "rand 0.8.5",
+ "redb",
+ "serde",
+ "serde_json",
+ "sha3",
+ "tempfile",
+ "thiserror 2.0.16",
+ "tokio",
+ "toml",
+ "tracing",
+]
+
+[[package]]
+name = "arc-malachitebft-starknet-p2p-proto"
+version = "0.7.0-pre"
+dependencies = [
+ "prost",
+ "prost-build",
+ "protox",
+]
+
+[[package]]
+name = "arc-malachitebft-starknet-p2p-types"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-core-types",
+ "arc-malachitebft-proto",
+ "arc-malachitebft-signing",
+ "arc-malachitebft-signing-ed25519",
+ "arc-malachitebft-starknet-p2p-proto",
+ "async-trait",
+ "bytes",
+ "rand 0.8.5",
+ "serde",
+ "sha3",
+ "starknet-core",
+ "starknet-crypto",
+]
+
+[[package]]
+name = "arc-malachitebft-starknet-test"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-config",
+ "arc-malachitebft-core-consensus",
+ "arc-malachitebft-core-types",
+ "arc-malachitebft-engine",
+ "arc-malachitebft-metrics",
+ "arc-malachitebft-starknet-host",
+ "arc-malachitebft-test-framework",
+ "async-trait",
+ "axum",
+ "bytesize",
+ "eyre",
+ "ractor",
+ "rand 0.8.5",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "arc-malachitebft-starknet-test-mbt"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-core-types",
+ "arc-malachitebft-engine",
+ "arc-malachitebft-peer",
+ "arc-malachitebft-starknet-host",
+ "bytes",
+ "glob",
+ "itf",
+ "multihash",
+ "serde",
+ "tempfile",
+]
+
+[[package]]
+name = "arc-malachitebft-sync"
+version = "0.7.0-pre"
+dependencies = [
+ "arbtest",
+ "arc-malachitebft-core-types",
+ "arc-malachitebft-metrics",
+ "arc-malachitebft-peer",
+ "arc-malachitebft-test",
+ "async-trait",
+ "borsh",
+ "bytes",
+ "dashmap",
+ "derive-where",
+ "displaydoc",
+ "eyre",
+ "genawaiter",
+ "libp2p",
+ "rand 0.8.5",
+ "serde",
+ "thiserror 2.0.16",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "arc-malachitebft-test"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-app",
+ "arc-malachitebft-codec",
+ "arc-malachitebft-config",
+ "arc-malachitebft-core-consensus",
+ "arc-malachitebft-core-types",
+ "arc-malachitebft-engine",
+ "arc-malachitebft-peer",
+ "arc-malachitebft-proto",
+ "arc-malachitebft-signing",
+ "arc-malachitebft-signing-ed25519",
+ "arc-malachitebft-sync",
+ "arc-malachitebft-test-app",
+ "arc-malachitebft-test-framework",
+ "async-trait",
+ "base64 0.22.1",
+ "bytes",
+ "bytesize",
+ "ed25519-consensus",
+ "eyre",
+ "futures",
+ "hex",
+ "libp2p-identity",
+ "prost",
+ "prost-build",
+ "prost-types",
+ "protox",
+ "rand 0.8.5",
+ "rstest",
+ "serde",
+ "serde_json",
+ "sha3",
+ "signature",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "arc-malachitebft-test-app"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-app-channel",
+ "arc-malachitebft-proto",
+ "arc-malachitebft-test",
+ "arc-malachitebft-test-cli",
+ "arc-malachitebft-test-framework",
+ "async-trait",
+ "bytes",
+ "color-eyre",
+ "config",
+ "derive-where",
+ "eyre",
+ "itertools 0.14.0",
+ "prost",
+ "rand 0.8.5",
+ "redb",
+ "serde",
+ "serde_json",
+ "sha3",
+ "thiserror 2.0.16",
+ "tokio",
+ "toml",
+ "tracing",
+]
+
+[[package]]
+name = "arc-malachitebft-test-cli"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-app",
+ "arc-malachitebft-config",
+ "arc-malachitebft-core-types",
+ "arc-malachitebft-metrics",
+ "arc-malachitebft-test",
+ "axum",
+ "bytesize",
+ "clap",
+ "color-eyre",
+ "directories",
+ "itertools 0.14.0",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.16",
+ "tokio",
+ "toml",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "arc-malachitebft-test-framework"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-app",
+ "arc-malachitebft-config",
+ "arc-malachitebft-core-consensus",
+ "arc-malachitebft-core-types",
+ "arc-malachitebft-engine",
+ "arc-malachitebft-metrics",
+ "arc-malachitebft-test",
+ "arc-malachitebft-test-app",
+ "axum",
+ "bytesize",
+ "derive-where",
+ "eyre",
+ "ractor",
+ "rand 0.8.5",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "arc-malachitebft-test-mbt"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-core-state-machine",
+ "arc-malachitebft-core-types",
+ "arc-malachitebft-core-votekeeper",
+ "arc-malachitebft-engine",
+ "arc-malachitebft-peer",
+ "arc-malachitebft-starknet-host",
+ "arc-malachitebft-test",
+ "glob",
+ "itf",
+ "multihash",
+ "num-bigint",
+ "num-traits",
+ "pretty_assertions",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "serde_with 3.12.0",
+ "tempfile",
+]
+
+[[package]]
+name = "arc-malachitebft-test-mempool"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-metrics",
+ "arc-malachitebft-proto",
+ "eyre",
+ "futures",
+ "libp2p",
+ "libp2p-gossipsub",
+ "prost",
+ "prost-build",
+ "prost-types",
+ "protox",
+ "seahash",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "arc-malachitebft-wal"
+version = "0.7.0-pre"
+dependencies = [
+ "advisory-lock",
+ "bytes",
+ "cfg-if",
+ "crc32fast",
+ "criterion",
+ "lz4_flex",
+ "nix 0.29.0",
+ "rand 0.8.5",
+ "tempfile",
+ "testdir",
+]
+
+[[package]]
 name = "arrayref"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2196,648 +2838,6 @@ dependencies = [
  "equivalent",
  "hashbrown 0.15.2",
  "serde",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-app"
-version = "0.7.0-pre"
-dependencies = [
- "async-trait",
- "derive-where",
- "eyre",
- "informalsystems-malachitebft-codec",
- "informalsystems-malachitebft-config",
- "informalsystems-malachitebft-core-consensus",
- "informalsystems-malachitebft-core-types",
- "informalsystems-malachitebft-engine",
- "informalsystems-malachitebft-metrics",
- "informalsystems-malachitebft-network",
- "informalsystems-malachitebft-peer",
- "informalsystems-malachitebft-signing",
- "informalsystems-malachitebft-sync",
- "informalsystems-malachitebft-wal",
- "libp2p",
- "libp2p-identity",
- "ractor",
- "rand 0.8.5",
- "serde",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-app-channel"
-version = "0.7.0-pre"
-dependencies = [
- "bytes",
- "derive-where",
- "eyre",
- "informalsystems-malachitebft-app",
- "informalsystems-malachitebft-config",
- "informalsystems-malachitebft-engine",
- "informalsystems-malachitebft-signing",
- "informalsystems-malachitebft-test",
- "ractor",
- "rand 0.8.5",
- "thiserror 2.0.16",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-codec"
-version = "0.7.0-pre"
-dependencies = [
- "bytes",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-config"
-version = "0.7.0-pre"
-dependencies = [
- "bytesize",
- "config",
- "humantime-serde",
- "informalsystems-malachitebft-core-types",
- "multiaddr",
- "serde",
- "serde_json",
- "toml",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-core-consensus"
-version = "0.7.0-pre"
-dependencies = [
- "async-recursion",
- "borsh",
- "derive-where",
- "futures",
- "genawaiter",
- "informalsystems-malachitebft-core-driver",
- "informalsystems-malachitebft-core-types",
- "informalsystems-malachitebft-core-votekeeper",
- "informalsystems-malachitebft-metrics",
- "informalsystems-malachitebft-peer",
- "informalsystems-malachitebft-signing",
- "informalsystems-malachitebft-test",
- "multiaddr",
- "thiserror 2.0.16",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-core-driver"
-version = "0.7.0-pre"
-dependencies = [
- "derive-where",
- "informalsystems-malachitebft-core-state-machine",
- "informalsystems-malachitebft-core-types",
- "informalsystems-malachitebft-core-votekeeper",
- "informalsystems-malachitebft-test",
- "thiserror 2.0.16",
- "tracing",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-core-state-machine"
-version = "0.7.0-pre"
-dependencies = [
- "derive-where",
- "displaydoc",
- "informalsystems-malachitebft-core-types",
- "time",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-core-types"
-version = "0.7.0-pre"
-dependencies = [
- "async-trait",
- "borsh",
- "bytes",
- "derive-where",
- "informalsystems-malachitebft-peer",
- "rand 0.8.5",
- "serde",
- "thiserror 2.0.16",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-core-votekeeper"
-version = "0.7.0-pre"
-dependencies = [
- "derive-where",
- "informalsystems-malachitebft-core-types",
- "informalsystems-malachitebft-test",
- "thiserror 2.0.16",
- "tracing",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-discovery"
-version = "0.7.0-pre"
-dependencies = [
- "either",
- "eyre",
- "informalsystems-malachitebft-metrics",
- "libp2p",
- "rand 0.8.5",
- "serde",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-discovery-test"
-version = "0.7.0-pre"
-dependencies = [
- "futures",
- "informalsystems-malachitebft-config",
- "informalsystems-malachitebft-discovery-test",
- "informalsystems-malachitebft-metrics",
- "informalsystems-malachitebft-network",
- "informalsystems-malachitebft-starknet-host",
- "libp2p-identity",
- "netstat2",
- "rand 0.8.5",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-engine"
-version = "0.7.0-pre"
-dependencies = [
- "async-recursion",
- "async-trait",
- "borsh",
- "byteorder",
- "bytes",
- "bytesize",
- "derive-where",
- "eyre",
- "hex",
- "informalsystems-malachitebft-codec",
- "informalsystems-malachitebft-config",
- "informalsystems-malachitebft-core-consensus",
- "informalsystems-malachitebft-core-driver",
- "informalsystems-malachitebft-core-state-machine",
- "informalsystems-malachitebft-core-types",
- "informalsystems-malachitebft-core-votekeeper",
- "informalsystems-malachitebft-metrics",
- "informalsystems-malachitebft-network",
- "informalsystems-malachitebft-signing",
- "informalsystems-malachitebft-sync",
- "informalsystems-malachitebft-wal",
- "libp2p",
- "ractor",
- "rand 0.8.5",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-example-channel"
-version = "0.7.0-pre"
-dependencies = [
- "async-trait",
- "bytes",
- "color-eyre",
- "config",
- "derive-where",
- "eyre",
- "informalsystems-malachitebft-app-channel",
- "informalsystems-malachitebft-proto",
- "informalsystems-malachitebft-test",
- "informalsystems-malachitebft-test-cli",
- "itertools 0.14.0",
- "prost",
- "rand 0.8.5",
- "redb",
- "serde",
- "serde_json",
- "sha3",
- "thiserror 2.0.16",
- "tokio",
- "toml",
- "tracing",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-metrics"
-version = "0.7.0-pre"
-dependencies = [
- "informalsystems-malachitebft-core-state-machine",
- "prometheus-client",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-network"
-version = "0.7.0-pre"
-dependencies = [
- "bytes",
- "either",
- "eyre",
- "futures",
- "informalsystems-malachitebft-discovery",
- "informalsystems-malachitebft-metrics",
- "informalsystems-malachitebft-peer",
- "informalsystems-malachitebft-sync",
- "libp2p",
- "libp2p-gossipsub",
- "libp2p-scatter",
- "seahash",
- "serde",
- "thiserror 2.0.16",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-peer"
-version = "0.7.0-pre"
-dependencies = [
- "borsh",
- "bs58",
- "multihash",
- "rand 0.8.5",
- "serde",
- "thiserror 2.0.16",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-proto"
-version = "0.7.0-pre"
-dependencies = [
- "prost",
- "prost-types",
- "thiserror 2.0.16",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-signing"
-version = "0.7.0-pre"
-dependencies = [
- "async-trait",
- "informalsystems-malachitebft-core-types",
- "signature",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-signing-ecdsa"
-version = "0.7.0-pre"
-dependencies = [
- "base64 0.22.1",
- "informalsystems-malachitebft-core-types",
- "k256",
- "p256",
- "p384",
- "rand 0.8.5",
- "serde",
- "serde_json",
- "signature",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-signing-ed25519"
-version = "0.7.0-pre"
-dependencies = [
- "base64 0.22.1",
- "ed25519-consensus",
- "informalsystems-malachitebft-core-types",
- "rand 0.8.5",
- "serde",
- "signature",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-starknet-app"
-version = "0.7.0-pre"
-dependencies = [
- "clap",
- "color-eyre",
- "informalsystems-malachitebft-app",
- "informalsystems-malachitebft-config",
- "informalsystems-malachitebft-starknet-host",
- "informalsystems-malachitebft-test",
- "informalsystems-malachitebft-test-cli",
- "tempfile",
- "tikv-jemallocator",
- "tracing",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-starknet-host"
-version = "0.7.0-pre"
-dependencies = [
- "async-trait",
- "bytes",
- "bytesize",
- "config",
- "derive-where",
- "eyre",
- "informalsystems-malachitebft-app",
- "informalsystems-malachitebft-codec",
- "informalsystems-malachitebft-config",
- "informalsystems-malachitebft-core-consensus",
- "informalsystems-malachitebft-core-types",
- "informalsystems-malachitebft-engine",
- "informalsystems-malachitebft-metrics",
- "informalsystems-malachitebft-network",
- "informalsystems-malachitebft-proto",
- "informalsystems-malachitebft-starknet-p2p-proto",
- "informalsystems-malachitebft-starknet-p2p-types",
- "informalsystems-malachitebft-sync",
- "informalsystems-malachitebft-test",
- "informalsystems-malachitebft-test-cli",
- "informalsystems-malachitebft-test-mempool",
- "itertools 0.14.0",
- "libp2p-identity",
- "prost",
- "ractor",
- "rand 0.8.5",
- "redb",
- "serde",
- "serde_json",
- "sha3",
- "tempfile",
- "thiserror 2.0.16",
- "tokio",
- "toml",
- "tracing",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-starknet-p2p-proto"
-version = "0.7.0-pre"
-dependencies = [
- "prost",
- "prost-build",
- "protox",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-starknet-p2p-types"
-version = "0.7.0-pre"
-dependencies = [
- "async-trait",
- "bytes",
- "informalsystems-malachitebft-core-types",
- "informalsystems-malachitebft-proto",
- "informalsystems-malachitebft-signing",
- "informalsystems-malachitebft-signing-ed25519",
- "informalsystems-malachitebft-starknet-p2p-proto",
- "rand 0.8.5",
- "serde",
- "sha3",
- "starknet-core",
- "starknet-crypto",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-starknet-test"
-version = "0.7.0-pre"
-dependencies = [
- "async-trait",
- "axum",
- "bytesize",
- "eyre",
- "informalsystems-malachitebft-config",
- "informalsystems-malachitebft-core-consensus",
- "informalsystems-malachitebft-core-types",
- "informalsystems-malachitebft-engine",
- "informalsystems-malachitebft-metrics",
- "informalsystems-malachitebft-starknet-host",
- "informalsystems-malachitebft-test-framework",
- "ractor",
- "rand 0.8.5",
- "serde_json",
- "tempfile",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-starknet-test-mbt"
-version = "0.7.0-pre"
-dependencies = [
- "bytes",
- "glob",
- "informalsystems-malachitebft-core-types",
- "informalsystems-malachitebft-engine",
- "informalsystems-malachitebft-peer",
- "informalsystems-malachitebft-starknet-host",
- "itf",
- "multihash",
- "serde",
- "tempfile",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-sync"
-version = "0.7.0-pre"
-dependencies = [
- "arbtest",
- "async-trait",
- "borsh",
- "bytes",
- "dashmap",
- "derive-where",
- "displaydoc",
- "eyre",
- "genawaiter",
- "informalsystems-malachitebft-core-types",
- "informalsystems-malachitebft-metrics",
- "informalsystems-malachitebft-peer",
- "informalsystems-malachitebft-test",
- "libp2p",
- "rand 0.8.5",
- "serde",
- "thiserror 2.0.16",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-test"
-version = "0.7.0-pre"
-dependencies = [
- "async-trait",
- "base64 0.22.1",
- "bytes",
- "bytesize",
- "ed25519-consensus",
- "eyre",
- "futures",
- "hex",
- "informalsystems-malachitebft-app",
- "informalsystems-malachitebft-codec",
- "informalsystems-malachitebft-config",
- "informalsystems-malachitebft-core-consensus",
- "informalsystems-malachitebft-core-types",
- "informalsystems-malachitebft-engine",
- "informalsystems-malachitebft-peer",
- "informalsystems-malachitebft-proto",
- "informalsystems-malachitebft-signing",
- "informalsystems-malachitebft-signing-ed25519",
- "informalsystems-malachitebft-sync",
- "informalsystems-malachitebft-test-app",
- "informalsystems-malachitebft-test-framework",
- "libp2p-identity",
- "prost",
- "prost-build",
- "prost-types",
- "protox",
- "rand 0.8.5",
- "rstest",
- "serde",
- "serde_json",
- "sha3",
- "signature",
- "tempfile",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-test-app"
-version = "0.7.0-pre"
-dependencies = [
- "async-trait",
- "bytes",
- "color-eyre",
- "config",
- "derive-where",
- "eyre",
- "informalsystems-malachitebft-app-channel",
- "informalsystems-malachitebft-proto",
- "informalsystems-malachitebft-test",
- "informalsystems-malachitebft-test-cli",
- "informalsystems-malachitebft-test-framework",
- "itertools 0.14.0",
- "prost",
- "rand 0.8.5",
- "redb",
- "serde",
- "serde_json",
- "sha3",
- "thiserror 2.0.16",
- "tokio",
- "toml",
- "tracing",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-test-cli"
-version = "0.7.0-pre"
-dependencies = [
- "axum",
- "bytesize",
- "clap",
- "color-eyre",
- "directories",
- "informalsystems-malachitebft-app",
- "informalsystems-malachitebft-config",
- "informalsystems-malachitebft-core-types",
- "informalsystems-malachitebft-metrics",
- "informalsystems-malachitebft-test",
- "itertools 0.14.0",
- "rand 0.8.5",
- "serde",
- "serde_json",
- "thiserror 2.0.16",
- "tokio",
- "toml",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-test-framework"
-version = "0.7.0-pre"
-dependencies = [
- "axum",
- "bytesize",
- "derive-where",
- "eyre",
- "informalsystems-malachitebft-app",
- "informalsystems-malachitebft-config",
- "informalsystems-malachitebft-core-consensus",
- "informalsystems-malachitebft-core-types",
- "informalsystems-malachitebft-engine",
- "informalsystems-malachitebft-metrics",
- "informalsystems-malachitebft-test",
- "informalsystems-malachitebft-test-app",
- "ractor",
- "rand 0.8.5",
- "tempfile",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-test-mbt"
-version = "0.7.0-pre"
-dependencies = [
- "glob",
- "informalsystems-malachitebft-core-state-machine",
- "informalsystems-malachitebft-core-types",
- "informalsystems-malachitebft-core-votekeeper",
- "informalsystems-malachitebft-engine",
- "informalsystems-malachitebft-peer",
- "informalsystems-malachitebft-starknet-host",
- "informalsystems-malachitebft-test",
- "itf",
- "multihash",
- "num-bigint",
- "num-traits",
- "pretty_assertions",
- "rand 0.8.5",
- "serde",
- "serde_json",
- "serde_with 3.12.0",
- "tempfile",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-test-mempool"
-version = "0.7.0-pre"
-dependencies = [
- "eyre",
- "futures",
- "informalsystems-malachitebft-metrics",
- "informalsystems-malachitebft-proto",
- "libp2p",
- "libp2p-gossipsub",
- "prost",
- "prost-build",
- "prost-types",
- "protox",
- "seahash",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-wal"
-version = "0.7.0-pre"
-dependencies = [
- "advisory-lock",
- "bytes",
- "cfg-if",
- "crc32fast",
- "criterion",
- "lz4_flex",
- "nix 0.29.0",
- "rand 0.8.5",
- "tempfile",
- "testdir",
 ]
 
 [[package]]
