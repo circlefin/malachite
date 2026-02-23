@@ -1,5 +1,5 @@
 [package]
-name = "informalsystems-malachitebft-starknet-host"
+name = "arc-malachitebft-starknet-host"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true

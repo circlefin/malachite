@@ -1,5 +1,5 @@
 [package]
-name = "informalsystems-malachitebft-test-mbt"
+name = "arc-malachitebft-test-mbt"
 description = "Library for model-based testing of the Malachite consensus engine"
 publish = false
 

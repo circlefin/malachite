@@ -1,5 +1,5 @@
 [package]
-name = "informalsystems-malachitebft-starknet-p2p-proto"
+name = "arc-malachitebft-starknet-p2p-proto"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true

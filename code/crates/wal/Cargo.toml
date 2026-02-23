@@ -1,5 +1,5 @@
 [package]
-name = "informalsystems-malachitebft-wal"
+name = "arc-malachitebft-wal"
 description = "Write-Ahead Log for for the Malachite BFT consensus engine"
 version.workspace = true
 edition.workspace = true

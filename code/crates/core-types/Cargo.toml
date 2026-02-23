@@ -1,5 +1,5 @@
 [package]
-name = "informalsystems-malachitebft-core-types"
+name = "arc-malachitebft-core-types"
 description = "Core type definitions and interfaces for the Malachite BFT consensus engine"
 version.workspace = true
 edition.workspace = true

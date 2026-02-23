@@ -1,5 +1,5 @@
 [package]
-name = "informalsystems-malachitebft-engine"
+name = "arc-malachitebft-engine"
 description = "Implementation of the Malachite BFT consensus engine"
 version.workspace = true
 edition.workspace = true

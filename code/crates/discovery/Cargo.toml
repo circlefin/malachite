@@ -1,5 +1,5 @@
 [package]
-name = "informalsystems-malachitebft-discovery"
+name = "arc-malachitebft-discovery"
 description = "Discovery protocol for the Malachite BFT consensus engine"
 version.workspace = true
 edition.workspace = true

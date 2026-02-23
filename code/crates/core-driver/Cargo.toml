@@ -1,5 +1,5 @@
 [package]
-name = "informalsystems-malachitebft-core-driver"
+name = "arc-malachitebft-core-driver"
 description = "Driver for the state machine of Malachite BFT consensus engine"
 version.workspace = true
 edition.workspace = true

@@ -1,5 +1,5 @@
 [package]
-name = "informalsystems-malachitebft-test-mempool"
+name = "arc-malachitebft-test-mempool"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true

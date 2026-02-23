@@ -1,5 +1,5 @@
 [package]
-name = "informalsystems-malachitebft-test"
+name = "arc-malachitebft-test"
 description = "Testing framework for the Malachite consensus engine"
 publish = false
 
