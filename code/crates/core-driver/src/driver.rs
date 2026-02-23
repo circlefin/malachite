@@ -184,6 +184,27 @@ where
         &mut self.vote_keeper
     }
 
+    /// Return precommits for the given round and value from the vote keeper
+    pub fn restore_precommits(
+        &self,
+        round: Round,
+        value_id: &ValueId<Ctx>,
+    ) -> Vec<SignedVote<Ctx>> {
+        if let Some(per_round) = self.vote_keeper.per_round(round) {
+            per_round
+                .received_votes()
+                .iter()
+                .filter(|v| {
+                    v.vote_type() == VoteType::Precommit
+                        && v.value() == &NilOrVal::Val(value_id.clone())
+                })
+                .cloned()
+                .collect()
+        } else {
+            Vec::new()
+        }
+    }
+
     /// Return a reference to the proposal keeper
     pub fn proposals(&self) -> &ProposalKeeper<Ctx> {
         &self.proposal_keeper

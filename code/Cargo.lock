@@ -2292,9 +2292,11 @@ name = "informalsystems-malachitebft-core-driver"
 version = "0.7.0-pre"
 dependencies = [
  "derive-where",
+ "futures",
  "informalsystems-malachitebft-core-state-machine",
  "informalsystems-malachitebft-core-types",
  "informalsystems-malachitebft-core-votekeeper",
+ "informalsystems-malachitebft-signing",
  "informalsystems-malachitebft-test",
  "thiserror 2.0.16",
  "tracing",
