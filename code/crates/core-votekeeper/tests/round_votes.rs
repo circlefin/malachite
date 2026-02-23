@@ -1,7 +1,7 @@
 use malachitebft_core_types::{NilOrVal, Round};
 use malachitebft_test::{Address, Height, TestContext, ValueId, Vote};
 
-use informalsystems_malachitebft_core_votekeeper::round_votes::RoundVotes;
+use arc_malachitebft_core_votekeeper::round_votes::RoundVotes;
 
 const ADDRESS1: Address = Address::new([41; 20]);
 const ADDRESS2: Address = Address::new([42; 20]);

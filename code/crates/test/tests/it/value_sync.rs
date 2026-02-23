@@ -4,8 +4,8 @@ use std::time::Duration;
 use bytesize::ByteSize;
 use eyre::bail;
 
-use informalsystems_malachitebft_test::middleware::{Middleware, RotateEpochValidators};
-use informalsystems_malachitebft_test::TestContext;
+use arc_malachitebft_test::middleware::{Middleware, RotateEpochValidators};
+use arc_malachitebft_test::TestContext;
 use malachitebft_config::ValuePayload;
 use malachitebft_core_consensus::ProposedValue;
 use malachitebft_core_types::CommitCertificate;

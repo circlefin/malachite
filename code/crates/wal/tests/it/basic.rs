@@ -8,7 +8,7 @@ use std::{fs, io, str};
 
 use testdir::{NumberedDir, NumberedDirBuilder};
 
-use informalsystems_malachitebft_wal::{Log, Version};
+use arc_malachitebft_wal::{Log, Version};
 
 static TESTDIR: LazyLock<NumberedDir> =
     LazyLock::new(|| NumberedDirBuilder::new("wal".to_string()).create().unwrap());

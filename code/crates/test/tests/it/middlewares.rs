@@ -1,6 +1,6 @@
 use core::fmt;
 
-use informalsystems_malachitebft_test::{self as malachitebft_test};
+use arc_malachitebft_test::{self as malachitebft_test};
 
 use malachitebft_core_consensus::LocallyProposedValue;
 use malachitebft_core_types::{NilOrVal, Round};
@@ -17,7 +17,7 @@ impl Middleware for ByzantineProposer {
         proposal: &mut LocallyProposedValue<TestContext>,
         reproposal: bool,
     ) {
-        use informalsystems_malachitebft_test::Value;
+        use arc_malachitebft_test::Value;
         use rand::Rng;
 
         if !reproposal {

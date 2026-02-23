@@ -1,7 +1,7 @@
 use malachitebft_core_types::{Round, SignedProposal};
 use malachitebft_test::{Address, Height, PrivateKey, Proposal, TestContext, Value};
 
-use informalsystems_malachitebft_core_driver::proposal_keeper::EvidenceMap;
+use arc_malachitebft_core_driver::proposal_keeper::EvidenceMap;
 
 fn pk(id: &str) -> PrivateKey {
     let mut seed = [0u8; 32];

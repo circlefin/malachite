@@ -12,7 +12,7 @@ use malachitebft_test::{
     Address, Height, Proposal, Signature, TestContext, ValidatorSet, Value, ValueId, Vote,
 };
 
-use informalsystems_malachitebft_core_driver::{Driver, Error, Input, Output};
+use arc_malachitebft_core_driver::{Driver, Error, Input, Output};
 
 pub struct TestStep {
     desc: &'static str,

@@ -1,4 +1,4 @@
-use informalsystems_malachitebft_core_consensus::{
+use arc_malachitebft_core_consensus::{
     process, Effect, Error, Input, Params, ProposedValue, Resumable, Resume, State,
 };
 use malachitebft_core_types::{

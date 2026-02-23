@@ -36,9 +36,9 @@ use malachitebft_test_framework::{ConfigModifier, NodeRunner, TestNode};
 pub use malachitebft_test_framework::TestBuilder as GenTestBuilder;
 pub use malachitebft_test_framework::{HandlerResult, NodeId, TestParams};
 
-use informalsystems_malachitebft_test::middleware::Middleware;
-use informalsystems_malachitebft_test::node::Node;
-use informalsystems_malachitebft_test::{Height, TestContext, Validator, ValidatorSet};
+use arc_malachitebft_test::middleware::Middleware;
+use arc_malachitebft_test::node::Node;
+use arc_malachitebft_test::{Height, TestContext, Validator, ValidatorSet};
 
 pub type TestBuilder<S> = GenTestBuilder<TestContext, S>;
 

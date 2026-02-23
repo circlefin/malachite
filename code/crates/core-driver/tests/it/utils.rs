@@ -7,7 +7,7 @@ use malachitebft_core_types::{
 };
 use malachitebft_test::{Address, Height, Proposal, Signature, TestContext, Value, Vote};
 
-use informalsystems_malachitebft_core_driver::{Input, Output};
+use arc_malachitebft_core_driver::{Input, Output};
 
 pub fn new_round_input(round: Round, proposer: Address) -> Input<TestContext> {
     Input::NewRound(Height::new(1), round, proposer)

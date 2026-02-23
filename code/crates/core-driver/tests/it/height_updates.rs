@@ -4,7 +4,7 @@ use malachitebft_core_types::Round;
 use malachitebft_test::utils::validators::make_validators;
 use malachitebft_test::{Height, TestContext, ValidatorSet};
 
-use informalsystems_malachitebft_core_driver::Driver;
+use arc_malachitebft_core_driver::Driver;
 
 /// Test that move_to_height preserves the existing validator set
 #[test]

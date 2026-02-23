@@ -1,7 +1,7 @@
 use malachitebft_core_types::{NilOrVal, Round, SignedVote};
 use malachitebft_test::{Address, Height, PrivateKey, TestContext, ValueId, Vote};
 
-use informalsystems_malachitebft_core_votekeeper::EvidenceMap;
+use arc_malachitebft_core_votekeeper::EvidenceMap;
 
 #[derive(Clone, Copy)]
 enum VoteType {

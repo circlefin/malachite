@@ -1,4 +1,4 @@
-use informalsystems_malachitebft_test::{Height, TestContext};
+use arc_malachitebft_test::{Height, TestContext};
 use malachitebft_sync::{PeerId, State, Status};
 use std::collections::BTreeMap;
 

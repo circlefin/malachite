@@ -895,7 +895,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use informalsystems_malachitebft_test::{Height, TestContext};
+    use arc_malachitebft_test::{Height, TestContext};
     use std::collections::BTreeMap;
 
     type TestPendingRequests = BTreeMap<OutboundRequestId, (RangeInclusive<Height>, PeerId)>;
