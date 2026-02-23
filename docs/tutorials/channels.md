@@ -34,7 +34,7 @@ In this tutorial we will build an example validator application using the Malach
 integration with the Malachite consensus engine using [Tokio](https://tokio.rs) channels.
 
 ## Naming
-While Malachite is comprised of several crates whose name start `informalsystems-malachitebft-`,
+While Malachite is comprised of several crates whose name start `arc-malachitebft-`,
 in this document we will use a shortened prefix `malachitebft-`, thanks to Cargo's ability
 to expose a dependency under a different name than the one derived from its crate name.
 More about this in the [Putting it all together](#putting-it-all-together) section.
@@ -328,25 +328,25 @@ tracing = "0.1.41"
 
 [dependencies.malachitebft-app-channel]
 version = "0.0.1"
-# This adds the `informalsystems-malachitebft-app-channel` as a dependency, but exposes it
+# This adds the `arc-malachitebft-app-channel` as a dependency, but exposes it
 # under `malachitebft_app_channel` instead of its full package name.
-git = "https://git@github.com/informalsystems/malachite.git"
-package = "informalsystems-malachitebft-app-channel"
+git = "https://git@github.com/circlefin/malachite.git"
+package = "arc-malachitebft-app-channel"
 
 [dependencies.malachitebft-proto]
 version = "0.0.1"
-git = "https://git@github.com/informalsystems/malachite.git"
-package = "informalsystems-malachitebft-proto"
+git = "https://git@github.com/circlefin/malachite.git"
+package = "arc-malachitebft-proto"
 
 [dependencies.malachitebft-test]
 version = "0.0.1"
-git = "https://git@github.com/informalsystems/malachite.git"
-package = "informalsystems-malachitebft-test"
+git = "https://git@github.com/circlefin/malachite.git"
+package = "arc-malachitebft-test"
 
 [dependencies.malachitebft-test-cli]
 version = "0.0.1"
-git = "https://git@github.com/informalsystems/malachite.git"
-package = "informalsystems-malachitebft-test-cli"
+git = "https://git@github.com/circlefin/malachite.git"
+package = "arc-malachitebft-test-cli"
 ```
 
 ### Application state

@@ -8,7 +8,7 @@ The `spawn.bash` script is a generic script that can run using the Bash command 
 
 * How to use with mandatory parameters:
 ```bash
-scripts/spawn.bash --nodes 5 --home $HOME/.malachite --app informalsystems-malachitebft-example-channel
+scripts/spawn.bash --nodes 5 --home $HOME/.malachite --app arc-malachitebft-example-channel
 ```
 
 The script will build the application (the `--app` parameter requires a Rust crate name) and run its `start` subcommand.
@@ -54,7 +54,7 @@ interpreter.
 ```fish
 scripts/spawn.fish --nodes 5 --home $HOME/.malachite
 ```
-The script will build the `informalsystems-malachitebft-example-channel` application by default, unless the name is
+The script will build the `arc-malachitebft-example-channel` application by default, unless the name is
 overwritten by the `--app` parameter. (the `--app` parameter requires a Rust crate name) Then it run the application's
 `start` subcommand.
 
@@ -62,7 +62,7 @@ overwritten by the `--app` parameter. (the `--app` parameter requires a Rust cra
 
 `--no-reset`: this will prevent the script cleaning up the WAL and database of the nodes in their configuration directory.
 
-`--app`: set the name of the application that will be built. The default is `informalsystems-malachitebft-example-channel`.
+`--app`: set the name of the application that will be built. The default is `arc-malachitebft-example-channel`.
 
 `--profile`: turn on profiling. The build profile will be set as `profiling` and the compiled binary will be read from
 the `target/profiling` directory.
@@ -121,8 +121,8 @@ are started using `nohup` and are running in the background as shell jobs.
 
 `NODES_HOME=$HOME/.malachite make -C scripts`: set the home directory for the nodes. The default is `$HOME/.malachite`.
 
-`APP_BINARY=informalsystems-malachitebft-example-channel make -C scripts`: set the name of the application that will be
-built and executed. The default is `informalsystems-malachitebft-example-channel`.
+`APP_BINARY=arc-malachitebft-example-channel make -C scripts`: set the name of the application that will be
+built and executed. The default is `arc-malachitebft-example-channel`.
 
 `RELEASE=1 make -C scripts`: set the build profile to `release`. The default is application build is `debug`.
 

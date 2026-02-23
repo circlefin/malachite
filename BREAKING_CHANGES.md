@@ -174,7 +174,7 @@ No breaking changes.
 - Removed the VoteSet synchronization protocol, as it is neither required nor sufficient for liveness.
   See ([#998](https://github.com/informalsystems/malachite/issues/998)) for more details.
 
-### `informalsystems-malachitebft-app-channel`
+### `arc-malachitebft-app-channel`
 - The `start_engine` function now takes two `Codec`s: one for the WAL and one for the network.
 
 ## 0.2.0
@@ -201,7 +201,7 @@ No breaking changes.
 - Added new variants to `TimeoutKind` enum: `PrevoteRebroadcast` and `PrecommitRebroadcast`.
 
 #### Struct Changes
-- Removed the `Extension` struct that was previously available at `informalsystems_malachitebft_core_types::Extension`.
+- Removed the `Extension` struct that was previously available at `arc_malachitebft_core_types::Extension`.
 - Removed the `extension` field from the `CommitSignature` struct.
 - Changed `CommitSignature::new()` method to take 2 parameters instead of 3.
 
@@ -269,7 +269,7 @@ No breaking changes.
   - `State::remove_full_proposals`
 
 
-### `informalsystems-malachitebft-sync`
+### `arc-malachitebft-sync`
 
 #### Struct Changes
 - Added new field to externally-constructible struct:
@@ -289,7 +289,7 @@ No breaking changes.
 - Changed parameter count:
   - `VoteSetResponse::new` now takes 4 parameters instead of 3
 
-### `informalsystems-malachitebft-engine`
+### `arc-malachitebft-engine`
 
 #### Enum Changes
 - Removed enums:
@@ -320,7 +320,7 @@ No breaking changes.
 - Removed struct:
   - `LocallyProposedValue` has been removed from the `host` module
 
-### `informalsystems-malachitebft-app-channel`
+### `arc-malachitebft-app-channel`
 
 #### Struct Changes
 - Added new fields to externally-constructible structs:
