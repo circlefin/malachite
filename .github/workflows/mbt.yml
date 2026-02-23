@@ -56,13 +56,13 @@ jobs:
         working-directory: code/crates/test/mbt
         run: |
           cargo nextest run \
-           -p informalsystems-malachitebft-test-mbt \
-           -p informalsystems-malachitebft-starknet-test-mbt \
+           -p arc-malachitebft-test-mbt \
+           -p arc-malachitebft-starknet-test-mbt \
            --all-features --no-run
       - name: Run tests
         working-directory: code/crates/test/mbt
         run: |
           cargo nextest run \
-           -p informalsystems-malachitebft-test-mbt \
-           -p informalsystems-malachitebft-starknet-test-mbt \
+           -p arc-malachitebft-test-mbt \
+           -p arc-malachitebft-starknet-test-mbt \
            --all-features

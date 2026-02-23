@@ -71,15 +71,15 @@ jobs:
           # Run the checks and capture output
           output_file="semver_check_output.txt"
           if cargo semver-checks \
-            --package informalsystems-malachitebft-core-types \
-            --package informalsystems-malachitebft-core-consensus \
-            --package informalsystems-malachitebft-engine \
-            --package informalsystems-malachitebft-app \
-            --package informalsystems-malachitebft-app-channel \
-            --package informalsystems-malachitebft-codec \
-            --package informalsystems-malachitebft-sync \
-            --package informalsystems-malachitebft-wal \
-            --package informalsystems-malachitebft-metrics \
+            --package arc-malachitebft-core-types \
+            --package arc-malachitebft-core-consensus \
+            --package arc-malachitebft-engine \
+            --package arc-malachitebft-app \
+            --package arc-malachitebft-app-channel \
+            --package arc-malachitebft-codec \
+            --package arc-malachitebft-sync \
+            --package arc-malachitebft-wal \
+            --package arc-malachitebft-metrics \
             --manifest-path code/Cargo.toml \
             > "$output_file" 2>&1; then
             echo "::success::Semver check passed"

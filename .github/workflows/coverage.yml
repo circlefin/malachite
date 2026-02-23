@@ -62,8 +62,8 @@ jobs:
         run: |
           cargo llvm-cov nextest \
             --workspace \
-            --exclude informalsystems-malachitebft-test-mbt \
-            --exclude informalsystems-malachitebft-starknet-test-mbt \
+            --exclude arc-malachitebft-test-mbt \
+            --exclude arc-malachitebft-starknet-test-mbt \
             --ignore-filename-regex crates/cli \
             --all-features \
             --no-capture \
@@ -121,8 +121,8 @@ jobs:
   #     - name: Generate code coverage
   #       run: |
   #         cargo llvm-cov nextest \
-  #          -p informalsystems-malachitebft-test-mbt \
-  #          -p informalsystems-malachitebft-starknet-test-mbt \
+  #          -p arc-malachitebft-test-mbt \
+  #          -p arc-malachitebft-starknet-test-mbt \
   #          --all-features --codecov --output-path coverage-mbt.info
   #     - name: Generate text report
   #       run: cargo llvm-cov report

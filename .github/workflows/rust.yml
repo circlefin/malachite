@@ -62,11 +62,11 @@ jobs:
             --all-features \
             --no-fail-fast \
             --failure-output final \
-            --exclude informalsystems-malachitebft-test \
-            --exclude informalsystems-malachitebft-test-mbt \
-            --exclude informalsystems-malachitebft-starknet-test \
-            --exclude informalsystems-malachitebft-starknet-test-mbt \
-            --exclude informalsystems-malachitebft-discovery-test
+            --exclude arc-malachitebft-test \
+            --exclude arc-malachitebft-test-mbt \
+            --exclude arc-malachitebft-starknet-test \
+            --exclude arc-malachitebft-starknet-test-mbt \
+            --exclude arc-malachitebft-discovery-test
 
   integration:
     name: Integration Tests
@@ -99,19 +99,19 @@ jobs:
         if: always()
         run: |
           cargo maelstrom --slots 8 \
-            --include 'package.equals(informalsystems-malachitebft-discovery-test)'
+            --include 'package.equals(arc-malachitebft-discovery-test)'
       - name: Run integration tests (Starknet app)
         if: always()
         run: |
           cargo maelstrom --slots 8 \
-            --include 'package.equals(informalsystems-malachitebft-starknet-test)' \
-            --exclude 'package.match(informalsystems-malachitebft-starknet-test-mbt)'
+            --include 'package.equals(arc-malachitebft-starknet-test)' \
+            --exclude 'package.match(arc-malachitebft-starknet-test-mbt)'
       - name: Run integration tests (Test app)
         if: always()
         run: |
           cargo maelstrom --slots 8 \
-            --include 'package.equals(informalsystems-malachitebft-test)' \
-            --exclude 'package.equals(informalsystems-malachitebft-test-mbt)'
+            --include 'package.equals(arc-malachitebft-test)' \
+            --exclude 'package.equals(arc-malachitebft-test-mbt)'
 
   no_std:
     name: no_std compatibility
@@ -130,7 +130,7 @@ jobs:
           cache-workspaces: "code"
           target: thumbv7m-none-eabi
       - name: Check no_std compatibility
-        run: cargo build --target thumbv7m-none-eabi -p informalsystems-malachitebft-peer
+        run: cargo build --target thumbv7m-none-eabi -p arc-malachitebft-peer
 
   clippy:
     name: Clippy
