@@ -292,8 +292,10 @@ dependencies = [
  "arc-malachitebft-core-state-machine",
  "arc-malachitebft-core-types",
  "arc-malachitebft-core-votekeeper",
+ "arc-malachitebft-signing",
  "arc-malachitebft-test",
  "derive-where",
+ "futures",
  "thiserror 2.0.16",
  "tracing",
 ]

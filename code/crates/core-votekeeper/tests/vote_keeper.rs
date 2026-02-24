@@ -121,6 +121,16 @@ fn precommit_apply_single_value() {
     let msg = keeper.apply_vote(vote.clone(), round);
     assert_eq!(msg, None);
 
+    // Duplicated
+    let vote = new_signed_precommit(height, Round::new(0), val, addr1);
+    let msg = keeper.apply_vote(vote.clone(), round);
+    assert_eq!(msg, None);
+
+    let vote = new_signed_precommit(height, Round::new(0), val, addr2);
+    let msg = keeper.apply_vote(vote.clone(), round);
+    assert_eq!(msg, None);
+
+    // Duplicated
     let vote = new_signed_precommit(height, Round::new(0), val, addr2);
     let msg = keeper.apply_vote(vote.clone(), round);
     assert_eq!(msg, None);
@@ -132,6 +142,17 @@ fn precommit_apply_single_value() {
     let vote = new_signed_precommit(height, Round::new(0), val, addr4);
     let msg = keeper.apply_vote(vote, round);
     assert_eq!(msg, Some(Output::PrecommitValue(id)));
+
+    let per_round = keeper.per_round(round);
+
+    match per_round {
+        Some(per_round) => {
+            // Build a commit certificate for (round, val)
+            let cert = per_round.precommits_for_value(&id);
+            assert_eq!(cert.len(), 3);
+        }
+        None => panic!("Per round not found"),
+    }
 }
 
 #[test]
