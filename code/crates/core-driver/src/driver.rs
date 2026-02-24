@@ -390,6 +390,10 @@ where
         if timeout.round < self.round() || self.scheduled_timeouts.contains(&timeout) {
             return;
         }
+        // XXX: test if the driver produces **non**-consensus timeouts
+        if !timeout.is_consensus() {
+            panic!("lift_timeout_output received {timeout:?}");
+        }
         self.scheduled_timeouts.push(timeout);
         outputs.push(Output::ScheduleTimeout(timeout));
     }
