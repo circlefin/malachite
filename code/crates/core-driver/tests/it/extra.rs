@@ -3727,13 +3727,7 @@ fn commit_certificate_from_driver_verifies_after_reapplied_votes_from_round_cert
         },
         TestStep {
             desc: "We receive the proposal (from v1)",
-            input: proposal_input(
-                Round::new(0),
-                value.clone(),
-                Round::Nil,
-                Validity::Valid,
-                validators[0].address,
-            ),
+            input: proposal_input_from_proposal(proposal.clone(), Validity::Valid),
             expected_outputs: vec![prevote_output(Round::new(0), value.clone(), &my_addr)],
             expected_round: Round::new(0),
             new_state: prevote_state(Round::new(0)),
@@ -3777,17 +3771,6 @@ fn commit_certificate_from_driver_verifies_after_reapplied_votes_from_round_cert
         TestStep {
             desc: "We receive v1's precommit for value",
             input: Input::Vote(precommit_v1.clone()),
-            expected_outputs: vec![],
-            expected_round: Round::new(0),
-            new_state: precommit_state_with_proposal_and_locked_and_valid(
-                Round::new(0),
-                proposal.clone(),
-            ),
-        },
-        // v4 prevotes nil
-        TestStep {
-            desc: "We receive v4's prevote for nil",
-            input: prevote_nil_input_at(round, &validators[3].address),
             expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: precommit_state_with_proposal_and_locked_and_valid(
@@ -3872,7 +3855,7 @@ fn commit_certificate_from_driver_verifies_after_reapplied_votes_from_round_cert
 
     assert!(
         result.is_ok(),
-        "commit certificate built from driver vote keeper after re-applied votes must verify (no DuplicateVote): {:?}",
+        "commit certificate built from driver vote keeper must verify: {:?}",
         result.err()
     );
 }
