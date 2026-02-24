@@ -50,11 +50,10 @@ where
         state.params.threshold_params,
     )
     .await?;
-    assert!(
-        result.is_ok(),
-        "Decide: Commit certificate is not valid: {:?}",
-        result.err()
-    );
+
+    if let Err(e) = result {
+        panic!("Decide: Commit certificate is not valid: {e:?}");
+    }
 
     // Update metrics
     #[cfg(feature = "metrics")]
