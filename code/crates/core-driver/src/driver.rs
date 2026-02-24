@@ -190,19 +190,10 @@ where
         round: Round,
         value_id: &ValueId<Ctx>,
     ) -> Vec<SignedVote<Ctx>> {
-        if let Some(per_round) = self.vote_keeper.per_round(round) {
-            per_round
-                .received_votes()
-                .iter()
-                .filter(|v| {
-                    v.vote_type() == VoteType::Precommit
-                        && v.value() == &NilOrVal::Val(value_id.clone())
-                })
-                .cloned()
-                .collect()
-        } else {
-            Vec::new()
-        }
+        self.vote_keeper
+            .per_round(round)
+            .map(|per_round| per_round.precommits_for_value(value_id))
+            .unwrap_or_default()
     }
 
     /// Return a reference to the proposal keeper

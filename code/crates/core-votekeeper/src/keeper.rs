@@ -142,6 +142,18 @@ where
         &self.received_votes
     }
 
+    /// Return precommits for the given value in this round.
+    pub fn precommits_for_value(&self, value_id: &ValueId<Ctx>) -> Vec<SignedVote<Ctx>> {
+        self.received_votes
+            .iter()
+            .filter(|v| {
+                v.vote_type() == VoteType::Precommit
+                    && v.value() == &NilOrVal::Val(value_id.clone())
+            })
+            .cloned()
+            .collect()
+    }
+
     /// Return the addresses and their weights for this round.
     pub fn addresses_weights(&self) -> &RoundWeights<Ctx::Address> {
         &self.addresses_weights
