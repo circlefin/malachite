@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 
 use dashmap::DashMap;
 use malachitebft_metrics::prometheus::metrics::counter::Counter;
+use malachitebft_metrics::prometheus::metrics::gauge::Gauge;
 use malachitebft_metrics::prometheus::metrics::histogram::{exponential_buckets, Histogram};
 use malachitebft_metrics::SharedRegistry;
 
@@ -37,6 +38,12 @@ pub struct Inner {
     status_update_interval: Duration,
 
     pub scoring: crate::scoring::metrics::Metrics,
+
+    /// Number of heights in the sync input queue
+    pub sync_queue_heights: Gauge,
+
+    /// Number of inputs in the sync input queue across all heights
+    pub sync_queue_size: Gauge,
 }
 
 impl Inner {
@@ -58,6 +65,8 @@ impl Inner {
             instant_last_status_received: Arc::new(Mutex::new(None)),
             status_update_interval,
             scoring: crate::scoring::metrics::Metrics::new(),
+            sync_queue_heights: Gauge::default(),
+            sync_queue_size: Gauge::default(),
         }
     }
 }
@@ -115,6 +124,18 @@ impl Metrics {
             );
 
             metrics.scoring.register(registry);
+
+            registry.register(
+                "sync_queue_heights",
+                "Number of heights in the sync input queue",
+                metrics.sync_queue_heights.clone(),
+            );
+
+            registry.register(
+                "sync_queue_size",
+                "Number of inputs in the sync input queue across all heights",
+                metrics.sync_queue_size.clone(),
+            );
 
             registry.register(
                 "status_interarrival",
@@ -192,6 +213,11 @@ impl Metrics {
             }
         }
         *last_recv_guard = Some(now);
+    }
+
+    pub fn sync_queue_updated(&self, heights: usize, size: usize) {
+        self.sync_queue_heights.set(heights as _);
+        self.sync_queue_size.set(size as _);
     }
 }
 

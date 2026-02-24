@@ -38,6 +38,7 @@
 - Add network metrics for peer identification and tracking
 - Add transport level connection limits
 - Limit the number of peers that can connect from same IP address
+- Update `libp2p-scatter` to v0.4.0-rc.1 ([#1473](https://github.com/circlefin/malachite/pull/1473))
 
 ### `signing`
 - Implement `SigningProvider` for `Arc<T>` where `T: SigningProvider`
@@ -49,6 +50,11 @@
 - Refactor sync actor to notify consensus of sync responses
 - Support batch retrieval of decided values
 - Validate value request ranges before processing
+- Introduce a new mode that sends a status update as soon as a new height is started rather than at a fixed interval ([#1452](https://github.com/circlefin/malachite/pull/1452))
+  To enable this mode, set `status_update_interval = 0`.
+- Queue sync responses for future heights in the Sync actor ([#1467](https://github.com/circlefin/malachite/pull/1467))
+  Instead of buffering sync responses in the core-consensus input queue, sync responses are now buffered directly in the Sync actor.
+  This prevents sync responses and consensus messages from contending over the input queue.
 
 ## 0.6.0
 

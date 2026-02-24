@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::ops::RangeInclusive;
 use std::time::Duration;
@@ -8,13 +9,15 @@ use bytesize::ByteSize;
 use derive_where::derive_where;
 use eyre::eyre;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
-use rand::{Rng as _, SeedableRng};
+use rand::SeedableRng;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, warn, Instrument};
 
 use malachitebft_codec as codec;
+use malachitebft_core_consensus::util::bounded_queue::BoundedQueue;
 use malachitebft_core_consensus::PeerId;
 use malachitebft_core_types::utils::height::DisplayRange;
+use malachitebft_core_types::ValueResponse as CoreValueResponse;
 use malachitebft_core_types::{CommitCertificate, Context};
 use malachitebft_sync::{
     self as sync, HeightStartType, InboundRequestId, OutboundRequestId, RawDecidedValue, Request,
@@ -126,7 +129,13 @@ impl<Ctx: Context> From<TimeoutElapsed<Timeout>> for Msg<Ctx> {
 
 #[derive(Debug)]
 pub struct Params {
+    /// Interval at which to update other peers of our status
+    /// If set to 0s, status updates are sent eagerly right after each decision.
+    /// Default: 5s
     pub status_update_interval: Duration,
+
+    /// Timeout duration for sync requests
+    /// Default: 10s
     pub request_timeout: Duration,
 }
 
@@ -139,6 +148,31 @@ impl Default for Params {
     }
 }
 
+/// A sync value buffered in the queue, tagged with the request that produced it.
+#[derive_where(Clone, Debug)]
+struct BufferedValue<Ctx: Context> {
+    request_id: OutboundRequestId,
+    value: CoreValueResponse<Ctx>,
+}
+
+impl<Ctx: Context> BufferedValue<Ctx> {
+    fn new(request_id: OutboundRequestId, value: CoreValueResponse<Ctx>) -> Self {
+        Self { request_id, value }
+    }
+}
+
+/// A queue of buffered sync values for heights ahead of consensus, keyed by height.
+type SyncQueue<Ctx> = BoundedQueue<<Ctx as Context>::Height, BufferedValue<Ctx>>;
+
+/// The mode for sending status updates
+enum StatusUpdateMode {
+    /// Send status updates at regular intervals
+    Interval(JoinHandle<()>), // the ticker task handle
+
+    /// Send status updates with tip height when starting a new height
+    OnStartedHeight,
+}
+
 pub struct State<Ctx: Context> {
     /// The state of the sync state machine
     sync: sync::State<Ctx>,
@@ -149,8 +183,23 @@ pub struct State<Ctx: Context> {
     /// In-flight requests
     inflight: InflightRequests<Ctx>,
 
-    /// Task for sending status updates
-    ticker: JoinHandle<()>,
+    /// Queue of sync value responses for heights ahead of consensus
+    sync_queue: SyncQueue<Ctx>,
+
+    /// Status update mode
+    status_update_mode: StatusUpdateMode,
+}
+
+struct HandlerState<'a, Ctx: Context> {
+    /// Scheduler for timers, used to start new timers for outgoing requests
+    /// and correlate elapsed timers to the original request and peer.
+    timers: &'a mut Timers,
+    /// In-flight requests, used to correlate timeouts and responses to the original request and peer.
+    inflight: &'a mut InflightRequests<Ctx>,
+    /// Buffer for sync responses for heights ahead of consensus, keyed by height.
+    sync_queue: &'a mut SyncQueue<Ctx>,
+    /// The current consensus height according to the last processed input.
+    consensus_height: Ctx::Height,
 }
 
 #[allow(dead_code)]
@@ -233,12 +282,23 @@ where
         state: &mut State<Ctx>,
         input: sync::Input<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
+        let mut handler_state = HandlerState {
+            timers: &mut state.timers,
+            inflight: &mut state.inflight,
+            sync_queue: &mut state.sync_queue,
+            consensus_height: state.sync.consensus_height,
+        };
+
         malachitebft_sync::process!(
             input: input,
             state: &mut state.sync,
             metrics: &self.metrics,
             with: effect => {
-                self.handle_effect(myself, &mut state.timers, &mut state.inflight, effect).await
+                self.handle_effect(
+                    myself,
+                    &mut handler_state,
+                    effect,
+                ).await
             }
         )
     }
@@ -253,8 +313,7 @@ where
     async fn handle_effect(
         &self,
         myself: &ActorRef<Msg<Ctx>>,
-        timers: &mut Timers,
-        inflight: &mut InflightRequests<Ctx>,
+        state: &mut HandlerState<'_, Ctx>,
         effect: sync::Effect<Ctx>,
     ) -> Result<sync::Resume<Ctx>, ActorProcessingErr> {
         use sync::Effect;
@@ -281,12 +340,12 @@ where
                     Ok(request_id) => {
                         let request_id = OutboundRequestId::new(request_id);
 
-                        timers.start_timer(
+                        state.timers.start_timer(
                             Timeout::Request(request_id.clone()),
                             self.params.request_timeout,
                         );
 
-                        inflight.insert(
+                        state.inflight.insert(
                             request_id.clone(),
                             InflightRequest {
                                 peer_id,
@@ -328,16 +387,73 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::ProcessValueResponse(peer_id, response, r) => {
-                if let Err(e) = self
-                    .consensus
-                    .cast(ConsensusMsg::ProcessSyncResponse(peer_id, response))
-                {
-                    error!("Failed to forward value response to consensus: {e}");
-                }
-
+            Effect::ProcessValueResponse(peer_id, request_id, response, r) => {
+                self.process_value_response(state, peer_id, request_id, response);
                 Ok(r.resume_with(()))
             }
+        }
+    }
+
+    fn process_value_response(
+        &self,
+        state: &mut HandlerState<'_, Ctx>,
+        peer_id: PeerId,
+        request_id: OutboundRequestId,
+        response: sync::ValueResponse<Ctx>,
+    ) {
+        let consensus_height = state.consensus_height;
+        let mut ignored = Vec::new();
+        let mut buffered = Vec::new();
+
+        for raw_value in response.values {
+            let height = raw_value.height();
+            let value = raw_value.to_core(peer_id);
+
+            match height.cmp(&consensus_height) {
+                // The value is for a height that has already been decided, ignore it.
+                Ordering::Less => {
+                    ignored.push(height);
+                }
+
+                // The value is for a height ahead of consensus, buffer it for later processing when we reach that height.
+                Ordering::Greater => {
+                    let buffered_value = BufferedValue::new(request_id.clone(), value);
+                    if state.sync_queue.push(height, buffered_value) {
+                        buffered.push(height);
+                    } else {
+                        warn!(%peer_id, %request_id, %height, "Failed to buffer sync response, queue is full");
+                    }
+                }
+
+                // The value is for the current consensus height, process it immediately.
+                Ordering::Equal => {
+                    debug!(%peer_id, %request_id, %height, "Processing value for current consensus height");
+
+                    if let Err(e) = self
+                        .consensus
+                        .cast(ConsensusMsg::ProcessSyncResponse(value))
+                    {
+                        error!("Failed to forward value response to consensus: {e}");
+                    }
+                }
+            }
+        }
+
+        self.metrics
+            .sync_queue_updated(state.sync_queue.len(), state.sync_queue.size());
+
+        if !ignored.is_empty() {
+            debug!(
+                %peer_id, %request_id, ?ignored,
+                "Ignored {} values for already decided heights", ignored.len()
+            );
+        }
+
+        if !buffered.is_empty() {
+            debug!(
+                %peer_id, %request_id, ?buffered,
+                "Buffered {} values for heights ahead of consensus", buffered.len()
+            );
         }
     }
 
@@ -349,7 +465,7 @@ where
     ) -> Result<(), ActorProcessingErr> {
         match msg {
             Msg::Tick => {
-                self.process_input(&myself, state, sync::Input::Tick)
+                self.process_input(&myself, state, sync::Input::SendStatusUpdate)
                     .await?;
             }
 
@@ -417,8 +533,41 @@ where
 
             // (Re)Started a new height
             Msg::StartedHeight(height, restart) => {
+                if restart.is_restart() {
+                    // Clear the sync queue
+                    state.sync_queue.clear();
+                    self.metrics.sync_queue_updated(0, 0);
+                }
+
                 self.process_input(&myself, state, sync::Input::StartedHeight(height, restart))
-                    .await?
+                    .await?;
+
+                // If in OnStartedHeight mode, send a status update for the previous decision,
+                // now that we know for sure that the application has stored the decided value,
+                // and we have updated our tip height.
+                if let StatusUpdateMode::OnStartedHeight = &state.status_update_mode {
+                    self.process_input(&myself, state, sync::Input::SendStatusUpdate)
+                        .await?;
+                }
+
+                // Drain buffered sync responses for this height
+                for buffered in state.sync_queue.shift_and_take(&height) {
+                    if let Err(e) = self
+                        .consensus
+                        .cast(ConsensusMsg::ProcessSyncResponse(buffered.value))
+                    {
+                        error!("Failed to forward buffered sync response to consensus: {e}");
+                        break;
+                    }
+                }
+
+                // Update metrics
+                self.metrics
+                    .sync_queue_heights
+                    .set(state.sync_queue.len() as i64);
+                self.metrics
+                    .sync_queue_size
+                    .set(state.sync_queue.size() as i64);
             }
 
             // Decided on a value
@@ -453,6 +602,22 @@ where
             }
 
             Msg::InvalidValue(peer, height) => {
+                // Remove buffered values that came from the same request as the invalid value.
+                // This prevents stale values from a bad peer from being drained to consensus
+                // when the height advances.
+                if let Some((request_id, _)) = state.sync.get_request_id_by(height) {
+                    let removed = state.sync_queue.retain(|_, bv| bv.request_id != request_id);
+
+                    if removed > 0 {
+                        debug!(
+                            %peer, %height, %request_id, removed,
+                            "Removed buffered values from invalidated request"
+                        );
+                        self.metrics
+                            .sync_queue_updated(state.sync_queue.len(), state.sync_queue.size());
+                    }
+                }
+
                 self.process_input(&myself, state, sync::Input::InvalidValue(peer, height))
                     .await?
             }
@@ -496,6 +661,33 @@ where
         }
 
         Ok(())
+    }
+}
+
+fn status_update_mode<Ctx, R>(
+    interval: Duration,
+    sync: &ActorRef<Msg<Ctx>>,
+    rng: &mut R,
+) -> StatusUpdateMode
+where
+    Ctx: Context,
+    R: rand::Rng,
+{
+    if interval == Duration::ZERO {
+        info!("Using status update mode: OnStartedHeight");
+        StatusUpdateMode::OnStartedHeight
+    } else {
+        info!("Using status update mode: Interval");
+
+        // One-time uniform adjustment factor [-1%, +1%]
+        const ADJ_RATE: f64 = 0.01;
+        let adjustment = rng.gen_range(-ADJ_RATE..=ADJ_RATE);
+
+        let ticker = tokio::spawn(
+            ticker(interval, sync.clone(), adjustment, || Msg::Tick).in_current_span(),
+        );
+
+        StatusUpdateMode::Interval(ticker)
     }
 }
 
@@ -560,25 +752,19 @@ where
 
         let mut rng = Box::new(rand::rngs::StdRng::from_entropy());
 
-        // One-time uniform adjustment factor [-1%, +1%]
-        const ADJ_RATE: f64 = 0.01;
-        let adjustment = rng.gen_range(-ADJ_RATE..=ADJ_RATE);
+        let status_update_mode =
+            status_update_mode(self.params.status_update_interval, &myself, &mut rng);
 
-        let ticker = tokio::spawn(
-            ticker(
-                self.params.status_update_interval,
-                myself.clone(),
-                adjustment,
-                || Msg::Tick,
-            )
-            .in_current_span(),
-        );
+        // NOTE: The queue capacity is set to accommodate all individual values for the
+        // maximum number of parallel requests and batch size, with some additional buffer.
+        let queue_capacity = 2 * self.sync_config.parallel_requests * self.sync_config.batch_size;
 
         Ok(State {
             sync: sync::State::new(rng, self.sync_config),
             timers: Timers::new(Box::new(myself.clone())),
             inflight: HashMap::new(),
-            ticker,
+            sync_queue: SyncQueue::new(queue_capacity),
+            status_update_mode,
         })
     }
 
@@ -609,7 +795,10 @@ where
         _myself: ActorRef<Self::Msg>,
         state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
-        state.ticker.abort();
+        if let StatusUpdateMode::Interval(ticker) = &state.status_update_mode {
+            ticker.abort();
+        }
+
         Ok(())
     }
 }

@@ -6,7 +6,9 @@ use displaydoc::Display;
 use libp2p::request_response;
 use serde::{Deserialize, Serialize};
 
+use malachitebft_core_types::ValueResponse as CoreValueResponse;
 use malachitebft_core_types::{CommitCertificate, Context, Height};
+
 pub use malachitebft_peer::PeerId;
 
 /// Indicates whether the height is the start of a new height or a restart of the latest height
@@ -125,6 +127,14 @@ impl<Ctx: Context> RawDecidedValue<Ctx> {
             value_bytes,
             certificate,
         }
+    }
+
+    pub fn height(&self) -> Ctx::Height {
+        self.certificate.height
+    }
+
+    pub fn to_core(self, peer: PeerId) -> CoreValueResponse<Ctx> {
+        CoreValueResponse::new(peer, self.value_bytes, self.certificate)
     }
 }
 

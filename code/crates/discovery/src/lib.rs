@@ -25,6 +25,9 @@ use handlers::selection::selector::Selector;
 mod metrics;
 use metrics::Metrics;
 
+mod rate_limiter;
+use rate_limiter::DiscoveryRateLimiter;
+
 mod request;
 
 pub mod util;
@@ -85,6 +88,9 @@ where
     pub connections: HashMap<ConnectionId, ConnectionInfo>,
     outbound_peers: HashMap<PeerId, OutboundState>,
     inbound_peers: HashSet<PeerId>,
+
+    /// Rate limiter for peers requests
+    rate_limiter: DiscoveryRateLimiter,
 
     pub controller: Controller,
     metrics: Metrics,
@@ -156,6 +162,8 @@ where
             connections: HashMap::new(),
             outbound_peers: HashMap::new(),
             inbound_peers: HashSet::new(),
+
+            rate_limiter: DiscoveryRateLimiter::default(),
 
             controller: Controller::new(),
             metrics: Metrics::new(registry, !config.enabled || bootstrap_nodes.is_empty()),

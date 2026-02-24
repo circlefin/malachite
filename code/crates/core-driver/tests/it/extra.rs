@@ -1,8 +1,12 @@
+use futures::executor::block_on;
 use malachitebft_core_state_machine::state::State;
-use malachitebft_core_types::{Round, Validity};
+use malachitebft_core_types::{
+    CommitCertificate, Context, NilOrVal, Round, ThresholdParams, Validity,
+};
+use malachitebft_signing::{SigningProvider, SigningProviderExt};
 
-use malachitebft_test::utils::validators::make_validators;
-use malachitebft_test::{Height, Proposal, TestContext, ValidatorSet, Value};
+use malachitebft_test::utils::validators::{make_validators, make_validators_seeded};
+use malachitebft_test::{Ed25519Provider, Height, Proposal, TestContext, ValidatorSet, Value};
 
 use informalsystems_malachitebft_core_driver::{Driver, Input, Output};
 
@@ -3644,6 +3648,216 @@ fn sync_decision_certificate_then_proposal() {
     ];
 
     run_steps(&mut driver, steps);
+}
+
+// Commit certificate from driver after re-applied votes (round-certificate simulation).
+//
+// We are v2 (local node). Sequence:
+// - Start round 0, receive proposal, send our (v2) prevote
+// - Receive prevotes from v1, v3, we have a polka, we precommit
+// - Receive precommit our (v2) precommit and v1's (we don't have +2/3 in round 0 yet) (simulates restart of v3 with proposal and prevote)
+// - Receive v4's nil prevote and precommit (simulates restart of v4 without proposal)
+// - Re-apply precommits v1, v2, v4 (simulate round certificate)
+// - Late precommit from v3, we have a quorum and decide (simulates restart of v3 with proposal and prevote)
+// - Build the commit certificate from the driver's received_votes and verify
+#[test]
+fn commit_certificate_from_driver_verifies_after_reapplied_votes_from_round_certificate() {
+    const SEED: u64 = 0xfeedbeef;
+    let validators_and_keys = make_validators_seeded([10, 10, 10, 10], SEED);
+    let validators: Vec<_> = validators_and_keys.iter().map(|(v, _)| v.clone()).collect();
+    let signers: Vec<Ed25519Provider> = validators_and_keys
+        .iter()
+        .map(|(_, sk)| Ed25519Provider::new(sk.clone()))
+        .collect();
+    let validator_set = ValidatorSet::new(validators.clone());
+    let ctx = TestContext::new();
+    let height = Height::new(1);
+    let round = Round::new(0);
+    let value = Value::new(42);
+    let value_id = value.id();
+    let my_addr = validators[1].address; // we are v2
+
+    // Precommits for value need real signatures for certificate verification at end.
+    let precommit_v1 = block_on(signers[0].sign_vote(ctx.new_precommit(
+        height,
+        round,
+        NilOrVal::Val(value_id),
+        validators[0].address,
+    )))
+    .unwrap();
+    let precommit_v2 = block_on(signers[1].sign_vote(ctx.new_precommit(
+        height,
+        round,
+        NilOrVal::Val(value_id),
+        validators[1].address,
+    )))
+    .unwrap();
+    let precommit_v3 = block_on(signers[2].sign_vote(ctx.new_precommit(
+        height,
+        round,
+        NilOrVal::Val(value_id),
+        validators[2].address,
+    )))
+    .unwrap();
+
+    let proposal = Proposal::new(
+        height,
+        round,
+        value.clone(),
+        Round::Nil,
+        validators[0].address,
+    );
+
+    let mut driver = Driver::new(
+        ctx.clone(),
+        height,
+        validator_set.clone(),
+        my_addr,
+        Default::default(),
+    );
+
+    let steps = vec![
+        // Start and proposal
+        TestStep {
+            desc: "Start round 0, we (v2) are not the proposer",
+            input: new_round_input(Round::new(0), validators[0].address),
+            expected_outputs: vec![start_propose_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "We receive the proposal (from v1)",
+            input: proposal_input_from_proposal(proposal.clone(), Validity::Valid),
+            expected_outputs: vec![prevote_output(Round::new(0), value.clone(), &my_addr)],
+            expected_round: Round::new(0),
+            new_state: prevote_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "We (v2) get our prevote for value",
+            input: prevote_input_at(round, value.clone(), &validators[1].address),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: prevote_state(Round::new(0)),
+        },
+        // +2/3 Prevotes, Polka
+        TestStep {
+            desc: "We receive v1's prevote for value",
+            input: prevote_input_at(round, value.clone(), &validators[0].address),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: prevote_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "We receive v3's prevote for value, we have a Polka, we (v2) precommit",
+            input: prevote_input_at(round, value.clone(), &validators[2].address),
+            expected_outputs: vec![precommit_output(Round::new(0), value.clone(), &my_addr)],
+            expected_round: Round::new(0),
+            new_state: precommit_state_with_proposal_and_locked_and_valid(
+                Round::new(0),
+                proposal.clone(),
+            ),
+        },
+        TestStep {
+            desc: "We (v2) get our precommit for value",
+            input: Input::Vote(precommit_v2.clone()),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: precommit_state_with_proposal_and_locked_and_valid(
+                Round::new(0),
+                proposal.clone(),
+            ),
+        },
+        // Receive some Precommits (only v1 and v2 so far, < 2/3)
+        TestStep {
+            desc: "We receive v1's precommit for value",
+            input: Input::Vote(precommit_v1.clone()),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: precommit_state_with_proposal_and_locked_and_valid(
+                Round::new(0),
+                proposal.clone(),
+            ),
+        },
+        TestStep {
+            desc:
+                "We receive v4's precommit for nil (+2/3 precommits total, start precommit timer)",
+            input: precommit_nil_input(round, &validators[3].address),
+            expected_outputs: vec![start_precommit_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: precommit_state_with_proposal_and_locked_and_valid(
+                Round::new(0),
+                proposal.clone(),
+            ),
+        },
+        // Simulate round certificate with previous precommits by re-applying precommits: v1, v2, v4(nil)
+        TestStep {
+            desc: "Re-apply v1 precommit (simulate round certificate)",
+            input: Input::Vote(precommit_v1.clone()),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: precommit_state_with_proposal_and_locked_and_valid(
+                Round::new(0),
+                proposal.clone(),
+            ),
+        },
+        TestStep {
+            desc: "Re-apply v2 precommit (simulate round certificate)",
+            input: Input::Vote(precommit_v2.clone()),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: precommit_state_with_proposal_and_locked_and_valid(
+                Round::new(0),
+                proposal.clone(),
+            ),
+        },
+        TestStep {
+            desc: "Re-apply v4 precommit (simulate round certificate)",
+            input: precommit_nil_input(round, &validators[3].address),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: precommit_state_with_proposal_and_locked_and_valid(
+                Round::new(0),
+                proposal.clone(),
+            ),
+        },
+        // Late precommit triggers decide
+        TestStep {
+            desc: "We receive v3's late precommit, reached quorum, decide",
+            input: Input::Vote(precommit_v3),
+            expected_outputs: vec![decide_output(Round::new(0), proposal.clone())],
+            expected_round: Round::new(0),
+            new_state: decided_state_with_proposal_and_locked_and_valid(
+                Round::new(0),
+                proposal.clone(),
+            ),
+        },
+    ];
+
+    for step in steps {
+        println!("Step: {}", step.desc);
+        let outputs = driver.process(step.input).expect("execute succeeded");
+        assert_eq!(outputs, step.expected_outputs, "expected outputs");
+        assert_eq!(driver.round(), step.expected_round, "expected round");
+        assert_eq!(driver.round_state(), &step.new_state, "expected state");
+    }
+
+    // Build certificate from restore_precommits and verify.
+    let commits = driver.restore_precommits(round, &value_id);
+
+    let certificate = CommitCertificate::new(height, round, value_id, commits);
+
+    let result = block_on(signers[0].verify_commit_certificate(
+        &ctx,
+        &certificate,
+        &validator_set,
+        ThresholdParams::default(),
+    ));
+
+    assert!(
+        result.is_ok(),
+        "commit certificate built from driver vote keeper must verify: {:?}",
+        result.err()
+    );
 }
 
 fn run_steps(driver: &mut Driver<TestContext>, steps: Vec<TestStep>) {

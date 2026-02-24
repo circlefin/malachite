@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::scoring::Strategy;
 
-const DEFAULT_PARALLEL_REQUESTS: u64 = 5;
+const DEFAULT_PARALLEL_REQUESTS: usize = 5;
 const DEFAULT_BATCH_SIZE: usize = 5;
 
 #[derive(Copy, Clone, Debug)]
@@ -11,7 +11,7 @@ pub struct Config {
     pub request_timeout: Duration,
     pub max_request_size: usize,
     pub max_response_size: usize,
-    pub parallel_requests: u64,
+    pub parallel_requests: usize,
     pub scoring_strategy: Strategy,
     pub inactive_threshold: Option<Duration>,
     pub batch_size: usize,
@@ -40,7 +40,7 @@ impl Config {
         self
     }
 
-    pub fn with_parallel_requests(mut self, parallel_requests: u64) -> Self {
+    pub fn with_parallel_requests(mut self, parallel_requests: usize) -> Self {
         self.parallel_requests = parallel_requests;
         self
     }
