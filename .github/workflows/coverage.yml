@@ -24,8 +24,8 @@ jobs:
       code: ${{ steps.filter.outputs.code }}
       specs: ${{ steps.filter.outputs.specs }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: step-security/paths-filter@6eee183b0d2fd101d3f8ee2935c127bca14c5625 # v3.0.5
         id: filter
         with:
           filters: |
@@ -152,12 +152,12 @@ jobs:
       - name: Create coverage directory
         run: mkdir -p code/coverage
       - name: Download integration coverage
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: integration-coverage
           path: code/coverage
       # - name: Download MBT coverage
-      #   uses: actions/download-artifact@v4
+      #   uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
       #   with:
       #     name: mbt-coverage
       #     path: code/coverage

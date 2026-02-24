@@ -16,8 +16,8 @@ jobs:
     outputs:
       specs: ${{ steps.filter.outputs.specs }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: step-security/paths-filter@6eee183b0d2fd101d3f8ee2935c127bca14c5625 # v3.0.5
         id: filter
         with:
           filters: |
@@ -30,8 +30,8 @@ jobs:
     if: ${{ needs.changes.outputs.specs == 'true' || github.ref == 'refs/heads/main' }}
     runs-on: github-hosted-small
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
         with:
           node-version: "18"
       - run: npm install -g @informalsystems/quint
@@ -45,8 +45,8 @@ jobs:
     env:
       MAX_SAMPLES: 100
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
         with:
           node-version: "18"
       - run: npm install -g @informalsystems/quint
