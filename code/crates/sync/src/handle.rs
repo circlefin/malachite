@@ -230,12 +230,13 @@ where
     debug!(%height, is_restart = %start_type.is_restart(), "Consensus started new height");
 
     state.started = true;
+    state.consensus_height = height;
 
     // The tip is the last decided value.
     state.tip_height = height.decrement().unwrap_or_default();
 
     // Garbage collect fully-validated requests.
-    state.remove_fully_validated_requests();
+    state.prune_pending_requests();
 
     if start_type.is_restart() {
         // Consensus is retrying the height, so we should sync starting from it.
@@ -265,8 +266,8 @@ where
 
     state.tip_height = height;
 
-    // Garbage collect fully-validated requests.
-    state.remove_fully_validated_requests();
+    // Garbage collect pending requests for heights up to the new tip.
+    state.prune_pending_requests();
 
     // The next height to sync should always be higher than the tip.
     if state.sync_height == state.tip_height {
@@ -410,7 +411,7 @@ where
     // Tell consensus to process the response.
     perform!(
         co,
-        Effect::ProcessValueResponse(peer_id, response, Default::default())
+        Effect::ProcessValueResponse(peer_id, request_id.clone(), response, Default::default())
     );
 
     // If the response contains a prefix of the requested values, re-request the remaining values.
@@ -627,17 +628,17 @@ where
 {
     let max_parallel_requests = state.max_parallel_requests();
 
-    if state.pending_requests.len() as u64 >= max_parallel_requests {
+    if state.pending_requests.len() >= max_parallel_requests {
         info!(
-            %max_parallel_requests,
-            pending_requests = %state.pending_requests.len(),
+            max_parallel_requests,
+            pending_requests = state.pending_requests.len(),
             "Maximum number of parallel requests reached, skipping request for values"
         );
 
         return Ok(());
     };
 
-    while (state.pending_requests.len() as u64) < max_parallel_requests {
+    while state.pending_requests.len() < max_parallel_requests {
         // Find the next uncovered range starting from current sync_height
         let initial_height = state.sync_height;
         let range = find_next_uncovered_range_from::<Ctx>(
@@ -677,7 +678,7 @@ where
     // from peers and hints to potential reconfiguration.
     let max_parallel_requests = state.max_parallel_requests();
 
-    if state.pending_requests.len() as u64 >= max_parallel_requests {
+    if state.pending_requests.len() >= max_parallel_requests {
         info!(
             %max_parallel_requests,
             pending_requests = %state.pending_requests.len(),

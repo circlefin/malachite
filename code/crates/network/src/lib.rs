@@ -60,6 +60,7 @@ pub struct ProtocolNames {
     pub discovery_kad: String,
     pub discovery_regres: String,
     pub sync: String,
+    pub broadcast: String,
 }
 
 impl Default for ProtocolNames {
@@ -69,6 +70,7 @@ impl Default for ProtocolNames {
             discovery_kad: "/malachitebft-discovery/kad/v1beta1".to_string(),
             discovery_regres: "/malachitebft-discovery/reqres/v1beta1".to_string(),
             sync: "/malachitebft-sync/v1beta1".to_string(),
+            broadcast: "/malachitebft-broadcast/v1beta1".to_string(),
         }
     }
 }
