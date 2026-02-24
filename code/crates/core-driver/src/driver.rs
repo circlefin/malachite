@@ -67,6 +67,8 @@ where
 
     /// The certificate that justifies moving to the `enter_round` specified in the `EnterRoundCertificate.
     pub round_certificate: Option<EnterRoundCertificate<Ctx>>,
+
+    scheduled_timeouts: Vec<Timeout>,
 }
 
 impl<Ctx> Driver<Ctx>
@@ -103,6 +105,7 @@ where
             last_prevote: None,
             last_precommit: None,
             round_certificate: None,
+            scheduled_timeouts: vec![],
         }
     }
 
@@ -132,6 +135,8 @@ where
         // Reset additional internal state
         self.last_prevote = None;
         self.last_precommit = None;
+
+        self.scheduled_timeouts = vec![];
     }
 
     /// Return the height of the consensus.
@@ -370,15 +375,23 @@ where
 
             RoundOutput::Vote(vote) => self.lift_vote_output(vote, outputs),
 
-            RoundOutput::ScheduleTimeout(timeout) => outputs.push(Output::ScheduleTimeout(timeout)),
+            RoundOutput::ScheduleTimeout(timeout) => self.lift_timeout_output(timeout, outputs),
 
             RoundOutput::GetValueAndScheduleTimeout(height, round, timeout) => {
-                outputs.push(Output::ScheduleTimeout(timeout));
+                self.lift_timeout_output(timeout, outputs);
                 outputs.push(Output::GetValue(height, round, timeout));
             }
 
             RoundOutput::Decision(round, proposal) => outputs.push(Output::Decide(round, proposal)),
         }
+    }
+
+    fn lift_timeout_output(&mut self, timeout: Timeout, outputs: &mut Vec<Output<Ctx>>) {
+        if timeout.round < self.round() || self.scheduled_timeouts.contains(&timeout) {
+            return;
+        }
+        self.scheduled_timeouts.push(timeout);
+        outputs.push(Output::ScheduleTimeout(timeout));
     }
 
     fn lift_vote_output(&mut self, vote: Ctx::Vote, outputs: &mut Vec<Output<Ctx>>) {
@@ -484,6 +497,10 @@ where
 
         // Update the proposer for the new round
         self.proposer = Some(proposer);
+
+        // Remove useless timeouts from previous rounds
+        self.scheduled_timeouts
+            .retain(|timeout| timeout.round >= round);
 
         self.apply_input(round, RoundInput::NewRound(round))
     }
