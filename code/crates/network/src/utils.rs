@@ -30,6 +30,7 @@ where
     }
 
     /// Checks if a entry has an assigned slot.
+    #[cfg(test)]
     pub fn contains(&self, entry: &T) -> bool {
         self.get(entry).is_some()
     }
