@@ -433,11 +433,8 @@ where
         }
 
         let round = certificate.round;
-
-        match self.store_and_multiplex_commit_certificate(certificate) {
-            Some(round_input) => self.apply_input(round, round_input),
-            None => Ok(None), // FIXME: Any scenario where this can happen?
-        }
+        let round_input = self.store_and_multiplex_commit_certificate(certificate);
+        self.apply_input(round, round_input)
     }
 
     fn apply_polka_certificate(
