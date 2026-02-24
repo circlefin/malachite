@@ -104,6 +104,8 @@ where
                     conflicting: vote,
                 });
             }
+            // Do not add duplicate vote
+            return Ok(());
         }
 
         // Tally this vote
@@ -138,6 +140,18 @@ where
     /// Return the votes for this round.
     pub fn received_votes(&self) -> &Vec<SignedVote<Ctx>> {
         &self.received_votes
+    }
+
+    /// Return precommits for the given value in this round.
+    pub fn precommits_for_value(&self, value_id: &ValueId<Ctx>) -> Vec<SignedVote<Ctx>> {
+        self.received_votes
+            .iter()
+            .filter(|v| {
+                v.vote_type() == VoteType::Precommit
+                    && v.value() == &NilOrVal::Val(value_id.clone())
+            })
+            .cloned()
+            .collect()
     }
 
     /// Return the addresses and their weights for this round.

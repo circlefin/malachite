@@ -116,27 +116,13 @@ where
     }
 
     pub fn restore_precommits(
-        &mut self,
+        &self,
         height: Ctx::Height,
         round: Round,
         value: &Ctx::Value,
     ) -> Vec<SignedVote<Ctx>> {
         assert_eq!(height, self.driver.height());
-
-        // Get the commits for the height and round.
-        if let Some(per_round) = self.driver.votes().per_round(round) {
-            per_round
-                .received_votes()
-                .iter()
-                .filter(|vote| {
-                    vote.vote_type() == VoteType::Precommit
-                        && vote.value() == &NilOrVal::Val(value.id())
-                })
-                .cloned()
-                .collect()
-        } else {
-            Vec::new()
-        }
+        self.driver.restore_precommits(round, &value.id())
     }
 
     /// Get the polka certificate at the current height for the specified round and value, if it exists
