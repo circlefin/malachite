@@ -9,19 +9,19 @@ jobs:
     name: Check eligibility
     runs-on: github-hosted-small
     steps:
-      - name: Check if author is Dependabot
+      - name: Check if author is allowed bot
         id: check-dependabot
         uses: actions/github-script@v7
         with:
           script: |
             const prAuthor = context.payload.pull_request.user.login;
-            const isDependabot = prAuthor === 'dependabot[bot]';
-            console.log(`PR author: ${prAuthor}, is Dependabot: ${isDependabot}`);
-            core.setOutput('is_dependabot', isDependabot ? 'true' : 'false');
+            const isAllowed = prAuthor === 'dependabot[bot]' || prAuthor === 'stepsecurity-app[bot]';
+            console.log(`PR author: ${prAuthor}, is allowed bot: ${isAllowed}`);
+            core.setOutput('is_allowed_bot', isAllowed ? 'true' : 'false');
 
       - name: Check if author is codeowner
         id: check-codeowner
-        if: steps.check-dependabot.outputs.is_dependabot == 'false'
+        if: steps.check-dependabot.outputs.is_allowed_bot == 'false'
         uses: actions/github-script@v7
         with:
           script: |
@@ -57,7 +57,7 @@ jobs:
       - name: Check if author is org member
         id: check-org-member
         if: |
-          steps.check-dependabot.outputs.is_dependabot == 'false' &&
+          steps.check-dependabot.outputs.is_allowed_bot == 'false' &&
           steps.check-codeowner.outputs.is_codeowner == 'false'
         uses: actions/github-script@v7
         with:
@@ -83,7 +83,7 @@ jobs:
       - name: Check issue assignment
         id: check-assignment
         if: |
-          steps.check-dependabot.outputs.is_dependabot == 'false' &&
+          steps.check-dependabot.outputs.is_allowed_bot == 'false' &&
           steps.check-codeowner.outputs.is_codeowner == 'false' &&
           steps.check-org-member.outputs.is_org_member == 'false'
         uses: actions/github-script@v7
@@ -136,7 +136,7 @@ jobs:
       - name: Check if author is tagged by codeowner
         id: check-tagged-by-codeowner
         if: |
-          steps.check-dependabot.outputs.is_dependabot == 'false' &&
+          steps.check-dependabot.outputs.is_allowed_bot == 'false' &&
           steps.check-codeowner.outputs.is_codeowner == 'false' &&
           steps.check-org-member.outputs.is_org_member == 'false' &&
           steps.check-assignment.outputs.is_assigned == 'false' &&
@@ -212,7 +212,7 @@ jobs:
 
       - name: Close ineligible PR
         if: |
-          steps.check-dependabot.outputs.is_dependabot == 'false' &&
+          steps.check-dependabot.outputs.is_allowed_bot == 'false' &&
           steps.check-codeowner.outputs.is_codeowner == 'false' &&
           steps.check-org-member.outputs.is_org_member == 'false' &&
           steps.check-assignment.outputs.is_assigned == 'false' &&
