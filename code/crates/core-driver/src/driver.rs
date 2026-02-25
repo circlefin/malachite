@@ -62,13 +62,15 @@ where
     /// The first element of the tuple is the round at which that input has been emitted.
     pending_inputs: Vec<(Round, RoundInput<Ctx>)>,
 
+    /// The set of timeouts already scheduled by the consensus logic.
+    /// Intended to avoid scheduling the same timeout multiple times.
+    scheduled_timeouts: Vec<Timeout>,
+
     last_prevote: Option<Ctx::Vote>,
     last_precommit: Option<Ctx::Vote>,
 
     /// The certificate that justifies moving to the `enter_round` specified in the `EnterRoundCertificate.
     pub round_certificate: Option<EnterRoundCertificate<Ctx>>,
-
-    scheduled_timeouts: Vec<Timeout>,
 }
 
 impl<Ctx> Driver<Ctx>
@@ -100,12 +102,12 @@ where
             round_state,
             proposer: None,
             pending_inputs: vec![],
+            scheduled_timeouts: vec![],
             commit_certificates: vec![],
             polka_certificates: vec![],
             last_prevote: None,
             last_precommit: None,
             round_certificate: None,
-            scheduled_timeouts: vec![],
         }
     }
 
@@ -122,7 +124,6 @@ where
         // Reset the round state
         let round_state = RoundState::new(height, Round::Nil);
         self.round_state = round_state;
-        self.round_certificate = None;
 
         // Reset the proposal keeper
         let proposal_keeper = ProposalKeeper::new();
@@ -133,9 +134,10 @@ where
         self.polka_certificates = vec![];
 
         // Reset additional internal state
+        self.scheduled_timeouts.clear();
         self.last_prevote = None;
         self.last_precommit = None;
-        self.scheduled_timeouts.clear();
+        self.round_certificate = None;
     }
 
     /// Return the height of the consensus.
@@ -389,10 +391,7 @@ where
         if timeout.round < self.round() || self.scheduled_timeouts.contains(&timeout) {
             return;
         }
-        // XXX: test if the driver produces **non**-consensus timeouts
-        if !timeout.is_consensus() {
-            panic!("lift_timeout_output received {timeout:?}");
-        }
+        debug_assert!(timeout.is_consensus(), "lift_timeout_output received {timeout:?}");
         self.scheduled_timeouts.push(timeout);
         outputs.push(Output::ScheduleTimeout(timeout));
     }
