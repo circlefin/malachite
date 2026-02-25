@@ -391,7 +391,10 @@ where
         if timeout.round < self.round() || self.scheduled_timeouts.contains(&timeout) {
             return;
         }
-        debug_assert!(timeout.is_consensus(), "lift_timeout_output received {timeout:?}");
+        debug_assert!(
+            timeout.is_consensus(),
+            "lift_timeout_output received {timeout:?}"
+        );
         self.scheduled_timeouts.push(timeout);
         outputs.push(Output::ScheduleTimeout(timeout));
     }
