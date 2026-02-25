@@ -616,8 +616,7 @@ fn set_peer_score(swarm: &mut swarm::Swarm<Behaviour>, peer_id: libp2p::PeerId, 
 }
 
 /// Add a persistent peer as an explicit peer in gossipsub (if explicit peering is enabled).
-/// Explicit peers receive messages unconditionally, outside the mesh.
-/// This ensures reliable validator-to-validator communication.
+/// A node always sends and forwards messages to its explicit peers, regardless of mesh membership.
 fn add_explicit_peer_to_gossipsub(
     swarm: &mut swarm::Swarm<Behaviour>,
     state: &mut State,

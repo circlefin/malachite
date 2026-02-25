@@ -300,7 +300,8 @@ pub struct GossipSubConfig {
 
     /// Enable explicit peering for persistent peers.
     /// When enabled, persistent peers are added as explicit peers in GossipSub,
-    /// meaning they receive the gossiped messages unconditionally, even if outside the mesh.
+    /// meaning a node always sends and forwards messages to its explicit peers,
+    /// regardless of mesh membership.
     enable_explicit_peering: bool,
 
     /// Enable flood publishing.
@@ -365,7 +366,8 @@ impl GossipSubConfig {
 
         // Both flood_publish and explicit_peering can be enabled together.
         // flood_publish sends to all known peers on publish, explicit peering ensures
-        // persistent peers always receive forwarded messages even if outside the mesh.
+        // a node always sends and forwards messages to its explicit peers,
+        // regardless of mesh membership.
     }
 
     pub fn mesh_n(&self) -> usize {

@@ -165,7 +165,8 @@ enable_peer_scoring = false
 
 # GossipSub only. Enable explicit peering for persistent peers.
 # When enabled, persistent peers are added as explicit peers in GossipSub,
-# meaning they receive gossiped messages unconditionally, even if outside the mesh.
+# meaning a node always sends and forwards messages to its explicit peers,
+# regardless of mesh membership.
 # Note: explicit peering should ideally be reciprocal (both sides have each other as persistent peers).
 # If only one side adds the other as explicit, that side will reject GRAFTs from the other with PRUNE,
 # preventing the other from including it in its mesh.
