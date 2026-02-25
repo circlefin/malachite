@@ -620,10 +620,10 @@ fn set_peer_score(swarm: &mut swarm::Swarm<Behaviour>, peer_id: libp2p::PeerId, 
 /// This ensures reliable validator-to-validator communication.
 fn add_explicit_peer_to_gossipsub(
     swarm: &mut swarm::Swarm<Behaviour>,
-    state: &State,
+    state: &mut State,
     peer_id: libp2p::PeerId,
 ) {
-    let Some(peer_info) = state.peer_info.get(&peer_id) else {
+    let Some(peer_info) = state.peer_info.get_mut(&peer_id) else {
         return;
     };
 
@@ -633,7 +633,30 @@ fn add_explicit_peer_to_gossipsub(
             state
                 .metrics
                 .record_explicit_peer(&peer_id, &peer_info.moniker);
+            peer_info.is_explicit = true;
             info!("Added persistent peer {peer_id} as explicit peer in gossipsub");
+        }
+    }
+}
+
+/// Remove a persistent peer from explicit peers in gossipsub and mark the metric stale.
+fn remove_explicit_peer_from_gossipsub(
+    swarm: &mut swarm::Swarm<Behaviour>,
+    state: &mut State,
+    peer_id: &libp2p::PeerId,
+) {
+    let Some(peer_info) = state.peer_info.get_mut(peer_id) else {
+        return;
+    };
+
+    if peer_info.peer_type.is_persistent() {
+        if let Some(gossipsub) = swarm.behaviour_mut().gossipsub.as_mut() {
+            gossipsub.remove_explicit_peer(peer_id);
+            state
+                .metrics
+                .mark_explicit_peer_stale(peer_id, &peer_info.moniker);
+            peer_info.is_explicit = false;
+            info!("Removed persistent peer {peer_id} from explicit peers in gossipsub");
         }
     }
 }
@@ -719,17 +742,7 @@ async fn handle_swarm_event(
             if num_established == 0 {
                 // Remove explicit peer from gossipsub and mark metric stale when this peer was one
                 if config.gossipsub.enable_explicit_peering {
-                    if let Some(peer_info) = state.peer_info.get(&peer_id) {
-                        if peer_info.peer_type.is_persistent() {
-                            if let Some(gossipsub) = swarm.behaviour_mut().gossipsub.as_mut() {
-                                gossipsub.remove_explicit_peer(&peer_id);
-                                info!("Removed persistent peer {peer_id} from explicit peers in gossipsub");
-                            }
-                            state
-                                .metrics
-                                .mark_explicit_peer_stale(&peer_id, &peer_info.moniker);
-                        }
-                    }
+                    remove_explicit_peer_from_gossipsub(swarm, state, &peer_id);
                 }
 
                 if let Err(e) = tx_event

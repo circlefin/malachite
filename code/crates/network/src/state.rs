@@ -90,11 +90,12 @@ pub struct PeerInfo {
     pub connection_direction: Option<ConnectionDirection>, // None if ephemeral (unknown)
     pub score: f64,
     pub topics: HashSet<String>, // Set of topics peer is in mesh for (e.g., "/consensus", "/liveness")
+    pub is_explicit: bool,       // Whether this peer is an explicit peer in gossipsub
 }
 
 impl PeerInfo {
     /// Format peer info with peer_id for logging
-    ///  Address, Moniker, Type, PeerId, ConsensusAddr, Mesh, Dir, Score
+    ///  Address, Moniker, Type, PeerId, ConsensusAddr, Mesh, Dir, Score, Explicit
     pub fn format_with_peer_id(&self, peer_id: &libp2p::PeerId) -> String {
         let direction = self.connection_direction.map_or("??", |d| d.as_str());
         let mut topics: Vec<&str> = self.topics.iter().map(|s| s.as_str()).collect();
@@ -106,8 +107,9 @@ impl PeerInfo {
         } else {
             &self.consensus_address
         };
+        let explicit = if self.is_explicit { "explicit" } else { "" };
         format!(
-            "{}, {}, {}, {}, {}, {}, {}, {}",
+            "{}, {}, {}, {}, {}, {}, {}, {}, {}",
             self.address,
             self.moniker,
             peer_type_str,
@@ -115,7 +117,8 @@ impl PeerInfo {
             address,
             topics_str,
             direction,
-            self.score as i64
+            self.score as i64,
+            explicit
         )
     }
 }
@@ -446,6 +449,7 @@ impl State {
             connection_direction,
             score,
             topics: Default::default(),
+            is_explicit: false,
         };
 
         // Record peer information in metrics (subject to 100 slot limit)
