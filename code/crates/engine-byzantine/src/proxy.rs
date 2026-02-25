@@ -2,7 +2,8 @@
 //!
 //! [`ByzantineNetworkProxy`] is a ractor actor that sits between the consensus
 //! actor and the real network actor. It intercepts outgoing
-//! [`NetworkMsg::PublishConsensusMsg`] messages and can:
+//! [`NetworkMsg::PublishConsensusMsg`] and [`NetworkMsg::PublishLivenessMsg`]
+//! messages and can:
 //!
 //! - **Drop** messages (simulating silence / censorship)
 //! - **Duplicate** messages with conflicting content (simulating equivocation)
@@ -16,7 +17,7 @@ use ractor::{Actor, ActorProcessingErr, ActorRef};
 use rand::rngs::StdRng;
 use tracing::{debug, warn};
 
-use malachitebft_core_consensus::SignedConsensusMsg;
+use malachitebft_core_consensus::{LivenessMsg, SignedConsensusMsg};
 use malachitebft_core_types::{Context, NilOrVal, Proposal, Round, Vote, VoteType};
 use malachitebft_engine::network::{Msg as NetworkMsg, NetworkRef};
 use malachitebft_signing::SigningProvider;
@@ -115,6 +116,9 @@ impl<Ctx: Context> Actor for ByzantineNetworkProxy<Ctx> {
         match msg {
             NetworkMsg::PublishConsensusMsg(ref consensus_msg) => {
                 self.handle_consensus_msg(consensus_msg, state).await?;
+            }
+            NetworkMsg::PublishLivenessMsg(ref liveness_msg) => {
+                self.handle_liveness_msg(liveness_msg, state)?;
             }
             // All other message types are forwarded transparently.
             other => {
@@ -223,6 +227,44 @@ impl<Ctx: Context> ByzantineNetworkProxy<Ctx> {
         Ok(())
     }
 
+    /// Handle a liveness message, applying drop rules for votes.
+    ///
+    /// Liveness messages carry rebroadcast votes and certificates. Without
+    /// filtering these, a Byzantine node configured to drop votes would still
+    /// have its votes delivered to peers through the liveness channel.
+    fn handle_liveness_msg(
+        &self,
+        msg: &LivenessMsg<Ctx>,
+        state: &mut ProxyState,
+    ) -> Result<(), ActorProcessingErr> {
+        match msg {
+            LivenessMsg::Vote(signed_vote) => {
+                let vote = &signed_vote.message;
+                let height = vote.height();
+                let round = vote.round();
+
+                if let Some(ref trigger) = self.config.drop_votes {
+                    if trigger.fires(height, round, &mut state.rng) {
+                        warn!(
+                            %height, %round,
+                            vote_type = ?vote.vote_type(),
+                            "BYZANTINE: Dropping liveness vote"
+                        );
+                        return Ok(());
+                    }
+                }
+
+                self.forward_liveness_msg(msg)?;
+            }
+            // Other liveness messages (certificates) are forwarded as-is.
+            _ => {
+                self.forward_liveness_msg(msg)?;
+            }
+        }
+
+        Ok(())
+    }
+
     /// Forward a consensus message to the real network.
     fn forward_consensus_msg(
         &self,
@@ -233,6 +275,17 @@ impl<Ctx: Context> ByzantineNetworkProxy<Ctx> {
             .map_err(|e| {
                 ActorProcessingErr::from(format!(
                     "Failed to forward consensus message to network: {e:?}"
+                ))
+            })
+    }
+
+    /// Forward a liveness message to the real network.
+    fn forward_liveness_msg(&self, msg: &LivenessMsg<Ctx>) -> Result<(), ActorProcessingErr> {
+        self.real_network
+            .cast(NetworkMsg::PublishLivenessMsg(msg.clone()))
+            .map_err(|e| {
+                ActorProcessingErr::from(format!(
+                    "Failed to forward liveness message to network: {e:?}"
                 ))
             })
     }
