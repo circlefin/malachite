@@ -41,6 +41,7 @@ signature = { workspace = true }
 tokio = { workspace = true }
 
 [dev-dependencies]
+malachitebft-engine-byzantine.workspace = true
 malachitebft-test-app.workspace = true
 malachitebft-test-framework.workspace = true
 

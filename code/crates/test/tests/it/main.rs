@@ -1,3 +1,4 @@
+mod byzantine_engine;
 mod equivocation;
 mod finalization;
 mod full_nodes;
