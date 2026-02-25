@@ -135,8 +135,7 @@ where
         // Reset additional internal state
         self.last_prevote = None;
         self.last_precommit = None;
-
-        self.scheduled_timeouts = vec![];
+        self.scheduled_timeouts.clear();
     }
 
     /// Return the height of the consensus.

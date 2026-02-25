@@ -41,10 +41,8 @@ impl Timeout {
 
     /// Check if this timeout is for a consensus step (propose, prevote, or precommit).
     pub fn is_consensus(&self) -> bool {
-        match self.kind {
-            TimeoutKind::Propose | TimeoutKind::Prevote | TimeoutKind::Precommit => true,
-            _ => false,
-        }
+        matches!(self.kind,
+            TimeoutKind::Propose | TimeoutKind::Prevote | TimeoutKind::Precommit)
     }
 
     /// Create a new timeout for the propose step of the given round.
