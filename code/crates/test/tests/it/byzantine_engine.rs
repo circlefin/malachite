@@ -362,3 +362,173 @@ pub async fn two_byzantine_of_four_stalls_consensus() {
 
     test.build().run(Duration::from_secs(60)).await;
 }
+
+/// When 2 out of 4 nodes are completely silent (dropping both votes and
+/// proposals), honest nodes hold only 50% of the voting power and cannot
+/// reach the >2/3 quorum. This is functionally equivalent to the vote-dropping
+/// test but exercises the combined silence behavior.
+#[tokio::test]
+pub async fn two_silent_of_four_stalls_consensus() {
+    const REBROADCAST_THRESHOLD: usize = 3;
+
+    let mut test = TestBuilder::<usize>::new();
+
+    // Nodes 1-2: Completely silent Byzantine nodes.
+    for _ in 0..2 {
+        test.add_node()
+            .with_voting_power(10)
+            .start()
+            .with_middleware(ShortTimeouts)
+            .add_config_modifier(|config| {
+                config.byzantine = Some(ByzantineConfig {
+                    drop_votes: Some(Trigger::Always),
+                    drop_proposals: Some(Trigger::Always),
+                    seed: Some(42),
+                    ..Default::default()
+                });
+            })
+            .success();
+    }
+
+    // Nodes 3-4: Honest validators.
+    // Without proposals or votes from the Byzantine half, the honest nodes
+    // have no chance of reaching quorum.
+    for _ in 0..2 {
+        test.add_node()
+            .with_voting_power(10)
+            .start()
+            .with_middleware(ShortTimeouts)
+            .on_event(move |event, rebroadcasts: &mut usize| {
+                if let Event::RepublishVote(_) = event {
+                    *rebroadcasts += 1;
+                    if *rebroadcasts >= REBROADCAST_THRESHOLD {
+                        return Ok(HandlerResult::ContinueTest);
+                    }
+                }
+                Ok(HandlerResult::WaitForNextEvent)
+            })
+            .expect_decisions(Expected::Exactly(0))
+            .success();
+    }
+
+    test.build().run(Duration::from_secs(60)).await;
+}
+
+/// When 2 out of 4 nodes drop proposals, honest proposer rounds still
+/// succeed because all 4 nodes vote normally. The network loses half its
+/// proposer rounds but liveness is preserved.
+#[tokio::test]
+pub async fn two_proposal_droppers_of_four_still_progresses() {
+    const TARGET_HEIGHT: u64 = 5;
+
+    let mut test = TestBuilder::<()>::new();
+
+    // Nodes 1-2: Byzantine — drop all proposals but vote normally.
+    for _ in 0..2 {
+        test.add_node()
+            .with_voting_power(10)
+            .start()
+            .add_config_modifier(|config| {
+                config.byzantine = Some(ByzantineConfig {
+                    drop_proposals: Some(Trigger::Always),
+                    seed: Some(42),
+                    ..Default::default()
+                });
+            })
+            .wait_until(TARGET_HEIGHT)
+            .success();
+    }
+
+    // Nodes 3-4: Honest validators.
+    for _ in 0..2 {
+        test.add_node()
+            .with_voting_power(10)
+            .start()
+            .wait_until(TARGET_HEIGHT)
+            .success();
+    }
+
+    test.build().run(Duration::from_secs(60)).await;
+}
+
+/// When 2 out of 4 equal-power nodes equivocate their votes, honest nodes
+/// detect the misbehavior via `MisbehaviorEvidence`. The equivocators'
+/// first vote still counts toward quorum, so consensus can make progress
+/// while the evidence is collected.
+#[tokio::test]
+pub async fn two_vote_equivocators_of_four_detected() {
+    let mut test = TestBuilder::<()>::new();
+
+    // Nodes 1-2: Byzantine — equivocate every vote.
+    for _ in 0..2 {
+        test.add_node()
+            .with_voting_power(10)
+            .start()
+            .add_config_modifier(|config| {
+                config.byzantine = Some(ByzantineConfig {
+                    equivocate_votes: Some(Trigger::Always),
+                    seed: Some(42),
+                    ..Default::default()
+                });
+            })
+            .on_vote(|_v, _s| Ok(HandlerResult::SleepAndContinueTest(VOTE_DELAY)))
+            .success();
+    }
+
+    // Nodes 3-4: Honest validators that check for equivocation evidence.
+    for _ in 0..2 {
+        test.add_node()
+            .with_voting_power(10)
+            .start()
+            .on_vote(|_v, _s| Ok(HandlerResult::SleepAndContinueTest(VOTE_DELAY)))
+            .on_finalized(|_cert, evidence, _state| {
+                if evidence.votes.is_empty() {
+                    Ok(HandlerResult::WaitForNextEvent)
+                } else {
+                    validate_evidence(&evidence);
+                    Ok(HandlerResult::ContinueTest)
+                }
+            })
+            .success();
+    }
+
+    test.build().run(Duration::from_secs(60)).await;
+}
+
+/// When 2 out of 4 nodes perform an amnesia attack (ignoring voting locks),
+/// consensus still progresses because all 4 nodes vote (just potentially
+/// for inconsistent values). With 100% of voting power visible, quorum is
+/// reachable. The amnesia attack alone cannot cause a safety violation
+/// without also equivocating.
+#[tokio::test]
+pub async fn two_amnesia_of_four_still_progresses() {
+    const TARGET_HEIGHT: u64 = 5;
+
+    let mut test = TestBuilder::<()>::new();
+
+    // Nodes 1-2: Byzantine — ignore voting locks.
+    for _ in 0..2 {
+        test.add_node()
+            .with_voting_power(10)
+            .start()
+            .add_config_modifier(|config| {
+                config.byzantine = Some(ByzantineConfig {
+                    ignore_locks: true,
+                    ..Default::default()
+                });
+            })
+            .wait_until(TARGET_HEIGHT)
+            .success();
+    }
+
+    // Nodes 3-4: Honest validators.
+    for _ in 0..2 {
+        test.add_node()
+            .with_voting_power(10)
+            .start()
+            .wait_until(TARGET_HEIGHT)
+            .success();
+    }
+
+    test.build().run(Duration::from_secs(60)).await;
+}
