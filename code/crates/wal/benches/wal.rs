@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use tempfile::tempdir;
 
-use informalsystems_malachitebft_wal::Log;
+use arc_malachitebft_wal::Log;
 
 /// Benchmark configuration
 struct BenchConfig {

@@ -43,17 +43,17 @@ where
     };
 
     // The certificate must be valid in Commit step
-    assert!(
-        verify_commit_certificate(
-            co,
-            certificate.clone(),
-            state.driver.validator_set().clone(),
-            state.params.threshold_params,
-        )
-        .await?
-        .is_ok(),
-        "Decide: Commit certificate is not valid"
-    );
+    let result = verify_commit_certificate(
+        co,
+        certificate.clone(),
+        state.driver.validator_set().clone(),
+        state.params.threshold_params,
+    )
+    .await?;
+
+    if let Err(e) = result {
+        panic!("Decide: Commit certificate is not valid: {e:?}");
+    }
 
     // Update metrics
     #[cfg(feature = "metrics")]

@@ -3,8 +3,8 @@
 use malachitebft_core_types::{NilOrVal, Round};
 use malachitebft_test::{Address, Height, TestContext, ValueId, Vote};
 
-use informalsystems_malachitebft_core_votekeeper::count::VoteCount;
-use informalsystems_malachitebft_core_votekeeper::{Threshold, ThresholdParam};
+use arc_malachitebft_core_votekeeper::count::VoteCount;
+use arc_malachitebft_core_votekeeper::{Threshold, ThresholdParam};
 
 #[test]
 fn vote_count_nil() {

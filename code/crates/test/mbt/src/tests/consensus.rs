@@ -14,7 +14,7 @@ const RANDOM_SEED: u64 = 0x42;
 
 #[test]
 fn test_itf() {
-    let temp_dir = tempfile::TempDir::with_prefix("informalsystems-malachitebft-core-consensus-")
+    let temp_dir = tempfile::TempDir::with_prefix("arc-malachitebft-core-consensus-")
         .expect("Failed to create temp dir");
     let temp_path = temp_dir.path().to_owned();
 

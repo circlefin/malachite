@@ -76,7 +76,7 @@ To build and test Malachite, you need the following tools:
 
 > [!NOTE]
 > If you do not intend to contribute code and just want to play around with the codebase,
-> you can just clone the repository directly: `git clone https://github.com/informalsystems/malachite.git`
+> you can just clone the repository directly: `git clone https://github.com/circlefin/malachite.git`
 
 ## Building the Project
 
@@ -101,19 +101,19 @@ Or run specific integration tests:
 1. **Discovery**:
 
    ```bash
-   cargo nextest run -p informalsystems-malachitebft-discovery-test
+   cargo nextest run -p arc-malachitebft-discovery-test
    ```
 
 2. **Starknet app**:
 
    ```bash
-   cargo nextest run -p informalsystems-malachitebft-starknet-test
+   cargo nextest run -p arc-malachitebft-starknet-test
    ```
 
 3. **Test app**:
 
    ```bash
-   cargo nextest run -p informalsystems-malachitebft-test
+   cargo nextest run -p arc-malachitebft-test
    ```
 
 > [!IMPORTANT]

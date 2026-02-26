@@ -1,5 +1,5 @@
 [package]
-name = "informalsystems-malachitebft-test-framework"
+name = "arc-malachitebft-test-framework"
 publish = false
 
 version.workspace = true

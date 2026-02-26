@@ -4,8 +4,8 @@ use std::time::Duration;
 
 use tracing::info;
 
-use informalsystems_malachitebft_test::middleware::Middleware;
-use informalsystems_malachitebft_test::{Height, TestContext, Value};
+use arc_malachitebft_test::middleware::Middleware;
+use arc_malachitebft_test::{Height, TestContext, Value};
 use malachitebft_config::ValuePayload;
 use malachitebft_core_types::{Round, Validity};
 use malachitebft_engine::util::events::Event;

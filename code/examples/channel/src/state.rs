@@ -26,6 +26,7 @@ use malachitebft_test::{
     ProposalInit, ProposalPart, TestContext, ValidatorSet, Value,
 };
 
+use crate::config::ValidatorRotationConfig;
 use crate::store::{DecidedValue, Store};
 use crate::streaming::{PartStreamsMap, ProposalParts};
 
@@ -43,6 +44,7 @@ pub struct State {
     vote_extensions: HashMap<Height, VoteExtensions<TestContext>>,
     streams_map: PartStreamsMap,
     rng: StdRng,
+    validator_rotation: ValidatorRotationConfig,
 
     pub store: Store,
     pub current_height: Height,
@@ -110,6 +112,7 @@ impl State {
         address: Address,
         height: Height,
         store: Store,
+        validator_rotation: ValidatorRotationConfig,
     ) -> Self {
         Self {
             ctx,
@@ -123,6 +126,7 @@ impl State {
             vote_extensions: HashMap::new(),
             streams_map: PartStreamsMap::new(),
             rng: StdRng::seed_from_u64(seed_from_address(&address, std::process::id() as u64)),
+            validator_rotation,
         }
     }
 
@@ -491,18 +495,36 @@ impl State {
     }
 
     /// Returns the validator set for the given height.
-    /// The validator set is rotated every 10 heights, selecting floor((n+1)/2)
-    /// validators from the genesis validator set.
+    ///
+    /// Behavior depends on `validator_rotation` config:
+    /// - If rotation is disabled (default): returns the full genesis validator set
+    /// - If rotation is enabled: rotates every `rotation_period` blocks,
+    ///   selecting `selection_size` validators from the genesis set
     pub fn get_validator_set(&self, height: Height) -> ValidatorSet {
-        let num_validators = self.genesis.validator_set.len();
-        let selection_size = num_validators.div_ceil(2);
-
-        if num_validators <= selection_size {
+        // If rotation is disabled, return the full validator set
+        if !self.validator_rotation.enabled {
             return self.genesis.validator_set.clone();
         }
 
-        // Rotate every 10 heights for easier debugging
-        let rotation_index = (height.as_u64() / 10) as usize % num_validators;
+        let num_validators = self.genesis.validator_set.len();
+
+        // Determine selection size: use configured value, or all validators if 0 or too large
+        let selection_size = if self.validator_rotation.selection_size == 0
+            || self.validator_rotation.selection_size >= num_validators
+        {
+            num_validators
+        } else {
+            self.validator_rotation.selection_size
+        };
+
+        // If selecting all validators, no need to rotate
+        if selection_size >= num_validators {
+            return self.genesis.validator_set.clone();
+        }
+
+        // Rotate based on height and rotation period
+        let rotation_period = self.validator_rotation.rotation_period.max(1); // avoid div by zero
+        let rotation_index = (height.as_u64() / rotation_period) as usize % num_validators;
 
         ValidatorSet::new(
             self.genesis

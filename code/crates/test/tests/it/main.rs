@@ -36,9 +36,9 @@ use malachitebft_test_framework::{ConfigModifier, NodeRunner, TestNode};
 pub use malachitebft_test_framework::TestBuilder as GenTestBuilder;
 pub use malachitebft_test_framework::{HandlerResult, NodeId, TestParams};
 
-use informalsystems_malachitebft_test::middleware::Middleware;
-use informalsystems_malachitebft_test::node::Node;
-use informalsystems_malachitebft_test::{Height, TestContext, Validator, ValidatorSet};
+use arc_malachitebft_test::middleware::Middleware;
+use arc_malachitebft_test::node::Node;
+use arc_malachitebft_test::{Height, TestContext, Validator, ValidatorSet};
 
 pub type TestBuilder<S> = GenTestBuilder<TestContext, S>;
 
@@ -188,7 +188,7 @@ impl TestRunner {
                 enabled: true,
                 // Current test app does not support proposal-only value payload properly as Init does not include valid_round
                 value_payload: ValuePayload::ProposalAndParts,
-                queue_capacity: 100, // Deprecated, derived from `sync.parallel_requests`
+                queue_capacity: 100,
                 p2p: P2pConfig {
                     protocol,
                     discovery: DiscoveryConfig::default(),

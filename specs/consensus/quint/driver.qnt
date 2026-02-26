@@ -413,7 +413,7 @@ module driver {
             // If the proposer is faulty there might be multiple proposals
             // here we just pick one of them
             // TODO: check whether there is a liveness issue with that. Added a question about it:
-            //       https://github.com/informalsystems/malachite/issues/103#issuecomment-1888753234
+            //       https://github.com/circlefin/malachite/issues/103#issuecomment-1888753234
             handleProposal(newES, proposal)
 
         // then go into step distinction but only consider rules without proposals

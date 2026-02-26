@@ -163,6 +163,22 @@ mesh_outbound_min = 2
 # Override with MALACHITE__CONSENSUS__P2P__PROTOCOL__ENABLE_PEER_SCORING env variable
 enable_peer_scoring = false
 
+# GossipSub only. Enable explicit peering for persistent peers.
+# When enabled, persistent peers are added as explicit peers in GossipSub,
+# meaning a node always sends and forwards messages to its explicit peers,
+# regardless of mesh membership.
+# Note: explicit peering should ideally be reciprocal (both sides have each other as persistent peers).
+# If only one side adds the other as explicit, that side will reject GRAFTs from the other with PRUNE,
+# preventing the other from including it in its mesh.
+# Override with MALACHITE__CONSENSUS__P2P__PROTOCOL__ENABLE_EXPLICIT_PEERING env variable
+enable_explicit_peering = false
+
+# GossipSub only. Enable flood publishing.
+# When enabled, published messages are sent to all known peers, not just mesh peers.
+# Can be enabled together with explicit peering.
+# Override with MALACHITE__CONSENSUS__P2P__PROTOCOL__ENABLE_FLOOD_PUBLISH env variable
+enable_flood_publish = true
+
 #######################################################
 ###          Mempool Configuration Options          ###
 #######################################################
@@ -332,6 +348,27 @@ flavor = "single_threaded"
 # Override with MALACHITE__RUNTIME__WORKER_THREADS env variable
 # worker_threads = 4
 
+
+#######################################################
+###      Validator Rotation Configuration Options    ###
+#######################################################
+[validator_rotation]
+
+# Enable validator set rotation. Default: false (no rotation)
+# When disabled, the full genesis validator set is used for all heights.
+# Override with MALACHITE__VALIDATOR_ROTATION__ENABLED env variable
+enabled = false
+
+# Rotate the validator set every N blocks. Default: 10
+# Only used when rotation is enabled.
+# Override with MALACHITE__VALIDATOR_ROTATION__ROTATION_PERIOD env variable
+rotation_period = 10
+
+# Number of validators to select from the full set. Default: 0 (use all)
+# If 0 or >= total validators, uses all validators (effectively no rotation).
+# Only used when rotation is enabled.
+# Override with MALACHITE__VALIDATOR_ROTATION__SELECTION_SIZE env variable
+selection_size = 0
 
 #######################################################
 ###          Test Node Configuration Options         ###

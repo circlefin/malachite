@@ -10,12 +10,12 @@ pub fn init_logging() {
     let trace_level = if enable_debug { "debug" } else { "info" };
 
     let directives = &[
-        ("informalsystems_malachitebft", trace_level),
+        ("arc_malachitebft", trace_level),
         (env!("CARGO_CRATE_NAME"), "debug"),
         ("it", "debug"), // Name of the integration test crate
-        ("informalsystems_malachitebft_test", "debug"),
-        ("informalsystems_malachitebft_test_app", "debug"),
-        ("informalsystems_malachitebft_discovery", "info"),
+        ("arc_malachitebft_test", "debug"),
+        ("arc_malachitebft_test_app", "debug"),
+        ("arc_malachitebft_discovery", "info"),
         ("libp2p", "warn"),
         ("ractor", "warn"),
     ];

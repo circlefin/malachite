@@ -1,5 +1,5 @@
 [package]
-name = "informalsystems-malachitebft-signing-ecdsa"
+name = "arc-malachitebft-signing-ecdsa"
 description = "Generic ECDSA signing scheme utilities for the Malachite BFT consensus engine"
 version.workspace = true
 edition.workspace = true

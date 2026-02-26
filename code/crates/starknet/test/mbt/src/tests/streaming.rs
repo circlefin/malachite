@@ -12,7 +12,7 @@ const SHA2_256: u64 = 0x12;
 
 #[test]
 fn test_mbt_part_streaming_specified_traces() {
-    let temp_dir = tempfile::TempDir::with_prefix("informalsystems-malachitebft-part-streaming")
+    let temp_dir = tempfile::TempDir::with_prefix("arc-malachitebft-part-streaming")
         .expect("Failed to create temp dir");
     let temp_path = temp_dir.path().to_owned();
 
@@ -51,7 +51,7 @@ fn test_mbt_part_streaming_specified_traces() {
 
 #[test]
 fn test_mbt_part_streaming_random_traces() {
-    let temp_dir = tempfile::TempDir::with_prefix("informalsystems-malachitebft-part-streaming")
+    let temp_dir = tempfile::TempDir::with_prefix("arc-malachitebft-part-streaming")
         .expect("Failed to create temp dir");
     let temp_path = temp_dir.path().to_owned();
 

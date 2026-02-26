@@ -3,7 +3,7 @@ use std::time::Duration;
 use eyre::bail;
 use tracing::info;
 
-use informalsystems_malachitebft_test::{self as malachitebft_test};
+use arc_malachitebft_test::{self as malachitebft_test};
 
 use malachitebft_config::ValuePayload;
 use malachitebft_core_consensus::LocallyProposedValue;

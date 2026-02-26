@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-use informalsystems_malachitebft_test::middleware::Middleware;
-use informalsystems_malachitebft_test::{Height, LinearTimeouts, TestContext};
+use arc_malachitebft_test::middleware::Middleware;
+use arc_malachitebft_test::{Height, LinearTimeouts, TestContext};
 
 use crate::TestBuilder;
 

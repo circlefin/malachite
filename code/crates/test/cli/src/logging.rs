@@ -98,7 +98,7 @@ pub fn enable_ansi() -> bool {
 }
 
 /// Common prefixes of the crates targeted by the default log level.
-const TARGET_CRATES: &[&str] = &["informalsystems_malachitebft"];
+const TARGET_CRATES: &[&str] = &["arc_malachitebft"];
 
 /// Build a tracing directive setting the log level for the relayer crates to the
 /// given `log_level`.
@@ -121,7 +121,7 @@ fn build_tracing_filter(log_levels: &str) -> EnvFilter {
     if !log_levels.is_empty() {
         for log_level in log_levels.split(',') {
             // app_log_level: no target means only the application log should be targeted
-            // https://github.com/informalsystems/malachite/pull/287#discussion_r1684212675
+            // https://github.com/circlefin/malachite/pull/287#discussion_r1684212675
             let app_log_level = if !log_level.contains('=') {
                 default_directive(log_level)
             } else {

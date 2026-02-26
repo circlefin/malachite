@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use informalsystems_malachitebft_test::TestContext;
+use arc_malachitebft_test::TestContext;
 use malachitebft_core_consensus::HIDDEN_LOCK_ROUND;
 use malachitebft_core_types::Round;
 use malachitebft_test_framework::TestNode;

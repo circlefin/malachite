@@ -51,7 +51,7 @@ pub fn publish(
         }
         PubSubProtocol::Broadcast => {
             if let Some(broadcast) = swarm.behaviour_mut().broadcast.as_mut() {
-                broadcast.broadcast(&channel.to_broadcast_topic(channel_names), data);
+                broadcast.broadcast(channel.to_broadcast_topic(channel_names), data);
             } else {
                 return Err(eyre::eyre!("Broadcast not enabled"));
             }

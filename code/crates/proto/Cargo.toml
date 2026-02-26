@@ -1,5 +1,5 @@
 [package]
-name = "informalsystems-malachitebft-proto"
+name = "arc-malachitebft-proto"
 description = "Protobuf abstraction for the Malachite BFT consensus engine"
 version.workspace = true
 edition.workspace = true

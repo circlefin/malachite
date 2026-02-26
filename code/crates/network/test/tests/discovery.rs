@@ -1,6 +1,6 @@
 use std::{time::Duration, vec};
 
-use informalsystems_malachitebft_discovery_test::{Expected, Test, TestNode};
+use arc_malachitebft_discovery_test::{Expected, Test, TestNode};
 use malachitebft_network::{BootstrapProtocol, DiscoveryConfig, Selector};
 
 // Ensuring that having the node's address in the bootstrap set does not cause

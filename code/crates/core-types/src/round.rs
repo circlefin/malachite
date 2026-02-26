@@ -74,7 +74,7 @@ impl Round {
     /// Return `self` if it is defined, otherwise return `round`.
     ///
     /// ```rust
-    /// use informalsystems_malachitebft_core_types::Round;
+    /// use arc_malachitebft_core_types::Round;
     ///
     /// let nil = Round::Nil;
     /// let some = Round::Some(2);
@@ -98,7 +98,7 @@ impl Round {
     /// Return `self` if it is defined, otherwise compute and return the result of `f`.
     ///
     /// ```rust
-    /// use informalsystems_malachitebft_core_types::Round;
+    /// use arc_malachitebft_core_types::Round;
     ///
     /// let nil = Round::Nil;
     /// let some = Round::Some(2);

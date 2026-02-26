@@ -12,12 +12,10 @@ mod utils;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProtocolNames {
     pub consensus: String,
-
     pub discovery_kad: String,
-
     pub discovery_regres: String,
-
     pub sync: String,
+    pub broadcast: String,
 }
 
 impl Default for ProtocolNames {
@@ -27,6 +25,7 @@ impl Default for ProtocolNames {
             discovery_kad: "/malachitebft-discovery/kad/v1beta1".to_string(),
             discovery_regres: "/malachitebft-discovery/reqres/v1beta1".to_string(),
             sync: "/malachitebft-sync/v1beta1".to_string(),
+            broadcast: "/malachitebft-broadcast/v1beta1".to_string(),
         }
     }
 }
@@ -298,12 +297,22 @@ pub struct GossipSubConfig {
 
     /// Enable peer scoring to prioritize nodes based on their type in mesh formation
     enable_peer_scoring: bool,
+
+    /// Enable explicit peering for persistent peers.
+    /// When enabled, persistent peers are added as explicit peers in GossipSub,
+    /// meaning a node always sends and forwards messages to its explicit peers,
+    /// regardless of mesh membership.
+    enable_explicit_peering: bool,
+
+    /// Enable flood publishing.
+    /// When enabled the publisher sends the messages to all known peers, not just mesh peers.
+    enable_flood_publish: bool,
 }
 
 impl Default for GossipSubConfig {
     fn default() -> Self {
-        // Peer scoring disabled by default
-        Self::new(6, 12, 4, 2, false)
+        // Peer scoring disabled and explicit peering disabled by default, flood_publish enabled by default
+        Self::new(6, 12, 4, 2, false, false, true)
     }
 }
 
@@ -315,6 +324,8 @@ impl GossipSubConfig {
         mesh_n_low: usize,
         mesh_outbound_min: usize,
         enable_peer_scoring: bool,
+        enable_explicit_peering: bool,
+        enable_flood_publish: bool,
     ) -> Self {
         let mut result = Self {
             mesh_n,
@@ -322,6 +333,8 @@ impl GossipSubConfig {
             mesh_n_low,
             mesh_outbound_min,
             enable_peer_scoring,
+            enable_explicit_peering,
+            enable_flood_publish,
         };
 
         result.adjust();
@@ -350,6 +363,11 @@ impl GossipSubConfig {
         {
             self.mesh_outbound_min = max(1, min(self.mesh_n / 2, self.mesh_n_low - 1));
         }
+
+        // Both flood_publish and explicit_peering can be enabled together.
+        // flood_publish sends to all known peers on publish, explicit peering ensures
+        // a node always sends and forwards messages to its explicit peers,
+        // regardless of mesh membership.
     }
 
     pub fn mesh_n(&self) -> usize {
@@ -371,10 +389,31 @@ impl GossipSubConfig {
     pub fn enable_peer_scoring(&self) -> bool {
         self.enable_peer_scoring
     }
+
+    pub fn enable_explicit_peering(&self) -> bool {
+        self.enable_explicit_peering
+    }
+
+    pub fn enable_flood_publish(&self) -> bool {
+        self.enable_flood_publish
+    }
 }
 
 mod gossipsub {
     use super::utils::bool_from_anything;
+
+    fn default_enable_peer_scoring() -> bool {
+        false
+    }
+
+    fn default_enable_explicit_peering() -> bool {
+        false
+    }
+
+    fn default_enable_flood_publish() -> bool {
+        true
+    }
+
     #[derive(serde::Deserialize)]
     pub struct RawConfig {
         #[serde(default)]
@@ -385,8 +424,21 @@ mod gossipsub {
         mesh_n_low: usize,
         #[serde(default)]
         mesh_outbound_min: usize,
-        #[serde(default, deserialize_with = "bool_from_anything")]
+        #[serde(
+            default = "default_enable_peer_scoring",
+            deserialize_with = "bool_from_anything"
+        )]
         enable_peer_scoring: bool,
+        #[serde(
+            default = "default_enable_explicit_peering",
+            deserialize_with = "bool_from_anything"
+        )]
+        enable_explicit_peering: bool,
+        #[serde(
+            default = "default_enable_flood_publish",
+            deserialize_with = "bool_from_anything"
+        )]
+        enable_flood_publish: bool,
     }
 
     impl From<RawConfig> for super::GossipSubConfig {
@@ -397,6 +449,8 @@ mod gossipsub {
                 raw.mesh_n_low,
                 raw.mesh_outbound_min,
                 raw.enable_peer_scoring,
+                raw.enable_explicit_peering,
+                raw.enable_flood_publish,
             )
         }
     }
@@ -583,6 +637,10 @@ fn default_consensus_enabled() -> bool {
     true
 }
 
+fn default_queue_capacity() -> usize {
+    10
+}
+
 /// Consensus configuration options
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ConsensusConfig {
@@ -599,12 +657,11 @@ pub struct ConsensusConfig {
     /// Message types that can carry values
     pub value_payload: ValuePayload,
 
-    /// Size of the consensus input queue
-    ///
-    /// # Deprecated
-    /// This setting is deprecated and will be removed in the future.
-    /// The queue capacity is now derived from the `sync.parallel_requests` setting.
-    #[serde(default)]
+    /// Size of the gossip input queue (number of unique heights).
+    /// Controls how many unique future heights of gossip messages
+    /// (votes, proposals, proposed values) can be buffered.
+    /// Default: 10
+    #[serde(default = "default_queue_capacity")]
     pub queue_capacity: usize,
 }
 
@@ -614,7 +671,7 @@ impl Default for ConsensusConfig {
             enabled: true,
             p2p: P2pConfig::default(),
             value_payload: ValuePayload::default(),
-            queue_capacity: 0,
+            queue_capacity: default_queue_capacity(),
         }
     }
 }
@@ -865,6 +922,7 @@ mod tests {
             discovery_kad: "/custom-discovery/kad/v1".to_string(),
             discovery_regres: "/custom-discovery/reqres/v1".to_string(),
             sync: "/custom-sync/v1".to_string(),
+            broadcast: "/custom-broadcast/v1".to_string(),
         };
 
         let json = serde_json::to_string(&protocol_names).unwrap();
@@ -887,6 +945,7 @@ mod tests {
             discovery_kad: "/test-network/discovery/kad/v1".to_string(),
             discovery_regres: "/test-network/discovery/reqres/v1".to_string(),
             sync: "/test-network/sync/v1".to_string(),
+            broadcast: "/test-network/broadcast/v1".to_string(),
         };
 
         let config_with_custom = P2pConfig {
@@ -920,6 +979,7 @@ mod tests {
         discovery_kad = "/custom-network/discovery/kad/v2"
         discovery_regres = "/custom-network/discovery/reqres/v2"
         sync = "/custom-network/sync/v2"
+        broadcast = "/custom-network/broadcast/v2"
         
         [p2p.protocol]
         type = "gossipsub"
@@ -940,6 +1000,10 @@ mod tests {
             "/custom-network/discovery/reqres/v2"
         );
         assert_eq!(config.p2p.protocol_names.sync, "/custom-network/sync/v2");
+        assert_eq!(
+            config.p2p.protocol_names.broadcast,
+            "/custom-network/broadcast/v2"
+        );
     }
 
     #[test]

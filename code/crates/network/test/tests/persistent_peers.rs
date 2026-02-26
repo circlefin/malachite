@@ -409,7 +409,7 @@ fn init_logging() {
     use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
     let filter = EnvFilter::builder()
-        .parse("info,informalsystems_malachitebft=debug,ractor=error")
+        .parse("info,arc_malachitebft=debug,ractor=error")
         .unwrap_or_else(|_| EnvFilter::new("info"));
 
     let builder = FmtSubscriber::builder()

@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use informalsystems_malachitebft_test::middleware::RotateValidators;
+use arc_malachitebft_test::middleware::RotateValidators;
 
 use crate::TestBuilder;
 

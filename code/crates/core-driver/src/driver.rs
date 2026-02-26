@@ -184,6 +184,18 @@ where
         &mut self.vote_keeper
     }
 
+    /// Return precommits for the given round and value from the vote keeper
+    pub fn restore_precommits(
+        &self,
+        round: Round,
+        value_id: &ValueId<Ctx>,
+    ) -> Vec<SignedVote<Ctx>> {
+        self.vote_keeper
+            .per_round(round)
+            .map(|per_round| per_round.precommits_for_value(value_id))
+            .unwrap_or_default()
+    }
+
     /// Return a reference to the proposal keeper
     pub fn proposals(&self) -> &ProposalKeeper<Ctx> {
         &self.proposal_keeper
@@ -449,11 +461,8 @@ where
         }
 
         let round = certificate.round;
-
-        match self.store_and_multiplex_commit_certificate(certificate) {
-            Some(round_input) => self.apply_input(round, round_input),
-            None => Ok(None),
-        }
+        let round_input = self.store_and_multiplex_commit_certificate(certificate);
+        self.apply_input(round, round_input)
     }
 
     fn apply_polka_certificate(

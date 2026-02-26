@@ -1,9 +1,9 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
+use arc_malachitebft_test::middleware::Middleware;
+use arc_malachitebft_test::TestContext;
 use eyre::bail;
-use informalsystems_malachitebft_test::middleware::Middleware;
-use informalsystems_malachitebft_test::TestContext;
 use malachitebft_core_consensus::ProposedValue;
 use malachitebft_core_types::CommitCertificate;
 use malachitebft_test_framework::TestParams;

@@ -1,5 +1,5 @@
 [package]
-name = "informalsystems-malachitebft-starknet-test-mbt"
+name = "arc-malachitebft-starknet-test-mbt"
 description = "Library for model-based testing of the starknet"
 version.workspace = true
 edition.workspace = true

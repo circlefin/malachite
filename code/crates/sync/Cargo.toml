@@ -1,5 +1,5 @@
 [package]
-name = "informalsystems-malachitebft-sync"
+name = "arc-malachitebft-sync"
 description = "Synchronization protocol for the Malachite BFT consensus engine"
 version.workspace = true
 edition.workspace = true
@@ -34,7 +34,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
-informalsystems-malachitebft-test = { path = "../test" }
+arc-malachitebft-test = { path = "../test" }
 malachitebft-peer = { workspace = true, features = ["rand"] }
 arbtest = { workspace = true }
 tracing-subscriber = { workspace = true }

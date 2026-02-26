@@ -1,5 +1,5 @@
 [package]
-name = "informalsystems-malachitebft-signing"
+name = "arc-malachitebft-signing"
 description = "Signing provider abstraction for the Malachite BFT consensus engine"
 version.workspace = true
 edition.workspace = true

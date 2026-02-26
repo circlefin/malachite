@@ -385,7 +385,7 @@ different state transitions in the consensus protocol.
 While this does not pose a threat to the safety of consensus, this might
 produce liveness issues, as correct processes may be left behind in the
 consensus computation.
-See this [discussion](https://github.com/informalsystems/malachite/discussions/380)
+See this [discussion](https://github.com/circlefin/malachite/discussions/380)
 for some examples.
 
 The **amnesia attack** is also virtually impossible to prevent and it is also
@@ -407,7 +407,7 @@ correct behaviour provided that `p` is able to prove the existence of a
 > A variation of Tendermint consensus protocol, known as
 > [Accountable Tendermint][accountable-tendermint], proposes some changes in
 > the algorithm to render it possible to detect and produce evidence for the
-> amnesia attack (see also [#398](https://github.com/informalsystems/malachite/issues/398)).
+> amnesia attack (see also [#398](https://github.com/circlefin/malachite/issues/398)).
 
 ## Functions
 
@@ -639,7 +639,7 @@ of previously decided values.
 
 >**Remark.** A similar way to address these concerns in implementations has been discussed in the
 context of soft upgrades [here](
-https://github.com/informalsystems/malachite/issues/510#issuecomment-2589858811).
+https://github.com/circlefin/malachite/issues/510#issuecomment-2589858811).
 
 ## Primitives
 
@@ -1057,8 +1057,8 @@ Condition 2, thus enabling `r` to be a successful round.
 [accountable-tendermint]: ./misbehavior.md#misbehavior-detection-and-verification-in-accountable-tendermint
 [cometbft-proposer]: https://github.com/cometbft/cometbft/blob/main/spec/consensus/proposer-selection.md
 [starkware-proofs]: ../starknet/proofs-scheduling/README.md
-[synchronization-issue]: https://github.com/informalsystems/malachite/issues/260
+[synchronization-issue]: https://github.com/circlefin/malachite/issues/260
 [synchronization-spec]: ../synchronization/README.md
 [partially-synchronous]: https://dl.acm.org/doi/10.1145/42282.42283
-[line29-issue]: https://github.com/informalsystems/malachite/issues/366
-[equivocation-discussion]: https://github.com/informalsystems/malachite/discussions/380
+[line29-issue]: https://github.com/circlefin/malachite/issues/366
+[equivocation-discussion]: https://github.com/circlefin/malachite/discussions/380

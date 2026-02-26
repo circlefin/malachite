@@ -7,7 +7,7 @@ mod round;
 use std::marker::PhantomData;
 
 pub mod types {
-    pub use informalsystems_malachitebft_test::{
+    pub use arc_malachitebft_test::{
         utils, Address, Ed25519Provider, Height, TestContext, Validator, ValidatorSet, ValueId,
         Vote,
     };

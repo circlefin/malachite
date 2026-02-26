@@ -83,13 +83,11 @@ where
     }
 
     if consensus_height < cert_height {
-        debug!(
+        warn!(
             consensus.height = %consensus_height,
             certificate.height = %cert_height,
-            "Received value response for higher height, queuing for later"
+            "Received sync value response for higher height; should have been buffered by sync actor"
         );
-
-        state.buffer_input(cert_height, Input::SyncValueResponse(value), metrics);
 
         return Ok(());
     }

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+> [!IMPORTANT]
+> All crates were renamed from `informalsystems-malachitebft-$crate` to `arc-malachitebft-$crate`.
+
 ### `malachitebft-core-types`
 
 - Added new associated type `Timeouts` to the `Context` trait (use `LinearTimeouts` for default implementation) ([#1227](https://github.com/circlefin/malachite/pull/1227))
@@ -50,13 +53,13 @@
 
 ### `malachitebft-core-types`
 
-- Move `SigningProvider` and `SigningProviderExt` traits into new `malachitebft-signing` crate ([#1191](https://github.com/informalsystems/malachite/pull/1191))
+- Move `SigningProvider` and `SigningProviderExt` traits into new `malachitebft-signing` crate ([#1191](https://github.com/circlefin/malachite/pull/1191))
 
 ### `malachitebft-signing`
 
-- New crate exposing the `SigningProvider` trait ([#1191](https://github.com/informalsystems/malachite/pull/1191))
-- Make methods of `SigningProvider` and `SigningProviderExt` traits fallible ([#1191](https://github.com/informalsystems/malachite/pull/1191))
-- Changed methods of `SigningProvider` and `SigningProviderExt` traits to `async` ([#1151](https://github.com/informalsystems/malachite/issues/1151))
+- New crate exposing the `SigningProvider` trait ([#1191](https://github.com/circlefin/malachite/pull/1191))
+- Make methods of `SigningProvider` and `SigningProviderExt` traits fallible ([#1191](https://github.com/circlefin/malachite/pull/1191))
+- Changed methods of `SigningProvider` and `SigningProviderExt` traits to `async` ([#1151](https://github.com/circlefin/malachite/issues/1151))
 
 ### `malachitebft-core-consensus`
 
@@ -68,7 +71,7 @@
 
 ### `malachitebft-config`
 
-- Added field `channel_names: ChannelNames` to `NetworkConfig` struct ([#849](https://github.com/informalsystems/malachite/pull/849))
+- Added field `channel_names: ChannelNames` to `NetworkConfig` struct ([#849](https://github.com/circlefin/malachite/pull/849))
 
 ### `malachitebft-app-channel`
 
@@ -81,22 +84,22 @@
 
 ### General
 
-- Updated libp2p to v0.56.x ([#1124](https://github.com/informalsystems/malachite/pull/1124))
+- Updated libp2p to v0.56.x ([#1124](https://github.com/circlefin/malachite/pull/1124))
 
 ### `malachitebft-app-channel`
 
-- Changed type of field `reply` of enum variant `AppMsg::Decided` to `Reply<malachitebft_engine::host::Next<Ctx>>` ([#1109](https://github.com/informalsystems/malachite/pull/1109))
+- Changed type of field `reply` of enum variant `AppMsg::Decided` to `Reply<malachitebft_engine::host::Next<Ctx>>` ([#1109](https://github.com/circlefin/malachite/pull/1109))
 
 ### `malachitebft-engine`
 
-- Changed tuple field of enum variant `HostMsg::ConsensusReady` to a field named `reply_to` of type `RpcReplyPort<(Ctx::Height, Ctx::ValidatorSet)>` ([#1109](https://github.com/informalsystems/malachite/pull/1109))
-- Added field `reply_to` to enum variant `HostMsg::StartedRound` with type `RpcReplyPort<Vec<ProposedValue<Ctx>>>` ([#1109](https://github.com/informalsystems/malachite/pull/1109))
-- Changed type of field `reply_to` of enum variant `HostMsg::Decided` to `RpcReplyPort<malachitebft_engine::host::Next<Ctx>>` ([#1109](https://github.com/informalsystems/malachite/pull/1109))
+- Changed tuple field of enum variant `HostMsg::ConsensusReady` to a field named `reply_to` of type `RpcReplyPort<(Ctx::Height, Ctx::ValidatorSet)>` ([#1109](https://github.com/circlefin/malachite/pull/1109))
+- Added field `reply_to` to enum variant `HostMsg::StartedRound` with type `RpcReplyPort<Vec<ProposedValue<Ctx>>>` ([#1109](https://github.com/circlefin/malachite/pull/1109))
+- Changed type of field `reply_to` of enum variant `HostMsg::Decided` to `RpcReplyPort<malachitebft_engine::host::Next<Ctx>>` ([#1109](https://github.com/circlefin/malachite/pull/1109))
 
 ### `malachitebft-core-consensus`
 
-- Rename `Effect::RebroadcastVote` to `Effect::RepublishVote` and `Effect::RebroadcastRoundCertificate` to `Effect::RepublishRoundCertificate` ([#1011](https://github.com/informalsystems/malachite/issues/1011))
-- Add new `Effect::SyncValue` variant to forward synced values to the application ([#1149](https://github.com/informalsystems/malachite/pull/1149))
+- Rename `Effect::RebroadcastVote` to `Effect::RepublishVote` and `Effect::RebroadcastRoundCertificate` to `Effect::RepublishRoundCertificate` ([#1011](https://github.com/circlefin/malachite/issues/1011))
+- Add new `Effect::SyncValue` variant to forward synced values to the application ([#1149](https://github.com/circlefin/malachite/pull/1149))
 
 ### `malachitebft-sync`
 
@@ -109,10 +112,10 @@
   - Now it has as parameter a range of heights instead of one, and a list of decided values instead
     of one or zero.
 - Added new parameter to `SyncRequestTimedOut` in `Input`.
-- Renamed `Effect::RebroadcastVote` to `Effect::RepublishVote` and `Effect::RebroadcastRoundCertificate` to `Effect::RepublishRoundCertificate` ([#1011](https://github.com/informalsystems/malachite/issues/1011))
-- Added new `Effect::SyncValue` variant to forward synced values to the application ([#1149](https://github.com/informalsystems/malachite/pull/1149))
-- Removed `Input::CommitCertificate` variant ([#1149](https://github.com/informalsystems/malachite/pull/1149))
-- Added new `Input::SyncValueResponse` variant to notify consensus of a sync value having been received via the sync protocol ([#1149](https://github.com/informalsystems/malachite/pull/1149))
+- Renamed `Effect::RebroadcastVote` to `Effect::RepublishVote` and `Effect::RebroadcastRoundCertificate` to `Effect::RepublishRoundCertificate` ([#1011](https://github.com/circlefin/malachite/issues/1011))
+- Added new `Effect::SyncValue` variant to forward synced values to the application ([#1149](https://github.com/circlefin/malachite/pull/1149))
+- Removed `Input::CommitCertificate` variant ([#1149](https://github.com/circlefin/malachite/pull/1149))
+- Added new `Input::SyncValueResponse` variant to notify consensus of a sync value having been received via the sync protocol ([#1149](https://github.com/circlefin/malachite/pull/1149))
 
 ## 0.4.0
 
@@ -120,11 +123,11 @@
 
 ### `malachitebft-config`
 - Added new sync parameters to config.
-  See ([#1092](https://github.com/informalsystems/malachite/issues/1092)) for more details.
+  See ([#1092](https://github.com/circlefin/malachite/issues/1092)) for more details.
 
 ### `malachitebft-sync`
 - Added new parallel requests related parameters to sync config.
-  See ([#1092](https://github.com/informalsystems/malachite/issues/1092)) for more details.
+  See ([#1092](https://github.com/circlefin/malachite/issues/1092)) for more details.
 
 
 ## 0.3.1
@@ -140,20 +143,20 @@ No breaking changes.
 
 ### `malachitebft-core-types`
 - Removed the VoteSet synchronization protocol, as it is neither required nor sufficient for liveness.
-  See ([#998](https://github.com/informalsystems/malachite/issues/998)) for more details.
+  See ([#998](https://github.com/circlefin/malachite/issues/998)) for more details.
 
 ### `malachitebft-core-consensus`
 - Removed the VoteSet synchronization protocol, as it is neither required nor sufficient for liveness.
-  See ([#998](https://github.com/informalsystems/malachite/issues/998)) for more details.
+  See ([#998](https://github.com/circlefin/malachite/issues/998)) for more details.
 - Added new variants to `Input` enum: `PolkaCertificate` and `RoundCertificate`
 - Added new variant to `Effect` enum: `PublishLivenessMessage`
 
 ### `malachitebft-metrics`
-- Removed app-specific metrics from the `malachitebft-metrics` crate ([#1054](https://github.com/informalsystems/malachite/issues/1054))
+- Removed app-specific metrics from the `malachitebft-metrics` crate ([#1054](https://github.com/circlefin/malachite/issues/1054))
 
 ### `malachitebft-engine`
 - Removed the VoteSet synchronization protocol, as it is neither required nor sufficient for liveness.
-  See ([#998](https://github.com/informalsystems/malachite/issues/998)) for more details.
+  See ([#998](https://github.com/circlefin/malachite/issues/998)) for more details.
 - Changed the reply channel of `GetValidatorSet` message to take an `Option<Ctx::ValidatorSet>` instead of `Ctx::ValidatorSet`.
 - Added new variant to `Msg` enum: `PublishLivenessMsg`
 - Added new variants to `NetworkEvent` enum: `PolkaCertificate` and `RoundCertificate`
@@ -172,9 +175,9 @@ No breaking changes.
 
 ### `malachitebft-sync`
 - Removed the VoteSet synchronization protocol, as it is neither required nor sufficient for liveness.
-  See ([#998](https://github.com/informalsystems/malachite/issues/998)) for more details.
+  See ([#998](https://github.com/circlefin/malachite/issues/998)) for more details.
 
-### `informalsystems-malachitebft-app-channel`
+### `arc-malachitebft-app-channel`
 - The `start_engine` function now takes two `Codec`s: one for the WAL and one for the network.
 
 ## 0.2.0
@@ -201,7 +204,7 @@ No breaking changes.
 - Added new variants to `TimeoutKind` enum: `PrevoteRebroadcast` and `PrecommitRebroadcast`.
 
 #### Struct Changes
-- Removed the `Extension` struct that was previously available at `informalsystems_malachitebft_core_types::Extension`.
+- Removed the `Extension` struct that was previously available at `arc_malachitebft_core_types::Extension`.
 - Removed the `extension` field from the `CommitSignature` struct.
 - Changed `CommitSignature::new()` method to take 2 parameters instead of 3.
 
@@ -269,7 +272,7 @@ No breaking changes.
   - `State::remove_full_proposals`
 
 
-### `informalsystems-malachitebft-sync`
+### `arc-malachitebft-sync`
 
 #### Struct Changes
 - Added new field to externally-constructible struct:
@@ -289,7 +292,7 @@ No breaking changes.
 - Changed parameter count:
   - `VoteSetResponse::new` now takes 4 parameters instead of 3
 
-### `informalsystems-malachitebft-engine`
+### `arc-malachitebft-engine`
 
 #### Enum Changes
 - Removed enums:
@@ -320,7 +323,7 @@ No breaking changes.
 - Removed struct:
   - `LocallyProposedValue` has been removed from the `host` module
 
-### `informalsystems-malachitebft-app-channel`
+### `arc-malachitebft-app-channel`
 
 #### Struct Changes
 - Added new fields to externally-constructible structs:

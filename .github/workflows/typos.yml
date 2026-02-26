@@ -15,5 +15,5 @@ jobs:
     name: Check spelling
     runs-on: github-hosted-small
     steps:
-      - uses: actions/checkout@v4
-      - uses: crate-ci/typos@master
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: crate-ci/typos@30eea72e385d435c00a24eeba0d96f87048f42ec # master

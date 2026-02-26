@@ -1,5 +1,5 @@
 [package]
-name = "informalsystems-malachitebft-app-channel"
+name = "arc-malachitebft-app-channel"
 description = "High-level interface for building channel-based applications on top of the Malachite BFT consensus engine"
 version.workspace = true
 edition.workspace = true

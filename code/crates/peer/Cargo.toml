@@ -1,5 +1,5 @@
 [package]
-name = "informalsystems-malachitebft-peer"
+name = "arc-malachitebft-peer"
 description = "Peer definition for the Malachite BFT consensus engine"
 version.workspace = true
 edition.workspace = true

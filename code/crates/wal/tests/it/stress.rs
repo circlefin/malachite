@@ -7,7 +7,7 @@ use rand::{thread_rng, Rng};
 use testdir::NumberedDir;
 use testdir::NumberedDirBuilder;
 
-use informalsystems_malachitebft_wal::*;
+use arc_malachitebft_wal::*;
 
 static TESTDIR: LazyLock<NumberedDir> =
     LazyLock::new(|| NumberedDirBuilder::new("wal".to_string()).create().unwrap());

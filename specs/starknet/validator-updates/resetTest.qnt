@@ -12,7 +12,7 @@ import resetSystem (
     ValAddresses = Set("Huey", "Dewey", "Louie")
 ).* from "./resetSystem"
 
-//// TODO: fix those tests, see https://github.com/informalsystems/malachite/issues/610.
+//// TODO: fix those tests, see https://github.com/circlefin/malachite/issues/610.
 //run FailedResetTest =
 //    init
 //    .then(addRegistration)

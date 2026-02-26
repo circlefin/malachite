@@ -1,5 +1,5 @@
 [package]
-name = "informalsystems-malachitebft-test-cli"
+name = "arc-malachitebft-test-cli"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true

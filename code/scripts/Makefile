@@ -8,7 +8,7 @@ NODES_COUNT?=5
 NODES_HOME?=$(HOME)/.malachite
 
 # Binary name
-APP_BINARY?=informalsystems-malachitebft-starknet-app
+APP_BINARY?=arc-malachitebft-starknet-app
 
 # Is this a RELEASE build?
 ifeq ($(strip $(RELEASE)),)
@@ -31,7 +31,7 @@ help:
 	@echo "  make log           - show log files' path"
 	@echo "  make clean         - stop testnet and clean up all files"
 	@echo "Environment variables:"
-	@echo "  APP_BINARY         - the file name to run (informalsystems-malachitebft-starknet-app)"
+	@echo "  APP_BINARY         - the file name to run (arc-malachitebft-starknet-app)"
 	@echo "  MALACHITE_CODE_DIR - the source code directory ($(realpath $(CURDIR)/../../code))"
 	@echo "  NODES_COUNT        - the number of local nodes to create (5)"
 	@echo "  NODES_HOME         - home folder for the node configuration ($$HOME/.malachite)"

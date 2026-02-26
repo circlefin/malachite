@@ -20,6 +20,9 @@ where
     /// Consensus has started
     pub started: bool,
 
+    /// The height that consensus is at, but has not decided yet.
+    pub consensus_height: Ctx::Height,
+
     /// Height of last decided value
     pub tip_height: Ctx::Height,
 
@@ -55,6 +58,7 @@ where
             rng,
             config,
             started: false,
+            consensus_height: Ctx::Height::ZERO,
             tip_height: Ctx::Height::ZERO,
             sync_height: Ctx::Height::ZERO,
             pending_requests: BTreeMap::new(),
@@ -65,7 +69,7 @@ where
 
     /// The maximum number of parallel requests that can be made to peers.
     /// If the configuration is set to 0, it defaults to 1.
-    pub fn max_parallel_requests(&self) -> u64 {
+    pub fn max_parallel_requests(&self) -> usize {
         max(1, self.config.parallel_requests)
     }
 
@@ -168,9 +172,8 @@ where
         start..=*range.end()
     }
 
-    /// When the tip height is higher than the requested range, then the request
-    /// has been fully validated and it can be removed.
-    pub fn remove_fully_validated_requests(&mut self) {
+    /// Remove pending requests that are for heights that have already been validated by consensus.
+    pub fn prune_pending_requests(&mut self) {
         self.pending_requests
             .retain(|_, (range, _)| range.end() > &self.tip_height);
     }

@@ -1,5 +1,5 @@
 <h1 align="center">
-<img src="https://raw.githubusercontent.com/informalsystems/malachite/refs/heads/main/assets/banner.png" alt="Malachite" width="2400" align="center">
+<img src="https://raw.githubusercontent.com/circlefin/malachite/refs/heads/main/assets/banner.png" alt="Malachite" width="2400" align="center">
 </h1>
 
 <h4 align="center">
@@ -74,8 +74,8 @@ The repository is split into three areas, each covering one of the important asp
 ### Crates and Status
 
 > [!NOTE]
-> The actual name of each crate is prefixed with `informalsystems-malachitebft-`.
-> For instance, the crate denoted by `core-consensus` below can be found on crates.io as `informalsystems-malachitebft-core-consensus`.
+> The actual name of each crate is prefixed with `arc-malachitebft-`.
+> For instance, the crate denoted by `core-consensus` below can be found on crates.io as `arc-malachitebft-core-consensus`.
 
 #### Core consensus algorithm
 
@@ -145,15 +145,15 @@ Licensed under the Apache License, Version 2.0 (the "License"); you may not use 
 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 
 [docs-main-image]: https://img.shields.io/badge/docs-main-blue?logo=googledocs&logoColor=white
-[docs-main-link]: https://informalsystems.github.io/malachite/
+[docs-main-link]: https://circlefin.github.io/malachite/
 [build-image]: https://github.com/circlefin/malachite/actions/workflows/rust.yml/badge.svg
 [build-link]: https://github.com/circlefin/malachite/actions/workflows/rust.yml
 [quint-image]: https://github.com/circlefin/malachite/actions/workflows/quint.yml/badge.svg
 [quint-link]: https://github.com/circlefin/malachite/actions/workflows/quint.yml
 [mbt-test-image]: https://github.com/circlefin/malachite/actions/workflows/mbt.yml/badge.svg
 [mbt-test-link]: https://github.com/circlefin/malachite/actions/workflows/mbt.yml
-[coverage-image]: https://codecov.io/gh/informalsystems/malachite/graph/badge.svg?token=B9KY7B6DJF
-[coverage-link]: https://codecov.io/gh/informalsystems/malachite
+[coverage-image]: https://codecov.io/gh/circlefin/malachite/graph/badge.svg?token=B9KY7B6DJF
+[coverage-link]: https://codecov.io/gh/circlefin/malachite
 [license-image]: https://img.shields.io/badge/license-Apache_2.0-blue.svg
 [license-link]: https://github.com/informalsystems/hermes/blob/master/LICENSE
 [rustc-image]: https://img.shields.io/badge/Rust-stable-orange.svg
@@ -170,71 +170,71 @@ Unless required by applicable law or agreed to in writing, software distributed 
 [website-announcements]: https://informal.systems/malachite/blog
 
 [//]: # (crates.io and docs.rs: links and badges)
-[core-consensus-crate-image]: https://img.shields.io/crates/v/informalsystems-malachitebft-core-consensus
-[core-consensus-crate-link]: https://crates.io/crates/informalsystems-malachitebft-core-consensus
-[core-driver-crate-image]: https://img.shields.io/crates/v/informalsystems-malachitebft-core-driver
-[core-driver-crate-link]: https://crates.io/crates/informalsystems-malachitebft-core-driver
-[core-state-machine-crate-image]: https://img.shields.io/crates/v/informalsystems-malachitebft-core-state-machine
-[core-state-machine-crate-link]: https://crates.io/crates/informalsystems-malachitebft-core-state-machine
-[core-types-crate-image]: https://img.shields.io/crates/v/informalsystems-malachitebft-core-types
-[core-types-crate-link]: https://crates.io/crates/informalsystems-malachitebft-core-types
-[core-votekeeper-crate-image]: https://img.shields.io/crates/v/informalsystems-malachitebft-core-votekeeper
-[core-votekeeper-crate-link]: https://crates.io/crates/informalsystems-malachitebft-core-votekeeper
-[core-consensus-docs-image]: https://img.shields.io/docsrs/informalsystems-malachitebft-core-consensus
-[core-consensus-docs-link]: https://docs.rs/informalsystems-malachitebft-core-consensus
-[core-driver-docs-image]: https://img.shields.io/docsrs/informalsystems-malachitebft-core-driver
-[core-driver-docs-link]: https://docs.rs/informalsystems-malachitebft-core-driver
-[core-state-machine-docs-image]: https://img.shields.io/docsrs/informalsystems-malachitebft-core-state-machine
-[core-state-machine-docs-link]: https://docs.rs/informalsystems-malachitebft-core-state-machine
-[core-types-docs-image]: https://img.shields.io/docsrs/informalsystems-malachitebft-core-types
-[core-types-docs-link]: https://docs.rs/informalsystems-malachitebft-core-types
-[core-votekeeper-docs-image]: https://img.shields.io/docsrs/informalsystems-malachitebft-core-votekeeper
-[core-votekeeper-docs-link]: https://docs.rs/informalsystems-malachitebft-core-votekeeper
-[app-channel-crate-image]: https://img.shields.io/crates/v/informalsystems-malachitebft-app-channel
-[app-channel-crate-link]: https://crates.io/crates/informalsystems-malachitebft-app-channel
-[app-channel-docs-image]: https://img.shields.io/docsrs/informalsystems-malachitebft-app-channel
-[app-channel-docs-link]: https://docs.rs/informalsystems-malachitebft-app-channel
-[app-crate-image]: https://img.shields.io/crates/v/informalsystems-malachitebft-app
-[app-crate-link]: https://crates.io/crates/informalsystems-malachitebft-app
-[codec-crate-image]: https://img.shields.io/crates/v/informalsystems-malachitebft-codec
-[codec-crate-link]: https://crates.io/crates/informalsystems-malachitebft-codec
-[config-crate-image]: https://img.shields.io/crates/v/informalsystems-malachitebft-config
-[config-crate-link]: https://crates.io/crates/informalsystems-malachitebft-config
-[discovery-crate-image]: https://img.shields.io/crates/v/informalsystems-malachitebft-discovery
-[discovery-crate-link]: https://crates.io/crates/informalsystems-malachitebft-discovery
-[engine-crate-image]: https://img.shields.io/crates/v/informalsystems-malachitebft-engine
-[engine-crate-link]: https://crates.io/crates/informalsystems-malachitebft-engine
-[metrics-crate-image]: https://img.shields.io/crates/v/informalsystems-malachitebft-metrics
-[metrics-crate-link]: https://crates.io/crates/informalsystems-malachitebft-metrics
-[network-crate-image]: https://img.shields.io/crates/v/informalsystems-malachitebft-network
-[network-crate-link]: https://crates.io/crates/informalsystems-malachitebft-network
-[peer-crate-image]: https://img.shields.io/crates/v/informalsystems-malachitebft-peer
-[peer-crate-link]: https://crates.io/crates/informalsystems-malachitebft-peer
-[proto-crate-image]: https://img.shields.io/crates/v/informalsystems-malachitebft-proto
-[proto-crate-link]: https://crates.io/crates/informalsystems-malachitebft-proto
-[sync-crate-image]: https://img.shields.io/crates/v/informalsystems-malachitebft-sync
-[sync-crate-link]: https://crates.io/crates/informalsystems-malachitebft-sync
-[wal-crate-image]: https://img.shields.io/crates/v/informalsystems-malachitebft-wal
-[wal-crate-link]: https://crates.io/crates/informalsystems-malachitebft-wal
-[app-docs-image]: https://img.shields.io/docsrs/informalsystems-malachitebft-app
-[app-docs-link]: https://docs.rs/informalsystems-malachitebft-app
-[codec-docs-image]: https://img.shields.io/docsrs/informalsystems-malachitebft-codec
-[codec-docs-link]: https://docs.rs/informalsystems-malachitebft-codec
-[config-docs-image]: https://img.shields.io/docsrs/informalsystems-malachitebft-config
-[config-docs-link]: https://docs.rs/informalsystems-malachitebft-config
-[discovery-docs-image]: https://img.shields.io/docsrs/informalsystems-malachitebft-discovery
-[discovery-docs-link]: https://docs.rs/informalsystems-malachitebft-discovery
-[engine-docs-image]: https://img.shields.io/docsrs/informalsystems-malachitebft-engine
-[engine-docs-link]: https://docs.rs/informalsystems-malachitebft-engine
-[metrics-docs-image]: https://img.shields.io/docsrs/informalsystems-malachitebft-metrics
-[metrics-docs-link]: https://docs.rs/informalsystems-malachitebft-metrics
-[network-docs-image]: https://img.shields.io/docsrs/informalsystems-malachitebft-network
-[network-docs-link]: https://docs.rs/informalsystems-malachitebft-network
-[peer-docs-image]: https://img.shields.io/docsrs/informalsystems-malachitebft-peer
-[peer-docs-link]: https://docs.rs/informalsystems-malachitebft-peer
-[proto-docs-image]: https://img.shields.io/docsrs/informalsystems-malachitebft-proto
-[proto-docs-link]: https://docs.rs/informalsystems-malachitebft-proto
-[sync-docs-image]: https://img.shields.io/docsrs/informalsystems-malachitebft-sync
-[sync-docs-link]: https://docs.rs/informalsystems-malachitebft-sync
-[wal-docs-image]: https://img.shields.io/docsrs/informalsystems-malachitebft-wal
-[wal-docs-link]: https://docs.rs/informalsystems-malachitebft-wal
+[core-consensus-crate-image]: https://img.shields.io/crates/v/arc-malachitebft-core-consensus
+[core-consensus-crate-link]: https://crates.io/crates/arc-malachitebft-core-consensus
+[core-driver-crate-image]: https://img.shields.io/crates/v/arc-malachitebft-core-driver
+[core-driver-crate-link]: https://crates.io/crates/arc-malachitebft-core-driver
+[core-state-machine-crate-image]: https://img.shields.io/crates/v/arc-malachitebft-core-state-machine
+[core-state-machine-crate-link]: https://crates.io/crates/arc-malachitebft-core-state-machine
+[core-types-crate-image]: https://img.shields.io/crates/v/arc-malachitebft-core-types
+[core-types-crate-link]: https://crates.io/crates/arc-malachitebft-core-types
+[core-votekeeper-crate-image]: https://img.shields.io/crates/v/arc-malachitebft-core-votekeeper
+[core-votekeeper-crate-link]: https://crates.io/crates/arc-malachitebft-core-votekeeper
+[core-consensus-docs-image]: https://img.shields.io/docsrs/arc-malachitebft-core-consensus
+[core-consensus-docs-link]: https://docs.rs/arc-malachitebft-core-consensus
+[core-driver-docs-image]: https://img.shields.io/docsrs/arc-malachitebft-core-driver
+[core-driver-docs-link]: https://docs.rs/arc-malachitebft-core-driver
+[core-state-machine-docs-image]: https://img.shields.io/docsrs/arc-malachitebft-core-state-machine
+[core-state-machine-docs-link]: https://docs.rs/arc-malachitebft-core-state-machine
+[core-types-docs-image]: https://img.shields.io/docsrs/arc-malachitebft-core-types
+[core-types-docs-link]: https://docs.rs/arc-malachitebft-core-types
+[core-votekeeper-docs-image]: https://img.shields.io/docsrs/arc-malachitebft-core-votekeeper
+[core-votekeeper-docs-link]: https://docs.rs/arc-malachitebft-core-votekeeper
+[app-channel-crate-image]: https://img.shields.io/crates/v/arc-malachitebft-app-channel
+[app-channel-crate-link]: https://crates.io/crates/arc-malachitebft-app-channel
+[app-channel-docs-image]: https://img.shields.io/docsrs/arc-malachitebft-app-channel
+[app-channel-docs-link]: https://docs.rs/arc-malachitebft-app-channel
+[app-crate-image]: https://img.shields.io/crates/v/arc-malachitebft-app
+[app-crate-link]: https://crates.io/crates/arc-malachitebft-app
+[codec-crate-image]: https://img.shields.io/crates/v/arc-malachitebft-codec
+[codec-crate-link]: https://crates.io/crates/arc-malachitebft-codec
+[config-crate-image]: https://img.shields.io/crates/v/arc-malachitebft-config
+[config-crate-link]: https://crates.io/crates/arc-malachitebft-config
+[discovery-crate-image]: https://img.shields.io/crates/v/arc-malachitebft-discovery
+[discovery-crate-link]: https://crates.io/crates/arc-malachitebft-discovery
+[engine-crate-image]: https://img.shields.io/crates/v/arc-malachitebft-engine
+[engine-crate-link]: https://crates.io/crates/arc-malachitebft-engine
+[metrics-crate-image]: https://img.shields.io/crates/v/arc-malachitebft-metrics
+[metrics-crate-link]: https://crates.io/crates/arc-malachitebft-metrics
+[network-crate-image]: https://img.shields.io/crates/v/arc-malachitebft-network
+[network-crate-link]: https://crates.io/crates/arc-malachitebft-network
+[peer-crate-image]: https://img.shields.io/crates/v/arc-malachitebft-peer
+[peer-crate-link]: https://crates.io/crates/arc-malachitebft-peer
+[proto-crate-image]: https://img.shields.io/crates/v/arc-malachitebft-proto
+[proto-crate-link]: https://crates.io/crates/arc-malachitebft-proto
+[sync-crate-image]: https://img.shields.io/crates/v/arc-malachitebft-sync
+[sync-crate-link]: https://crates.io/crates/arc-malachitebft-sync
+[wal-crate-image]: https://img.shields.io/crates/v/arc-malachitebft-wal
+[wal-crate-link]: https://crates.io/crates/arc-malachitebft-wal
+[app-docs-image]: https://img.shields.io/docsrs/arc-malachitebft-app
+[app-docs-link]: https://docs.rs/arc-malachitebft-app
+[codec-docs-image]: https://img.shields.io/docsrs/arc-malachitebft-codec
+[codec-docs-link]: https://docs.rs/arc-malachitebft-codec
+[config-docs-image]: https://img.shields.io/docsrs/arc-malachitebft-config
+[config-docs-link]: https://docs.rs/arc-malachitebft-config
+[discovery-docs-image]: https://img.shields.io/docsrs/arc-malachitebft-discovery
+[discovery-docs-link]: https://docs.rs/arc-malachitebft-discovery
+[engine-docs-image]: https://img.shields.io/docsrs/arc-malachitebft-engine
+[engine-docs-link]: https://docs.rs/arc-malachitebft-engine
+[metrics-docs-image]: https://img.shields.io/docsrs/arc-malachitebft-metrics
+[metrics-docs-link]: https://docs.rs/arc-malachitebft-metrics
+[network-docs-image]: https://img.shields.io/docsrs/arc-malachitebft-network
+[network-docs-link]: https://docs.rs/arc-malachitebft-network
+[peer-docs-image]: https://img.shields.io/docsrs/arc-malachitebft-peer
+[peer-docs-link]: https://docs.rs/arc-malachitebft-peer
+[proto-docs-image]: https://img.shields.io/docsrs/arc-malachitebft-proto
+[proto-docs-link]: https://docs.rs/arc-malachitebft-proto
+[sync-docs-image]: https://img.shields.io/docsrs/arc-malachitebft-sync
+[sync-docs-link]: https://docs.rs/arc-malachitebft-sync
+[wal-docs-image]: https://img.shields.io/docsrs/arc-malachitebft-wal
+[wal-docs-link]: https://docs.rs/arc-malachitebft-wal

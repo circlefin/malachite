@@ -1,5 +1,5 @@
 [package]
-name = "informalsystems-malachitebft-core-driver"
+name = "arc-malachitebft-core-driver"
 description = "Driver for the state machine of Malachite BFT consensus engine"
 version.workspace = true
 edition.workspace = true
@@ -29,4 +29,6 @@ thiserror = { workspace = true, default-features = false }
 tracing = { workspace = true, default-features = false }
 
 [dev-dependencies]
+futures = { workspace = true }
+malachitebft-signing = { workspace = true }
 malachitebft-test = { workspace = true }

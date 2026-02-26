@@ -1,5 +1,5 @@
 [package]
-name = "informalsystems-malachitebft-core-consensus"
+name = "arc-malachitebft-core-consensus"
 description = "Core consensus algorithm for the Malachite BFT consensus engine"
 version.workspace = true
 edition.workspace = true
