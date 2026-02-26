@@ -90,11 +90,12 @@ pub struct PeerInfo {
     pub connection_direction: Option<ConnectionDirection>, // None if ephemeral (unknown)
     pub score: f64,
     pub topics: HashSet<String>, // Set of topics peer is in mesh for (e.g., "/consensus", "/liveness")
+    pub is_explicit: bool,       // Whether this peer is an explicit peer in gossipsub
 }
 
 impl PeerInfo {
     /// Format peer info with peer_id for logging
-    ///  Address, Moniker, Type, PeerId, ConsensusAddr, Mesh, Dir, Score
+    ///  Address, Moniker, Type, PeerId, ConsensusAddr, Mesh, Dir, Score, Explicit
     pub fn format_with_peer_id(&self, peer_id: &libp2p::PeerId) -> String {
         let direction = self.connection_direction.map_or("??", |d| d.as_str());
         let mut topics: Vec<&str> = self.topics.iter().map(|s| s.as_str()).collect();
@@ -106,8 +107,9 @@ impl PeerInfo {
         } else {
             &self.consensus_address
         };
+        let explicit = if self.is_explicit { "explicit" } else { "-" };
         format!(
-            "{}, {}, {}, {}, {}, {}, {}, {}",
+            "{}, {}, {}, {}, {}, {}, {}, {}, {}",
             self.address,
             self.moniker,
             peer_type_str,
@@ -115,7 +117,8 @@ impl PeerInfo {
             address,
             topics_str,
             direction,
-            self.score as i64
+            self.score as i64,
+            explicit
         )
     }
 }
@@ -189,16 +192,12 @@ impl State {
         let mut changed_peers = Vec::new();
 
         for (peer_id, peer_info) in self.peer_info.iter_mut() {
-            let old_type = peer_info.peer_type;
-
             // Check if advertised address matches a validator in the set
-            // If it does, use the canonical address from the validator set
             let is_validator = if let Some(validator_info) = self
                 .validator_set
                 .iter()
                 .find(|v| v.address == peer_info.consensus_address)
             {
-                // Use canonical address from validator set
                 peer_info.consensus_address = validator_info.address.clone();
                 true
             } else {
@@ -208,29 +207,16 @@ impl State {
             // Preserve persistent status, update validator status
             let new_type = peer_info.peer_type.with_validator_status(is_validator);
 
-            if new_type != old_type {
-                tracing::info!(
-                    %peer_id,
-                    ?old_type,
-                    ?new_type,
-                    "Peer type changed due to validator set update"
-                );
+            // Clone old info for metrics BEFORE updating fields
+            let old_peer_info = peer_info.clone();
 
-                // Clone peer_info before updating for metrics (need old state)
-                let old_peer_info = peer_info.clone();
-
-                // Compute new score
-                let new_score = crate::peer_scoring::get_peer_score(new_type);
-
-                // Update peer type and score
-                peer_info.peer_type = new_type;
-                peer_info.score = new_score;
-
-                // Update metrics with old info and new type
-                self.metrics
-                    .update_peer_type(peer_id, &old_peer_info, new_type);
-
-                // Record for caller to update GossipSub scores
+            if let Some(new_score) = apply_peer_type_change(
+                peer_id,
+                peer_info,
+                &old_peer_info,
+                new_type,
+                &mut self.metrics,
+            ) {
                 changed_peers.push((*peer_id, new_score));
             }
         }
@@ -431,38 +417,52 @@ impl State {
             agent_info.address.clone()
         };
 
-        // Compute the peer score based on peer type
-        let score = crate::peer_scoring::get_peer_score(peer_type);
+        // If peer already exists (additional connection), update Identify-provided fields.
+        // Keep existing state (topics) since they never fully disconnected.
+        if let Some(existing) = self.peer_info.get_mut(&peer_id) {
+            let old_peer_info = existing.clone();
+            existing.moniker = agent_info.moniker;
+            // Prefer outbound (dialed) addresses over inbound
+            if connection_direction == Some(ConnectionDirection::Outbound)
+                || existing.connection_direction != Some(ConnectionDirection::Outbound)
+            {
+                existing.address = address;
+                existing.connection_direction = connection_direction;
+            }
+            // Re-evaluate peer type and consensus address with current state
+            existing.peer_type = peer_type;
+            existing.consensus_address = consensus_address;
+            existing.score = crate::peer_scoring::get_peer_score(peer_type);
 
-        // Only update peer_info if:
-        // - there is no existing entry for this peer, OR
-        // - this is an outbound connection (prefer dialed addresses over inbound source addresses)
-        let should_update = !self.peer_info.contains_key(&peer_id)
-            || connection_direction == Some(ConnectionDirection::Outbound);
-
-        if should_update {
-            let peer_info = PeerInfo {
-                address,
-                consensus_address,
-                moniker: agent_info.moniker,
-                peer_type,
-                connection_direction,
-                score,
-                topics: Default::default(), // Empty set, will be updated by update_peer_info
-            };
-
-            // Record peer information in metrics (subject to 100 slot limit)
-            self.metrics.record_peer_info(&peer_id, &peer_info);
-
-            // Store in State
-            self.peer_info.insert(peer_id, peer_info);
+            self.metrics
+                .update_peer_labels(&peer_id, &old_peer_info, existing);
+            return existing.score;
         }
+
+        // New peer - create entry
+        let score = crate::peer_scoring::get_peer_score(peer_type);
+        let peer_info = PeerInfo {
+            address,
+            consensus_address,
+            moniker: agent_info.moniker,
+            peer_type,
+            connection_direction,
+            score,
+            topics: Default::default(),
+            is_explicit: false,
+        };
+
+        // Record peer information in metrics (subject to 100 slot limit)
+        self.metrics.record_new_peer(&peer_id, &peer_info);
+
+        // Store in State
+        self.peer_info.insert(peer_id, peer_info);
 
         score
     }
 
     /// Format the peer information for logging (scrapable format):
-    ///  Address, Moniker, PeerId, Mesh, Dir, Type, Score
+    ///  Address, Moniker, Type, PeerId, ConsensusAddr, Mesh, Dir, Score, Explicit
     pub fn format_peer_info(&self) -> String {
         let mut lines = Vec::new();
 
@@ -617,4 +617,25 @@ fn extract_peer_id_from_multiaddr(addr: &Multiaddr) -> Option<libp2p::PeerId> {
         }
     }
     None
+}
+
+/// Helper to apply a peer type change, updating score and metrics.
+///
+/// Takes old_peer_info for stale metric labels (before any modifications)
+/// and uses peer_info for current metric labels (after modifications).
+/// Returns Some(new_score) if any label field changed, None otherwise.
+fn apply_peer_type_change(
+    peer_id: &libp2p::PeerId,
+    peer_info: &mut PeerInfo,
+    old_peer_info: &PeerInfo,
+    new_type: PeerType,
+    metrics: &mut NetworkMetrics,
+) -> Option<f64> {
+    let new_score = crate::peer_scoring::get_peer_score(new_type);
+    peer_info.peer_type = new_type;
+    peer_info.score = new_score;
+
+    metrics
+        .update_peer_labels(peer_id, old_peer_info, peer_info)
+        .then_some(new_score)
 }

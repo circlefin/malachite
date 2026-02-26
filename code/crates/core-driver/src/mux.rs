@@ -204,7 +204,7 @@ where
     pub(crate) fn store_and_multiplex_commit_certificate(
         &mut self,
         certificate: CommitCertificate<Ctx>,
-    ) -> Option<RoundInput<Ctx>> {
+    ) -> RoundInput<Ctx> {
         // Should only receive proposals for our height.
         assert_eq!(self.height(), certificate.height);
 
@@ -214,20 +214,16 @@ where
         // Store the certificate
         self.commit_certificates.push(certificate);
 
+        // Check for associated Proposal: if found and valid, decide it
         if let Some((signed_proposal, validity)) =
             self.proposal_and_validity_for_round_and_value(certificate_round, certificate_value_id)
         {
             if validity.is_valid() {
-                return Some(RoundInput::ProposalAndPrecommitValue(
-                    signed_proposal.message.clone(),
-                ));
+                return RoundInput::ProposalAndPrecommitValue(signed_proposal.message.clone());
             }
-        } else {
-            // Proposal exists but validity is not confirmed, start precommit timer
-            return Some(RoundInput::PrecommitAny);
         }
-
-        None
+        // Proposal not received or deemed invalid
+        RoundInput::PrecommitAny
     }
 
     /// Store the polka certificate and multiplex the proposal.

@@ -15,8 +15,8 @@ jobs:
       code: ${{ steps.filter.outputs.code }}
       specs: ${{ steps.filter.outputs.specs }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: step-security/paths-filter@6eee183b0d2fd101d3f8ee2935c127bca14c5625 # v3.0.5
         id: filter
         with:
           filters: |
@@ -39,17 +39,17 @@ jobs:
       RUSTUP_MAX_RETRIES: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: Setup Node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
         with:
           node-version: "18"
       - name: Install Quint
         run: npm install -g @informalsystems/quint@0.27.0
       - name: Setup Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@cargo-nextest
+        uses: taiki-e/install-action@554bdce7edf79d43854a6b7c1e392e7da7eb97a9 # cargo-nextest
       - name: Current time as random seed for Quint
         run: echo "QUINT_SEED=$(date +%s)" >> $GITHUB_ENV
       - name: Build code
