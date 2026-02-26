@@ -107,7 +107,7 @@ impl PeerInfo {
         } else {
             &self.consensus_address
         };
-        let explicit = if self.is_explicit { "explicit" } else { "" };
+        let explicit = if self.is_explicit { "explicit" } else { "-" };
         format!(
             "{}, {}, {}, {}, {}, {}, {}, {}, {}",
             self.address,
@@ -462,7 +462,7 @@ impl State {
     }
 
     /// Format the peer information for logging (scrapable format):
-    ///  Address, Moniker, PeerId, Mesh, Dir, Type, Score
+    ///  Address, Moniker, Type, PeerId, ConsensusAddr, Mesh, Dir, Score, Explicit
     pub fn format_peer_info(&self) -> String {
         let mut lines = Vec::new();
 
