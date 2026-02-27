@@ -12,10 +12,12 @@ mod utils;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProtocolNames {
     pub consensus: String,
+
     pub discovery_kad: String,
+
     pub discovery_regres: String,
+
     pub sync: String,
-    pub broadcast: String,
 }
 
 impl Default for ProtocolNames {
@@ -25,7 +27,6 @@ impl Default for ProtocolNames {
             discovery_kad: "/malachitebft-discovery/kad/v1beta1".to_string(),
             discovery_regres: "/malachitebft-discovery/reqres/v1beta1".to_string(),
             sync: "/malachitebft-sync/v1beta1".to_string(),
-            broadcast: "/malachitebft-broadcast/v1beta1".to_string(),
         }
     }
 }
@@ -922,7 +923,6 @@ mod tests {
             discovery_kad: "/custom-discovery/kad/v1".to_string(),
             discovery_regres: "/custom-discovery/reqres/v1".to_string(),
             sync: "/custom-sync/v1".to_string(),
-            broadcast: "/custom-broadcast/v1".to_string(),
         };
 
         let json = serde_json::to_string(&protocol_names).unwrap();
@@ -945,7 +945,6 @@ mod tests {
             discovery_kad: "/test-network/discovery/kad/v1".to_string(),
             discovery_regres: "/test-network/discovery/reqres/v1".to_string(),
             sync: "/test-network/sync/v1".to_string(),
-            broadcast: "/test-network/broadcast/v1".to_string(),
         };
 
         let config_with_custom = P2pConfig {
@@ -979,7 +978,6 @@ mod tests {
         discovery_kad = "/custom-network/discovery/kad/v2"
         discovery_regres = "/custom-network/discovery/reqres/v2"
         sync = "/custom-network/sync/v2"
-        broadcast = "/custom-network/broadcast/v2"
         
         [p2p.protocol]
         type = "gossipsub"
@@ -1000,10 +998,6 @@ mod tests {
             "/custom-network/discovery/reqres/v2"
         );
         assert_eq!(config.p2p.protocol_names.sync, "/custom-network/sync/v2");
-        assert_eq!(
-            config.p2p.protocol_names.broadcast,
-            "/custom-network/broadcast/v2"
-        );
     }
 
     #[test]
