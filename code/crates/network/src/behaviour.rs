@@ -181,6 +181,7 @@ fn gossipsub_config(config: GossipSubConfig, max_transmit_size: usize) -> gossip
         .mesh_n_low(config.mesh_n_low)
         .mesh_outbound_min(config.mesh_outbound_min)
         .mesh_n(config.mesh_n)
+        .flood_publish(config.enable_flood_publish)
         .message_id_fn(message_id)
         .build()
         .unwrap()

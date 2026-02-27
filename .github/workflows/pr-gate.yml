@@ -11,7 +11,7 @@ jobs:
     steps:
       - name: Check if author is allowed bot
         id: check-dependabot
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           script: |
             const prAuthor = context.payload.pull_request.user.login;
@@ -22,7 +22,7 @@ jobs:
       - name: Check if author is codeowner
         id: check-codeowner
         if: steps.check-dependabot.outputs.is_allowed_bot == 'false'
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           script: |
             const prAuthor = context.payload.pull_request.user.login;
@@ -59,7 +59,7 @@ jobs:
         if: |
           steps.check-dependabot.outputs.is_allowed_bot == 'false' &&
           steps.check-codeowner.outputs.is_codeowner == 'false'
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           script: |
             const prAuthor = context.payload.pull_request.user.login;
@@ -86,7 +86,7 @@ jobs:
           steps.check-dependabot.outputs.is_allowed_bot == 'false' &&
           steps.check-codeowner.outputs.is_codeowner == 'false' &&
           steps.check-org-member.outputs.is_org_member == 'false'
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           script: |
             const prBody = context.payload.pull_request.body || '';
@@ -141,7 +141,7 @@ jobs:
           steps.check-org-member.outputs.is_org_member == 'false' &&
           steps.check-assignment.outputs.is_assigned == 'false' &&
           steps.check-assignment.outputs.reason == 'not_assigned_to_issue'
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           script: |
             const prAuthor = context.payload.pull_request.user.login;
@@ -217,7 +217,7 @@ jobs:
           steps.check-org-member.outputs.is_org_member == 'false' &&
           steps.check-assignment.outputs.is_assigned == 'false' &&
           steps.check-tagged-by-codeowner.outputs.is_tagged_by_codeowner != 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           script: |
             const reason = '${{ steps.check-assignment.outputs.reason }}';

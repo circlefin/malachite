@@ -3484,26 +3484,26 @@ fn invalid_proposal_becomes_valid_decision_via_votes() {
             expected_outputs: vec![],
             new_state: prevote_state(Round::new(0)),
         },
-        // Assume here that the process crashed, and the validation function was updated.
         TestStep {
-            desc: "Receive a Proposal for v, which is now deemed Valid",
-            input: proposal_input_from_proposal(proposal.clone(), Validity::Valid),
-            expected_round: Round::new(0),
-            expected_outputs: vec![],
-            new_state: prevote_state(Round::new(0)),
-        },
-        TestStep {
-            desc: "v1 precommits v",
+            desc: "v1 precommits invalid value v",
             input: precommit_input(Round::new(0), value_v.clone(), &v1.address),
             expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: prevote_state(Round::new(0)),
         },
         TestStep {
-            desc: "v2 precommits v, we get +2/3 and decide v",
+            desc: "v2 precommits invalid v, we get +2/3 and start timeout",
             input: precommit_input(Round::new(0), value_v.clone(), &v2.address),
-            expected_outputs: vec![decide_output(Round::new(0), proposal)],
             expected_round: Round::new(0),
+            expected_outputs: vec![start_precommit_timer_output(Round::new(0))],
+            new_state: prevote_state(Round::new(0)),
+        },
+        // Assume here that the process crashed, and the validation function was updated.
+        TestStep {
+            desc: "The validity of v is updated to Valid",
+            input: proposal_input_from_proposal(proposal.clone(), Validity::Valid),
+            expected_round: Round::new(0),
+            expected_outputs: vec![decide_output(Round::new(0), proposal.clone())],
             new_state: decided_state(Round::new(0), Round::new(0), value_v),
         },
     ];
@@ -3556,31 +3556,23 @@ fn invalid_proposal_becomes_valid_decision_via_certificate() {
             expected_outputs: vec![],
             new_state: prevote_state(Round::new(0)),
         },
-        // Assume here that the process crashed, and the validation function was updated.
         TestStep {
-            desc: "Receive a Proposal for v, which is now deemed Valid",
-            input: proposal_input_from_proposal(proposal.clone(), Validity::Valid),
-            expected_round: Round::new(0),
-            expected_outputs: vec![],
-            new_state: prevote_state(Round::new(0)),
-        },
-        // This should never happen. We should add an error message here.
-        TestStep {
-            desc: "Receive a Proposal for v, back to Invalid, should be ignored",
-            input: proposal_input_from_proposal(proposal.clone(), Validity::Invalid),
-            expected_round: Round::new(0),
-            expected_outputs: vec![],
-            new_state: prevote_state(Round::new(0)),
-        },
-        TestStep {
-            desc: "we get a certificate for v and decide v",
+            desc: "Commit certificate for invalid value v, start timeout",
             input: commit_certificate_input_at(
                 Round::new(0),
                 value_v.clone(),
                 &[v1.address, v2.address],
             ),
-            expected_outputs: vec![decide_output(Round::new(0), proposal)],
+            expected_outputs: vec![start_precommit_timer_output(Round::new(0))],
             expected_round: Round::new(0),
+            new_state: prevote_state(Round::new(0)),
+        },
+        // Assume here that the process crashed, and the validation function was updated.
+        TestStep {
+            desc: "The validity of v is updated to Valid",
+            input: proposal_input_from_proposal(proposal.clone(), Validity::Valid),
+            expected_round: Round::new(0),
+            expected_outputs: vec![decide_output(Round::new(0), proposal)],
             new_state: decided_state(Round::new(0), Round::new(0), value_v),
         },
     ];

@@ -102,6 +102,8 @@ pub struct GossipSubConfig {
     pub mesh_n_low: usize,
     pub mesh_outbound_min: usize,
     pub enable_peer_scoring: bool,
+    pub enable_explicit_peering: bool,
+    pub enable_flood_publish: bool,
 }
 
 impl Default for GossipSubConfig {
@@ -113,6 +115,8 @@ impl Default for GossipSubConfig {
             mesh_n_low: 4,
             mesh_outbound_min: 2,
             enable_peer_scoring: false,
+            enable_explicit_peering: false,
+            enable_flood_publish: true,
         }
     }
 }
@@ -611,6 +615,51 @@ fn set_peer_score(swarm: &mut swarm::Swarm<Behaviour>, peer_id: libp2p::PeerId, 
     }
 }
 
+/// Add a persistent peer as an explicit peer in gossipsub (if explicit peering is enabled).
+/// A node always sends and forwards messages to its explicit peers, regardless of mesh membership.
+fn add_explicit_peer_to_gossipsub(
+    swarm: &mut swarm::Swarm<Behaviour>,
+    state: &mut State,
+    peer_id: libp2p::PeerId,
+) {
+    let Some(peer_info) = state.peer_info.get_mut(&peer_id) else {
+        return;
+    };
+
+    if peer_info.peer_type.is_persistent() {
+        if let Some(gossipsub) = swarm.behaviour_mut().gossipsub.as_mut() {
+            gossipsub.add_explicit_peer(&peer_id);
+            state
+                .metrics
+                .record_explicit_peer(&peer_id, &peer_info.moniker);
+            peer_info.is_explicit = true;
+            info!("Added persistent peer {peer_id} as explicit peer in gossipsub");
+        }
+    }
+}
+
+/// Remove a persistent peer from explicit peers in gossipsub and mark the metric stale.
+fn remove_explicit_peer_from_gossipsub(
+    swarm: &mut swarm::Swarm<Behaviour>,
+    state: &mut State,
+    peer_id: &libp2p::PeerId,
+) {
+    let Some(peer_info) = state.peer_info.get_mut(peer_id) else {
+        return;
+    };
+
+    if peer_info.peer_type.is_persistent() {
+        if let Some(gossipsub) = swarm.behaviour_mut().gossipsub.as_mut() {
+            gossipsub.remove_explicit_peer(peer_id);
+            state
+                .metrics
+                .mark_explicit_peer_stale(peer_id, &peer_info.moniker);
+            peer_info.is_explicit = false;
+            info!("Removed persistent peer {peer_id} from explicit peers in gossipsub");
+        }
+    }
+}
+
 async fn handle_swarm_event(
     event: SwarmEvent<NetworkEvent>,
     config: &Config,
@@ -690,6 +739,11 @@ async fn handle_swarm_event(
                 .handle_closed_connection(swarm, peer_id, connection_id);
 
             if num_established == 0 {
+                // Remove explicit peer from gossipsub and mark metric stale when this peer was one
+                if config.gossipsub.enable_explicit_peering {
+                    remove_explicit_peer_from_gossipsub(swarm, state, &peer_id);
+                }
+
                 if let Err(e) = tx_event
                     .send(Event::PeerDisconnected(PeerId::from_libp2p(&peer_id)))
                     .await
@@ -731,6 +785,11 @@ async fn handle_swarm_event(
                     // Update peer info in State and metrics, set peer score in gossipsub
                     let score = state.update_peer(peer_id, connection_id, &info);
                     set_peer_score(swarm, peer_id, score);
+
+                    // If enabled, add persistent peers as explicit peers for guaranteed delivery
+                    if config.gossipsub.enable_explicit_peering {
+                        add_explicit_peer_to_gossipsub(swarm, state, peer_id);
+                    }
 
                     if !is_already_connected {
                         if let Err(e) = tx_event

@@ -38,6 +38,13 @@ pub(crate) struct MeshMembershipLabels {
     topic: String, // "/consensus", "/liveness", "/proposal_parts"
 }
 
+/// Labels for explicit peer metric
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+pub(crate) struct ExplicitPeerLabels {
+    peer_id: String,
+    peer_moniker: String,
+}
+
 impl PeerInfo {
     /// Convert to Prometheus metric labels (with slot number)
     pub(crate) fn to_labels(&self, peer_id: &PeerId, slot: usize) -> PeerInfoLabels {
@@ -86,6 +93,8 @@ pub(crate) struct Metrics {
     discovered_peers: Family<PeerInfoLabels, Gauge>,
     /// Per-peer, per-topic mesh membership (1 = in mesh, 0 = not in mesh)
     peer_mesh_membership: Family<MeshMembershipLabels, Gauge>,
+    /// Explicit peers in gossipsub (1 = active, i64::MIN = disconnected/stale)
+    explicit_peers: Family<ExplicitPeerLabels, Gauge>,
     /// PeerId to slot number mapping
     peer_slots: Slots<PeerId>,
 }
@@ -104,6 +113,7 @@ impl Metrics {
         let local_node_info = Family::<LocalNodeLabels, Gauge>::default();
         let peer_info = Family::<PeerInfoLabels, Gauge>::default();
         let mesh_membership = Family::<MeshMembershipLabels, Gauge>::default();
+        let explicit_peers = Family::<ExplicitPeerLabels, Gauge>::default();
 
         registry.register(
             "local_node_info",
@@ -123,10 +133,17 @@ impl Metrics {
             mesh_membership.clone(),
         );
 
+        registry.register(
+            "explicit_peers",
+            "Peers added as explicit peers in gossipsub (1 = active, i64::MIN = disconnected)",
+            explicit_peers.clone(),
+        );
+
         Self {
             local_node_info,
             discovered_peers: peer_info,
             peer_mesh_membership: mesh_membership,
+            explicit_peers,
             peer_slots: Slots::new(MAX_PEER_SLOTS),
         }
     }
@@ -220,6 +237,24 @@ impl Metrics {
 
             debug!("Freed slot {slot} for peer {peer_id}");
         }
+    }
+
+    /// Record a peer as an explicit peer in gossipsub
+    pub(crate) fn record_explicit_peer(&self, peer_id: &PeerId, moniker: &str) {
+        let labels = ExplicitPeerLabels {
+            peer_id: peer_id.to_string(),
+            peer_moniker: moniker.to_string(),
+        };
+        self.explicit_peers.get_or_create(&labels).set(1);
+    }
+
+    /// Mark an explicit peer as stale (disconnected)
+    pub(crate) fn mark_explicit_peer_stale(&self, peer_id: &PeerId, moniker: &str) {
+        let labels = ExplicitPeerLabels {
+            peer_id: peer_id.to_string(),
+            peer_moniker: moniker.to_string(),
+        };
+        self.explicit_peers.get_or_create(&labels).set(i64::MIN);
     }
 
     /// Record metrics for a new peer (assigns slot if needed).

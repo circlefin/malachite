@@ -24,8 +24,8 @@ jobs:
     outputs:
       code: ${{ steps.filter.outputs.code }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: step-security/paths-filter@6eee183b0d2fd101d3f8ee2935c127bca14c5625 # v3.0.5
         id: filter
         with:
           filters: |
@@ -40,7 +40,7 @@ jobs:
         working-directory: code
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       # - name: Setup Node
       #   uses: actions/setup-node@v3
       #   with:
@@ -48,11 +48,11 @@ jobs:
       # - name: Install Quint
       #   run: npm install -g @informalsystems/quint
       - name: Setup Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
         with:
           cache-workspaces: "code"
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@cargo-nextest
+        uses: taiki-e/install-action@554bdce7edf79d43854a6b7c1e392e7da7eb97a9 # cargo-nextest
       - name: Run tests
         run: |
           cargo nextest run \
@@ -74,7 +74,7 @@ jobs:
         working-directory: code
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       # - name: Setup Node
       #   uses: actions/setup-node@v3
       #   with:
@@ -82,11 +82,11 @@ jobs:
       # - name: Install Quint
       #   run: npm install -g @informalsystems/quint
       - name: Setup Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
         with:
           cache-workspaces: "code"
       - name: Install cargo-maelstrom
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@cfdb446e391c69574ebc316dfb7d7849ec12b940 # v2.68.8
         with:
           tool: cargo-maelstrom
       - name: Disable apparmor container restrictions
@@ -119,9 +119,9 @@ jobs:
         working-directory: code
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: Setup Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
         with:
           cache-workspaces: "code"
           target: thumbv7m-none-eabi
@@ -133,14 +133,14 @@ jobs:
     runs-on: github-hosted-small
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: Setup Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
         with:
           components: clippy
           cache-workspaces: "code"
       - name: Run clippy
-        uses: actions-rs/clippy@master
+        uses: actions-rs/clippy@9e02862195d5c88dabdda3c1e7fa53a45ed35ec1 # master
         with:
           token: ${{secrets.GITHUB_TOKEN}}
           args: --all-features --all-targets --manifest-path code/Cargo.toml
@@ -150,14 +150,14 @@ jobs:
     runs-on: github-hosted-small
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: Setup Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
         with:
           components: rustfmt
           cache-workspaces: "code"
       - name: Check formatting
-        uses: actions-rust-lang/rustfmt@v1
+        uses: actions-rust-lang/rustfmt@4066006ec54a31931b9b1fddfd38f2fdf2d27143 # v1.1.2
         with:
           manifest-path: code/Cargo.toml
 
@@ -170,13 +170,13 @@ jobs:
       run:
         working-directory: code
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
         with:
           toolchain: stable
           cache-workspaces: "code"
       - name: Install cargo-msrv
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@cfdb446e391c69574ebc316dfb7d7849ec12b940 # v2.68.8
         with:
           tool: cargo-msrv
       - name: Check MSRV
@@ -191,13 +191,13 @@ jobs:
       run:
         working-directory: code
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
         with:
           toolchain: stable
           cache-workspaces: "code"
       - name: Install cargo-hack
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@cfdb446e391c69574ebc316dfb7d7849ec12b940 # v2.68.8
         with:
           tool: cargo-hack
       - name: Check each crate with and without default features

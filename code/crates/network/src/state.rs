@@ -90,11 +90,12 @@ pub struct PeerInfo {
     pub connection_direction: Option<ConnectionDirection>, // None if ephemeral (unknown)
     pub score: f64,
     pub topics: HashSet<String>, // Set of topics peer is in mesh for (e.g., "/consensus", "/liveness")
+    pub is_explicit: bool,       // Whether this peer is an explicit peer in gossipsub
 }
 
 impl PeerInfo {
     /// Format peer info with peer_id for logging
-    ///  Address, Moniker, Type, PeerId, ConsensusAddr, Mesh, Dir, Score
+    ///  Address, Moniker, Type, PeerId, ConsensusAddr, Mesh, Dir, Score, Explicit
     pub fn format_with_peer_id(&self, peer_id: &libp2p::PeerId) -> String {
         let direction = self.connection_direction.map_or("??", |d| d.as_str());
         let mut topics: Vec<&str> = self.topics.iter().map(|s| s.as_str()).collect();
@@ -106,8 +107,9 @@ impl PeerInfo {
         } else {
             &self.consensus_address
         };
+        let explicit = if self.is_explicit { "explicit" } else { "-" };
         format!(
-            "{}, {}, {}, {}, {}, {}, {}, {}",
+            "{}, {}, {}, {}, {}, {}, {}, {}, {}",
             self.address,
             self.moniker,
             peer_type_str,
@@ -115,7 +117,8 @@ impl PeerInfo {
             address,
             topics_str,
             direction,
-            self.score as i64
+            self.score as i64,
+            explicit
         )
     }
 }
@@ -414,8 +417,8 @@ impl State {
             agent_info.address.clone()
         };
 
-        // If peer already exists (additional connection), just update Identify-provided fields.
-        // Keep existing state since they never fully disconnected.
+        // If peer already exists (additional connection), update Identify-provided fields.
+        // Keep existing state (topics) since they never fully disconnected.
         if let Some(existing) = self.peer_info.get_mut(&peer_id) {
             let old_peer_info = existing.clone();
             existing.moniker = agent_info.moniker;
@@ -426,11 +429,14 @@ impl State {
                 existing.address = address;
                 existing.connection_direction = connection_direction;
             }
-            // Preserve: peer_type, consensus_address, score, topics
+            // Re-evaluate peer type and consensus address with current state
+            existing.peer_type = peer_type;
+            existing.consensus_address = consensus_address;
+            existing.score = crate::peer_scoring::get_peer_score(peer_type);
 
             self.metrics
                 .update_peer_labels(&peer_id, &old_peer_info, existing);
-            return crate::peer_scoring::get_peer_score(existing.peer_type);
+            return existing.score;
         }
 
         // New peer - create entry
@@ -443,6 +449,7 @@ impl State {
             connection_direction,
             score,
             topics: Default::default(),
+            is_explicit: false,
         };
 
         // Record peer information in metrics (subject to 100 slot limit)
@@ -455,7 +462,7 @@ impl State {
     }
 
     /// Format the peer information for logging (scrapable format):
-    ///  Address, Moniker, PeerId, Mesh, Dir, Type, Score
+    ///  Address, Moniker, Type, PeerId, ConsensusAddr, Mesh, Dir, Score, Explicit
     pub fn format_peer_info(&self) -> String {
         let mut lines = Vec::new();
 

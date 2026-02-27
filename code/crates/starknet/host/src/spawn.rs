@@ -280,6 +280,8 @@ async fn spawn_network_actor(
                 mesh_n_low: config.mesh_n_low(),
                 mesh_outbound_min: config.mesh_outbound_min(),
                 enable_peer_scoring: config.enable_peer_scoring(),
+                enable_explicit_peering: config.enable_explicit_peering(),
+                enable_flood_publish: config.enable_flood_publish(),
             },
             config::PubSubProtocol::Broadcast => gossip::GossipSubConfig::default(),
         },
