@@ -104,6 +104,11 @@ impl malachitebft_core_types::Vote<TestContext> for Vote {
             ..self
         }
     }
+
+    fn with_value(mut self, value: NilOrVal<ValueId>) -> Self {
+        self.value = value;
+        self
+    }
 }
 
 impl Protobuf for Vote {

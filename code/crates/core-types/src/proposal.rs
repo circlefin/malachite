@@ -25,6 +25,9 @@ where
 
     /// Address of the validator who issued this proposal
     fn validator_address(&self) -> &Ctx::Address;
+
+    /// Return a copy of this proposal with a different value.
+    fn with_value(self, value: Ctx::Value) -> Self;
 }
 
 /// Whether or not a proposal is valid.

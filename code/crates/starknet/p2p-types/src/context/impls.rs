@@ -41,6 +41,11 @@ impl common::Proposal<MockContext> for Proposal {
     fn validator_address(&self) -> &Address {
         &self.proposer
     }
+
+    fn with_value(mut self, value: Hash) -> Self {
+        self.value_id = value;
+        self
+    }
 }
 
 impl common::Vote<MockContext> for Vote {
@@ -78,6 +83,11 @@ impl common::Vote<MockContext> for Vote {
 
     fn take_extension(&mut self) -> Option<SignedExtension<MockContext>> {
         None
+    }
+
+    fn with_value(mut self, value: NilOrVal<Hash>) -> Self {
+        self.block_hash = value;
+        self
     }
 }
 

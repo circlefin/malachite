@@ -88,6 +88,10 @@ impl malachitebft_core_types::Value for Value {
     fn id(&self) -> ValueId {
         self.id()
     }
+
+    fn dummy() -> Self {
+        Self::new(u64::MAX)
+    }
 }
 
 impl Protobuf for Value {

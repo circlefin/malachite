@@ -64,6 +64,11 @@ impl malachitebft_core_types::Proposal<TestContext> for Proposal {
     fn validator_address(&self) -> &Address {
         &self.validator_address
     }
+
+    fn with_value(mut self, value: Value) -> Self {
+        self.value = value;
+        self
+    }
 }
 
 impl Protobuf for Proposal {

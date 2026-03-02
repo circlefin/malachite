@@ -89,6 +89,10 @@ where
 
     /// The ID of the value.
     fn id(&self) -> Self::Id;
+
+    /// Return a dummy/sentinel value for testing purposes.
+    /// Must differ from any real value produced by the system.
+    fn dummy() -> Self;
 }
 
 /// The possible messages used to deliver proposals

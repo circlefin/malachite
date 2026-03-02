@@ -53,4 +53,7 @@ where
 
     /// Extend this vote with an extension, overriding any existing extension.
     fn extend(self, extension: SignedExtension<Ctx>) -> Self;
+
+    /// Return a copy of this vote with a different value.
+    fn with_value(self, value: NilOrVal<<Ctx::Value as Value>::Id>) -> Self;
 }

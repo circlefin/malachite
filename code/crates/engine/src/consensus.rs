@@ -19,8 +19,8 @@ use malachitebft_core_consensus::{
     Effect, LivenessMsg, PeerId, Resumable, Resume, SignedConsensusMsg, VoteExtensionError,
 };
 use malachitebft_core_types::{
-    Context, Proposal, Round, Timeout, TimeoutKind, Timeouts, ValidatorSet, Validity, Value,
-    ValueId, ValueOrigin, ValueResponse as CoreValueResponse, Vote,
+    Context, NilOrVal, Proposal, Round, Timeout, TimeoutKind, Timeouts, ValidatorSet, Validity,
+    Value, ValueId, ValueOrigin, ValueResponse as CoreValueResponse, Vote,
 };
 use malachitebft_metrics::Metrics;
 use malachitebft_signing::{SigningProvider, SigningProviderExt};
@@ -1140,8 +1140,36 @@ where
                 self.tx_event.send(|| Event::Published(msg.clone()));
 
                 self.network
-                    .cast(NetworkMsg::PublishConsensusMsg(msg))
+                    .cast(NetworkMsg::PublishConsensusMsg(msg.clone()))
                     .map_err(|e| eyre!("Error when broadcasting consensus message: {e:?}"))?;
+
+                // TESTING ONLY: send conflicting messages to trigger equivocation detection
+                if std::env::var("TEST_ONLY_MALICIOUS_NODE").as_deref() == Ok("true") {
+                    match &msg {
+                        SignedConsensusMsg::Vote(signed_vote) => {
+                            // Send a conflicting nil vote to trigger vote equivocation
+                            if signed_vote.message.value().is_val() {
+                                let conflicting = signed_vote.message.clone().with_value(NilOrVal::Nil);
+                                if let Ok(signed) = self.signing_provider.sign_vote(conflicting).await {
+                                    let _ = self.network.cast(NetworkMsg::PublishConsensusMsg(
+                                        SignedConsensusMsg::Vote(signed),
+                                    ));
+                                }
+                            }
+                        }
+                        SignedConsensusMsg::Proposal(signed_proposal) => {
+                            // Send a conflicting proposal with a dummy value to trigger
+                            // double proposal detection on honest nodes.
+                            let bad_proposal = signed_proposal.message.clone()
+                                .with_value(<<Ctx as Context>::Value as Value>::dummy());
+                            if let Ok(signed) = self.signing_provider.sign_proposal(bad_proposal).await {
+                                let _ = self.network.cast(NetworkMsg::PublishConsensusMsg(
+                                    SignedConsensusMsg::Proposal(signed),
+                                ));
+                            }
+                        }
+                    }
+                }
 
                 Ok(r.resume_with(()))
             }

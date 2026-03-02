@@ -18,6 +18,10 @@ impl malachitebft_core_types::Value for BlockHash {
     fn id(&self) -> Self::Id {
         *self
     }
+
+    fn dummy() -> Self {
+        Self::new([0xBA; 32])
+    }
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
