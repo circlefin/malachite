@@ -2,16 +2,15 @@ use std::convert::Infallible;
 use std::time::Duration;
 
 use eyre::Result;
+use libp2p::connection_limits;
+pub use libp2p::identity::Keypair;
 use libp2p::kad::{Addresses, KBucketKey, KBucketRef};
 use libp2p::request_response::{OutboundRequestId, ResponseChannel};
 use libp2p::swarm::behaviour::toggle::Toggle;
 use libp2p::swarm::NetworkBehaviour;
-use libp2p::{connection_limits, StreamProtocol};
 use libp2p::{gossipsub, identify, ping};
-use libp2p_broadcast as broadcast;
-
-pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
+use libp2p_broadcast as broadcast;
 
 use malachitebft_discovery as discovery;
 use malachitebft_metrics::Registry;
@@ -242,17 +241,11 @@ impl Behaviour {
 
         let enable_broadcast = (config.pubsub_protocol.is_broadcast() && config.enable_consensus)
             || config.enable_sync;
-
         let broadcast = enable_broadcast.then(|| {
-            let protocol = StreamProtocol::try_from_owned(config.protocol_names.broadcast.clone())
-                .expect("Invalid protocol name for broadcast");
-
-            let config = broadcast::Config::default()
-                .protocol_name(protocol)
-                .max_message_size(config.pubsub_max_size);
-
             broadcast::Behaviour::new_with_metrics(
-                config,
+                broadcast::Config {
+                    max_buf_size: config.pubsub_max_size,
+                },
                 registry.sub_registry_with_prefix("broadcast"),
             )
         });

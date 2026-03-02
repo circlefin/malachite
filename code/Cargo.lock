@@ -3319,11 +3319,10 @@ dependencies = [
 
 [[package]]
 name = "libp2p-scatter"
-version = "0.4.0-rc.1"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "429c48df0e3d76f2d86dee257822ec1c109cfd22481462bd7d307a9522fec249"
+checksum = "ea402c419f99e6013d5b12f97c5a1a1abe4aca285844b01b0ed96deab11f0b6e"
 dependencies = [
- "asynchronous-codec",
  "bytes",
  "fnv",
  "futures",
@@ -5823,10 +5822,6 @@ name = "unsigned-varint"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb066959b24b5196ae73cb057f45598450d2c5f71460e98c49b738086eff9c06"
-dependencies = [
- "asynchronous-codec",
- "bytes",
-]
 
 [[package]]
 name = "untrusted"
