@@ -22,18 +22,6 @@ pub enum TimeoutKind {
     FinalizeHeight(Duration),
 }
 
-impl TimeoutKind {
-    /// Return index for arrays for consensus timeouts.
-    pub fn index(&self) -> usize {
-        match self {
-            TimeoutKind::Propose => 0,
-            TimeoutKind::Prevote => 1,
-            TimeoutKind::Precommit => 2,
-            _ => usize::MAX,
-        }
-    }
-}
-
 /// A timeout for a round step.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
