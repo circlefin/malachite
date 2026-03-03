@@ -3,6 +3,7 @@ use std::ops::ControlFlow;
 use std::time::Duration;
 
 use futures::StreamExt;
+use itertools::Itertools;
 use libp2p::metrics::{Metrics, Recorder};
 use libp2p::request_response::{InboundRequestId, OutboundRequestId};
 use libp2p::swarm::{self, SwarmEvent};
@@ -669,13 +670,25 @@ async fn handle_ctrl_msg(
             let snapshot = NetworkStateDump {
                 local_node: state.local_node.clone(),
                 peers: state.peer_info.clone(),
-                validator_set: state.validator_set.iter().cloned().collect(),
-                persistent_peer_ids: state.persistent_peer_ids.iter().copied().collect(),
+                validator_set: state
+                    .validator_set
+                    .iter()
+                    .cloned()
+                    .sorted_unstable_by(|a, b| a.address.cmp(&b.address))
+                    .collect(),
+                persistent_peer_ids: state
+                    .persistent_peer_ids
+                    .iter()
+                    .copied()
+                    .sorted_unstable()
+                    .collect(),
                 persistent_peer_addrs: state.persistent_peer_addrs.clone(),
             };
+
             if let Err(_s) = reply_to.send(snapshot) {
                 error!("Error replying to DumpState");
             }
+
             ControlFlow::Continue(())
         }
 

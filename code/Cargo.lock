@@ -450,6 +450,7 @@ dependencies = [
  "eyre",
  "futures",
  "hex",
+ "itertools 0.14.0",
  "libp2p",
  "libp2p-gossipsub",
  "libp2p-scatter",
