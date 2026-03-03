@@ -134,8 +134,10 @@ impl Behaviour {
 
     fn start_listening(&mut self) {
         if self.listening {
+            // If there are multiple listen addresses, we may get multiple NewListenAddr events - only start once
             return;
         }
+
         self.listening = true;
 
         let control = self.inner.new_control();
@@ -145,6 +147,8 @@ impl Behaviour {
         tokio::spawn(async move {
             protocol::accept_incoming_streams(control, events_tx, protocol).await;
         });
+
+        debug!(protocol = %self.protocol, "Listening for incoming validator proof");
     }
 
     fn on_connection_established(&mut self, conn: &ConnectionEstablished<'_>) {
