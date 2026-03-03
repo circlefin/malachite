@@ -581,7 +581,7 @@ where
                     }
 
                     NetworkEvent::ValidatorProofReceived { peer_id, proof } => {
-                        use malachitebft_network::validator_proof::VerificationResult;
+                        use malachitebft_network::validator_proof::ProofVerificationResult;
 
                         // Note: peer_id match is already verified in network layer
 
@@ -596,15 +596,18 @@ where
                                     public_key = %hex::encode(&proof.public_key),
                                     "Valid validator proof received"
                                 );
-                                (VerificationResult::Valid, Some(proof.public_key.clone()))
+                                (
+                                    ProofVerificationResult::Valid,
+                                    Some(proof.public_key.clone()),
+                                )
                             }
                             Ok(_) => {
                                 warn!(%peer_id, "Invalid validator proof signature");
-                                (VerificationResult::Invalid, None)
+                                (ProofVerificationResult::Invalid, None)
                             }
                             Err(e) => {
                                 warn!(%peer_id, "Error verifying validator proof: {e}");
-                                (VerificationResult::Invalid, None)
+                                (ProofVerificationResult::Invalid, None)
                             }
                         };
 

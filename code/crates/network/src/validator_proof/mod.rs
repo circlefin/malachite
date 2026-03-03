@@ -99,4 +99,4 @@ mod protocol;
 mod types;
 
 pub use behaviour::{Behaviour, Error, Event};
-pub use types::VerificationResult;
+pub use types::ProofVerificationResult;

@@ -17,7 +17,7 @@ use malachitebft_core_types::{
 };
 use malachitebft_metrics::SharedRegistry;
 use malachitebft_network::handle::CtrlHandle;
-use malachitebft_network::validator_proof::VerificationResult;
+use malachitebft_network::validator_proof::ProofVerificationResult;
 use malachitebft_network::{Channel, Config, Event, PeerId};
 
 pub use malachitebft_network::{
@@ -195,7 +195,7 @@ pub enum Msg<Ctx: Context> {
     /// If result is Valid and public_key is Some, stores the proof for this peer.
     ValidatorProofVerified {
         peer_id: PeerId,
-        result: VerificationResult,
+        result: ProofVerificationResult,
         /// Public key bytes from verified proof (only set on Valid)
         public_key: Option<Vec<u8>>,
     },
@@ -496,7 +496,7 @@ where
                         "Validator proof peer_id does not match sender, rejecting"
                     );
                     ctrl_handle
-                        .validator_proof_verified(peer_id, VerificationResult::Invalid, None)
+                        .validator_proof_verified(peer_id, ProofVerificationResult::Invalid, None)
                         .await?;
                     return Ok(());
                 }

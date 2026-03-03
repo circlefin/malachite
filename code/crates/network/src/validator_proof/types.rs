@@ -8,16 +8,16 @@ use serde::{Deserialize, Serialize};
 /// and doesn't send any response.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(u8)]
-pub enum VerificationResult {
+pub enum ProofVerificationResult {
     /// Proof received and verified successfully.
     Valid = 0,
     /// Proof validation failed (decode, peer_id mismatch, or invalid signature).
     Invalid = 1,
 }
 
-impl VerificationResult {
+impl ProofVerificationResult {
     /// Whether the verification succeeded.
-    pub fn is_verified(self) -> bool {
+    pub fn is_valid(self) -> bool {
         matches!(self, Self::Valid)
     }
 }

@@ -318,7 +318,7 @@ pub enum CtrlMsg {
     /// The public_key is stored and used to check validator set membership.
     ValidatorProofVerified {
         peer_id: PeerId,
-        result: validator_proof::VerificationResult,
+        result: validator_proof::ProofVerificationResult,
         public_key: Option<Vec<u8>>,
     },
     DumpState(oneshot::Sender<NetworkStateDump>),
@@ -648,7 +648,7 @@ async fn handle_ctrl_msg(
             let libp2p_peer_id = peer_id.to_libp2p();
 
             // Disconnect on verification failure
-            if !result.is_verified() {
+            if !result.is_valid() {
                 warn!(%peer_id, "Invalid validator proof, disconnecting peer");
                 let _ = swarm.disconnect_peer_id(libp2p_peer_id);
                 return ControlFlow::Continue(());
