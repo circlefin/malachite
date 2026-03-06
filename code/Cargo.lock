@@ -835,7 +835,7 @@ dependencies = [
  "crc32fast",
  "criterion",
  "lz4_flex",
- "nix 0.29.0",
+ "nix 0.31.2",
  "rand 0.8.5",
  "tempfile",
  "testdir",
@@ -3819,9 +3819,9 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.29.0"
+version = "0.31.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71e2746dc3a24dd78b3cfcb7be93368c6de9963d30f43a6a73998a9cf4b17b46"
+checksum = "5d6d0705320c1e6ba1d912b5e37cf18071b6c2e9b7fa8215a1e8a7651966f5d3"
 dependencies = [
  "bitflags 2.9.0",
  "cfg-if",
