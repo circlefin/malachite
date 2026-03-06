@@ -301,8 +301,11 @@ impl NetworkBehaviour for Behaviour {
             }
         }
 
-        // Poll the inner behaviour
-        // Note:stream::Behaviour does not emit events, but polling it is required to drive its internal state machine
+        // Poll the inner behaviour.
+        //
+        // NOTE: In practice, inner.poll() always returns Pending because open_stream
+        // is only called on already-connected peers (from on_connection_established),
+        // so the dial path in stream::Behaviour::poll() is never triggered.
         let _ = self.inner.poll(cx);
 
         Poll::Pending
