@@ -109,7 +109,7 @@ impl Behaviour {
     /// Send our proof to a specific peer.
     /// Returns true if the send was initiated, false if no proof or already sent.
     pub fn send_proof(&mut self, peer_id: PeerId) -> bool {
-        let Some(proof_bytes) = self.proof_bytes.clone() else {
+        let Some(proof_bytes) = &self.proof_bytes else {
             return false;
         };
 
@@ -123,6 +123,7 @@ impl Behaviour {
         let control = self.inner.new_control();
         let events_tx = self.events_tx.clone();
         let protocol = self.protocol.clone();
+        let proof_bytes = proof_bytes.clone();
 
         tokio::spawn(async move {
             let event = protocol::send_proof(peer_id, proof_bytes, control, protocol).await;

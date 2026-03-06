@@ -76,7 +76,7 @@ pub async fn send_proof(
         }
     };
 
-    if let Err(error) = codec::write_proof(stream, &proof_bytes).await {
+    if let Err(error) = codec::write_proof(stream, proof_bytes).await {
         error!(%peer, %error, "Failed to write validator proof");
         return Event::ProofSendFailed { peer, error };
     }

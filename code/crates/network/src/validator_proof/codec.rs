@@ -35,10 +35,10 @@ pub async fn read_proof(stream: Stream) -> Result<Bytes, Error> {
 }
 
 /// Write a validator proof to a stream.
-pub async fn write_proof(stream: Stream, proof_bytes: &Bytes) -> Result<(), Error> {
+pub async fn write_proof(stream: Stream, proof_bytes: Bytes) -> Result<(), Error> {
     let mut writer = FramedWrite::new(stream, codec());
     writer
-        .send(proof_bytes.clone())
+        .send(proof_bytes)
         .await
         .map_err(|e| Error::Io(e.to_string()))?;
     writer.close().await.map_err(|e| Error::Io(e.to_string()))?;
