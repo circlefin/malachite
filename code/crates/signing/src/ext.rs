@@ -116,7 +116,7 @@ where
     /// This allows immediate verification without needing to look up the public key from the validator set.
     async fn verify_validator_proof(
         &self,
-        certificate: &ValidatorProof<Ctx>,
+        proof: &ValidatorProof<Ctx>,
     ) -> Result<VerificationResult, Error>;
 }
 
@@ -428,14 +428,13 @@ where
 
     async fn verify_validator_proof(
         &self,
-        certificate: &ValidatorProof<Ctx>,
+        proof: &ValidatorProof<Ctx>,
     ) -> Result<VerificationResult, Error> {
-        let signing_bytes =
-            ValidatorProof::<Ctx>::signing_bytes(&certificate.public_key, &certificate.peer_id);
+        let signing_bytes = ValidatorProof::<Ctx>::signing_bytes(&proof.public_key, &proof.peer_id);
         // Decode the public key from the certificate bytes
-        let public_key = Ctx::SigningScheme::decode_public_key(&certificate.public_key)
+        let public_key = Ctx::SigningScheme::decode_public_key(&proof.public_key)
             .map_err(|e| Error::from_source(format!("Invalid public key in certificate: {e}")))?;
-        self.verify_signed_bytes(&signing_bytes, &certificate.signature, &public_key)
+        self.verify_signed_bytes(&signing_bytes, &proof.signature, &public_key)
             .await
     }
 }
