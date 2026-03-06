@@ -708,3 +708,259 @@ fn apply_peer_type_change(
         .update_peer_labels(peer_id, old_peer_info, peer_info)
         .then_some(new_score)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::peer_scoring::{FULL_NODE_SCORE, VALIDATOR_SCORE};
+    use malachitebft_discovery::Config;
+
+    /// Create a minimal `State` with disabled discovery and a dummy local node.
+    fn test_state() -> State {
+        test_state_with_local_addr(None)
+    }
+
+    /// Create a minimal `State` with disabled discovery and an optional local consensus address.
+    fn test_state_with_local_addr(consensus_address: Option<&str>) -> State {
+        let mut registry = malachitebft_metrics::Registry::default();
+        let discovery =
+            discovery::Discovery::<Behaviour>::new(Config::new(false), vec![], &mut registry);
+        let metrics = NetworkMetrics::new(&mut registry);
+
+        let local_node = LocalNodeInfo {
+            moniker: "test-node".to_string(),
+            peer_id: libp2p::PeerId::random(),
+            listen_addr: "/ip4/127.0.0.1/tcp/26656".parse().unwrap(),
+            consensus_address: consensus_address.map(|s| s.to_string()),
+            proof_bytes: None,
+            is_validator: false,
+            persistent_peers_only: false,
+            subscribed_topics: HashSet::new(),
+        };
+
+        State::new(discovery, vec![], local_node, metrics)
+    }
+
+    /// Create default full-node peer info.
+    fn test_peer_info() -> PeerInfo {
+        PeerInfo {
+            moniker: "peer".to_string(),
+            address: "/ip4/10.0.0.1/tcp/26656".parse().unwrap(),
+            consensus_address: None,
+            consensus_public_key: None,
+            peer_type: PeerType::new(false, false),
+            connection_direction: None,
+            score: FULL_NODE_SCORE,
+            topics: HashSet::new(),
+            is_explicit: false,
+        }
+    }
+
+    /// Insert a peer into state and register it in metrics (so `apply_peer_type_change` can work).
+    fn insert_peer(state: &mut State, peer_id: libp2p::PeerId, info: PeerInfo) {
+        state.metrics.record_new_peer(&peer_id, &info);
+        state.peer_info.insert(peer_id, info);
+    }
+
+    // ── record_verified_proof tests ──────────────────────────────────
+
+    #[test]
+    fn record_proof_peer_becomes_validator() {
+        let mut state = test_state();
+        let peer_id = libp2p::PeerId::random();
+        let public_key = vec![1, 2, 3];
+
+        // Add peer and register in validator set
+        insert_peer(&mut state, peer_id, test_peer_info());
+        state.validator_set.insert(ValidatorInfo {
+            address: "val_addr_1".to_string(),
+            public_key: public_key.clone(),
+            voting_power: 100,
+        });
+
+        let result = state.record_verified_proof(&peer_id, public_key.clone());
+
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), VALIDATOR_SCORE);
+
+        let info = &state.peer_info[&peer_id];
+        assert!(info.peer_type.is_validator());
+        assert_eq!(info.consensus_address.as_deref(), Some("val_addr_1"));
+        assert_eq!(info.consensus_public_key.as_deref(), Some(&public_key[..]));
+    }
+
+    #[test]
+    fn record_proof_peer_not_in_validator_set() {
+        let mut state = test_state();
+        let peer_id = libp2p::PeerId::random();
+        let public_key = vec![4, 5, 6];
+
+        insert_peer(&mut state, peer_id, test_peer_info());
+        // No matching validator in set
+
+        let result = state.record_verified_proof(&peer_id, public_key.clone());
+
+        // Labels do change (consensus_public_key is stored, peer_type stays full_node
+        // but the labels_match check in apply_peer_type_change returns false since
+        // consensus_address and peer_type haven't changed from the label perspective).
+        // Actually peer_type doesn't change, consensus_address stays None → labels unchanged → None.
+        assert!(result.is_none());
+
+        let info = &state.peer_info[&peer_id];
+        assert!(!info.peer_type.is_validator());
+        assert!(info.consensus_address.is_none());
+        // But the public key IS stored for future reclassification
+        assert_eq!(info.consensus_public_key.as_deref(), Some(&public_key[..]));
+    }
+
+    #[test]
+    fn record_proof_buffers_when_peer_unknown() {
+        let mut state = test_state();
+        let peer_id = libp2p::PeerId::random();
+        let public_key = vec![7, 8, 9];
+
+        // Don't insert peer into peer_info
+        let result = state.record_verified_proof(&peer_id, public_key.clone());
+
+        assert!(result.is_none());
+        assert_eq!(
+            state.pending_verified_proofs.get(&peer_id),
+            Some(&public_key)
+        );
+    }
+
+    // ── reclassify_peers (via process_validator_set_update) ──────────
+
+    #[test]
+    fn reclassify_promotes_to_validator() {
+        let mut state = test_state();
+        let peer_id = libp2p::PeerId::random();
+        let public_key = vec![10, 11, 12];
+
+        // Peer already has a proof stored but was not in validator set
+        let mut info = test_peer_info();
+        info.consensus_public_key = Some(public_key.clone());
+        insert_peer(&mut state, peer_id, info);
+
+        // Now add them to the validator set
+        let mut validators = HashSet::new();
+        validators.insert(ValidatorInfo {
+            address: "promoted_addr".to_string(),
+            public_key: public_key.clone(),
+            voting_power: 50,
+        });
+
+        let changed = state.process_validator_set_update(validators);
+
+        assert_eq!(changed.len(), 1);
+        assert_eq!(changed[0].0, peer_id);
+        assert_eq!(changed[0].1, VALIDATOR_SCORE);
+
+        let info = &state.peer_info[&peer_id];
+        assert!(info.peer_type.is_validator());
+        assert_eq!(info.consensus_address.as_deref(), Some("promoted_addr"));
+    }
+
+    #[test]
+    fn reclassify_demotes_from_validator() {
+        let mut state = test_state();
+        let peer_id = libp2p::PeerId::random();
+        let public_key = vec![13, 14, 15];
+
+        // Peer is currently a validator
+        let mut info = test_peer_info();
+        info.peer_type = PeerType::new(false, true);
+        info.consensus_public_key = Some(public_key.clone());
+        info.consensus_address = Some("old_addr".to_string());
+        info.score = VALIDATOR_SCORE;
+        insert_peer(&mut state, peer_id, info);
+
+        // Empty validator set → peer should be demoted
+        let changed = state.process_validator_set_update(HashSet::new());
+
+        assert_eq!(changed.len(), 1);
+        assert_eq!(changed[0].0, peer_id);
+        assert_eq!(changed[0].1, FULL_NODE_SCORE);
+
+        let info = &state.peer_info[&peer_id];
+        assert!(!info.peer_type.is_validator());
+        assert!(info.consensus_address.is_none());
+        // Public key is preserved for future reclassification
+        assert!(info.consensus_public_key.is_some());
+    }
+
+    #[test]
+    fn reclassify_peer_without_proof_unaffected() {
+        let mut state = test_state();
+        let peer_id = libp2p::PeerId::random();
+
+        // Peer without consensus_public_key
+        insert_peer(&mut state, peer_id, test_peer_info());
+
+        let changed = state.process_validator_set_update(HashSet::new());
+
+        // No changes since peer has no proof to match
+        assert!(changed.is_empty());
+        assert!(!state.peer_info[&peer_id].peer_type.is_validator());
+    }
+
+    // ── Local node reclassification ──────────────────────────────────
+
+    #[test]
+    fn reclassify_local_node_becomes_validator() {
+        let mut state = test_state_with_local_addr(Some("my_consensus_addr"));
+        assert!(!state.local_node.is_validator);
+
+        let mut validators = HashSet::new();
+        validators.insert(ValidatorInfo {
+            address: "my_consensus_addr".to_string(),
+            public_key: vec![99],
+            voting_power: 100,
+        });
+
+        let _ = state.process_validator_set_update(validators);
+
+        assert!(state.local_node.is_validator);
+    }
+
+    #[test]
+    fn reclassify_local_node_loses_validator() {
+        let mut state = test_state_with_local_addr(Some("my_consensus_addr"));
+        state.local_node.is_validator = true;
+
+        // Empty validator set
+        let _ = state.process_validator_set_update(HashSet::new());
+
+        assert!(!state.local_node.is_validator);
+    }
+
+    // ── Persistent peer + proof ──────────────────────────────────────
+
+    #[test]
+    fn record_proof_persistent_peer_becomes_validator() {
+        let mut state = test_state();
+        let peer_id = libp2p::PeerId::random();
+        let public_key = vec![20, 21, 22];
+
+        // Peer is persistent
+        let mut info = test_peer_info();
+        info.peer_type = PeerType::new(true, false);
+        insert_peer(&mut state, peer_id, info);
+
+        state.validator_set.insert(ValidatorInfo {
+            address: "persistent_val".to_string(),
+            public_key: public_key.clone(),
+            voting_power: 100,
+        });
+
+        let result = state.record_verified_proof(&peer_id, public_key);
+
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), VALIDATOR_SCORE);
+
+        let info = &state.peer_info[&peer_id];
+        assert!(info.peer_type.is_persistent());
+        assert!(info.peer_type.is_validator());
+        assert_eq!(info.consensus_address.as_deref(), Some("persistent_val"));
+    }
+}

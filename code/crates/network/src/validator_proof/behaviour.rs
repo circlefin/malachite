@@ -311,3 +311,381 @@ impl NetworkBehaviour for Behaviour {
         Poll::Pending
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::task::Poll;
+
+    use futures::task::noop_waker_ref;
+    use libp2p::core::transport::PortUse;
+    use libp2p::core::Endpoint;
+    use libp2p::swarm::behaviour::ConnectionEstablished;
+    use libp2p::swarm::ConnectionClosed;
+
+    /// Returns a `Dialer` connected point for tests.
+    fn dialer_endpoint() -> libp2p::core::ConnectedPoint {
+        libp2p::core::ConnectedPoint::Dialer {
+            address: "/ip4/127.0.0.1/tcp/9000".parse().unwrap(),
+            role_override: Endpoint::Dialer,
+            port_use: PortUse::Reuse,
+        }
+    }
+
+    /// Poll the behaviour once with a noop waker and return the result.
+    fn poll_behaviour(
+        b: &mut Behaviour,
+    ) -> Poll<ToSwarm<Event, libp2p::swarm::THandlerInEvent<Behaviour>>> {
+        let waker = noop_waker_ref();
+        let mut cx = std::task::Context::from_waker(waker);
+        b.poll(&mut cx)
+    }
+
+    /// Simulate a connection established event.
+    fn establish_connection(b: &mut Behaviour, peer: PeerId, conn_id: ConnectionId) {
+        let endpoint = dialer_endpoint();
+        let event = FromSwarm::ConnectionEstablished(ConnectionEstablished {
+            peer_id: peer,
+            connection_id: conn_id,
+            endpoint: &endpoint,
+            failed_addresses: &[],
+            other_established: b.connections.get(&peer).map(|c| c.len()).unwrap_or(0),
+        });
+        b.on_swarm_event(event);
+    }
+
+    /// Simulate a connection closed event.
+    fn close_connection(b: &mut Behaviour, peer: PeerId, conn_id: ConnectionId) {
+        let endpoint = dialer_endpoint();
+        let remaining = b
+            .connections
+            .get(&peer)
+            .map(|c| c.len().saturating_sub(1))
+            .unwrap_or(0);
+        let event = FromSwarm::ConnectionClosed(ConnectionClosed {
+            peer_id: peer,
+            connection_id: conn_id,
+            endpoint: &endpoint,
+            cause: None,
+            remaining_established: remaining,
+        });
+        b.on_swarm_event(event);
+    }
+
+    // ── Poll tests ───────────────────────────────────────────────────
+
+    #[test]
+    fn poll_returns_pending_when_no_events() {
+        let mut b = Behaviour::with_default_protocol();
+        assert!(poll_behaviour(&mut b).is_pending());
+    }
+
+    #[test]
+    fn poll_proof_received_emits_event() {
+        let mut b = Behaviour::with_default_protocol();
+        let peer = PeerId::random();
+
+        b.events_tx
+            .send(Event::ProofReceived {
+                peer,
+                proof_bytes: Bytes::from_static(b"proof"),
+            })
+            .unwrap();
+
+        match poll_behaviour(&mut b) {
+            Poll::Ready(ToSwarm::GenerateEvent(Event::ProofReceived {
+                peer: p,
+                proof_bytes,
+            })) => {
+                assert_eq!(p, peer);
+                assert_eq!(proof_bytes.as_ref(), b"proof");
+            }
+            other => panic!("expected GenerateEvent(ProofReceived), got {other:?}"),
+        }
+        assert!(b.proofs_received.contains(&peer));
+    }
+
+    #[test]
+    fn poll_duplicate_proof_triggers_disconnect() {
+        let mut b = Behaviour::with_default_protocol();
+        let peer = PeerId::random();
+
+        // First proof is accepted
+        b.events_tx
+            .send(Event::ProofReceived {
+                peer,
+                proof_bytes: Bytes::from_static(b"proof"),
+            })
+            .unwrap();
+        let _ = poll_behaviour(&mut b);
+
+        // Second proof triggers disconnect
+        b.events_tx
+            .send(Event::ProofReceived {
+                peer,
+                proof_bytes: Bytes::from_static(b"proof2"),
+            })
+            .unwrap();
+
+        match poll_behaviour(&mut b) {
+            Poll::Ready(ToSwarm::CloseConnection {
+                peer_id,
+                connection,
+            }) => {
+                assert_eq!(peer_id, peer);
+                assert!(matches!(connection, CloseConnection::All));
+            }
+            other => panic!("expected CloseConnection, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn poll_different_peers_both_accepted() {
+        let mut b = Behaviour::with_default_protocol();
+        let peer_a = PeerId::random();
+        let peer_b = PeerId::random();
+
+        b.events_tx
+            .send(Event::ProofReceived {
+                peer: peer_a,
+                proof_bytes: Bytes::from_static(b"a"),
+            })
+            .unwrap();
+        b.events_tx
+            .send(Event::ProofReceived {
+                peer: peer_b,
+                proof_bytes: Bytes::from_static(b"b"),
+            })
+            .unwrap();
+
+        // Both should be accepted (GenerateEvent)
+        assert!(matches!(
+            poll_behaviour(&mut b),
+            Poll::Ready(ToSwarm::GenerateEvent(Event::ProofReceived { .. }))
+        ));
+        assert!(matches!(
+            poll_behaviour(&mut b),
+            Poll::Ready(ToSwarm::GenerateEvent(Event::ProofReceived { .. }))
+        ));
+
+        assert!(b.proofs_received.contains(&peer_a));
+        assert!(b.proofs_received.contains(&peer_b));
+    }
+
+    #[test]
+    fn poll_receive_failure_triggers_disconnect() {
+        let mut b = Behaviour::with_default_protocol();
+        let peer = PeerId::random();
+
+        b.events_tx
+            .send(Event::ProofReceiveFailed {
+                peer,
+                error: Error::UnexpectedEof,
+            })
+            .unwrap();
+
+        match poll_behaviour(&mut b) {
+            Poll::Ready(ToSwarm::CloseConnection {
+                peer_id,
+                connection,
+            }) => {
+                assert_eq!(peer_id, peer);
+                assert!(matches!(connection, CloseConnection::All));
+            }
+            other => panic!("expected CloseConnection, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn poll_send_failure_allows_retry() {
+        let mut b = Behaviour::with_default_protocol();
+        let peer = PeerId::random();
+
+        // Pre-mark as sent
+        b.proofs_sent.insert(peer);
+
+        b.events_tx
+            .send(Event::ProofSendFailed {
+                peer,
+                error: Error::Io("test".into()),
+            })
+            .unwrap();
+
+        assert!(matches!(
+            poll_behaviour(&mut b),
+            Poll::Ready(ToSwarm::GenerateEvent(Event::ProofSendFailed { .. }))
+        ));
+        // Peer should be removed from sent set to allow retry
+        assert!(!b.proofs_sent.contains(&peer));
+    }
+
+    #[test]
+    fn poll_proof_sent_emits_event() {
+        let mut b = Behaviour::with_default_protocol();
+        let peer = PeerId::random();
+
+        b.events_tx.send(Event::ProofSent { peer }).unwrap();
+
+        match poll_behaviour(&mut b) {
+            Poll::Ready(ToSwarm::GenerateEvent(Event::ProofSent { peer: p })) => {
+                assert_eq!(p, peer);
+            }
+            other => panic!("expected GenerateEvent(ProofSent), got {other:?}"),
+        }
+    }
+
+    // ── send_proof tests ─────────────────────────────────────────────
+
+    #[test]
+    fn send_proof_returns_false_without_proof() {
+        let mut b = Behaviour::with_default_protocol();
+        assert!(!b.send_proof(PeerId::random()));
+    }
+
+    #[test]
+    fn send_proof_returns_false_if_already_sent() {
+        let mut b = Behaviour::with_default_protocol();
+        let peer = PeerId::random();
+        // No proof bytes needed for this check — mark as already sent
+        b.proofs_sent.insert(peer);
+        // Even if we set proof bytes, already-sent check fires first
+        b.set_proof(Bytes::from_static(b"proof"));
+        assert!(!b.send_proof(peer));
+    }
+
+    // ── Connection tracking tests ────────────────────────────────────
+
+    #[test]
+    fn connection_tracking_first_connection() {
+        let mut b = Behaviour::with_default_protocol();
+        let peer = PeerId::random();
+        let conn = ConnectionId::new_unchecked(1);
+
+        establish_connection(&mut b, peer, conn);
+
+        assert!(b.connections.contains_key(&peer));
+        assert!(b.connections[&peer].contains(&conn));
+        assert_eq!(b.connections[&peer].len(), 1);
+    }
+
+    #[test]
+    fn connection_tracking_additional_connection() {
+        let mut b = Behaviour::with_default_protocol();
+        let peer = PeerId::random();
+        let conn1 = ConnectionId::new_unchecked(1);
+        let conn2 = ConnectionId::new_unchecked(2);
+
+        establish_connection(&mut b, peer, conn1);
+        establish_connection(&mut b, peer, conn2);
+
+        assert_eq!(b.connections[&peer].len(), 2);
+        assert!(b.connections[&peer].contains(&conn1));
+        assert!(b.connections[&peer].contains(&conn2));
+    }
+
+    #[test]
+    fn connection_tracking_partial_close() {
+        let mut b = Behaviour::with_default_protocol();
+        let peer = PeerId::random();
+        let conn1 = ConnectionId::new_unchecked(1);
+        let conn2 = ConnectionId::new_unchecked(2);
+
+        establish_connection(&mut b, peer, conn1);
+        establish_connection(&mut b, peer, conn2);
+        close_connection(&mut b, peer, conn1);
+
+        // Peer still tracked with one connection
+        assert!(b.connections.contains_key(&peer));
+        assert_eq!(b.connections[&peer].len(), 1);
+        assert!(b.connections[&peer].contains(&conn2));
+    }
+
+    #[test]
+    fn connection_tracking_full_close_clears_state() {
+        let mut b = Behaviour::with_default_protocol();
+        let peer = PeerId::random();
+        let conn = ConnectionId::new_unchecked(1);
+
+        establish_connection(&mut b, peer, conn);
+
+        // Simulate some proof state
+        b.proofs_sent.insert(peer);
+        b.proofs_received.insert(peer);
+
+        close_connection(&mut b, peer, conn);
+
+        assert!(!b.connections.contains_key(&peer));
+        assert!(!b.proofs_sent.contains(&peer));
+        assert!(!b.proofs_received.contains(&peer));
+    }
+
+    #[test]
+    fn anti_spam_reset_after_full_disconnect() {
+        let mut b = Behaviour::with_default_protocol();
+        let peer = PeerId::random();
+        let conn1 = ConnectionId::new_unchecked(1);
+        let conn2 = ConnectionId::new_unchecked(2);
+
+        // Connect, receive proof
+        establish_connection(&mut b, peer, conn1);
+        b.events_tx
+            .send(Event::ProofReceived {
+                peer,
+                proof_bytes: Bytes::from_static(b"proof"),
+            })
+            .unwrap();
+        let _ = poll_behaviour(&mut b);
+        assert!(b.proofs_received.contains(&peer));
+
+        // Fully disconnect
+        close_connection(&mut b, peer, conn1);
+        assert!(!b.proofs_received.contains(&peer));
+
+        // Reconnect → proof should be accepted again
+        establish_connection(&mut b, peer, conn2);
+        b.events_tx
+            .send(Event::ProofReceived {
+                peer,
+                proof_bytes: Bytes::from_static(b"proof"),
+            })
+            .unwrap();
+
+        assert!(matches!(
+            poll_behaviour(&mut b),
+            Poll::Ready(ToSwarm::GenerateEvent(Event::ProofReceived { .. }))
+        ));
+    }
+
+    // ── Connection established + send_proof integration (requires tokio) ─
+
+    #[tokio::test]
+    async fn first_connection_sends_proof() {
+        let mut b = Behaviour::with_default_protocol();
+        b.set_proof(Bytes::from_static(b"proof"));
+        let peer = PeerId::random();
+        let conn = ConnectionId::new_unchecked(100);
+
+        establish_connection(&mut b, peer, conn);
+
+        // on_connection_established calls send_proof which inserts into proofs_sent
+        assert!(b.proofs_sent.contains(&peer));
+    }
+
+    #[tokio::test]
+    async fn additional_connection_does_not_resend() {
+        let mut b = Behaviour::with_default_protocol();
+        b.set_proof(Bytes::from_static(b"proof"));
+        let peer = PeerId::random();
+        let conn1 = ConnectionId::new_unchecked(100);
+        let conn2 = ConnectionId::new_unchecked(101);
+
+        establish_connection(&mut b, peer, conn1);
+        assert!(b.proofs_sent.contains(&peer));
+
+        // Second connection should not re-trigger send_proof
+        // (The test passes if no panic and proofs_sent still has exactly the peer)
+        establish_connection(&mut b, peer, conn2);
+        assert!(b.proofs_sent.contains(&peer));
+        assert_eq!(b.connections[&peer].len(), 2);
+    }
+}
