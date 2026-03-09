@@ -29,7 +29,7 @@ fn check_decided_impl<Ctx: Context>(evidence: &MisbehaviorEvidence<Ctx>) {
 }
 
 #[tokio::test]
-pub async fn equivocation_two_vals_same_pk_proposal() {
+pub async fn equivocation_two_vals_same_key_proposal() {
     // Nodes 1 and 2 share a validator key to induce proposal equivocation.
     let params = TestParams {
         shared_key_group: HashSet::from([1, 2]),
@@ -38,13 +38,14 @@ pub async fn equivocation_two_vals_same_pk_proposal() {
     };
     let mut test = TestBuilder::<()>::new();
 
-    // Node 1
+    // Node 1 - Byzantine
     test.add_node().start().success();
 
-    // Node 2 (same validator key as node 1).
+    // Node 2  - Byzantine: same validator key as node 1
     test.add_node().start().success();
 
-    // Node 3 -- checking proposal equivocation evidence.
+    // Node 3: correct, with >2/3 of the total voting power.
+    // Checks for proposal equivocation.
     // Voting power is set to hold >2/3 worth of VP so consensus always progresses.
     // Proposals are processed regardless of consensus state.
     test.add_node()
@@ -74,7 +75,7 @@ pub async fn equivocation_two_vals_same_pk_proposal() {
 ///  * equivocator holds < 1/3 of total VP
 ///  * no single honest node has >2/3 of total VP, so needs to collect votes from others
 #[tokio::test]
-pub async fn equivocation_two_vals_same_pk_vote() {
+pub async fn equivocation_two_vals_same_key_vote() {
     // Nodes 1 and 2 share a validator key to induce vote equivocation.
     let params = TestParams {
         shared_key_group: HashSet::from([1, 2]),
@@ -83,17 +84,17 @@ pub async fn equivocation_two_vals_same_pk_vote() {
     };
     let mut test = TestBuilder::<()>::new();
 
-    // Node 1 votes normally.
+    // Node 1  - Byzantine
     test.add_node().start().success();
 
-    // Node 2 (same validator key as node 1) prevotes for random values.
+    // Node 2  - Byzantine: same validator key as node 1 and prevotes for random values.
     test.add_node()
         .with_middleware(PrevoteRandom)
         .start()
         .success();
 
     // Nodes 3 to 6 (honest)
-    for _ in 0..4 {
+    for _ in 3..=6 {
         test.add_node().start().success();
     }
 
