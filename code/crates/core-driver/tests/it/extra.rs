@@ -2980,8 +2980,6 @@ fn polka_nil_and_prevote_step_precommit_nil() {
             expected_outputs: vec![
                 prevote_nil_output(Round::new(0), &my_addr),
                 precommit_nil_output(Round::new(0), &my_addr),
-                start_precommit_timer_output(Round::new(0)),
-                start_precommit_timer_output(Round::new(0)),
             ],
             expected_round: Round::new(0),
             new_state: precommit_state(Round::new(0)),
@@ -3049,7 +3047,6 @@ fn polka_any_and_prevote_step_timeout_prevote() {
             expected_outputs: vec![
                 prevote_nil_output(Round::new(0), &my_addr),
                 start_prevote_timer_output(Round::new(0)),
-                start_precommit_timer_output(Round::new(0)),
             ],
             expected_round: Round::new(0),
             new_state: prevote_state(Round::new(0)),
@@ -3117,7 +3114,6 @@ fn polka_value_no_proposal_and_prevote_step_timeout_prevote() {
             expected_outputs: vec![
                 prevote_nil_output(Round::new(0), &my_addr),
                 start_prevote_timer_output(Round::new(0)),
-                start_precommit_timer_output(Round::new(0)),
             ],
             expected_round: Round::new(0),
             new_state: prevote_state(Round::new(0)),
@@ -3195,7 +3191,6 @@ fn polka_any_precommit_any_future_round() {
             expected_outputs: vec![
                 prevote_nil_output(Round::new(1), &my_addr),
                 start_prevote_timer_output(Round::new(1)),
-                start_precommit_timer_output(Round::new(1)),
             ],
             expected_round: Round::new(1),
             new_state: prevote_state(Round::new(1)),
@@ -3271,8 +3266,6 @@ fn polka_nil_precommit_any_future_round() {
             expected_outputs: vec![
                 prevote_nil_output(Round::new(1), &my_addr),
                 precommit_nil_output(Round::new(1), &my_addr),
-                start_precommit_timer_output(Round::new(1)),
-                start_precommit_timer_output(Round::new(1)), // :'(
             ],
             expected_round: Round::new(1),
             new_state: precommit_state(Round::new(1)),
