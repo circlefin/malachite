@@ -270,7 +270,6 @@ fn make_network_config(cfg: &ConsensusConfig, value_sync_cfg: &ValueSyncConfig) 
             discovery_kad: cfg.p2p.protocol_names.discovery_kad.clone(),
             discovery_regres: cfg.p2p.protocol_names.discovery_regres.clone(),
             sync: cfg.p2p.protocol_names.sync.clone(),
-            broadcast: cfg.p2p.protocol_names.broadcast.clone(),
         },
     }
 }

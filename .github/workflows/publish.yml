@@ -10,6 +10,8 @@ jobs:
   publish:
     name: Publish to crates.io
     runs-on: github-hosted-large
+    permissions:
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -17,8 +19,11 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
         with:
           cache-workspaces: "code"
+      - name: Authenticate to crates.io
+        uses: rust-lang/crates-io-auth-action@b7e9a28eded4986ec6b1fa40eeee8f8f165559ec # v1.0.3
+        id: auth
       - name: Publish crates
         uses: step-security/publish-crates@354be9c74404760ffbfcae1bd39a4f05c19b6578 # v2.0.0
         with:
-          registry-token: ${{ secrets.CRATES_TOKEN }}
+          registry-token: ${{ steps.auth.outputs.token }}
           path: code

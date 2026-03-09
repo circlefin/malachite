@@ -9,7 +9,7 @@ use crate::transition::Transition;
 #[cfg(feature = "debug")]
 use crate::traces::*;
 
-use malachitebft_core_types::{Context, Height, Round};
+use malachitebft_core_types::{Context, Height, Round, TimeoutKind};
 
 /// A value and its associated round
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -24,6 +24,53 @@ impl<Value> RoundValue<Value> {
     /// Create a new `RoundValue` instance.
     pub fn new(value: Value, round: Round) -> Self {
         Self { value, round }
+    }
+}
+
+/// Tracks which consensus timeouts have already been scheduled in the current round.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct ScheduledTimeouts {
+    bits: u8,
+}
+
+impl ScheduledTimeouts {
+    const PROPOSE_BIT: u8 = 1 << 0;
+    const PREVOTE_BIT: u8 = 1 << 1;
+    const PRECOMMIT_BIT: u8 = 1 << 2;
+
+    /// Clears all scheduled timeouts.
+    pub fn clear(&mut self) {
+        self.bits = 0;
+    }
+
+    /// Checks whether a timeout can be scheduled.
+    ///
+    /// Returns `true` and records the timeout as scheduled if it wasn't already.
+    ///
+    /// Untracked timeouts (like Rebroadcast) will always return `false`.
+    pub fn check(&mut self, timeout: TimeoutKind) -> bool {
+        if let Some(mask) = Self::mask(timeout) {
+            let was_scheduled = (self.bits & mask) != 0;
+            self.bits |= mask;
+            !was_scheduled
+        } else {
+            // Panic in debug mode (tests/local dev), but gracefully denies the timeout in production.
+            debug_assert!(false, "Only Propose, Prevote, and Precommit timeouts should be checked here. Got: {timeout:?}");
+
+            // Untracked timeouts are not scheduled and always return false.
+            false
+        }
+    }
+
+    /// Helper to map a `TimeoutKind` to its specific bitmask.
+    /// Returns `None` for timeouts that are not tracked per-round.
+    const fn mask(timeout: TimeoutKind) -> Option<u8> {
+        match timeout {
+            TimeoutKind::Propose => Some(Self::PROPOSE_BIT),
+            TimeoutKind::Prevote => Some(Self::PREVOTE_BIT),
+            TimeoutKind::Precommit => Some(Self::PRECOMMIT_BIT),
+            _ => None,
+        }
     }
 }
 
@@ -73,6 +120,11 @@ where
     /// It may be different, lower or higher, than the state machine round.
     pub decision: Option<RoundValue<Ctx::Value>>,
 
+    /// Timeouts already scheduled for the current round.
+    /// Intended to avoid scheduling the same timeout multiple times.
+    #[derive_where(skip(EqHashOrd))]
+    pub scheduled_timeouts: ScheduledTimeouts,
+
     /// Buffer with traces of tendermint algorithm lines,
     #[cfg(feature = "debug")]
     #[derive_where(skip)]
@@ -92,6 +144,7 @@ where
             locked: None,
             valid: None,
             decision: None,
+            scheduled_timeouts: ScheduledTimeouts::default(),
             #[cfg(feature = "debug")]
             traces: alloc::vec::Vec::default(),
         }
@@ -105,6 +158,20 @@ where
     /// Set the step.
     pub fn with_step(self, step: Step) -> Self {
         Self { step, ..self }
+    }
+
+    /// Check whether a timeout can be scheduled for the current round.
+    ///
+    /// Returns `true` and record the timeout as scheduled, if not duplicated.
+    /// Otherwise, the timeout was already scheduled and the method returns `false`.
+    pub fn check_timeout(&mut self, timeout: TimeoutKind) -> bool {
+        self.scheduled_timeouts.check(timeout)
+    }
+
+    /// Update the state's round.
+    pub fn update_round(&mut self, round: Round) {
+        self.round = round;
+        self.scheduled_timeouts.clear();
     }
 
     /// Set the locked value.
