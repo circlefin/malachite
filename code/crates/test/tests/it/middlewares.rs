@@ -85,3 +85,23 @@ impl Middleware for PrevoteNil {
         }
     }
 }
+
+#[derive(Copy, Clone, Debug)]
+pub struct PrevoteRandom;
+
+impl Middleware for PrevoteRandom {
+    fn new_prevote(
+        &self,
+        _ctx: &TestContext,
+        height: Height,
+        round: Round,
+        _value_id: NilOrVal<ValueId>,
+        address: Address,
+    ) -> Vote {
+        use rand::Rng;
+        let random = NilOrVal::Val(ValueId::new(
+            rand::thread_rng().gen_range(100_000..=999_999),
+        ));
+        Vote::new_prevote(height, round, random, address)
+    }
+}
