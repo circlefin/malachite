@@ -24,7 +24,7 @@ pub struct ValidatorProof<Ctx: Context> {
     pub public_key: Vec<u8>,
     /// The libp2p peer ID bytes
     pub peer_id: Vec<u8>,
-    /// Signature over (public_key, peer_id) using the validator's consensus key
+    /// Signature over (public_key, peer_id) using the validator's consensus private key
     pub signature: Signature<Ctx>,
 }
 

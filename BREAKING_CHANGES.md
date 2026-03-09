@@ -14,8 +14,8 @@
 ### `malachitebft-signing`
 
 - Added two new methods to `SigningProviderExt` trait for Proof-of-Validator (ADR-006):
-  - `sign_validator_certificate(&self, public_key: Vec<u8>, peer_id: Vec<u8>) -> Result<ValidatorProof<Ctx>, Error>`
-  - `verify_validator_certificate(&self, certificate: &ValidatorProof<Ctx>) -> Result<VerificationResult, Error>`
+  - `sign_validator_proof(&self, public_key: Vec<u8>, peer_id: Vec<u8>) -> Result<ValidatorProof<Ctx>, Error>`
+  - `verify_validator_proof(&self, proof: &ValidatorProof<Ctx>) -> Result<VerificationResult, Error>`
   - These have default implementations using `sign_bytes`/`verify_signed_bytes`
 
 ### `malachitebft-core-driver`

@@ -38,7 +38,6 @@ pub struct ValidatorInfo {
 
 impl ValidatorInfo {
     /// Returns the address if the public key matches, None otherwise.
-    /// Used to look up the address when we only have public key bytes (from proof).
     pub fn address_for_public_key(&self, public_key: &[u8]) -> Option<&str> {
         if self.public_key == public_key {
             Some(&self.address)

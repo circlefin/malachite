@@ -8,7 +8,7 @@ See ADR-006 (adr-006-proof-of-validator.md) for the design rationale and protoco
 
 When peers connect, they don't know if the other peer is a validator. The Identify protocol provides a peer's moniker and listen address, but validator status must be cryptographically proven.
 
-Each validator holds a pre-signed proof containing their consensus public key and libp2p peer ID, signed with their consensus key. Validators send this proof:
+Each validator holds a pre-signed proof containing their consensus public key and libp2p peer ID, signed with their consensus private key. Validators send this proof:
 1. On connection establishment (to new peers)
 2. When becoming a validator (to existing peers)
 
