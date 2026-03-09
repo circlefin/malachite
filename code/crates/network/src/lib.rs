@@ -446,9 +446,8 @@ async fn run(
     mut rx_ctrl: mpsc::Receiver<CtrlMsg>,
     tx_event: mpsc::Sender<Event>,
 ) {
-    // Note: We don't set the validator proof here at startup.
-    // `is_validator` is initially false, the proof will be set when we receive
-    // the validator set via UpdateValidatorSet and confirm we're in it.
+    // The validator proof is already set on the behaviour before run() is called
+    // (see set_proof above), so it will be sent on every ConnectionEstablished.
 
     if let Err(e) = swarm.listen_on(config.listen_addr.clone()) {
         error!("Error listening on {}: {e}", config.listen_addr);

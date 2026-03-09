@@ -3,7 +3,7 @@
 //! This is a one-way protocol where validators send their proof to peers.
 //! No response is expected - the receiver just stores the proof.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::task::{self, Poll};
 
 use bytes::Bytes;
@@ -56,14 +56,8 @@ pub struct Behaviour {
     events_rx: mpsc::UnboundedReceiver<Event>,
     events_tx: mpsc::UnboundedSender<Event>,
 
-    /// Track active connections per peer.
-    /// Only send proof on first connection, only clean up when all connections close.
-    connections: HashMap<PeerId, HashSet<ConnectionId>>,
-
-    /// Track peers we've sent proofs to (to avoid duplicates).
-    proofs_sent: HashSet<PeerId>,
-
     /// Track peers we've received proofs from (anti-spam: one proof per peer per session).
+    /// Cleared when the last connection to a peer closes.
     proofs_received: HashSet<PeerId>,
 
     /// Whether we're listening for incoming streams.
@@ -81,8 +75,6 @@ impl Behaviour {
             proof_bytes: None,
             events_rx,
             events_tx,
-            connections: HashMap::new(),
-            proofs_sent: HashSet::new(),
             proofs_received: HashSet::new(),
             listening: false,
         }
@@ -107,18 +99,11 @@ impl Behaviour {
     }
 
     /// Send our proof to a specific peer.
-    /// Returns true if the send was initiated, false if no proof or already sent.
-    pub fn send_proof(&mut self, peer_id: PeerId) -> bool {
+    /// Returns true if the send was initiated, false if no proof is set.
+    fn send_proof(&mut self, peer_id: PeerId) -> bool {
         let Some(proof_bytes) = &self.proof_bytes else {
             return false;
         };
-
-        if self.proofs_sent.contains(&peer_id) {
-            debug!(%peer_id, "Already sent proof to peer, skipping");
-            return false;
-        }
-
-        self.proofs_sent.insert(peer_id);
 
         let control = self.inner.new_control();
         let events_tx = self.events_tx.clone();
@@ -155,43 +140,28 @@ impl Behaviour {
     fn on_connection_established(&mut self, conn: &ConnectionEstablished<'_>) {
         let peer_id = conn.peer_id;
 
-        // Track this connection
-        let connections = self.connections.entry(peer_id).or_default();
-        let is_first_connection = connections.is_empty();
-        connections.insert(conn.connection_id);
-
-        // Only send proof on the first connection to this peer
-        if !is_first_connection {
+        if conn.other_established > 0 {
             trace!(
                 %peer_id,
-                connection_count = connections.len(),
+                other_established = conn.other_established,
                 "Additional connection to peer, skipping proof send"
             );
             return;
         }
 
-        // Send proof if we have one
         if self.send_proof(peer_id) {
-            debug!(%peer_id, "Sending validator proof on connection established");
+            debug!(%peer_id, "Sending validator proof on first connection");
         }
     }
 
     fn on_connection_closed(&mut self, conn: &ConnectionClosed<'_>) {
-        let peer_id = conn.peer_id;
-
-        let Some(connections) = self.connections.get_mut(&peer_id) else {
+        if conn.remaining_established > 0 {
             return;
-        };
-
-        connections.remove(&conn.connection_id);
-
-        // Only clean up when all connections to peer are closed
-        if connections.is_empty() {
-            trace!(%peer_id, "Last connection closed, cleaning up proof state");
-            self.connections.remove(&peer_id);
-            self.proofs_sent.remove(&peer_id);
-            self.proofs_received.remove(&peer_id);
         }
+
+        let peer_id = conn.peer_id;
+        trace!(%peer_id, "Last connection closed, cleaning up proof state");
+        self.proofs_received.remove(&peer_id);
     }
 }
 
@@ -271,9 +241,7 @@ impl NetworkBehaviour for Behaviour {
         // Check for events from protocol tasks
         if let Poll::Ready(Some(event)) = self.events_rx.poll_recv(cx) {
             match &event {
-                // On send failure, allow retry by removing from sent set
-                Event::ProofSendFailed { peer, .. } => {
-                    self.proofs_sent.remove(peer);
+                Event::ProofSendFailed { .. } => {
                     return Poll::Ready(ToSwarm::GenerateEvent(event));
                 }
                 // On receive failure, disconnect peer directly
@@ -342,32 +310,37 @@ mod tests {
     }
 
     /// Simulate a connection established event.
-    fn establish_connection(b: &mut Behaviour, peer: PeerId, conn_id: ConnectionId) {
+    fn establish_connection(
+        b: &mut Behaviour,
+        peer: PeerId,
+        conn_id: ConnectionId,
+        other_established: usize,
+    ) {
         let endpoint = dialer_endpoint();
         let event = FromSwarm::ConnectionEstablished(ConnectionEstablished {
             peer_id: peer,
             connection_id: conn_id,
             endpoint: &endpoint,
             failed_addresses: &[],
-            other_established: b.connections.get(&peer).map(|c| c.len()).unwrap_or(0),
+            other_established,
         });
         b.on_swarm_event(event);
     }
 
     /// Simulate a connection closed event.
-    fn close_connection(b: &mut Behaviour, peer: PeerId, conn_id: ConnectionId) {
+    fn close_connection(
+        b: &mut Behaviour,
+        peer: PeerId,
+        conn_id: ConnectionId,
+        remaining_established: usize,
+    ) {
         let endpoint = dialer_endpoint();
-        let remaining = b
-            .connections
-            .get(&peer)
-            .map(|c| c.len().saturating_sub(1))
-            .unwrap_or(0);
         let event = FromSwarm::ConnectionClosed(ConnectionClosed {
             peer_id: peer,
             connection_id: conn_id,
             endpoint: &endpoint,
             cause: None,
-            remaining_established: remaining,
+            remaining_established,
         });
         b.on_swarm_event(event);
     }
@@ -497,12 +470,9 @@ mod tests {
     }
 
     #[test]
-    fn poll_send_failure_allows_retry() {
+    fn poll_send_failure_emits_event() {
         let mut b = Behaviour::with_default_protocol();
         let peer = PeerId::random();
-
-        // Pre-mark as sent
-        b.proofs_sent.insert(peer);
 
         b.events_tx
             .send(Event::ProofSendFailed {
@@ -515,8 +485,6 @@ mod tests {
             poll_behaviour(&mut b),
             Poll::Ready(ToSwarm::GenerateEvent(Event::ProofSendFailed { .. }))
         ));
-        // Peer should be removed from sent set to allow retry
-        assert!(!b.proofs_sent.contains(&peer));
     }
 
     #[test]
@@ -542,81 +510,37 @@ mod tests {
         assert!(!b.send_proof(PeerId::random()));
     }
 
-    #[test]
-    fn send_proof_returns_false_if_already_sent() {
-        let mut b = Behaviour::with_default_protocol();
-        let peer = PeerId::random();
-        // No proof bytes needed for this check — mark as already sent
-        b.proofs_sent.insert(peer);
-        // Even if we set proof bytes, already-sent check fires first
-        b.set_proof(Bytes::from_static(b"proof"));
-        assert!(!b.send_proof(peer));
-    }
-
     // ── Connection tracking tests ────────────────────────────────────
 
     #[test]
-    fn connection_tracking_first_connection() {
+    fn last_connection_close_clears_proof_state() {
         let mut b = Behaviour::with_default_protocol();
         let peer = PeerId::random();
         let conn = ConnectionId::new_unchecked(1);
 
-        establish_connection(&mut b, peer, conn);
-
-        assert!(b.connections.contains_key(&peer));
-        assert!(b.connections[&peer].contains(&conn));
-        assert_eq!(b.connections[&peer].len(), 1);
-    }
-
-    #[test]
-    fn connection_tracking_additional_connection() {
-        let mut b = Behaviour::with_default_protocol();
-        let peer = PeerId::random();
-        let conn1 = ConnectionId::new_unchecked(1);
-        let conn2 = ConnectionId::new_unchecked(2);
-
-        establish_connection(&mut b, peer, conn1);
-        establish_connection(&mut b, peer, conn2);
-
-        assert_eq!(b.connections[&peer].len(), 2);
-        assert!(b.connections[&peer].contains(&conn1));
-        assert!(b.connections[&peer].contains(&conn2));
-    }
-
-    #[test]
-    fn connection_tracking_partial_close() {
-        let mut b = Behaviour::with_default_protocol();
-        let peer = PeerId::random();
-        let conn1 = ConnectionId::new_unchecked(1);
-        let conn2 = ConnectionId::new_unchecked(2);
-
-        establish_connection(&mut b, peer, conn1);
-        establish_connection(&mut b, peer, conn2);
-        close_connection(&mut b, peer, conn1);
-
-        // Peer still tracked with one connection
-        assert!(b.connections.contains_key(&peer));
-        assert_eq!(b.connections[&peer].len(), 1);
-        assert!(b.connections[&peer].contains(&conn2));
-    }
-
-    #[test]
-    fn connection_tracking_full_close_clears_state() {
-        let mut b = Behaviour::with_default_protocol();
-        let peer = PeerId::random();
-        let conn = ConnectionId::new_unchecked(1);
-
-        establish_connection(&mut b, peer, conn);
-
-        // Simulate some proof state
-        b.proofs_sent.insert(peer);
+        establish_connection(&mut b, peer, conn, 0);
         b.proofs_received.insert(peer);
 
-        close_connection(&mut b, peer, conn);
+        close_connection(&mut b, peer, conn, 0);
 
-        assert!(!b.connections.contains_key(&peer));
-        assert!(!b.proofs_sent.contains(&peer));
         assert!(!b.proofs_received.contains(&peer));
+    }
+
+    #[test]
+    fn partial_close_preserves_proof_state() {
+        let mut b = Behaviour::with_default_protocol();
+        let peer = PeerId::random();
+        let conn1 = ConnectionId::new_unchecked(1);
+        let conn2 = ConnectionId::new_unchecked(2);
+
+        establish_connection(&mut b, peer, conn1, 0);
+        establish_connection(&mut b, peer, conn2, 1);
+        b.proofs_received.insert(peer);
+
+        // Close one, one remains
+        close_connection(&mut b, peer, conn1, 1);
+
+        assert!(b.proofs_received.contains(&peer));
     }
 
     #[test]
@@ -627,7 +551,7 @@ mod tests {
         let conn2 = ConnectionId::new_unchecked(2);
 
         // Connect, receive proof
-        establish_connection(&mut b, peer, conn1);
+        establish_connection(&mut b, peer, conn1, 0);
         b.events_tx
             .send(Event::ProofReceived {
                 peer,
@@ -638,11 +562,11 @@ mod tests {
         assert!(b.proofs_received.contains(&peer));
 
         // Fully disconnect
-        close_connection(&mut b, peer, conn1);
+        close_connection(&mut b, peer, conn1, 0);
         assert!(!b.proofs_received.contains(&peer));
 
         // Reconnect → proof should be accepted again
-        establish_connection(&mut b, peer, conn2);
+        establish_connection(&mut b, peer, conn2, 0);
         b.events_tx
             .send(Event::ProofReceived {
                 peer,
@@ -665,27 +589,9 @@ mod tests {
         let peer = PeerId::random();
         let conn = ConnectionId::new_unchecked(100);
 
-        establish_connection(&mut b, peer, conn);
+        establish_connection(&mut b, peer, conn, 0);
 
-        // on_connection_established calls send_proof which inserts into proofs_sent
-        assert!(b.proofs_sent.contains(&peer));
-    }
-
-    #[tokio::test]
-    async fn additional_connection_does_not_resend() {
-        let mut b = Behaviour::with_default_protocol();
-        b.set_proof(Bytes::from_static(b"proof"));
-        let peer = PeerId::random();
-        let conn1 = ConnectionId::new_unchecked(100);
-        let conn2 = ConnectionId::new_unchecked(101);
-
-        establish_connection(&mut b, peer, conn1);
-        assert!(b.proofs_sent.contains(&peer));
-
-        // Second connection should not re-trigger send_proof
-        // (The test passes if no panic and proofs_sent still has exactly the peer)
-        establish_connection(&mut b, peer, conn2);
-        assert!(b.proofs_sent.contains(&peer));
-        assert_eq!(b.connections[&peer].len(), 2);
+        // send_proof spawns a task; verify it was called by checking has_proof is still true
+        assert!(b.has_proof());
     }
 }

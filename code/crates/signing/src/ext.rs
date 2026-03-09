@@ -432,8 +432,9 @@ where
     ) -> Result<VerificationResult, Error> {
         let signing_bytes = ValidatorProof::<Ctx>::signing_bytes(&proof.public_key, &proof.peer_id);
         // Decode the public key from the proof bytes
-        let public_key = Ctx::SigningScheme::decode_public_key(&proof.public_key)
-            .map_err(|e| Error::from_source(format!("Invalid public key in validator proof: {e}")))?;
+        let public_key = Ctx::SigningScheme::decode_public_key(&proof.public_key).map_err(|e| {
+            Error::from_source(format!("Invalid public key in validator proof: {e}"))
+        })?;
         self.verify_signed_bytes(&signing_bytes, &proof.signature, &public_key)
             .await
     }

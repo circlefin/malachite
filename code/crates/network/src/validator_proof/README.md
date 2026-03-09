@@ -55,10 +55,13 @@ The validator proof state is split between two locations:
 | Field | Type | Purpose |
 |-------|------|---------|
 | `proof_bytes` | `Option<Bytes>` | Our proof to send (set when we're a validator, cleared when not) |
-| `connections` | `HashMap<PeerId, HashSet<ConnectionId>>` | Track active connections per peer (send on first, clean up on last) |
-| `proofs_sent` | `HashSet<PeerId>` | Peers we've sent to (dedup outgoing, cleared on disconnect) |
-| `proofs_received` | `HashSet<PeerId>` | Peers we've received from (anti-spam, cleared on disconnect) |
+| `proofs_received` | `HashSet<PeerId>` | Peers we've received from (anti-spam, cleared when last connection closes) |
 | `listening` | `bool` | Whether the listener task has been spawned |
+
+Connection tracking uses libp2p's built-in `other_established` (on `ConnectionEstablished`)
+and `remaining_established` (on `ConnectionClosed`) instead of maintaining a separate map.
+Proof is sent only on first connection (`other_established == 0`); state is cleaned up when the
+last connection closes (`remaining_established == 0`).
 
 All session state is cleared when the last connection to a peer closes, allowing fresh
 exchange on reconnect.
@@ -96,10 +99,9 @@ durable classification (has this peer's proof been verified? are they in the val
   behaviour.rs
   ┌──────────────────────────────────────────────────────────────────────────┐
   │ on_connection_established()                                              │
-  │   ├─ Check: first connection? (connections HashMap)                      │
+  │   ├─ Check: other_established == 0? (first connection to peer)           │
   │   └─ send_proof()                                                        │
   │        ├─ Check: proof_bytes.is_some()?                                  │
-  │        ├─ Check: peer in proofs_sent?                                    │
   │        └─ spawn protocol::send_proof task                                │
   └──────────────────────────────────────────────────────────────────────────┘
                                   │
@@ -122,7 +124,7 @@ durable classification (has this peer's proof been verified? are they in the val
   │                                                                          │
   │ On every new connection (ConnectionEstablished):                          │
   │   └─ behaviour.send_proof(peer_id)                                       │
-  │       └─ (dedup via proofs_sent set)                                     │
+  │       └─ (dedup via other_established == 0 check)                        │
   └──────────────────────────────────────────────────────────────────────────┘
 
   The proof is a static binding of (public_key, peer_id) and does not change
@@ -145,7 +147,7 @@ durable classification (has this peer's proof been verified? are they in the val
   ┌──────────────────────────────────────────────────────────────────────────┐
   │ poll() - process protocol events (called from swarm.select_next_some())  │
   │   └─ ProofReceiveFailed → ToSwarm::CloseConnection (DISCONNECT)          │
-  │   └─ ProofSendFailed → remove from proofs_sent (allow retry)             │
+  │   └─ ProofSendFailed → forward to swarm (allow retry)                    │
   │   └─ ProofReceived:                                                      │
   │        └─ Check: peer in proofs_received? (ANTI-SPAM)                    │
   │             └─ If yes → ToSwarm::CloseConnection (DISCONNECT)            │
@@ -195,9 +197,8 @@ durable classification (has this peer's proof been verified? are they in the val
 
 | Check | Location | On Failure |
 |-------|----------|------------|
-| First connection (send) | behaviour.rs | Skip send |
+| First connection (send) | behaviour.rs (`other_established == 0`) | Skip send |
 | proof_bytes set (send) | behaviour.rs | Skip send |
-| Already sent to peer | behaviour.rs | Skip send |
 | Message size (1KB max) | codec.rs | Close stream |
 | Stream read failure | behaviour.rs | Disconnect |
 | Anti-spam (duplicate) | behaviour.rs | Disconnect |
@@ -213,23 +214,25 @@ durable classification (has this peer's proof been verified? are they in the val
 
 ## State Management
 
-All connection-session state is in `behaviour.rs`:
-- `connections: HashMap<PeerId, HashSet<ConnectionId>>` - track active connections
-- `proofs_sent: HashSet<PeerId>` - track peers we've sent to (dedup outgoing)
-- `proofs_received: HashSet<PeerId>` - track peers we've received from (anti-spam)
+Connection-session state in `behaviour.rs`:
+- `proofs_received: HashSet<PeerId>` — track peers we've received from (anti-spam)
 
-All cleared when last connection to peer closes, allowing fresh exchange on reconnect.
+Cleared when the last connection to a peer closes (`remaining_established == 0`), allowing
+fresh exchange on reconnect.
+
+Connection counting uses libp2p's built-in counters (`other_established` and
+`remaining_established`) rather than maintaining a separate map.
 
 ## Scenario Diagrams
 
-### Scenario 1: Validator Connects to Peer
+### Scenario 1: Node with Validator Key Connects to Peer
 
 ```
-    Node A (Validator)                          Node B (Full Node)
+    Node A (has consensus key)                  Node B (Full Node)
          |                                            |
          |-------- TCP Connect ---------------------->|
          |                                            |
-         |  [A is validator, has proof]               |
+         |  [A has proof (set at startup)]            |
          |                                            |
          |-------- Validator Proof ------------------>|
          |  (one-way, no response)                    |
@@ -244,27 +247,7 @@ All cleared when last connection to peer closes, allowing fresh exchange on reco
          |                                            |
 ```
 
-### Scenario 2: Node Becomes Validator
-
-```
-    Node A (becomes Validator)                  Node B (connected peer)
-         |                                            |
-         |  [A and B already connected]               |
-         |                                            |
-    ~~~~ Validator Set Update: A is now validator ~~~~
-         |                                            |
-         |  [A receives UpdateValidatorSet,           |
-         |   learns it's now a validator,             |
-         |   sets proof in behaviour]                 |
-         |                                            |
-         |-------- Validator Proof ------------------>|
-         |                                            |
-         |                       [B verifies & stores]
-         |                       [B.peer_type = Validator]
-         |                                            |
-```
-
-### Scenario 3: Invalid Proof - Disconnect
+### Scenario 2: Invalid Proof - Disconnect
 
 ```
     Node A                                      Node B (malicious)
@@ -279,7 +262,7 @@ All cleared when last connection to peer closes, allowing fresh exchange on reco
          |                                            |
 ```
 
-### Scenario 4: Duplicate Proof - Anti-spam
+### Scenario 3: Duplicate Proof - Anti-spam
 
 ```
     Node A                                      Node B
@@ -297,7 +280,7 @@ All cleared when last connection to peer closes, allowing fresh exchange on reco
          |                                            |
 ```
 
-### Scenario 5: Incompatible Codec Version - Graceful Ignore
+### Scenario 4: Incompatible Codec Version - Graceful Ignore
 
 ```
     Node A (new version)                        Node B (old version)

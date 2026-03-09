@@ -28,7 +28,7 @@ pub struct NetworkStateDump {
 /// Validator information passed from consensus to network layer
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ValidatorInfo {
-    /// Consensus address as string (for matching via Identify protocol)
+    /// Consensus address as string (for display/metrics and local node validator set matching)
     pub address: String,
     /// Public key bytes (for matching validator proofs)
     pub public_key: Vec<u8>,

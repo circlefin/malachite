@@ -22,7 +22,7 @@
 //!
 //! ConnectionEstablished event:
 //!   └─► behaviour.send_proof(peer_id)
-//!       - Checks: has proof_bytes? first connection? not already sent?
+//!       - Checks: has proof_bytes? first connection (other_established == 0)?
 //!       └─► protocol::send_proof() spawned as task
 //!           └─► Opens stream, writes proof, closes
 //! ```
@@ -33,8 +33,7 @@
 //!
 //! ### Sending Guards (in `validator_proof/behaviour.rs`)
 //! - `proof_bytes` must be set (set once at startup)
-//! - `proofs_sent` tracks peers we've sent to (prevents duplicates)
-//! - `connections` tracks first vs additional connections (send only on first)
+//! - `other_established == 0` gates sending to first connection only (via libp2p)
 //!
 //! ## Receiving & Validation
 //!
@@ -73,8 +72,7 @@
 //! ## Failure Handling
 //!
 //! **Send failures** (`ProofSendFailed`):
-//! - behaviour removes peer from `proofs_sent` set
-//! - Retry allowed on next connection or trigger
+//! - Forwarded to swarm; retry allowed on next connection or trigger
 //!
 //! **Receive failures** (`ProofReceiveFailed`):
 //! - Cannot read stream (framing error, oversized message, connection drop)
