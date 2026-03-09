@@ -54,7 +54,7 @@ The validator proof state is split between two locations:
 
 | Field | Type | Purpose |
 |-------|------|---------|
-| `proof_bytes` | `Option<Bytes>` | Our proof to send (set when we're a validator, cleared when not) |
+| `proof_bytes` | `Option<Bytes>` | Our proof to send (set once at startup if the node has a consensus key) |
 | `proofs_received` | `HashSet<PeerId>` | Peers we've received from (anti-spam, cleared when last connection closes) |
 | `listening` | `bool` | Whether the listener task has been spawned |
 
