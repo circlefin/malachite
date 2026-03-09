@@ -933,6 +933,46 @@ mod tests {
         assert!(!state.local_node.is_validator);
     }
 
+    // ── Pending proof + update_peer flow ──────────────────────────────
+
+    #[test]
+    fn pending_proof_applied_when_identify_completes() {
+        let mut state = test_state();
+        let peer_id = libp2p::PeerId::random();
+        let public_key = vec![1, 2, 3];
+
+        state.validator_set.insert(ValidatorInfo {
+            address: "buffered_val".to_string(),
+            public_key: public_key.clone(),
+            voting_power: 100,
+        });
+
+        // Proof arrives before Identify, it is buffered as there is no PeerInfo yet
+        let result = state.record_verified_proof(&peer_id, public_key.clone());
+        assert!(result.is_none());
+        assert!(state.pending_verified_proofs.contains_key(&peer_id));
+
+        // Simulate Identify completed, update_peer creates PeerInfo and applies pending proof
+        let info = identify::Info {
+            public_key: libp2p::identity::Keypair::generate_ed25519().public(),
+            protocol_version: "test/1.0".to_string(),
+            agent_version: "moniker=test-peer".to_string(),
+            listen_addrs: vec!["/ip4/10.0.0.1/tcp/26656".parse().unwrap()],
+            protocols: vec![],
+            observed_addr: "/ip4/127.0.0.1/tcp/0".parse().unwrap(),
+            signed_peer_record: None,
+        };
+        let conn_id = libp2p::swarm::ConnectionId::new_unchecked(42);
+        let score = state.update_peer(peer_id, conn_id, &info);
+
+        assert!(state.pending_verified_proofs.is_empty());
+        let peer = &state.peer_info[&peer_id];
+        assert!(peer.peer_type.is_validator());
+        assert_eq!(peer.consensus_public_key.as_deref(), Some(&public_key[..]));
+        assert_eq!(peer.consensus_address.as_deref(), Some("buffered_val"));
+        assert_eq!(score, VALIDATOR_SCORE);
+    }
+
     // ── Persistent peer + proof ──────────────────────────────────────
 
     #[test]
