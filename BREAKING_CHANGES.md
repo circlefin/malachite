@@ -44,6 +44,7 @@
 - Changed `Msg::StartHeight` from `StartHeight(Height, ValidatorSet)` to `StartHeight(Height, HeightParams)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Changed `Msg::RestartHeight` from `RestartHeight(Height, ValidatorSet)` to `RestartHeight(Height, HeightParams)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Added `timeouts` field to `State` struct - timeouts are now stored in State instead of Driver ([#1227](https://github.com/circlefin/malachite/pull/1227))
+- Added `HostMsg::ReceivedProposal` variant - the engine now forwards received `Proposal` messages to the host ([#1110](https://github.com/circlefin/malachite/pull/1110))
 
 ### `malachitebft-config`
 
@@ -61,6 +62,7 @@
 - Changed `AppMsg::ConsensusReady` reply type from `(Ctx::Height, Ctx::ValidatorSet)` to `(Ctx::Height, HeightParams<Ctx>)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Changed `ConsensusMsg::StartHeight` from `StartHeight(Height, ValidatorSet)` to `StartHeight(Height, HeightParams)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Changed `ConsensusMsg::RestartHeight` from `RestartHeight(Height, ValidatorSet)` to `RestartHeight(Height, HeightParams)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
+- Added `AppMsg::ReceivedProposal` variant - the application is now notified when consensus receives a `Proposal` message ([#1110](https://github.com/circlefin/malachite/pull/1110))
 
 ### `malachitebft-app`
 

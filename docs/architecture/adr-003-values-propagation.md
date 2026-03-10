@@ -168,8 +168,8 @@ The following notations are used in the following sections:
 
 ### ProposalOnly
 
-> [!WARNING]
-> This mode is under development and not yet fully supported in Malachite (see the dotted lines in the diagram).
+> [!NOTE]
+> This mode is supported as of [#1110](https://github.com/circlefin/malachite/pull/1110).
 
 This approach most closely follows the original Tendermint algorithm.
 
@@ -200,8 +200,9 @@ sequenceDiagram
     E1->>E2: Proposal(SignedProposal(V))
 
     E2->>C2: Proposal(SignedProposal(V))
-    C2-->>A2: Proposal(V)
-    A2-->>C2: ProposedValue(ProposedValue(V, validity))
+    E2->>A2: ReceivedProposal(SignedProposal(V))
+    A2->>E2: ProposedValue(ProposedValue(V, validity))
+    E2->>C2: ProposedValue(ProposedValue(V, validity))
 
     Note over C2: Has V _and its validity_ → can proceed
 
@@ -217,8 +218,7 @@ with the full value embedded in it, is disseminated through the network.
 Upon receiving a `Proposal(SignedProposal(V))` message from the network, the engine passes it directly to the consensus core for processing.
 Consensus core verifies the proposal is properly signed by the Proposer for the current height and round.
 
-*(Implementation in progress) The consensus engine implementation should also pass the unsigned `Proposal(V)` message to the application for validation.
-Once validation is performed the application generates the `ProposedValue(V, valid(V))` input and provide it as input to consensus.*
+The consensus engine forwards the received `Proposal(V)` message to the application via `ReceivedProposal`. The application validates the value and responds with `ProposedValue(V, valid(V))`, which the engine then provides as input to the consensus core.
 
 In this mode, the application only needs to provide a value to the consensus core through `Propose(LocallyProposedValue(V))`, and value propagation is entirely handled by the networking module. The consensus core processes proposal messages that already contain the proposed value `V`.
 
@@ -265,6 +265,7 @@ sequenceDiagram
     E1->>E2: Proposal(SignedProposal(v))
 
     E2->>C2: Proposal(SignedProposal(v))
+    E2->>A2: ReceivedProposal(SignedProposal(v))
 
     Note over C2: Has v and its validity → can proceed
 ```
@@ -389,8 +390,8 @@ voting on `id(v)`.
 Malachite follows this approach in [`ProposalOnly` mode](#proposalonly), 
 when the application returns the full value directly in `Propose(LocallyProposedValue<Ctx>)`.
 
-> [!WARNING]
-> As mentioned in the [ProposalOnly](#proposalonly) section, this mode is under development and not yet fully supported in Malachite.
+> [!NOTE]
+> This mode is supported as of [#1110](https://github.com/circlefin/malachite/pull/1110).
 
 ### Consensus by Reference
 

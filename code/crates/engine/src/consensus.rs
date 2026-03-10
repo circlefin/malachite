@@ -19,8 +19,8 @@ use malachitebft_core_consensus::{
     Effect, LivenessMsg, PeerId, Resumable, Resume, SignedConsensusMsg, VoteExtensionError,
 };
 use malachitebft_core_types::{
-    Context, Proposal, Round, Timeout, TimeoutKind, Timeouts, ValidatorProof, ValidatorSet,
-    Validity, Value, ValueId, ValueOrigin, ValueResponse as CoreValueResponse, Vote,
+    Context, Proposal, Round, SignedProposal, Timeout, TimeoutKind, Timeouts, ValidatorProof, ValidatorSet,
+    Validity, Value, ValueId, ValueOrigin, ValuePayload, ValueResponse as CoreValueResponse, Vote,
 };
 use malachitebft_metrics::Metrics;
 use malachitebft_signing::{SigningProvider, SigningProviderExt};
@@ -538,24 +538,8 @@ where
                             error!(%from, "Error when processing proposal: {e}");
                         }
 
-                        // Forward the proposal value to the host
-                        self.host
-                            .call_and_forward(
-                                |reply_to| HostMsg::ReceivedProposal {
-                                    proposal: proposal.clone(),
-                                    reply_to: mode.proposal_only().then_some(reply_to),
-                                },
-                                &myself,
-                                move |value| {
-                                    if mode.proposal_only() {
-                                        Msg::ReceivedProposedValue(value, ValueOrigin::Consensus)
-                                    } else {
-                                        unreachable!("No reply channel was provided to HostMsg::ReceivedProposal")
-                                    }
-                                },
-                                None,
-                            )
-                            .map_err(|e| eyre!("Error when forwarding proposal to host: {e}"))?;
+                        // Forward the proposal to the host
+                        self.forward_proposal_to_host(&myself, proposal, mode)?;
                     }
 
                     NetworkEvent::PolkaCertificate(from, certificate) => {
@@ -958,6 +942,38 @@ where
             Msg::<Ctx>::ProposeValue,
             None,
         )?;
+
+        Ok(())
+    }
+
+    /// Forward a received proposal to the host.
+    ///
+    /// In `ProposalOnly` mode, the host MUST reply with the proposed value and its validity,
+    /// which is then fed back to the consensus actor as a `ReceivedProposedValue` message.
+    ///
+    /// In `ProposalAndParts` mode, the host is merely notified and does not need to reply.
+    fn forward_proposal_to_host(
+        &self,
+        myself: &ActorRef<Msg<Ctx>>,
+        proposal: SignedProposal<Ctx>,
+        mode: ValuePayload,
+    ) -> Result<(), ActorProcessingErr> {
+        if mode.proposal_only() {
+            self.host.call_and_forward(
+                |reply_to| HostMsg::ReceivedProposal {
+                    proposal,
+                    reply_to: Some(reply_to),
+                },
+                myself,
+                |value| Msg::ReceivedProposedValue(value, ValueOrigin::Consensus),
+                None,
+            )?;
+        } else {
+            self.host.cast(HostMsg::ReceivedProposal {
+                proposal,
+                reply_to: None,
+            })?;
+        }
 
         Ok(())
     }
