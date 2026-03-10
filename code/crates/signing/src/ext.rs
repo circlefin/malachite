@@ -104,14 +104,14 @@ where
         thresholds: ThresholdParams,
     ) -> Result<(), CertificateError<Ctx>>;
 
-    /// Sign a validator certificate binding the given public key to the given peer ID.
+    /// Sign a validator proof binding the given public key to the given peer ID.
     async fn sign_validator_proof(
         &self,
         public_key: Vec<u8>,
         peer_id: Vec<u8>,
     ) -> Result<ValidatorProof<Ctx>, Error>;
 
-    /// Verify a validator certificate's signature using the public key included in the certificate.
+    /// Verify a validator proof's signature using the public key included in the certificate.
     ///
     /// This allows immediate verification without needing to look up the public key from the validator set.
     async fn verify_validator_proof(
