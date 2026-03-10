@@ -1,14 +1,15 @@
 use alloc::boxed::Box;
+use alloc::format;
 use alloc::vec::Vec;
 
 use async_trait::async_trait;
 use malachitebft_core_types::{
     CertificateError, CommitCertificate, CommitSignature, Context, NilOrVal, PolkaCertificate,
-    PolkaSignature, RoundCertificate, RoundCertificateType, RoundSignature, ThresholdParams,
-    Validator, ValidatorSet, VoteType, VotingPower,
+    PolkaSignature, RoundCertificate, RoundCertificateType, RoundSignature, SigningScheme,
+    ThresholdParams, Validator, ValidatorProof, ValidatorSet, VoteType, VotingPower,
 };
 
-use crate::SigningProvider;
+use crate::{Error, SigningProvider, VerificationResult};
 
 /// Extension trait providing additional certificate verification functionality for signing providers.
 ///
@@ -102,6 +103,21 @@ where
         validator_set: &Ctx::ValidatorSet,
         thresholds: ThresholdParams,
     ) -> Result<(), CertificateError<Ctx>>;
+
+    /// Sign a validator proof binding the given public key to the given peer ID.
+    async fn sign_validator_proof(
+        &self,
+        public_key: Vec<u8>,
+        peer_id: Vec<u8>,
+    ) -> Result<ValidatorProof<Ctx>, Error>;
+
+    /// Verify a validator proof's signature using the public key included in the certificate.
+    ///
+    /// This allows immediate verification without needing to look up the public key from the validator set.
+    async fn verify_validator_proof(
+        &self,
+        proof: &ValidatorProof<Ctx>,
+    ) -> Result<VerificationResult, Error>;
 }
 
 #[async_trait]
@@ -398,5 +414,28 @@ where
                 expected: threshold.min_expected(total_voting_power),
             })
         }
+    }
+
+    async fn sign_validator_proof(
+        &self,
+        public_key: Vec<u8>,
+        peer_id: Vec<u8>,
+    ) -> Result<ValidatorProof<Ctx>, Error> {
+        let signing_bytes = ValidatorProof::<Ctx>::signing_bytes(&public_key, &peer_id);
+        let signature = self.sign_bytes(&signing_bytes).await?;
+        Ok(ValidatorProof::new(public_key, peer_id, signature))
+    }
+
+    async fn verify_validator_proof(
+        &self,
+        proof: &ValidatorProof<Ctx>,
+    ) -> Result<VerificationResult, Error> {
+        let signing_bytes = ValidatorProof::<Ctx>::signing_bytes(&proof.public_key, &proof.peer_id);
+        // Decode the public key from the proof bytes
+        let public_key = Ctx::SigningScheme::decode_public_key(&proof.public_key).map_err(|e| {
+            Error::from_source(format!("Invalid public key in validator proof: {e}"))
+        })?;
+        self.verify_signed_bytes(&signing_bytes, &proof.signature, &public_key)
+            .await
     }
 }

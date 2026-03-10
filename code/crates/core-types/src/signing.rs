@@ -13,7 +13,7 @@ pub trait SigningScheme
 where
     Self: Clone + Debug + Eq,
 {
-    /// Errors that can occur when decoding a signature from a byte array.
+    /// Errors that can occur when decoding a signature or public key from a byte array.
     type DecodingError: Display;
 
     /// The type of signatures produced by this signing scheme.
@@ -30,4 +30,10 @@ where
 
     /// Encode a signature to a byte array.
     fn encode_signature(signature: &Self::Signature) -> Vec<u8>;
+
+    /// Decode a public key from a byte array.
+    fn decode_public_key(bytes: &[u8]) -> Result<Self::PublicKey, Self::DecodingError>;
+
+    /// Encode a public key to a byte array.
+    fn encode_public_key(public_key: &Self::PublicKey) -> Vec<u8>;
 }

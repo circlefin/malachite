@@ -54,14 +54,11 @@ impl PeerInfo {
             peer_id: peer_id.to_string(),
             address: self.address.to_string(),
             peer_type: self.peer_type,
-            // Only include consensus_address for validators, otherwise "none"
-            consensus_address: if self.peer_type.is_validator()
-                && self.consensus_address != "unknown"
-            {
-                self.consensus_address.clone()
-            } else {
-                "none".to_string()
-            },
+            // Show verified consensus_address if known, "none" if never verified
+            consensus_address: self
+                .consensus_address
+                .clone()
+                .unwrap_or_else(|| "none".to_string()),
         }
     }
 
@@ -295,6 +292,7 @@ impl Metrics {
         let labels_changed = !old_peer_info.labels_match(new_peer_info);
 
         if labels_changed {
+            // Mark old entry as stale
             let old_labels = old_peer_info.to_labels(peer_id, slot);
             tracing::debug!(%peer_id, ?old_labels, "Marking peer metric stale");
             self.discovered_peers

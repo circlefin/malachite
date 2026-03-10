@@ -160,6 +160,11 @@ pub enum RequestBuilder {
 ///
 /// # Example: All defaults
 /// ```rust,ignore
+/// // Sign the validator proof (ADR-006) and build the network identity
+/// let proof = signer.sign_validator_proof(public_key_bytes, peer_id_bytes).await?;
+/// let proof_bytes = codec.encode(&proof)?;
+/// let identity = NetworkIdentity::new_validator(moniker, keypair, address, proof_bytes);
+///
 /// let (channels, handle) = EngineBuilder::new(ctx, config)
 ///     .with_default_wal(WalContext::new(path, codec))
 ///     .with_default_network(NetworkContext::new(identity, codec))
