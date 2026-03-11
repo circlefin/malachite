@@ -3659,19 +3659,19 @@ fn round_1_decision_during_round_0_via_certificate() {
             new_state: propose_state(Round::new(0)),
         },
         TestStep {
-            desc: "we get a commit certificate for v at round 1",
-            input: commit_certificate_input_at(
-                Round::new(1),
-                value.clone(),
-                &[v1.address, v2.address],
-            ),
+            desc: "Receive proposal from round 1",
+            input: proposal_input_from_proposal(proposal.clone(), Validity::Valid),
             expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: propose_state(Round::new(0)),
         },
         TestStep {
-            desc: "Receive proposal from round 1",
-            input: proposal_input_from_proposal(proposal.clone(), Validity::Valid),
+            desc: "we get a commit certificate for v at round 1, we have a decision",
+            input: commit_certificate_input_at(
+                Round::new(1),
+                value.clone(),
+                &[v1.address, v2.address],
+            ),
             expected_outputs: vec![decide_output(Round::new(0), proposal)],
             expected_round: Round::new(0),
             new_state: decided_state(Round::new(0), Round::new(1), value),
@@ -3766,26 +3766,242 @@ fn round_1_invalid_decision_during_round_0_via_certificate() {
             new_state: propose_state(Round::new(0)),
         },
         TestStep {
-            desc: "we get a commit certificate for v at round 1",
-            input: commit_certificate_input_at(
-                Round::new(1),
-                value.clone(),
-                &[v1.address, v2.address],
-            ),
-            expected_outputs: vec![],
-            expected_round: Round::new(0),
-            new_state: propose_state(Round::new(0)),
-        },
-        TestStep {
             desc: "Receive proposal from round 1, which is invalid",
             input: proposal_input_from_proposal(proposal.clone(), Validity::Invalid),
             expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: propose_state(Round::new(0)),
         },
+        TestStep {
+            desc: "we get a commit certificate for v at round 1, but proposal is invalid so we skip round",
+            input: commit_certificate_input_at(
+                Round::new(1),
+                value.clone(),
+                &[v1.address, v2.address],
+            ),
+            expected_outputs: vec![new_round_output(Round::new(1))],
+            expected_round: Round::new(1),
+            new_state: new_round(Round::new(1)),
+        },
     ];
 
     run_steps(&mut driver, steps);
+}
+
+// Precommit votes arrive for a future round before the proposal. The process skips to that
+// round, and once the proposal arrives, the decision is made.
+// Symmetric with round_1_decision_via_certificate_proposal_arrives_later (certificate path).
+#[test]
+fn round_1_decision_via_votes_proposal_arrives_later() {
+    let value = Value::new(9999);
+
+    let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
+
+    let height = Height::new(1);
+    let ctx = TestContext::new();
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let proposal = Proposal::new(
+        Height::new(1),
+        Round::new(1),
+        value.clone(),
+        Round::Nil,
+        v1.address,
+    );
+
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
+
+    let steps = vec![
+        TestStep {
+            desc: "Start round 0, we are not the proposer",
+            input: new_round_input(Round::new(0), v1.address),
+            expected_outputs: vec![start_propose_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "v1 precommits v at round 1",
+            input: precommit_input(Round::new(1), value.clone(), &v1.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "v2 precommits v at round 1, no proposal yet, skip to round 1",
+            input: precommit_input(Round::new(1), value.clone(), &v2.address),
+            expected_outputs: vec![new_round_output(Round::new(1))],
+            expected_round: Round::new(1),
+            new_state: new_round(Round::new(1)),
+        },
+        TestStep {
+            desc: "Start round 1, precommit threshold replayed",
+            input: new_round_input(Round::new(1), v2.address),
+            expected_outputs: vec![
+                start_propose_timer_output(Round::new(1)),
+                start_precommit_timer_output(Round::new(1)),
+            ],
+            expected_round: Round::new(1),
+            new_state: propose_state(Round::new(1)),
+        },
+        TestStep {
+            desc: "Receive valid proposal for round 1, decide",
+            input: proposal_input_from_proposal(proposal.clone(), Validity::Valid),
+            expected_outputs: vec![decide_output(Round::new(1), proposal)],
+            expected_round: Round::new(1),
+            new_state: decided_state(Round::new(1), Round::new(1), value),
+        },
+    ];
+
+    run_steps(&mut driver, steps);
+}
+
+// Commit certificate arrives for a future round before the proposal. The process skips to that
+// round, and once the proposal arrives, the decision is made.
+// Symmetric with round_1_decision_via_votes_proposal_arrives_later (vote path).
+#[test]
+fn round_1_decision_via_certificate_proposal_arrives_later() {
+    let value = Value::new(9999);
+
+    let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
+
+    let height = Height::new(1);
+    let ctx = TestContext::new();
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let proposal = Proposal::new(
+        Height::new(1),
+        Round::new(1),
+        value.clone(),
+        Round::Nil,
+        v1.address,
+    );
+
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
+
+    let steps = vec![
+        TestStep {
+            desc: "Start round 0, we are not the proposer",
+            input: new_round_input(Round::new(0), v1.address),
+            expected_outputs: vec![start_propose_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Commit certificate for round 1, no proposal yet, skip to round 1",
+            input: commit_certificate_input_at(
+                Round::new(1),
+                value.clone(),
+                &[v1.address, v2.address],
+            ),
+            expected_outputs: vec![new_round_output(Round::new(1))],
+            expected_round: Round::new(1),
+            new_state: new_round(Round::new(1)),
+        },
+        // This step is not necessary for the test to succeed, but it is expected to happen.
+        TestStep {
+            desc: "Start round 1",
+            input: new_round_input(Round::new(1), v2.address),
+            expected_outputs: vec![start_propose_timer_output(Round::new(1))],
+            expected_round: Round::new(1),
+            new_state: propose_state(Round::new(1)),
+        },
+        TestStep {
+            desc: "Receive valid proposal for round 1, decide",
+            input: proposal_input_from_proposal(proposal.clone(), Validity::Valid),
+            expected_outputs: vec![decide_output(Round::new(1), proposal)],
+            expected_round: Round::new(1),
+            new_state: decided_state(Round::new(1), Round::new(1), value),
+        },
+    ];
+
+    run_steps(&mut driver, steps);
+}
+
+// When PrecommitValue is emitted by the vote keeper for a future round and the mux falls back
+// to SkipRound (no valid proposal), the round certificate must still be stored so the node can
+// justify entering the new round.
+// Symmetric with round_certificate_stored_on_commit_certificate_fallback_to_skip_round (certificate path).
+#[test]
+fn round_certificate_stored_on_precommit_value_fallback_to_skip_round() {
+    let value = Value::new(9999);
+
+    let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
+
+    let height = Height::new(1);
+    let ctx = TestContext::new();
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
+
+    // Start round 0
+    let outputs = driver
+        .process(new_round_input(Round::new(0), v1.address))
+        .expect("process succeeded");
+    assert_eq!(outputs, vec![start_propose_timer_output(Round::new(0))]);
+    assert!(driver.round_certificate().is_none());
+
+    // v1 precommits v at round 1
+    let outputs = driver
+        .process(precommit_input(Round::new(1), value.clone(), &v1.address))
+        .expect("process succeeded");
+    assert_eq!(outputs, vec![]);
+
+    // v2 precommits v at round 1: triggers both f+1 and 2/3+ PrecommitValue.
+    // No valid proposal, so mux falls back to SkipRound.
+    let outputs = driver
+        .process(precommit_input(Round::new(1), value.clone(), &v2.address))
+        .expect("process succeeded");
+    assert_eq!(outputs, vec![new_round_output(Round::new(1))]);
+
+    // The round certificate must be stored despite PrecommitValue taking priority
+    // over SkipRound in the vote keeper.
+    assert!(
+        driver.round_certificate().is_some(),
+        "round certificate for round 1 should be stored upon PrecommitValue(1) and no decision"
+    );
+}
+
+// Symmetric to the vote-based test above: when a commit certificate for a future round triggers
+// a SkipRound (no valid proposal), the round certificate must be stored. The commit certificate
+// contains 2f+1 precommits, which is more than enough to justify entering the new round.
+#[test]
+fn round_certificate_stored_on_commit_certificate_fallback_to_skip_round() {
+    let value = Value::new(9999);
+
+    let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
+
+    let height = Height::new(1);
+    let ctx = TestContext::new();
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
+
+    // Start round 0
+    let outputs = driver
+        .process(new_round_input(Round::new(0), v1.address))
+        .expect("process succeeded");
+    assert_eq!(outputs, vec![start_propose_timer_output(Round::new(0))]);
+    assert!(driver.round_certificate().is_none());
+
+    // Receive a commit certificate for round 1 with no valid proposal.
+    // This should trigger SkipRound(1) and store a round certificate.
+    let outputs = driver
+        .process(commit_certificate_input_at(
+            Round::new(1),
+            value.clone(),
+            &[v1.address, v2.address],
+        ))
+        .expect("process succeeded");
+    assert_eq!(outputs, vec![new_round_output(Round::new(1))]);
+
+    assert!(
+        driver.round_certificate().is_some(),
+        "round certificate for round 1 should be stored upon round-1 commit certificate"
+    );
 }
 
 // Commit certificate from driver after re-applied votes (round-certificate simulation).

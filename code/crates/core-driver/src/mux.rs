@@ -223,7 +223,11 @@ where
             }
         }
         // Proposal not received or deemed invalid
-        RoundInput::PrecommitAny
+        if certificate_round > self.round() {
+            RoundInput::SkipRound(certificate_round)
+        } else {
+            RoundInput::PrecommitAny
+        }
     }
 
     /// Store the polka certificate and multiplex the proposal.
