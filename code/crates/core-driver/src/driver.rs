@@ -9,8 +9,9 @@ use malachitebft_core_state_machine::state::{RoundValue, State as RoundState, St
 use malachitebft_core_state_machine::state_machine::Info;
 use malachitebft_core_types::{
     CommitCertificate, Context, EnterRoundCertificate, NilOrVal, PolkaCertificate, PolkaSignature,
-    Proposal, Round, RoundCertificateType, SignedProposal, SignedVote, Timeout, TimeoutKind,
-    Validator, ValidatorSet, Validity, Value, ValueId, Vote, VoteType,
+    Proposal, Round, RoundCertificate, RoundCertificateType, RoundSignature, SignedProposal,
+    SignedVote, Timeout, TimeoutKind, Validator, ValidatorSet, Validity, Value, ValueId, Vote,
+    VoteType,
 };
 use malachitebft_core_votekeeper::keeper::Output as VKOutput;
 use malachitebft_core_votekeeper::keeper::VoteKeeper;
@@ -315,6 +316,22 @@ where
             .get_proposal_and_validity_for_round_and_value(round, value_id)
     }
 
+    /// Returns a valid proposal for the given round and value_id, if any.
+    pub fn valid_proposal_for_round_and_value(
+        &self,
+        round: Round,
+        value_id: ValueId<Ctx>,
+    ) -> Option<&SignedProposal<Ctx>> {
+        if let Some((proposal, validity)) =
+            self.proposal_and_validity_for_round_and_value(round, value_id)
+        {
+            if validity.is_valid() {
+                return Some(proposal);
+            }
+        }
+        None
+    }
+
     /// Returns the proposals and their validities for the given round, if any.
     pub fn proposals_and_validities_for_round(
         &self,
@@ -445,6 +462,15 @@ where
         }
 
         let round = certificate.round;
+
+        // A commit certificate for a future round contains 2f+1 precommits,
+        // which is more than enough to justify entering that round (f+1 suffices).
+        // Store it as a round certificate now, before the mux consumes the certificate,
+        // so that a SkipRound transition has a proper justification.
+        if round > self.round() {
+            self.store_round_certificate_from_commit_certificate(&certificate);
+        }
+
         let round_input = self.store_and_multiplex_commit_certificate(certificate);
         self.apply_input(round, round_input)
     }
@@ -550,6 +576,12 @@ where
                 self.store_precommit_any_round_certificate(vote_round)
             }
             VKOutput::SkipRound(round) => self.store_skip_round_certificate(*round),
+            // For future rounds, PrecommitValue may have taken priority over SkipRound
+            // in the vote keeper. Store the skip round certificate here so it's available
+            // if the mux falls back to SkipRound (e.g. no valid proposal).
+            VKOutput::PrecommitValue(_) if vote_round > this_round => {
+                self.store_skip_round_certificate(vote_round)
+            }
             _ => (),
         }
 
@@ -621,6 +653,8 @@ where
             panic!("Missing the SkipRoundvotes for round {vote_round}");
         };
 
+        // NOTE: We include all received votes even though only f+1 are needed
+        // for a Skip round certificate. Could be trimmed if needed.
         let mut seen_addresses = BTreeSet::new();
         let skip_votes: Vec<_> = per_round
             .received_votes()
@@ -636,6 +670,36 @@ where
             RoundCertificateType::Skip,
             skip_votes,
         ));
+    }
+
+    fn store_round_certificate_from_commit_certificate(
+        &mut self,
+        certificate: &CommitCertificate<Ctx>,
+    ) {
+        // NOTE: We include all 2f+1 signatures from the commit certificate even though
+        // only f+1 are needed for a Skip round certificate. Could be trimmed if needed.
+        let round_signatures = certificate
+            .commit_signatures
+            .iter()
+            .map(|cs| {
+                RoundSignature::new(
+                    VoteType::Precommit,
+                    NilOrVal::Val(certificate.value_id.clone()),
+                    cs.address.clone(),
+                    cs.signature.clone(),
+                )
+            })
+            .collect();
+
+        self.round_certificate = Some(EnterRoundCertificate {
+            certificate: RoundCertificate {
+                height: certificate.height.clone(),
+                round: certificate.round,
+                cert_type: RoundCertificateType::Skip,
+                round_signatures,
+            },
+            enter_round: certificate.round,
+        });
     }
 
     fn apply_timeout(&mut self, timeout: Timeout) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
