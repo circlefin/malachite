@@ -5,7 +5,8 @@ use malachitebft_codec::{Codec, HasEncodedLen};
 use malachitebft_core_consensus::{LivenessMsg, PeerId, ProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{
     CommitCertificate, CommitSignature, NilOrVal, PolkaCertificate, PolkaSignature, Round,
-    RoundCertificate, RoundCertificateType, RoundSignature, SignedVote, Validity, VoteType,
+    RoundCertificate, RoundCertificateType, RoundSignature, SignedVote, ValidatorProof, Validity,
+    VoteType,
 };
 use malachitebft_engine::util::streaming::{StreamContent, StreamId, StreamMessage};
 use malachitebft_starknet_p2p_types::{Felt, FeltExt, Signature};
@@ -693,4 +694,33 @@ pub(crate) fn decode_vote(msg: proto::Vote) -> Result<SignedVote<MockContext>, P
     let signature = Signature::test();
     let vote = Vote::from_proto(msg)?;
     Ok(SignedVote::new(vote, signature))
+}
+
+impl Codec<ValidatorProof<MockContext>> for ProtobufCodec {
+    type Error = ProtoError;
+
+    fn decode(&self, bytes: Bytes) -> Result<ValidatorProof<MockContext>, Self::Error> {
+        let proto = proto::ValidatorProof::decode(bytes)?;
+
+        let signature = proto
+            .signature
+            .ok_or_else(|| ProtoError::missing_field::<proto::ValidatorProof>("signature"))
+            .and_then(decode_signature)?;
+
+        Ok(ValidatorProof::new(
+            proto.consensus_pub_key.to_vec(),
+            proto.peer_id.to_vec(),
+            signature,
+        ))
+    }
+
+    fn encode(&self, msg: &ValidatorProof<MockContext>) -> Result<Bytes, Self::Error> {
+        let proto = proto::ValidatorProof {
+            consensus_pub_key: Bytes::from(msg.public_key.clone()),
+            peer_id: Bytes::from(msg.peer_id.clone()),
+            signature: Some(encode_signature(&msg.signature)?),
+        };
+
+        Ok(proto.encode_to_bytes())
+    }
 }

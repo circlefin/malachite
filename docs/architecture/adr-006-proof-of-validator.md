@@ -84,12 +84,12 @@ The proof binds a NodeId to a consensus public key, signed by the corresponding 
 The signature is computed over:
 
 ```
-sign_bytes = PREFIX || len(consensus_pub_key) || consensus_pub_key || len(node_id) || node_id
+sign_bytes = SEPARATOR || len(consensus_pub_key) || consensus_pub_key || len(node_id) || node_id
 ```
 
 Where `||` denotes byte concatenation and `len()` is the length in bytes encoded as a fixed-size integer.
 
-**Prefix**: The 3-byte ASCII string `"PoV"` (0x50 0x6F 0x56) is prepended to the message for:
+**Separator**: The 3-byte ASCII string `"PoV"` (0x50 0x6F 0x56) is prepended to the message for:
 - Preventing cross-protocol signature reuse
 - Easy identification in debugging and hex dumps
 - Self-documenting (stands for "Proof-of-Validator")
@@ -152,7 +152,7 @@ A node with a consensus keypair creates a proof on startup. The proof binds the 
 On node startup:
     IF consensus_keypair is not None:
         node_id ← local NodeId
-        sign_bytes ← PREFIX || len(consensus_keypair.pub_key) || consensus_keypair.pub_key || len(node_id) || node_id
+        sign_bytes ← SEPARATOR || len(consensus_keypair.pub_key) || consensus_keypair.pub_key || len(node_id) || node_id
         signature ← sign(consensus_keypair.private_key, sign_bytes)
         
         local_proof ← ValidatorProof {

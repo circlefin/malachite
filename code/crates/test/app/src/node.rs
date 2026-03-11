@@ -10,11 +10,12 @@ use tracing::Instrument;
 
 use malachitebft_app_channel::app::config::*;
 use malachitebft_app_channel::app::events::{RxEvent, TxEvent};
+use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::VotingPower;
 use malachitebft_app_channel::app::types::Keypair;
 use malachitebft_app_channel::{
     ConsensusContext, EngineBuilder, EngineHandle, NetworkContext, NetworkIdentity, RequestContext,
-    SyncContext, WalContext,
+    SigningProviderExt, SyncContext, WalContext,
 };
 use malachitebft_test::codec::json::JsonCodec;
 use malachitebft_test::codec::proto::ProtobufCodec;
@@ -146,16 +147,29 @@ impl Node for App {
         let keypair = self.get_network_keypair(); // Separate network identity
         let genesis = self.load_genesis()?;
         let wal_path = self.get_home_dir().join("wal").join("consensus.wal");
-        let identity =
-            NetworkIdentity::new(config.moniker.clone(), keypair, Some(address.to_string()));
+
+        let signing_provider = self.get_signing_provider(self.private_key.clone());
+        let identity = {
+            let peer_id_bytes = keypair.public().to_peer_id().to_bytes();
+            let proof = signing_provider
+                .sign_validator_proof(public_key.as_bytes().to_vec(), peer_id_bytes)
+                .await
+                .map_err(|e| eyre::eyre!("Failed to sign validator proof: {e:?}"))?;
+            let proof_bytes = JsonCodec
+                .encode(&proof)
+                .map_err(|e| eyre::eyre!("Failed to encode validator proof: {e}"))?;
+            NetworkIdentity::new_validator(
+                config.moniker.clone(),
+                keypair,
+                address.to_string(),
+                proof_bytes,
+            )
+        };
 
         let (mut channels, engine_handle) = EngineBuilder::new(ctx.clone(), config.clone())
             .with_default_wal(WalContext::new(wal_path, ProtobufCodec))
             .with_default_network(NetworkContext::new(identity, JsonCodec))
-            .with_default_consensus(ConsensusContext::new(
-                address,
-                self.get_signing_provider(self.private_key.clone()),
-            ))
+            .with_default_consensus(ConsensusContext::new(address, signing_provider))
             .with_default_sync(SyncContext::new(JsonCodec))
             .with_default_request(RequestContext::new(100))
             .build()

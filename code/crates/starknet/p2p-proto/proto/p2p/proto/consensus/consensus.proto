@@ -123,3 +123,9 @@ message BlockInfo {
     Uint128                eth_to_strk_rate      = 8;
     L1DataAvailabilityMode l1_da_mode            = 9;
 }
+
+message ValidatorProof {
+    bytes              consensus_pub_key = 1;
+    bytes              peer_id           = 2;
+    ConsensusSignature signature         = 3;
+}

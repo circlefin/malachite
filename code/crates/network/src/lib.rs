@@ -3,6 +3,7 @@ use std::ops::ControlFlow;
 use std::time::Duration;
 
 use futures::StreamExt;
+use itertools::Itertools;
 use libp2p::metrics::{Metrics, Recorder};
 use libp2p::request_response::{InboundRequestId, OutboundRequestId};
 use libp2p::swarm::{self, SwarmEvent};
@@ -40,6 +41,7 @@ pub mod peer_scoring;
 mod utils;
 
 mod ip_limits;
+pub mod validator_proof;
 
 // Re-export state types for external use (e.g., RPC)
 pub use state::{LocalNodeInfo, PeerInfo, ValidatorInfo};
@@ -60,7 +62,7 @@ pub struct ProtocolNames {
     pub discovery_kad: String,
     pub discovery_regres: String,
     pub sync: String,
-    pub broadcast: String,
+    pub validator_proof: String,
 }
 
 impl Default for ProtocolNames {
@@ -70,7 +72,7 @@ impl Default for ProtocolNames {
             discovery_kad: "/malachitebft-discovery/kad/v1beta1".to_string(),
             discovery_regres: "/malachitebft-discovery/reqres/v1beta1".to_string(),
             sync: "/malachitebft-sync/v1beta1".to_string(),
-            broadcast: "/malachitebft-broadcast/v1beta1".to_string(),
+            validator_proof: "/malachitebft-validator-proof/v1".to_string(),
         }
     }
 }
@@ -139,11 +141,22 @@ pub type Selector = discovery::config::Selector;
 pub struct NetworkIdentity {
     pub moniker: String,
     pub keypair: Keypair,
-    pub consensus_address: Option<String>,
+    /// Validator info: consensus address and pre-serialized proof.
+    /// If provided, the proof is sent on connection and when becoming validator.
+    pub validator: Option<ValidatorIdentity>,
+}
+
+/// Validator identity with optional pre-serialized proof.
+#[derive(Clone, Debug)]
+pub struct ValidatorIdentity {
+    /// The consensus address (used for local node metrics and validator set matching)
+    pub address: String,
+    /// Pre-serialized validator proof bytes for broadcasting (optional)
+    pub proof_bytes: Option<Bytes>,
 }
 
 impl NetworkIdentity {
-    /// Create a new NodeIdentity.
+    /// Create a new NetworkIdentity.
     ///
     /// # Arguments
     /// * `moniker` - Human-readable node identifier
@@ -157,8 +170,39 @@ impl NetworkIdentity {
         Self {
             moniker,
             keypair,
-            consensus_address,
+            validator: consensus_address.map(|address| ValidatorIdentity {
+                address,
+                proof_bytes: None,
+            }),
         }
+    }
+
+    /// Create a new NodeIdentity for a validator node with a signed proof.
+    ///
+    /// # Arguments
+    /// * `moniker` - Human-readable node identifier
+    /// * `keypair` - libp2p keypair for network authentication
+    /// * `address` - Consensus address
+    /// * `proof_bytes` - Pre-serialized validator proof
+    pub fn new_validator(
+        moniker: String,
+        keypair: Keypair,
+        address: String,
+        proof_bytes: Bytes,
+    ) -> Self {
+        Self {
+            moniker,
+            keypair,
+            validator: Some(ValidatorIdentity {
+                address,
+                proof_bytes: Some(proof_bytes),
+            }),
+        }
+    }
+
+    /// Get the consensus address if this is a validator.
+    pub fn consensus_address(&self) -> Option<&str> {
+        self.validator.as_ref().map(|v| v.address.as_str())
     }
 }
 
@@ -257,6 +301,11 @@ pub enum Event {
     ConsensusMessage(Channel, PeerId, Bytes),
     LivenessMessage(Channel, PeerId, Bytes),
     Sync(sync::RawMessage),
+    /// A validator proof received from a peer (one-way, no response expected).
+    ValidatorProofReceived {
+        peer_id: PeerId,
+        proof_bytes: Bytes,
+    },
 }
 
 #[derive(Debug)]
@@ -266,6 +315,13 @@ pub enum CtrlMsg {
     SyncRequest(PeerId, Bytes, oneshot::Sender<OutboundRequestId>),
     SyncReply(InboundRequestId, Bytes),
     UpdateValidatorSet(Vec<ValidatorInfo>),
+    /// Validator proof verification result. If Valid, public_key should be Some.
+    /// The public_key is stored and used to check validator set membership.
+    ValidatorProofVerified {
+        peer_id: PeerId,
+        result: validator_proof::ProofVerificationResult,
+        public_key: Option<Vec<u8>>,
+    },
     DumpState(oneshot::Sender<NetworkStateDump>),
     UpdatePersistentPeers(
         PersistentPeersOp,
@@ -279,37 +335,39 @@ pub async fn spawn(
     config: Config,
     registry: SharedRegistry,
 ) -> Result<Handle, eyre::Report> {
-    let swarm = registry.with_prefix(METRICS_PREFIX, |registry| -> Result<_, eyre::Report> {
-        // Pass the libp2p keypair to the behaviour, it is included in the Identify protocol
-        // Required for ALL nodes
-        let builder = SwarmBuilder::with_existing_identity(identity.keypair.clone()).with_tokio();
-        match config.transport {
-            TransportProtocol::Tcp => {
-                let behaviour = Behaviour::new_with_metrics(&config, &identity, registry)?;
-                Ok(builder
-                    .with_tcp(
-                        libp2p::tcp::Config::new().nodelay(true), // Disable Nagle's algorithm
-                        libp2p::noise::Config::new,
-                        libp2p::yamux::Config::default,
-                    )?
-                    .with_dns()?
-                    .with_bandwidth_metrics(registry)
-                    .with_behaviour(|_| behaviour)?
-                    .with_swarm_config(|cfg| config.apply_to_swarm(cfg))
-                    .build())
+    let mut swarm =
+        registry.with_prefix(METRICS_PREFIX, |registry| -> Result<_, eyre::Report> {
+            // Pass the libp2p keypair to the behaviour, it is included in the Identify protocol
+            // Required for ALL nodes
+            let builder =
+                SwarmBuilder::with_existing_identity(identity.keypair.clone()).with_tokio();
+            match config.transport {
+                TransportProtocol::Tcp => {
+                    let behaviour = Behaviour::new_with_metrics(&config, &identity, registry)?;
+                    Ok(builder
+                        .with_tcp(
+                            libp2p::tcp::Config::new().nodelay(true), // Disable Nagle's algorithm
+                            libp2p::noise::Config::new,
+                            libp2p::yamux::Config::default,
+                        )?
+                        .with_dns()?
+                        .with_bandwidth_metrics(registry)
+                        .with_behaviour(|_| behaviour)?
+                        .with_swarm_config(|cfg| config.apply_to_swarm(cfg))
+                        .build())
+                }
+                TransportProtocol::Quic => {
+                    let behaviour = Behaviour::new_with_metrics(&config, &identity, registry)?;
+                    Ok(builder
+                        .with_quic_config(|cfg| config.apply_to_quic(cfg))
+                        .with_dns()?
+                        .with_bandwidth_metrics(registry)
+                        .with_behaviour(|_| behaviour)?
+                        .with_swarm_config(|cfg| config.apply_to_swarm(cfg))
+                        .build())
+                }
             }
-            TransportProtocol::Quic => {
-                let behaviour = Behaviour::new_with_metrics(&config, &identity, registry)?;
-                Ok(builder
-                    .with_quic_config(|cfg| config.apply_to_quic(cfg))
-                    .with_dns()?
-                    .with_bandwidth_metrics(registry)
-                    .with_behaviour(|_| behaviour)?
-                    .with_swarm_config(|cfg| config.apply_to_swarm(cfg))
-                    .build())
-            }
-        }
-    })?;
+        })?;
 
     let metrics = registry.with_prefix(METRICS_PREFIX, Metrics::new);
 
@@ -334,9 +392,19 @@ pub async fn spawn(
 
     let NetworkIdentity {
         moniker,
-        consensus_address,
-        ..
+        keypair: _,
+        validator,
     } = identity;
+
+    let consensus_address = validator.as_ref().map(|v| v.address.clone());
+    let proof_bytes = validator.as_ref().and_then(|v| v.proof_bytes.clone());
+
+    // Set proof on the validator_proof behaviour so it is sent on every new connection
+    if let Some(ref proof_bytes) = proof_bytes {
+        if let Some(vp) = swarm.behaviour_mut().validator_proof.as_mut() {
+            vp.set_proof(proof_bytes.clone());
+        }
+    }
 
     // Create local node info
     let local_node_info = LocalNodeInfo {
@@ -345,6 +413,7 @@ pub async fn spawn(
         listen_addr: config.listen_addr.clone(),
         subscribed_topics,
         consensus_address,
+        proof_bytes,
         is_validator: false, // Will be updated when validator set is received
         persistent_peers_only: config.persistent_peers_only,
     };
@@ -377,6 +446,9 @@ async fn run(
     mut rx_ctrl: mpsc::Receiver<CtrlMsg>,
     tx_event: mpsc::Sender<Event>,
 ) {
+    // The validator proof is already set on the behaviour before run() is called
+    // (see set_proof above), so it will be sent on every ConnectionEstablished.
+
     if let Err(e) = swarm.listen_on(config.listen_addr.clone()) {
         error!("Error listening on {}: {e}", config.listen_addr);
         return;
@@ -557,11 +629,36 @@ async fn handle_ctrl_msg(
 
         CtrlMsg::UpdateValidatorSet(validators) => {
             // Process the validator set update and get peers that need score updates
-            let changed_peers = state.process_validator_set_update(validators);
+            let validator_set = validators.into_iter().collect();
+            let changed_peers = state.process_validator_set_update(validator_set);
 
             // Update GossipSub scores for peers whose type changed
             for (peer_id, new_score) in changed_peers {
                 set_peer_score(swarm, peer_id, new_score);
+            }
+
+            ControlFlow::Continue(())
+        }
+
+        CtrlMsg::ValidatorProofVerified {
+            peer_id,
+            result,
+            public_key,
+        } => {
+            let libp2p_peer_id = peer_id.to_libp2p();
+
+            // Disconnect on verification failure
+            if !result.is_valid() {
+                warn!(%peer_id, "Invalid validator proof, disconnecting peer");
+                let _ = swarm.disconnect_peer_id(libp2p_peer_id);
+                return ControlFlow::Continue(());
+            }
+
+            // If signature is valid, store the proof and check validator set membership
+            if let Some(public_key) = public_key {
+                if let Some(new_score) = state.record_verified_proof(&libp2p_peer_id, public_key) {
+                    set_peer_score(swarm, libp2p_peer_id, new_score);
+                }
             }
 
             ControlFlow::Continue(())
@@ -572,13 +669,25 @@ async fn handle_ctrl_msg(
             let snapshot = NetworkStateDump {
                 local_node: state.local_node.clone(),
                 peers: state.peer_info.clone(),
-                validator_set: state.validator_set.clone(),
-                persistent_peer_ids: state.persistent_peer_ids.iter().copied().collect(),
+                validator_set: state
+                    .validator_set
+                    .iter()
+                    .cloned()
+                    .sorted_unstable_by(|a, b| a.address.cmp(&b.address))
+                    .collect(),
+                persistent_peer_ids: state
+                    .persistent_peer_ids
+                    .iter()
+                    .copied()
+                    .sorted_unstable()
+                    .collect(),
                 persistent_peer_addrs: state.persistent_peer_addrs.clone(),
             };
+
             if let Err(_s) = reply_to.send(snapshot) {
                 error!("Error replying to DumpState");
             }
+
             ControlFlow::Continue(())
         }
 
@@ -610,8 +719,9 @@ fn set_default_peer_score(swarm: &mut swarm::Swarm<Behaviour>, peer_id: libp2p::
 fn set_peer_score(swarm: &mut swarm::Swarm<Behaviour>, peer_id: libp2p::PeerId, score: f64) {
     // Set application-specific score in gossipsub if enabled
     if let Some(gossipsub) = swarm.behaviour_mut().gossipsub.as_mut() {
-        gossipsub.set_application_score(&peer_id, score);
-        debug!("Upgraded application score to {score} for peer {peer_id}");
+        if gossipsub.set_application_score(&peer_id, score) {
+            debug!("Upgraded application score to {score} for peer {peer_id}");
+        }
     }
 }
 
@@ -739,10 +849,15 @@ async fn handle_swarm_event(
                 .handle_closed_connection(swarm, peer_id, connection_id);
 
             if num_established == 0 {
-                // Remove explicit peer from gossipsub and mark metric stale when this peer was one
+                // Remove explicit peer before removing peer_info (needs peer_info to exist)
                 if config.gossipsub.enable_explicit_peering {
                     remove_explicit_peer_from_gossipsub(swarm, state, &peer_id);
                 }
+                if let Some(peer_info) = state.peer_info.remove(&peer_id) {
+                    state.metrics.free_slot(&peer_id, &peer_info);
+                }
+                // Also clean up any pending proof (proof verified before Identify completed)
+                state.pending_verified_proofs.remove(&peer_id);
 
                 if let Err(e) = tx_event
                     .send(Event::PeerDisconnected(PeerId::from_libp2p(&peer_id)))
@@ -836,6 +951,10 @@ async fn handle_swarm_event(
 
         SwarmEvent::Behaviour(NetworkEvent::Sync(event)) => {
             return handle_sync_event(event, metrics, swarm, state, tx_event).await;
+        }
+
+        SwarmEvent::Behaviour(NetworkEvent::ValidatorProof(event)) => {
+            return handle_validator_proof_event(event, tx_event).await;
         }
 
         SwarmEvent::Behaviour(NetworkEvent::Discovery(network_event)) => {
@@ -1044,6 +1163,44 @@ async fn handle_sync_event(
         sync::Event::OutboundFailure { .. } => ControlFlow::Continue(()),
 
         sync::Event::InboundFailure { .. } => ControlFlow::Continue(()),
+    }
+}
+
+async fn handle_validator_proof_event(
+    event: validator_proof::Event,
+    tx_event: &mpsc::Sender<Event>,
+) -> ControlFlow<()> {
+    match event {
+        validator_proof::Event::ProofReceived { peer, proof_bytes } => {
+            // Forward to engine for verification
+            let _ = tx_event
+                .send(Event::ValidatorProofReceived {
+                    peer_id: PeerId::from_libp2p(&peer),
+                    proof_bytes,
+                })
+                .await
+                .map_err(|e| {
+                    error!("Error sending ValidatorProofReceived to handle: {e}");
+                });
+
+            ControlFlow::Continue(())
+        }
+
+        validator_proof::Event::ProofSent { peer } => {
+            debug!(%peer, "Validator proof sent successfully");
+            ControlFlow::Continue(())
+        }
+
+        validator_proof::Event::ProofSendFailed { peer, error } => {
+            debug!(%peer, %error, "Failed to send validator proof");
+            ControlFlow::Continue(())
+        }
+
+        validator_proof::Event::ProofReceiveFailed { .. } => {
+            // This is handled directly by behaviour (closes connection via ToSwarm::CloseConnection)
+            // and should never be emitted as an event to the swarm
+            unreachable!("ProofReceiveFailed is handled by behaviour, not emitted")
+        }
     }
 }
 

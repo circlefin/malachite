@@ -10,11 +10,12 @@ use tracing::Instrument;
 
 use malachitebft_app_channel::app::events::{RxEvent, TxEvent};
 use malachitebft_app_channel::app::metrics::SharedRegistry;
+use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::{Height as _, VotingPower};
 use malachitebft_app_channel::app::types::Keypair;
 use malachitebft_app_channel::{
-    ConsensusContext, EngineHandle, NetworkContext, NetworkIdentity, RequestContext, SyncContext,
-    WalContext,
+    ConsensusContext, EngineBuilder, EngineHandle, NetworkContext, NetworkIdentity, RequestContext,
+    SigningProviderExt, SyncContext, WalContext,
 };
 use malachitebft_test::node::{Node, NodeHandle};
 use malachitebft_test::traits::{
@@ -125,20 +126,34 @@ impl Node for App {
         let keypair = self.get_keypair(private_key.clone());
         let wal_path = self.get_home_dir().join("wal").join("consensus.wal");
         let ctx = TestContext::new();
-        let identity =
-            NetworkIdentity::new(config.moniker.clone(), keypair, Some(address.to_string()));
         let genesis = self.load_genesis()?;
 
-        let (mut channels, engine_handle) = malachitebft_app_channel::start_engine(
-            ctx.clone(),
-            config.clone(),
-            WalContext::new(wal_path, ProtobufCodec),
-            NetworkContext::new(identity, ProtobufCodec),
-            ConsensusContext::new(address, self.get_signing_provider(private_key.clone())),
-            SyncContext::new(ProtobufCodec),
-            RequestContext::new(100), // Request channel size
-        )
-        .await?;
+        let signing_provider = self.get_signing_provider(private_key.clone());
+        let identity = {
+            let peer_id_bytes = keypair.public().to_peer_id().to_bytes();
+            let proof = signing_provider
+                .sign_validator_proof(public_key.as_bytes().to_vec(), peer_id_bytes)
+                .await
+                .map_err(|e| eyre::eyre!("Failed to sign validator proof: {e:?}"))?;
+            let proof_bytes = ProtobufCodec
+                .encode(&proof)
+                .map_err(|e| eyre::eyre!("Failed to encode validator proof: {e}"))?;
+            NetworkIdentity::new_validator(
+                config.moniker.clone(),
+                keypair,
+                address.to_string(),
+                proof_bytes,
+            )
+        };
+
+        let (mut channels, engine_handle) = EngineBuilder::new(ctx.clone(), config.clone())
+            .with_default_wal(WalContext::new(wal_path, ProtobufCodec))
+            .with_default_network(NetworkContext::new(identity, ProtobufCodec))
+            .with_default_consensus(ConsensusContext::new(address, signing_provider))
+            .with_default_sync(SyncContext::new(ProtobufCodec))
+            .with_default_request(RequestContext::new(100))
+            .build()
+            .await?;
 
         let tx_event = channels.events.clone();
 

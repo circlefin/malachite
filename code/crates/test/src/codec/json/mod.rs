@@ -10,8 +10,10 @@ use malachitebft_sync::{Request, Response, Status};
 
 use crate::{ProposalPart, TestContext, Value};
 
+use malachitebft_core_types::ValidatorProof;
 use raw::{
     RawLivenessMsg, RawRequest, RawResponse, RawSignedConsensusMsg, RawStatus, RawStreamMessage,
+    RawValidatorProof,
 };
 
 #[derive(Copy, Clone, Debug)]
@@ -121,5 +123,17 @@ impl Codec<LivenessMsg<TestContext>> for JsonCodec {
 
     fn encode(&self, msg: &LivenessMsg<TestContext>) -> Result<Bytes, Self::Error> {
         serde_json::to_vec(&RawLivenessMsg::from(msg.clone())).map(Bytes::from)
+    }
+}
+
+impl Codec<ValidatorProof<TestContext>> for JsonCodec {
+    type Error = serde_json::Error;
+
+    fn decode(&self, bytes: Bytes) -> Result<ValidatorProof<TestContext>, Self::Error> {
+        serde_json::from_slice::<RawValidatorProof>(&bytes).map(Into::into)
+    }
+
+    fn encode(&self, msg: &ValidatorProof<TestContext>) -> Result<Bytes, Self::Error> {
+        serde_json::to_vec(&RawValidatorProof::from(msg.clone())).map(Bytes::from)
     }
 }

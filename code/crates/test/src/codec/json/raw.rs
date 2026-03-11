@@ -418,3 +418,32 @@ impl From<RawLivenessMsg> for LivenessMsg<TestContext> {
         }
     }
 }
+
+// ValidatorProof
+
+use malachitebft_core_types::ValidatorProof;
+
+#[derive(Serialize, Deserialize)]
+pub struct RawValidatorProof {
+    #[serde(with = "hex::serde")]
+    pub public_key: Vec<u8>,
+    #[serde(with = "hex::serde")]
+    pub peer_id: Vec<u8>,
+    pub signature: Signature,
+}
+
+impl From<ValidatorProof<TestContext>> for RawValidatorProof {
+    fn from(value: ValidatorProof<TestContext>) -> Self {
+        Self {
+            public_key: value.public_key,
+            peer_id: value.peer_id,
+            signature: *value.signature.inner(),
+        }
+    }
+}
+
+impl From<RawValidatorProof> for ValidatorProof<TestContext> {
+    fn from(value: RawValidatorProof) -> Self {
+        ValidatorProof::new(value.public_key, value.peer_id, value.signature.into())
+    }
+}

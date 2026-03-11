@@ -85,3 +85,9 @@ message StreamMessage {
         bool fin = 4;
     }
 }
+
+message ValidatorProof {
+    bytes consensus_pub_key = 1;
+    bytes peer_id = 2;
+    Signature signature = 3;
+}
