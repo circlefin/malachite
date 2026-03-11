@@ -326,7 +326,7 @@ pub enum AppMsg<Ctx: Context> {
     /// Notifies the application that consensus has received a Proposal message over the network.
     ///
     /// If consensus is running in proposal-only mode, `reply` will be `Some` and
-    /// the application MUST respond with the complete proposed value.
+    /// the application MUST respond with the proposed value and its validity.
     ReceivedProposal {
         /// The signed Proposal message
         proposal: SignedProposal<Ctx>,
