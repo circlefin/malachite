@@ -32,7 +32,7 @@ where
     // Determine if we have an existing certificate or need to restore one.
     let (certificate, extensions, sync_decision) = if let Some(certificate) = existing_certificate {
         // NOTE: Existence implies the decision was reached via Sync protocol.
-        // FIXME: No guarantee vote extensions are found in sync. (CCHAIN-915)
+        // FIXME: No guarantee vote extensions are found in sync.
         (certificate, VoteExtensions::default(), true)
     } else {
         // Restore the precommits (removes them from `state`).
