@@ -123,7 +123,7 @@ bs58               = { version = "0.5.1", default-features = false }
 bytes              = { version = "1", default-features = false }
 byteorder          = "1.5"
 bytesize           = "1.3"
-clap               = "4.5"
+clap               = "4.6"
 color-eyre         = "0.6"
 config             = { version = "0.14", features = ["toml"], default-features = false }
 crc32fast          = "1.5.0"
