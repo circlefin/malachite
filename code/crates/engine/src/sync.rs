@@ -169,8 +169,8 @@ enum StatusUpdateMode {
     /// Send status updates at regular intervals
     Interval(JoinHandle<()>), // the ticker task handle
 
-    /// Send status updates with tip height when starting a new height
-    OnStartedHeight,
+    /// Send status updates eagerly before starting the next height
+    Eager,
 }
 
 pub struct State<Ctx: Context> {
@@ -527,6 +527,13 @@ where
                 .await?;
             }
 
+            Msg::NetworkEvent(NetworkEvent::PeerConnected(peer_id)) => {
+                info!(%peer_id, "Peer connected, broadcasting status");
+
+                self.process_input(&myself, state, sync::Input::SendStatusUpdate)
+                    .await?;
+            }
+
             Msg::NetworkEvent(_) => {
                 // Ignore other gossip events
             }
@@ -541,14 +548,6 @@ where
 
                 self.process_input(&myself, state, sync::Input::StartedHeight(height, restart))
                     .await?;
-
-                // If in OnStartedHeight mode, send a status update for the previous decision,
-                // now that we know for sure that the application has stored the decided value,
-                // and we have updated our tip height.
-                if let StatusUpdateMode::OnStartedHeight = &state.status_update_mode {
-                    self.process_input(&myself, state, sync::Input::SendStatusUpdate)
-                        .await?;
-                }
 
                 // Drain buffered sync responses for this height
                 for buffered in state.sync_queue.shift_and_take(&height) {
@@ -574,6 +573,14 @@ where
             Msg::Decided(height) => {
                 self.process_input(&myself, state, sync::Input::Decided(height))
                     .await?;
+
+                // In Eager mode, broadcast our status immediately after deciding
+                // rather than waiting for the next height to start, so that peers
+                // who need to sync from us learn about our latest height sooner.
+                if let StatusUpdateMode::Eager = &state.status_update_mode {
+                    self.process_input(&myself, state, sync::Input::SendStatusUpdate)
+                        .await?;
+                }
             }
 
             // Received decided values from host
@@ -674,8 +681,8 @@ where
     R: rand::Rng,
 {
     if interval == Duration::ZERO {
-        info!("Using status update mode: OnStartedHeight");
-        StatusUpdateMode::OnStartedHeight
+        info!("Using status update mode: Eager");
+        StatusUpdateMode::Eager
     } else {
         info!("Using status update mode: Interval");
 
