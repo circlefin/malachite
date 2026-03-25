@@ -16,6 +16,7 @@ all-features = true
 std = []
 serde = ["dep:serde", "dep:base64"]
 rand = ["dep:rand"]
+zeroize = ["dep:zeroize"]
 
 [dependencies]
 malachitebft-core-types = { workspace = true }
@@ -27,6 +28,7 @@ ed25519-consensus = { workspace = true }
 rand = { workspace = true, optional = true }   # rand
 serde = { workspace = true, optional = true }  # serde
 base64 = { workspace = true, optional = true } # serde
+zeroize = { workspace = true, optional = true } # zeroize
 
 [lints]
 workspace = true

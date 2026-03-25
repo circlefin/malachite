@@ -186,3 +186,4 @@ tracing            = { version = "0.1.41", default-features = false }
 tracing-appender   = "0.2.3"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 unsigned-varint    = { version = "0.8", features = ["codec", "asynchronous_codec"] }
+zeroize            = { version = "1.8.1", default-features = false }

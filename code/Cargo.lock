@@ -518,6 +518,7 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "signature",
+ "zeroize",
 ]
 
 [[package]]
