@@ -146,6 +146,12 @@ impl PrivateKey {
     pub fn inner(&self) -> &ed25519_consensus::SigningKey {
         &self.0
     }
+
+    #[cfg(feature = "zeroize")]
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn inner_mut(&mut self) -> &mut ed25519_consensus::SigningKey {
+        &mut self.0
+    }
 }
 
 impl From<[u8; 32]> for PrivateKey {
@@ -203,5 +209,32 @@ impl PublicKey {
 impl Verifier<Signature> for PublicKey {
     fn verify(&self, msg: &[u8], signature: &Signature) -> Result<(), signature::Error> {
         PublicKey::verify(self, msg, signature)
+    }
+}
+
+/// Delegates to [`ed25519_consensus::SigningKey::zeroize`] which clears the seed
+/// and expanded scalar. The cached verification key and prefix are left intact
+/// (upstream limitation).
+#[cfg(feature = "zeroize")]
+impl zeroize::Zeroize for PrivateKey {
+    fn zeroize(&mut self) {
+        self.inner_mut().zeroize();
+    }
+}
+
+#[cfg(all(test, feature = "zeroize"))]
+mod zeroize_tests {
+    use super::*;
+    use zeroize::Zeroize;
+
+    #[test]
+    fn private_key_zeroize() {
+        let seed = [0x42; 32];
+        let mut key = PrivateKey::from(seed);
+        // Seed is present before zeroization.
+        assert_eq!(key.inner().as_bytes(), &seed);
+        key.zeroize();
+        // After zeroization the seed bytes must be all zeros.
+        assert_eq!(key.inner().as_bytes(), &[0u8; 32]);
     }
 }
