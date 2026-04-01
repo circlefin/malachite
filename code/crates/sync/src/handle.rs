@@ -919,7 +919,11 @@ mod tests {
     use arc_malachitebft_test::{Height, TestContext, ValueId};
     use bytes::Bytes;
     use malachitebft_core_types::{CommitCertificate, Round};
+    use rand::SeedableRng;
     use std::collections::BTreeMap;
+
+    use crate::effect::Resumable;
+    use crate::Config;
 
     type TestPendingRequests = BTreeMap<OutboundRequestId, (RangeInclusive<Height>, PeerId)>;
 
@@ -1350,5 +1354,104 @@ mod tests {
             ],
         );
         assert!(!validate(&response));
+    }
+
+    /// Test that a non-contiguous sync response (e.g., request 1..=10, get 1,2,5..12)
+    /// is rejected by the sync state machine and triggers a re-request from another peer.
+    #[test]
+    fn test_non_contiguous_response_rejected_by_sync_handler() {
+        let peer_a = PeerId::random();
+        let peer_b = PeerId::random();
+        let request_id = OutboundRequestId::new("req-1");
+
+        let mut state = State::<TestContext>::new(
+            Box::new(rand::rngs::StdRng::seed_from_u64(42)),
+            Config::default(),
+        );
+
+        // Set up state: consensus is at height 1, we have a pending request for 1..=10 from peer_a
+        state.consensus_height = Height::new(1);
+        state.tip_height = Height::new(0);
+        state.sync_height = Height::new(11);
+        state.started = true;
+        state.pending_requests.insert(
+            request_id.clone(),
+            (Height::new(1)..=Height::new(10), peer_a),
+        );
+
+        // Add peer_b so re-request can find another peer
+        state.update_status(Status {
+            peer_id: peer_b,
+            tip_height: Height::new(20),
+            history_min_height: Height::new(1),
+        });
+
+        // Build a malformed response: 10 values starting at height 1
+        // but with a gap (heights 1, 2, 5, 6, 7, 8, 9, 10, 11, 12)
+        let response = ValueResponse::new(
+            Height::new(1),
+            vec![
+                make_raw_decided_value(1),
+                make_raw_decided_value(2),
+                make_raw_decided_value(5),
+                make_raw_decided_value(6),
+                make_raw_decided_value(7),
+                make_raw_decided_value(8),
+                make_raw_decided_value(9),
+                make_raw_decided_value(10),
+                make_raw_decided_value(11),
+                make_raw_decided_value(12),
+            ],
+        );
+
+        let input = Input::ValueResponse(request_id, peer_a, Some(response));
+        let metrics = Metrics::default();
+
+        // Drive the sync handler through the coroutine
+        let mut gen = crate::co::Gen::new(|co| handle(co, &mut state, &metrics, input));
+        let mut result = gen.resume_with(Resume::default());
+
+        // The handler should reject the response and re-request from another peer.
+        // This means it should yield a SendValueRequest effect (to peer_b).
+        // If it instead yields ProcessValueResponse, the response was incorrectly accepted.
+        let mut saw_send_request = false;
+        let mut saw_process_response = false;
+
+        loop {
+            match result {
+                genawaiter::GeneratorState::Yielded(effect) => {
+                    match &effect {
+                        Effect::SendValueRequest(peer, _, _) => {
+                            saw_send_request = true;
+                            // Should re-request from peer_b (not peer_a)
+                            assert_eq!(*peer, peer_b);
+                        }
+                        Effect::ProcessValueResponse(_, _, _, _) => {
+                            saw_process_response = true;
+                        }
+                        _ => {}
+                    }
+
+                    // Resume with appropriate value based on effect type
+                    let resume = match effect {
+                        Effect::SendValueRequest(_, _, r) => {
+                            r.resume_with(Some(OutboundRequestId::new("req-2")))
+                        }
+                        _ => Resume::default(),
+                    };
+                    result = gen.resume_with(resume);
+                }
+                genawaiter::GeneratorState::Complete(_) => break,
+            }
+        }
+
+        assert!(
+            saw_send_request,
+            "Expected a re-request to another peer after non-contiguous response"
+        );
+        assert!(
+            !saw_process_response,
+            "Non-contiguous response should NOT have been forwarded to consensus"
+        );
     }
 }
