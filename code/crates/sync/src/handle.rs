@@ -149,7 +149,28 @@ where
         return on_invalid_value_response(co, state, metrics, request_id, peer_id).await;
     }
 
+    if !validate_value_response_heights::<Ctx>(&response) {
+        warn!(
+            %request_id, %peer_id,
+            "Response contains non-contiguous heights"
+        );
+
+        return on_invalid_value_response(co, state, metrics, request_id, peer_id).await;
+    }
+
     on_valid_value_response(co, state, metrics, request_id, peer_id, response).await
+}
+
+/// Validate that each value in the response has the expected height,
+/// ie. heights are contiguous starting from `start_height`.
+fn validate_value_response_heights<Ctx>(response: &ValueResponse<Ctx>) -> bool
+where
+    Ctx: Context,
+{
+    response.values.iter().enumerate().all(|(i, value)| {
+        let expected = response.start_height.increment_by(i as u64);
+        value.height() == expected
+    })
 }
 
 pub async fn on_send_status_update<Ctx>(
@@ -895,7 +916,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arc_malachitebft_test::{Height, TestContext};
+    use arc_malachitebft_test::{Height, TestContext, ValueId};
+    use bytes::Bytes;
+    use malachitebft_core_types::{CommitCertificate, Round};
     use std::collections::BTreeMap;
 
     type TestPendingRequests = BTreeMap<OutboundRequestId, (RangeInclusive<Height>, PeerId)>;
@@ -1247,5 +1270,85 @@ mod tests {
         let range = tip_height..=Height::new(25);
         let clamped = clamp(&range, tip_height);
         assert_eq!(clamped, tip_height..=tip_height);
+    }
+
+    fn make_raw_decided_value(height: u64) -> RawDecidedValue<TestContext> {
+        RawDecidedValue {
+            value_bytes: Bytes::new(),
+            certificate: CommitCertificate {
+                height: Height::new(height),
+                round: Round::new(0),
+                value_id: ValueId::new(height),
+                commit_signatures: vec![],
+            },
+        }
+    }
+
+    #[test]
+    fn test_validate_value_response_heights() {
+        let validate = validate_value_response_heights::<TestContext>;
+
+        // Valid: contiguous heights 5, 6, 7
+        let response = ValueResponse::new(
+            Height::new(5),
+            vec![
+                make_raw_decided_value(5),
+                make_raw_decided_value(6),
+                make_raw_decided_value(7),
+            ],
+        );
+        assert!(validate(&response));
+
+        // Valid: single value
+        let response = ValueResponse::new(Height::new(1), vec![make_raw_decided_value(1)]);
+        assert!(validate(&response));
+
+        // Valid: empty response
+        let response = ValueResponse::new(Height::new(1), vec![]);
+        assert!(validate(&response));
+
+        // Invalid: gap in heights (1, 2, 5 instead of 1, 2, 3)
+        let response = ValueResponse::new(
+            Height::new(1),
+            vec![
+                make_raw_decided_value(1),
+                make_raw_decided_value(2),
+                make_raw_decided_value(5),
+            ],
+        );
+        assert!(!validate(&response));
+
+        // Invalid: duplicate heights (1, 1, 2 instead of 1, 2, 3)
+        let response = ValueResponse::new(
+            Height::new(1),
+            vec![
+                make_raw_decided_value(1),
+                make_raw_decided_value(1),
+                make_raw_decided_value(2),
+            ],
+        );
+        assert!(!validate(&response));
+
+        // Invalid: first value doesn't match start_height
+        let response = ValueResponse::new(
+            Height::new(1),
+            vec![
+                make_raw_decided_value(2),
+                make_raw_decided_value(3),
+                make_raw_decided_value(4),
+            ],
+        );
+        assert!(!validate(&response));
+
+        // Invalid: reversed order (3, 2, 1 instead of 1, 2, 3)
+        let response = ValueResponse::new(
+            Height::new(1),
+            vec![
+                make_raw_decided_value(3),
+                make_raw_decided_value(2),
+                make_raw_decided_value(1),
+            ],
+        );
+        assert!(!validate(&response));
     }
 }
