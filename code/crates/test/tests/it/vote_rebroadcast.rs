@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use rstest::rstest;
+
 use malachitebft_config::ValuePayload;
 use malachitebft_core_types::VoteType;
 
@@ -8,8 +10,11 @@ use crate::{TestBuilder, TestParams};
 // NOTE: These tests are very similar to the Sync tests, with the difference that
 //       all nodes have the same voting power and therefore get stuck when one of them dies.
 
+#[rstest]
+#[case::eager(Duration::ZERO)]
+#[case::interval(Duration::from_secs(1))]
 #[tokio::test]
-pub async fn crash_restart_from_start() {
+pub async fn crash_restart_from_start(#[case] status_update_interval: Duration) {
     const CRASH_HEIGHT: u64 = 4;
     const HEIGHT: u64 = 10;
 
@@ -51,14 +56,18 @@ pub async fn crash_restart_from_start() {
                 // Enable ValueSync to allow the node to catch up to the latest height
                 enable_value_sync: true,
                 value_payload: ValuePayload::PartsOnly,
+                status_update_interval,
                 ..TestParams::default()
             },
         )
         .await
 }
 
+#[rstest]
+#[case::eager(Duration::ZERO)]
+#[case::interval(Duration::from_secs(1))]
 #[tokio::test]
-pub async fn crash_restart_from_latest() {
+pub async fn crash_restart_from_latest(#[case] status_update_interval: Duration) {
     const HEIGHT: u64 = 10;
     const CRASH_HEIGHT: u64 = 4;
 
@@ -92,14 +101,18 @@ pub async fn crash_restart_from_latest() {
             Duration::from_secs(60),
             TestParams {
                 enable_value_sync: false,
+                status_update_interval,
                 ..Default::default()
             },
         )
         .await
 }
 
+#[rstest]
+#[case::eager(Duration::ZERO)]
+#[case::interval(Duration::from_secs(1))]
 #[tokio::test]
-pub async fn start_late() {
+pub async fn start_late(#[case] status_update_interval: Duration) {
     const HEIGHT: u64 = 5;
 
     let mut test = TestBuilder::<()>::new();
@@ -129,6 +142,7 @@ pub async fn start_late() {
             TestParams {
                 // Enable ValueSync to allow the node to catch up to the latest height
                 enable_value_sync: true,
+                status_update_interval,
                 ..Default::default()
             },
         )

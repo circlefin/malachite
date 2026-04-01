@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use bytesize::ByteSize;
 use eyre::bail;
+use rstest::rstest;
 
 use arc_malachitebft_test::middleware::{Middleware, RotateEpochValidators};
 use arc_malachitebft_test::TestContext;
@@ -63,39 +64,43 @@ pub async fn crash_restart_from_start(params: TestParams) {
         .await
 }
 
+#[rstest]
+#[case::parts_only_eager(ValuePayload::PartsOnly, Duration::ZERO)]
+#[case::parts_only_interval(ValuePayload::PartsOnly, Duration::from_secs(1))]
+#[case::proposal_and_parts_eager(ValuePayload::ProposalAndParts, Duration::ZERO)]
+#[case::proposal_and_parts_interval(ValuePayload::ProposalAndParts, Duration::from_secs(1))]
 #[tokio::test]
-pub async fn crash_restart_from_start_parts_only() {
-    let params = TestParams {
-        value_payload: ValuePayload::PartsOnly,
+pub async fn crash_restart_from_start_ok(
+    #[case] value_payload: ValuePayload,
+    #[case] status_update_interval: Duration,
+) {
+    crash_restart_from_start(TestParams {
+        value_payload,
+        status_update_interval,
         ..Default::default()
-    };
-
-    crash_restart_from_start(params).await
+    })
+    .await
 }
 
+#[rstest]
+#[case::proposal_only_eager(Duration::ZERO)]
+#[case::proposal_only_interval(Duration::from_secs(1))]
 #[tokio::test]
 #[ignore]
-pub async fn crash_restart_from_start_proposal_only() {
-    let params = TestParams {
+pub async fn crash_restart_from_start_proposal_only(#[case] status_update_interval: Duration) {
+    crash_restart_from_start(TestParams {
         value_payload: ValuePayload::ProposalOnly,
+        status_update_interval,
         ..Default::default()
-    };
-
-    crash_restart_from_start(params).await
+    })
+    .await
 }
 
+#[rstest]
+#[case::eager(Duration::ZERO)]
+#[case::interval(Duration::from_secs(1))]
 #[tokio::test]
-pub async fn crash_restart_from_start_proposal_and_parts() {
-    let params = TestParams {
-        value_payload: ValuePayload::ProposalAndParts,
-        ..Default::default()
-    };
-
-    crash_restart_from_start(params).await
-}
-
-#[tokio::test]
-pub async fn crash_restart_from_latest() {
+pub async fn crash_restart_from_latest(#[case] status_update_interval: Duration) {
     const HEIGHT: u64 = 10;
 
     let mut test = TestBuilder::<()>::new();
@@ -126,14 +131,18 @@ pub async fn crash_restart_from_latest() {
             Duration::from_secs(60),
             TestParams {
                 enable_value_sync: true,
+                status_update_interval,
                 ..Default::default()
             },
         )
         .await
 }
 
+#[rstest]
+#[case::eager(Duration::ZERO)]
+#[case::interval(Duration::from_secs(1))]
 #[tokio::test]
-pub async fn aggressive_pruning() {
+pub async fn aggressive_pruning(#[case] status_update_interval: Duration) {
     const HEIGHT: u64 = 15;
 
     let mut test = TestBuilder::<()>::new();
@@ -166,14 +175,18 @@ pub async fn aggressive_pruning() {
             TestParams {
                 enable_value_sync: true, // Enable Sync
                 max_retain_blocks: 10,   // Prune blocks older than 10
+                status_update_interval,
                 ..Default::default()
             },
         )
         .await
 }
 
+#[rstest]
+#[case::eager(Duration::ZERO)]
+#[case::interval(Duration::from_secs(1))]
 #[tokio::test]
-pub async fn start_late() {
+pub async fn start_late(#[case] status_update_interval: Duration) {
     const HEIGHT: u64 = 5;
 
     let mut test = TestBuilder::<()>::new();
@@ -201,14 +214,18 @@ pub async fn start_late() {
             Duration::from_secs(30),
             TestParams {
                 enable_value_sync: true,
+                status_update_interval,
                 ..Default::default()
             },
         )
         .await
 }
 
+#[rstest]
+#[case::eager(Duration::ZERO)]
+#[case::interval(Duration::from_secs(1))]
 #[tokio::test]
-pub async fn start_late_parallel_requests() {
+pub async fn start_late_parallel_requests(#[case] status_update_interval: Duration) {
     const HEIGHT: u64 = 10;
 
     let mut test = TestBuilder::<()>::new();
@@ -237,14 +254,18 @@ pub async fn start_late_parallel_requests() {
             TestParams {
                 enable_value_sync: true,
                 parallel_requests: 5,
+                status_update_interval,
                 ..Default::default()
             },
         )
         .await
 }
 
+#[rstest]
+#[case::eager(Duration::ZERO)]
+#[case::interval(Duration::from_secs(1))]
 #[tokio::test]
-pub async fn start_late_parallel_requests_with_batching() {
+pub async fn start_late_parallel_requests_with_batching(#[case] status_update_interval: Duration) {
     const HEIGHT: u64 = 10;
 
     let mut test = TestBuilder::<()>::new();
@@ -274,14 +295,18 @@ pub async fn start_late_parallel_requests_with_batching() {
                 enable_value_sync: true,
                 parallel_requests: 2,
                 batch_size: 2,
+                status_update_interval,
                 ..Default::default()
             },
         )
         .await
 }
 
+#[rstest]
+#[case::eager(Duration::ZERO)]
+#[case::interval(Duration::from_secs(1))]
 #[tokio::test]
-pub async fn start_late_rotate_epoch_validator_set() {
+pub async fn start_late_rotate_epoch_validator_set(#[case] status_update_interval: Duration) {
     const HEIGHT: u64 = 20;
 
     let mut test = TestBuilder::<()>::new();
@@ -341,14 +366,18 @@ pub async fn start_late_rotate_epoch_validator_set() {
             Duration::from_secs(30),
             TestParams {
                 enable_value_sync: true,
+                status_update_interval,
                 ..Default::default()
             },
         )
         .await
 }
 
+#[rstest]
+#[case::eager(Duration::ZERO)]
+#[case::interval(Duration::from_secs(1))]
 #[tokio::test]
-pub async fn sync_only_fullnode_without_consensus() {
+pub async fn sync_only_fullnode_without_consensus(#[case] status_update_interval: Duration) {
     const HEIGHT: u64 = 8;
 
     let mut test = TestBuilder::<()>::new();
@@ -382,6 +411,7 @@ pub async fn sync_only_fullnode_without_consensus() {
             TestParams {
                 enable_value_sync: true,
                 parallel_requests: 3,
+                status_update_interval,
                 ..Default::default()
             },
         )
@@ -422,8 +452,11 @@ impl Middleware for ResetHeight {
     }
 }
 
+#[rstest]
+#[case::eager(Duration::ZERO)]
+#[case::interval(Duration::from_secs(1))]
 #[tokio::test]
-pub async fn reset_height() {
+pub async fn reset_height(#[case] status_update_interval: Duration) {
     const HEIGHT: u64 = 10;
     const RESET_HEIGHT: u64 = 1;
     let mut test = TestBuilder::<()>::new();
@@ -456,14 +489,20 @@ pub async fn reset_height() {
                 enable_value_sync: true,
                 parallel_requests: 3,
                 batch_size: 2,
+                status_update_interval,
                 ..Default::default()
             },
         )
         .await
 }
 
+#[rstest]
+#[case::eager(Duration::ZERO)]
+#[case::interval(Duration::from_secs(1))]
 #[tokio::test]
-pub async fn full_node_sync_after_all_persistent_peer_restart() {
+pub async fn full_node_sync_after_all_persistent_peer_restart(
+    #[case] status_update_interval: Duration,
+) {
     const HEIGHT: u64 = 10;
 
     let mut test = TestBuilder::<()>::new();
@@ -509,14 +548,20 @@ pub async fn full_node_sync_after_all_persistent_peer_restart() {
             TestParams {
                 enable_value_sync: true,
                 parallel_requests: 3,
+                status_update_interval,
                 ..Default::default()
             },
         )
         .await
 }
 
+#[rstest]
+#[case::eager(Duration::ZERO)]
+#[case::interval(Duration::from_secs(1))]
 #[tokio::test]
-pub async fn validator_persistent_peer_reconnection_discovery_enabled() {
+pub async fn validator_persistent_peer_reconnection_discovery_enabled(
+    #[case] status_update_interval: Duration,
+) {
     const HEIGHT: u64 = 10;
 
     let mut test = TestBuilder::<()>::new();
@@ -573,14 +618,20 @@ pub async fn validator_persistent_peer_reconnection_discovery_enabled() {
                 parallel_requests: 3,
                 enable_discovery: true,
                 exclude_from_persistent_peers: vec![4], // Node 4 is a new validator, others don't have it as persistent peer
+                status_update_interval,
                 ..Default::default()
             },
         )
         .await
 }
 
+#[rstest]
+#[case::eager(Duration::ZERO)]
+#[case::interval(Duration::from_secs(1))]
 #[tokio::test]
-pub async fn validator_persistent_peer_reconnection_discovery_disabled() {
+pub async fn validator_persistent_peer_reconnection_discovery_disabled(
+    #[case] status_update_interval: Duration,
+) {
     const HEIGHT: u64 = 10;
 
     let mut test = TestBuilder::<()>::new();
@@ -628,14 +679,20 @@ pub async fn validator_persistent_peer_reconnection_discovery_disabled() {
                 parallel_requests: 1,
                 enable_discovery: false,
                 exclude_from_persistent_peers: vec![4], // Node 4 is a new validator, others don't have it as persistent peer
+                status_update_interval,
                 ..Default::default()
             },
         )
         .await
 }
 
+#[rstest]
+#[case::eager(Duration::ZERO)]
+#[case::interval(Duration::from_secs(1))]
 #[tokio::test]
-pub async fn full_node_persistent_peer_reconnection_discovery_enabled() {
+pub async fn full_node_persistent_peer_reconnection_discovery_enabled(
+    #[case] status_update_interval: Duration,
+) {
     const HEIGHT: u64 = 10;
 
     let mut test = TestBuilder::<()>::new();
@@ -684,14 +741,20 @@ pub async fn full_node_persistent_peer_reconnection_discovery_enabled() {
                 enable_discovery: true,
                 // Node 4 is a full node, other validators don't have it as persistent peer
                 exclude_from_persistent_peers: vec![4],
+                status_update_interval,
                 ..Default::default()
             },
         )
         .await
 }
 
+#[rstest]
+#[case::eager(Duration::ZERO)]
+#[case::interval(Duration::from_secs(1))]
 #[tokio::test]
-pub async fn full_node_persistent_peer_reconnection_discovery_disabled() {
+pub async fn full_node_persistent_peer_reconnection_discovery_disabled(
+    #[case] status_update_interval: Duration,
+) {
     const HEIGHT: u64 = 10;
 
     let mut test = TestBuilder::<()>::new();
@@ -740,14 +803,18 @@ pub async fn full_node_persistent_peer_reconnection_discovery_disabled() {
                 enable_discovery: false,
                 // Node 4 is a full node, other validators don't have it as persistent peer
                 exclude_from_persistent_peers: vec![4],
+                status_update_interval,
                 ..Default::default()
             },
         )
         .await
 }
 
+#[rstest]
+#[case::eager(Duration::ZERO)]
+#[case::interval(Duration::from_secs(1))]
 #[tokio::test]
-pub async fn response_size_limit_exceeded() {
+pub async fn response_size_limit_exceeded(#[case] status_update_interval: Duration) {
     const HEIGHT: u64 = 5;
 
     let mut test = TestBuilder::<()>::new();
@@ -795,14 +862,18 @@ pub async fn response_size_limit_exceeded() {
                 rpc_max_size: ByteSize::b(1000),
                 batch_size: 2,
                 parallel_requests: 1,
+                status_update_interval,
                 ..Default::default()
             },
         )
         .await
 }
 
+#[rstest]
+#[case::eager(Duration::ZERO)]
+#[case::interval(Duration::from_secs(1))]
 #[tokio::test]
-pub async fn status_update_on_decision() {
+pub async fn status_update_on_decision(#[case] status_update_interval: Duration) {
     const HEIGHT: u64 = 10;
 
     let mut test = TestBuilder::<()>::new();
@@ -830,7 +901,7 @@ pub async fn status_update_on_decision() {
             Duration::from_secs(60),
             TestParams {
                 enable_value_sync: true,
-                status_update_interval: Duration::ZERO,
+                status_update_interval,
                 ..Default::default()
             },
         )
