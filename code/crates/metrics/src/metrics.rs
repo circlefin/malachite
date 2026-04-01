@@ -229,6 +229,12 @@ impl Metrics {
                 "Number of equivocating proposals",
                 metrics.equivocation_proposals.clone(),
             );
+
+            registry.register(
+                "additional_precommits",
+                "Number of additional precommits received during finalization period",
+                metrics.additional_precommits.clone(),
+            );
         });
 
         metrics
