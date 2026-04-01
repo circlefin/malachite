@@ -4,7 +4,7 @@ use bytes::Bytes;
 
 pub type Sequence = u64;
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StreamId(pub(crate) Bytes);
 
 impl StreamId {
