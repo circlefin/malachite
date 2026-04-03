@@ -1360,6 +1360,8 @@ mod tests {
     /// is rejected by the sync state machine and triggers a re-request from another peer.
     #[test]
     fn test_non_contiguous_response_rejected_by_sync_handler() {
+        use std::cell::Cell;
+
         let peer_a = PeerId::random();
         let peer_b = PeerId::random();
         let request_id = OutboundRequestId::new("req-1");
@@ -1369,7 +1371,7 @@ mod tests {
             Config::default(),
         );
 
-        // Set up state: consensus is at height 1, we have a pending request for 1..=10 from peer_a
+        // Set up state: consensus is at height 1, pending request for 1..=10 from peer_a
         state.consensus_height = Height::new(1);
         state.tip_height = Height::new(0);
         state.sync_height = Height::new(11);
@@ -1407,50 +1409,48 @@ mod tests {
         let input = Input::ValueResponse(request_id, peer_a, Some(response));
         let metrics = Metrics::default();
 
-        // Drive the sync handler through the coroutine
-        let mut gen = crate::co::Gen::new(|co| handle(co, &mut state, &metrics, input));
-        let mut result = gen.resume_with(Resume::default());
-
         // The handler should reject the response and re-request from another peer.
-        // This means it should yield a SendValueRequest effect (to peer_b).
-        // If it instead yields ProcessValueResponse, the response was incorrectly accepted.
-        let mut saw_send_request = false;
-        let mut saw_process_response = false;
+        // It should yield SendValueRequest (to peer_b), NOT ProcessValueResponse.
+        let saw_send_request = Cell::new(false);
+        let saw_process_response = Cell::new(false);
 
-        loop {
-            match result {
-                genawaiter::GeneratorState::Yielded(effect) => {
+        let result: Result<(), Error<TestContext>> = (|| {
+            crate::process!(
+                input: input,
+                state: &mut state,
+                metrics: &metrics,
+                with: effect => {
                     match &effect {
                         Effect::SendValueRequest(peer, _, _) => {
-                            saw_send_request = true;
-                            // Should re-request from peer_b (not peer_a)
+                            saw_send_request.set(true);
                             assert_eq!(*peer, peer_b);
                         }
                         Effect::ProcessValueResponse(_, _, _, _) => {
-                            saw_process_response = true;
+                            saw_process_response.set(true);
                         }
                         _ => {}
                     }
 
-                    // Resume with appropriate value based on effect type
-                    let resume = match effect {
+                    Ok::<_, eyre::Report>(match effect {
                         Effect::SendValueRequest(_, _, r) => {
                             r.resume_with(Some(OutboundRequestId::new("req-2")))
                         }
-                        _ => Resume::default(),
-                    };
-                    result = gen.resume_with(resume);
+                        Effect::BroadcastStatus(_, r) => r.resume_with(()),
+                        Effect::SendValueResponse(_, _, r) => r.resume_with(()),
+                        Effect::GetDecidedValues(_, _, r) => r.resume_with(()),
+                        Effect::ProcessValueResponse(_, _, _, r) => r.resume_with(()),
+                    })
                 }
-                genawaiter::GeneratorState::Complete(_) => break,
-            }
-        }
+            )
+        })();
 
+        assert!(result.is_ok(), "Handler returned error: {result:?}");
         assert!(
-            saw_send_request,
+            saw_send_request.get(),
             "Expected a re-request to another peer after non-contiguous response"
         );
         assert!(
-            !saw_process_response,
+            !saw_process_response.get(),
             "Non-contiguous response should NOT have been forwarded to consensus"
         );
     }
