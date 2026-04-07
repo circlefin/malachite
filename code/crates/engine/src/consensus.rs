@@ -368,6 +368,7 @@ where
                         params.validator_set.clone(),
                         self.params.clone(),
                         self.consensus_config.queue_capacity,
+                        self.consensus_config.queue_per_height_capacity,
                     ));
                 }
 

@@ -770,7 +770,7 @@ where
             sync: sync::State::new(rng, self.sync_config),
             timers: Timers::new(Box::new(myself.clone())),
             inflight: HashMap::new(),
-            sync_queue: SyncQueue::new(queue_capacity),
+            sync_queue: SyncQueue::new(queue_capacity, queue_capacity),
             status_update_mode,
         })
     }

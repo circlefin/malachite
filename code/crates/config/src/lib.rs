@@ -645,6 +645,10 @@ fn default_queue_capacity() -> usize {
     10
 }
 
+fn default_queue_per_height_capacity() -> usize {
+    500
+}
+
 /// Consensus configuration options
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ConsensusConfig {
@@ -667,6 +671,17 @@ pub struct ConsensusConfig {
     /// Default: 10
     #[serde(default = "default_queue_capacity")]
     pub queue_capacity: usize,
+
+    /// Maximum number of buffered inputs per height in the gossip input queue.
+    /// Controls how many messages (votes, proposals, proposed values) can be
+    /// buffered for a single future height.
+    ///
+    /// For a single round with `n` validators, the minimum is `2n - 1`
+    /// (1 proposal + (n-1) prevotes + (n-1) precommits). Multiply by the
+    /// expected number of rounds to get a practical lower bound.
+    /// Default: 500
+    #[serde(default = "default_queue_per_height_capacity")]
+    pub queue_per_height_capacity: usize,
 }
 
 impl Default for ConsensusConfig {
@@ -676,6 +691,7 @@ impl Default for ConsensusConfig {
             p2p: P2pConfig::default(),
             value_payload: ValuePayload::default(),
             queue_capacity: default_queue_capacity(),
+            queue_per_height_capacity: default_queue_per_height_capacity(),
         }
     }
 }

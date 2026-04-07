@@ -40,6 +40,7 @@ fn make_state(validators: &[Validator], my_addr: Address) -> State<TestContext> 
             enabled: true,
         },
         1000,
+        500,
     )
 }
 

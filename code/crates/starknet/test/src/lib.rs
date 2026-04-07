@@ -147,6 +147,7 @@ impl TestRunner {
                 enabled: true,
                 value_payload: ValuePayload::PartsOnly,
                 queue_capacity: 100,
+                queue_per_height_capacity: 500,
                 p2p: P2pConfig {
                     protocol,
                     discovery: DiscoveryConfig::default(),

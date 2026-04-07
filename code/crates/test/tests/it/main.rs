@@ -189,6 +189,7 @@ impl TestRunner {
                 // Current test app does not support proposal-only value payload properly as Init does not include valid_round
                 value_payload: ValuePayload::ProposalAndParts,
                 queue_capacity: 100,
+                queue_per_height_capacity: 500,
                 p2p: P2pConfig {
                     protocol,
                     discovery: DiscoveryConfig::default(),
