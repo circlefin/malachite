@@ -39,21 +39,22 @@ where
         let mut commits = state.restore_precommits(height, proposal_round, &decided_value);
         let extensions = extract_vote_extensions(&mut commits);
         let certificate = CommitCertificate::new(height, proposal_round, decided_id, commits);
+
+        // Verify the locally-constructed certificate
+        let result = verify_commit_certificate(
+            co,
+            certificate.clone(),
+            state.driver.validator_set().clone(),
+            state.params.threshold_params,
+        )
+        .await?;
+
+        if let Err(e) = result {
+            panic!("Decide: Commit certificate is not valid: {e:?}");
+        }
+
         (certificate, extensions, false)
     };
-
-    // The certificate must be valid in Commit step
-    let result = verify_commit_certificate(
-        co,
-        certificate.clone(),
-        state.driver.validator_set().clone(),
-        state.params.threshold_params,
-    )
-    .await?;
-
-    if let Err(e) = result {
-        panic!("Decide: Commit certificate is not valid: {e:?}");
-    }
 
     // Update metrics
     #[cfg(feature = "metrics")]
