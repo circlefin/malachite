@@ -318,9 +318,9 @@ impl State {
         Ok(())
     }
 
-    /// Commits (or updates) a value with the given certificate, updating internal state
+    /// Finalizes a value with the given certificate, updating internal state
     /// and moving to the next height.
-    pub async fn commit(
+    pub async fn finalize(
         &mut self,
         certificate: CommitCertificate<TestContext>,
     ) -> eyre::Result<()> {
@@ -335,7 +335,7 @@ impl State {
             .await
         else {
             return Err(eyre!(
-                "Trying to commit a value with value id {value_id} at height {height} and round {round} for which there is no proposal"
+                "Trying to finalize a value with value id {value_id} at height {height} and round {round} for which there is no proposal"
             ));
         };
 

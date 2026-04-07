@@ -196,13 +196,26 @@ where
             HostMsg::Decided {
                 certificate,
                 extensions,
+                reply_to,
             } => {
+                let (reply, rx) = oneshot::channel();
+
                 self.sender
                     .send(AppMsg::Decided {
                         certificate,
                         extensions,
+                        reply,
                     })
                     .await?;
+
+                // Do not block processing of other messages while the app commits the decision
+                tokio::spawn(async move {
+                    if let Ok(()) = rx.await {
+                        if let Err(e) = reply_to.send(()) {
+                            error!("Decided: connector failed to send ack: {e}");
+                        }
+                    }
+                });
             }
 
             HostMsg::Finalized {

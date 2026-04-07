@@ -79,6 +79,18 @@ pub trait Middleware: fmt::Debug + Send + Sync {
         Validity::Valid
     }
 
+    /// Called when a value has been decided, before the decision is committed in
+    /// the `AppMsg::Decided` handler. Return `true` to skip the early commit.
+    ///
+    /// The decision will still be committed later during `AppMsg::Finalized`.
+    fn skip_early_commit(
+        &self,
+        _ctx: &TestContext,
+        _certificate: &CommitCertificate<TestContext>,
+    ) -> bool {
+        false
+    }
+
     fn on_commit(
         &self,
         _ctx: &TestContext,

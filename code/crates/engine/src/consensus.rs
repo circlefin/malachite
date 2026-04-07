@@ -125,6 +125,10 @@ pub enum Msg<Ctx: Context> {
     ///    for the restarted height, potentially violating protocol safety
     RestartHeight(Ctx::Height, HeightParams<Ctx>),
 
+    /// The application has confirmed that the decision has been committed.
+    /// This triggers notifying the sync actor about the decided height.
+    DecisionCommitted(Ctx::Height),
+
     /// Request to dump the current consensus state
     DumpState(RpcReplyPort<Option<StateDump<Ctx>>>),
 }
@@ -174,6 +178,7 @@ impl<Ctx: Context> fmt::Display for Msg<Ctx> {
             Msg::RestartHeight(height, params) => {
                 write!(f, "RestartHeight(height={height} params={params:?})")
             }
+            Msg::DecisionCommitted(height) => write!(f, "DecisionCommitted(height={height})"),
             Msg::DumpState(_) => write!(f, "DumpState"),
         }
     }
@@ -438,8 +443,11 @@ where
                 state.set_phase(Phase::Running);
 
                 // Notify the sync actor that we have started a new height.
-                // We want the sync actor to drain buffered values only after consensus is ready and running.
+                // NOTE: SyncMsg::Decided is sent separately via Msg::DecisionCommitted,
+                // which fires when the app confirms the decision commit (after Effect::Decide).
                 let start_type = HeightStartType::from_is_restart(is_restart);
+
+                // We want the sync actor to drain buffered values only after consensus is ready and running.
                 self.sync.send(SyncMsg::StartedHeight(height, start_type));
 
                 // Process any buffered messages, now that we are in the `Running` phase
@@ -677,6 +685,13 @@ where
                     );
                 }
 
+                Ok(())
+            }
+
+            Msg::DecisionCommitted(height) => {
+                // The application has confirmed that the decision has been committed.
+                // Notify the sync actor so it can advertise this height to peers.
+                self.sync.send(SyncMsg::Decided(height));
                 Ok(())
             }
 
@@ -1278,17 +1293,21 @@ where
 
                 let height = certificate.height;
 
-                // Notify the host about the decided value
-                // Finalization will follow, so don't request a reply
+                // Notify the host about the decided value and wait for commit confirmation.
+                // When the app replies, the forwarded DecisionCommitted message will notify
+                // the sync actor, ensuring the decision is committed before we advertise it.
                 self.host
-                    .cast(HostMsg::Decided {
-                        certificate,
-                        extensions,
-                    })
-                    .map_err(|e| eyre!("Error when casting decided value to host: {e:?}"))?;
-
-                // Notify the sync actor about the decided height
-                self.sync.send(SyncMsg::Decided(height));
+                    .call_and_forward(
+                        |reply_to| HostMsg::Decided {
+                            certificate,
+                            extensions,
+                            reply_to,
+                        },
+                        myself,
+                        move |()| Msg::<Ctx>::DecisionCommitted(height),
+                        None,
+                    )
+                    .map_err(|e| eyre!("Error when sending decided value to host: {e:?}"))?;
 
                 Ok(r.resume_with(()))
             }
@@ -1511,6 +1530,7 @@ fn should_buffer<Ctx: Context>(msg: &Msg<Ctx>) -> bool {
     !matches!(
         msg,
         Msg::StartHeight(..)
+            | Msg::DecisionCommitted(..)
             | Msg::NetworkEvent(NetworkEvent::Listening(..))
             | Msg::NetworkEvent(NetworkEvent::PeerConnected(..))
             | Msg::NetworkEvent(NetworkEvent::PeerDisconnected(..))

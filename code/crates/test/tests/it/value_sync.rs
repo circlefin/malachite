@@ -907,3 +907,77 @@ pub async fn status_update_on_decision(#[case] status_update_interval: Duration)
         )
         .await
 }
+
+/// Middleware that skips early decision commit in the `AppMsg::Decided` handler
+/// for a range of heights. The decision is still committed during `AppMsg::Finalized`.
+#[derive(Debug)]
+struct SkipEarlyCommitMiddleware {
+    from_height: u64,
+    to_height: u64,
+}
+
+impl Middleware for SkipEarlyCommitMiddleware {
+    fn skip_early_commit(
+        &self,
+        _ctx: &TestContext,
+        certificate: &CommitCertificate<TestContext>,
+    ) -> bool {
+        let h = certificate.height.as_u64();
+        h >= self.from_height && h <= self.to_height
+    }
+}
+
+/// A full node should be able to sync from validators even when the `Decided` handler
+/// does not commit decisions (they are only committed during `Finalized`).
+///
+/// The sync actor must not advertise a height until the decision is confirmed committed,
+/// so peers always receive complete responses.
+#[rstest]
+#[case::eager(Duration::ZERO)]
+#[case::interval(Duration::from_secs(1))]
+#[tokio::test]
+pub async fn skipped_early_commit_does_not_break_sync(#[case] status_update_interval: Duration) {
+    const TARGET_HEIGHT: u64 = 6;
+    const SKIP_FROM: u64 = 1;
+    const SKIP_TO: u64 = 100;
+
+    let mut test = TestBuilder::<()>::new();
+
+    test.add_node()
+        .with_voting_power(10)
+        .with_middleware(SkipEarlyCommitMiddleware {
+            from_height: SKIP_FROM,
+            to_height: SKIP_TO,
+        })
+        .start()
+        .wait_until(TARGET_HEIGHT * 2)
+        .success();
+
+    test.add_node()
+        .with_voting_power(10)
+        .with_middleware(SkipEarlyCommitMiddleware {
+            from_height: SKIP_FROM,
+            to_height: SKIP_TO,
+        })
+        .start()
+        .wait_until(TARGET_HEIGHT * 2)
+        .success();
+
+    // Full node starts late, must sync from the validators.
+    test.add_node()
+        .full_node()
+        .start_after(1, Duration::from_secs(10))
+        .wait_until(TARGET_HEIGHT)
+        .success();
+
+    test.build()
+        .run_with_params(
+            Duration::from_secs(60),
+            TestParams {
+                enable_value_sync: true,
+                status_update_interval,
+                ..Default::default()
+            },
+        )
+        .await
+}

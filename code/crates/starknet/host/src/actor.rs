@@ -188,9 +188,18 @@ impl Host {
                 reply_to,
             } => on_received_proposal_part(state, part, from, reply_to).await,
 
-            HostMsg::Decided { certificate, .. } => {
+            HostMsg::Decided {
+                certificate,
+                reply_to,
+                ..
+            } => {
                 // Store the decided certificate so it's available during finalization
-                on_decided(state, certificate).await
+                on_decided(state, certificate).await?;
+
+                // Acknowledge that the decision has been committed
+                reply_to.send(())?;
+
+                Ok(())
             }
 
             HostMsg::Finalized {

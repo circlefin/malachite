@@ -214,6 +214,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             AppMsg::Decided {
                 certificate,
                 extensions: _,
+                reply,
             } => {
                 assert!(!certificate.commit_signatures.is_empty());
 
@@ -225,9 +226,25 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     "Consensus has decided on value, awaiting Finalized message..."
                 );
 
-                // Storing now so Sync can see it
-                if let Err(e) = state.store_decided(certificate).await {
-                    error!("Failed to store decided value: {e}");
+                let skip = state
+                    .middleware
+                    .as_ref()
+                    .is_some_and(|m| m.skip_early_commit(&state.ctx, &certificate));
+
+                if skip {
+                    info!(
+                        height = %certificate.height,
+                        "Middleware: skipping early decision commit"
+                    );
+                } else {
+                    // Commit the decision now so Sync can see it
+                    if let Err(e) = state.store_decided(certificate).await {
+                        error!("Failed to store decided value: {e}");
+                    }
+                }
+
+                if reply.send(()).is_err() {
+                    error!("Failed to send Decided reply");
                 }
             }
 
@@ -242,15 +259,15 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     round = %certificate.round,
                     value = %certificate.value_id,
                     signatures = certificate.commit_signatures.len(),
-                    "Consensus has finalized height, committing..."
+                    "Consensus has finalized height, finalizing..."
                 );
                 assert!(!certificate.commit_signatures.is_empty());
 
                 // When that happens, we store the decided value in our store
-                match state.commit(certificate).await {
+                match state.finalize(certificate).await {
                     Ok(_) => {
                         // And then we instruct consensus to start the next height
-                        // NOTE: `current_height` has already been incremented in `commit()`
+                        // NOTE: `current_height` has already been incremented in `finalize()`
                         let params = HeightParams::new(
                             state.get_validator_set(state.current_height),
                             state.get_timeouts(state.current_height),

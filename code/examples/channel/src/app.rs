@@ -244,6 +244,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             AppMsg::Decided {
                 certificate,
                 extensions: _,
+                reply,
             } => {
                 info!(
                     height = %certificate.height,
@@ -252,6 +253,11 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     signatures = certificate.commit_signatures.len(),
                     "Consensus has decided on value, awaiting Finalized..."
                 );
+
+                // Acknowledge that the decision has been committed.
+                if reply.send(()).is_err() {
+                    error!("Failed to send Decided reply");
+                }
 
                 // Sleep a bit to slow down the app.
                 sleep(Duration::from_millis(500)).await;
