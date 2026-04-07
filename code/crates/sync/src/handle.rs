@@ -261,12 +261,12 @@ where
 
     if start_type.is_restart() {
         // Consensus is retrying the height, so we should sync starting from it.
-        state.sync_height = height;
         // Clear pending requests, as we are restarting the height.
         state.pending_requests.clear();
+        set_sync_height(state, height);
     } else {
         // If consensus is voting on a height that is currently being synced from a peer, do not update the sync height.
-        state.sync_height = max(state.sync_height, height);
+        set_sync_height(state, max(state.sync_height, height));
     }
 
     // Trigger potential requests if possible.
@@ -290,10 +290,8 @@ where
     // Garbage collect pending requests for heights up to the new tip.
     state.prune_pending_requests();
 
-    // The next height to sync should always be higher than the tip.
-    if state.sync_height == state.tip_height {
-        state.sync_height = state.sync_height.increment();
-    }
+    // Re-validate sync_height after tip advanced.
+    set_sync_height(state, state.sync_height);
 
     Ok(())
 }
@@ -742,8 +740,7 @@ where
         .insert(request_id, (final_range.clone(), peer));
 
     // Update sync_height to the next uncovered height after this range
-    let next_sync_base = final_range.end().increment();
-    state.sync_height = find_next_uncovered_height::<Ctx>(next_sync_base, &state.pending_requests);
+    set_sync_height(state, final_range.end().increment());
 
     Ok(())
 }
@@ -832,8 +829,8 @@ where
 
     let Some((peer, peer_range)) = state.random_peer_with_except(&range, except_peer_id) else {
         debug!("No peer to re-request sync from");
-        // Reset the sync height to the start of the range.
-        state.sync_height = min(state.sync_height, *range.start());
+        // Reset sync_height towards the start of the failed range so it can be retried.
+        set_sync_height(state, min(state.sync_height, *range.start()));
         return Ok(());
     };
 
@@ -842,20 +839,42 @@ where
     Ok(())
 }
 
+/// Set `sync_height` to the given candidate while enforcing both invariants:
+///   - `sync_height > tip_height`
+///   - `sync_height` is not covered by any pending request
+///
+/// If the candidate violates either invariant, it is raised to the next
+/// uncovered height at or above `tip_height + 1`.
+fn set_sync_height<Ctx: Context>(state: &mut State<Ctx>, candidate: Ctx::Height) {
+    let floor = max(state.tip_height.increment(), candidate);
+    let new_sync_height = find_next_uncovered_height::<Ctx>(floor, &state.pending_requests);
+
+    if new_sync_height != candidate {
+        warn!(
+            %candidate,
+            tip_height = %state.tip_height,
+            sync_height = %new_sync_height,
+            "Adjusted sync_height from candidate to satisfy invariants"
+        );
+    }
+
+    state.sync_height = new_sync_height;
+}
+
 /// Find the next uncovered range starting from initial_height.
 ///
 /// Builds a contiguous range of the specified max_size from initial_height.
 ///
 /// # Assumptions
 /// - All ranges in pending_requests are disjoint (non-overlapping)
-/// - initial_height is not covered by any pending request (maintained by caller)
+/// - initial_height is not covered by any pending request (maintained by caller via `set_sync_height`)
 ///
-/// # Panics
-/// Panics if initial_height is already covered by a pending request (indicates a bug in the logic).
+/// If initial_height is unexpectedly covered by a pending request, the function recovers
+/// by advancing to the first uncovered height after the conflicting range.
 ///
 /// Returns the range that should be requested.
 fn find_next_uncovered_range_from<Ctx>(
-    initial_height: Ctx::Height,
+    mut initial_height: Ctx::Height,
     max_range_size: u64,
     pending_requests: &BTreeMap<OutboundRequestId, (RangeInclusive<Ctx::Height>, PeerId)>,
 ) -> RangeInclusive<Ctx::Height>
@@ -863,6 +882,18 @@ where
     Ctx: Context,
 {
     let max_batch_size = max(1, max_range_size);
+
+    // If initial_height is inside a pending request, recover by advancing past it.
+    // This should not happen if all sync_height writes go through set_sync_height.
+    let adjusted = find_next_uncovered_height::<Ctx>(initial_height, pending_requests);
+    if adjusted != initial_height {
+        error!(
+            initial_height = %initial_height.as_u64(),
+            adjusted_height = %adjusted.as_u64(),
+            "initial_height was inside a pending request, advancing past it"
+        );
+        initial_height = adjusted;
+    }
 
     // Find the pending request with the smallest range.start where range.end >= initial_height
     let next_range = pending_requests
@@ -876,14 +907,6 @@ where
 
     // If there's a range in pending, constrain to that boundary
     if let Some(range) = next_range {
-        // Check if initial_height is covered by this earliest range
-        if range.contains(&initial_height) {
-            panic!(
-                "Bug: initial_height {} is already covered by a pending request. This should never happen.",
-                initial_height.as_u64()
-            );
-        }
-
         // Constrain to the blocking boundary
         let boundary_end = range
             .start()
@@ -936,14 +959,6 @@ mod tests {
         pending_ranges: &'static [(u64, u64)], // (start, end) pairs
         expected_start: u64,
         expected_end: u64,
-    }
-
-    struct PanicTestCase {
-        name: &'static str,
-        initial_height: u64,
-        max_size: u64,
-        pending_ranges: &'static [(u64, u64)], // (start, end) pairs
-        expected_panic_msg: &'static str,
     }
 
     struct HeightTestCase {
@@ -1051,56 +1066,57 @@ mod tests {
         }
     }
 
-    // Panic tests for find_next_uncovered_range_from function
+    // Recovery tests for find_next_uncovered_range_from: when initial_height
+    // falls inside a pending request, the function skips past it.
 
     #[test]
-    fn test_find_next_uncovered_range_from_panic_cases() {
+    fn test_find_next_uncovered_range_from_recovery_cases() {
         let test_cases = [
-            PanicTestCase {
-                name: "sync height covered",
+            RangeTestCase {
+                name: "initial height inside pending range, recovers past it",
                 initial_height: 12,
                 max_size: 3,
                 pending_ranges: &[(10, 15)],
-                expected_panic_msg:
-                    "Bug: initial_height 12 is already covered by a pending request",
+                expected_start: 16,
+                expected_end: 18,
             },
-            PanicTestCase {
-                name: "initial height equals range start",
+            RangeTestCase {
+                name: "initial height equals range start, recovers past it",
                 initial_height: 15,
                 max_size: 5,
                 pending_ranges: &[(15, 20)],
-                expected_panic_msg:
-                    "Bug: initial_height 15 is already covered by a pending request",
+                expected_start: 21,
+                expected_end: 25,
             },
-            PanicTestCase {
-                name: "sync height equals range end",
+            RangeTestCase {
+                name: "initial height equals range end, recovers past it",
                 initial_height: 15,
                 max_size: 3,
                 pending_ranges: &[(10, 15)],
-                expected_panic_msg:
-                    "Bug: initial_height 15 is already covered by a pending request",
+                expected_start: 16,
+                expected_end: 18,
             },
-            PanicTestCase {
-                name: "multiple consecutive blocks",
+            RangeTestCase {
+                name: "multiple consecutive ranges, recovers past all",
                 initial_height: 16,
                 max_size: 3,
                 pending_ranges: &[(10, 15), (16, 20)],
-                expected_panic_msg:
-                    "Bug: initial_height 16 is already covered by a pending request",
+                expected_start: 21,
+                expected_end: 23,
             },
-            PanicTestCase {
-                name: "sync height zero with range starting at zero",
+            RangeTestCase {
+                name: "initial height zero inside range starting at zero",
                 initial_height: 0,
                 max_size: 3,
                 pending_ranges: &[(0, 5)],
-                expected_panic_msg: "Bug: initial_height 0 is already covered by a pending request",
+                expected_start: 6,
+                expected_end: 8,
             },
         ];
 
         for case in test_cases {
             let mut pending_requests = TestPendingRequests::new();
 
-            // Setup pending requests based on test case
             for (i, &(start, end)) in case.pending_ranges.iter().enumerate() {
                 let peer = PeerId::random();
                 pending_requests.insert(
@@ -1109,39 +1125,18 @@ mod tests {
                 );
             }
 
-            let result = std::panic::catch_unwind(|| {
-                find_next_uncovered_range_from::<TestContext>(
-                    Height::new(case.initial_height),
-                    case.max_size,
-                    &pending_requests,
-                )
-            });
-
-            assert!(
-                result.is_err(),
-                "Test case '{}' should have panicked but didn't",
-                case.name
+            let result = find_next_uncovered_range_from::<TestContext>(
+                Height::new(case.initial_height),
+                case.max_size,
+                &pending_requests,
             );
 
-            if let Err(panic_value) = result {
-                if let Some(panic_msg) = panic_value.downcast_ref::<String>() {
-                    assert!(
-                        panic_msg.contains(case.expected_panic_msg),
-                        "Test case '{}' panicked with wrong message. Expected: '{}', Got: '{}'",
-                        case.name,
-                        case.expected_panic_msg,
-                        panic_msg
-                    );
-                } else if let Some(panic_msg) = panic_value.downcast_ref::<&str>() {
-                    assert!(
-                        panic_msg.contains(case.expected_panic_msg),
-                        "Test case '{}' panicked with wrong message. Expected: '{}', Got: '{}'",
-                        case.name,
-                        case.expected_panic_msg,
-                        panic_msg
-                    );
-                }
-            }
+            assert_eq!(
+                result,
+                Height::new(case.expected_start)..=Height::new(case.expected_end),
+                "Test case '{}' failed",
+                case.name
+            );
         }
     }
 
@@ -1378,7 +1373,11 @@ mod tests {
         state.started = true;
         state.pending_requests.insert(
             request_id.clone(),
-            (Height::new(1)..=Height::new(10), peer_a),
+            PendingRequestEntry {
+                range: Height::new(1)..=Height::new(10),
+                peer: peer_a,
+                excluded_peers: BTreeSet::new(),
+            },
         );
 
         // Add peer_b so re-request can find another peer
@@ -1453,5 +1452,271 @@ mod tests {
             !saw_process_response.get(),
             "Non-contiguous response should NOT have been forwarded to consensus"
         );
+    }
+    // Helper: drive a handle::Input through the coroutine-based handler.
+    // Collects all yielded effects and auto-resumes with default values.
+    // Only works for inputs whose handling does not require meaningful resume values
+    // (ie. the no-peer / no-yield paths we are testing here).
+    fn drive_input(
+        state: &mut State<TestContext>,
+        metrics: &crate::Metrics,
+        input: Input<TestContext>,
+    ) -> Result<Vec<crate::Effect<TestContext>>, crate::Error<TestContext>> {
+        use crate::co::{CoState, Gen};
+        use crate::Resume;
+
+        let mut effects = Vec::new();
+        let mut gen = Gen::new(|co| handle(co, state, metrics, input));
+        let mut result = gen.resume_with(Resume::default());
+
+        loop {
+            match result {
+                CoState::Yielded(effect) => {
+                    effects.push(effect);
+                    result = gen.resume_with(Resume::default());
+                }
+                CoState::Complete(r) => return r.map(|()| effects),
+            }
+        }
+    }
+
+    fn make_test_state() -> State<TestContext> {
+        use rand::SeedableRng;
+        State::new(
+            Box::new(rand::rngs::StdRng::seed_from_u64(42)),
+            crate::Config::default(),
+        )
+    }
+
+    // -------------------------------------------------------------------
+    // sync_height invariants:
+    //   1. sync_height > tip_height
+    //   2. sync_height must not fall inside any pending request's range
+    // -------------------------------------------------------------------
+
+    // -- on_decided: sync_height must advance past tip_height --
+
+    #[test]
+    fn test_on_decided_advances_sync_height_when_equal_to_new_tip() {
+        let mut state = make_test_state();
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        state.tip_height = Height::new(9);
+        state.sync_height = Height::new(10);
+
+        drive_input(&mut state, &metrics, Input::Decided(Height::new(10))).unwrap();
+
+        assert_eq!(state.tip_height, Height::new(10));
+        assert_eq!(state.sync_height, Height::new(11));
+    }
+
+    #[test]
+    fn test_on_decided_advances_sync_height_when_below_new_tip() {
+        let mut state = make_test_state();
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        state.tip_height = Height::new(9);
+        state.sync_height = Height::new(8);
+
+        drive_input(&mut state, &metrics, Input::Decided(Height::new(10))).unwrap();
+
+        assert_eq!(state.tip_height, Height::new(10));
+        assert_eq!(state.sync_height, Height::new(11));
+        assert!(state.sync_height > state.tip_height);
+    }
+
+    #[test]
+    fn test_on_decided_preserves_sync_height_when_already_ahead() {
+        let mut state = make_test_state();
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        state.tip_height = Height::new(9);
+        state.sync_height = Height::new(20);
+
+        drive_input(&mut state, &metrics, Input::Decided(Height::new(10))).unwrap();
+
+        assert_eq!(state.tip_height, Height::new(10));
+        assert_eq!(state.sync_height, Height::new(20));
+    }
+
+    #[test]
+    fn test_on_decided_skips_pending_requests() {
+        let mut state = make_test_state();
+        state.started = true;
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        state.tip_height = Height::new(109);
+        state.sync_height = Height::new(110);
+
+        let peer_a = PeerId::random();
+        state.pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            (Height::new(110)..=Height::new(120), peer_a),
+        );
+
+        // Deciding heights 110..=112 advances tip to 112.
+        // sync_height must not land inside the remaining pending request [110..=120].
+        drive_input(&mut state, &metrics, Input::Decided(Height::new(110))).unwrap();
+        drive_input(&mut state, &metrics, Input::Decided(Height::new(111))).unwrap();
+        drive_input(&mut state, &metrics, Input::Decided(Height::new(112))).unwrap();
+
+        assert_eq!(state.tip_height, Height::new(112));
+        for (_, (range, _)) in &state.pending_requests {
+            assert!(
+                !range.contains(&state.sync_height),
+                "sync_height ({}) inside pending request range {}..={}",
+                state.sync_height.as_u64(),
+                range.start().as_u64(),
+                range.end().as_u64(),
+            );
+        }
+    }
+
+    // -- on_started_height: sync_height must skip pending requests --
+
+    #[test]
+    fn test_on_started_height_skips_pending_requests() {
+        let mut state = make_test_state();
+        state.started = true;
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        state.tip_height = Height::new(99);
+        state.sync_height = Height::new(121);
+
+        let peer_a = PeerId::random();
+        let peer_b = PeerId::random();
+        state.pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            (Height::new(100)..=Height::new(110), peer_a),
+        );
+        state.pending_requests.insert(
+            OutboundRequestId::new("req2"),
+            (Height::new(111)..=Height::new(120), peer_b),
+        );
+        state.peers.insert(
+            peer_a,
+            crate::Status {
+                peer_id: peer_a,
+                tip_height: Height::new(120),
+                history_min_height: Height::new(1),
+            },
+        );
+
+        // req1 times out, no alternative peer → sync_height resets.
+        drive_input(
+            &mut state,
+            &metrics,
+            Input::SyncRequestTimedOut(
+                OutboundRequestId::new("req1"),
+                peer_a,
+                crate::Request::ValueRequest(crate::ValueRequest::new(
+                    Height::new(100)..=Height::new(110),
+                )),
+            ),
+        )
+        .unwrap();
+
+        // Consensus advances to 115.
+        for h in 100..=114 {
+            drive_input(&mut state, &metrics, Input::Decided(Height::new(h))).unwrap();
+        }
+
+        // on_started_height(115) must not place sync_height inside [111..=120].
+        drive_input(
+            &mut state,
+            &metrics,
+            Input::StartedHeight(Height::new(115), HeightStartType::Start),
+        )
+        .unwrap();
+
+        for (_, (range, _)) in &state.pending_requests {
+            assert!(
+                !range.contains(&state.sync_height),
+                "sync_height ({}) inside pending request range {}..={}",
+                state.sync_height.as_u64(),
+                range.start().as_u64(),
+                range.end().as_u64(),
+            );
+        }
+    }
+
+    #[test]
+    fn test_on_started_height_restart_clears_pending_and_resets() {
+        let mut state = make_test_state();
+        state.started = true;
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        state.tip_height = Height::new(9);
+        state.sync_height = Height::new(15);
+        state.pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            (Height::new(10)..=Height::new(14), PeerId::random()),
+        );
+
+        drive_input(
+            &mut state,
+            &metrics,
+            Input::StartedHeight(Height::new(10), HeightStartType::Restart),
+        )
+        .unwrap();
+
+        assert_eq!(state.sync_height, Height::new(10));
+        assert!(state.pending_requests.is_empty());
+    }
+
+    // -- re_request_values_from_peer_except: sync_height invariants --
+
+    #[test]
+    fn test_re_request_no_peer_preserves_sync_height_above_tip() {
+        let mut state = make_test_state();
+        state.started = true;
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        // Pending request for 11..=15, sync_height = 16.
+        state.tip_height = Height::new(10);
+        state.sync_height = Height::new(16);
+
+        let peer_a = PeerId::random();
+        state.pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            (Height::new(11)..=Height::new(15), peer_a),
+        );
+        state.peers.insert(
+            peer_a,
+            crate::Status {
+                peer_id: peer_a,
+                tip_height: Height::new(15),
+                history_min_height: Height::new(1),
+            },
+        );
+
+        // Consensus decides 11 and 12 while the request is in flight.
+        drive_input(&mut state, &metrics, Input::Decided(Height::new(11))).unwrap();
+        drive_input(&mut state, &metrics, Input::Decided(Height::new(12))).unwrap();
+
+        assert_eq!(state.tip_height, Height::new(12));
+
+        // Request times out, no alternative peer.
+        // sync_height must remain above tip_height.
+        drive_input(
+            &mut state,
+            &metrics,
+            Input::SyncRequestTimedOut(
+                OutboundRequestId::new("req1"),
+                peer_a,
+                crate::Request::ValueRequest(crate::ValueRequest::new(
+                    Height::new(11)..=Height::new(15),
+                )),
+            ),
+        )
+        .unwrap();
+
+        assert!(
+            state.sync_height > state.tip_height,
+            "sync_height ({}) <= tip_height ({})",
+            state.sync_height.as_u64(),
+            state.tip_height.as_u64(),
+        );
+        assert_eq!(state.sync_height, Height::new(13));
     }
 }
