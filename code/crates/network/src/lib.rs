@@ -376,7 +376,7 @@ pub async fn spawn(
 
     let discovery = registry.with_prefix(DISCOVERY_METRICS_PREFIX, |reg| {
         discovery::Discovery::new(config.discovery, config.persistent_peers.clone(), reg)
-    });
+    })?;
 
     let network_metrics = registry.with_prefix(METRICS_PREFIX, NetworkMetrics::new);
 
