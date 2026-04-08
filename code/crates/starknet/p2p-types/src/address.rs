@@ -14,7 +14,7 @@ pub struct Address(PublicKey);
 impl Address {
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn new(bytes: [u8; 32]) -> Self {
-        Self::from_public_key(PublicKey::from_bytes(bytes))
+        Self::from_public_key(PublicKey::from_bytes(bytes).expect("invalid Ed25519 public key"))
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
@@ -55,7 +55,10 @@ impl Protobuf for Address {
 
         let mut bytes = [0; 32];
         bytes.copy_from_slice(&proto.elements);
-        Ok(Address::new(bytes))
+        let pk = PublicKey::from_bytes(bytes).map_err(|e| {
+            ProtoError::Other(format!("Invalid Ed25519 public key in address: {e}"))
+        })?;
+        Ok(Address::from_public_key(pk))
     }
 
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
