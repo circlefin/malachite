@@ -9,7 +9,7 @@ on:
 jobs:
   publish:
     name: Publish to crates.io
-    runs-on: github-hosted-large
+    runs-on: ubuntu-latest
     permissions:
       id-token: write
     steps:

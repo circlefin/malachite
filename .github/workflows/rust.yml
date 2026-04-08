@@ -18,7 +18,7 @@ env:
 jobs:
   changes:
     name: Detect changes
-    runs-on: github-hosted-small
+    runs-on: ubuntu-latest
     permissions:
       pull-requests: read
     outputs:
@@ -34,7 +34,7 @@ jobs:
 
   test:
     name: Unit Tests
-    runs-on: github-hosted-small
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: code
@@ -68,7 +68,7 @@ jobs:
 
   integration:
     name: Integration Tests
-    runs-on: github-hosted-large
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: code
@@ -113,7 +113,7 @@ jobs:
     name: no_std compatibility
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: github-hosted-small
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: code
@@ -130,7 +130,7 @@ jobs:
 
   clippy:
     name: Clippy
-    runs-on: github-hosted-small
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -147,7 +147,7 @@ jobs:
 
   fmt:
     name: Formatting
-    runs-on: github-hosted-small
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -165,7 +165,7 @@ jobs:
     name: MSRV
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: github-hosted-small
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: code
@@ -186,7 +186,7 @@ jobs:
     name: Standalone
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' || github.ref == 'refs/heads/main' }}
-    runs-on: github-hosted-small
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: code
