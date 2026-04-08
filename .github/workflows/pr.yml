@@ -11,7 +11,7 @@ on:
 jobs:
   lint:
     name: Check PR title
-    runs-on: github-hosted-small
+    runs-on: ubuntu-latest
     permissions:
       pull-requests: read
     steps:
@@ -21,7 +21,7 @@ jobs:
 
   verify-signatures:
     name: Verify commit signatures
-    runs-on: github-hosted-small
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write

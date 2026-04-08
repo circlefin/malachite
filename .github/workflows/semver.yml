@@ -15,7 +15,7 @@ env:
 jobs:
   changes:
     name: Detect changes
-    runs-on: github-hosted-small
+    runs-on: ubuntu-latest
     permissions:
       pull-requests: read
     outputs:
@@ -33,7 +33,7 @@ jobs:
     name: Detect semver violations
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' }}
-    runs-on: github-hosted-small
+    runs-on: ubuntu-latest
     permissions:
       pull-requests: write # Necessary to post comments on PRs
       contents: read
