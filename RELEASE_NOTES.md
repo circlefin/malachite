@@ -47,6 +47,7 @@
 - Remove signing of proposal parts
 
 ### `sync`
+- Reject sync responses with non-contiguous certificate heights ([#1541](https://github.com/circlefin/malachite/issues/1541))
 - Fix partial range request not being tracked in pending requests
 - Initial random (fixed) period adjustment in sync status ticker
 - Refactor sync actor to notify consensus of sync responses

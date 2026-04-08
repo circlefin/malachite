@@ -149,7 +149,28 @@ where
         return on_invalid_value_response(co, state, metrics, request_id, peer_id).await;
     }
 
+    if !validate_value_response_heights::<Ctx>(&response) {
+        warn!(
+            %request_id, %peer_id,
+            "Response contains non-contiguous heights"
+        );
+
+        return on_invalid_value_response(co, state, metrics, request_id, peer_id).await;
+    }
+
     on_valid_value_response(co, state, metrics, request_id, peer_id, response).await
+}
+
+/// Validate that each value in the response has the expected height,
+/// ie. heights are contiguous starting from `start_height`.
+fn validate_value_response_heights<Ctx>(response: &ValueResponse<Ctx>) -> bool
+where
+    Ctx: Context,
+{
+    response.values.iter().enumerate().all(|(i, value)| {
+        let expected = response.start_height.increment_by(i as u64);
+        value.height() == expected
+    })
 }
 
 pub async fn on_send_status_update<Ctx>(
@@ -895,8 +916,14 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arc_malachitebft_test::{Height, TestContext};
+    use arc_malachitebft_test::{Height, TestContext, ValueId};
+    use bytes::Bytes;
+    use malachitebft_core_types::{CommitCertificate, Round};
+    use rand::SeedableRng;
     use std::collections::BTreeMap;
+
+    use crate::effect::Resumable;
+    use crate::Config;
 
     type TestPendingRequests = BTreeMap<OutboundRequestId, (RangeInclusive<Height>, PeerId)>;
 
@@ -1247,5 +1274,184 @@ mod tests {
         let range = tip_height..=Height::new(25);
         let clamped = clamp(&range, tip_height);
         assert_eq!(clamped, tip_height..=tip_height);
+    }
+
+    #[test]
+    fn test_validate_value_response_heights() {
+        let validate = validate_value_response_heights::<TestContext>;
+
+        // Valid: contiguous heights 5, 6, 7
+        let response = ValueResponse::new(
+            Height::new(5),
+            vec![
+                make_raw_decided_value(5),
+                make_raw_decided_value(6),
+                make_raw_decided_value(7),
+            ],
+        );
+        assert!(validate(&response));
+
+        // Valid: single value
+        let response = ValueResponse::new(Height::new(1), vec![make_raw_decided_value(1)]);
+        assert!(validate(&response));
+
+        // Valid: empty response
+        let response = ValueResponse::new(Height::new(1), vec![]);
+        assert!(validate(&response));
+
+        // Invalid: gap in heights (1, 2, 5 instead of 1, 2, 3)
+        let response = ValueResponse::new(
+            Height::new(1),
+            vec![
+                make_raw_decided_value(1),
+                make_raw_decided_value(2),
+                make_raw_decided_value(5),
+            ],
+        );
+        assert!(!validate(&response));
+
+        // Invalid: duplicate heights (1, 1, 2 instead of 1, 2, 3)
+        let response = ValueResponse::new(
+            Height::new(1),
+            vec![
+                make_raw_decided_value(1),
+                make_raw_decided_value(1),
+                make_raw_decided_value(2),
+            ],
+        );
+        assert!(!validate(&response));
+
+        // Invalid: first value doesn't match start_height
+        let response = ValueResponse::new(
+            Height::new(1),
+            vec![
+                make_raw_decided_value(2),
+                make_raw_decided_value(3),
+                make_raw_decided_value(4),
+            ],
+        );
+        assert!(!validate(&response));
+
+        // Invalid: reversed order (3, 2, 1 instead of 1, 2, 3)
+        let response = ValueResponse::new(
+            Height::new(1),
+            vec![
+                make_raw_decided_value(3),
+                make_raw_decided_value(2),
+                make_raw_decided_value(1),
+            ],
+        );
+        assert!(!validate(&response));
+    }
+
+    fn make_raw_decided_value(height: u64) -> RawDecidedValue<TestContext> {
+        RawDecidedValue {
+            value_bytes: Bytes::new(),
+            certificate: CommitCertificate {
+                height: Height::new(height),
+                round: Round::new(0),
+                value_id: ValueId::new(height),
+                commit_signatures: vec![],
+            },
+        }
+    }
+
+    /// Test that a non-contiguous sync response (e.g., request 1..=10, get 1,2,5..12)
+    /// is rejected by the sync state machine and triggers a re-request from another peer.
+    #[test]
+    fn test_non_contiguous_response_rejected_by_sync_handler() {
+        use std::cell::Cell;
+
+        let peer_a = PeerId::random();
+        let peer_b = PeerId::random();
+        let request_id = OutboundRequestId::new("req-1");
+
+        let mut state = State::<TestContext>::new(
+            Box::new(rand::rngs::StdRng::seed_from_u64(42)),
+            Config::default(),
+        );
+
+        // Set up state: consensus is at height 1, pending request for 1..=10 from peer_a
+        state.consensus_height = Height::new(1);
+        state.tip_height = Height::new(0);
+        state.sync_height = Height::new(11);
+        state.started = true;
+        state.pending_requests.insert(
+            request_id.clone(),
+            (Height::new(1)..=Height::new(10), peer_a),
+        );
+
+        // Add peer_b so re-request can find another peer
+        state.update_status(Status {
+            peer_id: peer_b,
+            tip_height: Height::new(20),
+            history_min_height: Height::new(1),
+        });
+
+        // Build a malformed response: 10 values starting at height 1
+        // but with a gap (heights 1, 2, 5, 6, 7, 8, 9, 10, 11, 12)
+        let response = ValueResponse::new(
+            Height::new(1),
+            vec![
+                make_raw_decided_value(1),
+                make_raw_decided_value(2),
+                make_raw_decided_value(5),
+                make_raw_decided_value(6),
+                make_raw_decided_value(7),
+                make_raw_decided_value(8),
+                make_raw_decided_value(9),
+                make_raw_decided_value(10),
+                make_raw_decided_value(11),
+                make_raw_decided_value(12),
+            ],
+        );
+
+        let input = Input::ValueResponse(request_id, peer_a, Some(response));
+        let metrics = Metrics::default();
+
+        // The handler should reject the response and re-request from another peer.
+        // It should yield SendValueRequest (to peer_b), NOT ProcessValueResponse.
+        let saw_send_request = Cell::new(false);
+        let saw_process_response = Cell::new(false);
+
+        let result: Result<(), Error<TestContext>> = (|| {
+            crate::process!(
+                input: input,
+                state: &mut state,
+                metrics: &metrics,
+                with: effect => {
+                    match &effect {
+                        Effect::SendValueRequest(peer, _, _) => {
+                            saw_send_request.set(true);
+                            assert_eq!(*peer, peer_b);
+                        }
+                        Effect::ProcessValueResponse(_, _, _, _) => {
+                            saw_process_response.set(true);
+                        }
+                        _ => {}
+                    }
+
+                    Ok::<_, eyre::Report>(match effect {
+                        Effect::SendValueRequest(_, _, r) => {
+                            r.resume_with(Some(OutboundRequestId::new("req-2")))
+                        }
+                        Effect::BroadcastStatus(_, r) => r.resume_with(()),
+                        Effect::SendValueResponse(_, _, r) => r.resume_with(()),
+                        Effect::GetDecidedValues(_, _, r) => r.resume_with(()),
+                        Effect::ProcessValueResponse(_, _, _, r) => r.resume_with(()),
+                    })
+                }
+            )
+        })();
+
+        assert!(result.is_ok(), "Handler returned error: {result:?}");
+        assert!(
+            saw_send_request.get(),
+            "Expected a re-request to another peer after non-contiguous response"
+        );
+        assert!(
+            !saw_process_response.get(),
+            "Non-contiguous response should NOT have been forwarded to consensus"
+        );
     }
 }
