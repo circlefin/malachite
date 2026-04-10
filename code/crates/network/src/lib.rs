@@ -613,7 +613,7 @@ async fn handle_ctrl_msg(
             };
 
             let Some(channel) = state.sync_channels.remove(&request_id) else {
-                error!(%request_id, "Received Sync reply for unknown request ID");
+                debug!(%request_id, "Received Sync reply for unknown request ID");
                 return ControlFlow::Continue(());
             };
 
@@ -1162,7 +1162,16 @@ async fn handle_sync_event(
 
         sync::Event::OutboundFailure { .. } => ControlFlow::Continue(()),
 
-        sync::Event::InboundFailure { .. } => ControlFlow::Continue(()),
+        sync::Event::InboundFailure {
+            request_id,
+            peer,
+            error,
+            ..
+        } => {
+            debug!(%request_id, %peer, ?error, "Inbound sync request failed");
+            state.sync_channels.remove(&request_id);
+            ControlFlow::Continue(())
+        }
     }
 }
 

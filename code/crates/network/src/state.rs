@@ -1002,4 +1002,72 @@ mod tests {
         assert!(info.peer_type.is_validator());
         assert_eq!(info.consensus_address.as_deref(), Some("persistent_val"));
     }
+
+    /// Create an [`InboundRequestId`] for testing.
+    ///
+    /// `InboundRequestId` has no public constructor; we transmute from `u64`.
+    /// This is sound because `InboundRequestId` is a newtype wrapping `u64` with no invariants.
+    fn test_inbound_request_id(id: u64) -> InboundRequestId {
+        // SAFETY: InboundRequestId is a #[repr(Rust)] newtype over u64.
+        unsafe { std::mem::transmute(id) }
+    }
+
+    /// Create a [`sync::ResponseChannel`] for testing.
+    ///
+    /// `ResponseChannel<T>` has no public constructor; we transmute from its inner
+    /// `futures::channel::oneshot::Sender<T>`.
+    fn test_response_channel() -> sync::ResponseChannel {
+        let (sender, _receiver) = futures::channel::oneshot::channel::<sync::RawResponse>();
+        // SAFETY: ResponseChannel<T> is a newtype over oneshot::Sender<T>.
+        unsafe { std::mem::transmute(sender) }
+    }
+
+    #[test]
+    fn sync_channel_cleaned_up_on_inbound_failure() {
+        let mut state = test_state();
+        let request_id = test_inbound_request_id(1);
+        let channel = test_response_channel();
+
+        // Simulate Message::Request inserting the channel
+        state.sync_channels.insert(request_id, channel);
+        assert_eq!(state.sync_channels.len(), 1);
+
+        // Simulate InboundFailure cleanup
+        let removed = state.sync_channels.remove(&request_id);
+        assert!(removed.is_some());
+        assert!(state.sync_channels.is_empty());
+    }
+
+    #[test]
+    fn late_sync_reply_after_inbound_failure_is_harmless() {
+        let mut state = test_state();
+        let request_id = test_inbound_request_id(2);
+        let channel = test_response_channel();
+
+        state.sync_channels.insert(request_id, channel);
+
+        // InboundFailure cleans up first
+        state.sync_channels.remove(&request_id);
+
+        // A late SyncReply arrives — the entry is already gone
+        let late_remove = state.sync_channels.remove(&request_id);
+        assert!(late_remove.is_none());
+    }
+
+    #[test]
+    fn sync_reply_before_inbound_failure_is_harmless() {
+        let mut state = test_state();
+        let request_id = test_inbound_request_id(3);
+        let channel = test_response_channel();
+
+        state.sync_channels.insert(request_id, channel);
+
+        // SyncReply arrives first and consumes the channel
+        let reply_remove = state.sync_channels.remove(&request_id);
+        assert!(reply_remove.is_some());
+
+        // InboundFailure arrives late — the entry is already gone
+        let failure_remove = state.sync_channels.remove(&request_id);
+        assert!(failure_remove.is_none());
+    }
 }
