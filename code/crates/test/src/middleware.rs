@@ -99,6 +99,11 @@ pub trait Middleware: fmt::Debug + Send + Sync {
     ) -> Result<(), eyre::Report> {
         Ok(())
     }
+
+    /// If true, the synced value decode is treated as a failure.
+    fn fail_synced_value_decode(&self, _ctx: &TestContext, _height: Height, _round: Round) -> bool {
+        false
+    }
 }
 
 #[derive(Copy, Clone, Debug)]

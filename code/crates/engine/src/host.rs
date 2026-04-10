@@ -221,6 +221,6 @@ pub enum HostMsg<Ctx: Context> {
         value_bytes: Bytes,
         /// Channel for sending back the proposed value, if successfully decoded
         /// or `None` if the value could not be decoded
-        reply_to: RpcReplyPort<ProposedValue<Ctx>>,
+        reply_to: RpcReplyPort<Option<ProposedValue<Ctx>>>,
     },
 }

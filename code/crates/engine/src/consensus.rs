@@ -32,6 +32,7 @@ use crate::sync::Msg as SyncMsg;
 use crate::util::events::{Event, TxEvent};
 use crate::util::msg_buffer::MessageBuffer;
 use crate::util::output_port::OutputPort;
+use crate::util::ractor::cast_option_and_handle;
 use crate::util::streaming::StreamMessage;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 use crate::wal::{Msg as WalMsg, WalEntry, WalRef};
@@ -1394,8 +1395,11 @@ where
                 let certificate_round = value.certificate.round;
 
                 let sync = Arc::clone(&self.sync);
+                let sync_on_none = Arc::clone(&self.sync);
+                let myself = myself.clone();
 
-                self.host.call_and_forward(
+                cast_option_and_handle(
+                    &self.host,
                     |reply_to| HostMsg::ProcessSyncedValue {
                         height: certificate_height,
                         round: certificate_round,
@@ -1403,7 +1407,6 @@ where
                         value_bytes: value.value_bytes,
                         reply_to,
                     },
-                    myself,
                     move |proposed| {
                         if proposed.validity == Validity::Invalid
                             || proposed.value.id() != value.certificate.value_id
@@ -1411,9 +1414,17 @@ where
                             sync.send(SyncMsg::InvalidValue(value.peer, certificate_height));
                         }
 
-                        Msg::<Ctx>::ReceivedProposedValue(proposed, ValueOrigin::Sync)
+                        let _ = myself.cast(Msg::<Ctx>::ReceivedProposedValue(
+                            proposed,
+                            ValueOrigin::Sync,
+                        ));
                     },
-                    None,
+                    move || {
+                        sync_on_none.send(SyncMsg::ValueProcessingError(
+                            value.peer,
+                            certificate_height,
+                        ));
+                    },
                 )?;
 
                 Ok(r.resume_with(()))

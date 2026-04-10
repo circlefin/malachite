@@ -321,7 +321,18 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             } => {
                 info!(%height, %round, "Processing synced value");
 
-                if let Some(value) = decode_value(value_bytes) {
+                let should_fail = state
+                    .middleware
+                    .as_ref()
+                    .is_some_and(|m| m.fail_synced_value_decode(&state.ctx, height, round));
+
+                let decoded = if should_fail {
+                    None
+                } else {
+                    decode_value(value_bytes)
+                };
+
+                if let Some(value) = decoded {
                     let proposal = ProposedValue {
                         height,
                         round,

@@ -476,21 +476,20 @@ fn on_process_synced_value(
     height: Height,
     round: Round,
     proposer: Address,
-    reply_to: RpcReplyPort<ProposedValue<MockContext>>,
+    reply_to: RpcReplyPort<Option<ProposedValue<MockContext>>>,
 ) -> Result<(), ActorProcessingErr> {
-    let maybe_block = Block::from_bytes(value_bytes.as_ref());
-    if let Ok(block) = maybe_block {
-        let proposed_value = ProposedValue {
+    let result = Block::from_bytes(value_bytes.as_ref())
+        .ok()
+        .map(|block| ProposedValue {
             height,
             round,
             valid_round: Round::Nil,
             proposer,
             value: block.block_hash,
             validity: Validity::Valid,
-        };
+        });
 
-        reply_to.send(proposed_value)?;
-    }
+    reply_to.send(result)?;
 
     Ok(())
 }
