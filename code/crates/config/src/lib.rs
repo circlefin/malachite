@@ -126,6 +126,10 @@ pub struct DiscoveryConfig {
 
     #[serde(default = "discovery::default_connect_request_max_retries")]
     pub connect_request_max_retries: usize,
+
+    /// Maximum number of peer records to process or send per peers request/response.
+    #[serde(default = "discovery::default_max_peers_per_response")]
+    pub max_peers_per_response: usize,
 }
 
 impl Default for DiscoveryConfig {
@@ -142,6 +146,7 @@ impl Default for DiscoveryConfig {
             dial_max_retries: discovery::default_dial_max_retries(),
             request_max_retries: discovery::default_request_max_retries(),
             connect_request_max_retries: discovery::default_connect_request_max_retries(),
+            max_peers_per_response: discovery::default_max_peers_per_response(),
         }
     }
 }
@@ -169,6 +174,10 @@ mod discovery {
 
     pub fn default_connect_request_max_retries() -> usize {
         3
+    }
+
+    pub fn default_max_peers_per_response() -> usize {
+        100
     }
 }
 
@@ -877,6 +886,29 @@ impl fmt::Display for LogFormat {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn discovery_config_deserializes_without_max_peers_per_response() {
+        // Configs written before this field was added should still deserialize,
+        // using the default value.
+        let toml = r#"
+            enabled = true
+            bootstrap_protocol = "full"
+            selector = "random"
+        "#;
+        let config: DiscoveryConfig = toml::from_str(toml).unwrap();
+        assert_eq!(config.max_peers_per_response, 100);
+    }
+
+    #[test]
+    fn discovery_config_deserializes_with_max_peers_per_response() {
+        let toml = r#"
+            enabled = true
+            max_peers_per_response = 50
+        "#;
+        let config: DiscoveryConfig = toml::from_str(toml).unwrap();
+        assert_eq!(config.max_peers_per_response, 50);
+    }
 
     #[test]
     fn log_format() {

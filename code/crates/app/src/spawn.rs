@@ -234,6 +234,7 @@ fn make_network_config(cfg: &ConsensusConfig, value_sync_cfg: &ValueSyncConfig) 
             dial_max_retries: cfg.p2p.discovery.dial_max_retries,
             request_max_retries: cfg.p2p.discovery.request_max_retries,
             connect_request_max_retries: cfg.p2p.discovery.connect_request_max_retries,
+            max_peers_per_response: cfg.p2p.discovery.max_peers_per_response,
         },
         idle_connection_timeout: Duration::from_secs(15 * 60),
         transport: network::TransportProtocol::from_multiaddr(&cfg.p2p.listen_addr).unwrap_or_else(
