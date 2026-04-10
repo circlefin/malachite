@@ -313,7 +313,7 @@ where
     /// Iterate over all addresses with recorded proposal equivocations.
     pub fn iter(
         &self,
-    ) -> alloc::collections::btree_map::Keys<'_, Ctx::Address, Vec<DoubleProposal<Ctx>>> {
-        self.map.keys()
+    ) -> alloc::collections::btree_map::Iter<'_, Ctx::Address, Vec<DoubleProposal<Ctx>>> {
+        self.map.iter()
     }
 }

@@ -10,7 +10,6 @@ publish = false
 [dependencies]
 async-trait.workspace = true
 bytes.workspace = true
-color-eyre.workspace = true
 config.workspace = true
 derive-where.workspace = true
 eyre.workspace = true
@@ -27,9 +26,9 @@ tokio.workspace = true
 tracing.workspace = true
 
 malachitebft-app-channel.workspace = true
+malachitebft-engine-byzantine.workspace = true
 malachitebft-proto.workspace = true
 malachitebft-test.workspace = true
-malachitebft-test-cli.workspace = true
 
 [dev-dependencies]
 malachitebft-test-framework.workspace = true

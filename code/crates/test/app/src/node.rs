@@ -10,12 +10,16 @@ use tracing::Instrument;
 
 use malachitebft_app_channel::app::config::*;
 use malachitebft_app_channel::app::events::{RxEvent, TxEvent};
+use malachitebft_app_channel::app::metrics::SharedRegistry;
 use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::VotingPower;
 use malachitebft_app_channel::app::types::Keypair;
 use malachitebft_app_channel::{
     ConsensusContext, EngineBuilder, EngineHandle, NetworkContext, NetworkIdentity, RequestContext,
     SigningProviderExt, SyncContext, WalContext,
+};
+use malachitebft_engine_byzantine::{
+    ByzantineMiddleware, ByzantineNetworkProxy, ConflictingValueFn, ConflictingVoteValueFn,
 };
 use malachitebft_test::codec::json::JsonCodec;
 use malachitebft_test::codec::proto::ProtobufCodec;
@@ -30,7 +34,7 @@ use malachitebft_test::middleware::{DefaultMiddleware, Middleware};
 // A real application would use its own types and context instead.
 use malachitebft_test::{
     Address, Ed25519Provider, Genesis, Height, PrivateKey, PublicKey, TestContext, Validator,
-    ValidatorSet,
+    ValidatorSet, Value, ValueId,
 };
 
 use crate::config::Config;
@@ -135,12 +139,38 @@ impl Node for App {
         let span = tracing::error_span!("node", moniker = %config.moniker);
         let _guard = span.enter();
 
-        let middleware = self
-            .middleware
-            .clone()
-            .unwrap_or_else(|| Arc::new(DefaultMiddleware));
+        if let Some(ref byz) = config.byzantine {
+            byz.validate()
+                .map_err(|e| eyre::eyre!("Invalid byzantine configuration: {e}"))?;
+        }
 
-        let ctx = TestContext::with_middleware(middleware);
+        // Wrap middleware with ByzantineMiddleware if amnesia is configured
+        let middleware: Arc<dyn Middleware> = {
+            let inner = self
+                .middleware
+                .clone()
+                .unwrap_or_else(|| Arc::new(DefaultMiddleware));
+
+            if let Some(ref byz) = config.byzantine {
+                if byz.ignore_locks.is_set() {
+                    tracing::warn!(
+                        trigger = ?byz.ignore_locks,
+                        "BYZANTINE: Amnesia attack enabled (will ignore voting locks)"
+                    );
+                    Arc::new(ByzantineMiddleware::new(
+                        byz.ignore_locks.clone(),
+                        inner,
+                        byz.seed,
+                    ))
+                } else {
+                    inner
+                }
+            } else {
+                inner
+            }
+        };
+
+        let ctx = TestContext::with_middleware(middleware.clone());
 
         let public_key = self.get_public_key(&self.private_key);
         let address = self.get_address(&public_key);
@@ -166,14 +196,73 @@ impl Node for App {
             )
         };
 
-        let (mut channels, engine_handle) = EngineBuilder::new(ctx.clone(), config.clone())
-            .with_default_wal(WalContext::new(wal_path, ProtobufCodec))
-            .with_default_network(NetworkContext::new(identity, JsonCodec))
-            .with_default_consensus(ConsensusContext::new(address, signing_provider))
-            .with_default_sync(SyncContext::new(JsonCodec))
-            .with_default_request(RequestContext::new(100))
-            .build()
+        // Build the engine, conditionally injecting the Byzantine proxy
+        let builder = EngineBuilder::new(ctx.clone(), config.clone())
+            .with_default_wal(WalContext::new(wal_path, ProtobufCodec));
+
+        let is_byzantine = config.byzantine.as_ref().is_some_and(|c| c.is_active());
+
+        let (mut channels, engine_handle) = if is_byzantine {
+            let byz_cfg = config.byzantine.clone().unwrap(); // safe: is_active() was true
+
+            tracing::warn!(
+                ?byz_cfg,
+                "BYZANTINE: Starting node with Byzantine behavior enabled"
+            );
+
+            // Spawn the real network actor manually
+            let registry = SharedRegistry::global().with_moniker(config.moniker.clone());
+            let (real_network, tx_network) = malachitebft_app_channel::spawn::spawn_network_actor(
+                identity,
+                config.consensus(),
+                config.value_sync(),
+                &registry,
+                JsonCodec,
+            )
             .await?;
+
+            // Spawn the proxy in front of the real network.
+            let conflicting_value_fn: Option<ConflictingValueFn<TestContext>> =
+                Some(Box::new(|original: &Value| {
+                    Value::new(original.value.wrapping_add(1))
+                }));
+            let conflicting_vote_value_fn: Option<ConflictingVoteValueFn<TestContext>> =
+                Some(Box::new(|original: Option<&ValueId>| match original {
+                    Some(id) => ValueId::new(id.as_u64().wrapping_add(1)),
+                    None => ValueId::new(0),
+                }));
+
+            let proxy_ref = ByzantineNetworkProxy::spawn(
+                byz_cfg,
+                real_network,
+                Box::new(self.get_signing_provider(self.private_key.clone())),
+                ctx.clone(),
+                address,
+                span.clone(),
+                conflicting_value_fn,
+                conflicting_vote_value_fn,
+            )
+            .await?;
+
+            builder
+                .with_custom_network(proxy_ref, tx_network)
+                .with_default_consensus(ConsensusContext::new(
+                    address,
+                    self.get_signing_provider(self.private_key.clone()),
+                ))
+                .with_default_sync(SyncContext::new(JsonCodec))
+                .with_default_request(RequestContext::new(100))
+                .build()
+                .await?
+        } else {
+            builder
+                .with_default_network(NetworkContext::new(identity, JsonCodec))
+                .with_default_consensus(ConsensusContext::new(address, signing_provider))
+                .with_default_sync(SyncContext::new(JsonCodec))
+                .with_default_request(RequestContext::new(100))
+                .build()
+                .await?
+        };
 
         drop(_guard);
 
@@ -191,7 +280,7 @@ impl Node for App {
             start_height,
             store,
             self.get_signing_provider(self.private_key.clone()),
-            self.middleware.clone(),
+            Some(middleware),
         );
 
         let tx_event = channels.events.clone();
@@ -316,5 +405,6 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
         value_sync: ValueSyncConfig::default(),
         logging: LoggingConfig::default(),
         test: TestConfig::default(),
+        byzantine: None,
     }
 }

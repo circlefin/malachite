@@ -1320,12 +1320,12 @@ where
                 let proposal_evidence_count = evidence
                     .proposals
                     .iter()
-                    .map(|addr| evidence.proposals.get(addr).map_or(0, |v| v.len()))
+                    .map(|(_, proposals)| proposals.len())
                     .sum::<usize>();
                 let vote_evidence_count = evidence
                     .votes
                     .iter()
-                    .map(|addr| evidence.votes.get(addr).map_or(0, |v| v.len()))
+                    .map(|(_, votes)| votes.len())
                     .sum::<usize>();
                 if proposal_evidence_count > 0 {
                     self.metrics

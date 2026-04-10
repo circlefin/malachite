@@ -1,3 +1,4 @@
+mod byzantine_engine;
 mod equivocation;
 mod finalization;
 mod full_nodes;
@@ -224,6 +225,7 @@ impl TestRunner {
             },
             runtime: RuntimeConfig::single_threaded(),
             test: TestConfig::default(),
+            byzantine: None,
         }
     }
 }
