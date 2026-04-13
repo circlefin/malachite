@@ -133,17 +133,34 @@ where
         return on_invalid_value_response(co, state, metrics, request_id, peer_id).await;
     }
 
-    let is_valid = start.as_u64() == requested_range.start().as_u64()
+    let range_valid = start.as_u64() == requested_range.start().as_u64()
         && start.as_u64() <= end.as_u64()
         && end.as_u64() <= requested_range.end().as_u64()
         && response.values.len() as u64 == range_len;
 
-    if !is_valid {
+    if !range_valid {
         warn!(
             %request_id, %peer_id,
-            "Received request for wrong range of heights: expected {}..={} ({} values), got {}..={} ({} values)",
+            "Received response with wrong range: expected {}..={} ({} values), got {}..={} ({} values)",
             requested_range.start().as_u64(), requested_range.end().as_u64(), range_len,
             start.as_u64(), end.as_u64(), response.values.len() as u64
+        );
+
+        return on_invalid_value_response(co, state, metrics, request_id, peer_id).await;
+    }
+
+    // Verify that each value's certificate height matches its expected sequential position
+    let heights_sequential = response
+        .values
+        .iter()
+        .enumerate()
+        .all(|(i, value)| value.height().as_u64() == start.as_u64() + i as u64);
+
+    if !heights_sequential {
+        warn!(
+            %request_id, %peer_id,
+            "Received response with non-sequential certificate heights for range {}..={}",
+            start.as_u64(), end.as_u64(),
         );
 
         return on_invalid_value_response(co, state, metrics, request_id, peer_id).await;
@@ -1718,5 +1735,216 @@ mod tests {
             state.tip_height.as_u64(),
         );
         assert_eq!(state.sync_height, Height::new(13));
+    }
+
+    // -- on_value_response: certificate height validation --
+
+    /// Helper to create a RawDecidedValue with a given certificate height.
+    fn make_raw_value(height: u64) -> crate::RawDecidedValue<TestContext> {
+        use arc_malachitebft_test::ValueId;
+        use bytes::Bytes;
+        use malachitebft_core_types::{CommitCertificate, Round};
+
+        crate::RawDecidedValue::new(
+            Bytes::from_static(b"test"),
+            CommitCertificate {
+                height: Height::new(height),
+                round: Round::ZERO,
+                value_id: ValueId::new(height),
+                commit_signatures: vec![],
+            },
+        )
+    }
+
+    /// Helper to set up test state with a pending request and a single peer.
+    fn setup_response_test(
+        range_start: u64,
+        range_end: u64,
+    ) -> (State<TestContext>, crate::Metrics, PeerId) {
+        let mut state = make_test_state();
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        let peer = PeerId::random();
+        state.peers.insert(
+            peer,
+            crate::Status {
+                peer_id: peer,
+                tip_height: Height::new(range_end + 10),
+                history_min_height: Height::new(1),
+            },
+        );
+        state.pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            (Height::new(range_start)..=Height::new(range_end), peer),
+        );
+
+        (state, metrics, peer)
+    }
+
+    fn has_process_value_response(effects: &[crate::Effect<TestContext>]) -> bool {
+        effects
+            .iter()
+            .any(|e| matches!(e, crate::Effect::ProcessValueResponse(..)))
+    }
+
+    #[test]
+    fn test_value_response_accepts_sequential_heights() {
+        let (mut state, metrics, peer) = setup_response_test(10, 14);
+
+        let response = crate::ValueResponse::new(
+            Height::new(10),
+            vec![
+                make_raw_value(10),
+                make_raw_value(11),
+                make_raw_value(12),
+                make_raw_value(13),
+                make_raw_value(14),
+            ],
+        );
+
+        let effects = drive_input(
+            &mut state,
+            &metrics,
+            Input::ValueResponse(OutboundRequestId::new("req1"), peer, Some(response)),
+        )
+        .unwrap();
+
+        assert!(
+            has_process_value_response(&effects),
+            "Response with correct sequential heights should be accepted"
+        );
+    }
+
+    #[test]
+    fn test_value_response_rejects_duplicate_heights() {
+        let (mut state, metrics, peer) = setup_response_test(10, 14);
+
+        let response = crate::ValueResponse::new(
+            Height::new(10),
+            vec![
+                make_raw_value(10),
+                make_raw_value(10),
+                make_raw_value(10),
+                make_raw_value(10),
+                make_raw_value(14),
+            ],
+        );
+
+        let effects = drive_input(
+            &mut state,
+            &metrics,
+            Input::ValueResponse(OutboundRequestId::new("req1"), peer, Some(response)),
+        )
+        .unwrap();
+
+        assert!(
+            !has_process_value_response(&effects),
+            "Response with duplicate heights should be rejected"
+        );
+    }
+
+    #[test]
+    fn test_value_response_rejects_out_of_order_heights() {
+        let (mut state, metrics, peer) = setup_response_test(10, 14);
+
+        let response = crate::ValueResponse::new(
+            Height::new(10),
+            vec![
+                make_raw_value(10),
+                make_raw_value(11),
+                make_raw_value(13),
+                make_raw_value(12),
+                make_raw_value(14),
+            ],
+        );
+
+        let effects = drive_input(
+            &mut state,
+            &metrics,
+            Input::ValueResponse(OutboundRequestId::new("req1"), peer, Some(response)),
+        )
+        .unwrap();
+
+        assert!(
+            !has_process_value_response(&effects),
+            "Response with out-of-order heights should be rejected"
+        );
+    }
+
+    #[test]
+    fn test_value_response_rejects_heights_with_gaps() {
+        let (mut state, metrics, peer) = setup_response_test(10, 14);
+
+        // Heights [10, 11, 12, 14, 15] — gap at 13, extra 15
+        let response = crate::ValueResponse::new(
+            Height::new(10),
+            vec![
+                make_raw_value(10),
+                make_raw_value(11),
+                make_raw_value(12),
+                make_raw_value(14),
+                make_raw_value(15),
+            ],
+        );
+
+        let effects = drive_input(
+            &mut state,
+            &metrics,
+            Input::ValueResponse(OutboundRequestId::new("req1"), peer, Some(response)),
+        )
+        .unwrap();
+
+        assert!(
+            !has_process_value_response(&effects),
+            "Response with gaps in heights should be rejected"
+        );
+    }
+
+    #[test]
+    fn test_value_response_accepts_single_value() {
+        let (mut state, metrics, peer) = setup_response_test(10, 10);
+
+        let response = crate::ValueResponse::new(Height::new(10), vec![make_raw_value(10)]);
+
+        let effects = drive_input(
+            &mut state,
+            &metrics,
+            Input::ValueResponse(OutboundRequestId::new("req1"), peer, Some(response)),
+        )
+        .unwrap();
+
+        assert!(
+            has_process_value_response(&effects),
+            "Response with a single value at the correct height should be accepted"
+        );
+    }
+
+    #[test]
+    fn test_value_response_rejects_wrong_start_height() {
+        // Requested range 10..=14, but peer sends sequential values starting at 5
+        let (mut state, metrics, peer) = setup_response_test(10, 14);
+
+        let response = crate::ValueResponse::new(
+            Height::new(5),
+            vec![
+                make_raw_value(5),
+                make_raw_value(6),
+                make_raw_value(7),
+                make_raw_value(8),
+                make_raw_value(9),
+            ],
+        );
+
+        let effects = drive_input(
+            &mut state,
+            &metrics,
+            Input::ValueResponse(OutboundRequestId::new("req1"), peer, Some(response)),
+        )
+        .unwrap();
+
+        assert!(
+            !has_process_value_response(&effects),
+            "Response with sequential but wrong-range heights should be rejected"
+        );
     }
 }
