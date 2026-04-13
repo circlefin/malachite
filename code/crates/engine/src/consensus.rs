@@ -1,7 +1,7 @@
 use core::fmt;
-use std::collections::BTreeSet;
 use std::future::{pending, Future};
 use std::io;
+use std::collections::{BTreeSet, VecDeque};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use derive_where::derive_where;
 use eyre::eyre;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
+use tokio::sync::oneshot;
 use tokio::time::Instant;
 use tracing::{debug, error, error_span, info, warn};
 
@@ -227,6 +228,10 @@ pub struct State<Ctx: Context> {
     /// A buffer of messages that were received while
     /// consensus was `Unstarted` or in the `Recovering` phase
     msg_buffer: MessageBuffer<Ctx>,
+
+    /// A Queue to store pending WAL appends, awaiting completion
+    /// just before flushing the WAL
+    pending_wal_appends: VecDeque<oneshot::Receiver<eyre::Result<()>>>,
 }
 
 impl<Ctx> State<Ctx>
@@ -259,6 +264,7 @@ struct HandlerState<'a, Ctx: Context> {
     phase: Phase,
     timers: &'a mut Timers,
     timeouts: Ctx::Timeouts,
+    pending_wal_appends: &'a mut VecDeque<oneshot::Receiver<eyre::Result<()>>>,
 }
 
 impl<Ctx> Consensus<Ctx>
@@ -312,6 +318,7 @@ where
                     phase: state.phase,
                     timers: &mut state.timers,
                     timeouts: state.timeouts,
+                    pending_wal_appends: &mut state.pending_wal_appends,
                 };
 
                 self.handle_effect(myself, handler_state, effect).await
@@ -966,37 +973,65 @@ where
         .map_err(|e| eyre!("Failed to verify vote extension: {e:?}").into())
     }
 
-    async fn wal_append(
+    /// Signals a WAL append asynchronosly.
+    ///
+    /// Call [`Self::drain_pending_wal_appends`] before any
+    /// [`WalMsg::Flush`] to await completion of all outstanding appends.
+    fn wal_append(
         &self,
         height: Ctx::Height,
         entry: WalEntry<Ctx>,
+        pending: &mut VecDeque<oneshot::Receiver<eyre::Result<()>>>,
         phase: Phase,
     ) -> Result<(), ActorProcessingErr> {
         if phase == Phase::Recovering {
             return Ok(());
         }
 
-        let result = ractor::call!(self.wal, WalMsg::Append, height, entry);
+        let (tx, rx) = oneshot::channel::<eyre::Result<()>>();
+        let reply_port = RpcReplyPort::from(tx);
 
-        match result {
-            Ok(Ok(())) => {
-                // Success
-            }
-            Ok(Err(e)) => {
-                error!("Failed to append entry to WAL: {e}");
-            }
-            Err(e) => {
-                error!("Failed to send Append command to WAL actor: {e}");
-            }
-        }
+        self.wal
+            .cast(WalMsg::Append(height, entry, reply_port))
+            .map_err(|e| eyre!("Failed to send Append command to WAL actor: {e}"))?;
+
+        pending.push_back(rx);
 
         Ok(())
     }
 
-    async fn wal_flush(&self, phase: Phase) -> Result<(), ActorProcessingErr> {
+    /// Await all pending WAL append replies, logging any errors.
+    async fn drain_pending_wal_appends(
+        &self,
+        pending: &mut VecDeque<oneshot::Receiver<eyre::Result<()>>>,
+    ) -> Result<(), ActorProcessingErr> {
+        for rx in pending.drain(..) {
+            match rx.await {
+                Ok(Ok(())) => {
+                    // Success
+                }
+                Ok(Err(e)) => {
+                    error!("Failed to append entry to WAL: {e}");
+                }
+                Err(e) => {
+                    error!("WAL append reply channel closed unexpectedly: {e}");
+                }
+            }
+        }
+        Ok(())
+    }
+
+    async fn wal_flush(
+        &self,
+        pending: &mut VecDeque<oneshot::Receiver<eyre::Result<()>>>,
+        phase: Phase,
+    ) -> Result<(), ActorProcessingErr> {
         if phase == Phase::Recovering {
             return Ok(());
         }
+
+        // Ensure all outstanding async appends have completed before flushing.
+        self.drain_pending_wal_appends(pending).await?;
 
         let result = ractor::call!(self.wal, WalMsg::Flush);
 
@@ -1040,7 +1075,7 @@ where
             }
 
             Effect::StartRound(height, round, proposer, role, r) => {
-                self.wal_flush(state.phase).await?;
+                self.wal_flush(state.pending_wal_appends, state.phase).await?;
 
                 let undecided_values =
                     ractor::call!(self.host, |reply_to| HostMsg::StartedRound {
@@ -1178,7 +1213,7 @@ where
             Effect::PublishConsensusMsg(msg, r) => {
                 // Sync the WAL to disk before we broadcast the message
                 // NOTE: The message has already been append to the WAL by the `WalAppend` effect.
-                self.wal_flush(state.phase).await?;
+                self.wal_flush(state.pending_wal_appends, state.phase).await?;
 
                 // Notify any subscribers that we are about to publish a message
                 self.tx_event.send(|| Event::Published(msg.clone()));
@@ -1267,8 +1302,7 @@ where
             Effect::Decide(certificate, extensions, r) => {
                 assert!(!certificate.commit_signatures.is_empty());
 
-                // Sync the WAL to disk before we decide the value
-                self.wal_flush(state.phase).await?;
+                self.wal_flush(state.pending_wal_appends, state.phase).await?;
 
                 // Notify any subscribers about the decided value
                 self.tx_event.send(|| Event::Decided {
@@ -1400,7 +1434,7 @@ where
             }
 
             Effect::WalAppend(height, entry, r) => {
-                self.wal_append(height, entry, state.phase).await?;
+                self.wal_append(height, entry, state.pending_wal_appends, state.phase)?;
                 Ok(r.resume_with(()))
             }
         }
@@ -1438,6 +1472,7 @@ where
             connected_peers: BTreeSet::new(),
             phase: Phase::Unstarted,
             msg_buffer: MessageBuffer::new(MAX_BUFFER_SIZE),
+            pending_wal_appends: VecDeque::new(),
         })
     }
 
