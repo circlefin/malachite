@@ -203,7 +203,7 @@ mod tests {
     }
 
     fn arb_response_time_slow(u: &mut Unstructured, slow_threshold: Duration) -> Result<Duration> {
-        let min = slow_threshold.as_millis() as u64;
+        let min = slow_threshold.as_millis() as u64 + 1;
         let max = slow_threshold.as_millis() as u64 * 5;
         u.int_in_range(min..=max).map(Duration::from_millis)
     }
