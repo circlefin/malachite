@@ -524,7 +524,7 @@ pub async fn on_got_decided_values<Ctx>(
     metrics: &Metrics,
     request_id: InboundRequestId,
     range: RangeInclusive<Ctx::Height>,
-    values: Vec<RawDecidedValue<Ctx>>,
+    mut values: Vec<RawDecidedValue<Ctx>>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
@@ -534,30 +534,40 @@ where
     let start = range.start();
     let end = range.end();
 
-    // Validate response from host
+    // Log if host returned a different number of values than expected.
+    // This can happen legitimately (e.g. truncation due to response size limits)
+    // so we only warn but do not reject the response.
     let batch_size = end.as_u64() - start.as_u64() + 1;
     if batch_size != values.len() as u64 {
         warn!(
             %request_id,
             "Received {} values from host, expected {batch_size}",
             values.len()
-        )
+        );
     }
 
-    // Validate the height of each received value
+    // Validate the height of each received value.
+    // Truncate at the first value with an unexpected height and forward
+    // the valid contiguous prefix so the requesting peer can still use it.
     let mut height = *start;
+    let mut valid_count = 0;
     for value in &values {
         if value.certificate.height != height {
             error!(
                 %request_id,
-                "Received from host value for height {}, expected for height {height}",
+                "Received from host value for height {}, expected height: {height}; \
+                 sending {valid_count} valid values to peer",
                 value.certificate.height
             );
+            break;
         }
+        valid_count += 1;
         height = height.increment();
     }
 
-    debug!(%request_id, range = %DisplayRange(&range), "Sending response to peer");
+    values.truncate(valid_count);
+
+    debug!(%request_id, range = %DisplayRange(&range), "Sending {} values to peer", values.len());
     perform!(
         co,
         Effect::SendValueResponse(
@@ -1945,6 +1955,127 @@ mod tests {
         assert!(
             !has_process_value_response(&effects),
             "Response with sequential but wrong-range heights should be rejected"
+        );
+    }
+
+    // -- on_got_decided_values: reject invalid host responses --
+
+    /// Extract the `ValueResponse` from a `SendValueResponse` effect.
+    fn extract_value_response(
+        effects: &[crate::Effect<TestContext>],
+    ) -> &crate::ValueResponse<TestContext> {
+        effects
+            .iter()
+            .find_map(|e| match e {
+                crate::Effect::SendValueResponse(_, response, _) => Some(response),
+                _ => None,
+            })
+            .expect("expected a SendValueResponse effect")
+    }
+
+    #[test]
+    fn test_on_got_decided_values_sends_valid_response() {
+        let mut state = make_test_state();
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        let values = vec![make_raw_value(5), make_raw_value(6), make_raw_value(7)];
+
+        let effects = drive_input(
+            &mut state,
+            &metrics,
+            Input::GotDecidedValues(
+                InboundRequestId::new("req1"),
+                Height::new(5)..=Height::new(7),
+                values,
+            ),
+        )
+        .unwrap();
+
+        let response = extract_value_response(&effects);
+        assert_eq!(response.start_height, Height::new(5));
+        assert_eq!(response.values.len(), 3);
+    }
+
+    #[test]
+    fn test_on_got_decided_values_forwards_truncated_response() {
+        let mut state = make_test_state();
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        // Range expects 3 values (5..=7) but only 2 provided (e.g. truncated by engine).
+        // A count mismatch alone should not prevent forwarding valid values.
+        let values = vec![make_raw_value(5), make_raw_value(6)];
+
+        let effects = drive_input(
+            &mut state,
+            &metrics,
+            Input::GotDecidedValues(
+                InboundRequestId::new("req1"),
+                Height::new(5)..=Height::new(7),
+                values,
+            ),
+        )
+        .unwrap();
+
+        let response = extract_value_response(&effects);
+        assert_eq!(response.start_height, Height::new(5));
+        assert_eq!(response.values.len(), 2);
+    }
+
+    #[test]
+    fn test_on_got_decided_values_truncates_at_wrong_height() {
+        let mut state = make_test_state();
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        // Range is 5..=7 but second value has height 10 instead of 6.
+        // Only the valid prefix (height 5) should be forwarded.
+        let values = vec![make_raw_value(5), make_raw_value(10), make_raw_value(7)];
+
+        let effects = drive_input(
+            &mut state,
+            &metrics,
+            Input::GotDecidedValues(
+                InboundRequestId::new("req1"),
+                Height::new(5)..=Height::new(7),
+                values,
+            ),
+        )
+        .unwrap();
+
+        let response = extract_value_response(&effects);
+        assert_eq!(response.start_height, Height::new(5));
+        assert_eq!(
+            response.values.len(),
+            1,
+            "expected only the valid prefix, got {} values",
+            response.values.len()
+        );
+    }
+
+    #[test]
+    fn test_on_got_decided_values_first_value_wrong_sends_empty() {
+        let mut state = make_test_state();
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        // First value already has the wrong height — no valid prefix exists.
+        let values = vec![make_raw_value(10), make_raw_value(6), make_raw_value(7)];
+
+        let effects = drive_input(
+            &mut state,
+            &metrics,
+            Input::GotDecidedValues(
+                InboundRequestId::new("req1"),
+                Height::new(5)..=Height::new(7),
+                values,
+            ),
+        )
+        .unwrap();
+
+        let response = extract_value_response(&effects);
+        assert_eq!(response.start_height, Height::new(5));
+        assert!(
+            response.values.is_empty(),
+            "expected empty response when first value is wrong, got {} values",
+            response.values.len()
         );
     }
 }
