@@ -110,7 +110,9 @@ where
     {
         let before = self.queue.len();
 
-        self.queue.retain(|index, _| index >= min_index);
+        // split_off returns a new BTreeMap with all entries >= min_index in O(log n),
+        // which is more efficient than retain's O(n) scan.
+        self.queue = self.queue.split_off(min_index);
 
         let removed = before - self.queue.len();
         if removed > 0 {
