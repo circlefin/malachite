@@ -1588,7 +1588,7 @@ mod tests {
         drive_input(&mut state, &metrics, Input::Decided(Height::new(112))).unwrap();
 
         assert_eq!(state.tip_height, Height::new(112));
-        for (_, (range, _)) in &state.pending_requests {
+        for (range, _) in state.pending_requests.values() {
             assert!(
                 !range.contains(&state.sync_height),
                 "sync_height ({}) inside pending request range {}..={}",
@@ -1656,7 +1656,7 @@ mod tests {
         )
         .unwrap();
 
-        for (_, (range, _)) in &state.pending_requests {
+        for (range, _) in state.pending_requests.values() {
             assert!(
                 !range.contains(&state.sync_height),
                 "sync_height ({}) inside pending request range {}..={}",

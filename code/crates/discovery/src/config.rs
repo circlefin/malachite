@@ -146,8 +146,10 @@ mod tests {
 
     #[test]
     fn config_allows_custom_max_peers_per_response() {
-        let mut config = Config::default();
-        config.max_peers_per_response = 50;
+        let config = Config {
+            max_peers_per_response: 50,
+            ..Default::default()
+        };
         assert_eq!(config.max_peers_per_response, 50);
     }
 }
