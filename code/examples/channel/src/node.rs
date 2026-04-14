@@ -44,6 +44,10 @@ pub struct App {
     pub genesis_file: PathBuf,
     pub private_key_file: PathBuf,
     pub start_height: Option<Height>,
+    /// When true, the node loads its consensus key, signs a validator proof, and
+    /// advertises itself as a validator. When false it runs as a full node without
+    /// a consensus key.
+    pub validator: bool,
 }
 
 pub struct Handle {
@@ -119,17 +123,27 @@ impl Node for App {
         let span = tracing::error_span!("node", moniker = %config.moniker);
         let _enter = span.enter();
 
-        let private_key_file = self.load_private_key_file()?;
-        let private_key = self.load_private_key(private_key_file);
-        let public_key = self.get_public_key(&private_key);
-        let address = self.get_address(&public_key);
-        let keypair = self.get_keypair(private_key.clone());
         let wal_path = self.get_home_dir().join("wal").join("consensus.wal");
         let ctx = TestContext::new();
         let genesis = self.load_genesis()?;
 
+        // Validators load their consensus key from file; full nodes use an ephemeral key.
+        let private_key = if self.validator {
+            let private_key_file = self.load_private_key_file()?;
+            self.load_private_key(private_key_file)
+        } else {
+            PrivateKey::generate(rand::thread_rng())
+        };
+
+        let public_key = self.get_public_key(&private_key);
+        let address = self.get_address(&public_key);
+        let keypair = self.get_keypair(private_key.clone());
+
         let signing_provider = self.get_signing_provider(private_key.clone());
-        let identity = {
+
+        // Validators sign a proof binding their consensus key to the P2P peer ID.
+        // Full nodes participate in gossip without advertising a validator identity.
+        let identity = if self.validator {
             let peer_id_bytes = keypair.public().to_peer_id().to_bytes();
             let proof = signing_provider
                 .sign_validator_proof(public_key.as_bytes().to_vec(), peer_id_bytes)
@@ -144,6 +158,8 @@ impl Node for App {
                 address.to_string(),
                 proof_bytes,
             )
+        } else {
+            NetworkIdentity::new(config.moniker.clone(), keypair, None)
         };
 
         let (mut channels, engine_handle) = EngineBuilder::new(ctx.clone(), config.clone())

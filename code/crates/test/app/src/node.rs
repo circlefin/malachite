@@ -70,6 +70,9 @@ pub struct App {
     pub private_key: PrivateKey,
     pub start_height: Option<Height>,
     pub middleware: Option<Arc<dyn Middleware>>,
+    /// When true, the node signs a validator proof and advertises a validator identity.
+    /// When false, the node starts without a validator identity.
+    pub validator: bool,
 }
 
 impl App {
@@ -179,7 +182,7 @@ impl Node for App {
         let wal_path = self.get_home_dir().join("wal").join("consensus.wal");
 
         let signing_provider = self.get_signing_provider(self.private_key.clone());
-        let identity = {
+        let identity = if self.validator {
             let peer_id_bytes = keypair.public().to_peer_id().to_bytes();
             let proof = signing_provider
                 .sign_validator_proof(public_key.as_bytes().to_vec(), peer_id_bytes)
@@ -194,6 +197,8 @@ impl Node for App {
                 address.to_string(),
                 proof_bytes,
             )
+        } else {
+            NetworkIdentity::new(config.moniker.clone(), keypair, None)
         };
 
         // Build the engine, conditionally injecting the Byzantine proxy
