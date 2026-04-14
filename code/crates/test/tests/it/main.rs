@@ -190,11 +190,9 @@ impl TestRunner {
             moniker: format!("node-{node}"),
             logging: LoggingConfig::default(),
             consensus: ConsensusConfig {
-                enabled: true,
                 // Current test app does not support proposal-only value payload properly as Init does not include valid_round
                 value_payload: ValuePayload::ProposalAndParts,
                 queue_capacity: 100,
-                queue_per_height_capacity: 500,
                 p2p: P2pConfig {
                     protocol,
                     discovery: DiscoveryConfig::default(),
@@ -214,6 +212,7 @@ impl TestRunner {
                     },
                     ..Default::default()
                 },
+                ..Default::default()
             },
             value_sync: ValueSyncConfig {
                 enabled: true,

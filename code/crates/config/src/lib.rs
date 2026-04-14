@@ -658,6 +658,10 @@ fn default_queue_per_height_capacity() -> usize {
     500
 }
 
+fn default_wal_replay_delay() -> Duration {
+    Duration::from_secs(5)
+}
+
 /// Consensus configuration options
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ConsensusConfig {
@@ -691,6 +695,17 @@ pub struct ConsensusConfig {
     /// Default: 500
     #[serde(default = "default_queue_per_height_capacity")]
     pub queue_per_height_capacity: usize,
+
+    /// Duration to wait before replaying the WAL on recovery.
+    ///
+    /// When a validator recovers from a crash, this delay gives the sync protocol
+    /// time to retrieve a certificate for the crash height. If sync succeeds
+    /// during this window, WAL replay is skipped entirely.
+    ///
+    /// Set to 0 to disable the delay and replay immediately (previous behavior).
+    /// Default: 5s
+    #[serde(default = "default_wal_replay_delay", with = "humantime_serde")]
+    pub wal_replay_delay: Duration,
 }
 
 impl Default for ConsensusConfig {
@@ -701,6 +716,7 @@ impl Default for ConsensusConfig {
             value_payload: ValuePayload::default(),
             queue_capacity: default_queue_capacity(),
             queue_per_height_capacity: default_queue_per_height_capacity(),
+            wal_replay_delay: default_wal_replay_delay(),
         }
     }
 }
