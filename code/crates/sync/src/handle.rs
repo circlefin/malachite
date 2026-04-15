@@ -1,18 +1,19 @@
 use std::cmp::{max, min};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ops::RangeInclusive;
 
 use derive_where::derive_where;
 use tracing::{debug, error, info, warn};
 
-use malachitebft_core_types::utils::height::DisplayRange;
+use malachitebft_core_types::utils::height::{DisplayRange, HeightRangeExt};
 use malachitebft_core_types::{Context, Height};
 
 use crate::co::Co;
 use crate::scoring::SyncResult;
 use crate::{
     perform, Effect, Error, HeightStartType, InboundRequestId, Metrics, OutboundRequestId, PeerId,
-    RawDecidedValue, Request, Resume, State, Status, ValueRequest, ValueResponse,
+    PendingRequestEntry, RawDecidedValue, Request, Resume, State, Status, ValueRequest,
+    ValueResponse,
 };
 
 #[derive_where(Debug)]
@@ -119,10 +120,12 @@ where
     // Check if the response is valid. A valid response starts at the
     // requested start height, has at least one value, and no more than
     // the requested range.
-    let Some((requested_range, stored_peer_id)) = state.pending_requests.get(&request_id) else {
+    let Some(entry) = state.pending_requests.get(&request_id) else {
         warn!(%request_id, %peer_id, "Received response for unknown request ID");
         return Ok(());
     };
+    let requested_range = &entry.range;
+    let stored_peer_id = &entry.peer;
 
     if stored_peer_id != &peer_id {
         warn!(
@@ -451,48 +454,59 @@ where
     );
 
     // If the response contains a prefix of the requested values, re-request the remaining values.
-    if let Some((requested_range, stored_peer_id)) = state.pending_requests.get(&request_id) {
-        if stored_peer_id != &peer_id {
-            // Defensive check: This should never happen because this check is already performed in
-            // the handler of `Input::ValueResponse`.
-            error!(
-                %request_id, peer.actual = %peer_id, peer.expected = %stored_peer_id,
-                "Received response from different peer than expected"
-            );
-            return on_invalid_value_response(co, state, metrics, request_id, peer_id).await;
-        }
+    //
+    // Extract cheap Copy data from the entry. NLL releases the immutable borrow
+    // after the last use of `entry`, so mutable access to `state` is available
+    // below. The entry stays in the map and is only removed in the single path
+    // that needs to replace it (partial response with >0 values).
+    let Some(entry) = state.pending_requests.get(&request_id) else {
+        return Ok(());
+    };
 
-        let range_len = requested_range.end().as_u64() - requested_range.start().as_u64() + 1;
+    let (entry_peer, entry_range) = (entry.peer, &entry.range);
+    let range_start = *entry_range.start();
+    let range_end = *entry_range.end();
+    let range_len = entry_range.len();
 
-        if values_count < range_len as usize {
-            // NOTE: We cannot simply call `re_request_values_from_peer_except` here.
-            // Although we received some values from the peer, these values have not yet been processed
-            // by the consensus engine. If we called `re_request_values_from_peer_except`, we would
-            // end up re-requesting the entire original range (including values we already received),
-            // causing the syncing peer to repeatedly send multiple requests until the already-received
-            // values are fully processed.
-            // To tackle this, we first update the current pending request with the range of values
-            // it provides we received, and then issue a new request with the remaining values.
-            let new_start = requested_range.start().increment_by(values_count as u64);
+    if entry_peer != peer_id {
+        // Defensive check: This should never happen because this check is already performed in
+        // the handler of `Input::ValueResponse`.
+        error!(
+            %request_id, peer.actual = %peer_id, peer.expected = %entry_peer,
+            "Received response from different peer than expected"
+        );
 
-            let end = *requested_range.end();
-
-            if values_count == 0 {
-                error!(%request_id, %peer_id, "Received response contains no values");
-            } else {
-                // The response of this request only provided `response.values.len()` values,
-                // so update the pending request accordingly
-                let updated_range =
-                    *requested_range.start()..=new_start.decrement().unwrap_or_default();
-
-                state.update_request(request_id, peer_id, updated_range);
-            }
-
-            // Issue a new request to any peer, not necessarily the same one, for the remaining values
-            let new_range = new_start..=end;
-            request_values_range(co, state, metrics, new_range).await?;
-        }
+        // Entry is still in the map — on_invalid_value_response will remove it.
+        return on_invalid_value_response(co, state, metrics, request_id, peer_id).await;
     }
+
+    if values_count < range_len {
+        // NOTE: We cannot simply call `re_request_values_from_peer_except` here.
+        // Although we received some values from the peer, these values have not yet been processed
+        // by the consensus engine. If we called `re_request_values_from_peer_except`, we would
+        // end up re-requesting the entire original range (including values we already received),
+        // causing the syncing peer to repeatedly send multiple requests until the already-received
+        // values are fully processed.
+        // To tackle this, we first update the current pending request with the range of values
+        // it provides we received, and then issue a new request with the remaining values.
+        let new_start = range_start.increment_by(values_count as u64);
+
+        if values_count == 0 {
+            error!(%request_id, %peer_id, "Received response contains no values");
+            // Entry stays unchanged in the map — nothing to do.
+        } else {
+            // Only path that needs to modify the entry — remove to take ownership of excluded_peers.
+            let entry = state.pending_requests.remove(&request_id).unwrap();
+            let updated_range = range_start..=new_start.decrement().unwrap_or_default();
+            state.update_request(request_id, peer_id, updated_range, entry.excluded_peers);
+        }
+
+        // Issue a new request to any peer, not necessarily the same one, for the remaining values
+        let new_range = new_start..=range_end;
+        request_values_range(co, state, metrics, new_range).await?;
+    }
+    // Full response — entry stays as-is; prune_pending_requests cleans it up
+    // once consensus advances past this range.
 
     Ok(())
 }
@@ -700,7 +714,7 @@ where
             break;
         };
 
-        send_and_track_request_to_peer(&co, state, metrics, peer, range).await?;
+        send_and_track_request_to_peer(&co, state, metrics, peer, range, BTreeSet::new()).await?;
     }
 
     Ok(())
@@ -739,7 +753,7 @@ where
         return Ok(());
     };
 
-    send_and_track_request_to_peer(&co, state, metrics, peer, range).await?;
+    send_and_track_request_to_peer(&co, state, metrics, peer, range, BTreeSet::new()).await?;
 
     Ok(())
 }
@@ -750,6 +764,7 @@ async fn send_and_track_request_to_peer<Ctx>(
     metrics: &Metrics,
     peer: PeerId,
     range: RangeInclusive<<Ctx as Context>::Height>,
+    excluded_peers: BTreeSet<PeerId>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
@@ -762,9 +777,14 @@ where
     };
 
     // Store the pending request
-    state
-        .pending_requests
-        .insert(request_id, (final_range.clone(), peer));
+    state.pending_requests.insert(
+        request_id,
+        PendingRequestEntry {
+            range: final_range.clone(),
+            peer,
+            excluded_peers,
+        },
+    );
 
     // Update sync_height to the next uncovered height after this range
     set_sync_height(state, final_range.end().increment());
@@ -821,7 +841,15 @@ where
 }
 
 /// Remove the pending request and re-request the batch from another peer.
-/// If `except_peer_id` is provided, the request will be re-sent to a different peer than the one that sent the original request.
+///
+/// If `except_peer_id` is `Some`, the failed peer is added to the set of
+/// excluded peers accumulated across retries. Once every eligible peer has
+/// been tried and failed, no further retry is attempted and sync_height is
+/// reset so a future event (status update, consensus advance) can restart
+/// the request cycle with a clean slate.
+///
+/// If `except_peer_id` is `None` (internal processing error), no peer is
+/// added to the exclusion set because the failure was not the peer's fault.
 async fn re_request_values_from_peer_except<Ctx>(
     co: Co<Ctx>,
     state: &mut State<Ctx>,
@@ -834,34 +862,46 @@ where
 {
     info!(%request_id, except_peer_id = ?except_peer_id, "Re-requesting values from peer");
 
-    let Some((range, stored_peer_id)) = state.pending_requests.remove(&request_id.clone()) else {
+    let Some(mut entry) = state.pending_requests.remove(&request_id) else {
         warn!(%request_id, "Unknown request ID when re-requesting values");
         return Ok(());
     };
 
-    let except_peer_id = match except_peer_id {
-        Some(peer_id) if stored_peer_id == peer_id => Some(peer_id),
+    match except_peer_id {
+        Some(peer_id) if entry.peer == peer_id => {
+            entry.excluded_peers.insert(peer_id);
+        }
         Some(peer_id) => {
             warn!(
                 %request_id,
                 peer.actual = %peer_id,
-                peer.expected = %stored_peer_id,
+                peer.expected = %entry.peer,
                 "Received response from different peer than expected"
             );
 
-            Some(stored_peer_id)
+            entry.excluded_peers.insert(entry.peer);
+            entry.excluded_peers.insert(peer_id);
         }
-        None => None,
+        None => {
+            // Internal processing error — not the peer's fault, don't exclude anyone.
+        }
     };
 
-    let Some((peer, peer_range)) = state.random_peer_with_except(&range, except_peer_id) else {
-        debug!("No peer to re-request sync from");
-        // Reset sync_height towards the start of the failed range so it can be retried.
-        set_sync_height(state, min(state.sync_height, *range.start()));
+    let Some((peer, peer_range)) =
+        state.random_peer_with_except(&entry.range, &entry.excluded_peers)
+    else {
+        debug!(
+            excluded_peers = entry.excluded_peers.len(),
+            "No peer to re-request sync from, all eligible peers exhausted"
+        );
+        // Reset sync_height towards the start of the failed range so it can be retried
+        // when conditions change (new status update, consensus advance, peer reconnect).
+        set_sync_height(state, min(state.sync_height, *entry.range.start()));
         return Ok(());
     };
 
-    send_and_track_request_to_peer(&co, state, metrics, peer, peer_range).await?;
+    send_and_track_request_to_peer(&co, state, metrics, peer, peer_range, entry.excluded_peers)
+        .await?;
 
     Ok(())
 }
@@ -903,7 +943,7 @@ fn set_sync_height<Ctx: Context>(state: &mut State<Ctx>, candidate: Ctx::Height)
 fn find_next_uncovered_range_from<Ctx>(
     mut initial_height: Ctx::Height,
     max_range_size: u64,
-    pending_requests: &BTreeMap<OutboundRequestId, (RangeInclusive<Ctx::Height>, PeerId)>,
+    pending_requests: &BTreeMap<OutboundRequestId, PendingRequestEntry<Ctx::Height>>,
 ) -> RangeInclusive<Ctx::Height>
 where
     Ctx: Context,
@@ -925,7 +965,7 @@ where
     // Find the pending request with the smallest range.start where range.end >= initial_height
     let next_range = pending_requests
         .values()
-        .map(|(range, _)| range)
+        .map(|entry| &entry.range)
         .filter(|range| *range.end() >= initial_height)
         .min_by_key(|range| range.start());
 
@@ -948,17 +988,17 @@ where
 /// Find the next height that's not covered by any pending request starting from starting_height.
 fn find_next_uncovered_height<Ctx>(
     starting_height: Ctx::Height,
-    pending_requests: &BTreeMap<OutboundRequestId, (RangeInclusive<Ctx::Height>, PeerId)>,
+    pending_requests: &BTreeMap<OutboundRequestId, PendingRequestEntry<Ctx::Height>>,
 ) -> Ctx::Height
 where
     Ctx: Context,
 {
     let mut next_height = starting_height;
-    while let Some((covered_range, _)) = pending_requests
+    while let Some(entry) = pending_requests
         .values()
-        .find(|(r, _)| r.contains(&next_height))
+        .find(|entry| entry.range.contains(&next_height))
     {
-        next_height = covered_range.end().increment();
+        next_height = entry.range.end().increment();
     }
     next_height
 }
@@ -970,12 +1010,12 @@ mod tests {
     use bytes::Bytes;
     use malachitebft_core_types::{CommitCertificate, Round};
     use rand::SeedableRng;
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, BTreeSet};
 
     use crate::effect::Resumable;
     use crate::Config;
 
-    type TestPendingRequests = BTreeMap<OutboundRequestId, (RangeInclusive<Height>, PeerId)>;
+    type TestPendingRequests = BTreeMap<OutboundRequestId, PendingRequestEntry<Height>>;
 
     // Test case structures for table-driven tests
 
@@ -1074,7 +1114,11 @@ mod tests {
                 let peer = PeerId::random();
                 pending_requests.insert(
                     OutboundRequestId::new(format!("req{}", i + 1)),
-                    (Height::new(start)..=Height::new(end), peer),
+                    PendingRequestEntry {
+                        range: Height::new(start)..=Height::new(end),
+                        peer,
+                        excluded_peers: BTreeSet::new(),
+                    },
                 );
             }
 
@@ -1148,7 +1192,11 @@ mod tests {
                 let peer = PeerId::random();
                 pending_requests.insert(
                     OutboundRequestId::new(format!("req{}", i + 1)),
-                    (Height::new(start)..=Height::new(end), peer),
+                    PendingRequestEntry {
+                        range: Height::new(start)..=Height::new(end),
+                        peer,
+                        excluded_peers: BTreeSet::new(),
+                    },
                 );
             }
 
@@ -1230,7 +1278,11 @@ mod tests {
                 let peer = PeerId::random();
                 pending_requests.insert(
                     OutboundRequestId::new(format!("req{}", i + 1)),
-                    (Height::new(start)..=Height::new(end), peer),
+                    PendingRequestEntry {
+                        range: Height::new(start)..=Height::new(end),
+                        peer,
+                        excluded_peers: BTreeSet::new(),
+                    },
                 );
             }
 
@@ -1578,7 +1630,11 @@ mod tests {
         let peer_a = PeerId::random();
         state.pending_requests.insert(
             OutboundRequestId::new("req1"),
-            (Height::new(110)..=Height::new(120), peer_a),
+            PendingRequestEntry {
+                range: Height::new(110)..=Height::new(120),
+                peer: peer_a,
+                excluded_peers: BTreeSet::new(),
+            },
         );
 
         // Deciding heights 110..=112 advances tip to 112.
@@ -1588,7 +1644,8 @@ mod tests {
         drive_input(&mut state, &metrics, Input::Decided(Height::new(112))).unwrap();
 
         assert_eq!(state.tip_height, Height::new(112));
-        for (range, _) in state.pending_requests.values() {
+        for entry in state.pending_requests.values() {
+            let range = &entry.range;
             assert!(
                 !range.contains(&state.sync_height),
                 "sync_height ({}) inside pending request range {}..={}",
@@ -1614,11 +1671,19 @@ mod tests {
         let peer_b = PeerId::random();
         state.pending_requests.insert(
             OutboundRequestId::new("req1"),
-            (Height::new(100)..=Height::new(110), peer_a),
+            PendingRequestEntry {
+                range: Height::new(100)..=Height::new(110),
+                peer: peer_a,
+                excluded_peers: BTreeSet::new(),
+            },
         );
         state.pending_requests.insert(
             OutboundRequestId::new("req2"),
-            (Height::new(111)..=Height::new(120), peer_b),
+            PendingRequestEntry {
+                range: Height::new(111)..=Height::new(120),
+                peer: peer_b,
+                excluded_peers: BTreeSet::new(),
+            },
         );
         state.peers.insert(
             peer_a,
@@ -1656,7 +1721,8 @@ mod tests {
         )
         .unwrap();
 
-        for (range, _) in state.pending_requests.values() {
+        for entry in state.pending_requests.values() {
+            let range = &entry.range;
             assert!(
                 !range.contains(&state.sync_height),
                 "sync_height ({}) inside pending request range {}..={}",
@@ -1677,7 +1743,11 @@ mod tests {
         state.sync_height = Height::new(15);
         state.pending_requests.insert(
             OutboundRequestId::new("req1"),
-            (Height::new(10)..=Height::new(14), PeerId::random()),
+            PendingRequestEntry {
+                range: Height::new(10)..=Height::new(14),
+                peer: PeerId::random(),
+                excluded_peers: BTreeSet::new(),
+            },
         );
 
         drive_input(
@@ -1706,7 +1776,11 @@ mod tests {
         let peer_a = PeerId::random();
         state.pending_requests.insert(
             OutboundRequestId::new("req1"),
-            (Height::new(11)..=Height::new(15), peer_a),
+            PendingRequestEntry {
+                range: Height::new(11)..=Height::new(15),
+                peer: peer_a,
+                excluded_peers: BTreeSet::new(),
+            },
         );
         state.peers.insert(
             peer_a,
@@ -1747,6 +1821,150 @@ mod tests {
         assert_eq!(state.sync_height, Height::new(13));
     }
 
+    // -- re_request: excluded peers accumulate across retries --
+
+    /// Like [`drive_input`] but provides `ValueRequestId` resumes when
+    /// `SendValueRequest` effects are yielded, allowing retry paths to
+    /// complete without error.
+    fn drive_input_with_retries(
+        state: &mut State<TestContext>,
+        metrics: &crate::Metrics,
+        input: Input<TestContext>,
+    ) -> Result<Vec<crate::Effect<TestContext>>, crate::Error<TestContext>> {
+        use crate::co::{CoState, Gen};
+        use crate::Resume;
+
+        let mut effects = Vec::new();
+        let mut gen = Gen::new(|co| handle(co, state, metrics, input));
+        let mut result = gen.resume_with(Resume::default());
+        let mut req_counter = 0u64;
+
+        loop {
+            match result {
+                CoState::Yielded(effect) => {
+                    let resume = match &effect {
+                        Effect::SendValueRequest(..) => {
+                            req_counter += 1;
+                            Resume::ValueRequestId(Some(OutboundRequestId::new(format!(
+                                "retry_req{req_counter}"
+                            ))))
+                        }
+                        _ => Resume::default(),
+                    };
+                    effects.push(effect);
+                    result = gen.resume_with(resume);
+                }
+                CoState::Complete(r) => return r.map(|()| effects),
+            }
+        }
+    }
+
+    #[test]
+    fn test_re_request_stops_after_all_peers_exhausted() {
+        let mut state = make_test_state();
+        state.started = true;
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        state.tip_height = Height::new(10);
+        state.sync_height = Height::new(16);
+
+        let peer_a = PeerId::random();
+        let peer_b = PeerId::random();
+
+        // Register both peers as having the data.
+        state.peers.insert(
+            peer_a,
+            crate::Status {
+                peer_id: peer_a,
+                tip_height: Height::new(20),
+                history_min_height: Height::new(1),
+            },
+        );
+        state.peers.insert(
+            peer_b,
+            crate::Status {
+                peer_id: peer_b,
+                tip_height: Height::new(20),
+                history_min_height: Height::new(1),
+            },
+        );
+
+        // Pending request assigned to peer_a for heights 11..=15.
+        state.pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            PendingRequestEntry {
+                range: Height::new(11)..=Height::new(15),
+                peer: peer_a,
+                excluded_peers: BTreeSet::new(),
+            },
+        );
+
+        // Peer A times out — retry should go to peer B with A in the excluded set.
+        let effects = drive_input_with_retries(
+            &mut state,
+            &metrics,
+            Input::SyncRequestTimedOut(
+                OutboundRequestId::new("req1"),
+                peer_a,
+                crate::Request::ValueRequest(crate::ValueRequest::new(
+                    Height::new(11)..=Height::new(15),
+                )),
+            ),
+        )
+        .unwrap();
+
+        // A new request should have been sent (to peer B).
+        assert!(
+            effects
+                .iter()
+                .any(|e| matches!(e, Effect::SendValueRequest(..))),
+            "Expected a new request after peer A timed out"
+        );
+
+        // Verify the new pending request carries A in the excluded set.
+        assert_eq!(state.pending_requests.len(), 1);
+        let (new_req_id, entry) = state.pending_requests.iter().next().unwrap();
+        assert_ne!(entry.peer, peer_a, "Retry should not go back to peer A");
+        assert!(
+            entry.excluded_peers.contains(&peer_a),
+            "Peer A should be in the excluded set"
+        );
+        let new_req_id = new_req_id.clone();
+
+        // Peer B also times out — all peers exhausted, no further retry.
+        let effects = drive_input_with_retries(
+            &mut state,
+            &metrics,
+            Input::SyncRequestTimedOut(
+                new_req_id,
+                peer_b,
+                crate::Request::ValueRequest(crate::ValueRequest::new(
+                    Height::new(11)..=Height::new(15),
+                )),
+            ),
+        )
+        .unwrap();
+
+        // No new request should be sent.
+        assert!(
+            !effects
+                .iter()
+                .any(|e| matches!(e, Effect::SendValueRequest(..))),
+            "No request should be sent after all peers are exhausted"
+        );
+
+        // Pending requests should be empty.
+        assert!(
+            state.pending_requests.is_empty(),
+            "No pending requests should remain"
+        );
+
+        // sync_height should have been reset but remain above tip_height.
+        // sync_height should reset to the start of the failed range (11),
+        // which is above tip_height (10).
+        assert_eq!(state.sync_height, Height::new(11));
+    }
+
     // -- on_value_response: certificate height validation --
 
     /// Helper to create a RawDecidedValue with a given certificate height.
@@ -1785,7 +2003,11 @@ mod tests {
         );
         state.pending_requests.insert(
             OutboundRequestId::new("req1"),
-            (Height::new(range_start)..=Height::new(range_end), peer),
+            PendingRequestEntry {
+                range: Height::new(range_start)..=Height::new(range_end),
+                peer,
+                excluded_peers: BTreeSet::new(),
+            },
         );
 
         (state, metrics, peer)

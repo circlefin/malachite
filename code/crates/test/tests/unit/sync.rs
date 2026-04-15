@@ -1,6 +1,6 @@
 use arc_malachitebft_test::{Height, TestContext};
 use malachitebft_sync::{PeerId, State, Status};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[test]
 fn filter_peers_by_range_test() {
@@ -11,7 +11,7 @@ fn filter_peers_by_range_test() {
         name: &'static str,
         peers: Vec<(PeerId, u64, u64)>,
         range: std::ops::RangeInclusive<Height>,
-        exclude_peer: Option<PeerId>,
+        exclude_peers: BTreeSet<PeerId>,
         expected_peers: Vec<PeerId>,
         expected_ranges: Vec<(u64, u64)>, // (start, end) for each expected peer
     }
@@ -21,7 +21,7 @@ fn filter_peers_by_range_test() {
             name: "no peers",
             peers: vec![],
             range: Height::new(1)..=Height::new(20),
-            exclude_peer: None,
+            exclude_peers: BTreeSet::new(),
             expected_peers: vec![],
             expected_ranges: vec![],
         },
@@ -29,7 +29,7 @@ fn filter_peers_by_range_test() {
             name: "peers providing the full range, no exclusion",
             peers: vec![(peer1, 10, 15), (peer2, 10, 20)],
             range: Height::new(13)..=Height::new(15),
-            exclude_peer: None,
+            exclude_peers: BTreeSet::new(),
             expected_peers: vec![peer1, peer2],
             expected_ranges: vec![(13, 15), (13, 15)],
         },
@@ -37,7 +37,7 @@ fn filter_peers_by_range_test() {
             name: "peers providing the full range, excluding one peer",
             peers: vec![(peer1, 10, 15), (peer2, 10, 20)],
             range: Height::new(13)..=Height::new(15),
-            exclude_peer: Some(peer1),
+            exclude_peers: BTreeSet::from([peer1]),
             expected_peers: vec![peer2],
             expected_ranges: vec![(13, 15)],
         },
@@ -45,7 +45,7 @@ fn filter_peers_by_range_test() {
             name: "one peer providing a prefix range, no exclusion",
             peers: vec![(peer1, 10, 15), (peer2, 10, 20)],
             range: Height::new(17)..=Height::new(30),
-            exclude_peer: None,
+            exclude_peers: BTreeSet::new(),
             expected_peers: vec![peer2],
             expected_ranges: vec![(17, 20)],
         },
@@ -53,7 +53,7 @@ fn filter_peers_by_range_test() {
             name: "one peer providing a prefix range, excluding one peer",
             peers: vec![(peer1, 10, 15), (peer2, 10, 20)],
             range: Height::new(17)..=Height::new(30),
-            exclude_peer: Some(peer2),
+            exclude_peers: BTreeSet::from([peer2]),
             expected_peers: vec![],
             expected_ranges: vec![],
         },
@@ -61,7 +61,7 @@ fn filter_peers_by_range_test() {
             name: "no peers providing start height, no exclusion",
             peers: vec![(peer1, 10, 15), (peer2, 10, 20)],
             range: Height::new(5)..=Height::new(10),
-            exclude_peer: None,
+            exclude_peers: BTreeSet::new(),
             expected_peers: vec![],
             expected_ranges: vec![],
         },
@@ -69,7 +69,15 @@ fn filter_peers_by_range_test() {
             name: "no peers providing the range, no exclusion",
             peers: vec![(peer1, 10, 15), (peer2, 10, 20)],
             range: Height::new(21)..=Height::new(30),
-            exclude_peer: None,
+            exclude_peers: BTreeSet::new(),
+            expected_peers: vec![],
+            expected_ranges: vec![],
+        },
+        TestCase {
+            name: "excluding multiple peers leaves none",
+            peers: vec![(peer1, 10, 20), (peer2, 10, 20)],
+            range: Height::new(13)..=Height::new(15),
+            exclude_peers: BTreeSet::from([peer1, peer2]),
             expected_peers: vec![],
             expected_ranges: vec![],
         },
@@ -92,7 +100,7 @@ fn filter_peers_by_range_test() {
         let filtered_peers = State::<TestContext>::filter_peers_by_range(
             &peers,
             &test_case.range,
-            test_case.exclude_peer,
+            &test_case.exclude_peers,
         );
 
         // Validate expected number of peers
