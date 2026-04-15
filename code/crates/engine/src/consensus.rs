@@ -238,6 +238,10 @@ pub struct State<Ctx: Context> {
     /// The current phase
     phase: Phase,
 
+    /// Whether this node is in the validator set for the current height.
+    /// Non-validators skip WAL writes since they have no equivocation risk.
+    is_validator: bool,
+
     /// A buffer of messages that were received while
     /// consensus was not in the `Running` phase
     msg_buffer: MessageBuffer<Ctx>,
@@ -277,6 +281,7 @@ where
 
 struct HandlerState<'a, Ctx: Context> {
     phase: Phase,
+    is_validator: bool,
     timers: &'a mut Timers,
     timeouts: Ctx::Timeouts,
 }
@@ -330,6 +335,7 @@ where
             with: effect => {
                 let handler_state = HandlerState {
                     phase: state.phase,
+                    is_validator: state.is_validator,
                     timers: &mut state.timers,
                     timeouts: state.timeouts,
                 };
@@ -401,6 +407,15 @@ where
                 self.tx_event
                     .send(|| Event::StartedHeight(height, is_restart));
 
+                // Determine if this node is an active validator for this height.
+                // Mirrors ConsensusState::is_active_validator(): both `enabled` and
+                // validator set membership must hold.
+                state.is_validator = self.params.enabled
+                    && params
+                        .validator_set
+                        .get_by_address(&self.params.address)
+                        .is_some();
+
                 // Push validator set to network layer
                 if let Err(e) = self
                     .network
@@ -409,11 +424,19 @@ where
                     error!(%height, "Error pushing validator set to network layer: {e}");
                 }
 
-                // Fetch entries from the WAL or reset the WAL if this is a restart
+                // Fetch entries from the WAL or reset the WAL if this is a restart.
+                // Non-validators skip WAL recovery and reset any stale entries.
                 let wal_entries = if is_restart {
                     hang_on_failure(self.wal_reset(height), |e| {
                         error!(%height, "Error when resetting WAL: {e}");
                         error!(%height, "Consensus may be in an inconsistent state after WAL reset failure");
+                    })
+                    .await;
+
+                    vec![]
+                } else if !state.is_validator {
+                    hang_on_failure(self.wal_reset(height), |e| {
+                        error!(%height, "Error when resetting WAL for non-validator: {e}");
                     })
                     .await;
 
@@ -430,8 +453,8 @@ where
                 state.timeouts = params.timeouts;
 
                 let wal_replay_delay = self.consensus_config.wal_replay_delay;
-                // Note: `is_restart` always yields empty `wal_entries`, so the delay
-                // is inherently skipped on restarts; no need to check for `is_restart`.
+                // Note: both `is_restart` and non-validator paths yield empty
+                // `wal_entries`, so the delay is inherently skipped in those cases.
                 let should_delay = !wal_entries.is_empty() && !wal_replay_delay.is_zero();
 
                 // Start consensus for the given height
@@ -1049,8 +1072,9 @@ where
         height: Ctx::Height,
         entry: WalEntry<Ctx>,
         phase: Phase,
+        is_validator: bool,
     ) -> Result<(), ActorProcessingErr> {
-        if phase == Phase::Recovering {
+        if phase == Phase::Recovering || !is_validator {
             return Ok(());
         }
 
@@ -1071,8 +1095,8 @@ where
         Ok(())
     }
 
-    async fn wal_flush(&self, phase: Phase) -> Result<(), ActorProcessingErr> {
-        if phase == Phase::Recovering {
+    async fn wal_flush(&self, phase: Phase, is_validator: bool) -> Result<(), ActorProcessingErr> {
+        if phase == Phase::Recovering || !is_validator {
             return Ok(());
         }
 
@@ -1199,7 +1223,7 @@ where
             }
 
             Effect::StartRound(height, round, proposer, role, r) => {
-                self.wal_flush(state.phase).await?;
+                self.wal_flush(state.phase, state.is_validator).await?;
 
                 let undecided_values =
                     ractor::call!(self.host, |reply_to| HostMsg::StartedRound {
@@ -1337,7 +1361,7 @@ where
             Effect::PublishConsensusMsg(msg, r) => {
                 // Sync the WAL to disk before we broadcast the message
                 // NOTE: The message has already been append to the WAL by the `WalAppend` effect.
-                self.wal_flush(state.phase).await?;
+                self.wal_flush(state.phase, state.is_validator).await?;
 
                 // Notify any subscribers that we are about to publish a message
                 self.tx_event.send(|| Event::Published(msg.clone()));
@@ -1427,7 +1451,7 @@ where
                 assert!(!certificate.commit_signatures.is_empty());
 
                 // Sync the WAL to disk before we decide the value
-                self.wal_flush(state.phase).await?;
+                self.wal_flush(state.phase, state.is_validator).await?;
 
                 // Notify any subscribers about the decided value
                 self.tx_event.send(|| Event::Decided {
@@ -1573,7 +1597,8 @@ where
             }
 
             Effect::WalAppend(height, entry, r) => {
-                self.wal_append(height, entry, state.phase).await?;
+                self.wal_append(height, entry, state.phase, state.is_validator)
+                    .await?;
                 Ok(r.resume_with(()))
             }
         }
@@ -1610,6 +1635,7 @@ where
             consensus: None,
             connected_peers: BTreeSet::new(),
             phase: Phase::Unstarted,
+            is_validator: false,
             msg_buffer: MessageBuffer::new(MAX_BUFFER_SIZE),
             pending_wal_entries: Vec::new(),
             wal_replay_timer: None,
