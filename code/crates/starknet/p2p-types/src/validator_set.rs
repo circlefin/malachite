@@ -18,6 +18,12 @@ impl ValidatorSet {
 
         assert!(!validators.is_empty());
 
+        // Verify that total voting power does not overflow u64
+        validators
+            .iter()
+            .try_fold(0u64, |acc, v| acc.checked_add(v.voting_power))
+            .expect("total voting power overflow");
+
         Self {
             validators: Arc::new(validators),
         }
@@ -25,7 +31,10 @@ impl ValidatorSet {
 
     /// The total voting power of the validator set
     pub fn total_voting_power(&self) -> VotingPower {
-        self.validators.iter().map(|v| v.voting_power).sum()
+        self.validators
+            .iter()
+            .try_fold(0u64, |acc, v| acc.checked_add(v.voting_power))
+            .expect("total voting power overflow")
     }
 
     /// Get a validator by its address
@@ -83,5 +92,25 @@ impl<'de> Deserialize<'de> for ValidatorSet {
         }
 
         ValidatorSet::deserialize(deserializer).map(|vs| Self::new(vs.validators))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::PrivateKey;
+    use rand::SeedableRng;
+
+    fn make_validator(seed: u64, voting_power: VotingPower) -> Validator {
+        let rng = rand::rngs::StdRng::seed_from_u64(seed);
+        let sk = PrivateKey::generate(rng);
+        Validator::new(sk.public_key(), voting_power)
+    }
+
+    #[test]
+    #[should_panic(expected = "total voting power overflow")]
+    fn new_panics_on_voting_power_overflow() {
+        let power = u64::MAX / 2 + 1;
+        ValidatorSet::new(vec![make_validator(1, power), make_validator(2, power)]);
     }
 }

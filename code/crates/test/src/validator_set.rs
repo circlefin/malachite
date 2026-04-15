@@ -75,6 +75,12 @@ impl ValidatorSet {
 
         assert!(!validators.is_empty());
 
+        // Verify that total voting power does not overflow u64
+        validators
+            .iter()
+            .try_fold(0u64, |acc, v| acc.checked_add(v.voting_power))
+            .expect("total voting power overflow");
+
         Self {
             validators: Arc::new(validators),
         }
@@ -97,7 +103,10 @@ impl ValidatorSet {
 
     /// The total voting power of the validator set
     pub fn total_voting_power(&self) -> VotingPower {
-        self.validators.iter().map(|v| v.voting_power).sum()
+        self.validators
+            .iter()
+            .try_fold(0u64, |acc, v| acc.checked_add(v.voting_power))
+            .expect("total voting power overflow")
     }
 
     /// Get a validator by its index
