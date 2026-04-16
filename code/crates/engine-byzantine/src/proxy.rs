@@ -25,7 +25,7 @@ use malachitebft_core_types::{
     Context, Height, NilOrVal, Proposal, Round, ValueId, Vote, VoteType,
 };
 use malachitebft_engine::network::{Msg as NetworkMsg, NetworkRef};
-use malachitebft_signing::SigningProvider;
+use malachitebft_signing::Signer;
 
 use crate::config::{make_rng, ByzantineConfig};
 
@@ -52,7 +52,7 @@ pub type ConflictingVoteValueFn<Ctx> =
 pub struct ByzantineNetworkProxy<Ctx: Context> {
     config: ByzantineConfig,
     real_network: NetworkRef<Ctx>,
-    signing_provider: Box<dyn SigningProvider<Ctx>>,
+    signer: Box<dyn Signer<Ctx>>,
     ctx: Ctx,
     address: Ctx::Address,
     span: tracing::Span,
@@ -95,7 +95,7 @@ impl<Ctx: Context> ByzantineNetworkProxy<Ctx> {
     pub async fn spawn(
         config: ByzantineConfig,
         real_network: NetworkRef<Ctx>,
-        signing_provider: Box<dyn SigningProvider<Ctx>>,
+        signer: Box<dyn Signer<Ctx>>,
         ctx: Ctx,
         address: Ctx::Address,
         span: tracing::Span,
@@ -110,7 +110,7 @@ impl<Ctx: Context> ByzantineNetworkProxy<Ctx> {
         let proxy = Self {
             config,
             real_network,
-            signing_provider,
+            signer,
             ctx,
             address,
             span,
@@ -401,7 +401,7 @@ impl<Ctx: Context> ByzantineNetworkProxy<Ctx> {
         );
 
         let signed = self
-            .signing_provider
+            .signer
             .sign_proposal(conflicting_proposal)
             .await
             .map_err(|e| eyre!("Failed to sign conflicting proposal: {e}"))?;
@@ -473,7 +473,7 @@ impl<Ctx: Context> ByzantineNetworkProxy<Ctx> {
         };
 
         let signed = self
-            .signing_provider
+            .signer
             .sign_vote(conflicting_vote)
             .await
             .map_err(|e| eyre!("Failed to sign conflicting vote: {e}"))?;

@@ -1,6 +1,6 @@
 use futures::executor::block_on;
 use malachitebft_core_types::CommitCertificate;
-use malachitebft_signing::SigningProviderExt;
+use malachitebft_signing::VerifierExt;
 
 use super::{make_validators, types::*, CertificateBuilder, CertificateTest, DEFAULT_SEED};
 
@@ -21,7 +21,7 @@ impl CertificateBuilder for Commit {
 
     fn verify_certificate(
         ctx: &TestContext,
-        signer: &Ed25519Provider,
+        signer: &Ed25519Signer,
         certificate: &Self::Certificate,
         validator_set: &ValidatorSet,
         threshold_params: ThresholdParams,

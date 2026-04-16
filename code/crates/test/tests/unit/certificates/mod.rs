@@ -8,14 +8,13 @@ use std::marker::PhantomData;
 
 pub mod types {
     pub use arc_malachitebft_test::{
-        utils, Address, Ed25519Provider, Height, TestContext, Validator, ValidatorSet, ValueId,
-        Vote,
+        utils, Address, Ed25519Signer, Height, TestContext, Validator, ValidatorSet, ValueId, Vote,
     };
     pub use malachitebft_core_types::{
         CertificateError, CommitSignature, Context, NilOrVal, PolkaSignature, Round,
         RoundCertificateType, RoundSignature, SignedVote, ThresholdParams, VoteType, VotingPower,
     };
-    pub use malachitebft_signing::SigningProvider;
+    pub use malachitebft_signing::Signer;
     pub use malachitebft_signing_ed25519::Signature;
 }
 
@@ -29,11 +28,11 @@ const DEFAULT_SEED: u64 = 0xfeedbeef;
 pub fn make_validators<const N: usize>(
     voting_powers: [VotingPower; N],
     seed: u64,
-) -> ([Validator; N], [Ed25519Provider; N]) {
+) -> ([Validator; N], [Ed25519Signer; N]) {
     let (validators, private_keys): (Vec<_>, Vec<_>) =
         utils::validators::make_validators_seeded(voting_powers, seed)
             .into_iter()
-            .map(|(v, pk)| (v, Ed25519Provider::new(pk)))
+            .map(|(v, pk)| (v, Ed25519Signer::new(pk)))
             .unzip();
 
     (
@@ -54,7 +53,7 @@ pub trait CertificateBuilder {
 
     fn verify_certificate(
         ctx: &TestContext,
-        signer: &Ed25519Provider,
+        signer: &Ed25519Signer,
         certificate: &Self::Certificate,
         validator_set: &ValidatorSet,
         threshold_params: ThresholdParams,
@@ -82,7 +81,7 @@ pub struct CertificateTest<C> {
     round: Round,
     value_id: ValueId,
     validators: Vec<Validator>,
-    signers: Vec<Ed25519Provider>,
+    signers: Vec<Ed25519Signer>,
     votes: Vec<SignedVote<TestContext>>,
     marker: PhantomData<C>,
 }

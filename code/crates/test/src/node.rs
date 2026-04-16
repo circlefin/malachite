@@ -8,9 +8,8 @@ use malachitebft_app::events::RxEvent;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use malachitebft_signing::SigningProvider;
-
 use malachitebft_core_types::{Context, PrivateKey, PublicKey};
+use malachitebft_signing::{Signer, Verifier};
 
 pub use libp2p_identity::Keypair;
 
@@ -30,7 +29,8 @@ pub trait Node {
     type Config: NodeConfig + Serialize + DeserializeOwned;
     type Genesis: Serialize + DeserializeOwned;
     type PrivateKeyFile: Serialize + DeserializeOwned;
-    type SigningProvider: SigningProvider<Self::Context> + 'static;
+    type Verifier: Verifier<Self::Context> + 'static;
+    type Signer: Signer<Self::Context> + 'static;
     type NodeHandle: NodeHandle<Self::Context>;
 
     async fn start(&self) -> eyre::Result<Self::NodeHandle>;
@@ -53,6 +53,7 @@ pub trait Node {
 
     fn load_genesis(&self) -> eyre::Result<Self::Genesis>;
 
-    fn get_signing_provider(&self, private_key: PrivateKey<Self::Context>)
-        -> Self::SigningProvider;
+    fn get_verifier(&self) -> Self::Verifier;
+
+    fn get_signer(&self, private_key: PrivateKey<Self::Context>) -> Self::Signer;
 }

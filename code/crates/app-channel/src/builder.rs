@@ -16,7 +16,7 @@ use malachitebft_engine::sync::SyncRef;
 use malachitebft_engine::util::events::TxEvent;
 use malachitebft_engine::util::output_port::{OutputPort, OutputPortSubscriberTrait};
 use malachitebft_engine::wal::WalRef;
-use malachitebft_signing::SigningProvider;
+use malachitebft_signing::{Signer, Verifier};
 
 use crate::app::config::NodeConfig;
 use crate::app::metrics::{Metrics, SharedRegistry};
@@ -74,16 +74,32 @@ impl<Codec> NetworkContext<Codec> {
 }
 
 /// Context for spawning the Consensus actor.
-pub struct ConsensusContext<Ctx: Context, Signer> {
+pub struct ConsensusContext<Ctx: Context> {
     pub address: Ctx::Address,
-    pub signing_provider: Signer,
+    pub verifier: Box<dyn Verifier<Ctx>>,
+    pub signer: Option<Box<dyn Signer<Ctx>>>,
 }
 
-impl<Ctx: Context, Signer> ConsensusContext<Ctx, Signer> {
-    pub fn new(address: Ctx::Address, signing_provider: Signer) -> Self {
+impl<Ctx: Context> ConsensusContext<Ctx> {
+    /// Create a consensus context for a validator node (has both verifier and signer).
+    pub fn new_validator(
+        address: Ctx::Address,
+        verifier: Box<dyn Verifier<Ctx>>,
+        signer: Box<dyn Signer<Ctx>>,
+    ) -> Self {
         Self {
             address,
-            signing_provider,
+            verifier,
+            signer: Some(signer),
+        }
+    }
+
+    /// Create a consensus context for a full (non-validator) node (verifier only).
+    pub fn new_full_node(address: Ctx::Address, verifier: Box<dyn Verifier<Ctx>>) -> Self {
+        Self {
+            address,
+            verifier,
+            signer: None,
         }
     }
 }
@@ -136,9 +152,9 @@ pub enum SyncBuilder<Ctx: Context, Codec> {
 }
 
 /// Builder for the Consensus actor.
-pub enum ConsensusBuilder<Ctx: Context, Signer> {
+pub enum ConsensusBuilder<Ctx: Context> {
     /// Use the default Consensus actor with the given context.
-    Default(ConsensusContext<Ctx, Signer>),
+    Default(ConsensusContext<Ctx>),
 }
 
 /// Builder for request channels.
@@ -169,7 +185,19 @@ pub enum RequestBuilder {
 ///     .with_default_wal(WalContext::new(path, codec))
 ///     .with_default_network(NetworkContext::new(identity, codec))
 ///     .with_default_sync(SyncContext::new(sync_codec))
-///     .with_default_consensus(ConsensusContext::new(address, signer))
+///     .with_default_consensus(ConsensusContext::new_validator(address, verifier, signer))
+///     .with_default_request(RequestContext::new(100))
+///     .build()
+///     .await?;
+/// ```
+///
+/// # Example: Full (non-validator) node
+/// ```rust,ignore
+/// let (channels, handle) = EngineBuilder::new(ctx, config)
+///     .with_default_wal(WalContext::new(path, codec))
+///     .with_default_network(NetworkContext::new(identity, codec))
+///     .with_default_sync(SyncContext::new(sync_codec))
+///     .with_default_consensus(ConsensusContext::new_full_node(address, verifier))
 ///     .with_default_request(RequestContext::new(100))
 ///     .build()
 ///     .await?;
@@ -183,7 +211,7 @@ pub enum RequestBuilder {
 ///     .with_default_wal(WalContext::new(path, codec))
 ///     .with_custom_network(network_ref, tx_network)
 ///     .with_default_sync(SyncContext::new(sync_codec))
-///     .with_default_consensus(ConsensusContext::new(address, signer))
+///     .with_default_consensus(ConsensusContext::new_validator(address, verifier, signer))
 ///     .with_default_request(RequestContext::new(100))
 ///     .build()
 ///     .await?;
@@ -191,7 +219,6 @@ pub enum RequestBuilder {
 pub struct EngineBuilder<
     Ctx,
     Config,
-    Signer,
     WalCodec,
     NetCodec,
     SyncCodec,
@@ -211,12 +238,12 @@ pub struct EngineBuilder<
     wal: Option<WalBuilder<Ctx, WalCodec>>,
     network: Option<NetworkBuilder<Ctx, NetCodec>>,
     sync: Option<SyncBuilder<Ctx, SyncCodec>>,
-    consensus: Option<ConsensusBuilder<Ctx, Signer>>,
+    consensus: Option<ConsensusBuilder<Ctx>>,
     request: Option<RequestBuilder>,
 }
 
 // Implementation for creating a new builder (all flags start as false, codec types default to NoCodec)
-impl<Ctx, Config, Signer> EngineBuilder<Ctx, Config, Signer, NoCodec, NoCodec, NoCodec>
+impl<Ctx, Config> EngineBuilder<Ctx, Config, NoCodec, NoCodec, NoCodec>
 where
     Ctx: Context,
 {
@@ -246,7 +273,6 @@ where
 impl<
         Ctx,
         Config,
-        Signer,
         WalCodec,
         NetCodec,
         SyncCodec,
@@ -259,7 +285,6 @@ impl<
     EngineBuilder<
         Ctx,
         Config,
-        Signer,
         WalCodec,
         NetCodec,
         SyncCodec,
@@ -276,11 +301,10 @@ where
     #[must_use]
     pub fn with_default_consensus(
         self,
-        context: ConsensusContext<Ctx, Signer>,
+        context: ConsensusContext<Ctx>,
     ) -> EngineBuilder<
         Ctx,
         Config,
-        Signer,
         WalCodec,
         NetCodec,
         SyncCodec,
@@ -309,7 +333,6 @@ where
     ) -> EngineBuilder<
         Ctx,
         Config,
-        Signer,
         WalCodec,
         NetCodec,
         SyncCodec,
@@ -335,7 +358,6 @@ where
 impl<
         Ctx,
         Config,
-        Signer,
         NetCodec,
         SyncCodec,
         const HAS_NETWORK: bool,
@@ -346,7 +368,6 @@ impl<
     EngineBuilder<
         Ctx,
         Config,
-        Signer,
         NoCodec,
         NetCodec,
         SyncCodec,
@@ -367,7 +388,6 @@ where
     ) -> EngineBuilder<
         Ctx,
         Config,
-        Signer,
         WalCodec,
         NetCodec,
         SyncCodec,
@@ -393,7 +413,6 @@ where
 impl<
         Ctx,
         Config,
-        Signer,
         WalCodec,
         SyncCodec,
         const HAS_WAL: bool,
@@ -404,7 +423,6 @@ impl<
     EngineBuilder<
         Ctx,
         Config,
-        Signer,
         WalCodec,
         NoCodec,
         SyncCodec,
@@ -425,7 +443,6 @@ where
     ) -> EngineBuilder<
         Ctx,
         Config,
-        Signer,
         WalCodec,
         NetCodec,
         SyncCodec,
@@ -451,7 +468,6 @@ where
 impl<
         Ctx,
         Config,
-        Signer,
         WalCodec,
         NetCodec,
         const HAS_WAL: bool,
@@ -462,7 +478,6 @@ impl<
     EngineBuilder<
         Ctx,
         Config,
-        Signer,
         WalCodec,
         NetCodec,
         NoCodec,
@@ -483,7 +498,6 @@ where
     ) -> EngineBuilder<
         Ctx,
         Config,
-        Signer,
         WalCodec,
         NetCodec,
         SyncCodec,
@@ -509,7 +523,6 @@ where
 impl<
         Ctx,
         Config,
-        Signer,
         NetCodec,
         SyncCodec,
         const HAS_NETWORK: bool,
@@ -520,7 +533,6 @@ impl<
     EngineBuilder<
         Ctx,
         Config,
-        Signer,
         NoCodec,
         NetCodec,
         SyncCodec,
@@ -541,7 +553,6 @@ where
     ) -> EngineBuilder<
         Ctx,
         Config,
-        Signer,
         NoCodec,
         NetCodec,
         SyncCodec,
@@ -567,7 +578,6 @@ where
 impl<
         Ctx,
         Config,
-        Signer,
         WalCodec,
         SyncCodec,
         const HAS_WAL: bool,
@@ -578,7 +588,6 @@ impl<
     EngineBuilder<
         Ctx,
         Config,
-        Signer,
         WalCodec,
         NoCodec,
         SyncCodec,
@@ -600,7 +609,6 @@ where
     ) -> EngineBuilder<
         Ctx,
         Config,
-        Signer,
         WalCodec,
         NoCodec,
         SyncCodec,
@@ -626,7 +634,6 @@ where
 impl<
         Ctx,
         Config,
-        Signer,
         WalCodec,
         NetCodec,
         const HAS_WAL: bool,
@@ -637,7 +644,6 @@ impl<
     EngineBuilder<
         Ctx,
         Config,
-        Signer,
         WalCodec,
         NetCodec,
         NoCodec,
@@ -658,7 +664,6 @@ where
     ) -> EngineBuilder<
         Ctx,
         Config,
-        Signer,
         WalCodec,
         NetCodec,
         NoCodec,
@@ -686,7 +691,6 @@ where
     ) -> EngineBuilder<
         Ctx,
         Config,
-        Signer,
         WalCodec,
         NetCodec,
         NoCodec,
@@ -709,12 +713,11 @@ where
 }
 
 // Implementation for build() - only available when ALL actors are configured
-impl<Ctx, Config, Signer, WalCodec, NetCodec, SyncCodec>
-    EngineBuilder<Ctx, Config, Signer, WalCodec, NetCodec, SyncCodec, true, true, true, true, true>
+impl<Ctx, Config, WalCodec, NetCodec, SyncCodec>
+    EngineBuilder<Ctx, Config, WalCodec, NetCodec, SyncCodec, true, true, true, true, true>
 where
     Ctx: Context,
     Config: NodeConfig,
-    Signer: SigningProvider<Ctx> + 'static,
     WalCodec: codec::WalCodec<Ctx>,
     NetCodec: codec::ConsensusCodec<Ctx> + codec::SyncCodec<Ctx>,
     SyncCodec: codec::SyncCodec<Ctx>,
@@ -779,7 +782,8 @@ where
             self.ctx.clone(),
             consensus_ctx.address,
             self.config.consensus().clone(),
-            Box::new(consensus_ctx.signing_provider),
+            consensus_ctx.verifier,
+            consensus_ctx.signer,
             network.clone(),
             connector.clone(),
             wal.clone(),
@@ -848,7 +852,7 @@ where
 mod tests {
     use malachitebft_test::codec::json::JsonCodec;
     use malachitebft_test::codec::proto::ProtobufCodec;
-    use malachitebft_test::{Ed25519Provider, TestContext};
+    use malachitebft_test::{Ed25519Signer, Ed25519Verifier, TestContext};
 
     use super::*;
 
@@ -889,7 +893,29 @@ mod tests {
             .with_default_wal(WalContext::new(fake(), ProtobufCodec))
             .with_default_network(NetworkContext::new(fake(), JsonCodec))
             .with_default_sync(SyncContext::new(JsonCodec))
-            .with_default_consensus(ConsensusContext::new(fake(), fake::<Ed25519Provider>()))
+            .with_default_consensus(ConsensusContext::new_validator(
+                fake(),
+                Box::new(Ed25519Verifier),
+                Box::new(fake::<Ed25519Signer>()),
+            ))
+            .with_default_request(RequestContext::new(100))
+            .build()
+            .await;
+    }
+
+    // Full node (verifier only, no signer)
+    #[allow(dead_code)]
+    async fn full_node_compiles() {
+        let ctx = TestContext::default();
+
+        let _ = EngineBuilder::new(ctx, Config)
+            .with_default_wal(WalContext::new(fake(), ProtobufCodec))
+            .with_default_network(NetworkContext::new(fake(), JsonCodec))
+            .with_default_sync(SyncContext::new(JsonCodec))
+            .with_default_consensus(ConsensusContext::new_full_node(
+                fake(),
+                Box::new(Ed25519Verifier),
+            ))
             .with_default_request(RequestContext::new(100))
             .build()
             .await;
@@ -904,7 +930,11 @@ mod tests {
             .with_custom_wal(fake())
             .with_custom_network(fake(), fake())
             .with_custom_sync(fake())
-            .with_default_consensus(ConsensusContext::new(fake(), fake::<Ed25519Provider>()))
+            .with_default_consensus(ConsensusContext::new_validator(
+                fake(),
+                Box::new(Ed25519Verifier),
+                Box::new(fake::<Ed25519Signer>()),
+            ))
             .with_default_request(RequestContext::new(100))
             .build()
             .await;
@@ -919,7 +949,11 @@ mod tests {
             .with_custom_wal(fake())
             .with_default_network(NetworkContext::new(fake(), JsonCodec))
             .with_default_sync(SyncContext::new(JsonCodec))
-            .with_default_consensus(ConsensusContext::new(fake(), fake::<Ed25519Provider>()))
+            .with_default_consensus(ConsensusContext::new_validator(
+                fake(),
+                Box::new(Ed25519Verifier),
+                Box::new(fake::<Ed25519Signer>()),
+            ))
             .with_default_request(RequestContext::new(100))
             .build()
             .await;
@@ -934,7 +968,11 @@ mod tests {
             .with_default_wal(WalContext::new(fake(), ProtobufCodec))
             .with_custom_network(fake(), fake())
             .with_default_sync(SyncContext::new(JsonCodec))
-            .with_default_consensus(ConsensusContext::new(fake(), fake::<Ed25519Provider>()))
+            .with_default_consensus(ConsensusContext::new_validator(
+                fake(),
+                Box::new(Ed25519Verifier),
+                Box::new(fake::<Ed25519Signer>()),
+            ))
             .with_default_request(RequestContext::new(100))
             .build()
             .await;
@@ -949,7 +987,11 @@ mod tests {
             .with_default_wal(WalContext::new(fake(), ProtobufCodec))
             .with_default_network(NetworkContext::new(fake(), JsonCodec))
             .with_custom_sync(fake())
-            .with_default_consensus(ConsensusContext::new(fake(), fake::<Ed25519Provider>()))
+            .with_default_consensus(ConsensusContext::new_validator(
+                fake(),
+                Box::new(Ed25519Verifier),
+                Box::new(fake::<Ed25519Signer>()),
+            ))
             .with_default_request(RequestContext::new(100))
             .build()
             .await;
@@ -964,7 +1006,11 @@ mod tests {
             .with_default_wal(WalContext::new(fake(), ProtobufCodec))
             .with_default_network(NetworkContext::new(fake(), JsonCodec))
             .with_no_sync()
-            .with_default_consensus(ConsensusContext::new(fake(), fake::<Ed25519Provider>()))
+            .with_default_consensus(ConsensusContext::new_validator(
+                fake(),
+                Box::new(Ed25519Verifier),
+                Box::new(fake::<Ed25519Signer>()),
+            ))
             .with_default_request(RequestContext::new(100))
             .build()
             .await;
@@ -979,7 +1025,11 @@ mod tests {
             .with_custom_wal(fake())
             .with_custom_network(fake(), fake())
             .with_default_sync(SyncContext::new(JsonCodec))
-            .with_default_consensus(ConsensusContext::new(fake(), fake::<Ed25519Provider>()))
+            .with_default_consensus(ConsensusContext::new_validator(
+                fake(),
+                Box::new(Ed25519Verifier),
+                Box::new(fake::<Ed25519Signer>()),
+            ))
             .with_default_request(RequestContext::new(100))
             .build()
             .await;
@@ -994,7 +1044,11 @@ mod tests {
             .with_default_wal(WalContext::new(fake(), ProtobufCodec))
             .with_custom_network(fake(), fake())
             .with_custom_sync(fake())
-            .with_default_consensus(ConsensusContext::new(fake(), fake::<Ed25519Provider>()))
+            .with_default_consensus(ConsensusContext::new_validator(
+                fake(),
+                Box::new(Ed25519Verifier),
+                Box::new(fake::<Ed25519Signer>()),
+            ))
             .with_default_request(RequestContext::new(100))
             .build()
             .await;
@@ -1006,7 +1060,11 @@ mod tests {
         let ctx = TestContext::default();
 
         let _ = EngineBuilder::new(ctx, Config)
-            .with_default_consensus(ConsensusContext::new(fake(), fake::<Ed25519Provider>()))
+            .with_default_consensus(ConsensusContext::new_validator(
+                fake(),
+                Box::new(Ed25519Verifier),
+                Box::new(fake::<Ed25519Signer>()),
+            ))
             .with_default_request(RequestContext::new(100))
             .with_default_wal(WalContext::new(fake(), ProtobufCodec))
             .with_default_network(NetworkContext::new(fake(), JsonCodec))

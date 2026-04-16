@@ -18,7 +18,7 @@ use malachitebft_engine::wal::{Wal, WalRef};
 use malachitebft_metrics::{Metrics as ConsensusMetrics, SharedRegistry};
 use malachitebft_network as gossip;
 use malachitebft_network::{ChannelNames, Keypair};
-use malachitebft_starknet_p2p_types::Ed25519Provider;
+use malachitebft_starknet_p2p_types::{Ed25519Signer, Ed25519Verifier};
 use malachitebft_sync as sync;
 use malachitebft_test_mempool::Config as MempoolNetworkConfig;
 
@@ -51,7 +51,7 @@ pub async fn spawn_node_actor(
     let sync_metrics = sync::Metrics::register(&registry, cfg.value_sync.status_update_interval);
 
     let address = Address::from_public_key(private_key.public_key());
-    let signing_provider = Ed25519Provider::new(private_key.clone());
+    let signer = Ed25519Signer::new(private_key.clone());
 
     // Spawn mempool and its gossip layer
     let mempool_network = spawn_mempool_network_actor(&cfg, &private_key, &registry, &span).await;
@@ -91,7 +91,7 @@ pub async fn spawn_node_actor(
         address,
         ctx,
         cfg.clone(),
-        signing_provider,
+        signer,
         network.clone(),
         host.clone(),
         wal.clone(),
@@ -197,7 +197,7 @@ async fn spawn_consensus_actor(
     address: Address,
     ctx: MockContext,
     cfg: Config,
-    signing_provider: Ed25519Provider,
+    signer: Ed25519Signer,
     network: NetworkRef<MockContext>,
     host: HostRef<MockContext>,
     wal: WalRef<MockContext>,
@@ -213,11 +213,14 @@ async fn spawn_consensus_actor(
         enabled: cfg.consensus.enabled,
     };
 
+    let verifier = Ed25519Verifier;
+
     Consensus::spawn(
         ctx,
         consensus_params,
         cfg.consensus,
-        Box::new(signing_provider),
+        Box::new(verifier),
+        Some(Box::new(signer)),
         network,
         host,
         wal,

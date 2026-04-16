@@ -20,7 +20,7 @@ use malachitebft_app_channel::app::types::{LocallyProposedValue, PeerId};
 use malachitebft_test::codec::json::JsonCodec;
 use malachitebft_test::middleware::Middleware;
 use malachitebft_test::{
-    Address, Ed25519Provider, Genesis, Height, LinearTimeouts, ProposalData, ProposalFin,
+    Address, Ed25519Signer, Genesis, Height, LinearTimeouts, ProposalData, ProposalFin,
     ProposalInit, ProposalPart, TestContext, ValidatorSet, Value, ValueId,
 };
 
@@ -46,7 +46,7 @@ pub struct State {
     pub store: Store,
     pub middleware: Option<Arc<dyn Middleware>>,
 
-    signing_provider: Ed25519Provider,
+    signer: Ed25519Signer,
     streams_map: PartStreamsMap,
     rng: StdRng,
 }
@@ -98,7 +98,7 @@ impl State {
         address: Address,
         height: Height,
         store: Store,
-        signing_provider: Ed25519Provider,
+        signer: Ed25519Signer,
         middleware: Option<Arc<dyn Middleware>>,
     ) -> Self {
         Self {
@@ -107,7 +107,7 @@ impl State {
             genesis,
             address,
             store,
-            signing_provider,
+            signer,
             middleware,
             current_height: height,
             current_round: Round::new(0),
@@ -210,10 +210,7 @@ impl State {
             .ok_or(SignatureVerificationError::ProposerNotFound)?;
 
         // Verify the signature
-        if !self
-            .signing_provider
-            .verify(&hash, &fin.signature, &proposer.public_key)
-        {
+        if !Ed25519Signer::verify(&hash, &fin.signature, &proposer.public_key) {
             return Err(SignatureVerificationError::InvalidSignature);
         }
 
@@ -542,7 +539,7 @@ impl State {
         // Sign the hash of the proposal parts
         {
             let hash = hasher.finalize().to_vec();
-            let signature = self.signing_provider.sign(&hash);
+            let signature = self.signer.sign(&hash);
             parts.push(ProposalPart::Fin(ProposalFin::new(signature)));
         }
 

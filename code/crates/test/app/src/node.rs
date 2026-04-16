@@ -16,7 +16,7 @@ use malachitebft_app_channel::app::types::core::VotingPower;
 use malachitebft_app_channel::app::types::Keypair;
 use malachitebft_app_channel::{
     ConsensusContext, EngineBuilder, EngineHandle, NetworkContext, NetworkIdentity, RequestContext,
-    SigningProviderExt, SyncContext, WalContext,
+    SignerExt, SyncContext, WalContext,
 };
 use malachitebft_engine_byzantine::{
     ByzantineMiddleware, ByzantineNetworkProxy, ConflictingValueFn, ConflictingVoteValueFn,
@@ -33,8 +33,8 @@ use malachitebft_test::middleware::{DefaultMiddleware, Middleware};
 // Use the same types used for integration tests.
 // A real application would use its own types and context instead.
 use malachitebft_test::{
-    Address, Ed25519Provider, Genesis, Height, PrivateKey, PublicKey, TestContext, Validator,
-    ValidatorSet, Value, ValueId,
+    Address, Ed25519Signer, Ed25519Verifier, Genesis, Height, PrivateKey, PublicKey, TestContext,
+    Validator, ValidatorSet, Value, ValueId,
 };
 
 use crate::config::Config;
@@ -90,7 +90,8 @@ impl Node for App {
     type Config = Config;
     type Genesis = Genesis;
     type PrivateKeyFile = PrivateKey;
-    type SigningProvider = Ed25519Provider;
+    type Verifier = Ed25519Verifier;
+    type Signer = Ed25519Signer;
     type NodeHandle = Handle;
 
     fn get_home_dir(&self) -> PathBuf {
@@ -101,8 +102,12 @@ impl Node for App {
         Ok(self.config.clone())
     }
 
-    fn get_signing_provider(&self, private_key: PrivateKey) -> Self::SigningProvider {
-        Ed25519Provider::new(private_key)
+    fn get_verifier(&self) -> Ed25519Verifier {
+        Ed25519Verifier
+    }
+
+    fn get_signer(&self, private_key: PrivateKey) -> Ed25519Signer {
+        Ed25519Signer::new(private_key)
     }
 
     fn get_address(&self, pk: &PublicKey) -> Address {
@@ -181,10 +186,10 @@ impl Node for App {
         let genesis = self.load_genesis()?;
         let wal_path = self.get_home_dir().join("wal").join("consensus.wal");
 
-        let signing_provider = self.get_signing_provider(self.private_key.clone());
         let identity = if self.validator {
+            let signer = self.get_signer(self.private_key.clone());
             let peer_id_bytes = keypair.public().to_peer_id().to_bytes();
-            let proof = signing_provider
+            let proof = signer
                 .sign_validator_proof(public_key.as_bytes().to_vec(), peer_id_bytes)
                 .await
                 .map_err(|e| eyre::eyre!("Failed to sign validator proof: {e:?}"))?;
@@ -240,7 +245,7 @@ impl Node for App {
             let proxy_ref = ByzantineNetworkProxy::spawn(
                 byz_cfg,
                 real_network,
-                Box::new(self.get_signing_provider(self.private_key.clone())),
+                Box::new(self.get_signer(self.private_key.clone())),
                 ctx.clone(),
                 address,
                 span.clone(),
@@ -251,18 +256,29 @@ impl Node for App {
 
             builder
                 .with_custom_network(proxy_ref, tx_network)
-                .with_default_consensus(ConsensusContext::new(
+                .with_default_consensus(ConsensusContext::new_validator(
                     address,
-                    self.get_signing_provider(self.private_key.clone()),
+                    Box::new(self.get_verifier()),
+                    Box::new(self.get_signer(self.private_key.clone())),
                 ))
                 .with_default_sync(SyncContext::new(JsonCodec))
                 .with_default_request(RequestContext::new(100))
                 .build()
                 .await?
         } else {
+            let consensus_ctx = if self.validator {
+                ConsensusContext::new_validator(
+                    address,
+                    Box::new(self.get_verifier()),
+                    Box::new(self.get_signer(self.private_key.clone())),
+                )
+            } else {
+                ConsensusContext::new_full_node(address, Box::new(self.get_verifier()))
+            };
+
             builder
                 .with_default_network(NetworkContext::new(identity, JsonCodec))
-                .with_default_consensus(ConsensusContext::new(address, signing_provider))
+                .with_default_consensus(consensus_ctx)
                 .with_default_sync(SyncContext::new(JsonCodec))
                 .with_default_request(RequestContext::new(100))
                 .build()
@@ -284,7 +300,7 @@ impl Node for App {
             address,
             start_height,
             store,
-            self.get_signing_provider(self.private_key.clone()),
+            self.get_signer(self.private_key.clone()),
             Some(middleware),
         );
 

@@ -49,4 +49,4 @@ mod streaming;
 pub use streaming::{StreamContent, StreamMessage};
 
 mod signing;
-pub use signing::{Ed25519, Ed25519Provider, PrivateKey, PublicKey, Signature};
+pub use signing::{Ed25519, Ed25519Signer, Ed25519Verifier, PrivateKey, PublicKey, Signature};

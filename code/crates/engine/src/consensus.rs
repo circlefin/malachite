@@ -24,7 +24,7 @@ use malachitebft_core_types::{
     ValidatorSet, Validity, Value, ValueId, ValueOrigin, ValueResponse as CoreValueResponse, Vote,
 };
 use malachitebft_metrics::Metrics;
-use malachitebft_signing::{SigningProvider, SigningProviderExt};
+use malachitebft_signing::{Signer, Verifier, VerifierExt};
 use malachitebft_sync::HeightStartType;
 
 use crate::host::{HeightParams, HostMsg, HostRef, LocallyProposedValue, Next, ProposedValue};
@@ -84,7 +84,8 @@ where
     ctx: Ctx,
     params: ConsensusParams<Ctx>,
     consensus_config: ConsensusConfig,
-    signing_provider: Box<dyn SigningProvider<Ctx>>,
+    verifier: Box<dyn Verifier<Ctx>>,
+    signer: Option<Box<dyn Signer<Ctx>>>,
     network: NetworkRef<Ctx>,
     host: HostRef<Ctx>,
     wal: WalRef<Ctx>,
@@ -295,7 +296,8 @@ where
         ctx: Ctx,
         params: ConsensusParams<Ctx>,
         consensus_config: ConsensusConfig,
-        signing_provider: Box<dyn SigningProvider<Ctx>>,
+        verifier: Box<dyn Verifier<Ctx>>,
+        signer: Option<Box<dyn Signer<Ctx>>>,
         network: NetworkRef<Ctx>,
         host: HostRef<Ctx>,
         wal: WalRef<Ctx>,
@@ -308,7 +310,8 @@ where
             ctx,
             params,
             consensus_config,
-            signing_provider,
+            verifier,
+            signer,
             network,
             host,
             wal,
@@ -320,6 +323,13 @@ where
 
         let (actor_ref, _) = Actor::spawn(None, node, ()).await?;
         Ok(actor_ref)
+    }
+
+    fn signer(&self) -> &dyn Signer<Ctx> {
+        self.signer.as_deref().expect(
+            "BUG: signing effect produced but no signer configured; \
+             this node should not be a validator",
+        )
     }
 
     async fn process_input(
@@ -669,8 +679,7 @@ where
                         // Note: peer_id match is already verified in network layer
 
                         // Verify signature using public_key in proof
-                        let verification =
-                            self.signing_provider.verify_validator_proof(&proof).await;
+                        let verification = self.verifier.verify_validator_proof(&proof).await;
 
                         let (result, public_key_bytes) = match verification {
                             Ok(v) if v.is_valid() => {
@@ -1187,7 +1196,7 @@ where
 
         let validator_set = consensus.validator_set();
 
-        self.signing_provider
+        self.verifier
             .verify_commit_certificate(
                 &self.ctx,
                 certificate,
@@ -1247,7 +1256,7 @@ where
             Effect::SignProposal(proposal, r) => {
                 let start = Instant::now();
 
-                let signed_proposal = self.signing_provider.sign_proposal(proposal).await?;
+                let signed_proposal = self.signer().sign_proposal(proposal).await?;
 
                 self.metrics
                     .signature_signing_time
@@ -1259,7 +1268,7 @@ where
             Effect::SignVote(vote, r) => {
                 let start = Instant::now();
 
-                let signed_vote = self.signing_provider.sign_vote(vote).await?;
+                let signed_vote = self.signer().sign_vote(vote).await?;
 
                 self.metrics
                     .signature_signing_time
@@ -1275,12 +1284,12 @@ where
 
                 let result = match msg.message {
                     Msg::Vote(v) => {
-                        self.signing_provider
+                        self.verifier
                             .verify_signed_vote(&v, &msg.signature, &pk)
                             .await?
                     }
                     Msg::Proposal(p) => {
-                        self.signing_provider
+                        self.verifier
                             .verify_signed_proposal(&p, &msg.signature, &pk)
                             .await?
                     }
@@ -1295,7 +1304,7 @@ where
 
             Effect::VerifyCommitCertificate(certificate, validator_set, thresholds, r) => {
                 let result = self
-                    .signing_provider
+                    .verifier
                     .verify_commit_certificate(&self.ctx, &certificate, &validator_set, thresholds)
                     .await;
 
@@ -1304,7 +1313,7 @@ where
 
             Effect::VerifyPolkaCertificate(certificate, validator_set, thresholds, r) => {
                 let result = self
-                    .signing_provider
+                    .verifier
                     .verify_polka_certificate(&self.ctx, &certificate, &validator_set, thresholds)
                     .await;
 
@@ -1313,7 +1322,7 @@ where
 
             Effect::VerifyRoundCertificate(certificate, validator_set, thresholds, r) => {
                 let result = self
-                    .signing_provider
+                    .verifier
                     .verify_round_certificate(&self.ctx, &certificate, &validator_set, thresholds)
                     .await;
 
@@ -1323,7 +1332,7 @@ where
             Effect::ExtendVote(height, round, value_id, r) => {
                 if let Some(extension) = self.extend_vote(height, round, value_id).await? {
                     let signed_extension = self
-                        .signing_provider
+                        .signer()
                         .sign_vote_extension(extension)
                         .await
                         .inspect_err(|e| {
@@ -1339,7 +1348,7 @@ where
 
             Effect::VerifyVoteExtension(height, round, value_id, signed_extension, pk, r) => {
                 let result = self
-                    .signing_provider
+                    .verifier
                     .verify_signed_vote_extension(
                         &signed_extension.message,
                         &signed_extension.signature,

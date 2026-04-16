@@ -9,15 +9,15 @@ use malachitebft_core_types::{
     ThresholdParams, Validator, ValidatorProof, ValidatorSet, VoteType, VotingPower,
 };
 
-use crate::{Error, SigningProvider, VerificationResult};
+use crate::{Error, Signer, VerificationResult, Verifier};
 
-/// Extension trait providing additional certificate verification functionality for signing providers.
+/// Extension trait providing additional certificate verification functionality.
 ///
-/// This trait extends the base [`SigningProvider`] functionality with methods for verifying
-/// commit certificates against validator sets. It is automatically implemented for any type
-/// that implements [`SigningProvider`].
+/// This trait extends the base [`Verifier`] functionality with methods for verifying
+/// certificates against validator sets. It is automatically implemented for any type
+/// that implements [`Verifier`].
 #[async_trait]
-pub trait SigningProviderExt<Ctx>
+pub trait VerifierExt<Ctx>
 where
     Ctx: Context,
 {
@@ -94,7 +94,7 @@ where
     /// - Check that the required voting power has signed the certificate:
     ///   - If `Precommit`, ensure that 2/3+ of the voting power is represented.
     ///   - If `Skip`, ensure that 1/3+ of the voting power is represented.
-    ///  
+    ///
     /// Returns a [`CertificateError`] if any verification step fails.
     async fn verify_round_certificate(
         &self,
@@ -103,13 +103,6 @@ where
         validator_set: &Ctx::ValidatorSet,
         thresholds: ThresholdParams,
     ) -> Result<(), CertificateError<Ctx>>;
-
-    /// Sign a validator proof binding the given public key to the given peer ID.
-    async fn sign_validator_proof(
-        &self,
-        public_key: Vec<u8>,
-        peer_id: Vec<u8>,
-    ) -> Result<ValidatorProof<Ctx>, Error>;
 
     /// Verify a validator proof's signature using the public key included in the certificate.
     ///
@@ -121,15 +114,11 @@ where
 }
 
 #[async_trait]
-impl<Ctx, P> SigningProviderExt<Ctx> for P
+impl<Ctx, P> VerifierExt<Ctx> for P
 where
     Ctx: Context,
-    P: SigningProvider<Ctx>,
+    P: Verifier<Ctx>,
 {
-    /// Verify a commit signature in a commit certificate against the public key of its validator.
-    ///
-    /// ## Return
-    /// Return the voting power of that validator if the signature is valid.
     async fn verify_commit_signature(
         &self,
         ctx: &Ctx,
@@ -158,10 +147,6 @@ where
         Ok(validator.voting_power())
     }
 
-    /// Verify a polka signature in a polka certificate against the public key of its validator.
-    ///
-    /// ## Return
-    /// Return the voting power of that validator if the signature is valid.
     async fn verify_polka_signature(
         &self,
         ctx: &Ctx,
@@ -190,10 +175,6 @@ where
         Ok(validator.voting_power())
     }
 
-    /// Verify a round signature in a round certificate against the public key of its validator.
-    ///
-    /// ## Return
-    /// Return the voting power of that validator if the signature is valid.
     async fn verify_round_signature(
         &self,
         ctx: &Ctx,
@@ -230,13 +211,6 @@ where
         Ok(validator.voting_power())
     }
 
-    /// Verify the commit certificate against the given validator set.
-    ///
-    /// - For each commit signature in the certificate:
-    ///   - Reconstruct the signed precommit and verify its signature
-    /// - Check that we have 2/3+ of voting power has signed the certificate
-    ///
-    /// If any of those steps fail, return a [`CertificateError`].
     async fn verify_commit_certificate(
         &self,
         ctx: &Ctx,
@@ -287,14 +261,6 @@ where
         }
     }
 
-    /// Verify the polka certificate against the given validator set.
-    ///
-    /// - For each signed prevote in the certificate:
-    ///   - Reconstruct the signed prevote and verify its signature
-    /// - Check that we have 2/3+ of voting power has signed the certificate
-    ///
-    /// If any of those steps fail, return a [`CertificateError`].
-    ///
     async fn verify_polka_certificate(
         &self,
         ctx: &Ctx,
@@ -347,15 +313,6 @@ where
         }
     }
 
-    /// Verify the round certificate against the given validator set.
-    ///
-    /// - For each signature in the certificate:
-    ///   - Reconstruct the signed vote and verify its signature.
-    /// - Check that the required voting power has signed the certificate:
-    ///   - If `Precommit`, ensure that 2/3+ of the voting power is represented.
-    ///   - If `Skip`, ensure that 1/3+ of the voting power is represented.
-    ///  
-    /// Returns a [`CertificateError`] if any verification step fails.
     async fn verify_round_certificate(
         &self,
         ctx: &Ctx,
@@ -416,16 +373,6 @@ where
         }
     }
 
-    async fn sign_validator_proof(
-        &self,
-        public_key: Vec<u8>,
-        peer_id: Vec<u8>,
-    ) -> Result<ValidatorProof<Ctx>, Error> {
-        let signing_bytes = ValidatorProof::<Ctx>::signing_bytes(&public_key, &peer_id);
-        let signature = self.sign_bytes(&signing_bytes).await?;
-        Ok(ValidatorProof::new(public_key, peer_id, signature))
-    }
-
     async fn verify_validator_proof(
         &self,
         proof: &ValidatorProof<Ctx>,
@@ -437,5 +384,39 @@ where
         })?;
         self.verify_signed_bytes(&signing_bytes, &proof.signature, &public_key)
             .await
+    }
+}
+
+/// Extension trait providing additional signing functionality.
+///
+/// This trait extends the base [`Signer`] functionality with methods for signing
+/// validator proofs. It is automatically implemented for any type that implements [`Signer`].
+#[async_trait]
+pub trait SignerExt<Ctx>
+where
+    Ctx: Context,
+{
+    /// Sign a validator proof binding the given public key to the given peer ID.
+    async fn sign_validator_proof(
+        &self,
+        public_key: Vec<u8>,
+        peer_id: Vec<u8>,
+    ) -> Result<ValidatorProof<Ctx>, Error>;
+}
+
+#[async_trait]
+impl<Ctx, P> SignerExt<Ctx> for P
+where
+    Ctx: Context,
+    P: Signer<Ctx>,
+{
+    async fn sign_validator_proof(
+        &self,
+        public_key: Vec<u8>,
+        peer_id: Vec<u8>,
+    ) -> Result<ValidatorProof<Ctx>, Error> {
+        let signing_bytes = ValidatorProof::<Ctx>::signing_bytes(&public_key, &peer_id);
+        let signature = self.sign_bytes(&signing_bytes).await?;
+        Ok(ValidatorProof::new(public_key, peer_id, signature))
     }
 }

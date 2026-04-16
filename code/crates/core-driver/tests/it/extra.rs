@@ -3,10 +3,10 @@ use malachitebft_core_state_machine::state::State;
 use malachitebft_core_types::{
     CommitCertificate, Context, NilOrVal, Round, ThresholdParams, Validity,
 };
-use malachitebft_signing::{SigningProvider, SigningProviderExt};
+use malachitebft_signing::{Signer, VerifierExt};
 
 use malachitebft_test::utils::validators::{make_validators, make_validators_seeded};
-use malachitebft_test::{Ed25519Provider, Height, Proposal, TestContext, ValidatorSet, Value};
+use malachitebft_test::{Ed25519Signer, Height, Proposal, TestContext, ValidatorSet, Value};
 
 use arc_malachitebft_core_driver::{Driver, Input, Output};
 
@@ -4019,9 +4019,9 @@ fn commit_certificate_from_driver_verifies_after_reapplied_votes_from_round_cert
     const SEED: u64 = 0xfeedbeef;
     let validators_and_keys = make_validators_seeded([10, 10, 10, 10], SEED);
     let validators: Vec<_> = validators_and_keys.iter().map(|(v, _)| v.clone()).collect();
-    let signers: Vec<Ed25519Provider> = validators_and_keys
+    let signers: Vec<Ed25519Signer> = validators_and_keys
         .iter()
-        .map(|(_, sk)| Ed25519Provider::new(sk.clone()))
+        .map(|(_, sk)| Ed25519Signer::new(sk.clone()))
         .collect();
     let validator_set = ValidatorSet::new(validators.clone());
     let ctx = TestContext::new();

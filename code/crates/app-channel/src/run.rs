@@ -9,10 +9,9 @@ use eyre::Result;
 use malachitebft_engine::consensus::{ConsensusMsg, ConsensusRef};
 use malachitebft_engine::network::{NetworkMsg, NetworkRef};
 use malachitebft_engine::node::NodeRef;
-use malachitebft_signing::SigningProvider;
 
 pub use malachitebft_engine::network::NetworkIdentity;
-pub use malachitebft_signing::SigningProviderExt;
+pub use malachitebft_signing::{SignerExt, VerifierExt};
 
 // Re-export context structs from builder module
 pub use crate::builder::{
@@ -54,24 +53,36 @@ impl EngineHandle {
 ///     config,
 ///     WalContext::new(path, wal_codec),
 ///     NetworkContext::new(identity, net_codec),
-///     ConsensusContext::new(address, signer),
+///     ConsensusContext::new_validator(address, verifier, signer),
 ///     SyncContext::new(sync_codec),
 ///     RequestContext::new(100),
 /// ).await?;
 /// ```
-pub async fn start_engine<Ctx, Config, Signer, WalCodec, NetCodec, SyncCodec>(
+///
+/// # Example: Full (non-validator) node
+/// ```rust,ignore
+/// let (channels, handle) = start_engine(
+///     ctx,
+///     config,
+///     WalContext::new(path, wal_codec),
+///     NetworkContext::new(identity, net_codec),
+///     ConsensusContext::new_full_node(address, verifier),
+///     SyncContext::new(sync_codec),
+///     RequestContext::new(100),
+/// ).await?;
+/// ```
+pub async fn start_engine<Ctx, Config, WalCodec, NetCodec, SyncCodec>(
     ctx: Ctx,
     cfg: Config,
     wal_ctx: WalContext<WalCodec>,
     network_ctx: NetworkContext<NetCodec>,
-    consensus_ctx: ConsensusContext<Ctx, Signer>,
+    consensus_ctx: ConsensusContext<Ctx>,
     sync_ctx: SyncContext<SyncCodec>,
     request_ctx: RequestContext,
 ) -> Result<(Channels<Ctx>, EngineHandle)>
 where
     Ctx: Context,
     Config: NodeConfig,
-    Signer: SigningProvider<Ctx> + 'static,
     WalCodec: codec::WalCodec<Ctx> + Clone,
     NetCodec: Clone + codec::ConsensusCodec<Ctx> + codec::SyncCodec<Ctx>,
     SyncCodec: Clone + codec::SyncCodec<Ctx>,

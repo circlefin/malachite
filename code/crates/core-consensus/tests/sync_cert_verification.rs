@@ -14,10 +14,10 @@ use malachitebft_core_types::{
 };
 use malachitebft_metrics::Metrics;
 use malachitebft_peer::PeerId;
-use malachitebft_signing::{SigningProvider, SigningProviderExt};
+use malachitebft_signing::{Signer, VerifierExt};
 use malachitebft_test::utils::validators::make_validators;
 use malachitebft_test::{
-    Address, Ed25519Provider, Height, TestContext, Validator, ValidatorSet, Value,
+    Address, Ed25519Signer, Height, TestContext, Validator, ValidatorSet, Value,
 };
 
 use bytes::Bytes;
@@ -48,7 +48,7 @@ fn make_state(validators: &[Validator], my_addr: Address) -> State<TestContext> 
 /// signed by the given validators/signers.
 fn build_commit_certificate(
     validators: &[Validator],
-    signers: &[Ed25519Provider],
+    signers: &[Ed25519Signer],
     height: Height,
     round: Round,
     value: &Value,
@@ -81,9 +81,9 @@ fn build_commit_certificate(
 fn sync_decision_path_verifies_commit_certificate_once() {
     let entries: Vec<(Validator, _)> = make_validators([25, 25, 25, 25]).into();
     let validators: Vec<Validator> = entries.iter().map(|(v, _)| v.clone()).collect();
-    let signers: Vec<Ed25519Provider> = entries
+    let signers: Vec<Ed25519Signer> = entries
         .into_iter()
-        .map(|(_, pk)| Ed25519Provider::new(pk))
+        .map(|(_, pk)| Ed25519Signer::new(pk))
         .collect();
 
     // We are validator 0 (also the proposer for height 1, round 0)

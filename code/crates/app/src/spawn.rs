@@ -19,7 +19,7 @@ use malachitebft_engine::wal::{Wal, WalCodec, WalRef};
 use malachitebft_network::{
     ChannelNames, Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, NetworkIdentity,
 };
-use malachitebft_signing::SigningProvider;
+use malachitebft_signing::{Signer, Verifier};
 use malachitebft_sync as sync;
 
 use crate::config::{ConsensusConfig, ValueSyncConfig};
@@ -77,7 +77,8 @@ pub async fn spawn_consensus_actor<Ctx>(
     ctx: Ctx,
     address: Ctx::Address,
     cfg: ConsensusConfig,
-    signing_provider: Box<dyn SigningProvider<Ctx>>,
+    verifier: Box<dyn Verifier<Ctx>>,
+    signer: Option<Box<dyn Signer<Ctx>>>,
     network: NetworkRef<Ctx>,
     host: HostRef<Ctx>,
     wal: WalRef<Ctx>,
@@ -107,7 +108,8 @@ where
         ctx,
         consensus_params,
         cfg,
-        signing_provider,
+        verifier,
+        signer,
         network,
         host,
         wal,

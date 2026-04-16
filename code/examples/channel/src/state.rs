@@ -22,7 +22,7 @@ use malachitebft_app_channel::app::types::core::{
 use malachitebft_app_channel::app::types::{LocallyProposedValue, PeerId};
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{
-    Address, Ed25519Provider, Genesis, Height, LinearTimeouts, ProposalData, ProposalFin,
+    Address, Ed25519Signer, Genesis, Height, LinearTimeouts, ProposalData, ProposalFin,
     ProposalInit, ProposalPart, TestContext, ValidatorSet, Value,
 };
 
@@ -38,7 +38,7 @@ const HISTORY_LENGTH: u64 = 1000;
 pub struct State {
     #[allow(dead_code)]
     ctx: TestContext,
-    signing_provider: Ed25519Provider,
+    signer: Ed25519Signer,
     genesis: Genesis,
     address: Address,
     vote_extensions: HashMap<Height, VoteExtensions<TestContext>>,
@@ -107,7 +107,7 @@ impl State {
     /// Creates a new State instance with the given validator address and starting height
     pub fn new(
         ctx: TestContext,
-        signing_provider: Ed25519Provider,
+        signer: Ed25519Signer,
         genesis: Genesis,
         address: Address,
         height: Height,
@@ -116,7 +116,7 @@ impl State {
     ) -> Self {
         Self {
             ctx,
-            signing_provider,
+            signer,
             genesis,
             current_height: height,
             current_round: Round::new(0),
@@ -203,10 +203,7 @@ impl State {
             .ok_or(SignatureVerificationError::ProposerNotFound)?;
 
         // Verify the signature
-        if !self
-            .signing_provider
-            .verify(&hash, &fin.signature, &proposer.public_key)
-        {
+        if !Ed25519Signer::verify(&hash, &fin.signature, &proposer.public_key) {
             return Err(SignatureVerificationError::InvalidSignature);
         }
 
@@ -487,7 +484,7 @@ impl State {
         // Sign the hash of the proposal parts
         {
             let hash = hasher.finalize().to_vec();
-            let signature = self.signing_provider.sign(&hash);
+            let signature = self.signer.sign(&hash);
             parts.push(ProposalPart::Fin(ProposalFin::new(signature)));
         }
 

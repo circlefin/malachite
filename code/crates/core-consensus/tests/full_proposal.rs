@@ -1,15 +1,15 @@
 use futures::executor::block_on;
 use malachitebft_core_types::{Round, SignedProposal, Validity, ValueOrigin};
-use malachitebft_signing::SigningProvider;
+use malachitebft_signing::Signer;
 use malachitebft_test::utils::validators::make_validators;
-use malachitebft_test::{Address, Ed25519Provider, Proposal, Value};
+use malachitebft_test::{Address, Ed25519Signer, Proposal, Value};
 use malachitebft_test::{Height, TestContext};
 
 use arc_malachitebft_core_consensus::full_proposal::{FullProposal, FullProposalKeeper};
 use arc_malachitebft_core_consensus::{Input, ProposedValue};
 
 fn signed_proposal_pol(
-    signing_provider: &Ed25519Provider,
+    signer: &Ed25519Signer,
     height: Height,
     round: Round,
     value: Value,
@@ -17,18 +17,18 @@ fn signed_proposal_pol(
     address: Address,
 ) -> SignedProposal<TestContext> {
     let proposal1 = Proposal::new(height, round, value, pol_round, address);
-    block_on(signing_provider.sign_proposal(proposal1)).unwrap()
+    block_on(signer.sign_proposal(proposal1)).unwrap()
 }
 
 fn prop(
-    signing_provider: &Ed25519Provider,
+    signer: &Ed25519Signer,
     address: Address,
     round: u32,
     value: u64,
     pol_round: i64,
 ) -> SignedProposal<TestContext> {
     signed_proposal_pol(
-        signing_provider,
+        signer,
         Height::new(1),
         Round::new(round),
         Value::new(value),
@@ -38,13 +38,13 @@ fn prop(
 }
 
 fn prop_msg(
-    signing_provider: &Ed25519Provider,
+    signer: &Ed25519Signer,
     address: Address,
     round: u32,
     value: u64,
     pol_round: i64,
 ) -> Input<TestContext> {
-    Input::Proposal(prop(signing_provider, address, round, value, pol_round))
+    Input::Proposal(prop(signer, address, round, value, pol_round))
 }
 
 fn value(
@@ -112,8 +112,8 @@ fn full_proposal_keeper_tests() {
     let a1 = v1.address;
     let a2 = v2.address;
 
-    let c1 = Ed25519Provider::new(sk1);
-    let c2 = Ed25519Provider::new(sk2);
+    let c1 = Ed25519Signer::new(sk1);
+    let c2 = Ed25519Signer::new(sk2);
 
     let tests = vec![
         Test {

@@ -15,7 +15,7 @@ use malachitebft_app_channel::app::types::core::{Height as _, VotingPower};
 use malachitebft_app_channel::app::types::Keypair;
 use malachitebft_app_channel::{
     ConsensusContext, EngineBuilder, EngineHandle, NetworkContext, NetworkIdentity, RequestContext,
-    SigningProviderExt, SyncContext, WalContext,
+    SignerExt, SyncContext, WalContext,
 };
 use malachitebft_test::node::{Node, NodeHandle};
 use malachitebft_test::traits::{
@@ -26,8 +26,8 @@ use malachitebft_test::traits::{
 // A real application would use its own types and context instead.
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::{
-    Address, Ed25519Provider, Genesis, Height, PrivateKey, PublicKey, TestContext, Validator,
-    ValidatorSet,
+    Address, Ed25519Signer, Ed25519Verifier, Genesis, Height, PrivateKey, PublicKey, TestContext,
+    Validator, ValidatorSet,
 };
 use malachitebft_test_cli::metrics;
 
@@ -76,7 +76,8 @@ impl Node for App {
     type Config = Config;
     type Genesis = Genesis;
     type PrivateKeyFile = PrivateKey;
-    type SigningProvider = Ed25519Provider;
+    type Verifier = Ed25519Verifier;
+    type Signer = Ed25519Signer;
     type NodeHandle = Handle;
 
     fn get_home_dir(&self) -> PathBuf {
@@ -108,8 +109,12 @@ impl Node for App {
         serde_json::from_str(&private_key).map_err(Into::into)
     }
 
-    fn get_signing_provider(&self, private_key: PrivateKey) -> Self::SigningProvider {
-        Ed25519Provider::new(private_key)
+    fn get_verifier(&self) -> Ed25519Verifier {
+        Ed25519Verifier
+    }
+
+    fn get_signer(&self, private_key: PrivateKey) -> Ed25519Signer {
+        Ed25519Signer::new(private_key)
     }
 
     fn load_genesis(&self) -> eyre::Result<Self::Genesis> {
@@ -139,13 +144,12 @@ impl Node for App {
         let address = self.get_address(&public_key);
         let keypair = self.get_keypair(private_key.clone());
 
-        let signing_provider = self.get_signing_provider(private_key.clone());
-
         // Validators sign a proof binding their consensus key to the P2P peer ID.
         // Full nodes participate in gossip without advertising a validator identity.
         let identity = if self.validator {
+            let signer = self.get_signer(private_key.clone());
             let peer_id_bytes = keypair.public().to_peer_id().to_bytes();
-            let proof = signing_provider
+            let proof = signer
                 .sign_validator_proof(public_key.as_bytes().to_vec(), peer_id_bytes)
                 .await
                 .map_err(|e| eyre::eyre!("Failed to sign validator proof: {e:?}"))?;
@@ -162,10 +166,20 @@ impl Node for App {
             NetworkIdentity::new(config.moniker.clone(), keypair, None)
         };
 
+        let consensus_ctx = if self.validator {
+            ConsensusContext::new_validator(
+                address,
+                Box::new(self.get_verifier()),
+                Box::new(self.get_signer(private_key.clone())),
+            )
+        } else {
+            ConsensusContext::new_full_node(address, Box::new(self.get_verifier()))
+        };
+
         let (mut channels, engine_handle) = EngineBuilder::new(ctx.clone(), config.clone())
             .with_default_wal(WalContext::new(wal_path, ProtobufCodec))
             .with_default_network(NetworkContext::new(identity, ProtobufCodec))
-            .with_default_consensus(ConsensusContext::new(address, signing_provider))
+            .with_default_consensus(consensus_ctx)
             .with_default_sync(SyncContext::new(ProtobufCodec))
             .with_default_request(RequestContext::new(100))
             .build()
@@ -187,7 +201,7 @@ impl Node for App {
         let start_height = self.start_height.unwrap_or(Height::INITIAL);
         let mut state = State::new(
             ctx,
-            self.get_signing_provider(private_key),
+            self.get_signer(private_key),
             genesis,
             address,
             start_height,

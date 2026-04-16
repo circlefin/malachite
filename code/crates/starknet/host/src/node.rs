@@ -12,7 +12,7 @@ use malachitebft_app::types::Keypair;
 use malachitebft_config::mempool_load::UniformLoadConfig;
 use malachitebft_core_types::{LinearTimeouts, VotingPower};
 use malachitebft_engine::node::NodeRef;
-use malachitebft_starknet_p2p_types::Ed25519Provider;
+use malachitebft_starknet_p2p_types::{Ed25519Signer, Ed25519Verifier};
 use malachitebft_test::node::{Node, NodeHandle};
 use malachitebft_test::traits::{
     CanGeneratePrivateKey, CanMakeConfig, CanMakeDistributedConfig, CanMakeGenesis,
@@ -105,7 +105,8 @@ impl Node for StarknetNode {
     type Config = Config;
     type Genesis = Genesis;
     type PrivateKeyFile = PrivateKeyFile;
-    type SigningProvider = Ed25519Provider;
+    type Verifier = Ed25519Verifier;
+    type Signer = Ed25519Signer;
     type NodeHandle = Handle;
 
     fn get_home_dir(&self) -> PathBuf {
@@ -141,8 +142,12 @@ impl Node for StarknetNode {
         serde_json::from_str(&private_key).map_err(|e| e.into())
     }
 
-    fn get_signing_provider(&self, private_key: PrivateKey) -> Self::SigningProvider {
-        Self::SigningProvider::new(private_key)
+    fn get_verifier(&self) -> Ed25519Verifier {
+        Ed25519Verifier
+    }
+
+    fn get_signer(&self, private_key: PrivateKey) -> Ed25519Signer {
+        Ed25519Signer::new(private_key)
     }
 
     fn load_genesis(&self) -> eyre::Result<Self::Genesis> {

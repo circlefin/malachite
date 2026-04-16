@@ -43,7 +43,9 @@
 - Limit the number of peers that can connect from same IP address
 
 ### `signing`
-- Implement `SigningProvider` for `Arc<T>` where `T: SigningProvider`
+- Split `SigningProvider` into separate `Verifier` and `Signer` traits
+- Split `SigningProviderExt` into `VerifierExt` and `SignerExt`
+- Implement `Verifier` and `Signer` for `&T`, `Box<T>`, and `Arc<T>`
 - Remove signing of proposal parts
 
 ### `sync`
