@@ -192,6 +192,60 @@ where
             .any(|(maybe_peer_id, _)| maybe_peer_id == &Some(*peer_id))
     }
 
+    /// Returns an iterator over inbound peer IDs.
+    pub fn inbound_peer_ids(&self) -> impl Iterator<Item = &PeerId> {
+        self.inbound_peers.iter()
+    }
+
+    /// Returns true if there is room for additional inbound peers.
+    pub fn has_inbound_capacity(&self) -> bool {
+        self.inbound_peers.len() < self.config.num_inbound_peers
+    }
+
+    /// Returns true if the peer is ephemeral (connected but not categorized as inbound or outbound).
+    pub fn is_ephemeral_peer(&self, peer_id: &PeerId) -> bool {
+        self.active_connections.contains_key(peer_id)
+            && !self.outbound_peers.contains_key(peer_id)
+            && !self.inbound_peers.contains(peer_id)
+    }
+
+    /// Promote an ephemeral peer to inbound status.
+    ///
+    /// Fails if the peer is not ephemeral or if inbound capacity is full.
+    /// The caller must evict an inbound peer first to free a slot.
+    ///
+    /// Any pending ephemeral close timer for this peer will be naturally
+    /// cancelled by `should_close`, which checks inbound membership.
+    ///
+    /// Returns true if the peer was promoted.
+    pub fn promote_to_inbound(&mut self, peer_id: PeerId) -> bool {
+        if !self.is_ephemeral_peer(&peer_id) || !self.has_inbound_capacity() {
+            return false;
+        }
+        self.inbound_peers.insert(peer_id);
+        self.update_discovery_metrics();
+        true
+    }
+
+    /// Evict an inbound peer by removing it from the inbound set and
+    /// queuing its connections for immediate close.
+    ///
+    /// Returns true if the peer was evicted.
+    pub fn evict_inbound_peer(&mut self, peer_id: PeerId) -> bool {
+        if !self.inbound_peers.remove(&peer_id) {
+            return false;
+        }
+        if let Some(connection_ids) = self.active_connections.get(&peer_id) {
+            for connection_id in connection_ids.clone() {
+                self.controller
+                    .close
+                    .add_to_queue((peer_id, connection_id), None);
+            }
+        }
+        self.update_discovery_metrics();
+        true
+    }
+
     pub fn on_network_event(
         &mut self,
         swarm: &mut Swarm<C>,
@@ -382,5 +436,20 @@ where
                 .dial
                 .remove_done_on(&PeerData::PeerId(peer_id));
         }
+    }
+
+    /// Test helper: simulate an active connection for a peer.
+    #[cfg(feature = "test-utils")]
+    pub fn add_test_active_connection(&mut self, peer_id: PeerId, connection_id: ConnectionId) {
+        self.active_connections
+            .entry(peer_id)
+            .or_default()
+            .push(connection_id);
+    }
+
+    /// Test helper: add a peer directly to the inbound set (bypasses capacity check).
+    #[cfg(feature = "test-utils")]
+    pub fn add_test_inbound_peer(&mut self, peer_id: PeerId) {
+        self.inbound_peers.insert(peer_id);
     }
 }

@@ -633,8 +633,13 @@ async fn handle_ctrl_msg(
             let changed_peers = state.process_validator_set_update(validator_set);
 
             // Update GossipSub scores for peers whose type changed
-            for (peer_id, new_score) in changed_peers {
-                set_peer_score(swarm, peer_id, new_score);
+            for (peer_id, new_score) in &changed_peers {
+                set_peer_score(swarm, *peer_id, *new_score);
+            }
+
+            // Promote newly promoted validators from ephemeral to inbound
+            for (peer_id, _) in &changed_peers {
+                state.try_prioritize_peer(*peer_id);
             }
 
             ControlFlow::Continue(())
@@ -659,6 +664,9 @@ async fn handle_ctrl_msg(
                 if let Some(new_score) = state.record_verified_proof(&libp2p_peer_id, public_key) {
                     set_peer_score(swarm, libp2p_peer_id, new_score);
                 }
+
+                // Promote newly verified validator from ephemeral to inbound
+                state.try_prioritize_peer(libp2p_peer_id);
             }
 
             ControlFlow::Continue(())
@@ -900,6 +908,9 @@ async fn handle_swarm_event(
                     // Update peer info in State and metrics, set peer score in gossipsub
                     let score = state.update_peer(peer_id, connection_id, &info);
                     set_peer_score(swarm, peer_id, score);
+
+                    // Promote high-value peer (validator/persistent) from ephemeral to inbound
+                    state.try_prioritize_peer(peer_id);
 
                     // If enabled, add persistent peers as explicit peers for guaranteed delivery
                     if config.gossipsub.enable_explicit_peering {
