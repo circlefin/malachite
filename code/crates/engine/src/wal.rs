@@ -98,6 +98,8 @@ where
             }
 
             Msg::Reset(height, reply_to) => {
+                state.height = height;
+
                 self.reset(state, height, reply_to).await?;
             }
 
