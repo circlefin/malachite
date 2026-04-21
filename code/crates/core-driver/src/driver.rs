@@ -755,18 +755,17 @@ where
         input_round: Round,
         input: RoundInput<Ctx>,
     ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
-        let round_state = core::mem::take(&mut self.round_state);
+        // All fallible work MUST happen before `with_round_state` — that
+        // helper's closure cannot `?` out, so nothing between the take and
+        // the replace can leave `round_state` at its default.
+        let proposer_address = self.get_proposer()?.address().clone();
 
-        let previous_step = round_state.step;
-
-        let proposer = self.get_proposer()?;
-        let info = Info::new(input_round, &self.address, proposer.address());
-
-        // Apply the input to the round state machine
-        let transition = round_state.apply(&self.ctx, &info, input);
-
-        // Update state
-        self.round_state = transition.next_state;
+        let (previous_step, output) = self.with_round_state(|ctx, address, round_state| {
+            let previous_step = round_state.step;
+            let info = Info::new(input_round, address, &proposer_address);
+            let transition = round_state.apply(ctx, &info, input);
+            (transition.next_state, (previous_step, transition.output))
+        });
 
         if previous_step != self.round_state.step && self.round_state.step != Step::Unstarted {
             let pending_inputs = self.multiplex_step_change(input_round);
@@ -774,8 +773,25 @@ where
             self.pending_inputs = pending_inputs;
         }
 
-        // Return output, if any
-        Ok(transition.output)
+        Ok(output)
+    }
+
+    /// Atomically transition `round_state` via the given infallible closure.
+    ///
+    /// The closure's signature forces the caller to return a replacement
+    /// `RoundState`; there is no way to `?` out of it, so `round_state` can
+    /// never be left at its `Default::default()` value, which can be inconsistent.
+    /// Any fallible work
+    /// must therefore be done before calling this helper, where an early
+    /// return is safe.
+    fn with_round_state<T>(
+        &mut self,
+        f: impl FnOnce(&Ctx, &Ctx::Address, RoundState<Ctx>) -> (RoundState<Ctx>, T),
+    ) -> T {
+        let taken = core::mem::take(&mut self.round_state);
+        let (new_state, result) = f(&self.ctx, &self.address, taken);
+        self.round_state = new_state;
+        result
     }
 
     /// Return the traces logged during execution.
