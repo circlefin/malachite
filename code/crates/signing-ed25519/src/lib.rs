@@ -195,6 +195,10 @@ impl PublicKey {
         Self(ed25519_consensus::VerificationKey::try_from(bytes).unwrap())
     }
 
+    pub fn try_from_bytes(bytes: [u8; 32]) -> Result<Self, ed25519_consensus::Error> {
+        ed25519_consensus::VerificationKey::try_from(bytes).map(Self)
+    }
+
     pub fn verify(&self, msg: &[u8], signature: &Signature) -> Result<(), signature::Error> {
         self.0
             .verify(signature.inner(), msg)

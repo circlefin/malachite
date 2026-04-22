@@ -55,12 +55,58 @@ impl Protobuf for Address {
 
         let mut bytes = [0; 32];
         bytes.copy_from_slice(&proto.elements);
-        Ok(Address::new(bytes))
+
+        let public_key = PublicKey::try_from_bytes(bytes).map_err(|e| {
+            ProtoError::Other(format!("Invalid public key bytes: {e}"))
+        })?;
+
+        Ok(Address::from_public_key(public_key))
     }
 
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(p2p_proto::Address {
             elements: Bytes::copy_from_slice(self.0.as_bytes().as_slice()),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_proto_rejects_invalid_public_key_bytes() {
+        // Scan for a 32-byte value that ed25519-consensus rejects.
+        // Roughly half of all y-coordinates fail point decompression.
+        let mut bytes = [0u8; 32];
+        for candidate in 0u8..=255 {
+            bytes[0] = candidate;
+            if PublicKey::try_from_bytes(bytes).is_err() {
+                let proto = p2p_proto::Address {
+                    elements: Bytes::copy_from_slice(&bytes),
+                };
+
+                let result = Address::from_proto(proto);
+                assert!(result.is_err(), "expected error for invalid public key bytes");
+
+                let err_msg = result.unwrap_err().to_string();
+                assert!(
+                    err_msg.contains("Invalid public key bytes"),
+                    "unexpected error message: {err_msg}"
+                );
+                return;
+            }
+        }
+        panic!("could not find invalid Ed25519 public key bytes for test");
+    }
+
+    #[test]
+    fn from_proto_rejects_wrong_length() {
+        let proto = p2p_proto::Address {
+            elements: Bytes::from_static(&[0; 16]),
+        };
+
+        let result = Address::from_proto(proto);
+        assert!(result.is_err());
     }
 }
