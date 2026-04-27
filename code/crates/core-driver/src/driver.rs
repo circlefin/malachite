@@ -131,6 +131,7 @@ where
         self.polka_certificates = vec![];
 
         // Reset additional internal state
+        self.pending_inputs = vec![];
         self.last_prevote = None;
         self.last_precommit = None;
     }
