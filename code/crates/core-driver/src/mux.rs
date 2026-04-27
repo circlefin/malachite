@@ -320,15 +320,15 @@ where
                 {
                     let proposal = &proposal.message;
                     // We have a proposal for the same value as the threshold.
-                    // validity  proposal(v, roundp, pol_round)      threshold(v, threshold_round) Output Line
-                    // =================================================================================
-                    // invalid   (v, roundp, pol_round)              (v, pol_round)             ProposalAndPolkaPrevious L32
-                    // valid     (v, roundp, pol_round)              (v, pol_round)             InvalidProposalAndPolkaPrevious L30
+                    // validity proposal(v, roundp, pol_round)  threshold(v, threshold_round)   Output Line
+                    // ====================================================================================
+                    // invalid  (v, roundp, pol_round)          (v, pol_round)                  InvalidProposalAndPolkaPrevious L32
+                    // valid    (v, roundp, pol_round)          (v, pol_round)                  ProposalAndPolkaPrevious L30
                     //
-                    // valid     (v, roundp, pol_round)              (v, roundp)                ProposalAndPolkaCurrent L36
-                    // valid     (v, roundp, nil)                    (v, roundp)                ProposalAndPolkaCurrent L36
+                    // valid    (v, roundp, pol_round)          (v, roundp)                     ProposalAndPolkaCurrent L36
+                    // valid    (v, roundp, nil)                (v, roundp)                     ProposalAndPolkaCurrent L36
                     //
-                    // *         *                                   (v, threshold_round)       PolkaAny L34
+                    // *         *                              (v, threshold_round)            PolkaAny L34
                     let proposal_round = proposal.round();
                     let pol_round = proposal.pol_round();
                     let pol_round_match = pol_round == threshold_round;
