@@ -11,7 +11,7 @@ use derive_where::derive_where;
 use eyre::eyre;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::sync::oneshot;
-use tokio::time::Instant;
+use tokio::time::{timeout, Instant};
 use tracing::{debug, error, error_span, info, warn};
 
 use malachitebft_codec as codec;
@@ -208,6 +208,12 @@ enum Phase {
 /// in the `Unstarted` or `Recovering` phase
 const MAX_BUFFER_SIZE: usize = 1024;
 
+/// Maximum number of WAL appends that can be queued before a flush is required
+const MAX_PENDING_WAL_APPENDS: usize = 1024;
+
+/// How long to wait for a single WAL append to complete during drain
+const WAL_APPEND_TIMEOUT: Duration = Duration::from_secs(30);
+
 pub struct State<Ctx: Context> {
     /// Scheduler for timers
     timers: Timers,
@@ -255,6 +261,16 @@ where
     fn set_phase(&mut self, phase: Phase) {
         if self.phase != phase {
             info!(prev = ?self.phase, new = ?phase, "Phase transition");
+            // TODO(@raneet10 - confirm whether this action is acceptable):Drop any stale receivers so the WAL actor can reclaim senders.
+            // During recovery, wal_append is a no-op, so these receivers will
+            // never be drained normally.
+            if phase == Phase::Recovering && !self.pending_wal_appends.is_empty() {
+                warn!(
+                    count = self.pending_wal_appends.len(),
+                    "Dropping pending WAL appends on transition to Recovering phase"
+                );
+                self.pending_wal_appends.clear();
+            }
             self.phase = phase;
         }
     }
@@ -973,7 +989,7 @@ where
         .map_err(|e| eyre!("Failed to verify vote extension: {e:?}").into())
     }
 
-    /// Signals a WAL append asynchronosly.
+    /// Signals a WAL append asynchronously.
     ///
     /// Call [`Self::drain_pending_wal_appends`] before any
     /// [`WalMsg::Flush`] to await completion of all outstanding appends.
@@ -988,6 +1004,13 @@ where
             return Ok(());
         }
 
+        if pending.len() >= MAX_PENDING_WAL_APPENDS {
+            return Err(eyre!(
+                "Pending WAL appends queue is full ({MAX_PENDING_WAL_APPENDS})"
+            )
+            .into());
+        }
+
         let (tx, rx) = oneshot::channel::<eyre::Result<()>>();
         let reply_port = RpcReplyPort::from(tx);
 
@@ -1000,25 +1023,15 @@ where
         Ok(())
     }
 
-    /// Await all pending WAL append replies, logging any errors.
+    /// Await all pending WAL append replies.
+    ///
+    /// TODO(@raneet10 - confirm whether this action is acceptable) Always drains the entire queue (even after an error) to avoid leaving
+    /// stale receivers. Returns the first error encountered, if any.
     async fn drain_pending_wal_appends(
         &self,
         pending: &mut VecDeque<oneshot::Receiver<eyre::Result<()>>>,
     ) -> Result<(), ActorProcessingErr> {
-        for rx in pending.drain(..) {
-            match rx.await {
-                Ok(Ok(())) => {
-                    // Success
-                }
-                Ok(Err(e)) => {
-                    error!("Failed to append entry to WAL: {e}");
-                }
-                Err(e) => {
-                    error!("WAL append reply channel closed unexpectedly: {e}");
-                }
-            }
-        }
-        Ok(())
+        drain_wal_appends(pending, WAL_APPEND_TIMEOUT).await
     }
 
     async fn wal_flush(
@@ -1593,4 +1606,144 @@ async fn hang_on_failure<A, E>(
 async fn hang() -> ! {
     pending::<()>().await;
     unreachable!()
+}
+
+/// Drains all pending WAL-append receivers, waiting at most `append_timeout`
+/// per entry.
+///
+/// The entire queue is always consumed regardless of errors, so no stale
+/// receivers are left behind. The first error encountered is returned after
+/// all receivers have been awaited.
+async fn drain_wal_appends(
+    pending: &mut VecDeque<oneshot::Receiver<eyre::Result<()>>>,
+    append_timeout: Duration,
+) -> Result<(), ActorProcessingErr> {
+    let mut first_error: Option<ActorProcessingErr> = None;
+
+    for rx in pending.drain(..) {
+        let outcome = timeout(append_timeout, rx).await;
+        let err_msg: Option<String> = match outcome {
+            Ok(Ok(Ok(()))) => None,
+            Ok(Ok(Err(e))) => Some(format!("Failed to append entry to WAL: {e}")),
+            Ok(Err(e)) => Some(format!("WAL append reply channel closed unexpectedly: {e}")),
+            Err(_elapsed) => Some(format!(
+                "Timed out waiting for WAL append after {}s",
+                append_timeout.as_secs()
+            )),
+        };
+
+        if let Some(msg) = err_msg {
+            error!("{msg}");
+            if first_error.is_none() {
+                first_error = Some(eyre!("{msg}").into());
+            }
+        }
+    }
+
+    match first_error {
+        Some(e) => Err(e),
+        None => Ok(()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use eyre::eyre;
+    use tokio::sync::oneshot;
+
+    use super::{drain_wal_appends, VecDeque};
+
+    #[tokio::test]
+    async fn drain_empty_queue_succeeds() {
+        let mut pending = VecDeque::new();
+        let result = drain_wal_appends(&mut pending, Duration::from_secs(1)).await;
+        assert!(result.is_ok());
+        assert!(pending.is_empty());
+    }
+
+    #[tokio::test]
+    async fn drain_all_success() {
+        let mut pending = VecDeque::new();
+        for _ in 0..3 {
+            let (tx, rx) = oneshot::channel::<eyre::Result<()>>();
+            tx.send(Ok(())).unwrap();
+            pending.push_back(rx);
+        }
+        let result = drain_wal_appends(&mut pending, Duration::from_secs(1)).await;
+        assert!(result.is_ok());
+        assert!(pending.is_empty());
+    }
+
+    #[tokio::test]
+    async fn drain_propagates_first_wal_error() {
+        let mut pending = VecDeque::new();
+        let (tx_ok, rx_ok) = oneshot::channel::<eyre::Result<()>>();
+        tx_ok.send(Ok(())).unwrap();
+        pending.push_back(rx_ok);
+
+        let (tx_err, rx_err) = oneshot::channel::<eyre::Result<()>>();
+        tx_err.send(Err(eyre!("disk full"))).unwrap();
+        pending.push_back(rx_err);
+
+        let (tx_ok2, rx_ok2) = oneshot::channel::<eyre::Result<()>>();
+        tx_ok2.send(Ok(())).unwrap();
+        pending.push_back(rx_ok2);
+
+        let result = drain_wal_appends(&mut pending, Duration::from_secs(1)).await;
+        assert!(result.is_err());
+        // All receivers must have been consumed
+        assert!(pending.is_empty());
+    }
+
+    #[tokio::test]
+    async fn drain_propagates_closed_channel_error() {
+        let mut pending = VecDeque::new();
+        let (tx, rx) = oneshot::channel::<eyre::Result<()>>();
+        drop(tx); // sender dropped without sending
+        pending.push_back(rx);
+
+        let result = drain_wal_appends(&mut pending, Duration::from_secs(1)).await;
+        assert!(result.is_err());
+        assert!(pending.is_empty());
+    }
+
+    #[tokio::test]
+    async fn drain_continues_after_error_and_drains_all() {
+        let mut pending = VecDeque::new();
+
+        // First entry: error
+        let (tx_err, rx_err) = oneshot::channel::<eyre::Result<()>>();
+        tx_err.send(Err(eyre!("append failed"))).unwrap();
+        pending.push_back(rx_err);
+
+        // Second entry: closed channel
+        let (tx_closed, rx_closed) = oneshot::channel::<eyre::Result<()>>();
+        drop(tx_closed);
+        pending.push_back(rx_closed);
+
+        // Third entry: success
+        let (tx_ok, rx_ok) = oneshot::channel::<eyre::Result<()>>();
+        tx_ok.send(Ok(())).unwrap();
+        pending.push_back(rx_ok);
+
+        let result = drain_wal_appends(&mut pending, Duration::from_secs(1)).await;
+        // Error is propagated
+        assert!(result.is_err());
+        // All three receivers were consumed
+        assert!(pending.is_empty());
+    }
+
+    #[tokio::test]
+    async fn drain_times_out_on_stalled_receiver() {
+        let mut pending = VecDeque::new();
+        let (_tx, rx) = oneshot::channel::<eyre::Result<()>>();
+        // tx is kept alive but never sends — simulates a hung WAL thread
+        pending.push_back(rx);
+
+        let result = drain_wal_appends(&mut pending, Duration::from_millis(50)).await;
+        assert!(result.is_err());
+        assert!(pending.is_empty());
+    }
 }
