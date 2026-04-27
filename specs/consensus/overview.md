@@ -513,10 +513,10 @@ provide the value to be proposed.
 >   The values produced by most processes are therefore likely to be completely
 >   disregarded by the algorithm;
 > - In some cases producing a value to propose can be really expensive.
->   For instance, in the [Starknet Proofs Scheduling][starkware-proofs]
->   protocol, a process `p` starts producing proofs to be included in the
+>   For instance, in some protocols,
+>   a process `p` starts producing proofs to be included in the
 >   value proposed in a height `h` once it learns that `p = proposer(h, 0)`,
->   as its production may may take the ordinary duration of several heights.
+>   as its production may take the ordinary duration of several heights.
 >   For the same reason, values proposed in rounds greater than `0` are not
 >   expected to include proofs;
 > - Proposed values are likely to aggregate multiple inputs received from
@@ -1056,7 +1056,6 @@ Condition 2, thus enabling `r` to be a successful round.
 [tendermint-arxiv]: https://arxiv.org/abs/1807.04938
 [accountable-tendermint]: ./misbehavior.md#misbehavior-detection-and-verification-in-accountable-tendermint
 [cometbft-proposer]: https://github.com/cometbft/cometbft/blob/main/spec/consensus/proposer-selection.md
-[starkware-proofs]: ../starknet/proofs-scheduling/README.md
 [synchronization-issue]: https://github.com/circlefin/malachite/issues/260
 [synchronization-spec]: ../synchronization/README.md
 [partially-synchronous]: https://dl.acm.org/doi/10.1145/42282.42283

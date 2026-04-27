@@ -15,9 +15,9 @@ static RELOAD_HANDLE: OnceLock<reload::Handle<EnvFilter, Registry>> = OnceLock::
 static DEFAULT_LOG_LEVEL: OnceLock<String> = OnceLock::new();
 
 pub fn reset() {
-    let log_level = DEFAULT_LOG_LEVEL
-        .get()
-        .expect("failed to get the default log level");
+    let Some(log_level) = DEFAULT_LOG_LEVEL.get() else {
+        return;
+    };
 
     reload_env_filter(build_tracing_filter(log_level));
 }

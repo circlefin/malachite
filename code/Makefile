@@ -1,4 +1,4 @@
-.PHONY: help install lint lint-fix integration-tests starknet-tests discovery-tests tests
+.PHONY: help install lint lint-fix integration-tests discovery-tests tests
 
 help: ## Show this help.
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage: make \033[36m\033[0m\n"} /^[$$()% a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
@@ -22,16 +22,7 @@ integration-tests: ## Run the integration tests.
 		--no-fail-fast \
 		--failure-output final \
 		--test-threads 1 \
-		--exclude arc-malachitebft-starknet-test \
 		--exclude arc-malachitebft-discovery-test
-
-starknet-tests: ## Run the Starknet integration tests
-	cargo nextest run \
-		--all-features \
-		--no-fail-fast \
-		--failure-output final \
-		--test-threads 1 \
-		--package arc-malachitebft-starknet-test
 
 discovery-tests: ## Run the discovery tests
 	cargo nextest run \
@@ -43,6 +34,4 @@ discovery-tests: ## Run the discovery tests
 
 tests: ## Run all the tests.
 	$(MAKE) integration-tests
-	$(MAKE) starknet-tests
 	$(MAKE) discovery-tests
-

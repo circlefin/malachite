@@ -63,7 +63,6 @@ jobs:
           cargo llvm-cov nextest \
             --workspace \
             --exclude arc-malachitebft-test-mbt \
-            --exclude arc-malachitebft-starknet-test-mbt \
             --ignore-filename-regex crates/cli \
             --all-features \
             --no-capture \

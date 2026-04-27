@@ -33,7 +33,7 @@ The value sync protocol has the following components and interactions:
 **Consensus Engine** (`code/crates/core-consensus`)
    - Coordinates with sync protocol for value synchronization
 
-**Application Layer** (example in `examples/channel`)
+**Application Layer** (example in `crates/test/app`)
    - Provides decided values to sync protocol
    - Handles value storage and retrieval
    - Implements synced value validation and processing
@@ -169,7 +169,7 @@ Accepted
 ## References
 
 * [Malachite Consensus Documentation](/docs/consensus.md)
-* [Channel Example Implementation](/examples/channel)
+* [Test Application](/code/crates/test/app)
 * [Sync Protocol Implementation](/code/crates/sync)
 * [libp2p Request-Response Protocol](https://github.com/libp2p/rust-libp2p/blob/v0.55.0/protocols/request-response/src/lib.rs)
 * [libp2p-scatter](https://github.com/romac/libp2p-scatter)

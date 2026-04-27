@@ -5,7 +5,7 @@ use libp2p_identity::PeerId;
 use malachitebft_config::TransportProtocol;
 use malachitebft_metrics::SharedRegistry;
 use malachitebft_network::{spawn, Config, DiscoveryConfig, Keypair, PeerIdExt, ProtocolNames};
-use malachitebft_starknet_host::types::PrivateKey;
+use malachitebft_signing_ed25519::PrivateKey;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use tokio::time::sleep;
 use tracing::{debug, info};

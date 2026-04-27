@@ -6,18 +6,62 @@ use tracing::{debug, error, info};
 
 use malachitebft_app_channel::app::engine::host::{HeightParams, Next};
 use malachitebft_app_channel::app::streaming::StreamContent;
-use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::utils::height::HeightRangeExt;
 use malachitebft_app_channel::app::types::core::{Round, Validity};
 use malachitebft_app_channel::app::types::sync::RawDecidedValue;
 use malachitebft_app_channel::app::types::{LocallyProposedValue, ProposedValue};
 use malachitebft_app_channel::{AppMsg, Channels, NetworkMsg};
-use malachitebft_test::codec::json::JsonCodec;
 use malachitebft_test::{Height, TestContext};
 
-use crate::state::{decode_value, State};
+use crate::state::{decode_value, encode_value, State};
+
+/// Periodically request a state dump from consensus and print it to the console
+fn monitor_state(
+    tx_request: tokio::sync::mpsc::Sender<malachitebft_app_channel::ConsensusRequest<TestContext>>,
+) {
+    use malachitebft_app_channel::{ConsensusRequest, ConsensusRequestError};
+
+    tokio::spawn(async move {
+        loop {
+            match ConsensusRequest::dump_state(&tx_request).await {
+                Ok(dump) => {
+                    tracing::debug!("State dump: {dump:#?}");
+                }
+                Err(ConsensusRequestError::Recv) => {
+                    tracing::error!("Failed to receive state dump from consensus");
+                }
+                Err(ConsensusRequestError::Full) => {
+                    tracing::error!("Consensus request channel full");
+                }
+                Err(ConsensusRequestError::Closed) => {
+                    tracing::error!("Consensus request channel closed");
+                    break;
+                }
+            }
+
+            sleep(Duration::from_secs(1)).await;
+        }
+    });
+}
+
+/// Reload the tracing subscriber log level based on the current round.
+/// Increases log level to Debug when round > 0, resets when back to round 0.
+fn reload_log_level(_height: Height, round: Round) {
+    use malachitebft_test_cli::logging;
+
+    if round.as_i64() > 0 {
+        logging::reload(logging::LogLevel::Debug);
+    } else {
+        logging::reset();
+    }
+}
 
 pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyre::Result<()> {
+    // If the MALACHITE_MONITOR_STATE env var is set, start monitoring the consensus state
+    if std::env::var("MALACHITE_MONITOR_STATE").is_ok() {
+        monitor_state(channels.requests.clone());
+    }
+
     while let Some(msg) = channels.consensus.recv().await {
         match msg {
             // The first message to handle is the `ConsensusReady` message, signaling to the app
@@ -57,6 +101,8 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 reply_value,
             } => {
                 info!(%height, %round, %proposer, ?role, "Started round");
+
+                reload_log_level(height, round);
 
                 // We can use that opportunity to update our internal state
                 state.current_height = height;
@@ -368,15 +414,11 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
                 for height in range.iter_heights() {
                     if let Some(decided_value) = state.get_decided_value(height).await {
-                        match JsonCodec.encode(&decided_value.value) {
-                            Ok(value_bytes) => values.push(RawDecidedValue {
-                                certificate: decided_value.certificate,
-                                value_bytes,
-                            }),
-                            Err(e) => {
-                                error!(%height, "Failed to encode decided value: {e}");
-                            }
-                        }
+                        let raw_decided_value = RawDecidedValue {
+                            certificate: decided_value.certificate,
+                            value_bytes: encode_value(&decided_value.value),
+                        };
+                        values.push(raw_decided_value);
                     }
                 }
 

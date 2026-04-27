@@ -17,7 +17,7 @@ use malachitebft_app_channel::app::streaming::{StreamContent, StreamId, StreamMe
 use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::{CommitCertificate, Round, Validity};
 use malachitebft_app_channel::app::types::{LocallyProposedValue, PeerId};
-use malachitebft_test::codec::json::JsonCodec;
+use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::middleware::Middleware;
 use malachitebft_test::{
     Address, Ed25519Signer, Genesis, Height, LinearTimeouts, ProposalData, ProposalFin,
@@ -25,7 +25,7 @@ use malachitebft_test::{
 };
 
 use crate::config::Config;
-use crate::store::{DecidedValue, Store};
+use crate::store::{DecidedValue, Store, StoreMetrics};
 use crate::streaming::{PartStreamsMap, ProposalParts};
 
 /// Number of historical values to keep in the store
@@ -41,9 +41,11 @@ pub struct State {
     pub current_height: Height,
     pub current_round: Round,
     pub current_proposer: Option<Address>,
+    #[allow(dead_code)]
     pub current_role: Role,
+    #[allow(dead_code)]
     pub peers: HashSet<PeerId>,
-    pub store: Store,
+    pub store: Store<Box<dyn StoreMetrics>>,
     pub middleware: Option<Arc<dyn Middleware>>,
 
     signer: Ed25519Signer,
@@ -97,7 +99,7 @@ impl State {
         genesis: Genesis,
         address: Address,
         height: Height,
-        store: Store,
+        store: Store<Box<dyn StoreMetrics>>,
         signer: Ed25519Signer,
         middleware: Option<Arc<dyn Middleware>>,
     ) -> Self {
@@ -120,11 +122,60 @@ impl State {
     }
 
     /// Returns the set of validators for the given height.
+    ///
+    /// Priority order:
+    /// 1. Middleware (if it returns a validator set)
+    /// 2. Validator rotation (if enabled in config)
+    /// 3. Genesis validator set (fallback)
     pub fn get_validator_set(&self, height: Height) -> ValidatorSet {
-        self.ctx
-            .middleware()
-            .get_validator_set(&self.ctx, self.current_height, height, &self.genesis)
-            .unwrap_or_else(|| self.genesis.validator_set.clone())
+        // Check middleware first
+        if let Some(vs) = self.ctx.middleware().get_validator_set(
+            &self.ctx,
+            self.current_height,
+            height,
+            &self.genesis,
+        ) {
+            return vs;
+        }
+
+        // Check validator rotation config
+        if self.config.validator_rotation.enabled {
+            return self.rotate_validator_set(height);
+        }
+
+        // Fallback to genesis
+        self.genesis.validator_set.clone()
+    }
+
+    /// Rotate the validator set based on height and config
+    fn rotate_validator_set(&self, height: Height) -> ValidatorSet {
+        let rotation = &self.config.validator_rotation;
+        let num_validators = self.genesis.validator_set.len();
+
+        let selection_size =
+            if rotation.selection_size == 0 || rotation.selection_size >= num_validators {
+                num_validators
+            } else {
+                rotation.selection_size
+            };
+
+        if selection_size >= num_validators {
+            return self.genesis.validator_set.clone();
+        }
+
+        let rotation_period = rotation.rotation_period.max(1);
+        let rotation_index = (height.as_u64() / rotation_period) as usize % num_validators;
+
+        ValidatorSet::new(
+            self.genesis
+                .validator_set
+                .iter()
+                .cycle()
+                .skip(rotation_index)
+                .take(selection_size)
+                .cloned()
+                .collect::<Vec<_>>(),
+        )
     }
 
     /// Returns the timeouts for the given height.
@@ -435,6 +486,7 @@ impl State {
         Value::new(value)
     }
 
+    #[allow(dead_code)]
     pub async fn get_proposal(
         &self,
         height: Height,
@@ -576,12 +628,14 @@ impl State {
 
 /// Encode a value to its byte representation
 pub fn encode_value(value: &Value) -> Bytes {
-    JsonCodec.encode(value).unwrap()
+    ProtobufCodec
+        .encode(value)
+        .expect("encoding a Value (u64 wrapper) should never fail")
 }
 
 /// Decodes a Value from its byte representation
 pub fn decode_value(bytes: Bytes) -> Option<Value> {
-    JsonCodec.decode(bytes).ok()
+    ProtobufCodec.decode(bytes).ok()
 }
 
 /// Returns the list of prime factors of the given value

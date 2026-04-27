@@ -104,13 +104,7 @@ Or run specific integration tests:
    cargo nextest run -p arc-malachitebft-discovery-test
    ```
 
-2. **Starknet app**:
-
-   ```bash
-   cargo nextest run -p arc-malachitebft-starknet-test
-   ```
-
-3. **Test app**:
+2. **Test app**:
 
    ```bash
    cargo nextest run -p arc-malachitebft-test

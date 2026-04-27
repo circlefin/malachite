@@ -14,7 +14,6 @@ malachitebft-core-types = { workspace = true }
 malachitebft-core-votekeeper = { workspace = true }
 malachitebft-core-state-machine = { workspace = true }
 malachitebft-test = { workspace = true }
-malachitebft-starknet-host = { workspace = true }
 malachitebft-engine = { workspace = true }
 malachitebft-peer = { workspace = true }
 
