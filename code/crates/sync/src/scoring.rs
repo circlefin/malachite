@@ -17,8 +17,18 @@ use metrics::Metrics;
 /// Result of a sync request to a peer
 #[derive(Copy, Clone, Debug)]
 pub enum SyncResult {
-    /// Successful response with given response time
+    /// Successful response covering the whole requested range, with given response time.
     Success(Duration),
+
+    /// Successful but partial response: peer returned a non-empty prefix of the
+    /// requested range. The scoring strategy scales the score update by the
+    /// `received / requested` ratio so partial responders are credited less than
+    /// full responders.
+    PartialSuccess {
+        received: usize,
+        requested: usize,
+        response_time: Duration,
+    },
 
     /// Timeout response
     Timeout,
@@ -209,13 +219,35 @@ mod tests {
     }
 
     fn arb_sync_result(u: &mut Unstructured) -> Result<SyncResult> {
-        let result_type = u.int_in_range(0..=2)?;
+        let result_type = u.int_in_range(0..=3)?;
 
         Ok(match result_type {
             0 => SyncResult::Success(arb_response_time(u)?),
             1 => SyncResult::Timeout,
             2 => SyncResult::Failure,
+            3 => {
+                let requested = u.int_in_range(1_usize..=32)?;
+                let received = u.int_in_range(1_usize..=requested)?;
+                SyncResult::PartialSuccess {
+                    received,
+                    requested,
+                    response_time: arb_response_time(u)?,
+                }
+            }
             _ => unreachable!(),
+        })
+    }
+
+    fn arb_sync_result_partial_success_fast(
+        u: &mut Unstructured,
+        slow_threshold: Duration,
+        received: usize,
+        requested: usize,
+    ) -> Result<SyncResult> {
+        Ok(SyncResult::PartialSuccess {
+            received,
+            requested,
+            response_time: arb_response_time_fast(u, slow_threshold)?,
         })
     }
 
@@ -586,6 +618,11 @@ mod tests {
                         );
                     }
                 }
+                SyncResult::PartialSuccess { .. } => {
+                    // Partial responses interpolate between success and failure
+                    // depending on the received/requested ratio and response time;
+                    // no simple monotonicity property holds here.
+                }
             }
 
             Ok(())
@@ -720,6 +757,150 @@ mod tests {
             assert!(
                 score_after_success > initial_score,
                 "Score after success ({score_after_success}) should be greater than initial score ({initial_score})"
+            );
+
+            Ok(())
+        });
+    }
+
+    // Property: A full-ratio PartialSuccess produces the same score delta as Success
+    #[test]
+    fn partial_success_full_ratio_matches_success() {
+        arbtest(|u| {
+            let mut strategy = arb_strategy(u)?;
+            let response_time = arb_response_time(u)?;
+            let count = u.int_in_range(1_usize..=32)?;
+
+            let initial_score = 0.5;
+
+            let success_score =
+                strategy.update_score(initial_score, SyncResult::Success(response_time));
+            let partial_score = strategy.update_score(
+                initial_score,
+                SyncResult::PartialSuccess {
+                    received: count,
+                    requested: count,
+                    response_time,
+                },
+            );
+
+            let diff = (success_score - partial_score).abs();
+            assert!(
+                diff < 1e-12,
+                "Full-ratio PartialSuccess ({count}/{count}) should match Success: \
+                 success={success_score}, partial={partial_score}"
+            );
+
+            Ok(())
+        });
+    }
+
+    // Property: For fixed requested + response_time, the score update is monotonic
+    // non-decreasing in `received`. A peer that delivers more values must never be
+    // credited less than one that delivers fewer.
+    #[test]
+    fn partial_success_monotonic_in_received() {
+        arbtest(|u| {
+            let mut strategy = arb_strategy(u)?;
+            let response_time = arb_response_time(u)?;
+            let requested = u.int_in_range(2_usize..=32)?;
+
+            let initial_score = 0.5;
+
+            let mut prev_score = None;
+            for received in 1..=requested {
+                let score = strategy.update_score(
+                    initial_score,
+                    SyncResult::PartialSuccess {
+                        received,
+                        requested,
+                        response_time,
+                    },
+                );
+
+                if let Some(prev) = prev_score {
+                    assert!(
+                        score >= prev - 1e-12,
+                        "Score must not decrease when received grows: \
+                         received={received}/{requested}, prev={prev}, cur={score}"
+                    );
+                }
+                prev_score = Some(score);
+            }
+
+            Ok(())
+        });
+    }
+
+    // Property: A PartialSuccess never credits a peer more than the equivalent
+    // full Success would, and partial responses do not push scores above 1.0.
+    #[test]
+    fn partial_success_bounded_by_success() {
+        arbtest(|u| {
+            let mut strategy = arb_strategy(u)?;
+            let requested = u.int_in_range(1_usize..=32)?;
+            let received = u.int_in_range(1_usize..=requested)?;
+            let response_time = arb_response_time(u)?;
+
+            let initial_score = 0.5;
+
+            let success_score =
+                strategy.update_score(initial_score, SyncResult::Success(response_time));
+            let partial_score = strategy.update_score(
+                initial_score,
+                SyncResult::PartialSuccess {
+                    received,
+                    requested,
+                    response_time,
+                },
+            );
+
+            assert!(
+                partial_score <= success_score + 1e-12,
+                "Partial ({received}/{requested}) must not outscore full success: \
+                 partial={partial_score}, success={success_score}"
+            );
+            assert!(
+                (0.0..=1.0).contains(&partial_score),
+                "PartialSuccess score {partial_score} is out of bounds"
+            );
+
+            Ok(())
+        });
+    }
+
+    // Property: Repeated partial responses converge bounded away from 1.0
+    // (so partial responders remain deprioritized over time).
+    #[test]
+    fn repeated_partial_responses_stay_bounded_below_full_success() {
+        arbtest(|u| {
+            let strategy = arb_strategy(u)?;
+            // Use ratio 1/2 — halves the response-time quality.
+            let received = 1_usize;
+            let requested = 2_usize;
+
+            let mut scorer = PeerScorer::new(strategy);
+            let peer_id = PeerId::random();
+
+            for _ in 0..50 {
+                scorer.update_score(
+                    peer_id,
+                    arb_sync_result_partial_success_fast(
+                        u,
+                        strategy.slow_threshold,
+                        received,
+                        requested,
+                    )?,
+                );
+            }
+
+            let final_score = scorer.get_score(&peer_id);
+            // With ratio = 0.5 and fast responses, quality caps at 0.5, so the
+            // EMA converges toward 0.5 rather than 1.0.
+            assert!(
+                final_score < 0.9,
+                "Partial-responder score should stay below a full-success \
+                 asymptote: final={final_score}"
             );
 
             Ok(())

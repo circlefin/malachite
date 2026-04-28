@@ -73,6 +73,10 @@
 
 - Removed `Node` trait
 
+### `malachitebft-sync`
+
+- Added new `PartialSuccess { received, requested, response_time }` variant to `SyncResult`. Custom implementations of `ScoringStrategy` that match on `SyncResult` must handle the new variant.
+
 ## 0.6.0
 
 ### `malachitebft-core-types`
@@ -129,10 +133,10 @@
 
 #### Enum Changes
 
-- Renamed `GetDecidedValue` to `GetDecidedValues` in `Effect`. 
+- Renamed `GetDecidedValue` to `GetDecidedValues` in `Effect`.
   - Now it takes a range of heights instead of one, and the reply is a list (possibly empty) of
     decided values instead of one or zero.
-- Renamed `GotDecidedValue` to `GotDecidedValues` in `Msg` and `Input`. 
+- Renamed `GotDecidedValue` to `GotDecidedValues` in `Msg` and `Input`.
   - Now it has as parameter a range of heights instead of one, and a list of decided values instead
     of one or zero.
 - Added new parameter to `SyncRequestTimedOut` in `Input`.
@@ -153,13 +157,11 @@
 - Added new parallel requests related parameters to sync config.
   See ([#1092](https://github.com/circlefin/malachite/issues/1092)) for more details.
 
-
 ## 0.3.1
 
 *July 7th, 2025*
 
 No breaking changes.
-
 
 ## 0.3.0
 
@@ -294,7 +296,6 @@ No breaking changes.
   - `State::store_decision`
   - `State::full_proposals_for_value`
   - `State::remove_full_proposals`
-
 
 ### `arc-malachitebft-sync`
 

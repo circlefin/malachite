@@ -113,13 +113,6 @@ async fn on_value_response<Ctx>(
 where
     Ctx: Context,
 {
-    let start = response.start_height;
-    let end = response.end_height().unwrap_or(start);
-    let range_len = end.as_u64() - start.as_u64() + 1;
-
-    // Check if the response is valid. A valid response starts at the
-    // requested start height, has at least one value, and no more than
-    // the requested range.
     let Some(entry) = state.pending_requests.get(&request_id) else {
         warn!(%request_id, %peer_id, "Received response for unknown request ID");
         return Ok(());
@@ -136,17 +129,23 @@ where
         return on_invalid_value_response(co, state, metrics, request_id, peer_id).await;
     }
 
-    let range_valid = start.as_u64() == requested_range.start().as_u64()
-        && start.as_u64() <= end.as_u64()
-        && end.as_u64() <= requested_range.end().as_u64()
-        && response.values.len() as u64 == range_len;
+    let start = response.start_height;
+    let received_len = response.values.len();
+    let requested_len = requested_range.len();
+
+    // A valid response starts at the requested start height and covers a
+    // non-empty prefix (possibly all) of the requested range. Shorter prefixes
+    // are accepted so peers returning truncated responses under
+    // `max_response_size` still make progress; they are credited less through
+    // `SyncResult::PartialSuccess` scoring below.
+    let range_valid =
+        start == *requested_range.start() && received_len > 0 && received_len <= requested_len;
 
     if !range_valid {
         warn!(
             %request_id, %peer_id,
-            "Received response with wrong range: expected {}..={} ({} values), got {}..={} ({} values)",
-            requested_range.start().as_u64(), requested_range.end().as_u64(), range_len,
-            start.as_u64(), end.as_u64(), response.values.len() as u64
+            "Received response with wrong range: expected {} ({requested_len} values max), got {received_len} values starting at {start}",
+            DisplayRange(requested_range),
         );
 
         return on_invalid_value_response(co, state, metrics, request_id, peer_id).await;
@@ -162,8 +161,8 @@ where
     if !heights_sequential {
         warn!(
             %request_id, %peer_id,
-            "Received response with non-sequential certificate heights for range {}..={}",
-            start.as_u64(), end.as_u64(),
+            "Received response with non-sequential certificate heights for range {}",
+            DisplayRange(requested_range),
         );
 
         return on_invalid_value_response(co, state, metrics, request_id, peer_id).await;
@@ -435,17 +434,45 @@ where
     Ctx: Context,
 {
     let start = response.start_height;
-    debug!(start = %start, num_values = %response.values.len(), %peer_id, "Received response from peer");
+    let values_count = response.values.len();
+    debug!(start = %start, num_values = %values_count, %peer_id, "Received response from peer");
 
-    if let Some(response_time) = metrics.value_response_received(start.as_u64()) {
-        state.peer_scorer.update_score_with_metrics(
-            peer_id,
-            SyncResult::Success(response_time),
-            &metrics.scoring,
+    // Extract cheap Copy data from the pending entry. NLL releases the borrow
+    // once the Copy values are bound, so mutable access to `state` is free
+    // afterwards.
+    let Some(entry) = state.pending_requests.get(&request_id) else {
+        return Ok(());
+    };
+    let entry_peer = entry.peer;
+    let range_start = *entry.range.start();
+    let range_end = *entry.range.end();
+    let requested_len = entry.range.len();
+
+    if entry_peer != peer_id {
+        // Defensive check: `on_value_response` already rejects responses from
+        // a different peer than the one recorded in the pending entry.
+        error!(
+            %request_id, peer.actual = %peer_id, peer.expected = %entry_peer,
+            "Received response from different peer than expected"
         );
+        return on_invalid_value_response(co, state, metrics, request_id, peer_id).await;
     }
 
-    let values_count = response.values.len();
+    if let Some(response_time) = metrics.value_response_received(start.as_u64()) {
+        let result = if values_count < requested_len {
+            SyncResult::PartialSuccess {
+                received: values_count,
+                requested: requested_len,
+                response_time,
+            }
+        } else {
+            SyncResult::Success(response_time)
+        };
+
+        state
+            .peer_scorer
+            .update_score_with_metrics(peer_id, result, &metrics.scoring);
+    }
 
     // Tell consensus to process the response.
     perform!(
@@ -453,34 +480,7 @@ where
         Effect::ProcessValueResponse(peer_id, request_id.clone(), response, Default::default())
     );
 
-    // If the response contains a prefix of the requested values, re-request the remaining values.
-    //
-    // Extract cheap Copy data from the entry. NLL releases the immutable borrow
-    // after the last use of `entry`, so mutable access to `state` is available
-    // below. The entry stays in the map and is only removed in the single path
-    // that needs to replace it (partial response with >0 values).
-    let Some(entry) = state.pending_requests.get(&request_id) else {
-        return Ok(());
-    };
-
-    let (entry_peer, entry_range) = (entry.peer, &entry.range);
-    let range_start = *entry_range.start();
-    let range_end = *entry_range.end();
-    let range_len = entry_range.len();
-
-    if entry_peer != peer_id {
-        // Defensive check: This should never happen because this check is already performed in
-        // the handler of `Input::ValueResponse`.
-        error!(
-            %request_id, peer.actual = %peer_id, peer.expected = %entry_peer,
-            "Received response from different peer than expected"
-        );
-
-        // Entry is still in the map — on_invalid_value_response will remove it.
-        return on_invalid_value_response(co, state, metrics, request_id, peer_id).await;
-    }
-
-    if values_count < range_len {
+    if values_count < requested_len {
         // NOTE: We cannot simply call `re_request_values_from_peer_except` here.
         // Although we received some values from the peer, these values have not yet been processed
         // by the consensus engine. If we called `re_request_values_from_peer_except`, we would
@@ -488,20 +488,17 @@ where
         // causing the syncing peer to repeatedly send multiple requests until the already-received
         // values are fully processed.
         // To tackle this, we first update the current pending request with the range of values
-        // it provides we received, and then issue a new request with the remaining values.
+        // we received, and then issue a new request for the remaining values.
+        //
+        // `on_value_response` guarantees `values_count >= 1` at this point, so the
+        // `increment_by`/`decrement` arithmetic below is well-defined.
         let new_start = range_start.increment_by(values_count as u64);
 
-        if values_count == 0 {
-            error!(%request_id, %peer_id, "Received response contains no values");
-            // Entry stays unchanged in the map — nothing to do.
-        } else {
-            // Only path that needs to modify the entry — remove to take ownership of excluded_peers.
-            let entry = state.pending_requests.remove(&request_id).unwrap();
-            let updated_range = range_start..=new_start.decrement().unwrap_or_default();
-            state.update_request(request_id, peer_id, updated_range, entry.excluded_peers);
-        }
+        let entry = state.pending_requests.remove(&request_id).unwrap();
+        let updated_range = range_start..=new_start.decrement().unwrap_or_default();
+        state.update_request(request_id, peer_id, updated_range, entry.excluded_peers);
 
-        // Issue a new request to any peer, not necessarily the same one, for the remaining values
+        // Issue a new request for the remaining values to any peer (not necessarily the same one).
         let new_range = new_start..=range_end;
         request_values_range(co, state, metrics, new_range).await?;
     }
@@ -2177,6 +2174,98 @@ mod tests {
         assert!(
             !has_process_value_response(&effects),
             "Response with sequential but wrong-range heights should be rejected"
+        );
+    }
+
+    #[test]
+    fn test_value_response_accepts_prefix_of_requested_range() {
+        // Requested 5 values (10..=14) but peer returns a 3-value prefix.
+        // Accepting the prefix triggers a follow-up `SendValueRequest` for the
+        // remaining suffix, so drive through the retry-aware helper.
+        let (mut state, metrics, peer) = setup_response_test(10, 14);
+        // A second peer is needed so the suffix re-request has somewhere to go.
+        let other_peer = PeerId::random();
+        state.peers.insert(
+            other_peer,
+            crate::Status {
+                peer_id: other_peer,
+                tip_height: Height::new(24),
+                history_min_height: Height::new(1),
+            },
+        );
+
+        let response = crate::ValueResponse::new(
+            Height::new(10),
+            vec![make_raw_value(10), make_raw_value(11), make_raw_value(12)],
+        );
+
+        let effects = drive_input_with_retries(
+            &mut state,
+            &metrics,
+            Input::ValueResponse(OutboundRequestId::new("req1"), peer, Some(response)),
+        )
+        .unwrap();
+
+        assert!(
+            has_process_value_response(&effects),
+            "A non-empty prefix of the requested range must be accepted so the \
+             requester can make progress when peers truncate under max_response_size"
+        );
+        assert!(
+            effects
+                .iter()
+                .any(|e| matches!(e, crate::Effect::SendValueRequest(..))),
+            "A prefix response must trigger a re-request for the remaining suffix"
+        );
+    }
+
+    #[test]
+    fn test_value_response_rejects_empty_response() {
+        // Requested 10..=14 but peer returns zero values.
+        let (mut state, metrics, peer) = setup_response_test(10, 14);
+
+        let response = crate::ValueResponse::new(Height::new(10), vec![]);
+
+        let effects = drive_input(
+            &mut state,
+            &metrics,
+            Input::ValueResponse(OutboundRequestId::new("req1"), peer, Some(response)),
+        )
+        .unwrap();
+
+        assert!(
+            !has_process_value_response(&effects),
+            "An empty response is indistinguishable from a denial and must be rejected"
+        );
+    }
+
+    #[test]
+    fn test_value_response_rejects_longer_than_requested() {
+        // Requested 5 values (10..=14) but peer returns 6 sequential values.
+        let (mut state, metrics, peer) = setup_response_test(10, 14);
+
+        let response = crate::ValueResponse::new(
+            Height::new(10),
+            vec![
+                make_raw_value(10),
+                make_raw_value(11),
+                make_raw_value(12),
+                make_raw_value(13),
+                make_raw_value(14),
+                make_raw_value(15),
+            ],
+        );
+
+        let effects = drive_input(
+            &mut state,
+            &metrics,
+            Input::ValueResponse(OutboundRequestId::new("req1"), peer, Some(response)),
+        )
+        .unwrap();
+
+        assert!(
+            !has_process_value_response(&effects),
+            "A response longer than the requested range must be rejected"
         );
     }
 

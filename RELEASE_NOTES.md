@@ -13,7 +13,7 @@
 ### `consensus`
 - Allow application to change its mind about validity (invalid -> valid)
 - Add an ability to add/remove persistent peers at runtime via `Network` handle
-- Add `persistent_peers_only` config option to allow connections ONLY from/to persistent peers 
+- Add `persistent_peers_only` config option to allow connections ONLY from/to persistent peers
 - Allow dynamic adjustment of timeout parameters ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Allow providing both the validator set and the timeouts for a height in `StartHeight`, `RestartHeight` and `ConsensusReady` reply ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Remove `initial_validator_set` and `initial_height` fields from `Params` struct ([#1190](https://github.com/circlefin/malachite/pull/1190))
@@ -49,6 +49,9 @@
 - Remove signing of proposal parts
 
 ### `sync`
+- Validate sync response length against the requested range and credit partial
+  responses through a new `SyncResult::PartialSuccess` variant, scaling the
+  peer-score update by the `received / requested` ratio
 - Reject sync responses with non-contiguous certificate heights ([#1541](https://github.com/circlefin/malachite/issues/1541))
 - Fix partial range request not being tracked in pending requests
 - Initial random (fixed) period adjustment in sync status ticker
@@ -135,7 +138,6 @@ This version introduces production-ready functionality with improved performance
 - [ADR 003][adr-003] describes the architecture adopted in Malachite for handling the propagation of proposed values.
 - [ADR 004][adr-004] describes the coroutine effect system used in Malachite.
   It is relevant if you are interested in building your own engine on top of the core consensus implementation of Malachite.
-
 
 [tutorial]: ./docs/tutorials/channels.md
 [adr-003]: ./docs/architecture/adr-003-values-propagation.md
