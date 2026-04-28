@@ -8,5 +8,6 @@ The specifications also cover networking and synchronization protocols.
 - [Consensus algorithm and implementation](./consensus/README.md)
 - [Network design and requirements](./network/README.md)
 - [Synchronization protocols](./synchronization/README.md)
+- [Block streaming protocol](./block-streaming/README.md)
 
 [tendermint-arxiv]: https://arxiv.org/abs/1807.04938

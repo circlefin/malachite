@@ -513,12 +513,7 @@ provide the value to be proposed.
 >   The values produced by most processes are therefore likely to be completely
 >   disregarded by the algorithm;
 > - In some cases producing a value to propose can be really expensive.
->   For instance, in some protocols,
->   a process `p` starts producing proofs to be included in the
->   value proposed in a height `h` once it learns that `p = proposer(h, 0)`,
->   as its production may take the ordinary duration of several heights.
->   For the same reason, values proposed in rounds greater than `0` are not
->   expected to include proofs;
+>   This was the case of the original use case of Malachite for Starkware;
 > - Proposed values are likely to aggregate multiple inputs received from
 >   clients (e.g., transactions that form a proposed block).
 >   By providing the proposed value at the beginning of a height to a process

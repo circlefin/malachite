@@ -124,4 +124,39 @@ ADRs in `docs/architecture/` document key design decisions. Consult these when w
 
 ## Specs
 
-Formal specifications live in `specs/` using Quint (a TLA+-like language). Subdirectories cover consensus, network, and synchronization protocols.
+Formal specifications live in `specs/` using Quint (a TLA+-like language). Subdirectories cover consensus, network, block-streaming, and synchronization protocols.
+
+### English specifications for consensus
+
+Alongside the executable Quint spec, `specs/consensus/` contains English documents describing the Tendermint protocol and Malachite's implementation. Consult these when reasoning about protocol semantics, state transitions, or Byzantine behavior:
+
+- [specs/consensus/README.md](specs/consensus/README.md) — **Entry point**: index and orientation for the consensus specification, with references to the Tendermint paper
+- [specs/consensus/overview.md](specs/consensus/overview.md) — **Protocol overview**: summary of Tendermint at the protocol level — rounds, steps (propose/prevote/precommit), locking, and safety/liveness assumptions — as well as the discussion of the practical requirements not discussed in the paper — proposer selection, validity predicate, network properties, etc.
+- [specs/consensus/pseudo-code.md](specs/consensus/pseudo-code.md) — **Algorithm pseudo-code**: Algorithm 1 from page 6 of the Tendermint paper, copied verbatim for easy cross-reference from the rest of the spec and the code
+- [specs/consensus/design.md](specs/consensus/design.md) — **Malachite design**: how the implementation separates vote keeper, driver, and state machine; principles underlying the consensus state machine
+- [specs/consensus/message-handling.md](specs/consensus/message-handling.md) — **Message handling**: discussion on how processes should handle messages for rounds and heights different from their current one (future/past rounds, lagging/leading heights)
+- [specs/consensus/misbehavior.md](specs/consensus/misbehavior.md) — **Byzantine misbehavior**: taxonomy of misbehaviors that can lead to disagreement — equivocation and amnesia — and how each can be detected
+- [specs/consensus/accountable-tm/README.md](specs/consensus/accountable-tm/README.md) — **Accountable Tendermint**: variant that enables the detection of amnesia attacks, in particular when agreement is violated
+- [specs/consensus/accountable-tm/pseudo-code.md](specs/consensus/accountable-tm/pseudo-code.md) — **Accountable Tendermint pseudo-code**: changes in the original pseudo-code in order to implement this variant
+
+### English specifications for block streaming
+
+`specs/block-streaming/` contains the Quint spec for streaming proposal parts (used when a proposed value is split into ordered `INIT`/`DATA`/`FIN` messages and reassembled by the receiver):
+
+- [specs/block-streaming/README.md](specs/block-streaming/README.md) — **Proposal parts streaming**: overview of the Quint model (`part_stream.qnt`, backed by `binary_heap.qnt` and `spells.qnt`) with `quint verify` invocations for the safety invariant and termination property, plus example counter-examples
+
+### English specifications for synchronization
+
+`specs/synchronization/` documents the protocols nodes use to catch up when they fall behind the tip of the chain:
+
+- [specs/synchronization/README.md](specs/synchronization/README.md) — **Index**: entry point listing the synchronization protocols
+- [specs/synchronization/valuesync/README.md](specs/synchronization/valuesync/README.md) — **ValueSync (MVP)**: full English specification of the ValueSync protocol (originally "Blocksync") — motivation, client/server/consensus composition, status/request/response message formats, synchronization strategy, the Quint formalization in `valuesync/quint/`, state-machine variants (with and without consensus), and known issues
+
+### English specifications for the network layer
+
+`specs/network/` covers the libp2p-based networking stack — how nodes find each other and how they disseminate messages:
+
+- [specs/network/README.md](specs/network/README.md) — **Index**: overview of the network layer and pointers to the peer-discovery and gossip protocols
+- [specs/network/discovery/README.md](specs/network/discovery/README.md) — **Peer discovery**: problem statement and model of the discovery protocol — bootstrap nodes, joining without knowing the full network, and assumptions about honest/Byzantine behavior
+- [specs/network/discovery/ipd-protocol.md](specs/network/discovery/ipd-protocol.md) — **Iterative Peer Discovery (IPD)**: detailed description of the IPD algorithm — properties (discoverability, Byzantine-resilience, termination), assumptions, and protocol steps
+- [specs/network/gossip/README.md](specs/network/gossip/README.md) — **Gossip protocol**: placeholder/stub for documentation of the `gossipsub`-based message dissemination layer (minimal content today)
