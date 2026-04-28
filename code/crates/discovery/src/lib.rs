@@ -257,12 +257,12 @@ where
                 step,
                 ..
             }) => match result {
-                kad::QueryResult::Bootstrap(Ok(_)) => {
-                    if step.last && self.state == State::Bootstrapping {
-                        debug!("Discovery bootstrap successful");
+                kad::QueryResult::Bootstrap(Ok(_))
+                    if step.last && self.state == State::Bootstrapping =>
+                {
+                    debug!("Discovery bootstrap successful");
 
-                        self.handle_successful_bootstrap(swarm);
-                    }
+                    self.handle_successful_bootstrap(swarm);
                 }
 
                 kad::QueryResult::Bootstrap(Err(error)) => {

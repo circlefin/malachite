@@ -694,7 +694,7 @@ where
 
         self.round_certificate = Some(EnterRoundCertificate {
             certificate: RoundCertificate {
-                height: certificate.height.clone(),
+                height: certificate.height,
                 round: certificate.round,
                 cert_type: RoundCertificateType::Skip,
                 round_signatures,
