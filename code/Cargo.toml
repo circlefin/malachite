@@ -104,7 +104,7 @@ malachitebft-discovery-test         = { version = "0.7.0-pre", package = "arc-ma
 advisory-lock      = "0.3.0"
 arbtest            = "0.3.2"
 async-recursion    = "1.1"
-async-trait        = "0.1.88"
+async-trait        = "0.1.89"
 asynchronous-codec = "0.7.0"
 axum               = "0.7"
 base64             = "0.22.0"
