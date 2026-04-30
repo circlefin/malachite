@@ -9,6 +9,7 @@ use async_recursion::async_recursion;
 use async_trait::async_trait;
 use derive_where::derive_where;
 use eyre::eyre;
+use itertools::Itertools;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
@@ -1511,6 +1512,26 @@ where
                     self.metrics
                         .equivocation_votes
                         .inc_by(vote_evidence_count as u64);
+                }
+
+                if proposal_evidence_count > 0 || vote_evidence_count > 0 {
+                    let validator_addresses = evidence
+                        .proposals
+                        .iter()
+                        .map(|(addr, _)| addr.to_string())
+                        .chain(evidence.votes.iter().map(|(addr, _)| addr.to_string()))
+                        .collect::<BTreeSet<_>>()
+                        .into_iter()
+                        .join(", ");
+
+                    warn!(
+                        height = %certificate.height,
+                        round = %certificate.round,
+                        proposal_evidence_count,
+                        vote_evidence_count,
+                        %validator_addresses,
+                        "Equivocation evidence observed at finalization"
+                    );
                 }
 
                 // Notify any subscribers about the finalized value

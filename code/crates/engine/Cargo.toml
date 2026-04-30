@@ -41,6 +41,7 @@ byteorder = { workspace = true }
 derive-where = { workspace = true }
 eyre = { workspace = true }
 hex = { workspace = true }
+itertools = { workspace = true }
 libp2p = { workspace = true }
 ractor = { workspace = true }
 rand = { workspace = true }

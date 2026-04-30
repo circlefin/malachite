@@ -389,6 +389,7 @@ dependencies = [
  "derive-where",
  "eyre",
  "hex",
+ "itertools 0.14.0",
  "libp2p",
  "ractor",
  "rand 0.8.5",
