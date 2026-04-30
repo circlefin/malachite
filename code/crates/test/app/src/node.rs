@@ -16,7 +16,7 @@ use malachitebft_app_channel::app::types::core::VotingPower;
 use malachitebft_app_channel::app::types::Keypair;
 use malachitebft_app_channel::{
     ConsensusContext, EngineBuilder, EngineHandle, NetworkContext, NetworkIdentity, RequestContext,
-    SignerExt, SyncContext, WalContext,
+    Signer, SyncContext, WalContext,
 };
 use malachitebft_engine_byzantine::{
     ByzantineMiddleware, ByzantineNetworkProxy, ConflictingValueFn, ConflictingVoteValueFn,

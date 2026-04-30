@@ -16,13 +16,14 @@
 - Split `SigningProvider` into two independent traits:
   - `Verifier<Ctx>` — signature verification (no key material required)
   - `Signer<Ctx>` — message signing (requires private key)
-- `SigningProviderExt` has been removed; use `VerifierExt` and `SignerExt` directly
+- `SigningProviderExt` has been removed; use `VerifierExt` directly
 - APIs that previously took `Box<dyn SigningProvider<Ctx>>` now take `Box<dyn Verifier<Ctx>>` and/or `Box<dyn Signer<Ctx>>` separately
-- Added two new methods to `SignerExt` trait for Proof-of-Validator (ADR-006):
+- Removed `Signer::sign_bytes` and `Verifier::verify_signed_bytes`; every signing purpose is now a named trait method. Previously these were untyped blob channels that forced downstream signers to inspect bytes or maintain ambient state to pick a domain.
+- Added `sign_validator_proof` as a required method on the `Signer` trait for Proof-of-Validator (ADR-006):
   - `sign_validator_proof(&self, public_key: Vec<u8>, peer_id: Vec<u8>) -> Result<ValidatorProof<Ctx>, Error>`
-- Added new method to `VerifierExt` trait for Proof-of-Validator (ADR-006):
+- Added `verify_validator_proof` as a required method on the `Verifier` trait for Proof-of-Validator (ADR-006):
   - `verify_validator_proof(&self, proof: &ValidatorProof<Ctx>) -> Result<VerificationResult, Error>`
-  - These have default implementations using `sign_bytes`/`verify_signed_bytes`
+- Removed the `SignerExt` trait; `sign_validator_proof` now lives on `Signer` directly. Migrate downstream `use … SignerExt` imports to `use … Signer`.
 
 ### `malachitebft-core-driver`
 
@@ -62,7 +63,7 @@
   - Old: `NetworkContext::new(identity: NetworkIdentity, codec: Codec)` (where `NetworkIdentity` had no proof)
   - New: `NetworkContext::new(identity: NetworkIdentity, codec: Codec)` (where `NetworkIdentity` carries pre-signed proof bytes)
   - The application is now responsible for signing the validator proof and building `NetworkIdentity::new_validator(moniker, keypair, address, proof_bytes)` before passing it to `NetworkContext`
-- Re-exported `SignerExt` from `malachitebft_app_channel` (needed by apps to call `sign_validator_proof`)
+- Re-exported `Signer` and `Verifier` from `malachitebft_app_channel`; apps call `sign_validator_proof` / `verify_validator_proof` directly on the primary traits now
 - `ConsensusContext` now has two constructors: `new_validator(address, verifier, signer)` for validators and `new_full_node(address, verifier)` for non-validator nodes
 - Network codec now requires `Codec<ValidatorProof<Ctx>>` implementation
 - Changed `AppMsg::ConsensusReady` reply type from `(Ctx::Height, Ctx::ValidatorSet)` to `(Ctx::Height, HeightParams<Ctx>)` ([#1227](https://github.com/circlefin/malachite/pull/1227))

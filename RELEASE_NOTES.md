@@ -47,6 +47,8 @@
 - Split `SigningProviderExt` into `VerifierExt` and `SignerExt`
 - Implement `Verifier` and `Signer` for `&T`, `Box<T>`, and `Arc<T>`
 - Remove signing of proposal parts
+- Remove `Signer::sign_bytes` and `Verifier::verify_signed_bytes`; every signing purpose is now a named trait method
+- Promote `sign_validator_proof` and `verify_validator_proof` to required methods on `Signer` and `Verifier`; remove the `SignerExt` trait
 
 ### `sync`
 - Validate sync response length against the requested range and credit partial

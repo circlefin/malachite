@@ -1,15 +1,14 @@
 use alloc::boxed::Box;
-use alloc::format;
 use alloc::vec::Vec;
 
 use async_trait::async_trait;
 use malachitebft_core_types::{
     CertificateError, CommitCertificate, CommitSignature, Context, NilOrVal, PolkaCertificate,
-    PolkaSignature, RoundCertificate, RoundCertificateType, RoundSignature, SigningScheme,
-    ThresholdParams, Validator, ValidatorProof, ValidatorSet, VoteType, VotingPower,
+    PolkaSignature, RoundCertificate, RoundCertificateType, RoundSignature, ThresholdParams,
+    Validator, ValidatorSet, VoteType, VotingPower,
 };
 
-use crate::{Error, Signer, VerificationResult, Verifier};
+use crate::Verifier;
 
 /// Extension trait providing additional certificate verification functionality.
 ///
@@ -103,14 +102,6 @@ where
         validator_set: &Ctx::ValidatorSet,
         thresholds: ThresholdParams,
     ) -> Result<(), CertificateError<Ctx>>;
-
-    /// Verify a validator proof's signature using the public key included in the certificate.
-    ///
-    /// This allows immediate verification without needing to look up the public key from the validator set.
-    async fn verify_validator_proof(
-        &self,
-        proof: &ValidatorProof<Ctx>,
-    ) -> Result<VerificationResult, Error>;
 }
 
 #[async_trait]
@@ -371,52 +362,5 @@ where
                 expected: threshold.min_expected(total_voting_power),
             })
         }
-    }
-
-    async fn verify_validator_proof(
-        &self,
-        proof: &ValidatorProof<Ctx>,
-    ) -> Result<VerificationResult, Error> {
-        let signing_bytes = ValidatorProof::<Ctx>::signing_bytes(&proof.public_key, &proof.peer_id);
-        // Decode the public key from the proof bytes
-        let public_key = Ctx::SigningScheme::decode_public_key(&proof.public_key).map_err(|e| {
-            Error::from_source(format!("Invalid public key in validator proof: {e}"))
-        })?;
-        self.verify_signed_bytes(&signing_bytes, &proof.signature, &public_key)
-            .await
-    }
-}
-
-/// Extension trait providing additional signing functionality.
-///
-/// This trait extends the base [`Signer`] functionality with methods for signing
-/// validator proofs. It is automatically implemented for any type that implements [`Signer`].
-#[async_trait]
-pub trait SignerExt<Ctx>
-where
-    Ctx: Context,
-{
-    /// Sign a validator proof binding the given public key to the given peer ID.
-    async fn sign_validator_proof(
-        &self,
-        public_key: Vec<u8>,
-        peer_id: Vec<u8>,
-    ) -> Result<ValidatorProof<Ctx>, Error>;
-}
-
-#[async_trait]
-impl<Ctx, P> SignerExt<Ctx> for P
-where
-    Ctx: Context,
-    P: Signer<Ctx>,
-{
-    async fn sign_validator_proof(
-        &self,
-        public_key: Vec<u8>,
-        peer_id: Vec<u8>,
-    ) -> Result<ValidatorProof<Ctx>, Error> {
-        let signing_bytes = ValidatorProof::<Ctx>::signing_bytes(&public_key, &peer_id);
-        let signature = self.sign_bytes(&signing_bytes).await?;
-        Ok(ValidatorProof::new(public_key, peer_id, signature))
     }
 }

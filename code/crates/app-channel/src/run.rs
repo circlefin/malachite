@@ -11,7 +11,7 @@ use malachitebft_engine::network::{NetworkMsg, NetworkRef};
 use malachitebft_engine::node::NodeRef;
 
 pub use malachitebft_engine::network::NetworkIdentity;
-pub use malachitebft_signing::{SignerExt, VerifierExt};
+pub use malachitebft_signing::{Signer, Verifier, VerifierExt};
 
 // Re-export context structs from builder module
 pub use crate::builder::{
