@@ -30,6 +30,7 @@
 
 ### `driver`
 - Check for polka certificate to multiplex `PolkaValue` output on step change
+- Clear scheduled timeouts when skipping to a higher round
 - Ensure `PrecommitAny` does not shadow `PolkaNil` and `PolkaAny` pending inputs
 - Ensure polka certificate is matched against a proposal for the same value
 - Produce `InvalidProposalAndPolkaPrevious` when receiving a polka certificate matching the POL round of a proposal with an invalid value

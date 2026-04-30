@@ -1348,6 +1348,63 @@ fn driver_steps_skip_round_quorum_threshold() {
     run_steps(&mut driver, steps, sel.as_ref(), &vs);
 }
 
+#[test]
+fn driver_skip_round_clears_scheduled_timeouts() {
+    use malachitebft_core_state_machine::state::ScheduledTimeouts;
+
+    let value = Value::new(9999);
+
+    let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([1, 1, 1]);
+
+    // Proposer is v1, so we, v3, are not the proposer.
+    let (_my_sk, my_addr) = (sk3, v3.address);
+
+    let ctx = TestContext::new();
+    let height = Height::new(1);
+
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+    let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
+
+    // Start round 0. The state machine schedules the Propose timeout,
+    // which marks Propose as scheduled in the per-round bitfield.
+    driver
+        .process(Input::NewRound(height, Round::new(0), v1.address))
+        .expect("start round 0");
+    assert_ne!(
+        driver.round_state().scheduled_timeouts,
+        ScheduledTimeouts::default(),
+        "Propose timeout should be marked as scheduled after round 0 starts",
+    );
+
+    // Drive to round 1 via the skip-round threshold:
+    // v1 and v2 prevote for a value in round 1 (f+1 votes from a future round).
+    driver
+        .process(Input::Vote(new_signed_prevote(
+            height,
+            Round::new(1),
+            NilOrVal::Val(value.id()),
+            v1.address,
+        )))
+        .expect("v1 prevote");
+    let outputs = driver
+        .process(Input::Vote(new_signed_prevote(
+            height,
+            Round::new(1),
+            NilOrVal::Val(value.id()),
+            v2.address,
+        )))
+        .expect("v2 prevote triggers skip-round");
+
+    assert_eq!(outputs, vec![Output::NewRound(height, Round::new(1))]);
+    assert_eq!(driver.round_state().round, Round::new(1));
+    assert_eq!(driver.round_state().step, Step::Unstarted);
+    assert_eq!(
+        driver.round_state().scheduled_timeouts,
+        ScheduledTimeouts::default(),
+        "scheduled timeouts must be cleared when the driver skips to a new round",
+    );
+}
+
 fn run_steps(
     driver: &mut Driver<TestContext>,
     steps: Vec<TestStep>,
