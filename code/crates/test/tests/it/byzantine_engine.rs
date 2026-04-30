@@ -222,6 +222,85 @@ pub async fn three_proposal_droppers_of_four_still_progresses() {
     test.build().run(Duration::from_secs(30)).await;
 }
 
+/// Scenario (4 equal-weight, power 10 each; f = 13, 2f+1 = 27):
+/// - Node 1, Node 3: honest. Node 1 is the round-0 proposer.
+/// - Node 2: `force_precommit_nil` at height 1, rounds 0, 1, 2. It still
+///   prevotes the value so the polka (and hence a valid `pol_round` for the
+///   round-1 and round-2 reproposers) still forms in each round, but its
+///   precommits never count toward a non-nil quorum.
+/// - Node 4: `drop_inbound_proposals` at height 1, rounds 0 and 1. Node 4
+///   still receives the proposal parts (so it emits
+///   `Value(height=1, round=0, pol_round=Nil, value)` via restream) but
+///   the consensus engine never sees the `SignedProposal` messages for rounds 0 and 1,
+///   so no `ProposalOnly`/`Full` entry is stored at `(1, 0)` or `(1, 1)`.
+///   In round 2 the proposer issues `Proposal(round=2, pol_round=1, value)`.
+///   The `FullProposalKeeper` should match that proposal against the
+///   `ValueOnly(value)` at `(1, 0)`.
+///   Notes:
+///    - currently the keeper can only match
+///     ProposalOnly(h, r, vr, value_id) <-> ValueOnly(h, r', vr', value_id)
+///     if r == r' or vr == r'
+///    - Because of this node 4 never applies `DriverInput::Proposal`, never
+///   prevotes or precommits `value` in round 2, and cannot decide height 1.
+///    - `value_sync` is disabled on node 4 so it must decide via consensus.
+#[tokio::test]
+pub async fn mux_cross_round_proposal_matches_stored_value_via_restream() {
+    const TARGET_HEIGHT: u64 = 2;
+
+    let mut test = TestBuilder::<()>::new();
+
+    // Node 1: honest. Round-0 proposer.
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(TARGET_HEIGHT)
+        .success();
+
+    // Node 2: forces nil precommits at height 1, rounds 0, 1, 2.
+    test.add_node()
+        .with_voting_power(10)
+        .add_config_modifier(|config| {
+            config.byzantine = Some(ByzantineConfig::new(Some(42)).with_force_precommit_nil(
+                Trigger::AtHeightsAndRounds {
+                    heights: vec![1],
+                    rounds: vec![0, 1, 2],
+                },
+            ));
+        })
+        .start()
+        .wait_until(TARGET_HEIGHT)
+        .success();
+
+    // Node 3: honest.
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(TARGET_HEIGHT)
+        .success();
+
+    // Node 4: drops inbound `SignedProposal` messages at height 1, rounds 0
+    // and 1. Parts still flow through, so it builds `ValueOnly(v)` at
+    // `(1, 0)` via verbatim restream, but the proposal messages for those
+    // rounds never reach consensus. From round 2 onwards it is honest.
+    test.add_node()
+        .with_voting_power(10)
+        .add_config_modifier(|config| {
+            // Prevent node 4 from catching up post-decision via value sync.
+            config.value_sync.enabled = false;
+            config.byzantine = Some(ByzantineConfig::new(Some(42)).with_drop_inbound_proposals(
+                Trigger::AtHeightsAndRounds {
+                    heights: vec![1],
+                    rounds: vec![0, 1],
+                },
+            ));
+        })
+        .start()
+        .wait_until(TARGET_HEIGHT)
+        .success();
+
+    test.build().run(Duration::from_secs(10)).await;
+}
+
 /// Amnesia (ignoring voting locks) should not prevent progress, even when
 /// affecting all nodes.
 ///

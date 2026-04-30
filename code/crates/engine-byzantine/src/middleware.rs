@@ -8,6 +8,21 @@
 //! [`get_validity`](Middleware::get_validity) callbacks and overrides nil
 //! prevotes to vote for the most recently proposed value, but only when the
 //! stored `(height, round)` matches the current prevote step.
+//!
+//! When `force_precommit_nil` is triggered, the middleware rewrites non-nil
+//! precommits into nil precommits at the point the driver emits the vote.
+//! This is done in the middleware rather than at the network proxy on purpose:
+//! rewriting the vote before it leaves the driver prevents the precommit-for-
+//! Val side effects in `handle/driver.rs` (restreaming the proposal and
+//! publishing a polka certificate via liveness), which would otherwise help
+//! peers that are supposed to be starved of information in a test scenario.
+//!
+//! IMPORTANT: the middleware's `new_precommit` is also used by certificate
+//! verification to reconstruct precommit votes for *other* validators'
+//! signatures (see `verify_commit_signature` / `verify_polka_signature`).
+//! Rewriting those reconstructions would break signature verification. We
+//! therefore gate the rewrite on the vote's `address` matching the node's own
+//! address (passed in at construction time).
 
 use eyre::Result;
 use rand::rngs::StdRng;
@@ -33,20 +48,34 @@ use crate::config::{make_rng, Trigger};
 /// instead, but only when the stored `(height, round)` matches the current
 /// prevote step, preventing stale values from leaking across heights/rounds.
 ///
+/// When the `force_precommit_nil` trigger fires, the middleware rewrites
+/// non-nil precommits into nil precommits on the output of the driver.
+/// Rewriting at this level (rather than at the network proxy) also suppresses
+/// the downstream side effects of a precommit-for-value: the driver will not
+/// observe a `(Precommit, Val)` emission and therefore will not restream the
+/// proposal nor publish a polka certificate via liveness. This is important
+/// for tests that deliberately starve other nodes of catch-up information.
+///
 /// All other middleware methods delegate to the inner middleware.
 ///
 /// # Usage
 ///
 /// ```rust,ignore
 /// let inner = Arc::new(DefaultMiddleware);
-/// let byzantine = ByzantineMiddleware::new(Trigger::Always, inner, None);
+/// let byzantine = ByzantineMiddleware::new(Trigger::Always, Trigger::Never, inner, None);
 /// let ctx = TestContext::with_middleware(Arc::new(byzantine));
 /// ```
 pub struct ByzantineMiddleware {
     /// When to ignore voting locks (amnesia attack).
     pub ignore_locks: Trigger,
+    /// When to rewrite non-nil precommits into nil precommits.
+    pub force_precommit_nil: Trigger,
     /// The inner middleware to delegate to for non-Byzantine behavior.
     pub inner: Arc<dyn Middleware>,
+    /// The node's own validator address. `new_precommit` only rewrites when
+    /// the vote being constructed is for this address, so certificate-
+    /// verification reconstructions for other validators are left intact.
+    pub self_address: Address,
     /// Tracks the most recently proposed value ID for a `(Height, Round)`,
     /// captured via `get_validity` and `on_propose_value`. When amnesia is
     /// active (`ignore_locks` fires), `new_prevote` votes for this value
@@ -58,10 +87,18 @@ pub struct ByzantineMiddleware {
 
 impl ByzantineMiddleware {
     /// Create a new `ByzantineMiddleware`.
-    pub fn new(ignore_locks: Trigger, inner: Arc<dyn Middleware>, seed: Option<u64>) -> Self {
+    pub fn new(
+        ignore_locks: Trigger,
+        force_precommit_nil: Trigger,
+        inner: Arc<dyn Middleware>,
+        self_address: Address,
+        seed: Option<u64>,
+    ) -> Self {
         Self {
             ignore_locks,
+            force_precommit_nil,
             inner,
+            self_address,
             current_proposed_value: Mutex::new(None),
             rng: Mutex::new(make_rng(seed)),
         }
@@ -72,6 +109,7 @@ impl fmt::Debug for ByzantineMiddleware {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ByzantineMiddleware")
             .field("ignore_locks", &self.ignore_locks)
+            .field("force_precommit_nil", &self.force_precommit_nil)
             .field("inner", &self.inner)
             .finish()
     }
@@ -81,6 +119,12 @@ impl ByzantineMiddleware {
     /// Evaluate the `ignore_locks` trigger for the given height and round.
     fn should_ignore_locks(&self, height: Height, round: Round) -> bool {
         self.ignore_locks
+            .fires(height, round, &mut self.rng.lock().expect("poisoned rng"))
+    }
+
+    /// Evaluate the `force_precommit_nil` trigger for the given height and round.
+    fn should_force_precommit_nil(&self, height: Height, round: Round) -> bool {
+        self.force_precommit_nil
             .fires(height, round, &mut self.rng.lock().expect("poisoned rng"))
     }
 }
@@ -170,6 +214,16 @@ impl Middleware for ByzantineMiddleware {
         value_id: NilOrVal<ValueId>,
         address: Address,
     ) -> Vote {
+        if address == self.self_address
+            && matches!(value_id, NilOrVal::Val(_))
+            && self.should_force_precommit_nil(height, round)
+        {
+            warn!(%height, %round, "BYZANTINE: Forcing precommit nil (rewriting non-nil precommit)");
+            return self
+                .inner
+                .new_precommit(ctx, height, round, NilOrVal::Nil, address);
+        }
+
         self.inner
             .new_precommit(ctx, height, round, value_id, address)
     }

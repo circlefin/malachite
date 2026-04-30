@@ -5,6 +5,7 @@ use malachitebft_test::{Height, ValueId};
 
 pub type UndecidedValueKey = (HeightKey, RoundKey, ValueIdKey);
 pub type PendingValueKey = (HeightKey, RoundKey, ValueIdKey);
+pub type UndecidedPartsKey = (HeightKey, ValueIdKey);
 
 #[derive(Copy, Clone, Debug)]
 pub struct HeightKey;

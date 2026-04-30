@@ -305,7 +305,11 @@ impl State {
         // For current height, validate proposal (proposer + signature)
         match self.validate_proposal_parts(&parts) {
             Ok(()) => {
-                // Validation passed - assemble and store as undecided
+                // Validation passed - assemble and store as undecided. Cache the
+                // original `ProposalParts` too so a later `RestreamProposal` can
+                // replay them verbatim (same `Init.round`, proposer, signature)
+                // instead of rebuilding and re-signing as a different proposer.
+                let parts_for_store = parts.clone();
                 let mut value = Self::assemble_value_from_parts(parts)?;
 
                 // Use middleware to determine validity (allows testing custom validation logic)
@@ -317,7 +321,15 @@ impl State {
                 }
 
                 info!(%value.height, %value.round, %value.proposer, validity = ?value.validity, "Storing validated proposal as undecided");
+                let value_id = value.value.id();
                 self.store.store_undecided_proposal(value.clone()).await?;
+                self.store
+                    .store_undecided_proposal_parts(
+                        parts_for_store.height,
+                        value_id,
+                        parts_for_store,
+                    )
+                    .await?;
                 Ok(Some(value))
             }
             Err(error) => {
@@ -527,44 +539,20 @@ impl State {
         StreamId::new(bytes.into())
     }
 
-    /// Creates a stream message containing a proposal part.
-    /// Updates internal sequence number and current proposal.
-    pub fn stream_proposal(
-        &mut self,
-        value: LocallyProposedValue<TestContext>,
-        pol_round: Round,
-    ) -> impl Iterator<Item = StreamMessage<ProposalPart>> {
-        let parts = self.value_to_parts(value, pol_round);
-        let stream_id = self.stream_id();
-
-        let mut msgs = Vec::with_capacity(parts.len() + 1);
-        let mut sequence = 0;
-
-        for part in parts {
-            let msg = StreamMessage::new(stream_id.clone(), sequence, StreamContent::Data(part));
-            sequence += 1;
-            msgs.push(msg);
-        }
-
-        msgs.push(StreamMessage::new(
-            stream_id.clone(),
-            sequence,
-            StreamContent::Fin,
-        ));
-
-        msgs.into_iter()
-    }
-
-    fn value_to_parts(
+    /// Build `ProposalParts` for a locally proposed value, signed by this node.
+    ///
+    /// Separated from streaming so callers can cache the exact parts we emit
+    /// (matching what peers will validate and store) before breaking them into
+    /// stream messages for the network.
+    pub fn build_proposal_parts(
         &self,
-        value: LocallyProposedValue<TestContext>,
+        value: &LocallyProposedValue<TestContext>,
         pol_round: Round,
-    ) -> Vec<ProposalPart> {
+    ) -> ProposalParts {
         let mut hasher = sha3::Keccak256::new();
         let mut parts = Vec::new();
 
         // Init
-        // Include metadata about the proposal
         {
             parts.push(ProposalPart::Init(ProposalInit::new(
                 value.height,
@@ -578,9 +566,8 @@ impl State {
         }
 
         // Data
-        // Include each prime factor of the value as a separate proposal part
         {
-            for factor in factor_value(value.value) {
+            for factor in factor_value(value.value.clone()) {
                 parts.push(ProposalPart::Data(ProposalData::new(factor)));
 
                 hasher.update(factor.to_be_bytes().as_slice());
@@ -588,14 +575,65 @@ impl State {
         }
 
         // Fin
-        // Sign the hash of the proposal parts
         {
             let hash = hasher.finalize().to_vec();
             let signature = self.signer.sign(&hash);
             parts.push(ProposalPart::Fin(ProposalFin::new(signature)));
         }
 
-        parts
+        ProposalParts {
+            height: value.height,
+            round: value.round,
+            proposer: self.address,
+            parts,
+        }
+    }
+
+    /// Build `ProposalParts` for a locally proposed value and wrap them into
+    /// stream messages. Returns both the canonical parts (for caching and
+    /// restream replay) and the messages to publish on the network.
+    pub fn stream_proposal(
+        &mut self,
+        value: LocallyProposedValue<TestContext>,
+        pol_round: Round,
+    ) -> (ProposalParts, Vec<StreamMessage<ProposalPart>>) {
+        let proposal_parts = self.build_proposal_parts(&value, pol_round);
+        let msgs = self.stream_messages_for_parts(&proposal_parts);
+        (proposal_parts, msgs)
+    }
+
+    /// Wrap a pre-built `ProposalParts` into a fresh stream of messages.
+    ///
+    /// The inner parts (including `Init` metadata and `Fin` signature) are
+    /// cloned verbatim. Only the stream id and per-message sequence are new.
+    /// Used by `RestreamProposal` to replay the original proposer's parts
+    /// without re-signing as a different proposer.
+    pub fn stream_messages_for_parts(
+        &self,
+        parts: &ProposalParts,
+    ) -> Vec<StreamMessage<ProposalPart>> {
+        let stream_id = self.stream_id();
+
+        let mut msgs = Vec::with_capacity(parts.parts.len() + 1);
+        let mut sequence = 0;
+
+        for part in &parts.parts {
+            let msg = StreamMessage::new(
+                stream_id.clone(),
+                sequence,
+                StreamContent::Data(part.clone()),
+            );
+            sequence += 1;
+            msgs.push(msg);
+        }
+
+        msgs.push(StreamMessage::new(
+            stream_id.clone(),
+            sequence,
+            StreamContent::Fin,
+        ));
+
+        msgs
     }
 
     /// Re-assemble a [`ProposedValue`] from its [`ProposalParts`].

@@ -9,7 +9,7 @@ use malachitebft_app_channel::app::streaming::StreamContent;
 use malachitebft_app_channel::app::types::core::utils::height::HeightRangeExt;
 use malachitebft_app_channel::app::types::core::{Round, Validity};
 use malachitebft_app_channel::app::types::sync::RawDecidedValue;
-use malachitebft_app_channel::app::types::{LocallyProposedValue, ProposedValue};
+use malachitebft_app_channel::app::types::ProposedValue;
 use malachitebft_app_channel::{AppMsg, Channels, NetworkMsg};
 use malachitebft_test::{Height, TestContext};
 
@@ -125,7 +125,10 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
                     match state.validate_proposal_parts(parts) {
                         Ok(()) => {
-                            // Validation passed - convert to ProposedValue and move to undecided
+                            // Validation passed - convert to ProposedValue and move to undecided.
+                            // Also cache the original parts keyed by value_id so a later
+                            // RestreamProposal can replay them verbatim.
+                            let parts_for_store = parts.clone();
                             let mut value = State::assemble_value_from_parts(parts.clone())?;
 
                             // Use middleware to determine validity
@@ -139,7 +142,16 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                             }
 
                             let validity = value.validity;
+                            let value_id = value.value.id();
                             state.store.store_undecided_proposal(value).await?;
+                            state
+                                .store
+                                .store_undecided_proposal_parts(
+                                    parts_for_store.height,
+                                    value_id,
+                                    parts_for_store,
+                                )
+                                .await?;
                             info!(
                                 height = %parts.height,
                                 round = %parts.round,
@@ -220,9 +232,18 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 // See L15/L18 of the Tendermint algorithm.
                 let pol_round = Round::Nil;
 
-                // Now what's left to do is to break down the value to propose into parts,
-                // and send those parts over the network to our peers, for them to re-assemble the full value.
-                for stream_message in state.stream_proposal(proposal, pol_round) {
+                // Break the value into parts and publish them. Also cache the
+                // canonical `ProposalParts` keyed by `(height, value_id)` so
+                // that we (and restream callers) can replay the exact parts
+                // later without re-signing.
+                let value_id = proposal.value.id();
+                let (proposal_parts, stream_msgs) = state.stream_proposal(proposal, pol_round);
+                state
+                    .store
+                    .store_undecided_proposal_parts(height, value_id, proposal_parts)
+                    .await?;
+
+                for stream_message in stream_msgs {
                     debug!(%height, %round, "Streaming proposal part: {stream_message:?}");
 
                     channels
@@ -441,41 +462,57 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 height,
                 round,
                 valid_round,
-                address: _,
+                address,
                 value_id,
             } => {
-                info!(%height, %valid_round, "Restreaming existing proposal...");
-
-                //  Look for a proposal at valid_round or round(should be already stored)
-                let proposal_round = if valid_round == Round::Nil {
-                    round
-                } else {
-                    valid_round
-                };
-                //  Look for a proposal for the given value_id at valid_round (should be already stored)
-                let proposal = state
+                // Load the original, validated `ProposalParts` we cached when we first saw this
+                // value (keyed by `(height, value_id)`, across all rounds). Replaying them preserves
+                // the original `Init.height`/`Init.round`/proposer and the `Fin` signature, so peers
+                // can validate and store the restream just like the first emission.
+                //
+                // The cached parts may originate from a different round and a different proposer
+                // than the ones in the restream request: the cache is keyed by `(height, value_id)`
+                // across rounds, so when the same value is re-proposed in a later round (e.g. via
+                // `valid_value`/ `pol_round`) by a different leader, the request's `round` and `address`
+                // reflect the round being restreamed, while the cached `parts.round` and `parts.proposer`
+                // reflect the round in which we first received the parts. We intentionally replay
+                // the original signed parts unchanged as rebuilding and re-signing as `address` would
+                // forge a signature we do not hold.
+                let Some(parts) = state
                     .store
-                    .get_undecided_proposal(height, proposal_round, value_id)
-                    .await?;
+                    .get_undecided_proposal_parts(height, value_id)
+                    .await?
+                else {
+                    info!(
+                        %height,
+                        %round,
+                        %valid_round,
+                        %value_id,
+                        "No cached proposal parts for restream; skipping"
+                    );
+                    continue;
+                };
 
-                if let Some(proposal) = proposal {
-                    assert_eq!(proposal.value.id(), value_id);
+                info!(
+                    %height,
+                    requested_round = %round,
+                    requested_valid_round = %valid_round,
+                    requested_proposer = %address,
+                    cached_round = %parts.round,
+                    cached_proposer = %parts.proposer,
+                    %value_id,
+                    "Restreaming existing proposal: replaying original parts from \
+                     cached_round/cached_proposer for restream at \
+                     requested_round/requested_valid_round/requested_proposer"
+                );
 
-                    let locally_proposed_value = LocallyProposedValue {
-                        height,
-                        round,
-                        value: proposal.value,
-                    };
+                for stream_message in state.stream_messages_for_parts(&parts) {
+                    debug!(%height, %round, %valid_round, "Publishing proposal part: {stream_message:?}");
 
-                    for stream_message in state.stream_proposal(locally_proposed_value, valid_round)
-                    {
-                        debug!(%height, %valid_round, "Publishing proposal part: {stream_message:?}");
-
-                        channels
-                            .network
-                            .send(NetworkMsg::PublishProposalPart(stream_message))
-                            .await?;
-                    }
+                    channels
+                        .network
+                        .send(NetworkMsg::PublishProposalPart(stream_message))
+                        .await?;
                 }
             }
 

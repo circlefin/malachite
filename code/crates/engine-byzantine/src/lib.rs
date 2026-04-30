@@ -19,9 +19,11 @@
 //! [`ByzantineMiddleware`] construction.
 
 pub mod config;
+pub mod inbound;
 pub mod middleware;
 pub mod proxy;
 
 pub use config::{ByzantineConfig, Trigger};
+pub use inbound::{InboundFilter, InboundFilterMsg};
 pub use middleware::ByzantineMiddleware;
 pub use proxy::{ByzantineNetworkProxy, ConflictingValueFn, ConflictingVoteValueFn};

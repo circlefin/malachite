@@ -28,6 +28,7 @@ use malachitebft_engine::network::{Msg as NetworkMsg, NetworkRef};
 use malachitebft_signing::Signer;
 
 use crate::config::{make_rng, ByzantineConfig};
+use crate::inbound::InboundFilter;
 
 /// A function that creates a conflicting value from an original one.
 ///
@@ -159,6 +160,35 @@ impl<Ctx: Context> Actor for ByzantineNetworkProxy<Ctx> {
                 self.handle_liveness_msg(liveness_msg, state)
                     .instrument(self.span.clone())
                     .await?;
+            }
+            // Receiver-side interception. When `drop_inbound_proposals` is set,
+            // splice an `InboundFilter` forwarder between the real network's
+            // output port and the consensus subscriber so that specific
+            // `NetworkEvent::Proposal` events can be dropped on the way in.
+            // When the trigger is unset we just forward the original subscriber
+            // unchanged (zero overhead in the honest path).
+            NetworkMsg::Subscribe(inner) => {
+                let _enter = self.span.enter();
+                if self.config.drop_inbound_proposals.is_set() {
+                    warn!(
+                        trigger = ?self.config.drop_inbound_proposals,
+                        "BYZANTINE: Installing inbound-proposal filter"
+                    );
+                    let filter_ref = InboundFilter::<Ctx>::spawn(
+                        self.config.drop_inbound_proposals.clone(),
+                        inner,
+                        self.config.seed,
+                    )
+                    .await
+                    .map_err(|e| format!("Failed to spawn InboundFilter: {e:?}"))?;
+                    self.real_network
+                        .cast(NetworkMsg::Subscribe(Box::new(filter_ref)))
+                        .map_err(|e| format!("Failed to forward Subscribe: {e:?}"))?;
+                } else {
+                    self.real_network
+                        .cast(NetworkMsg::Subscribe(inner))
+                        .map_err(|e| format!("Failed to forward Subscribe: {e:?}"))?;
+                }
             }
             // All other network messages are forwarded unchanged. Some of them
             // carry `RpcReplyPort`s inside the message payload (for example

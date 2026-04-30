@@ -48,6 +48,26 @@ pub struct ByzantineConfig {
     /// recently observed proposal value for the same `(height, round)`.
     pub ignore_locks: Trigger,
 
+    /// When to force a nil precommit.
+    ///
+    /// When triggered, middleware rewrites any non-nil **precommit** for the
+    /// given `(height, round)` into `NilOrVal::Nil` before it is signed.
+    /// Prevotes are untouched, so the node still contributes to prevote quora;
+    /// it just refuses to commit, which typically drives consensus into the
+    /// next round with a nil precommit majority.
+    pub force_precommit_nil: Trigger,
+
+    /// When to drop inbound `SignedProposal` messages.
+    ///
+    /// When triggered for a given `(proposal.height, proposal.round)`, the
+    /// consensus engine discards the incoming proposal consensus message before
+    /// it is processed. The node's `FullProposalKeeper` therefore never records
+    /// a `ProposalOnly`/`Full` entry for that proposal, while other peers and
+    /// local parts handling remain untouched. Complements `drop_proposals`
+    /// (which is sender-side and all-or-nothing) by letting a single node act
+    /// as if it lost the proposal on the wire while everyone else received it.
+    pub drop_inbound_proposals: Trigger,
+
     /// Random seed for reproducible random attacks.
     ///
     /// If set, the random number generator is seeded with this value,
@@ -89,6 +109,16 @@ impl ByzantineConfig {
         self
     }
 
+    pub fn with_force_precommit_nil(mut self, trigger: Trigger) -> Self {
+        self.force_precommit_nil = trigger;
+        self
+    }
+
+    pub fn with_drop_inbound_proposals(mut self, trigger: Trigger) -> Self {
+        self.drop_inbound_proposals = trigger;
+        self
+    }
+
     /// Returns `true` if any Byzantine behavior is configured.
     pub fn is_active(&self) -> bool {
         self.equivocate_votes.is_set()
@@ -96,6 +126,8 @@ impl ByzantineConfig {
             || self.drop_votes.is_set()
             || self.drop_proposals.is_set()
             || self.ignore_locks.is_set()
+            || self.force_precommit_nil.is_set()
+            || self.drop_inbound_proposals.is_set()
     }
 
     /// Validate trigger parameters and reject invalid configuration.
@@ -105,12 +137,21 @@ impl ByzantineConfig {
         self.drop_votes.validate("drop_votes")?;
         self.drop_proposals.validate("drop_proposals")?;
         self.ignore_locks.validate("ignore_locks")?;
+        self.force_precommit_nil.validate("force_precommit_nil")?;
+        self.drop_inbound_proposals
+            .validate("drop_inbound_proposals")?;
 
         if self.drop_votes.is_set() && self.equivocate_votes.is_set() {
             bail!("drop_votes and equivocate_votes cannot both be set");
         }
         if self.drop_proposals.is_set() && self.equivocate_proposals.is_set() {
             bail!("drop_proposals and equivocate_proposals cannot both be set");
+        }
+        if self.force_precommit_nil.is_set() && self.equivocate_votes.is_set() {
+            // Equivocation sends a second non-nil vote even when the first was
+            // rewritten to nil, which contradicts the "force precommit nil"
+            // intent. Disallow the combination to keep semantics clear.
+            bail!("force_precommit_nil and equivocate_votes cannot both be set");
         }
 
         Ok(())
@@ -181,6 +222,23 @@ pub enum Trigger {
         /// End of the height range (inclusive).
         to: u64,
     },
+
+    /// Fire only when both the height and the round match.
+    ///
+    /// Useful for scenarios that need a one-shot misbehaviour scoped to a
+    /// specific height, e.g. "drop inbound parts only in height 1, rounds
+    /// 0 and 1, and behave honestly thereafter".
+    ///
+    /// NOTE: Fires on the **Cartesian product** of `heights × rounds`:
+    /// if `heights = [1, 2]` and `rounds = [0, 5]`, the trigger fires at
+    /// (1, 0), (1, 5), (2, 0), and (2, 5).
+    #[serde(rename = "at_heights_and_rounds")]
+    AtHeightsAndRounds {
+        /// Heights at which the trigger is eligible to fire.
+        heights: Vec<u64>,
+        /// Rounds at which the trigger is eligible to fire.
+        rounds: Vec<i64>,
+    },
 }
 
 impl Trigger {
@@ -221,6 +279,20 @@ impl Trigger {
                     bail!("invalid {field_name}.rounds: rounds must be >= 0");
                 }
             }
+            Trigger::AtHeightsAndRounds { heights, rounds } => {
+                if heights.is_empty() {
+                    bail!("invalid {field_name}.heights: list must not be empty");
+                }
+                if heights.contains(&0) {
+                    bail!("invalid {field_name}.heights: heights must be > 0");
+                }
+                if rounds.is_empty() {
+                    bail!("invalid {field_name}.rounds: list must not be empty");
+                }
+                if rounds.iter().any(|r| *r < 0) {
+                    bail!("invalid {field_name}.rounds: rounds must be >= 0");
+                }
+            }
             Trigger::Never | Trigger::Always => {}
         }
 
@@ -239,6 +311,9 @@ impl Trigger {
             Trigger::AtHeights { heights } => heights.contains(&h),
             Trigger::AtRounds { rounds } => rounds.contains(&r),
             Trigger::HeightRange { from, to } => h >= *from && h <= *to,
+            Trigger::AtHeightsAndRounds { heights, rounds } => {
+                heights.contains(&h) && rounds.contains(&r)
+            }
         }
     }
 }

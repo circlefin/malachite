@@ -154,7 +154,11 @@ impl Node for App {
                 .map_err(|e| eyre::eyre!("Invalid byzantine configuration: {e}"))?;
         }
 
-        // Wrap middleware with ByzantineMiddleware if amnesia is configured
+        let public_key = self.get_public_key(&self.private_key);
+        let address = self.get_address(&public_key);
+
+        // Wrap middleware with ByzantineMiddleware if amnesia or
+        // force-precommit-nil is configured.
         let middleware: Arc<dyn Middleware> = {
             let inner = self
                 .middleware
@@ -162,14 +166,24 @@ impl Node for App {
                 .unwrap_or_else(|| Arc::new(DefaultMiddleware));
 
             if let Some(ref byz) = config.byzantine {
-                if byz.ignore_locks.is_set() {
-                    tracing::warn!(
-                        trigger = ?byz.ignore_locks,
-                        "BYZANTINE: Amnesia attack enabled (will ignore voting locks)"
-                    );
+                if byz.ignore_locks.is_set() || byz.force_precommit_nil.is_set() {
+                    if byz.ignore_locks.is_set() {
+                        tracing::warn!(
+                            trigger = ?byz.ignore_locks,
+                            "BYZANTINE: Amnesia attack enabled (will ignore voting locks)"
+                        );
+                    }
+                    if byz.force_precommit_nil.is_set() {
+                        tracing::warn!(
+                            trigger = ?byz.force_precommit_nil,
+                            "BYZANTINE: Force-precommit-nil enabled (will rewrite non-nil precommits)"
+                        );
+                    }
                     Arc::new(ByzantineMiddleware::new(
                         byz.ignore_locks.clone(),
+                        byz.force_precommit_nil.clone(),
                         inner,
+                        address,
                         byz.seed,
                     ))
                 } else {
@@ -181,9 +195,6 @@ impl Node for App {
         };
 
         let ctx = TestContext::with_middleware(middleware.clone());
-
-        let public_key = self.get_public_key(&self.private_key);
-        let address = self.get_address(&public_key);
         let keypair = self.get_network_keypair(); // Separate network identity
         let genesis = self.load_genesis()?;
         let wal_path = self.get_home_dir().join("wal").join("consensus.wal");

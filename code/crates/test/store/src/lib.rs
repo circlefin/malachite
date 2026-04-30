@@ -19,7 +19,7 @@ use malachitebft_test::{Height, TestContext, Value, ValueId};
 pub mod keys;
 pub mod metrics;
 
-use keys::{HeightKey, PendingValueKey, UndecidedValueKey};
+use keys::{HeightKey, PendingValueKey, UndecidedPartsKey, UndecidedValueKey};
 use malachitebft_test_streaming::ProposalParts;
 pub use metrics::{NoMetrics, StoreMetrics};
 
@@ -83,6 +83,12 @@ const UNDECIDED_PROPOSALS_TABLE: redb::TableDefinition<UndecidedValueKey, Vec<u8
 
 const PENDING_PROPOSAL_PARTS_TABLE: redb::TableDefinition<PendingValueKey, Vec<u8>> =
     redb::TableDefinition::new("pending_proposal_parts");
+
+/// Keeps the canonical, validated `ProposalParts` for an undecided value so that
+/// restreams can replay the exact original parts (preserving `Init.round` and
+/// the original proposer signature) without rebuilding from the stored value.
+const UNDECIDED_PROPOSAL_PARTS_TABLE: redb::TableDefinition<UndecidedPartsKey, Vec<u8>> =
+    redb::TableDefinition::new("undecided_proposal_parts");
 
 struct Db<M: StoreMetrics> {
     db: redb::Database,
@@ -292,6 +298,54 @@ impl<M: StoreMetrics> Db<M> {
         Ok(())
     }
 
+    fn get_undecided_proposal_parts(
+        &self,
+        height: Height,
+        value_id: ValueId,
+    ) -> Result<Option<ProposalParts>, StoreError> {
+        let start = Instant::now();
+        let tx = self.db.begin_read()?;
+        let table = tx.open_table(UNDECIDED_PROPOSAL_PARTS_TABLE)?;
+
+        let entry = table.get(&(height, value_id))?;
+        let parts = match entry {
+            Some(entry) => {
+                let bytes = entry.value();
+                self.metrics.add_read_bytes(bytes.len() as u64);
+                self.metrics.add_key_read_bytes(16);
+                Some(serde_json::from_slice(bytes.as_slice())?)
+            }
+            None => None,
+        };
+        self.metrics.observe_read_time(start.elapsed());
+
+        Ok(parts)
+    }
+
+    fn insert_undecided_proposal_parts(
+        &self,
+        height: Height,
+        value_id: ValueId,
+        parts: ProposalParts,
+    ) -> Result<(), StoreError> {
+        let start = Instant::now();
+        let key = (height, value_id);
+
+        let tx = self.db.begin_write()?;
+        {
+            let mut table = tx.open_table(UNDECIDED_PROPOSAL_PARTS_TABLE)?;
+            if table.get(&key)?.is_none() {
+                let value = serde_json::to_vec(&parts)?;
+                self.metrics.add_write_bytes(value.len() as u64);
+                table.insert(key, value)?;
+            }
+        }
+        tx.commit()?;
+        self.metrics.observe_write_time(start.elapsed());
+
+        Ok(())
+    }
+
     // Helper method to generate a unique ValueId from proposal parts
     pub fn generate_value_id_from_parts(parts: &ProposalParts) -> ValueId {
         use sha3::{Digest, Keccak256};
@@ -330,6 +384,10 @@ impl<M: StoreMetrics> Db<M> {
             let mut pending = tx.open_table(PENDING_PROPOSAL_PARTS_TABLE)?;
             pending.retain(|(height, _, _), _| height > current_height)?;
 
+            // Remove all undecided proposal parts with height <= current_height
+            let mut undecided_parts = tx.open_table(UNDECIDED_PROPOSAL_PARTS_TABLE)?;
+            undecided_parts.retain(|(height, _), _| height > current_height)?;
+
             // Prune decided values and certificates up to the retain height
             let mut decided = tx.open_table(DECIDED_VALUES_TABLE)?;
             let mut certificates = tx.open_table(CERTIFICATES_TABLE)?;
@@ -366,6 +424,7 @@ impl<M: StoreMetrics> Db<M> {
         let _ = tx.open_table(CERTIFICATES_TABLE)?;
         let _ = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
         let _ = tx.open_table(PENDING_PROPOSAL_PARTS_TABLE)?;
+        let _ = tx.open_table(UNDECIDED_PROPOSAL_PARTS_TABLE)?;
         tx.commit()?;
         Ok(())
     }
@@ -526,5 +585,32 @@ impl<M: StoreMetrics> Store<M> {
     ) -> Result<Option<ProposedValue<TestContext>>, StoreError> {
         let db = Arc::clone(&self.db);
         tokio::task::spawn_blocking(move || db.get_undecided_proposal_by_value_id(value_id)).await?
+    }
+
+    /// Cache the original, validated `ProposalParts` for an undecided value keyed
+    /// by `(height, value_id)`. Used by restream so it can replay exactly the
+    /// parts we first saw (preserving `Init.round`, proposer, and signature).
+    pub async fn store_undecided_proposal_parts(
+        &self,
+        height: Height,
+        value_id: ValueId,
+        parts: ProposalParts,
+    ) -> Result<(), StoreError> {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || {
+            db.insert_undecided_proposal_parts(height, value_id, parts)
+        })
+        .await?
+    }
+
+    /// Load the cached original `ProposalParts` for an undecided value.
+    pub async fn get_undecided_proposal_parts(
+        &self,
+        height: Height,
+        value_id: ValueId,
+    ) -> Result<Option<ProposalParts>, StoreError> {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.get_undecided_proposal_parts(height, value_id))
+            .await?
     }
 }
