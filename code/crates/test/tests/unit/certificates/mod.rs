@@ -395,4 +395,30 @@ where
             );
         }
     }
+
+    /// Verify that the certificate fails with an error that matches the given predicate.
+    ///
+    /// This is useful when the error variant is known but its inner value (e.g. a
+    /// signature blob) is not exactly reproducible across test invocations.
+    pub fn expect_err_matches<F>(self, predicate: F)
+    where
+        F: Fn(&CertificateError<TestContext>) -> bool,
+    {
+        let (certificate, validator_set) = self.build_certificate();
+
+        for signer in &self.signers {
+            let result = C::verify_certificate(
+                &self.ctx,
+                signer,
+                &certificate,
+                &validator_set,
+                ThresholdParams::default(),
+            );
+
+            match result {
+                Err(ref e) if predicate(e) => {}
+                _ => panic!("Expected error matching predicate, but got: {result:?}"),
+            }
+        }
+    }
 }
