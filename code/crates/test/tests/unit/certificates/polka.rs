@@ -244,7 +244,7 @@ fn polka_certificate_signature_replay_across_heights() {
         value_id,
         polka_signatures: votes
             .iter()
-            .map(|v| PolkaSignature::new(v.message.validator_address, v.signature.clone()))
+            .map(|v| PolkaSignature::new(v.message.validator_address, v.signature))
             .collect(),
     };
 
@@ -293,7 +293,7 @@ fn polka_certificate_signature_replay_across_rounds() {
         value_id,
         polka_signatures: votes
             .iter()
-            .map(|v| PolkaSignature::new(v.message.validator_address, v.signature.clone()))
+            .map(|v| PolkaSignature::new(v.message.validator_address, v.signature))
             .collect(),
     };
 
@@ -341,7 +341,7 @@ fn polka_certificate_signature_replay_across_values() {
         value_id: ValueId::new(99),
         polka_signatures: votes
             .iter()
-            .map(|v| PolkaSignature::new(v.message.validator_address, v.signature.clone()))
+            .map(|v| PolkaSignature::new(v.message.validator_address, v.signature))
             .collect(),
     };
 
@@ -393,7 +393,7 @@ fn polka_certificate_cross_type_replay_from_precommit() {
         value_id,
         polka_signatures: votes
             .iter()
-            .map(|v| PolkaSignature::new(v.message.validator_address, v.signature.clone()))
+            .map(|v| PolkaSignature::new(v.message.validator_address, v.signature))
             .collect(),
     };
 

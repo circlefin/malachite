@@ -540,7 +540,7 @@ fn round_skip_certificate_signature_replay_across_heights() {
                     VoteType::Prevote,
                     NilOrVal::Val(value_id),
                     v.message.validator_address,
-                    v.signature.clone(),
+                    v.signature,
                 )
             })
             .collect(),
@@ -595,7 +595,7 @@ fn round_precommit_certificate_signature_replay_across_heights() {
                     VoteType::Precommit,
                     NilOrVal::Val(value_id),
                     v.message.validator_address,
-                    v.signature.clone(),
+                    v.signature,
                 )
             })
             .collect(),
@@ -650,7 +650,7 @@ fn round_skip_certificate_signature_replay_across_rounds() {
                     VoteType::Prevote,
                     NilOrVal::Val(value_id),
                     v.message.validator_address,
-                    v.signature.clone(),
+                    v.signature,
                 )
             })
             .collect(),
@@ -705,7 +705,7 @@ fn round_precommit_certificate_signature_replay_across_rounds() {
                     VoteType::Precommit,
                     NilOrVal::Val(value_id),
                     v.message.validator_address,
-                    v.signature.clone(),
+                    v.signature,
                 )
             })
             .collect(),
@@ -765,7 +765,7 @@ fn round_skip_certificate_signature_replay_across_values() {
                     VoteType::Prevote,
                     NilOrVal::Val(ValueId::new(99)),
                     v.message.validator_address,
-                    v.signature.clone(),
+                    v.signature,
                 )
             })
             .collect(),
@@ -819,7 +819,7 @@ fn round_precommit_certificate_signature_replay_across_values() {
                     VoteType::Precommit,
                     NilOrVal::Val(ValueId::new(99)),
                     v.message.validator_address,
-                    v.signature.clone(),
+                    v.signature,
                 )
             })
             .collect(),
@@ -878,7 +878,7 @@ fn round_precommit_certificate_cross_type_replay_from_prevote() {
                     VoteType::Prevote,
                     NilOrVal::Val(value_id),
                     v.message.validator_address,
-                    v.signature.clone(),
+                    v.signature,
                 )
             })
             .collect(),
@@ -932,7 +932,7 @@ fn round_skip_certificate_cross_type_replay_flipped_vote_type() {
                     VoteType::Prevote, // flipped from Precommit
                     NilOrVal::Val(value_id),
                     v.message.validator_address,
-                    v.signature.clone(),
+                    v.signature,
                 )
             })
             .collect(),

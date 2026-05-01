@@ -278,7 +278,7 @@ fn commit_certificate_signature_replay_across_heights() {
         value_id,
         commit_signatures: votes
             .iter()
-            .map(|v| CommitSignature::new(v.message.validator_address, v.signature.clone()))
+            .map(|v| CommitSignature::new(v.message.validator_address, v.signature))
             .collect(),
     };
 
@@ -329,7 +329,7 @@ fn commit_certificate_signature_replay_across_rounds() {
         value_id,
         commit_signatures: votes
             .iter()
-            .map(|v| CommitSignature::new(v.message.validator_address, v.signature.clone()))
+            .map(|v| CommitSignature::new(v.message.validator_address, v.signature))
             .collect(),
     };
 
@@ -379,7 +379,7 @@ fn commit_certificate_signature_replay_across_values() {
         value_id: ValueId::new(99),
         commit_signatures: votes
             .iter()
-            .map(|v| CommitSignature::new(v.message.validator_address, v.signature.clone()))
+            .map(|v| CommitSignature::new(v.message.validator_address, v.signature))
             .collect(),
     };
 

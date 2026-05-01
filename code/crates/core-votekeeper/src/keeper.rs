@@ -375,7 +375,14 @@ fn threshold_to_output<Value>(
     threshold: Threshold<Value>,
     future_round: Option<Round>,
 ) -> Option<Output<Value>> {
-    if future_round.is_none() {
+    if let Some(future_round) = future_round {
+        // Only PrecommitValue(v) has larger priority than SkipRound(r)
+        match (typ, threshold) {
+            (VoteType::Precommit, Threshold::Value(v)) => Some(Output::PrecommitValue(v)),
+
+            (_, _) => Some(Output::SkipRound(future_round)),
+        }
+    } else {
         // Thresholds for the current round
         match (typ, threshold) {
             (_, Threshold::Unreached) => None,
@@ -387,13 +394,6 @@ fn threshold_to_output<Value>(
             (VoteType::Precommit, Threshold::Any) => Some(Output::PrecommitAny),
             (VoteType::Precommit, Threshold::Nil) => Some(Output::PrecommitAny),
             (VoteType::Precommit, Threshold::Value(v)) => Some(Output::PrecommitValue(v)),
-        }
-    } else {
-        // Only PrecommitValue(v) has larger priority than SkipRound(r)
-        match (typ, threshold) {
-            (VoteType::Precommit, Threshold::Value(v)) => Some(Output::PrecommitValue(v)),
-
-            (_, _) => Some(Output::SkipRound(future_round.unwrap())),
         }
     }
 }
