@@ -34,7 +34,7 @@ thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 
-malachitebft-app-channel.workspace = true
+malachitebft-app-channel = { workspace = true, features = ["byzantine"] }
 malachitebft-engine-byzantine.workspace = true
 malachitebft-proto.workspace = true
 malachitebft-test.workspace = true

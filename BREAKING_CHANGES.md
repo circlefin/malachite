@@ -78,6 +78,20 @@
 
 - Added new `PartialSuccess { received, requested, response_time }` variant to `SyncResult`. Custom implementations of `ScoringStrategy` that match on `SyncResult` must handle the new variant.
 
+### `malachitebft-engine-byzantine`
+
+- Removed `ByzantineMiddleware`. The `TestContext`-specific middleware has been relocated to `malachitebft_test::byzantine::ByzantineMiddleware`. Downstream contexts that want the same behavior should embed the new `Amnesia<Ctx>` tracker into their own prevote-construction hook.
+- Added `Amnesia<Ctx>` context-generic amnesia state machine, exposed at the crate root.
+- Removed `malachitebft-test` from regular dependencies (now dev-only). Consumers no longer transitively pull in the test crate.
+
+### `malachitebft-test`
+
+- `ByzantineMiddleware` now lives under `malachitebft_test::byzantine` (previously at `malachitebft_engine_byzantine::ByzantineMiddleware`). Its constructor takes 5 args `(ignore_locks, force_precommit_nil, inner, self_address, seed)` and internally delegates to `Amnesia<TestContext>`.
+
+### `malachitebft-app-channel`
+
+- Added optional `byzantine` Cargo feature that enables `EngineBuilder::with_byzantine_network` and the `ByzantineContext` input struct. Off by default; enabling it adds `malachitebft-engine-byzantine` as a transitive dependency.
+
 ## 0.6.0
 
 ### `malachitebft-core-types`

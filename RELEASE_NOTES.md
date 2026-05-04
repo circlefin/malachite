@@ -9,6 +9,7 @@
 - Add builder pattern for custom actor injection
 - Make consensus request channel capacity configurable
 - Refactor infrastructure for spawning a channel-based application
+- Add `EngineBuilder::with_byzantine_network` hook (behind `byzantine` feature) to inject the Byzantine network proxy
 
 ### `consensus`
 - Allow application to change its mind about validity (invalid -> valid)
@@ -34,6 +35,11 @@
 - Ensure `PrecommitAny` does not shadow `PolkaNil` and `PolkaAny` pending inputs
 - Ensure polka certificate is matched against a proposal for the same value
 - Produce `InvalidProposalAndPolkaPrevious` when receiving a polka certificate matching the POL round of a proposal with an invalid value
+
+### `engine-byzantine`
+- Introduce a new crate that simulates Byzantine faults at the engine layer via `ByzantineNetworkProxy` and a context-generic `Amnesia<Ctx>` tracker decoupled from `TestContext`
+- Add `force_precommit_nil` and `drop_inbound_proposals` attacks, backed by a new `InboundFilter` actor and an `AtHeightsAndRounds` trigger variant
+- Remove the `TestContext`-specific `ByzantineMiddleware` (relocated to `malachitebft_test::byzantine`); `malachitebft-test` is no longer a regular dependency of this crate
 
 ### `network`
 - Add `persistent_peers_only` config option to allow connections ONLY from/to persistent peers
@@ -66,6 +72,9 @@
 - Queue sync responses for future heights in the Sync actor ([#1467](https://github.com/circlefin/malachite/pull/1467))
   Instead of buffering sync responses in the core-consensus input queue, sync responses are now buffered directly in the Sync actor.
   This prevents sync responses and consensus messages from contending over the input queue.
+
+### `test`
+- `ByzantineMiddleware` now lives under `malachitebft_test::byzantine` (previously under `malachitebft_engine_byzantine`); its constructor takes 5 args `(ignore_locks, force_precommit_nil, inner, self_address, seed)` and internally delegates to `Amnesia<TestContext>`
 
 ## 0.6.0
 

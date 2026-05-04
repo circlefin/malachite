@@ -224,6 +224,7 @@ dependencies = [
  "arc-malachitebft-app",
  "arc-malachitebft-config",
  "arc-malachitebft-engine",
+ "arc-malachitebft-engine-byzantine",
  "arc-malachitebft-signing",
  "arc-malachitebft-test",
  "bytes",

@@ -11,6 +11,7 @@ rust-version.workspace = true
 
 [dependencies]
 malachitebft-engine = { workspace = true }
+malachitebft-engine-byzantine = { workspace = true }
 malachitebft-app = { workspace = true }
 malachitebft-codec = { workspace = true }
 malachitebft-core-types = { workspace = true, features = ["serde"] }
@@ -41,7 +42,6 @@ signature = { workspace = true }
 tokio = { workspace = true }
 
 [dev-dependencies]
-malachitebft-engine-byzantine.workspace = true
 malachitebft-test-app.workspace = true
 malachitebft-test-framework.workspace = true
 

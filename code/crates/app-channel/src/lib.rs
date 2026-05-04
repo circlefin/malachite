@@ -28,3 +28,6 @@ pub use run::*;
 pub use builder::{
     ConsensusContext, EngineBuilder, NetworkContext, RequestContext, SyncContext, WalContext,
 };
+
+#[cfg(feature = "byzantine")]
+pub use builder::ByzantineContext;

@@ -10,17 +10,14 @@ use tracing::Instrument;
 
 use malachitebft_app_channel::app::config::*;
 use malachitebft_app_channel::app::events::{RxEvent, TxEvent};
-use malachitebft_app_channel::app::metrics::SharedRegistry;
 use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::VotingPower;
 use malachitebft_app_channel::app::types::Keypair;
 use malachitebft_app_channel::{
-    ConsensusContext, EngineBuilder, EngineHandle, NetworkContext, NetworkIdentity, RequestContext,
-    Signer, SyncContext, WalContext,
+    ByzantineContext, ConsensusContext, EngineBuilder, EngineHandle, NetworkContext,
+    NetworkIdentity, RequestContext, Signer, SyncContext, WalContext,
 };
-use malachitebft_engine_byzantine::{
-    ByzantineMiddleware, ByzantineNetworkProxy, ConflictingValueFn, ConflictingVoteValueFn,
-};
+use malachitebft_test::byzantine::ByzantineMiddleware;
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::node::{Node, NodeHandle};
 use malachitebft_test::traits::{
@@ -233,42 +230,24 @@ impl Node for App {
                 "BYZANTINE: Starting node with Byzantine behavior enabled"
             );
 
-            // Spawn the real network actor manually
-            let registry = SharedRegistry::global().with_moniker(config.moniker.clone());
-            let (real_network, tx_network) = malachitebft_app_channel::spawn::spawn_network_actor(
-                identity,
-                config.consensus(),
-                config.value_sync(),
-                &registry,
-                ProtobufCodec,
-            )
-            .await?;
-
-            // Spawn the proxy in front of the real network.
-            let conflicting_value_fn: Option<ConflictingValueFn<TestContext>> =
-                Some(Box::new(|original: &Value| {
-                    Value::new(original.value.wrapping_add(1))
-                }));
-            let conflicting_vote_value_fn: Option<ConflictingVoteValueFn<TestContext>> =
-                Some(Box::new(|original: Option<&ValueId>| match original {
-                    Some(id) => ValueId::new(id.as_u64().wrapping_add(1)),
-                    None => ValueId::new(0),
-                }));
-
-            let proxy_ref = ByzantineNetworkProxy::spawn(
-                byz_cfg,
-                real_network,
-                Box::new(self.get_signer(self.private_key.clone())),
-                ctx.clone(),
-                address,
-                span.clone(),
-                conflicting_value_fn,
-                conflicting_vote_value_fn,
-            )
-            .await?;
-
             builder
-                .with_custom_network(proxy_ref, tx_network)
+                .with_byzantine_network(ByzantineContext {
+                    identity,
+                    codec: ProtobufCodec,
+                    config: byz_cfg,
+                    signer: Box::new(self.get_signer(self.private_key.clone())),
+                    address,
+                    conflicting_value_fn: Some(Box::new(|v: &Value| {
+                        let mut out = v.clone();
+                        out.value ^= 0x01;
+                        out
+                    })),
+                    conflicting_vote_value_fn: Some(Box::new(|id: Option<&ValueId>| match id {
+                        Some(id) => ValueId::new(id.as_u64() ^ 0x01),
+                        None => ValueId::new(0),
+                    })),
+                })
+                .await?
                 .with_default_consensus(ConsensusContext::new_validator(
                     address,
                     Box::new(self.get_verifier()),

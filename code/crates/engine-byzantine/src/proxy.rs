@@ -10,6 +10,12 @@
 //!   and liveness vote paths (simulating equivocation)
 //! - **Forward** non-targeted messages unchanged (honest behavior)
 //!
+//! Subscribe messages receive special handling: when `drop_inbound_proposals`
+//! is configured, an [`InboundFilter`] is spliced between the real network's
+//! output port and the consensus subscriber so selected inbound proposals can
+//! be dropped on the receive path. Otherwise the subscribe is forwarded
+//! transparently.
+//!
 //! All other message types are forwarded transparently to the real network.
 
 use std::collections::HashMap;

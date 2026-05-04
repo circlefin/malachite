@@ -13,6 +13,7 @@ mod validator_set;
 mod value;
 mod vote;
 
+pub mod byzantine;
 pub mod codec;
 pub mod middleware;
 pub mod node;

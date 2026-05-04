@@ -4,7 +4,8 @@
 //! specifying which attacks to perform and when they fire.
 //!
 //! [`Trigger`] specifies the timing of an attack: never (default), always,
-//! randomly, at specific heights/rounds, or within a height range.
+//! randomly, at specific heights, at specific rounds, at specific
+//! `(height, round)` pairs, or within a height range.
 
 use eyre::{bail, Result};
 use rand::rngs::StdRng;
@@ -44,13 +45,13 @@ pub struct ByzantineConfig {
 
     /// When to ignore voting locks (amnesia attack).
     ///
-    /// When triggered, middleware overrides nil **prevotes** with the most
+    /// When triggered, the node overrides nil **prevotes** with the most
     /// recently observed proposal value for the same `(height, round)`.
     pub ignore_locks: Trigger,
 
     /// When to force a nil precommit.
     ///
-    /// When triggered, middleware rewrites any non-nil **precommit** for the
+    /// When triggered, the node rewrites any non-nil **precommit** for the
     /// given `(height, round)` into `NilOrVal::Nil` before it is signed.
     /// Prevotes are untouched, so the node still contributes to prevote quora;
     /// it just refuses to commit, which typically drives consensus into the
@@ -177,6 +178,9 @@ impl ByzantineConfig {
 ///
 /// # Fire at specific rounds (within any height)
 /// trigger = { mode = "at_rounds", rounds = [2, 3] }
+///
+/// # Fire at specific (height, round) pairs (Cartesian product)
+/// trigger = { mode = "at_heights_and_rounds", heights = [1, 2], rounds = [0, 5] }
 ///
 /// # Fire within a height range (inclusive)
 /// trigger = { mode = "height_range", from = 50, to = 100 }

@@ -848,6 +848,147 @@ where
     }
 }
 
+// Byzantine builder surface — gated behind the `byzantine` feature so the
+// `malachitebft-engine-byzantine` dep is optional.
+#[cfg(feature = "byzantine")]
+mod byzantine {
+    use super::*;
+
+    use malachitebft_engine::consensus::ConsensusCodec;
+    use malachitebft_engine::sync::SyncCodec;
+    use malachitebft_engine_byzantine::{
+        ByzantineConfig, ByzantineNetworkProxy, ConflictingValueFn, ConflictingVoteValueFn,
+    };
+    use malachitebft_signing::Signer;
+
+    /// Context for spawning a Byzantine-proxied Network actor.
+    ///
+    /// Mirrors [`NetworkContext`] but carries the extra data that
+    /// [`ByzantineNetworkProxy::spawn`] needs to wrap the real network.
+    pub struct ByzantineContext<Ctx: Context, Codec> {
+        /// Network identity (see [`NetworkContext::identity`]).
+        pub identity: NetworkIdentity,
+        /// Codec used by the real network actor.
+        pub codec: Codec,
+        /// Byzantine attack configuration (drop / equivocate triggers).
+        pub config: ByzantineConfig,
+        /// Signer used to sign conflicting votes / proposals.
+        pub signer: Box<dyn Signer<Ctx>>,
+        /// This validator's address (embedded in fabricated votes/proposals).
+        pub address: Ctx::Address,
+        /// Optional factory producing a conflicting [`Ctx::Value`] for
+        /// proposal equivocation. Typically a closure that flips the last
+        /// byte of the value's canonical byte representation. If `None`,
+        /// proposal equivocation is skipped.
+        pub conflicting_value_fn: Option<ConflictingValueFn<Ctx>>,
+        /// Optional factory producing a conflicting
+        /// [`ValueId`](malachitebft_core_types::ValueId) for vote
+        /// equivocation. If `None`, non-nil votes are equivocated to nil
+        /// and nil votes are left alone (nothing to equivocate to).
+        pub conflicting_vote_value_fn: Option<ConflictingVoteValueFn<Ctx>>,
+    }
+
+    // Byzantine-mode Network installer — mirrors `with_custom_network`'s
+    // typestate slot (HAS_NETWORK=false, NetCodec=NoCodec) and advances to
+    // HAS_NETWORK=true. Async because spawning the real network + proxy is
+    // async.
+    impl<
+            Ctx,
+            Config,
+            WalCodec,
+            SyncCodec_,
+            const HAS_WAL: bool,
+            const HAS_SYNC: bool,
+            const HAS_CONSENSUS: bool,
+            const HAS_REQUEST: bool,
+        >
+        EngineBuilder<
+            Ctx,
+            Config,
+            WalCodec,
+            NoCodec,
+            SyncCodec_,
+            HAS_WAL,
+            false,
+            HAS_SYNC,
+            HAS_CONSENSUS,
+            HAS_REQUEST,
+        >
+    where
+        Ctx: Context,
+        Config: NodeConfig,
+    {
+        /// Install a Byzantine-proxied Network actor.
+        ///
+        /// Spawns the real network actor internally, wraps it with
+        /// [`ByzantineNetworkProxy`], and advances the builder as if
+        /// [`with_custom_network`](Self::with_custom_network) had been
+        /// called with the proxy. Downstream methods (`with_default_sync`,
+        /// `with_default_consensus`, `build`) behave identically.
+        ///
+        /// Only available with the `byzantine` feature.
+        pub async fn with_byzantine_network<Codec>(
+            self,
+            byz: ByzantineContext<Ctx, Codec>,
+        ) -> Result<
+            EngineBuilder<
+                Ctx,
+                Config,
+                WalCodec,
+                NoCodec,
+                SyncCodec_,
+                HAS_WAL,
+                true,
+                HAS_SYNC,
+                HAS_CONSENSUS,
+                HAS_REQUEST,
+            >,
+        >
+        where
+            Codec: ConsensusCodec<Ctx> + SyncCodec<Ctx>,
+        {
+            let span = tracing::error_span!("node", moniker = %self.config.moniker());
+            let registry = SharedRegistry::global().with_moniker(self.config.moniker());
+
+            let (real_network, tx_network) = spawn_network_actor(
+                byz.identity,
+                self.config.consensus(),
+                self.config.value_sync(),
+                &registry,
+                byz.codec,
+            )
+            .await?;
+
+            // Clone the real-network handle so that, if proxy spawn fails, we
+            // can tear down the already-spawned actor instead of leaving it
+            // orphaned. Ractor actors don't die when their last handle drops.
+            let proxy_ref = match ByzantineNetworkProxy::spawn(
+                byz.config,
+                real_network.clone(),
+                byz.signer,
+                self.ctx.clone(),
+                byz.address,
+                span,
+                byz.conflicting_value_fn,
+                byz.conflicting_vote_value_fn,
+            )
+            .await
+            {
+                Ok(proxy) => proxy,
+                Err(e) => {
+                    real_network.stop(None);
+                    return Err(e);
+                }
+            };
+
+            Ok(self.with_custom_network(proxy_ref, tx_network))
+        }
+    }
+}
+
+#[cfg(feature = "byzantine")]
+pub use byzantine::ByzantineContext;
+
 #[cfg(test)]
 mod tests {
     use malachitebft_test::codec::json::JsonCodec;
