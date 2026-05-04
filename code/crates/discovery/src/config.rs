@@ -1,3 +1,4 @@
+use std::fmt;
 use std::time::Duration;
 
 const DEFAULT_NUM_OUTBOUND_PEERS: usize = 50;
@@ -26,6 +27,43 @@ pub enum Selector {
     Kademlia,
     Random,
 }
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ConfigError {
+    /// `num_inbound_peers` must be >= `num_outbound_peers`.
+    InboundPeersBelowOutbound {
+        num_outbound_peers: usize,
+        num_inbound_peers: usize,
+    },
+    /// Kademlia selector requires the Kademlia bootstrap protocol.
+    SelectorProtocolMismatch {
+        selector: Selector,
+        bootstrap_protocol: BootstrapProtocol,
+    },
+}
+
+impl fmt::Display for ConfigError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InboundPeersBelowOutbound {
+                num_outbound_peers,
+                num_inbound_peers,
+            } => write!(
+                f,
+                "number of inbound peers ({num_inbound_peers}) must be >= number of outbound peers ({num_outbound_peers})"
+            ),
+            Self::SelectorProtocolMismatch {
+                selector,
+                bootstrap_protocol,
+            } => write!(
+                f,
+                "selector {selector:?} is only available with its matching bootstrap protocol, got {bootstrap_protocol:?}"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ConfigError {}
 
 #[derive(Copy, Clone, Debug)]
 pub struct Config {
@@ -110,13 +148,21 @@ impl Config {
         self.selector = selector;
     }
 
-    pub fn set_peers_bounds(&mut self, num_outbound_peers: usize, num_inbound_peers: usize) {
+    pub fn set_peers_bounds(
+        &mut self,
+        num_outbound_peers: usize,
+        num_inbound_peers: usize,
+    ) -> Result<(), ConfigError> {
         if num_inbound_peers < num_outbound_peers {
-            panic!("Number of inbound peers should be greater than or equal to number of outbound peers");
+            return Err(ConfigError::InboundPeersBelowOutbound {
+                num_outbound_peers,
+                num_inbound_peers,
+            });
         }
 
         self.num_outbound_peers = num_outbound_peers;
         self.num_inbound_peers = num_inbound_peers;
+        Ok(())
     }
 
     pub fn set_max_connections_per_peer(&mut self, max_connections: usize) {
