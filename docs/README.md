@@ -20,5 +20,5 @@ If you are a developer looking to _contribute_ to Malachite or learn more,
 then, in addition to the resources above, you may want to consult:
 
 1. The log of Architecture Decision Records (ADRs) in [architecture](./architecture); these capture various decisions at previous points in time regarding architectural concerns.
-2. The log of [development proposals](./development-proposals), which describes potential improvements or features for Malachite, depending on specific use cases such as the Starknet decentralized sequencer.
+2. The log of [development proposals](./development-proposals), which describes potential improvements or features for Malachite.
 3. Some notes on [testing](./testing) Malachite locally within Docker.

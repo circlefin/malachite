@@ -32,28 +32,29 @@ where
     // Determine if we have an existing certificate or need to restore one.
     let (certificate, extensions, sync_decision) = if let Some(certificate) = existing_certificate {
         // NOTE: Existence implies the decision was reached via Sync protocol.
-        // FIXME: No guarantee vote extensions are found in sync. (CCHAIN-915)
+        // FIXME: No guarantee vote extensions are found in sync.
         (certificate, VoteExtensions::default(), true)
     } else {
         // Restore the precommits (removes them from `state`).
         let mut commits = state.restore_precommits(height, proposal_round, &decided_value);
         let extensions = extract_vote_extensions(&mut commits);
         let certificate = CommitCertificate::new(height, proposal_round, decided_id, commits);
+
+        // Verify the locally-constructed certificate
+        let result = verify_commit_certificate(
+            co,
+            certificate.clone(),
+            state.driver.validator_set().clone(),
+            state.params.threshold_params,
+        )
+        .await?;
+
+        if let Err(e) = result {
+            panic!("Decide: Commit certificate is not valid: {e:?}");
+        }
+
         (certificate, extensions, false)
     };
-
-    // The certificate must be valid in Commit step
-    let result = verify_commit_certificate(
-        co,
-        certificate.clone(),
-        state.driver.validator_set().clone(),
-        state.params.threshold_params,
-    )
-    .await?;
-
-    if let Err(e) = result {
-        panic!("Decide: Commit certificate is not valid: {e:?}");
-    }
 
     // Update metrics
     #[cfg(feature = "metrics")]

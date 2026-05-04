@@ -55,7 +55,7 @@ impl SigningScheme for Ed25519 {
         let arr: [u8; 32] = bytes
             .try_into()
             .map_err(|_| ed25519_consensus::Error::InvalidSliceLength)?;
-        Ok(PublicKey::from_bytes(arr))
+        PublicKey::from_bytes(arr)
     }
 }
 
@@ -191,8 +191,8 @@ impl PublicKey {
         self.0.as_bytes()
     }
 
-    pub fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(ed25519_consensus::VerificationKey::try_from(bytes).unwrap())
+    pub fn from_bytes(bytes: [u8; 32]) -> Result<Self, ed25519_consensus::Error> {
+        Ok(Self(ed25519_consensus::VerificationKey::try_from(bytes)?))
     }
 
     pub fn verify(&self, msg: &[u8], signature: &Signature) -> Result<(), signature::Error> {
@@ -219,6 +219,50 @@ impl Verifier<Signature> for PublicKey {
 impl zeroize::Zeroize for PrivateKey {
     fn zeroize(&mut self) {
         self.inner_mut().zeroize();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 32-byte value that is NOT a valid Ed25519 curve point.
+    /// Used across tests for deterministic invalid-key rejection.
+    const INVALID_ED25519_POINT: [u8; 32] = {
+        let mut b = [0x01; 32];
+        b[31] = 0x00;
+        b
+    };
+
+    #[test]
+    fn public_key_from_bytes_valid() {
+        let seed = [1u8; 32];
+        let sk = ed25519_consensus::SigningKey::from(seed);
+        let vk = sk.verification_key();
+        let bytes: [u8; 32] = vk.into();
+
+        let result = PublicKey::from_bytes(bytes);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().as_bytes(), &bytes);
+    }
+
+    #[test]
+    fn public_key_from_bytes_invalid_curve_point() {
+        let result = PublicKey::from_bytes(INVALID_ED25519_POINT);
+        assert!(result.is_err(), "non-curve-point should be rejected");
+    }
+
+    #[test]
+    fn decode_public_key_invalid_curve_point() {
+        let result = Ed25519::decode_public_key(&INVALID_ED25519_POINT);
+        assert!(result.is_err(), "non-curve-point should be rejected");
+    }
+
+    #[test]
+    fn decode_public_key_invalid_length() {
+        let short_bytes = [0u8; 16];
+        let result = Ed25519::decode_public_key(&short_bytes);
+        assert!(result.is_err());
     }
 }
 

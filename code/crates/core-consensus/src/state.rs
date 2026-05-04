@@ -63,6 +63,7 @@ where
         validator_set: Ctx::ValidatorSet,
         params: Params<Ctx>,
         queue_capacity: usize,
+        queue_per_height_capacity: usize,
     ) -> Self {
         let driver = Driver::new(
             ctx.clone(),
@@ -76,7 +77,7 @@ where
             ctx,
             driver,
             params,
-            input_queue: BoundedQueue::new(queue_capacity),
+            input_queue: BoundedQueue::new(queue_capacity, queue_per_height_capacity),
             full_proposal_keeper: Default::default(),
             last_signed_prevote: None,
             last_signed_precommit: None,
@@ -154,7 +155,9 @@ where
             .full_proposal_at_round_and_proposer(height, round, address)
     }
 
-    /// Get a proposed value by its ID at the specified height and round.
+    /// Get a proposed value by its ID at the specified height.
+    /// `round` simply populates the corresponding field on the
+    /// returned `ProposedValue`.
     pub fn get_proposed_value_by_id(
         &self,
         height: Ctx::Height,
@@ -163,7 +166,7 @@ where
     ) -> Option<ProposedValue<Ctx>> {
         let (value, validity) = self
             .full_proposal_keeper
-            .get_value_by_id(&height, round, value_id)?;
+            .get_value_by_id(&height, value_id)?;
         Some(ProposedValue {
             height,
             round,
@@ -194,7 +197,7 @@ where
 
         if self
             .full_proposal_keeper
-            .get_value(&new_value.height, new_value.round, &new_value.value)
+            .get_value_by_id(&new_value.height, &new_value.value.id())
             .is_none()
             && new_value.validity.is_invalid()
         {
@@ -211,7 +214,7 @@ where
         // Retrieve the validity after storing, as it may have changed (e.g., from Invalid to Valid)
         let (_value, validity) = self
             .full_proposal_keeper
-            .get_value(&new_value.height, new_value.round, &new_value.value)
+            .get_value_by_id(&new_value.height, &new_value.value.id())
             .expect("We just stored the entry, so it should be there");
 
         validity

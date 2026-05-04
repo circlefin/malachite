@@ -79,6 +79,18 @@ pub trait Middleware: fmt::Debug + Send + Sync {
         Validity::Valid
     }
 
+    /// Called when a value has been decided, before the decision is committed in
+    /// the `AppMsg::Decided` handler. Return `true` to skip the early commit.
+    ///
+    /// The decision will still be committed later during `AppMsg::Finalized`.
+    fn skip_early_commit(
+        &self,
+        _ctx: &TestContext,
+        _certificate: &CommitCertificate<TestContext>,
+    ) -> bool {
+        false
+    }
+
     fn on_commit(
         &self,
         _ctx: &TestContext,
@@ -86,6 +98,11 @@ pub trait Middleware: fmt::Debug + Send + Sync {
         _proposal: &ProposedValue<TestContext>,
     ) -> Result<(), eyre::Report> {
         Ok(())
+    }
+
+    /// If true, the synced value decode is treated as a failure.
+    fn fail_synced_value_decode(&self, _ctx: &TestContext, _height: Height, _round: Round) -> bool {
+        false
     }
 }
 

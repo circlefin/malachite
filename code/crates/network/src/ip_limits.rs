@@ -17,8 +17,8 @@ use std::task::{Context, Poll};
 
 use libp2p::core::Endpoint;
 use libp2p::swarm::{
-    ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour, THandler, THandlerInEvent,
-    THandlerOutEvent, ToSwarm,
+    ConnectionDenied, ConnectionId, FromSwarm, ListenFailure, NetworkBehaviour, THandler,
+    THandlerInEvent, THandlerOutEvent, ToSwarm,
 };
 use libp2p::{Multiaddr, PeerId};
 use tracing::debug;
@@ -116,10 +116,14 @@ impl NetworkBehaviour for Behaviour {
     }
 
     fn on_swarm_event(&mut self, event: FromSwarm<'_>) {
-        if let FromSwarm::ConnectionClosed(info) = event {
-            // Untrack inbound connections (outbound are not tracked)
-            // Handles both pending failures and normal closes
-            self.untrack_connection(info.connection_id);
+        match event {
+            FromSwarm::ConnectionClosed(info) => {
+                self.untrack_connection(info.connection_id);
+            }
+            FromSwarm::ListenFailure(ListenFailure { connection_id, .. }) => {
+                self.untrack_connection(connection_id);
+            }
+            _ => {}
         }
     }
 
@@ -171,4 +175,130 @@ fn extract_ip(addr: &Multiaddr) -> Option<IpAddr> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use libp2p::core::ConnectedPoint;
+    use libp2p::swarm::{ConnectionClosed, ListenError};
+
+    const REMOTE_ADDR: &str = "/ip4/10.0.0.1/tcp/9000";
+    const LOCAL_ADDR: &str = "/ip4/127.0.0.1/tcp/8000";
+
+    fn remote_addr() -> Multiaddr {
+        REMOTE_ADDR.parse().unwrap()
+    }
+
+    fn local_addr() -> Multiaddr {
+        LOCAL_ADDR.parse().unwrap()
+    }
+
+    fn listener_endpoint() -> ConnectedPoint {
+        ConnectedPoint::Listener {
+            local_addr: local_addr(),
+            send_back_addr: remote_addr(),
+        }
+    }
+
+    /// Track a pending inbound connection through handle_pending_inbound_connection.
+    fn track_pending(b: &mut Behaviour, conn_id: ConnectionId) {
+        let local = local_addr();
+        let remote = remote_addr();
+        b.handle_pending_inbound_connection(conn_id, &local, &remote)
+            .expect("connection should be accepted");
+    }
+
+    /// Emit a ConnectionClosed event for the given connection.
+    fn emit_connection_closed(b: &mut Behaviour, conn_id: ConnectionId) {
+        let endpoint = listener_endpoint();
+        b.on_swarm_event(FromSwarm::ConnectionClosed(ConnectionClosed {
+            peer_id: PeerId::random(),
+            connection_id: conn_id,
+            endpoint: &endpoint,
+            cause: None,
+            remaining_established: 0,
+        }));
+    }
+
+    /// Emit a ListenFailure event for the given connection.
+    fn emit_listen_failure(b: &mut Behaviour, conn_id: ConnectionId) {
+        let local = local_addr();
+        let remote = remote_addr();
+        let error = ListenError::Aborted;
+        b.on_swarm_event(FromSwarm::ListenFailure(ListenFailure {
+            local_addr: &local,
+            send_back_addr: &remote,
+            error: &error,
+            connection_id: conn_id,
+            peer_id: None,
+        }));
+    }
+
+    #[test]
+    fn counter_decremented_on_connection_closed() {
+        let mut b = Behaviour::new(5);
+        let conn = ConnectionId::new_unchecked(1);
+
+        track_pending(&mut b, conn);
+        assert_eq!(b.connections_per_ip.len(), 1);
+
+        emit_connection_closed(&mut b, conn);
+        assert!(b.connections_per_ip.is_empty());
+        assert!(b.connection_ips.is_empty());
+    }
+
+    #[test]
+    fn counter_decremented_on_listen_failure() {
+        let mut b = Behaviour::new(5);
+        let conn = ConnectionId::new_unchecked(1);
+
+        track_pending(&mut b, conn);
+        assert_eq!(b.connections_per_ip.len(), 1);
+
+        emit_listen_failure(&mut b, conn);
+        assert!(b.connections_per_ip.is_empty());
+        assert!(b.connection_ips.is_empty());
+    }
+
+    #[test]
+    fn connection_allowed_after_listen_failure() {
+        let mut b = Behaviour::new(2);
+        let conn1 = ConnectionId::new_unchecked(1);
+        let conn2 = ConnectionId::new_unchecked(2);
+
+        // Fill the per-IP limit.
+        track_pending(&mut b, conn1);
+        track_pending(&mut b, conn2);
+
+        // A third connection from the same IP should be denied.
+        let conn3 = ConnectionId::new_unchecked(3);
+        let local = local_addr();
+        let remote = remote_addr();
+        assert!(b
+            .handle_pending_inbound_connection(conn3, &local, &remote)
+            .is_err());
+
+        // Simulate a handshake failure for one connection.
+        emit_listen_failure(&mut b, conn1);
+
+        // Now a new connection from the same IP should be accepted.
+        let conn4 = ConnectionId::new_unchecked(4);
+        assert!(b
+            .handle_pending_inbound_connection(conn4, &local, &remote)
+            .is_ok());
+    }
+
+    #[test]
+    fn untrack_unknown_connection_is_noop() {
+        let mut b = Behaviour::new(5);
+        let unknown = ConnectionId::new_unchecked(999);
+
+        // Should not panic or alter state.
+        emit_listen_failure(&mut b, unknown);
+
+        assert!(b.connections_per_ip.is_empty());
+        assert!(b.connection_ips.is_empty());
+    }
 }

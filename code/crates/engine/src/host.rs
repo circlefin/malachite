@@ -144,6 +144,13 @@ pub enum HostMsg<Ctx: Context> {
     /// the value that was decided on, the height and round at which it was decided,
     /// and the aggregated signatures of the validators that committed to it.
     /// It also includes to the vote extensions received for that height.
+    ///
+    /// The application MUST commit the decision and then reply to
+    /// acknowledge that the commit is complete. The sync actor will only be notified
+    /// of the decided height after the application replies.
+    ///
+    /// If the application does not reply, the sync actor will never learn about
+    /// the decided height and peers will not be able to sync from this node.
     Decided {
         /// The commit certificate containing the ID of the value that was decided on,
         /// the the height and round at which it was decided, and the aggregated signatures
@@ -152,6 +159,9 @@ pub enum HostMsg<Ctx: Context> {
 
         /// Vote extensions that were received for this height.
         extensions: VoteExtensions<Ctx>,
+
+        /// Use this reply port to acknowledge that the decision has been committed.
+        reply_to: RpcReplyPort<()>,
     },
 
     /// Notifies the application that consensus has finalized a height after collecting additional precommits.
@@ -211,6 +221,6 @@ pub enum HostMsg<Ctx: Context> {
         value_bytes: Bytes,
         /// Channel for sending back the proposed value, if successfully decoded
         /// or `None` if the value could not be decoded
-        reply_to: RpcReplyPort<ProposedValue<Ctx>>,
+        reply_to: RpcReplyPort<Option<ProposedValue<Ctx>>>,
     },
 }

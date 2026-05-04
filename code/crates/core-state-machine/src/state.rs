@@ -151,8 +151,9 @@ where
     }
 
     /// Set the round.
-    pub fn with_round(self, round: Round) -> Self {
-        Self { round, ..self }
+    pub fn with_round(mut self, round: Round) -> Self {
+        self.update_round(round);
+        self
     }
 
     /// Set the step.

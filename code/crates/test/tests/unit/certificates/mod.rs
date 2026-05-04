@@ -8,14 +8,13 @@ use std::marker::PhantomData;
 
 pub mod types {
     pub use arc_malachitebft_test::{
-        utils, Address, Ed25519Provider, Height, TestContext, Validator, ValidatorSet, ValueId,
-        Vote,
+        utils, Address, Ed25519Signer, Height, TestContext, Validator, ValidatorSet, ValueId, Vote,
     };
     pub use malachitebft_core_types::{
         CertificateError, CommitSignature, Context, NilOrVal, PolkaSignature, Round,
         RoundCertificateType, RoundSignature, SignedVote, ThresholdParams, VoteType, VotingPower,
     };
-    pub use malachitebft_signing::SigningProvider;
+    pub use malachitebft_signing::Signer;
     pub use malachitebft_signing_ed25519::Signature;
 }
 
@@ -29,11 +28,11 @@ const DEFAULT_SEED: u64 = 0xfeedbeef;
 pub fn make_validators<const N: usize>(
     voting_powers: [VotingPower; N],
     seed: u64,
-) -> ([Validator; N], [Ed25519Provider; N]) {
+) -> ([Validator; N], [Ed25519Signer; N]) {
     let (validators, private_keys): (Vec<_>, Vec<_>) =
         utils::validators::make_validators_seeded(voting_powers, seed)
             .into_iter()
-            .map(|(v, pk)| (v, Ed25519Provider::new(pk)))
+            .map(|(v, pk)| (v, Ed25519Signer::new(pk)))
             .unzip();
 
     (
@@ -54,7 +53,7 @@ pub trait CertificateBuilder {
 
     fn verify_certificate(
         ctx: &TestContext,
-        signer: &Ed25519Provider,
+        signer: &Ed25519Signer,
         certificate: &Self::Certificate,
         validator_set: &ValidatorSet,
         threshold_params: ThresholdParams,
@@ -82,7 +81,7 @@ pub struct CertificateTest<C> {
     round: Round,
     value_id: ValueId,
     validators: Vec<Validator>,
-    signers: Vec<Ed25519Provider>,
+    signers: Vec<Ed25519Signer>,
     votes: Vec<SignedVote<TestContext>>,
     marker: PhantomData<C>,
 }
@@ -394,6 +393,32 @@ where
                 Err(&expected_error),
                 "Expected certificate error {expected_error:?}, but got: {result:?}",
             );
+        }
+    }
+
+    /// Verify that the certificate fails with an error that matches the given predicate.
+    ///
+    /// This is useful when the error variant is known but its inner value (e.g. a
+    /// signature blob) is not exactly reproducible across test invocations.
+    pub fn expect_err_matches<F>(self, predicate: F)
+    where
+        F: Fn(&CertificateError<TestContext>) -> bool,
+    {
+        let (certificate, validator_set) = self.build_certificate();
+
+        for signer in &self.signers {
+            let result = C::verify_certificate(
+                &self.ctx,
+                signer,
+                &certificate,
+                &validator_set,
+                ThresholdParams::default(),
+            );
+
+            match result {
+                Err(ref e) if predicate(e) => {}
+                _ => panic!("Expected error matching predicate, but got: {result:?}"),
+            }
         }
     }
 }

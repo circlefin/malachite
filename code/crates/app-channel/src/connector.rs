@@ -3,7 +3,7 @@
 use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, SpawnErr};
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
-use tracing::{error, warn};
+use tracing::error;
 
 use malachitebft_engine::host::HostMsg;
 
@@ -196,13 +196,26 @@ where
             HostMsg::Decided {
                 certificate,
                 extensions,
+                reply_to,
             } => {
+                let (reply, rx) = oneshot::channel();
+
                 self.sender
                     .send(AppMsg::Decided {
                         certificate,
                         extensions,
+                        reply,
                     })
                     .await?;
+
+                // Do not block processing of other messages while the app commits the decision
+                tokio::spawn(async move {
+                    if let Ok(()) = rx.await {
+                        if let Err(e) = reply_to.send(()) {
+                            error!("Decided: connector failed to send ack: {e}");
+                        }
+                    }
+                });
             }
 
             HostMsg::Finalized {
@@ -261,13 +274,7 @@ where
                     })
                     .await?;
 
-                if let Some(value) = rx.await? {
-                    if let Err(e) = reply_to.send(value) {
-                        error!("Failed to send processed synced value: {e}");
-                    }
-                } else {
-                    warn!("Failed to decode synced value");
-                }
+                reply_to.send(rx.await?)?;
             }
         };
 

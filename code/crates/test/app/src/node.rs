@@ -14,10 +14,10 @@ use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::VotingPower;
 use malachitebft_app_channel::app::types::Keypair;
 use malachitebft_app_channel::{
-    ConsensusContext, EngineBuilder, EngineHandle, NetworkContext, NetworkIdentity, RequestContext,
-    SigningProviderExt, SyncContext, WalContext,
+    ByzantineContext, ConsensusContext, EngineBuilder, EngineHandle, NetworkContext,
+    NetworkIdentity, RequestContext, Signer, SyncContext, WalContext,
 };
-use malachitebft_test::codec::json::JsonCodec;
+use malachitebft_test::byzantine::ByzantineMiddleware;
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::node::{Node, NodeHandle};
 use malachitebft_test::traits::{
@@ -29,13 +29,13 @@ use malachitebft_test::middleware::{DefaultMiddleware, Middleware};
 // Use the same types used for integration tests.
 // A real application would use its own types and context instead.
 use malachitebft_test::{
-    Address, Ed25519Provider, Genesis, Height, PrivateKey, PublicKey, TestContext, Validator,
-    ValidatorSet,
+    Address, Ed25519Signer, Ed25519Verifier, Genesis, Height, PrivateKey, PublicKey, TestContext,
+    Validator, ValidatorSet, Value, ValueId,
 };
 
-use crate::config::Config;
+use crate::config::{Config, ValidatorRotationConfig};
 use crate::state::State;
-use crate::store::Store;
+use crate::store::{NoMetrics, Store, StoreMetrics};
 
 pub struct Handle {
     pub app: JoinHandle<()>,
@@ -57,8 +57,10 @@ impl NodeHandle<TestContext> for Handle {
     }
 }
 
-/// Main application struct implementing the consensus node functionality
+/// Application struct used by the integration test framework.
+/// Configuration and keys are provided in-memory.
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct App {
     pub home_dir: PathBuf,
     pub config: Config,
@@ -66,9 +68,13 @@ pub struct App {
     pub private_key: PrivateKey,
     pub start_height: Option<Height>,
     pub middleware: Option<Arc<dyn Middleware>>,
+    /// When true, the node signs a validator proof and advertises a validator identity.
+    /// When false, the node starts without a validator identity.
+    pub validator: bool,
 }
 
 impl App {
+    #[allow(dead_code)]
     fn get_network_keypair(&self) -> Keypair {
         // Separate network identity
         let rng = rand::thread_rng();
@@ -83,7 +89,8 @@ impl Node for App {
     type Config = Config;
     type Genesis = Genesis;
     type PrivateKeyFile = PrivateKey;
-    type SigningProvider = Ed25519Provider;
+    type Verifier = Ed25519Verifier;
+    type Signer = Ed25519Signer;
     type NodeHandle = Handle;
 
     fn get_home_dir(&self) -> PathBuf {
@@ -94,8 +101,12 @@ impl Node for App {
         Ok(self.config.clone())
     }
 
-    fn get_signing_provider(&self, private_key: PrivateKey) -> Self::SigningProvider {
-        Ed25519Provider::new(private_key)
+    fn get_verifier(&self) -> Ed25519Verifier {
+        Ed25519Verifier
+    }
+
+    fn get_signer(&self, private_key: PrivateKey) -> Ed25519Signer {
+        Ed25519Signer::new(private_key)
     }
 
     fn get_address(&self, pk: &PublicKey) -> Address {
@@ -135,27 +146,64 @@ impl Node for App {
         let span = tracing::error_span!("node", moniker = %config.moniker);
         let _guard = span.enter();
 
-        let middleware = self
-            .middleware
-            .clone()
-            .unwrap_or_else(|| Arc::new(DefaultMiddleware));
-
-        let ctx = TestContext::with_middleware(middleware);
+        if let Some(ref byz) = config.byzantine {
+            byz.validate()
+                .map_err(|e| eyre::eyre!("Invalid byzantine configuration: {e}"))?;
+        }
 
         let public_key = self.get_public_key(&self.private_key);
         let address = self.get_address(&public_key);
+
+        // Wrap middleware with ByzantineMiddleware if amnesia or
+        // force-precommit-nil is configured.
+        let middleware: Arc<dyn Middleware> = {
+            let inner = self
+                .middleware
+                .clone()
+                .unwrap_or_else(|| Arc::new(DefaultMiddleware));
+
+            if let Some(ref byz) = config.byzantine {
+                if byz.ignore_locks.is_set() || byz.force_precommit_nil.is_set() {
+                    if byz.ignore_locks.is_set() {
+                        tracing::warn!(
+                            trigger = ?byz.ignore_locks,
+                            "BYZANTINE: Amnesia attack enabled (will ignore voting locks)"
+                        );
+                    }
+                    if byz.force_precommit_nil.is_set() {
+                        tracing::warn!(
+                            trigger = ?byz.force_precommit_nil,
+                            "BYZANTINE: Force-precommit-nil enabled (will rewrite non-nil precommits)"
+                        );
+                    }
+                    Arc::new(ByzantineMiddleware::new(
+                        byz.ignore_locks.clone(),
+                        byz.force_precommit_nil.clone(),
+                        inner,
+                        address,
+                        byz.seed,
+                    ))
+                } else {
+                    inner
+                }
+            } else {
+                inner
+            }
+        };
+
+        let ctx = TestContext::with_middleware(middleware.clone());
         let keypair = self.get_network_keypair(); // Separate network identity
         let genesis = self.load_genesis()?;
         let wal_path = self.get_home_dir().join("wal").join("consensus.wal");
 
-        let signing_provider = self.get_signing_provider(self.private_key.clone());
-        let identity = {
+        let identity = if self.validator {
+            let signer = self.get_signer(self.private_key.clone());
             let peer_id_bytes = keypair.public().to_peer_id().to_bytes();
-            let proof = signing_provider
+            let proof = signer
                 .sign_validator_proof(public_key.as_bytes().to_vec(), peer_id_bytes)
                 .await
                 .map_err(|e| eyre::eyre!("Failed to sign validator proof: {e:?}"))?;
-            let proof_bytes = JsonCodec
+            let proof_bytes = ProtobufCodec
                 .encode(&proof)
                 .map_err(|e| eyre::eyre!("Failed to encode validator proof: {e}"))?;
             NetworkIdentity::new_validator(
@@ -164,23 +212,81 @@ impl Node for App {
                 address.to_string(),
                 proof_bytes,
             )
+        } else {
+            NetworkIdentity::new(config.moniker.clone(), keypair, None)
         };
 
-        let (mut channels, engine_handle) = EngineBuilder::new(ctx.clone(), config.clone())
-            .with_default_wal(WalContext::new(wal_path, ProtobufCodec))
-            .with_default_network(NetworkContext::new(identity, JsonCodec))
-            .with_default_consensus(ConsensusContext::new(address, signing_provider))
-            .with_default_sync(SyncContext::new(JsonCodec))
-            .with_default_request(RequestContext::new(100))
-            .build()
-            .await?;
+        // Build the engine, conditionally injecting the Byzantine proxy
+        let builder = EngineBuilder::new(ctx.clone(), config.clone())
+            .with_default_wal(WalContext::new(wal_path, ProtobufCodec));
+
+        let is_byzantine = config.byzantine.as_ref().is_some_and(|c| c.is_active());
+
+        let (mut channels, engine_handle) = if is_byzantine {
+            let byz_cfg = config.byzantine.clone().unwrap(); // safe: is_active() was true
+
+            tracing::warn!(
+                ?byz_cfg,
+                "BYZANTINE: Starting node with Byzantine behavior enabled"
+            );
+
+            builder
+                .with_byzantine_network(ByzantineContext {
+                    identity,
+                    codec: ProtobufCodec,
+                    config: byz_cfg,
+                    signer: Box::new(self.get_signer(self.private_key.clone())),
+                    address,
+                    conflicting_value_fn: Some(Box::new(|v: &Value| {
+                        let mut out = v.clone();
+                        out.value ^= 0x01;
+                        out
+                    })),
+                    conflicting_vote_value_fn: Some(Box::new(|id: Option<&ValueId>| match id {
+                        Some(id) => ValueId::new(id.as_u64() ^ 0x01),
+                        None => ValueId::new(0),
+                    })),
+                })
+                .await?
+                .with_default_consensus(ConsensusContext::new_validator(
+                    address,
+                    Box::new(self.get_verifier()),
+                    Box::new(self.get_signer(self.private_key.clone())),
+                ))
+                .with_default_sync(SyncContext::new(ProtobufCodec))
+                .with_default_request(RequestContext::new(100))
+                .build()
+                .await?
+        } else {
+            let consensus_ctx = if self.validator {
+                ConsensusContext::new_validator(
+                    address,
+                    Box::new(self.get_verifier()),
+                    Box::new(self.get_signer(self.private_key.clone())),
+                )
+            } else {
+                ConsensusContext::new_full_node(address, Box::new(self.get_verifier()))
+            };
+
+            builder
+                .with_default_network(NetworkContext::new(identity, ProtobufCodec))
+                .with_default_consensus(consensus_ctx)
+                .with_default_sync(SyncContext::new(ProtobufCodec))
+                .with_default_request(RequestContext::new(100))
+                .build()
+                .await?
+        };
 
         drop(_guard);
 
         let db_path = self.get_home_dir().join("db");
         std::fs::create_dir_all(&db_path)?;
 
-        let store = Store::open(db_path.join("store.db")).await?;
+        let store = Store::open(
+            db_path.join("store.db"),
+            Box::new(NoMetrics) as Box<dyn StoreMetrics>,
+        )
+        .await?;
         let start_height = self.start_height.unwrap_or_default();
 
         let mut state = State::new(
@@ -190,8 +296,8 @@ impl Node for App {
             address,
             start_height,
             store,
-            self.get_signing_provider(self.private_key.clone()),
-            self.middleware.clone(),
+            self.get_signer(self.private_key.clone()),
+            Some(middleware),
         );
 
         let tx_event = channels.events.clone();
@@ -200,6 +306,184 @@ impl Node for App {
             async move {
                 if let Err(e) = crate::app::run(&mut state, &mut channels).await {
                     tracing::error!("Application has failed with an error: {e}");
+                }
+            }
+            .instrument(span),
+        );
+
+        Ok(Handle {
+            app: app_handle,
+            engine: engine_handle,
+            tx_event,
+        })
+    }
+
+    async fn run(self) -> eyre::Result<()> {
+        let handles = self.start().await?;
+        handles.app.await.map_err(Into::into)
+    }
+}
+
+/// Application struct used by the CLI entry point.
+/// Configuration and keys are loaded from files on disk.
+#[derive(Clone)]
+pub struct CliApp {
+    pub home_dir: PathBuf,
+    pub config_file: PathBuf,
+    pub genesis_file: PathBuf,
+    pub private_key_file: PathBuf,
+    pub start_height: Option<Height>,
+    pub validator: bool,
+}
+
+#[async_trait]
+impl Node for CliApp {
+    type Context = TestContext;
+    type Config = Config;
+    type Genesis = Genesis;
+    type PrivateKeyFile = PrivateKey;
+    type Verifier = Ed25519Verifier;
+    type Signer = Ed25519Signer;
+    type NodeHandle = Handle;
+
+    fn get_home_dir(&self) -> PathBuf {
+        self.home_dir.to_owned()
+    }
+
+    fn load_config(&self) -> eyre::Result<Self::Config> {
+        crate::config::load_config(&self.config_file, Some("MALACHITE"))
+    }
+
+    fn get_verifier(&self) -> Ed25519Verifier {
+        Ed25519Verifier
+    }
+
+    fn get_signer(&self, private_key: PrivateKey) -> Ed25519Signer {
+        Ed25519Signer::new(private_key)
+    }
+
+    fn get_address(&self, pk: &PublicKey) -> Address {
+        Address::from_public_key(pk)
+    }
+
+    fn get_public_key(&self, pk: &PrivateKey) -> PublicKey {
+        pk.public_key()
+    }
+
+    fn get_keypair(&self, pk: PrivateKey) -> Keypair {
+        Keypair::ed25519_from_bytes(pk.inner().to_bytes()).unwrap()
+    }
+
+    fn load_private_key(&self, file: Self::PrivateKeyFile) -> PrivateKey {
+        file
+    }
+
+    fn load_private_key_file(&self) -> eyre::Result<Self::PrivateKeyFile> {
+        let private_key = std::fs::read_to_string(&self.private_key_file)?;
+        serde_json::from_str(&private_key).map_err(Into::into)
+    }
+
+    fn load_genesis(&self) -> eyre::Result<Self::Genesis> {
+        let genesis = std::fs::read_to_string(&self.genesis_file)?;
+        serde_json::from_str(&genesis).map_err(Into::into)
+    }
+
+    async fn start(&self) -> eyre::Result<Handle> {
+        let config = self.load_config()?;
+
+        let span = tracing::error_span!("node", moniker = %config.moniker);
+        let _enter = span.enter();
+
+        let private_key_file = self.load_private_key_file()?;
+        let private_key = self.load_private_key(private_key_file);
+        let public_key = self.get_public_key(&private_key);
+        let address = self.get_address(&public_key);
+        let wal_path = self.get_home_dir().join("wal").join("consensus.wal");
+        let ctx = TestContext::new();
+        let genesis = self.load_genesis()?;
+
+        // Generate a separate network keypair (distinct from the validator signing key)
+        let net_pk = self.generate_private_key(rand::thread_rng());
+        let keypair = Keypair::ed25519_from_bytes(net_pk.inner().to_bytes()).unwrap();
+
+        let identity = if self.validator {
+            let signer = self.get_signer(private_key.clone());
+            let peer_id_bytes = keypair.public().to_peer_id().to_bytes();
+            let proof = signer
+                .sign_validator_proof(public_key.as_bytes().to_vec(), peer_id_bytes)
+                .await
+                .map_err(|e| eyre::eyre!("Failed to sign validator proof: {e:?}"))?;
+            let proof_bytes = ProtobufCodec
+                .encode(&proof)
+                .map_err(|e| eyre::eyre!("Failed to encode validator proof: {e}"))?;
+            NetworkIdentity::new_validator(
+                config.moniker.clone(),
+                keypair,
+                address.to_string(),
+                proof_bytes,
+            )
+        } else {
+            NetworkIdentity::new(config.moniker.clone(), keypair, None)
+        };
+
+        let consensus_ctx = if self.validator {
+            ConsensusContext::new_validator(
+                address,
+                Box::new(self.get_verifier()),
+                Box::new(self.get_signer(private_key.clone())),
+            )
+        } else {
+            ConsensusContext::new_full_node(address, Box::new(self.get_verifier()))
+        };
+
+        let (mut channels, engine_handle) = EngineBuilder::new(ctx.clone(), config.clone())
+            .with_default_wal(WalContext::new(wal_path, ProtobufCodec))
+            .with_default_network(NetworkContext::new(identity, ProtobufCodec))
+            .with_default_consensus(consensus_ctx)
+            .with_default_sync(SyncContext::new(ProtobufCodec))
+            .with_default_request(RequestContext::new(100))
+            .build()
+            .await?;
+
+        let tx_event = channels.events.clone();
+
+        let db_dir = self.get_home_dir().join("db");
+        std::fs::create_dir_all(&db_dir)?;
+
+        use crate::metrics::DbMetrics;
+        use malachitebft_app_channel::app::metrics::SharedRegistry;
+
+        let registry = SharedRegistry::global().with_moniker(&config.moniker);
+        let metrics = DbMetrics::register(&registry);
+
+        if config.metrics.enabled {
+            use malachitebft_test_cli::metrics;
+            tokio::spawn(metrics::serve(config.metrics.listen_addr));
+        }
+
+        let store = Store::open(
+            db_dir.join("store.db"),
+            Box::new(metrics) as Box<dyn StoreMetrics>,
+        )
+        .await?;
+        let start_height = self.start_height.unwrap_or_default();
+
+        let mut state = State::new(
+            ctx,
+            config.clone(),
+            genesis,
+            address,
+            start_height,
+            store,
+            Ed25519Signer::new(private_key),
+            None,
+        );
+
+        let span = tracing::error_span!("node", moniker = %config.moniker);
+        let app_handle = tokio::spawn(
+            async move {
+                if let Err(e) = crate::app::run(&mut state, &mut channels).await {
+                    tracing::error!(%e, "Application error");
                 }
             }
             .instrument(span),
@@ -251,6 +535,39 @@ impl CanMakeConfig for App {
     }
 }
 
+impl CanMakeGenesis for CliApp {
+    fn make_genesis(&self, validators: Vec<(PublicKey, VotingPower)>) -> Self::Genesis {
+        let validators = validators
+            .into_iter()
+            .map(|(pk, vp)| Validator::new(pk, vp));
+
+        let validator_set = ValidatorSet::new(validators);
+
+        Genesis { validator_set }
+    }
+}
+
+impl CanGeneratePrivateKey for CliApp {
+    fn generate_private_key<R>(&self, rng: R) -> PrivateKey
+    where
+        R: RngCore + CryptoRng,
+    {
+        PrivateKey::generate(rng)
+    }
+}
+
+impl CanMakePrivateKeyFile for CliApp {
+    fn make_private_key_file(&self, private_key: PrivateKey) -> Self::PrivateKeyFile {
+        private_key
+    }
+}
+
+impl CanMakeConfig for CliApp {
+    fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Self::Config {
+        make_config(index, total, settings)
+    }
+}
+
 /// Generate configuration for node "index" out of "total" number of nodes.
 fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Config {
     use itertools::Itertools;
@@ -266,7 +583,6 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
         moniker: format!("test-{index}"),
         consensus: ConsensusConfig {
             enabled: true,
-            // Current test app does not support proposal-only value payload properly as Init does not include valid_round
             value_payload: ValuePayload::ProposalAndParts,
             queue_capacity: 100,
             p2p: P2pConfig {
@@ -306,6 +622,7 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
                 persistent_peers_only: settings.persistent_peers_only,
                 ..Default::default()
             },
+            ..Default::default()
         },
         metrics: MetricsConfig {
             enabled: true,
@@ -315,5 +632,7 @@ fn make_config(index: usize, total: usize, settings: MakeConfigSettings) -> Conf
         value_sync: ValueSyncConfig::default(),
         logging: LoggingConfig::default(),
         test: TestConfig::default(),
+        byzantine: None,
+        validator_rotation: ValidatorRotationConfig::default(),
     }
 }

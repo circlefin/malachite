@@ -1,0 +1,29 @@
+[package]
+name = "arc-malachitebft-engine-byzantine"
+description = "Byzantine behavior support for the Malachite BFT consensus engine"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+malachitebft-engine.workspace = true
+malachitebft-core-types.workspace = true
+malachitebft-core-consensus.workspace = true
+malachitebft-signing.workspace = true
+
+async-trait.workspace = true
+eyre.workspace = true
+ractor.workspace = true
+rand.workspace = true
+serde = { workspace = true, features = ["derive"] }
+tracing.workspace = true
+
+[dev-dependencies]
+malachitebft-test.workspace = true
+toml.workspace = true

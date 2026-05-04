@@ -120,10 +120,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
     ) -> Vec<SignedProposal<Ctx>> {
         let mut results = vec![];
 
-        let first_key = &(proposed_value.height, proposed_value.round);
-        let entries = self.keeper.range(first_key..);
-
-        for (_, proposals) in entries {
+        for (_, proposals) in self.entries_at(proposed_value.height) {
             for entry in proposals {
                 if let Entry::Full(p) = entry {
                     if p.proposal.value().id() == proposed_value.value.id() {
@@ -180,36 +177,23 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         None
     }
 
-    pub fn get_value(
-        &self,
-        height: &Ctx::Height,
-        round: Round,
-        value: &Ctx::Value,
-    ) -> Option<(&Ctx::Value, Validity)> {
-        self.get_value_by_id(height, round, &value.id())
-    }
-
-    /// Get a valid value by its ID at the specified height and round.
+    /// Look up a stored builder value by id at `height`, across all rounds (restream / mux).
     pub fn get_value_by_id(
         &self,
         height: &Ctx::Height,
-        round: Round,
         value_id: &ValueId<Ctx>,
     ) -> Option<(&Ctx::Value, Validity)> {
-        let entries = self
-            .keeper
-            .get(&(*height, round))
-            .filter(|entries| !entries.is_empty())?;
-
-        for entry in entries {
-            match entry {
-                Entry::Full(p) if p.proposal.value().id() == *value_id => {
-                    return Some((&p.builder_value, p.validity));
+        for (_, entries) in self.entries_at(*height) {
+            for entry in entries {
+                match entry {
+                    Entry::Full(p) if p.proposal.value().id() == *value_id => {
+                        return Some((&p.builder_value, p.validity));
+                    }
+                    Entry::ValueOnly(v, validity) if v.id() == *value_id => {
+                        return Some((v, *validity));
+                    }
+                    _ => {}
                 }
-                Entry::ValueOnly(v, validity) if v.id() == *value_id => {
-                    return Some((v, *validity));
-                }
-                _ => continue,
             }
         }
 
@@ -220,25 +204,12 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
     // Called when a proposal is received, only if an entry for new_proposal's round and/ or value
     // is not found.
     fn new_entry(&self, new_proposal: SignedProposal<Ctx>) -> Entry<Ctx> {
-        // L22, L36, L49
-        if new_proposal.pol_round().is_nil() {
-            return Entry::ProposalOnly(new_proposal);
+        let value_id = new_proposal.value().id();
+        if let Some((v, validity)) = self.get_value_by_id(&new_proposal.height(), &value_id) {
+            return Entry::Full(FullProposal::new(v.clone(), validity, new_proposal));
         }
 
-        // L28 - check if we have received a value at pol_round
-        match self.get_value(
-            &new_proposal.height(),
-            new_proposal.pol_round(),
-            new_proposal.value(),
-        ) {
-            // No value, create a proposal only entry
-            None => Entry::ProposalOnly(new_proposal),
-
-            // There is a value, create a full entry
-            Some((v, validity)) => {
-                Entry::Full(FullProposal::new(v.clone(), validity, new_proposal))
-            }
-        }
+        Entry::ProposalOnly(new_proposal)
     }
 
     pub fn store_proposal(&mut self, new_proposal: SignedProposal<Ctx>) {
@@ -297,7 +268,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
 
     pub fn store_value(&mut self, new_value: &ProposedValue<Ctx>) {
         self.store_value_at_value_round(new_value);
-        self.store_value_at_pol_round(new_value);
+        self.upgrade_matching_proposals_at_height(new_value);
     }
 
     fn handle_validity_change(
@@ -413,26 +384,22 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         }
     }
 
-    fn store_value_at_pol_round(&mut self, new_value: &ProposedValue<Ctx>) {
-        let first_key = (new_value.height, new_value.round);
+    /// Attach a stored payload to every outstanding `ProposalOnly` at this height that references
+    /// the same value id (any `round` / `pol_round`), so restreamed parts can meet proposals.
+    fn upgrade_matching_proposals_at_height(&mut self, new_value: &ProposedValue<Ctx>) {
+        let Some((stored_value, stored_validity)) = self
+            .get_value_by_id(&new_value.height, &new_value.value.id())
+            .map(|(v, val)| (v.clone(), val))
+        else {
+            return;
+        };
 
-        // Get all entries for rounds higher than the value round, in case
-        // there are proposals with pol_round equal to value round.
-        let entries = self.keeper.range_mut(first_key..);
-
-        for (_, proposals) in entries {
-            // We may have seen proposals and/ or values for this height and round.
-            // Iterate over the vector of full proposals and determine if a new entry needs
-            // to be appended or an existing one has to be modified.
-            for entry in proposals {
+        for (_, proposals) in self.entries_at_mut(new_value.height) {
+            for entry in proposals.iter_mut() {
                 if let Entry::ProposalOnly(proposal) = entry {
-                    if proposal.value().id() == new_value.value.id()
-                        && (proposal.round() == new_value.round
-                            || proposal.pol_round() == new_value.round)
-                    {
-                        // Found a matching proposal. Change the entry at index i
+                    if proposal.value().id() == new_value.value.id() {
                         replace_with!(entry, Entry::ProposalOnly(proposal) => {
-                            Entry::full(new_value.value.clone(), new_value.validity, proposal)
+                            Entry::full(stored_value.clone(), stored_validity, proposal)
                         });
                     }
                 }
@@ -442,5 +409,299 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
 
     pub fn clear(&mut self) {
         self.keeper.clear();
+    }
+
+    /// Returns an iterator over all entries at a given height, across all rounds.
+    fn entries_at(
+        &self,
+        height: Ctx::Height,
+    ) -> impl Iterator<Item = (&(Ctx::Height, Round), &Vec<Entry<Ctx>>)> {
+        self.keeper
+            .range((height, Round::Nil)..)
+            .take_while(move |((h, _), _)| h == &height)
+    }
+
+    /// Returns a mutable iterator over all entries at a given height, across all rounds.
+    fn entries_at_mut(
+        &mut self,
+        height: Ctx::Height,
+    ) -> impl Iterator<Item = (&(Ctx::Height, Round), &mut Vec<Entry<Ctx>>)> {
+        self.keeper
+            .range_mut((height, Round::Nil)..)
+            .take_while(move |((h, _), _)| h == &height)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use malachitebft_test::{Address, Height, TestContext, Value};
+
+    fn addr() -> Address {
+        Address::new([0; 20])
+    }
+
+    fn pv(height: u64, round: u32, value: u64) -> ProposedValue<TestContext> {
+        ProposedValue {
+            height: Height::new(height),
+            round: Round::new(round),
+            valid_round: Round::Nil,
+            proposer: addr(),
+            value: Value::new(value),
+            validity: Validity::Valid,
+        }
+    }
+
+    fn keys(keeper: &FullProposalKeeper<TestContext>, height: Height) -> Vec<(Height, Round)> {
+        keeper.entries_at(height).map(|(k, _)| *k).collect()
+    }
+
+    fn keys_mut(
+        keeper: &mut FullProposalKeeper<TestContext>,
+        height: Height,
+    ) -> Vec<(Height, Round)> {
+        keeper.entries_at_mut(height).map(|(k, _)| *k).collect()
+    }
+
+    // --- entries_at ---
+
+    #[test]
+    fn entries_at_empty_keeper() {
+        let keeper = FullProposalKeeper::<TestContext>::new();
+        assert!(keeper.entries_at(Height::new(1)).next().is_none());
+    }
+
+    #[test]
+    fn entries_at_nonexistent_height_returns_empty() {
+        let mut keeper = FullProposalKeeper::<TestContext>::new();
+        keeper.store_value(&pv(1, 0, 10));
+        keeper.store_value(&pv(3, 0, 30));
+
+        assert!(keeper.entries_at(Height::new(2)).next().is_none());
+    }
+
+    #[test]
+    fn entries_at_single_height_single_round() {
+        let mut keeper = FullProposalKeeper::<TestContext>::new();
+        keeper.store_value(&pv(1, 0, 10));
+
+        let height = Height::new(1);
+        assert_eq!(keys(&keeper, height), vec![(height, Round::new(0))]);
+    }
+
+    #[test]
+    fn entries_at_multiple_rounds_are_ordered_by_round() {
+        let mut keeper = FullProposalKeeper::<TestContext>::new();
+        // Insert out of order to verify BTreeMap ordering.
+        keeper.store_value(&pv(1, 2, 12));
+        keeper.store_value(&pv(1, 0, 10));
+        keeper.store_value(&pv(1, 1, 11));
+
+        let height = Height::new(1);
+        assert_eq!(
+            keys(&keeper, height),
+            vec![
+                (height, Round::new(0)),
+                (height, Round::new(1)),
+                (height, Round::new(2)),
+            ]
+        );
+    }
+
+    #[test]
+    fn entries_at_skips_lower_heights() {
+        let mut keeper = FullProposalKeeper::<TestContext>::new();
+        keeper.store_value(&pv(1, 0, 10));
+        keeper.store_value(&pv(1, 5, 15));
+        keeper.store_value(&pv(2, 0, 20));
+        keeper.store_value(&pv(2, 1, 21));
+
+        let height = Height::new(2);
+        assert_eq!(
+            keys(&keeper, height),
+            vec![(height, Round::new(0)), (height, Round::new(1))]
+        );
+    }
+
+    #[test]
+    fn entries_at_stops_before_higher_heights() {
+        let mut keeper = FullProposalKeeper::<TestContext>::new();
+        keeper.store_value(&pv(1, 0, 10));
+        keeper.store_value(&pv(1, 1, 11));
+        keeper.store_value(&pv(2, 0, 20));
+        keeper.store_value(&pv(3, 0, 30));
+
+        let height = Height::new(1);
+        assert_eq!(
+            keys(&keeper, height),
+            vec![(height, Round::new(0)), (height, Round::new(1))]
+        );
+    }
+
+    #[test]
+    fn entries_at_isolates_target_height_between_others() {
+        let mut keeper = FullProposalKeeper::<TestContext>::new();
+        keeper.store_value(&pv(1, 0, 10));
+        keeper.store_value(&pv(2, 0, 20));
+        keeper.store_value(&pv(2, 3, 23));
+        keeper.store_value(&pv(3, 0, 30));
+        keeper.store_value(&pv(4, 0, 40));
+
+        let height = Height::new(2);
+        assert_eq!(
+            keys(&keeper, height),
+            vec![(height, Round::new(0)), (height, Round::new(3))]
+        );
+    }
+
+    #[test]
+    fn entries_at_exposes_stored_entries() {
+        let mut keeper = FullProposalKeeper::<TestContext>::new();
+        keeper.store_value(&pv(1, 0, 10));
+        keeper.store_value(&pv(1, 0, 20)); // second value at same round
+
+        let entries: Vec<_> = keeper.entries_at(Height::new(1)).collect();
+        assert_eq!(entries.len(), 1);
+
+        let (_, bucket) = entries[0];
+        assert_eq!(bucket.len(), 2);
+
+        let value_ids: Vec<_> = bucket
+            .iter()
+            .map(|e| match e {
+                Entry::ValueOnly(v, _) => v.id(),
+                other => panic!("expected ValueOnly entry, got {other:?}"),
+            })
+            .collect();
+        assert_eq!(value_ids, vec![Value::new(10).id(), Value::new(20).id()]);
+    }
+
+    // --- entries_at_mut ---
+
+    #[test]
+    fn entries_at_mut_empty_keeper() {
+        let mut keeper = FullProposalKeeper::<TestContext>::new();
+        assert!(keeper.entries_at_mut(Height::new(1)).next().is_none());
+    }
+
+    #[test]
+    fn entries_at_mut_nonexistent_height_returns_empty() {
+        let mut keeper = FullProposalKeeper::<TestContext>::new();
+        keeper.store_value(&pv(1, 0, 10));
+        keeper.store_value(&pv(3, 0, 30));
+
+        assert!(keeper.entries_at_mut(Height::new(2)).next().is_none());
+    }
+
+    #[test]
+    fn entries_at_mut_single_height_single_round() {
+        let mut keeper = FullProposalKeeper::<TestContext>::new();
+        keeper.store_value(&pv(1, 0, 10));
+
+        let height = Height::new(1);
+        assert_eq!(keys_mut(&mut keeper, height), vec![(height, Round::new(0))]);
+    }
+
+    #[test]
+    fn entries_at_mut_multiple_rounds_are_ordered_by_round() {
+        let mut keeper = FullProposalKeeper::<TestContext>::new();
+        keeper.store_value(&pv(1, 2, 12));
+        keeper.store_value(&pv(1, 0, 10));
+        keeper.store_value(&pv(1, 1, 11));
+
+        let height = Height::new(1);
+        assert_eq!(
+            keys_mut(&mut keeper, height),
+            vec![
+                (height, Round::new(0)),
+                (height, Round::new(1)),
+                (height, Round::new(2)),
+            ]
+        );
+    }
+
+    #[test]
+    fn entries_at_mut_skips_lower_heights() {
+        let mut keeper = FullProposalKeeper::<TestContext>::new();
+        keeper.store_value(&pv(1, 0, 10));
+        keeper.store_value(&pv(1, 5, 15));
+        keeper.store_value(&pv(2, 0, 20));
+        keeper.store_value(&pv(2, 1, 21));
+
+        let height = Height::new(2);
+        assert_eq!(
+            keys_mut(&mut keeper, height),
+            vec![(height, Round::new(0)), (height, Round::new(1))]
+        );
+    }
+
+    #[test]
+    fn entries_at_mut_stops_before_higher_heights() {
+        let mut keeper = FullProposalKeeper::<TestContext>::new();
+        keeper.store_value(&pv(1, 0, 10));
+        keeper.store_value(&pv(1, 1, 11));
+        keeper.store_value(&pv(2, 0, 20));
+        keeper.store_value(&pv(3, 0, 30));
+
+        let height = Height::new(1);
+        assert_eq!(
+            keys_mut(&mut keeper, height),
+            vec![(height, Round::new(0)), (height, Round::new(1))]
+        );
+    }
+
+    #[test]
+    fn entries_at_mut_isolates_target_height_between_others() {
+        let mut keeper = FullProposalKeeper::<TestContext>::new();
+        keeper.store_value(&pv(1, 0, 10));
+        keeper.store_value(&pv(2, 0, 20));
+        keeper.store_value(&pv(2, 3, 23));
+        keeper.store_value(&pv(3, 0, 30));
+        keeper.store_value(&pv(4, 0, 40));
+
+        let height = Height::new(2);
+        assert_eq!(
+            keys_mut(&mut keeper, height),
+            vec![(height, Round::new(0)), (height, Round::new(3))]
+        );
+    }
+
+    #[test]
+    fn entries_at_mut_allows_in_place_mutation() {
+        let mut keeper = FullProposalKeeper::<TestContext>::new();
+        keeper.store_value(&pv(1, 0, 10));
+        keeper.store_value(&pv(1, 1, 11));
+        // Noise at other heights to ensure we don't touch them.
+        keeper.store_value(&pv(2, 0, 20));
+
+        // Mutate every bucket at height 1: replace the stored value's validity with Invalid.
+        for (_, bucket) in keeper.entries_at_mut(Height::new(1)) {
+            for entry in bucket.iter_mut() {
+                if let Entry::ValueOnly(_, validity) = entry {
+                    *validity = Validity::Invalid;
+                }
+            }
+        }
+
+        // All entries at height 1 are now Invalid.
+        for (_, bucket) in keeper.entries_at(Height::new(1)) {
+            for entry in bucket {
+                match entry {
+                    Entry::ValueOnly(_, validity) => assert_eq!(*validity, Validity::Invalid),
+                    other => panic!("expected ValueOnly entry, got {other:?}"),
+                }
+            }
+        }
+
+        // Entries at other heights are unchanged.
+        for (_, bucket) in keeper.entries_at(Height::new(2)) {
+            for entry in bucket {
+                match entry {
+                    Entry::ValueOnly(_, validity) => assert_eq!(*validity, Validity::Valid),
+                    other => panic!("expected ValueOnly entry, got {other:?}"),
+                }
+            }
+        }
     }
 }

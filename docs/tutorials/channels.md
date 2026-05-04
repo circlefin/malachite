@@ -366,7 +366,7 @@ mod streaming;
 
 pub struct State {
     ctx: TestContext,
-    signing_provider: Ed25519Provider,
+    signer: Ed25519Signer,
     genesis: Genesis,
     address: Address,
     vote_extensions: HashMap<Height, VoteExtensions<TestContext>>,
@@ -453,7 +453,7 @@ The `streaming` module provides a `PartStreamsMap` data structure. This is used 
     ) -> Option<ProposalParts>
 ```
 
-Please refer to [`store`](/code/examples/channel/src/store.rs) and [`streaming`](/code/examples/channel/src/streaming.rs) modules for their full implementation.
+Please refer to [`store`](/code/crates/test/app/src/store.rs) and [`streaming`](/code/crates/test/app/src/streaming.rs) modules for their full implementation.
 
 Now, we can go through the implementation of the application state. Let's start with helper methods that will be used by the state implementation. Note that the way a proposal is split here is specific to our case (where the value is a natural number and we split it by factoring it into its prime factors). In a real application, the value is likely to be more complex and the splitting logic would be different.
 
@@ -728,7 +728,7 @@ impl State {
         // Sign the hash of the proposal parts
         {
             let hash = hasher.finalize().to_vec();
-            let signature = self.signing_provider.sign(&hash);
+            let signature = self.signer.sign(&hash);
             parts.push(ProposalPart::Fin(ProposalFin::new(signature)));
         }
 
@@ -821,10 +821,7 @@ impl State {
             .ok_or(SignatureVerificationError::ProposerNotFound)?;
 
         // Verify the signature
-        if !self
-            .signing_provider
-            .verify(&hash, &fin.signature, &proposer.public_key)
-        {
+        if !Ed25519Signer::verify(&hash, &fin.signature, &proposer.public_key) {
             return Err(SignatureVerificationError::InvalidSignature);
         }
 
@@ -982,7 +979,7 @@ impl State {
     /// Creates a new State instance with the given validator address and starting height
     pub fn new(
         ctx: TestContext,
-        signing_provider: Ed25519Provider,
+        signer: Ed25519Signer,
         genesis: Genesis,
         address: Address,
         height: Height,
@@ -990,7 +987,7 @@ impl State {
     ) -> Self {
         Self {
             ctx,
-            signing_provider,
+            signer,
             genesis,
             current_height: height,
             current_round: Round::new(0),
@@ -1561,7 +1558,7 @@ impl NodeHandle<TestContext> for Handle {
 
 The `App` struct is a bit more complex. It implements the following traits:
 
-- `Node` is the main trait defining, especially, the methods `start` and `run` that are used to start the node. The implementation makes use of two other crates: `config` and `metrics`. These are not the most important components of this tutorial, please refer to their respective documentation for more information: [config](/code/examples/channel/src/config.rs) and [metrics](/code/examples/channel/src/metrics.rs). The `start` method loads the configuration, the private key, the genesis, and starts the engine. It also initializes the store and the state. The `run` method is a simple wrapper around `start` that lets the node run until it is stopped (ideally never). The other methods are quite straightforward.
+- `Node` is the main trait defining, especially, the methods `start` and `run` that are used to start the node. The implementation makes use of two other crates: `config` and `metrics`. These are not the most important components of this tutorial, please refer to their respective documentation for more information: [config](/code/crates/test/app/src/config.rs) and [metrics](/code/crates/test/app/src/metrics.rs). The `start` method loads the configuration, the private key, the genesis, and starts the engine. It also initializes the store and the state. The `run` method is a simple wrapper around `start` that lets the node run until it is stopped (ideally never). The other methods are quite straightforward.
 - `CanMakeGenesis` is used to create genesis information.
 - `CanGeneratePrivateKey` is used to generate a private key.
 - `CanMakePrivateKeyFile` is used to create a private key file.
@@ -1574,7 +1571,8 @@ impl Node for App {
     type Config = Config;
     type Genesis = Genesis;
     type PrivateKeyFile = PrivateKey;
-    type SigningProvider = Ed25519Provider;
+    type Verifier = Ed25519Verifier;
+    type Signer = Ed25519Signer;
     type NodeHandle = Handle;
 
     fn get_home_dir(&self) -> PathBuf {
@@ -1606,8 +1604,12 @@ impl Node for App {
         serde_json::from_str(&private_key).map_err(Into::into)
     }
 
-    fn get_signing_provider(&self, private_key: PrivateKey) -> Self::SigningProvider {
-        Ed25519Provider::new(private_key)
+    fn get_verifier(&self) -> Ed25519Verifier {
+        Ed25519Verifier
+    }
+
+    fn get_signer(&self, private_key: PrivateKey) -> Ed25519Signer {
+        Ed25519Signer::new(private_key)
     }
 
     fn load_genesis(&self) -> eyre::Result<Self::Genesis> {
@@ -1625,23 +1627,24 @@ impl Node for App {
         let private_key = self.load_private_key(private_key_file);
         let public_key = self.get_public_key(&private_key);
         let address = self.get_address(&public_key);
-        let signing_provider = self.get_signing_provider(private_key);
         let ctx = TestContext::new();
 
         let genesis = self.load_genesis()?;
-        let initial_validator_set = genesis.validator_set.clone();
 
-        let codec = ProtobufCodec;
+        let consensus_ctx = ConsensusContext::new_validator(
+            address,
+            Box::new(self.get_verifier()),
+            Box::new(self.get_signer(private_key.clone())),
+        );
 
-        let (mut channels, engine_handle) = malachitebft_app_channel::start_engine(
-            ctx,
-            codec,
-            self.clone(),
-            config.clone(),
-            self.start_height,
-            initial_validator_set,
-        )
-        .await?;
+        let (mut channels, engine_handle) = EngineBuilder::new(ctx.clone(), config.clone())
+            .with_default_wal(WalContext::new(wal_path, ProtobufCodec))
+            .with_default_network(NetworkContext::new(identity, ProtobufCodec))
+            .with_default_consensus(consensus_ctx)
+            .with_default_sync(SyncContext::new(ProtobufCodec))
+            .with_default_request(RequestContext::new(100))
+            .build()
+            .await?;
 
         let tx_event = channels.events.clone();
 
@@ -1657,7 +1660,7 @@ impl Node for App {
 
         let store = Store::open(db_dir.join("store.db"), metrics)?;
         let start_height = self.start_height.unwrap_or(Height::INITIAL);
-        let mut state = State::new(ctx, signing_provider, genesis, address, start_height, store);
+        let mut state = State::new(ctx, self.get_signer(private_key), genesis, address, start_height, store);
 
         let span = tracing::error_span!("node", moniker = %config.moniker);
         let app_handle = tokio::spawn(
@@ -1943,7 +1946,7 @@ Et voila, we are now running a 3 nodes local testnet!
 If the nodes are not started concurrently, you may see that it takes a little while until they synchronize between themselves and end up on the same round.
 After that, consensus should start running normally and decide on values very quickly.
 
-Alternatively, you can copy the [`spawn.bash`](/code/examples/channel/spawn.bash) script from the example app at the root of the project and spawn multiple nodes concurrently with:
+Alternatively, you can use the [`spawn.bash`](/code/scripts/spawn.bash) script to spawn multiple nodes concurrently with:
 
 ```
 $ bash spawn.bash --nodes 3 --home nodes

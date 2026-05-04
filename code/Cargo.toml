@@ -12,6 +12,7 @@ members = [
   "crates/core-types",
   "crates/core-votekeeper",
   "crates/engine",
+  "crates/engine-byzantine",
   "crates/metrics",
   "crates/network",
   "crates/peer",
@@ -30,15 +31,10 @@ members = [
   "crates/test/cli",
   "crates/test/mbt",
   "crates/test/mempool",
+  "crates/test/store",
+  "crates/test/streaming",
   "crates/test/framework",
   "crates/network/test",
-
-  # Starknet
-  "crates/starknet/*",
-  "crates/starknet/test/mbt",
-
-  # Examples
-  "examples/channel",
 ]
 
 [workspace.package]
@@ -73,6 +69,7 @@ doc_overindented_list_items = "allow"
 
 [workspace.dependencies]
 malachitebft-engine             = { version = "0.7.0-pre", package = "arc-malachitebft-engine", path = "crates/engine" }
+malachitebft-engine-byzantine   = { version = "0.7.0-pre", package = "arc-malachitebft-engine-byzantine", path = "crates/engine-byzantine" }
 malachitebft-app                = { version = "0.7.0-pre", package = "arc-malachitebft-app", path = "crates/app" }
 malachitebft-app-channel        = { version = "0.7.0-pre", package = "arc-malachitebft-app-channel", path = "crates/app-channel" }
 malachitebft-codec              = { version = "0.7.0-pre", package = "arc-malachitebft-codec", path = "crates/codec" }
@@ -98,23 +95,16 @@ malachitebft-test-app               = { version = "0.7.0-pre", package = "arc-ma
 malachitebft-test-cli               = { version = "0.7.0-pre", package = "arc-malachitebft-test-cli", path = "crates/test/cli" }
 malachitebft-test-mbt               = { version = "0.7.0-pre", package = "arc-malachitebft-test-mbt", path = "crates/test/mbt" }
 malachitebft-test-mempool           = { version = "0.7.0-pre", package = "arc-malachitebft-test-mempool", path = "crates/test/mempool" }
+malachitebft-test-store             = { version = "0.7.0-pre", package = "arc-malachitebft-test-store", path = "crates/test/store" }
+malachitebft-test-streaming         = { version = "0.7.0-pre", package = "arc-malachitebft-test-streaming", path = "crates/test/streaming" }
 malachitebft-test-framework         = { version = "0.7.0-pre", package = "arc-malachitebft-test-framework", path = "crates/test/framework" }
 malachitebft-discovery-test         = { version = "0.7.0-pre", package = "arc-malachitebft-discovery-test", path = "crates/network/test" }
 
-# Starknet
-malachitebft-starknet-host      = { version = "0.7.0-pre", package = "arc-malachitebft-starknet-host", path = "crates/starknet/host" }
-malachitebft-starknet-app       = { version = "0.7.0-pre", package = "arc-malachitebft-starknet-app", path = "crates/starknet/app" }
-malachitebft-starknet-p2p-proto = { version = "0.7.0-pre", package = "arc-malachitebft-starknet-p2p-proto", path = "crates/starknet/p2p-proto" }
-malachitebft-starknet-p2p-types = { version = "0.7.0-pre", package = "arc-malachitebft-starknet-p2p-types", path = "crates/starknet/p2p-types" }
-
-# Starknet
-starknet-core   = "0.11.1"
-starknet-crypto = "0.7.3"
 
 advisory-lock      = "0.3.0"
 arbtest            = "0.3.2"
 async-recursion    = "1.1"
-async-trait        = "0.1.88"
+async-trait        = "0.1.89"
 asynchronous-codec = "0.7.0"
 axum               = "0.7"
 base64             = "0.22.0"
@@ -122,7 +112,7 @@ borsh              = {version = "1", features = ["de_strict_order", "derive"]}
 bs58               = { version = "0.5.1", default-features = false }
 bytes              = { version = "1", default-features = false }
 byteorder          = "1.5"
-bytesize           = "1.3"
+bytesize           = "2.3"
 clap               = "4.5"
 color-eyre         = "0.6"
 config             = { version = "0.14", features = ["toml"], default-features = false }
@@ -137,7 +127,7 @@ either             = "1"
 eyre               = "0.6"
 futures            = "0.3"
 genawaiter         = { version = "0.99.1", default-features = false }
-glob               = "0.3.0"
+glob               = "0.3.3"
 hex                = { version = "0.4.3", features = ["serde"] }
 humantime          = "2.2.0"
 humantime-serde    = "1.1.1"

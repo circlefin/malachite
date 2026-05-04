@@ -11,6 +11,8 @@ const DEFAULT_DIAL_MAX_RETRIES: usize = 5;
 const DEFAULT_PEERS_REQUEST_MAX_RETRIES: usize = 5;
 const DEFAULT_CONNECT_REQUEST_MAX_RETRIES: usize = 0;
 
+const DEFAULT_MAX_PEERS_PER_RESPONSE: usize = 100;
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 pub enum BootstrapProtocol {
     #[default]
@@ -46,6 +48,10 @@ pub struct Config {
     pub dial_max_retries: usize,
     pub request_max_retries: usize,
     pub connect_request_max_retries: usize,
+
+    /// Maximum number of peer records to process or send per peers request/response.
+    /// Limits the impact of a single response containing many records.
+    pub max_peers_per_response: usize,
 }
 
 impl Default for Config {
@@ -73,6 +79,8 @@ impl Default for Config {
             dial_max_retries: DEFAULT_DIAL_MAX_RETRIES,
             request_max_retries: DEFAULT_PEERS_REQUEST_MAX_RETRIES,
             connect_request_max_retries: DEFAULT_CONNECT_REQUEST_MAX_RETRIES,
+
+            max_peers_per_response: DEFAULT_MAX_PEERS_PER_RESPONSE,
         }
     }
 }
@@ -117,5 +125,31 @@ impl Config {
 
     pub fn set_ephemeral_connection_timeout(&mut self, timeout: Duration) {
         self.ephemeral_connection_timeout = timeout;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_config_caps_peers_per_response() {
+        let config = Config::default();
+        assert_eq!(config.max_peers_per_response, 100);
+    }
+
+    #[test]
+    fn config_new_inherits_max_peers_per_response_default() {
+        let config = Config::new(true);
+        assert_eq!(config.max_peers_per_response, 100);
+    }
+
+    #[test]
+    fn config_allows_custom_max_peers_per_response() {
+        let config = Config {
+            max_peers_per_response: 50,
+            ..Default::default()
+        };
+        assert_eq!(config.max_peers_per_response, 50);
     }
 }

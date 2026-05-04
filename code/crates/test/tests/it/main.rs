@@ -1,3 +1,4 @@
+mod byzantine_engine;
 mod equivocation;
 mod finalization;
 mod full_nodes;
@@ -70,6 +71,7 @@ pub struct NodeInfo {
     home_dir: PathBuf,
     middleware: Arc<dyn Middleware>,
     config_modifier: ConfigModifier<Config>,
+    validator: bool,
 }
 
 fn global_slot() -> Option<usize> {
@@ -123,6 +125,7 @@ impl NodeRunner<TestContext> for TestRunner {
                         home_dir: temp_dir(node.id),
                         middleware: Arc::clone(&node.middleware),
                         config_modifier: Arc::clone(&node.config_modifier),
+                        validator: node.voting_power > 0,
                     },
                 )
             })
@@ -141,13 +144,15 @@ impl NodeRunner<TestContext> for TestRunner {
     }
 
     async fn spawn(&self, id: NodeId) -> eyre::Result<Handle> {
+        let node_info = &self.nodes_info[&id];
         let app = App {
             config: self.generate_config(id),
-            home_dir: self.nodes_info[&id].home_dir.clone(),
+            home_dir: node_info.home_dir.clone(),
             validator_set: self.validator_set.clone(),
             private_key: self.private_keys[&id].clone(),
-            start_height: Some(self.nodes_info[&id].start_height),
-            middleware: Some(Arc::clone(&self.nodes_info[&id].middleware)),
+            start_height: Some(node_info.start_height),
+            middleware: Some(Arc::clone(&node_info.middleware)),
+            validator: node_info.validator,
         };
 
         app.start().await
@@ -185,7 +190,6 @@ impl TestRunner {
             moniker: format!("node-{node}"),
             logging: LoggingConfig::default(),
             consensus: ConsensusConfig {
-                enabled: true,
                 // Current test app does not support proposal-only value payload properly as Init does not include valid_round
                 value_payload: ValuePayload::ProposalAndParts,
                 queue_capacity: 100,
@@ -208,6 +212,7 @@ impl TestRunner {
                     },
                     ..Default::default()
                 },
+                ..Default::default()
             },
             value_sync: ValueSyncConfig {
                 enabled: true,
@@ -223,6 +228,8 @@ impl TestRunner {
             },
             runtime: RuntimeConfig::single_threaded(),
             test: TestConfig::default(),
+            byzantine: None,
+            validator_rotation: Default::default(),
         }
     }
 }

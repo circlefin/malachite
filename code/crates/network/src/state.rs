@@ -601,6 +601,9 @@ impl State {
                 true,
                 swarm,
             );
+
+            // Promote from ephemeral if already connected
+            self.try_prioritize_peer(peer_id);
         }
 
         // Add to persistent peer list
@@ -670,6 +673,83 @@ impl State {
         self.discovery.remove_bootstrap_node(&addr);
 
         Ok(())
+    }
+
+    /// Try to prioritize a high-value peer (validator or persistent) by
+    /// promoting it from ephemeral to inbound. If inbound slots are full,
+    /// evicts the lowest-value non-priority inbound peer to make room.
+    ///
+    /// Validators become ephemeral when they connect inbound and slots are
+    /// full. Persistent peers become ephemeral when both sides of a pair
+    /// have full inbound slots — each outbound dial arrives as inbound on
+    /// the remote and is classified as ephemeral.
+    ///
+    /// Returns `Some(evicted_peer_id)` if a peer was evicted, `None` otherwise.
+    pub(crate) fn try_prioritize_peer(
+        &mut self,
+        peer_id: libp2p::PeerId,
+    ) -> Option<libp2p::PeerId> {
+        let peer_info = self.peer_info.get(&peer_id)?;
+
+        // Only prioritize validators and persistent peers
+        if !peer_info.peer_type.is_validator() && !peer_info.peer_type.is_persistent() {
+            return None;
+        }
+
+        // Must be ephemeral — check before eviction to avoid evicting
+        // someone when the target peer is already inbound/outbound.
+        if !self.discovery.is_ephemeral_peer(&peer_id) {
+            return None;
+        }
+
+        // Evict lowest-value peer if inbound is full
+        let evicted = if !self.discovery.has_inbound_capacity() {
+            let evict_id = self.find_lowest_priority_inbound_peer()?;
+            tracing::info!(
+                %peer_id,
+                evicted = %evict_id,
+                evicted_type = self.peer_info.get(&evict_id).map_or("unknown", |i| i.peer_type.primary_type_str()),
+                evicted_score = self.peer_info.get(&evict_id).map_or(0.0, |i| i.score),
+                "Evicting low-value inbound peer to make room for high-value peer"
+            );
+            self.discovery.evict_inbound_peer(evict_id);
+            Some(evict_id)
+        } else {
+            None
+        };
+
+        // Single promote path
+        if self.discovery.promote_to_inbound(peer_id) {
+            self.update_connection_direction(peer_id);
+            tracing::info!(
+                %peer_id,
+                peer_type = self.peer_info[&peer_id].peer_type.primary_type_str(),
+                "Promoted high-value peer to inbound"
+            );
+        }
+
+        evicted
+    }
+
+    /// Find the lowest-priority inbound peer eligible for eviction.
+    ///
+    /// Only non-validator, non-persistent peers are candidates. Among those,
+    /// returns the one with the lowest GossipSub score.
+    fn find_lowest_priority_inbound_peer(&self) -> Option<libp2p::PeerId> {
+        self.discovery
+            .inbound_peer_ids()
+            .filter_map(|pid| self.peer_info.get(pid).map(|info| (*pid, info)))
+            .filter(|(_, info)| !info.peer_type.is_validator() && !info.peer_type.is_persistent())
+            .min_by(|(_, a), (_, b)| a.score.total_cmp(&b.score))
+            .map(|(pid, _)| pid)
+    }
+
+    /// Update connection direction to Inbound after promotion from ephemeral.
+    fn update_connection_direction(&mut self, peer_id: libp2p::PeerId) {
+        if let Some(peer_info) = self.peer_info.get_mut(&peer_id) {
+            peer_info.connection_direction =
+                Some(malachitebft_discovery::ConnectionDirection::Inbound);
+        }
     }
 }
 
@@ -1001,5 +1081,262 @@ mod tests {
         assert!(info.peer_type.is_persistent());
         assert!(info.peer_type.is_validator());
         assert_eq!(info.consensus_address.as_deref(), Some("persistent_val"));
+    }
+
+    /// Create an [`InboundRequestId`] for testing.
+    ///
+    /// `InboundRequestId` has no public constructor; we transmute from `u64`.
+    /// This is sound because `InboundRequestId` is a newtype wrapping `u64` with no invariants.
+    fn test_inbound_request_id(id: u64) -> InboundRequestId {
+        // SAFETY: InboundRequestId is a #[repr(Rust)] newtype over u64.
+        unsafe { std::mem::transmute(id) }
+    }
+
+    /// Create a [`sync::ResponseChannel`] for testing.
+    ///
+    /// `ResponseChannel<T>` has no public constructor; we transmute from its inner
+    /// `futures::channel::oneshot::Sender<T>`.
+    fn test_response_channel() -> sync::ResponseChannel {
+        let (sender, _receiver) = futures::channel::oneshot::channel::<sync::RawResponse>();
+        // SAFETY: ResponseChannel<T> is a newtype over oneshot::Sender<T>.
+        unsafe { std::mem::transmute(sender) }
+    }
+
+    #[test]
+    fn sync_channel_cleaned_up_on_inbound_failure() {
+        let mut state = test_state();
+        let request_id = test_inbound_request_id(1);
+        let channel = test_response_channel();
+
+        // Simulate Message::Request inserting the channel
+        state.sync_channels.insert(request_id, channel);
+        assert_eq!(state.sync_channels.len(), 1);
+
+        // Simulate InboundFailure cleanup
+        let removed = state.sync_channels.remove(&request_id);
+        assert!(removed.is_some());
+        assert!(state.sync_channels.is_empty());
+    }
+
+    #[test]
+    fn late_sync_reply_after_inbound_failure_is_harmless() {
+        let mut state = test_state();
+        let request_id = test_inbound_request_id(2);
+        let channel = test_response_channel();
+
+        state.sync_channels.insert(request_id, channel);
+
+        // InboundFailure cleans up first
+        state.sync_channels.remove(&request_id);
+
+        // A late SyncReply arrives — the entry is already gone
+        let late_remove = state.sync_channels.remove(&request_id);
+        assert!(late_remove.is_none());
+    }
+
+    #[test]
+    fn sync_reply_before_inbound_failure_is_harmless() {
+        let mut state = test_state();
+        let request_id = test_inbound_request_id(3);
+        let channel = test_response_channel();
+
+        state.sync_channels.insert(request_id, channel);
+
+        // SyncReply arrives first and consumes the channel
+        let reply_remove = state.sync_channels.remove(&request_id);
+        assert!(reply_remove.is_some());
+
+        // InboundFailure arrives late — the entry is already gone
+        let failure_remove = state.sync_channels.remove(&request_id);
+        assert!(failure_remove.is_none());
+    }
+
+    // ── Connection prioritization tests ─────────────────────────────
+
+    /// Create a State with limited inbound capacity for prioritization tests.
+    fn test_state_with_inbound_capacity(capacity: usize) -> State {
+        let mut registry = malachitebft_metrics::Registry::default();
+        let mut config = malachitebft_discovery::Config::new(false);
+        config.set_peers_bounds(capacity, capacity);
+        let discovery = discovery::Discovery::<Behaviour>::new(config, vec![], &mut registry);
+        let metrics = NetworkMetrics::new(&mut registry);
+
+        let local_node = LocalNodeInfo {
+            moniker: "test-node".to_string(),
+            peer_id: libp2p::PeerId::random(),
+            listen_addr: "/ip4/127.0.0.1/tcp/26656".parse().unwrap(),
+            consensus_address: None,
+            proof_bytes: None,
+            is_validator: false,
+            persistent_peers_only: false,
+            subscribed_topics: HashSet::new(),
+        };
+
+        State::new(discovery, vec![], local_node, metrics)
+    }
+
+    /// Simulate a peer with an active connection (ephemeral by default).
+    fn add_ephemeral_peer(state: &mut State, peer_id: libp2p::PeerId, info: PeerInfo) {
+        let conn_id = libp2p::swarm::ConnectionId::new_unchecked(
+            (peer_id.to_bytes()[0] as usize) * 100 + peer_id.to_bytes()[1] as usize,
+        );
+        state.discovery.add_test_active_connection(peer_id, conn_id);
+        insert_peer(state, peer_id, info);
+    }
+
+    #[test]
+    fn prioritize_validator_promoted_when_capacity_available() {
+        let mut state = test_state_with_inbound_capacity(2);
+        let peer_id = libp2p::PeerId::random();
+
+        let mut info = test_peer_info();
+        info.peer_type = PeerType::new(false, true);
+        info.score = VALIDATOR_SCORE;
+        add_ephemeral_peer(&mut state, peer_id, info);
+
+        assert!(state.discovery.is_ephemeral_peer(&peer_id));
+
+        let evicted = state.try_prioritize_peer(peer_id);
+
+        assert!(evicted.is_none());
+        assert!(state.discovery.is_inbound_peer(&peer_id));
+        assert!(!state.discovery.is_ephemeral_peer(&peer_id));
+    }
+
+    #[test]
+    fn prioritize_validator_evicts_full_node_when_full() {
+        let mut state = test_state_with_inbound_capacity(1);
+
+        // Fill inbound with a full node
+        let full_node_id = libp2p::PeerId::random();
+        let full_node_info = test_peer_info();
+        add_ephemeral_peer(&mut state, full_node_id, full_node_info);
+        state.discovery.add_test_inbound_peer(full_node_id);
+
+        assert!(!state.discovery.has_inbound_capacity());
+
+        // Add validator as ephemeral
+        let validator_id = libp2p::PeerId::random();
+        let mut validator_info = test_peer_info();
+        validator_info.peer_type = PeerType::new(false, true);
+        validator_info.score = VALIDATOR_SCORE;
+        add_ephemeral_peer(&mut state, validator_id, validator_info);
+
+        let evicted = state.try_prioritize_peer(validator_id);
+
+        assert_eq!(evicted, Some(full_node_id));
+        assert!(state.discovery.is_inbound_peer(&validator_id));
+    }
+
+    #[test]
+    fn prioritize_no_eviction_when_all_inbound_are_validators() {
+        let mut state = test_state_with_inbound_capacity(1);
+
+        // Fill inbound with a validator
+        let existing_validator_id = libp2p::PeerId::random();
+        let mut existing_info = test_peer_info();
+        existing_info.peer_type = PeerType::new(false, true);
+        existing_info.score = VALIDATOR_SCORE;
+        add_ephemeral_peer(&mut state, existing_validator_id, existing_info);
+        state.discovery.add_test_inbound_peer(existing_validator_id);
+
+        // Add another validator as ephemeral
+        let new_validator_id = libp2p::PeerId::random();
+        let mut new_info = test_peer_info();
+        new_info.peer_type = PeerType::new(false, true);
+        new_info.score = VALIDATOR_SCORE;
+        add_ephemeral_peer(&mut state, new_validator_id, new_info);
+
+        let evicted = state.try_prioritize_peer(new_validator_id);
+
+        // No eviction candidate — all inbound are validators
+        assert!(evicted.is_none());
+        assert!(!state.discovery.is_inbound_peer(&new_validator_id));
+        assert!(state.discovery.is_ephemeral_peer(&new_validator_id));
+    }
+
+    #[test]
+    fn prioritize_full_node_not_promoted() {
+        let mut state = test_state_with_inbound_capacity(2);
+        let peer_id = libp2p::PeerId::random();
+
+        let info = test_peer_info(); // full node
+        add_ephemeral_peer(&mut state, peer_id, info);
+
+        let evicted = state.try_prioritize_peer(peer_id);
+
+        assert!(evicted.is_none());
+        assert!(state.discovery.is_ephemeral_peer(&peer_id));
+        assert!(!state.discovery.is_inbound_peer(&peer_id));
+    }
+
+    #[test]
+    fn prioritize_persistent_peer_promoted() {
+        // Persistent peers can become ephemeral when both sides of a pair have
+        // full inbound slots — each outbound dial arrives as inbound on the
+        // remote and is classified as ephemeral.
+        let mut state = test_state_with_inbound_capacity(2);
+        let peer_id = libp2p::PeerId::random();
+
+        let mut info = test_peer_info();
+        info.peer_type = PeerType::new(true, false); // persistent, not validator
+        add_ephemeral_peer(&mut state, peer_id, info);
+
+        let evicted = state.try_prioritize_peer(peer_id);
+
+        assert!(evicted.is_none());
+        assert!(state.discovery.is_inbound_peer(&peer_id));
+    }
+
+    #[test]
+    fn prioritize_evicts_lowest_score_peer() {
+        let mut state = test_state_with_inbound_capacity(2);
+
+        // Fill inbound with two full nodes of different scores
+        let low_score_id = libp2p::PeerId::random();
+        let mut low_info = test_peer_info();
+        low_info.score = 1.0;
+        add_ephemeral_peer(&mut state, low_score_id, low_info);
+        state.discovery.add_test_inbound_peer(low_score_id);
+
+        let high_score_id = libp2p::PeerId::random();
+        let mut high_info = test_peer_info();
+        high_info.score = 100.0;
+        add_ephemeral_peer(&mut state, high_score_id, high_info);
+        state.discovery.add_test_inbound_peer(high_score_id);
+
+        assert!(!state.discovery.has_inbound_capacity());
+
+        // Add validator as ephemeral
+        let validator_id = libp2p::PeerId::random();
+        let mut validator_info = test_peer_info();
+        validator_info.peer_type = PeerType::new(false, true);
+        validator_info.score = VALIDATOR_SCORE;
+        add_ephemeral_peer(&mut state, validator_id, validator_info);
+
+        let evicted = state.try_prioritize_peer(validator_id);
+
+        // Should evict the low-score full node
+        assert_eq!(evicted, Some(low_score_id));
+        assert!(state.discovery.is_inbound_peer(&validator_id));
+    }
+
+    #[test]
+    fn prioritize_updates_connection_direction() {
+        let mut state = test_state_with_inbound_capacity(2);
+        let peer_id = libp2p::PeerId::random();
+
+        let mut info = test_peer_info();
+        info.peer_type = PeerType::new(false, true);
+        info.connection_direction = None; // ephemeral
+        add_ephemeral_peer(&mut state, peer_id, info);
+
+        state.try_prioritize_peer(peer_id);
+
+        let peer = &state.peer_info[&peer_id];
+        assert_eq!(
+            peer.connection_direction,
+            Some(malachitebft_discovery::ConnectionDirection::Inbound)
+        );
     }
 }

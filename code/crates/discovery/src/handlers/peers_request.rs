@@ -131,11 +131,13 @@ where
         // Process incoming signed records
         self.process_signed_peer_records(swarm, signed_records);
 
-        // Send back only records they don't already have (the difference)
+        // Send back only records they don't already have (the difference),
+        // capped to max_peers_per_response to limit response size.
         let response_records: Vec<SignedPeerRecordBytes> = self
             .signed_peer_records
             .iter()
             .filter(|(pid, _)| **pid != peer && !received_peer_ids.contains(pid))
+            .take(self.config.max_peers_per_response)
             .map(|(_, env)| env.clone().into_protobuf_encoding())
             .collect();
 
@@ -217,7 +219,17 @@ where
         swarm: &mut Swarm<C>,
         signed_record_bytes: Vec<SignedPeerRecordBytes>,
     ) {
-        for bytes in signed_record_bytes {
+        let total = signed_record_bytes.len();
+        let cap = self.config.max_peers_per_response;
+
+        if total > cap {
+            warn!(
+                total,
+                cap, "Received more peer records than allowed per response, truncating"
+            );
+        }
+
+        for bytes in signed_record_bytes.into_iter().take(cap) {
             // Decode protobuf bytes to SignedEnvelope
             let envelope = match SignedEnvelope::from_protobuf_encoding(&bytes) {
                 Ok(env) => env,
@@ -253,11 +265,13 @@ where
         }
     }
 
-    /// Get all signed peer records as protobuf bytes, except for the given peer
+    /// Get signed peer records as protobuf bytes, except for the given peer.
+    /// Capped to `max_peers_per_response` to limit response size.
     fn get_signed_peer_records_as_bytes(&self, peer: PeerId) -> Vec<SignedPeerRecordBytes> {
         self.signed_peer_records
             .iter()
             .filter(|(peer_id, _)| **peer_id != peer)
+            .take(self.config.max_peers_per_response)
             .map(|(_, envelope)| envelope.clone().into_protobuf_encoding())
             .collect()
     }

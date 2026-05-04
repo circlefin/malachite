@@ -1016,6 +1016,100 @@ fn driver_steps_proposer_not_found() {
     assert_eq!(output, Err(Error::ProposerNotFound(v1.address)));
 }
 
+// Regression test for . Prior to the fix,
+// `apply_input` took `round_state` out via `core::mem::take` before
+// calling `get_proposer()?`. If that lookup failed, the driver was left
+// with a default `round_state` — losing `locked` and `valid`.
+#[test]
+fn driver_preserves_round_state_when_proposer_not_found() {
+    let value = Value::new(9999);
+
+    let [(v1, sk1), (v2, _sk2), (v3, _sk3)] = make_validators([1, 1, 1]);
+    let (_my_sk, my_addr) = (sk1, v1.address);
+
+    let height = Height::new(1);
+    let ctx = TestContext::new();
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
+
+    // Drive round 0 up to the polka: we are proposer, receive our own
+    // proposal, our own prevote, and prevotes from v2 and v3. The third
+    // prevote gives us +2/3, which sets both `locked` and `valid`.
+    driver
+        .process(Input::NewRound(height, Round::new(0), my_addr))
+        .expect("start round 0");
+    driver
+        .process(Input::ProposeValue(Round::new(0), value.clone()))
+        .expect("propose value");
+    driver
+        .process(Input::Proposal(
+            new_signed_proposal(height, Round::new(0), value.clone(), Round::Nil, my_addr),
+            Validity::Valid,
+        ))
+        .expect("receive own proposal");
+    driver
+        .process(Input::Vote(new_signed_prevote(
+            height,
+            Round::new(0),
+            NilOrVal::Val(value.id()),
+            my_addr,
+        )))
+        .expect("receive own prevote");
+    driver
+        .process(Input::Vote(new_signed_prevote(
+            height,
+            Round::new(0),
+            NilOrVal::Val(value.id()),
+            v2.address,
+        )))
+        .expect("v2 prevote");
+    driver
+        .process(Input::Vote(new_signed_prevote(
+            height,
+            Round::new(0),
+            NilOrVal::Val(value.id()),
+            v3.address,
+        )))
+        .expect("v3 prevote, polka reached");
+
+    let expected_round_value = RoundValue {
+        value: value.clone(),
+        round: Round::new(0),
+    };
+    assert_eq!(
+        driver.round_state().locked.as_ref(),
+        Some(&expected_round_value),
+        "sanity: locked is set after polka"
+    );
+    assert_eq!(
+        driver.round_state().valid.as_ref(),
+        Some(&expected_round_value),
+        "sanity: valid is set after polka"
+    );
+
+    // Trigger an `apply_input` whose `get_proposer()` lookup fails: move
+    // to round 1 with a proposer address that is not in the validator set.
+    let bad_proposer = Address::new([0xFF; 20]);
+    let output = driver.process(Input::NewRound(height, Round::new(1), bad_proposer));
+    assert_eq!(output, Err(Error::ProposerNotFound(bad_proposer)));
+
+    // The actual regression assertion: `locked` and `valid` from round 0
+    // must survive the failed transition. Without the fix they would be
+    // reset to `None` by the default `RoundState` left behind by
+    // `core::mem::take`.
+    assert_eq!(
+        driver.round_state().locked.as_ref(),
+        Some(&expected_round_value),
+        "locked must survive failed NewRound"
+    );
+    assert_eq!(
+        driver.round_state().valid.as_ref(),
+        Some(&expected_round_value),
+        "valid must survive failed NewRound"
+    );
+}
+
 #[test]
 fn driver_steps_validator_not_found() {
     let value = Value::new(9999);
@@ -1252,6 +1346,63 @@ fn driver_steps_skip_round_quorum_threshold() {
     ];
 
     run_steps(&mut driver, steps, sel.as_ref(), &vs);
+}
+
+#[test]
+fn driver_skip_round_clears_scheduled_timeouts() {
+    use malachitebft_core_state_machine::state::ScheduledTimeouts;
+
+    let value = Value::new(9999);
+
+    let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([1, 1, 1]);
+
+    // Proposer is v1, so we, v3, are not the proposer.
+    let (_my_sk, my_addr) = (sk3, v3.address);
+
+    let ctx = TestContext::new();
+    let height = Height::new(1);
+
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+    let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
+
+    // Start round 0. The state machine schedules the Propose timeout,
+    // which marks Propose as scheduled in the per-round bitfield.
+    driver
+        .process(Input::NewRound(height, Round::new(0), v1.address))
+        .expect("start round 0");
+    assert_ne!(
+        driver.round_state().scheduled_timeouts,
+        ScheduledTimeouts::default(),
+        "Propose timeout should be marked as scheduled after round 0 starts",
+    );
+
+    // Drive to round 1 via the skip-round threshold:
+    // v1 and v2 prevote for a value in round 1 (f+1 votes from a future round).
+    driver
+        .process(Input::Vote(new_signed_prevote(
+            height,
+            Round::new(1),
+            NilOrVal::Val(value.id()),
+            v1.address,
+        )))
+        .expect("v1 prevote");
+    let outputs = driver
+        .process(Input::Vote(new_signed_prevote(
+            height,
+            Round::new(1),
+            NilOrVal::Val(value.id()),
+            v2.address,
+        )))
+        .expect("v2 prevote triggers skip-round");
+
+    assert_eq!(outputs, vec![Output::NewRound(height, Round::new(1))]);
+    assert_eq!(driver.round_state().round, Round::new(1));
+    assert_eq!(driver.round_state().step, Step::Unstarted);
+    assert_eq!(
+        driver.round_state().scheduled_timeouts,
+        ScheduledTimeouts::default(),
+        "scheduled timeouts must be cleared when the driver skips to a new round",
+    );
 }
 
 fn run_steps(

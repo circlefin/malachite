@@ -6,18 +6,62 @@ use tracing::{debug, error, info};
 
 use malachitebft_app_channel::app::engine::host::{HeightParams, Next};
 use malachitebft_app_channel::app::streaming::StreamContent;
-use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::utils::height::HeightRangeExt;
 use malachitebft_app_channel::app::types::core::{Round, Validity};
 use malachitebft_app_channel::app::types::sync::RawDecidedValue;
-use malachitebft_app_channel::app::types::{LocallyProposedValue, ProposedValue};
+use malachitebft_app_channel::app::types::ProposedValue;
 use malachitebft_app_channel::{AppMsg, Channels, NetworkMsg};
-use malachitebft_test::codec::json::JsonCodec;
 use malachitebft_test::{Height, TestContext};
 
-use crate::state::{decode_value, State};
+use crate::state::{decode_value, encode_value, State};
+
+/// Periodically request a state dump from consensus and print it to the console
+fn monitor_state(
+    tx_request: tokio::sync::mpsc::Sender<malachitebft_app_channel::ConsensusRequest<TestContext>>,
+) {
+    use malachitebft_app_channel::{ConsensusRequest, ConsensusRequestError};
+
+    tokio::spawn(async move {
+        loop {
+            match ConsensusRequest::dump_state(&tx_request).await {
+                Ok(dump) => {
+                    tracing::debug!("State dump: {dump:#?}");
+                }
+                Err(ConsensusRequestError::Recv) => {
+                    tracing::error!("Failed to receive state dump from consensus");
+                }
+                Err(ConsensusRequestError::Full) => {
+                    tracing::error!("Consensus request channel full");
+                }
+                Err(ConsensusRequestError::Closed) => {
+                    tracing::error!("Consensus request channel closed");
+                    break;
+                }
+            }
+
+            sleep(Duration::from_secs(1)).await;
+        }
+    });
+}
+
+/// Reload the tracing subscriber log level based on the current round.
+/// Increases log level to Debug when round > 0, resets when back to round 0.
+fn reload_log_level(_height: Height, round: Round) {
+    use malachitebft_test_cli::logging;
+
+    if round.as_i64() > 0 {
+        logging::reload(logging::LogLevel::Debug);
+    } else {
+        logging::reset();
+    }
+}
 
 pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyre::Result<()> {
+    // If the MALACHITE_MONITOR_STATE env var is set, start monitoring the consensus state
+    if std::env::var("MALACHITE_MONITOR_STATE").is_ok() {
+        monitor_state(channels.requests.clone());
+    }
+
     while let Some(msg) = channels.consensus.recv().await {
         match msg {
             // The first message to handle is the `ConsensusReady` message, signaling to the app
@@ -58,6 +102,8 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             } => {
                 info!(%height, %round, %proposer, ?role, "Started round");
 
+                reload_log_level(height, round);
+
                 // We can use that opportunity to update our internal state
                 state.current_height = height;
                 state.current_round = round;
@@ -79,7 +125,10 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
                     match state.validate_proposal_parts(parts) {
                         Ok(()) => {
-                            // Validation passed - convert to ProposedValue and move to undecided
+                            // Validation passed - convert to ProposedValue and move to undecided.
+                            // Also cache the original parts keyed by value_id so a later
+                            // RestreamProposal can replay them verbatim.
+                            let parts_for_store = parts.clone();
                             let mut value = State::assemble_value_from_parts(parts.clone())?;
 
                             // Use middleware to determine validity
@@ -93,7 +142,16 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                             }
 
                             let validity = value.validity;
+                            let value_id = value.value.id();
                             state.store.store_undecided_proposal(value).await?;
+                            state
+                                .store
+                                .store_undecided_proposal_parts(
+                                    parts_for_store.height,
+                                    value_id,
+                                    parts_for_store,
+                                )
+                                .await?;
                             info!(
                                 height = %parts.height,
                                 round = %parts.round,
@@ -174,9 +232,18 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 // See L15/L18 of the Tendermint algorithm.
                 let pol_round = Round::Nil;
 
-                // Now what's left to do is to break down the value to propose into parts,
-                // and send those parts over the network to our peers, for them to re-assemble the full value.
-                for stream_message in state.stream_proposal(proposal, pol_round) {
+                // Break the value into parts and publish them. Also cache the
+                // canonical `ProposalParts` keyed by `(height, value_id)` so
+                // that we (and restream callers) can replay the exact parts
+                // later without re-signing.
+                let value_id = proposal.value.id();
+                let (proposal_parts, stream_msgs) = state.stream_proposal(proposal, pol_round);
+                state
+                    .store
+                    .store_undecided_proposal_parts(height, value_id, proposal_parts)
+                    .await?;
+
+                for stream_message in stream_msgs {
                     debug!(%height, %round, "Streaming proposal part: {stream_message:?}");
 
                     channels
@@ -214,6 +281,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             AppMsg::Decided {
                 certificate,
                 extensions: _,
+                reply,
             } => {
                 assert!(!certificate.commit_signatures.is_empty());
 
@@ -225,9 +293,25 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     "Consensus has decided on value, awaiting Finalized message..."
                 );
 
-                // Storing now so Sync can see it
-                if let Err(e) = state.store_decided(certificate).await {
-                    error!("Failed to store decided value: {e}");
+                let skip = state
+                    .middleware
+                    .as_ref()
+                    .is_some_and(|m| m.skip_early_commit(&state.ctx, &certificate));
+
+                if skip {
+                    info!(
+                        height = %certificate.height,
+                        "Middleware: skipping early decision commit"
+                    );
+                } else {
+                    // Commit the decision now so Sync can see it
+                    if let Err(e) = state.store_decided(certificate).await {
+                        error!("Failed to store decided value: {e}");
+                    }
+                }
+
+                if reply.send(()).is_err() {
+                    error!("Failed to send Decided reply");
                 }
             }
 
@@ -242,15 +326,15 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                     round = %certificate.round,
                     value = %certificate.value_id,
                     signatures = certificate.commit_signatures.len(),
-                    "Consensus has finalized height, committing..."
+                    "Consensus has finalized height, finalizing..."
                 );
                 assert!(!certificate.commit_signatures.is_empty());
 
                 // When that happens, we store the decided value in our store
-                match state.commit(certificate).await {
+                match state.finalize(certificate).await {
                     Ok(_) => {
                         // And then we instruct consensus to start the next height
-                        // NOTE: `current_height` has already been incremented in `commit()`
+                        // NOTE: `current_height` has already been incremented in `finalize()`
                         let params = HeightParams::new(
                             state.get_validator_set(state.current_height),
                             state.get_timeouts(state.current_height),
@@ -304,7 +388,18 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             } => {
                 info!(%height, %round, "Processing synced value");
 
-                if let Some(value) = decode_value(value_bytes) {
+                let should_fail = state
+                    .middleware
+                    .as_ref()
+                    .is_some_and(|m| m.fail_synced_value_decode(&state.ctx, height, round));
+
+                let decoded = if should_fail {
+                    None
+                } else {
+                    decode_value(value_bytes)
+                };
+
+                if let Some(value) = decoded {
                     let proposal = ProposedValue {
                         height,
                         round,
@@ -340,15 +435,11 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
                 for height in range.iter_heights() {
                     if let Some(decided_value) = state.get_decided_value(height).await {
-                        match JsonCodec.encode(&decided_value.value) {
-                            Ok(value_bytes) => values.push(RawDecidedValue {
-                                certificate: decided_value.certificate,
-                                value_bytes,
-                            }),
-                            Err(e) => {
-                                error!(%height, "Failed to encode decided value: {e}");
-                            }
-                        }
+                        let raw_decided_value = RawDecidedValue {
+                            certificate: decided_value.certificate,
+                            value_bytes: encode_value(&decided_value.value),
+                        };
+                        values.push(raw_decided_value);
                     }
                 }
 
@@ -371,41 +462,57 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 height,
                 round,
                 valid_round,
-                address: _,
+                address,
                 value_id,
             } => {
-                info!(%height, %valid_round, "Restreaming existing proposal...");
-
-                //  Look for a proposal at valid_round or round(should be already stored)
-                let proposal_round = if valid_round == Round::Nil {
-                    round
-                } else {
-                    valid_round
-                };
-                //  Look for a proposal for the given value_id at valid_round (should be already stored)
-                let proposal = state
+                // Load the original, validated `ProposalParts` we cached when we first saw this
+                // value (keyed by `(height, value_id)`, across all rounds). Replaying them preserves
+                // the original `Init.height`/`Init.round`/proposer and the `Fin` signature, so peers
+                // can validate and store the restream just like the first emission.
+                //
+                // The cached parts may originate from a different round and a different proposer
+                // than the ones in the restream request: the cache is keyed by `(height, value_id)`
+                // across rounds, so when the same value is re-proposed in a later round (e.g. via
+                // `valid_value`/ `pol_round`) by a different leader, the request's `round` and `address`
+                // reflect the round being restreamed, while the cached `parts.round` and `parts.proposer`
+                // reflect the round in which we first received the parts. We intentionally replay
+                // the original signed parts unchanged as rebuilding and re-signing as `address` would
+                // forge a signature we do not hold.
+                let Some(parts) = state
                     .store
-                    .get_undecided_proposal(height, proposal_round, value_id)
-                    .await?;
+                    .get_undecided_proposal_parts(height, value_id)
+                    .await?
+                else {
+                    info!(
+                        %height,
+                        %round,
+                        %valid_round,
+                        %value_id,
+                        "No cached proposal parts for restream; skipping"
+                    );
+                    continue;
+                };
 
-                if let Some(proposal) = proposal {
-                    assert_eq!(proposal.value.id(), value_id);
+                info!(
+                    %height,
+                    requested_round = %round,
+                    requested_valid_round = %valid_round,
+                    requested_proposer = %address,
+                    cached_round = %parts.round,
+                    cached_proposer = %parts.proposer,
+                    %value_id,
+                    "Restreaming existing proposal: replaying original parts from \
+                     cached_round/cached_proposer for restream at \
+                     requested_round/requested_valid_round/requested_proposer"
+                );
 
-                    let locally_proposed_value = LocallyProposedValue {
-                        height,
-                        round,
-                        value: proposal.value,
-                    };
+                for stream_message in state.stream_messages_for_parts(&parts) {
+                    debug!(%height, %round, %valid_round, "Publishing proposal part: {stream_message:?}");
 
-                    for stream_message in state.stream_proposal(locally_proposed_value, valid_round)
-                    {
-                        debug!(%height, %valid_round, "Publishing proposal part: {stream_message:?}");
-
-                        channels
-                            .network
-                            .send(NetworkMsg::PublishProposalPart(stream_message))
-                            .await?;
-                    }
+                    channels
+                        .network
+                        .send(NetworkMsg::PublishProposalPart(stream_message))
+                        .await?;
                 }
             }
 

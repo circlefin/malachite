@@ -19,7 +19,7 @@ use malachitebft_engine::wal::{Wal, WalCodec, WalRef};
 use malachitebft_network::{
     ChannelNames, Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, NetworkIdentity,
 };
-use malachitebft_signing::SigningProvider;
+use malachitebft_signing::{Signer, Verifier};
 use malachitebft_sync as sync;
 
 use crate::config::{ConsensusConfig, ValueSyncConfig};
@@ -77,7 +77,8 @@ pub async fn spawn_consensus_actor<Ctx>(
     ctx: Ctx,
     address: Ctx::Address,
     cfg: ConsensusConfig,
-    signing_provider: Box<dyn SigningProvider<Ctx>>,
+    verifier: Box<dyn Verifier<Ctx>>,
+    signer: Option<Box<dyn Signer<Ctx>>>,
     network: NetworkRef<Ctx>,
     host: HostRef<Ctx>,
     wal: WalRef<Ctx>,
@@ -107,7 +108,8 @@ where
         ctx,
         consensus_params,
         cfg,
-        signing_provider,
+        verifier,
+        signer,
         network,
         host,
         wal,
@@ -234,6 +236,7 @@ fn make_network_config(cfg: &ConsensusConfig, value_sync_cfg: &ValueSyncConfig) 
             dial_max_retries: cfg.p2p.discovery.dial_max_retries,
             request_max_retries: cfg.p2p.discovery.request_max_retries,
             connect_request_max_retries: cfg.p2p.discovery.connect_request_max_retries,
+            max_peers_per_response: cfg.p2p.discovery.max_peers_per_response,
         },
         idle_connection_timeout: Duration::from_secs(15 * 60),
         transport: network::TransportProtocol::from_multiaddr(&cfg.p2p.listen_addr).unwrap_or_else(

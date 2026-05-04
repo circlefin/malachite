@@ -37,3 +37,6 @@ thiserror = { workspace = true }
 tokio = { workspace = true, features = ["macros"] }
 tracing = { workspace = true }
 unsigned-varint = { workspace = true }
+
+[dev-dependencies]
+malachitebft-discovery = { workspace = true, features = ["test-utils"] }

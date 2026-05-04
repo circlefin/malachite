@@ -14,7 +14,7 @@ pub use malachitebft_app as app;
 
 mod builder;
 mod connector;
-mod spawn;
+pub mod spawn;
 
 mod msgs;
 pub use msgs::{
@@ -28,3 +28,6 @@ pub use run::*;
 pub use builder::{
     ConsensusContext, EngineBuilder, NetworkContext, RequestContext, SyncContext, WalContext,
 };
+
+#[cfg(feature = "byzantine")]
+pub use builder::ByzantineContext;

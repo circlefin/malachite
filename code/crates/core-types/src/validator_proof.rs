@@ -3,7 +3,7 @@
 use alloc::vec::Vec;
 use derive_where::derive_where;
 
-use crate::{Context, Signature};
+use crate::{Context, PublicKey, Signature, SigningScheme};
 
 /// Separator bytes for Proof-of-Validator signatures.
 /// The 3-byte ASCII string "PoV" (0x50 0x6F 0x56).
@@ -54,5 +54,23 @@ impl<Ctx: Context> ValidatorProof<Ctx> {
         bytes.extend_from_slice(&(peer_id.len() as u32).to_be_bytes());
         bytes.extend_from_slice(peer_id);
         bytes
+    }
+
+    /// Returns the canonical preimage bytes for this proof, as produced by
+    /// [`Self::signing_bytes`]. Every `Verifier`/`Signer` implementation of
+    /// `verify_validator_proof`/`sign_validator_proof` must sign or verify
+    /// exactly this byte sequence.
+    pub fn preimage(&self) -> Vec<u8> {
+        Self::signing_bytes(&self.public_key, &self.peer_id)
+    }
+
+    /// Decode the embedded public key using the context's signing scheme.
+    ///
+    /// Returns the scheme-specific decoding error on failure; callers are
+    /// expected to wrap it into their own error type.
+    pub fn decoded_public_key(
+        &self,
+    ) -> Result<PublicKey<Ctx>, <Ctx::SigningScheme as SigningScheme>::DecodingError> {
+        Ctx::SigningScheme::decode_public_key(&self.public_key)
     }
 }

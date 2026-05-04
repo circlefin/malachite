@@ -1,6 +1,6 @@
 use futures::executor::block_on;
 use malachitebft_core_types::PolkaCertificate;
-use malachitebft_signing::SigningProviderExt;
+use malachitebft_signing::VerifierExt;
 
 use super::{make_validators, types::*, CertificateBuilder, CertificateTest, DEFAULT_SEED};
 
@@ -21,7 +21,7 @@ impl CertificateBuilder for Polka {
 
     fn verify_certificate(
         ctx: &TestContext,
-        signer: &Ed25519Provider,
+        signer: &Ed25519Signer,
         certificate: &Self::Certificate,
         validator_set: &ValidatorSet,
         threshold_params: ThresholdParams,
@@ -81,6 +81,9 @@ fn invalid_polka_certificate_insufficient_voting_power() {
             expected: 67,
         });
 
+    // Nil votes are filtered out at `PolkaCertificate::new` (it only keeps votes
+    // whose value matches the certificate's `value_id`), so the certificate ends
+    // up empty and the threshold check is what fails.
     CertificateTest::<Polka>::new()
         .with_validators([10, 10, 30, 50])
         .with_nil_votes(0..4, VoteType::Prevote)
@@ -125,20 +128,24 @@ fn invalid_polka_certificate_unknown_validator() {
 }
 
 /// Tests the verification of a certificate containing a vote with an invalid signature.
+///
+/// A single bad signature rejects the whole certificate, even if the remaining
+/// valid signatures still meet the 2/3 threshold.
 #[test]
 fn invalid_polka_certificate_invalid_signature() {
     CertificateTest::<Polka>::new()
         .with_validators([10, 10, 10])
         .with_votes(0..2, VoteType::Prevote)
         .with_invalid_signature_vote(2, VoteType::Prevote) // Validator 2 has invalid signature
-        .expect_error(CertificateError::NotEnoughVotingPower {
-            signed: 20,
-            total: 30,
-            expected: 21,
-        });
+        .expect_err_matches(|e| matches!(e, CertificateError::InvalidPolkaSignature(_)));
 }
 
 /// Tests the verification of a certificate containing a vote with invalid height or round.
+///
+/// `PolkaCertificate::new` filters out votes whose `height` or `round` don't match
+/// the certificate's, so the wrong-height/round vote never reaches the verifier and
+/// the failure surfaces as `NotEnoughVotingPower` from the threshold check rather
+/// than as `InvalidPolkaSignature`.
 #[test]
 fn invalid_polka_certificate_wrong_vote_height_round() {
     CertificateTest::<Polka>::new()
@@ -176,25 +183,26 @@ fn empty_polka_certificate() {
 }
 
 /// Tests the verification of a certificate containing both valid and invalid votes.
+///
+/// Both scenarios below must be rejected with `InvalidPolkaSignature`, even when
+/// the valid subset of signatures still meets the 2/3 voting-power threshold.
 #[test]
 fn polka_certificate_with_mixed_valid_and_invalid_votes() {
+    // Valid signatures from validators 2..4 (VP=70) would meet quorum on their own,
+    // but the certificate also carries two invalid signatures and must be rejected.
     CertificateTest::<Polka>::new()
         .with_validators([10, 20, 30, 40])
         .with_votes(2..4, VoteType::Prevote)
         .with_invalid_signature_vote(0, VoteType::Prevote) // Invalid signature for validator 0
         .with_invalid_signature_vote(1, VoteType::Prevote) // Invalid signature for validator 1
-        .expect_valid();
+        .expect_err_matches(|e| matches!(e, CertificateError::InvalidPolkaSignature(_)));
 
     CertificateTest::<Polka>::new()
         .with_validators([10, 20, 30, 40])
         .with_votes(0..2, VoteType::Prevote)
         .with_invalid_signature_vote(2, VoteType::Prevote) // Invalid signature for validator 2
         .with_invalid_signature_vote(3, VoteType::Prevote) // Invalid signature for validator 3
-        .expect_error(CertificateError::NotEnoughVotingPower {
-            signed: 30,
-            total: 100,
-            expected: 67,
-        });
+        .expect_err_matches(|e| matches!(e, CertificateError::InvalidPolkaSignature(_)));
 }
 
 // ============================================================================
@@ -203,21 +211,22 @@ fn polka_certificate_with_mixed_valid_and_invalid_votes() {
 // ============================================================================
 
 /// Address spoofing attack: a spoofed signature claims to be from a high-VP validator
-/// but was actually signed by a different validator's key.
+/// but was actually signed by a different validator's key. The certificate is rejected
+/// on the spoofed entry.
 #[test]
 fn polka_certificate_address_spoofing_attack() {
     CertificateTest::<Polka>::new()
         .with_validators([10, 90])
         .with_spoofed_address_vote(1, 0, VoteType::Prevote)
-        .expect_error(CertificateError::NotEnoughVotingPower {
-            signed: 0,
-            total: 100,
-            expected: 67,
-        });
+        .expect_err_matches(|e| matches!(e, CertificateError::InvalidPolkaSignature(_)));
 }
 
-/// Signature replay across heights: valid prevote signatures from height 1
-/// are injected into a polka certificate at height 2.
+/// Signature replay across heights: validators sign genuine prevotes at `height = 1`.
+/// A Byzantine actor then builds a forged `PolkaCertificate` claiming `height = 2`
+/// and copies those real signatures into it. The signatures are bytewise valid for
+/// `height = 1` but the verifier reconstructs the prevote using the certificate's
+/// own `height = 2`, so verification fails on every entry and the certificate is
+/// rejected on the first invalid signature.
 #[test]
 fn polka_certificate_signature_replay_across_heights() {
     let (validators, signers) = make_validators([25, 25, 25, 25], DEFAULT_SEED);
@@ -244,7 +253,7 @@ fn polka_certificate_signature_replay_across_heights() {
         value_id,
         polka_signatures: votes
             .iter()
-            .map(|v| PolkaSignature::new(v.message.validator_address, v.signature.clone()))
+            .map(|v| PolkaSignature::new(v.message.validator_address, v.signature))
             .collect(),
     };
 
@@ -255,18 +264,18 @@ fn polka_certificate_signature_replay_across_heights() {
         &validator_set,
         ThresholdParams::default(),
     ));
-    assert_eq!(
+    assert!(matches!(
         result,
-        Err(CertificateError::NotEnoughVotingPower {
-            signed: 0,
-            total: 100,
-            expected: 67,
-        })
-    );
+        Err(CertificateError::InvalidPolkaSignature(_))
+    ));
 }
 
-/// Signature replay across rounds: valid prevote signatures from round 0
-/// are injected into a polka certificate at round 1.
+/// Signature replay across rounds: validators sign genuine prevotes at `round = 0`.
+/// A Byzantine actor then builds a forged `PolkaCertificate` claiming `round = 1`
+/// and copies those real signatures into it. The signatures are bytewise valid for
+/// `round = 0` but the verifier reconstructs the prevote using the certificate's
+/// own `round = 1`, so verification fails on every entry and the certificate is
+/// rejected on the first invalid signature.
 #[test]
 fn polka_certificate_signature_replay_across_rounds() {
     let (validators, signers) = make_validators([25, 25, 25, 25], DEFAULT_SEED);
@@ -293,7 +302,7 @@ fn polka_certificate_signature_replay_across_rounds() {
         value_id,
         polka_signatures: votes
             .iter()
-            .map(|v| PolkaSignature::new(v.message.validator_address, v.signature.clone()))
+            .map(|v| PolkaSignature::new(v.message.validator_address, v.signature))
             .collect(),
     };
 
@@ -304,18 +313,18 @@ fn polka_certificate_signature_replay_across_rounds() {
         &validator_set,
         ThresholdParams::default(),
     ));
-    assert_eq!(
+    assert!(matches!(
         result,
-        Err(CertificateError::NotEnoughVotingPower {
-            signed: 0,
-            total: 100,
-            expected: 67,
-        })
-    );
+        Err(CertificateError::InvalidPolkaSignature(_))
+    ));
 }
 
-/// Signature replay across values: valid prevote signatures for value 42
-/// are injected into a polka certificate for value 99.
+/// Signature replay across values: validators sign genuine prevotes for
+/// `value_id = 42`. A Byzantine actor then builds a forged `PolkaCertificate`
+/// claiming `value_id = 99` and copies those real signatures into it. The
+/// signatures are bytewise valid for value 42 but the verifier reconstructs the
+/// prevote using the certificate's own `value_id = 99`, so verification fails on
+/// every entry and the certificate is rejected on the first invalid signature.
 #[test]
 fn polka_certificate_signature_replay_across_values() {
     let (validators, signers) = make_validators([25, 25, 25, 25], DEFAULT_SEED);
@@ -341,7 +350,7 @@ fn polka_certificate_signature_replay_across_values() {
         value_id: ValueId::new(99),
         polka_signatures: votes
             .iter()
-            .map(|v| PolkaSignature::new(v.message.validator_address, v.signature.clone()))
+            .map(|v| PolkaSignature::new(v.message.validator_address, v.signature))
             .collect(),
     };
 
@@ -352,19 +361,18 @@ fn polka_certificate_signature_replay_across_values() {
         &validator_set,
         ThresholdParams::default(),
     ));
-    assert_eq!(
+    assert!(matches!(
         result,
-        Err(CertificateError::NotEnoughVotingPower {
-            signed: 0,
-            total: 100,
-            expected: 67,
-        })
-    );
+        Err(CertificateError::InvalidPolkaSignature(_))
+    ));
 }
 
-/// Cross-type replay: valid precommit signatures are injected into a polka
-/// (prevote) certificate. The verifier reconstructs prevotes, but the signatures
-/// were over precommit data, so verification fails.
+/// Cross-type replay: validators sign genuine *precommits* for value 42 (still at
+/// height 1, round 0). A Byzantine actor then builds a forged `PolkaCertificate`
+/// and copies those precommit signatures into it as if they were prevotes. The
+/// verifier always reconstructs polka entries as *prevotes*, so the precommit
+/// signatures fail verification and the certificate is rejected on the first
+/// invalid signature.
 #[test]
 fn polka_certificate_cross_type_replay_from_precommit() {
     let (validators, signers) = make_validators([25, 25, 25, 25], DEFAULT_SEED);
@@ -393,7 +401,7 @@ fn polka_certificate_cross_type_replay_from_precommit() {
         value_id,
         polka_signatures: votes
             .iter()
-            .map(|v| PolkaSignature::new(v.message.validator_address, v.signature.clone()))
+            .map(|v| PolkaSignature::new(v.message.validator_address, v.signature))
             .collect(),
     };
 
@@ -404,14 +412,10 @@ fn polka_certificate_cross_type_replay_from_precommit() {
         &validator_set,
         ThresholdParams::default(),
     ));
-    assert_eq!(
+    assert!(matches!(
         result,
-        Err(CertificateError::NotEnoughVotingPower {
-            signed: 0,
-            total: 100,
-            expected: 67,
-        })
-    );
+        Err(CertificateError::InvalidPolkaSignature(_))
+    ));
 }
 
 /// Validator set mismatch: signatures from validator set A are verified

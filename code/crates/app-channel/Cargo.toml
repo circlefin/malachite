@@ -12,6 +12,12 @@ readme = "../../../README.md"
 [package.metadata.docs.rs]
 all-features = true
 
+[features]
+default = []
+# Enables `EngineBuilder::with_byzantine_network` and the `ByzantineContext`
+# input struct. Pulls in `malachitebft-engine-byzantine`.
+byzantine = ["dep:malachitebft-engine-byzantine"]
+
 [dependencies]
 bytes.workspace = true
 derive-where.workspace = true
@@ -24,6 +30,7 @@ tracing.workspace = true
 malachitebft-app.workspace = true
 malachitebft-config.workspace = true
 malachitebft-engine.workspace = true
+malachitebft-engine-byzantine = { workspace = true, optional = true }
 malachitebft-signing.workspace = true
 
 [lints]

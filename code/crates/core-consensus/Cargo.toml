@@ -42,3 +42,8 @@ workspace = true
 [dev-dependencies]
 malachitebft-test = { workspace = true }
 malachitebft-signing = { workspace = true }
+malachitebft-signing-ed25519 = { workspace = true }
+malachitebft-peer = { workspace = true }
+malachitebft-metrics = { workspace = true }
+bytes = { workspace = true }
+futures = { workspace = true }

@@ -1,6 +1,6 @@
 use futures::executor::block_on;
 use malachitebft_core_types::CommitCertificate;
-use malachitebft_signing::SigningProviderExt;
+use malachitebft_signing::VerifierExt;
 
 use super::{make_validators, types::*, CertificateBuilder, CertificateTest, DEFAULT_SEED};
 
@@ -21,7 +21,7 @@ impl CertificateBuilder for Commit {
 
     fn verify_certificate(
         ctx: &TestContext,
-        signer: &Ed25519Provider,
+        signer: &Ed25519Signer,
         certificate: &Self::Certificate,
         validator_set: &ValidatorSet,
         threshold_params: ThresholdParams,
@@ -130,17 +130,16 @@ fn invalid_commit_certificate_unknown_validator() {
 }
 
 /// Tests the verification of a certificate containing a vote with an invalid signature.
+///
+/// The verifier must reject the entire certificate as soon as it encounters a bad
+/// signature, even if the remaining signatures still meet the threshold.
 #[test]
 fn invalid_commit_certificate_invalid_signature_1() {
     CertificateTest::<Commit>::new()
         .with_validators([10, 10, 10])
         .with_votes(0..2, VoteType::Precommit)
-        .with_invalid_signature_vote(2, VoteType::Precommit) // Validator 0 has invalid signature
-        .expect_error(CertificateError::NotEnoughVotingPower {
-            signed: 20,
-            total: 30,
-            expected: 21,
-        });
+        .with_invalid_signature_vote(2, VoteType::Precommit) // Validator 2 has invalid signature
+        .expect_err_matches(|e| matches!(e, CertificateError::InvalidCommitSignature(_)));
 }
 
 /// Tests the verification of a certificate with no votes.
@@ -157,25 +156,29 @@ fn empty_commit_certificate() {
 }
 
 /// Tests the verification of a certificate containing both valid and invalid votes.
+///
+/// Both scenarios below must be rejected with `InvalidCommitSignature`, even when the
+/// valid subset of signatures still meets the 2/3 voting-power threshold. This prevents
+/// a Byzantine peer from padding an otherwise-valid certificate with garbage signatures.
 #[test]
 fn commit_certificate_with_mixed_valid_and_invalid_votes() {
+    // Valid signatures from validators 2..4 (VP=70) would meet quorum on their own,
+    // but the certificate also carries two invalid signatures and must be rejected.
     CertificateTest::<Commit>::new()
         .with_validators([10, 20, 30, 40])
         .with_votes(2..4, VoteType::Precommit)
         .with_invalid_signature_vote(0, VoteType::Precommit) // Invalid signature for validator 0
         .with_invalid_signature_vote(1, VoteType::Precommit) // Invalid signature for validator 1
-        .expect_valid();
+        .expect_err_matches(|e| matches!(e, CertificateError::InvalidCommitSignature(_)));
 
+    // Valid signatures alone (VP=30) are below quorum, and we still expect a signature
+    // error to be reported instead of `NotEnoughVotingPower`.
     CertificateTest::<Commit>::new()
         .with_validators([10, 20, 30, 40])
         .with_votes(0..2, VoteType::Precommit)
-        .with_invalid_signature_vote(2, VoteType::Precommit) // Invalid signature for validator 0
-        .with_invalid_signature_vote(3, VoteType::Precommit) // Invalid signature for validator 1
-        .expect_error(CertificateError::NotEnoughVotingPower {
-            signed: 30,
-            total: 100,
-            expected: 67,
-        });
+        .with_invalid_signature_vote(2, VoteType::Precommit) // Invalid signature for validator 2
+        .with_invalid_signature_vote(3, VoteType::Precommit) // Invalid signature for validator 3
+        .expect_err_matches(|e| matches!(e, CertificateError::InvalidCommitSignature(_)));
 }
 
 /// Tests extended certificate.
@@ -214,42 +217,38 @@ fn valid_extended_commit_certificate() {
 /// Address spoofing attack: a spoofed signature claims to be from a high-VP validator
 /// but was actually signed by a different validator's key. Malachite looks up validators
 /// by address and verifies against the looked-up validator's public key, so the spoofed
-/// signature fails verification and contributes no voting power.
+/// signature fails verification and the entire certificate is rejected.
 #[test]
 fn commit_certificate_address_spoofing_attack() {
     // Validators: [10, 90]. Spoofed sig claims to be validator 1 (VP=90)
-    // but is signed by validator 0's key. Signature fails → VP counted = 0.
+    // but is signed by validator 0's key. Signature verification fails for that entry
+    // and the certificate is rejected with `InvalidCommitSignature`.
     CertificateTest::<Commit>::new()
         .with_validators([10, 90])
         .with_spoofed_address_vote(1, 0, VoteType::Precommit) // claims idx 1, signed by idx 0
-        .expect_error(CertificateError::NotEnoughVotingPower {
-            signed: 0,
-            total: 100,
-            expected: 67,
-        });
+        .expect_err_matches(|e| matches!(e, CertificateError::InvalidCommitSignature(_)));
 }
 
 /// Address spoofing mixed with valid votes: legitimate votes contribute their VP,
-/// but the spoofed vote contributes nothing.
+/// but the spoofed vote causes the whole certificate to be rejected.
 #[test]
 fn commit_certificate_address_spoofing_with_valid_votes() {
     // Validators: [10, 20, 30, 40]. Validators 0-1 sign legitimately (VP=30).
     // Spoofed sig claims validator 3 (VP=40) but signed by validator 2's key.
-    // Only VP=30 counted, which is insufficient.
+    // The verifier rejects the certificate on the spoofed entry.
     CertificateTest::<Commit>::new()
         .with_validators([10, 20, 30, 40])
         .with_votes(0..2, VoteType::Precommit)
         .with_spoofed_address_vote(3, 2, VoteType::Precommit)
-        .expect_error(CertificateError::NotEnoughVotingPower {
-            signed: 30,
-            total: 100,
-            expected: 67,
-        });
+        .expect_err_matches(|e| matches!(e, CertificateError::InvalidCommitSignature(_)));
 }
 
-/// Signature replay across heights: valid precommit signatures from height 1
-/// are injected into a certificate at height 2. The verifier reconstructs votes
-/// at height 2, which doesn't match what was signed at height 1.
+/// Signature replay across heights: validators sign genuine precommits at `height = 1`.
+/// A Byzantine actor then builds a forged `CommitCertificate` claiming `height = 2`
+/// and copies those real signatures into it. The signatures are bytewise valid for
+/// `height = 1` but the verifier reconstructs the precommit message using the
+/// certificate's own `height = 2`, so the public-key check fails on every entry
+/// and the whole certificate is rejected.
 #[test]
 fn commit_certificate_signature_replay_across_heights() {
     let (validators, signers) = make_validators([25, 25, 25, 25], DEFAULT_SEED);
@@ -278,7 +277,7 @@ fn commit_certificate_signature_replay_across_heights() {
         value_id,
         commit_signatures: votes
             .iter()
-            .map(|v| CommitSignature::new(v.message.validator_address, v.signature.clone()))
+            .map(|v| CommitSignature::new(v.message.validator_address, v.signature))
             .collect(),
     };
 
@@ -289,18 +288,18 @@ fn commit_certificate_signature_replay_across_heights() {
         &validator_set,
         ThresholdParams::default(),
     ));
-    assert_eq!(
+    assert!(matches!(
         result,
-        Err(CertificateError::NotEnoughVotingPower {
-            signed: 0,
-            total: 100,
-            expected: 67,
-        })
-    );
+        Err(CertificateError::InvalidCommitSignature(_))
+    ));
 }
 
-/// Signature replay across rounds: valid precommit signatures from round 0
-/// are injected into a certificate at round 1.
+/// Signature replay across rounds: validators sign genuine precommits at `round = 0`.
+/// A Byzantine actor then builds a forged `CommitCertificate` claiming `round = 1`
+/// and copies those real signatures into it. The signatures are bytewise valid for
+/// `round = 0` but the verifier reconstructs the precommit using the certificate's
+/// own `round = 1`, so verification fails on every entry and the certificate is
+/// rejected on the first invalid signature.
 #[test]
 fn commit_certificate_signature_replay_across_rounds() {
     let (validators, signers) = make_validators([25, 25, 25, 25], DEFAULT_SEED);
@@ -329,7 +328,7 @@ fn commit_certificate_signature_replay_across_rounds() {
         value_id,
         commit_signatures: votes
             .iter()
-            .map(|v| CommitSignature::new(v.message.validator_address, v.signature.clone()))
+            .map(|v| CommitSignature::new(v.message.validator_address, v.signature))
             .collect(),
     };
 
@@ -340,18 +339,18 @@ fn commit_certificate_signature_replay_across_rounds() {
         &validator_set,
         ThresholdParams::default(),
     ));
-    assert_eq!(
+    assert!(matches!(
         result,
-        Err(CertificateError::NotEnoughVotingPower {
-            signed: 0,
-            total: 100,
-            expected: 67,
-        })
-    );
+        Err(CertificateError::InvalidCommitSignature(_))
+    ));
 }
 
-/// Signature replay across values: valid precommit signatures for value 42
-/// are injected into a certificate for value 99.
+/// Signature replay across values: validators sign genuine precommits for
+/// `value_id = 42`. A Byzantine actor then builds a forged `CommitCertificate`
+/// claiming `value_id = 99` and copies those real signatures into it. The
+/// signatures are bytewise valid for value 42 but the verifier reconstructs the
+/// precommit using the certificate's own `value_id = 99`, so verification fails
+/// on every entry and the certificate is rejected on the first invalid signature.
 #[test]
 fn commit_certificate_signature_replay_across_values() {
     let (validators, signers) = make_validators([25, 25, 25, 25], DEFAULT_SEED);
@@ -379,7 +378,7 @@ fn commit_certificate_signature_replay_across_values() {
         value_id: ValueId::new(99),
         commit_signatures: votes
             .iter()
-            .map(|v| CommitSignature::new(v.message.validator_address, v.signature.clone()))
+            .map(|v| CommitSignature::new(v.message.validator_address, v.signature))
             .collect(),
     };
 
@@ -390,14 +389,10 @@ fn commit_certificate_signature_replay_across_values() {
         &validator_set,
         ThresholdParams::default(),
     ));
-    assert_eq!(
+    assert!(matches!(
         result,
-        Err(CertificateError::NotEnoughVotingPower {
-            signed: 0,
-            total: 100,
-            expected: 67,
-        })
-    );
+        Err(CertificateError::InvalidCommitSignature(_))
+    ));
 }
 
 /// Validator set mismatch: signatures from validator set A are verified

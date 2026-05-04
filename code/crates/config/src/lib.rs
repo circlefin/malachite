@@ -126,6 +126,10 @@ pub struct DiscoveryConfig {
 
     #[serde(default = "discovery::default_connect_request_max_retries")]
     pub connect_request_max_retries: usize,
+
+    /// Maximum number of peer records to process or send per peers request/response.
+    #[serde(default = "discovery::default_max_peers_per_response")]
+    pub max_peers_per_response: usize,
 }
 
 impl Default for DiscoveryConfig {
@@ -142,6 +146,7 @@ impl Default for DiscoveryConfig {
             dial_max_retries: discovery::default_dial_max_retries(),
             request_max_retries: discovery::default_request_max_retries(),
             connect_request_max_retries: discovery::default_connect_request_max_retries(),
+            max_peers_per_response: discovery::default_max_peers_per_response(),
         }
     }
 }
@@ -169,6 +174,10 @@ mod discovery {
 
     pub fn default_connect_request_max_retries() -> usize {
         3
+    }
+
+    pub fn default_max_peers_per_response() -> usize {
+        100
     }
 }
 
@@ -645,6 +654,14 @@ fn default_queue_capacity() -> usize {
     10
 }
 
+fn default_queue_per_height_capacity() -> usize {
+    500
+}
+
+fn default_wal_replay_delay() -> Duration {
+    Duration::from_secs(5)
+}
+
 /// Consensus configuration options
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ConsensusConfig {
@@ -667,6 +684,28 @@ pub struct ConsensusConfig {
     /// Default: 10
     #[serde(default = "default_queue_capacity")]
     pub queue_capacity: usize,
+
+    /// Maximum number of buffered inputs per height in the gossip input queue.
+    /// Controls how many messages (votes, proposals, proposed values) can be
+    /// buffered for a single future height.
+    ///
+    /// For a single round with `n` validators, the minimum is `2n - 1`
+    /// (1 proposal + (n-1) prevotes + (n-1) precommits). Multiply by the
+    /// expected number of rounds to get a practical lower bound.
+    /// Default: 500
+    #[serde(default = "default_queue_per_height_capacity")]
+    pub queue_per_height_capacity: usize,
+
+    /// Duration to wait before replaying the WAL on recovery.
+    ///
+    /// When a validator recovers from a crash, this delay gives the sync protocol
+    /// time to retrieve a certificate for the crash height. If sync succeeds
+    /// during this window, WAL replay is skipped entirely.
+    ///
+    /// Set to 0 to disable the delay and replay immediately (previous behavior).
+    /// Default: 5s
+    #[serde(default = "default_wal_replay_delay", with = "humantime_serde")]
+    pub wal_replay_delay: Duration,
 }
 
 impl Default for ConsensusConfig {
@@ -676,6 +715,8 @@ impl Default for ConsensusConfig {
             p2p: P2pConfig::default(),
             value_payload: ValuePayload::default(),
             queue_capacity: default_queue_capacity(),
+            queue_per_height_capacity: default_queue_per_height_capacity(),
+            wal_replay_delay: default_wal_replay_delay(),
         }
     }
 }
@@ -861,6 +902,29 @@ impl fmt::Display for LogFormat {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn discovery_config_deserializes_without_max_peers_per_response() {
+        // Configs written before this field was added should still deserialize,
+        // using the default value.
+        let toml = r#"
+            enabled = true
+            bootstrap_protocol = "full"
+            selector = "random"
+        "#;
+        let config: DiscoveryConfig = toml::from_str(toml).unwrap();
+        assert_eq!(config.max_peers_per_response, 100);
+    }
+
+    #[test]
+    fn discovery_config_deserializes_with_max_peers_per_response() {
+        let toml = r#"
+            enabled = true
+            max_peers_per_response = 50
+        "#;
+        let config: DiscoveryConfig = toml::from_str(toml).unwrap();
+        assert_eq!(config.max_peers_per_response, 50);
+    }
 
     #[test]
     fn log_format() {

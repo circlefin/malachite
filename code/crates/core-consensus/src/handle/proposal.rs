@@ -116,7 +116,6 @@ where
 
     if state.params.value_payload.proposal_only() {
         // TODO - pass the received value up to the host that will verify and give back validity and extension.
-        // Currently starknet Context defines value as BlockHash, we need a PoC app for this.
         let new_value = ProposedValue {
             height: signed_proposal.height(),
             round: signed_proposal.round(),

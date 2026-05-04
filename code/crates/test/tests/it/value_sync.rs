@@ -1,4 +1,5 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use bytesize::ByteSize;
@@ -6,10 +7,10 @@ use eyre::bail;
 use rstest::rstest;
 
 use arc_malachitebft_test::middleware::{Middleware, RotateEpochValidators};
-use arc_malachitebft_test::TestContext;
+use arc_malachitebft_test::{Height, TestContext};
 use malachitebft_config::ValuePayload;
 use malachitebft_core_consensus::ProposedValue;
-use malachitebft_core_types::CommitCertificate;
+use malachitebft_core_types::{CommitCertificate, Round};
 
 use crate::{TestBuilder, TestParams};
 
@@ -906,4 +907,165 @@ pub async fn status_update_on_decision(#[case] status_update_interval: Duration)
             },
         )
         .await
+}
+
+/// Middleware that skips early decision commit in the `AppMsg::Decided` handler
+/// for a range of heights. The decision is still committed during `AppMsg::Finalized`.
+#[derive(Debug)]
+struct SkipEarlyCommitMiddleware {
+    from_height: u64,
+    to_height: u64,
+}
+
+impl Middleware for SkipEarlyCommitMiddleware {
+    fn skip_early_commit(
+        &self,
+        _ctx: &TestContext,
+        certificate: &CommitCertificate<TestContext>,
+    ) -> bool {
+        let h = certificate.height.as_u64();
+        h >= self.from_height && h <= self.to_height
+    }
+}
+
+/// A full node should be able to sync from validators even when the `Decided` handler
+/// does not commit decisions (they are only committed during `Finalized`).
+///
+/// The sync actor must not advertise a height until the decision is confirmed committed,
+/// so peers always receive complete responses.
+#[rstest]
+#[case::eager(Duration::ZERO)]
+#[case::interval(Duration::from_secs(1))]
+#[tokio::test]
+pub async fn skipped_early_commit_does_not_break_sync(#[case] status_update_interval: Duration) {
+    const TARGET_HEIGHT: u64 = 6;
+    const SKIP_FROM: u64 = 1;
+    const SKIP_TO: u64 = 100;
+
+    let mut test = TestBuilder::<()>::new();
+
+    test.add_node()
+        .with_voting_power(10)
+        .with_middleware(SkipEarlyCommitMiddleware {
+            from_height: SKIP_FROM,
+            to_height: SKIP_TO,
+        })
+        .start()
+        .wait_until(TARGET_HEIGHT * 2)
+        .success();
+
+    test.add_node()
+        .with_voting_power(10)
+        .with_middleware(SkipEarlyCommitMiddleware {
+            from_height: SKIP_FROM,
+            to_height: SKIP_TO,
+        })
+        .start()
+        .wait_until(TARGET_HEIGHT * 2)
+        .success();
+
+    // Full node starts late, must sync from the validators.
+    test.add_node()
+        .full_node()
+        .start_after(1, Duration::from_secs(10))
+        .wait_until(TARGET_HEIGHT)
+        .success();
+
+    test.build()
+        .run_with_params(
+            Duration::from_secs(60),
+            TestParams {
+                enable_value_sync: true,
+                status_update_interval,
+                ..Default::default()
+            },
+        )
+        .await
+}
+
+/// Middleware that fails synced value decode a configurable number of times.
+#[derive(Debug, Clone)]
+struct FailSyncDecode {
+    remaining_failures: Arc<AtomicU32>,
+}
+
+impl Middleware for FailSyncDecode {
+    fn fail_synced_value_decode(&self, _ctx: &TestContext, _height: Height, _round: Round) -> bool {
+        self.remaining_failures
+            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
+                if n > 0 {
+                    Some(n - 1)
+                } else {
+                    None
+                }
+            })
+            .is_ok()
+    }
+}
+
+/// Verifies that sync recovers when the application fails to decode a synced value.
+/// The engine receives None and notifies the sync state machine via ValueProcessingError,
+/// which re-requests from a different peer.
+pub async fn sync_recovers_from_decode_failure(params: TestParams) {
+    const HEIGHT: u64 = 6;
+    const CRASH_HEIGHT: u64 = 3;
+
+    let mut test = TestBuilder::<()>::new();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .success();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .success();
+
+    // Node 3 crashes, resets DB, and restarts with a middleware that fails the first
+    // synced value decode. Sync re-requests from a different peer.
+    let middleware = FailSyncDecode {
+        remaining_failures: Arc::new(AtomicU32::new(1)),
+    };
+
+    test.add_node()
+        .with_voting_power(5)
+        .with_middleware(middleware)
+        .start()
+        .wait_until(CRASH_HEIGHT)
+        .crash()
+        .reset_db()
+        .restart_after(Duration::from_secs(5))
+        .wait_until(HEIGHT)
+        .success();
+
+    test.build()
+        .run_with_params(
+            Duration::from_secs(60),
+            TestParams {
+                enable_value_sync: true,
+                ..params
+            },
+        )
+        .await
+}
+
+#[rstest]
+#[case::parts_only_eager(ValuePayload::PartsOnly, Duration::ZERO)]
+#[case::parts_only_interval(ValuePayload::PartsOnly, Duration::from_secs(1))]
+#[case::proposal_and_parts_eager(ValuePayload::ProposalAndParts, Duration::ZERO)]
+#[case::proposal_and_parts_interval(ValuePayload::ProposalAndParts, Duration::from_secs(1))]
+#[tokio::test]
+pub async fn sync_recovers_from_decode_failure_ok(
+    #[case] value_payload: ValuePayload,
+    #[case] status_update_interval: Duration,
+) {
+    sync_recovers_from_decode_failure(TestParams {
+        value_payload,
+        status_update_interval,
+        ..Default::default()
+    })
+    .await
 }

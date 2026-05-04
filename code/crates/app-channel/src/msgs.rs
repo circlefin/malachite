@@ -328,12 +328,19 @@ pub enum AppMsg<Ctx: Context> {
     /// the value that was decided on, the height and round at which it was decided,
     /// and the aggregated signatures of the validators that committed to it.
     /// It also includes to the vote extensions received for that height.
+    ///
+    /// The application MUST commit the decision and then reply to
+    /// acknowledge that the commit is complete. The sync actor will only be notified
+    /// of the decided height after the application replies.
     Decided {
         /// The certificate for the decided value
         certificate: CommitCertificate<Ctx>,
 
         /// The vote extensions received for that height
         extensions: VoteExtensions<Ctx>,
+
+        /// Channel for acknowledging that the decision has been committed.
+        reply: Reply<()>,
     },
 
     /// Notifies the application that a height has been finalized after collecting additional precommits.

@@ -62,8 +62,6 @@ jobs:
             --failure-output final \
             --exclude arc-malachitebft-test \
             --exclude arc-malachitebft-test-mbt \
-            --exclude arc-malachitebft-starknet-test \
-            --exclude arc-malachitebft-starknet-test-mbt \
             --exclude arc-malachitebft-discovery-test
 
   integration:
@@ -96,12 +94,6 @@ jobs:
         run: |
           cargo maelstrom --slots 8 \
             --include 'package.equals(arc-malachitebft-discovery-test)'
-      - name: Run integration tests (Starknet app)
-        if: always()
-        run: |
-          cargo maelstrom --slots 8 \
-            --include 'package.equals(arc-malachitebft-starknet-test)' \
-            --exclude 'package.match(arc-malachitebft-starknet-test-mbt)'
       - name: Run integration tests (Test app)
         if: always()
         run: |

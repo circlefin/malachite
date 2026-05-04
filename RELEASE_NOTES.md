@@ -9,11 +9,12 @@
 - Add builder pattern for custom actor injection
 - Make consensus request channel capacity configurable
 - Refactor infrastructure for spawning a channel-based application
+- Add `EngineBuilder::with_byzantine_network` hook (behind `byzantine` feature) to inject the Byzantine network proxy
 
 ### `consensus`
 - Allow application to change its mind about validity (invalid -> valid)
 - Add an ability to add/remove persistent peers at runtime via `Network` handle
-- Add `persistent_peers_only` config option to allow connections ONLY from/to persistent peers 
+- Add `persistent_peers_only` config option to allow connections ONLY from/to persistent peers
 - Allow dynamic adjustment of timeout parameters ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Allow providing both the validator set and the timeouts for a height in `StartHeight`, `RestartHeight` and `ConsensusReady` reply ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Remove `initial_validator_set` and `initial_height` fields from `Params` struct ([#1190](https://github.com/circlefin/malachite/pull/1190))
@@ -30,9 +31,15 @@
 
 ### `driver`
 - Check for polka certificate to multiplex `PolkaValue` output on step change
+- Clear scheduled timeouts when skipping to a higher round
 - Ensure `PrecommitAny` does not shadow `PolkaNil` and `PolkaAny` pending inputs
 - Ensure polka certificate is matched against a proposal for the same value
 - Produce `InvalidProposalAndPolkaPrevious` when receiving a polka certificate matching the POL round of a proposal with an invalid value
+
+### `engine-byzantine`
+- Introduce a new crate that simulates Byzantine faults at the engine layer via `ByzantineNetworkProxy` and a context-generic `Amnesia<Ctx>` tracker decoupled from `TestContext`
+- Add `force_precommit_nil` and `drop_inbound_proposals` attacks, backed by a new `InboundFilter` actor and an `AtHeightsAndRounds` trigger variant
+- Remove the `TestContext`-specific `ByzantineMiddleware` (relocated to `malachitebft_test::byzantine`); `malachitebft-test` is no longer a regular dependency of this crate
 
 ### `network`
 - Add `persistent_peers_only` config option to allow connections ONLY from/to persistent peers
@@ -43,10 +50,17 @@
 - Limit the number of peers that can connect from same IP address
 
 ### `signing`
-- Implement `SigningProvider` for `Arc<T>` where `T: SigningProvider`
+- Split `SigningProvider` into separate `Verifier` and `Signer` traits
+- Split `SigningProviderExt` into `VerifierExt` and `SignerExt`
+- Implement `Verifier` and `Signer` for `&T`, `Box<T>`, and `Arc<T>`
 - Remove signing of proposal parts
+- Remove `Signer::sign_bytes` and `Verifier::verify_signed_bytes`; every signing purpose is now a named trait method
+- Promote `sign_validator_proof` and `verify_validator_proof` to required methods on `Signer` and `Verifier`; remove the `SignerExt` trait
 
 ### `sync`
+- Validate sync response length against the requested range and credit partial
+  responses through a new `SyncResult::PartialSuccess` variant, scaling the
+  peer-score update by the `received / requested` ratio
 - Reject sync responses with non-contiguous certificate heights ([#1541](https://github.com/circlefin/malachite/issues/1541))
 - Fix partial range request not being tracked in pending requests
 - Initial random (fixed) period adjustment in sync status ticker
@@ -58,6 +72,9 @@
 - Queue sync responses for future heights in the Sync actor ([#1467](https://github.com/circlefin/malachite/pull/1467))
   Instead of buffering sync responses in the core-consensus input queue, sync responses are now buffered directly in the Sync actor.
   This prevents sync responses and consensus messages from contending over the input queue.
+
+### `test`
+- `ByzantineMiddleware` now lives under `malachitebft_test::byzantine` (previously under `malachitebft_engine_byzantine`); its constructor takes 5 args `(ignore_locks, force_precommit_nil, inner, self_address, seed)` and internally delegates to `Amnesia<TestContext>`
 
 ## 0.6.0
 
@@ -133,7 +150,6 @@ This version introduces production-ready functionality with improved performance
 - [ADR 003][adr-003] describes the architecture adopted in Malachite for handling the propagation of proposed values.
 - [ADR 004][adr-004] describes the coroutine effect system used in Malachite.
   It is relevant if you are interested in building your own engine on top of the core consensus implementation of Malachite.
-
 
 [tutorial]: ./docs/tutorials/channels.md
 [adr-003]: ./docs/architecture/adr-003-values-propagation.md

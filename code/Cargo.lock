@@ -18,12 +18,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 
 [[package]]
-name = "adler2"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "512761e0bb2578dd7380c6baaa0f4ce03e84f95e960231d1dec8bf4d7d6e2627"
-
-[[package]]
 name = "advisory-lock"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -230,6 +224,7 @@ dependencies = [
  "arc-malachitebft-app",
  "arc-malachitebft-config",
  "arc-malachitebft-engine",
+ "arc-malachitebft-engine-byzantine",
  "arc-malachitebft-signing",
  "arc-malachitebft-test",
  "bytes",
@@ -274,9 +269,11 @@ dependencies = [
  "arc-malachitebft-metrics",
  "arc-malachitebft-peer",
  "arc-malachitebft-signing",
+ "arc-malachitebft-signing-ed25519",
  "arc-malachitebft-test",
  "async-recursion",
  "borsh",
+ "bytes",
  "derive-where",
  "futures",
  "genawaiter",
@@ -358,7 +355,7 @@ dependencies = [
  "arc-malachitebft-discovery-test",
  "arc-malachitebft-metrics",
  "arc-malachitebft-network",
- "arc-malachitebft-starknet-host",
+ "arc-malachitebft-signing-ed25519",
  "futures",
  "libp2p-identity",
  "netstat2",
@@ -393,6 +390,7 @@ dependencies = [
  "derive-where",
  "eyre",
  "hex",
+ "itertools 0.14.0",
  "libp2p",
  "ractor",
  "rand 0.8.5",
@@ -401,28 +399,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "arc-malachitebft-example-channel"
+name = "arc-malachitebft-engine-byzantine"
 version = "0.7.0-pre"
 dependencies = [
- "arc-malachitebft-app-channel",
- "arc-malachitebft-proto",
+ "arc-malachitebft-core-consensus",
+ "arc-malachitebft-core-types",
+ "arc-malachitebft-engine",
+ "arc-malachitebft-signing",
  "arc-malachitebft-test",
- "arc-malachitebft-test-cli",
  "async-trait",
- "bytes",
- "color-eyre",
- "config",
- "derive-where",
  "eyre",
- "itertools 0.14.0",
- "prost",
+ "ractor",
  "rand 0.8.5",
- "redb",
  "serde",
- "serde_json",
- "sha3",
- "thiserror 2.0.16",
- "tokio",
  "toml",
  "tracing",
 ]
@@ -498,7 +487,7 @@ name = "arc-malachitebft-signing-ecdsa"
 version = "0.7.0-pre"
 dependencies = [
  "arc-malachitebft-core-types",
- "base64 0.22.1",
+ "base64",
  "k256",
  "p256",
  "p384",
@@ -513,136 +502,12 @@ name = "arc-malachitebft-signing-ed25519"
 version = "0.7.0-pre"
 dependencies = [
  "arc-malachitebft-core-types",
- "base64 0.22.1",
+ "base64",
  "ed25519-consensus",
  "rand 0.8.5",
  "serde",
  "signature",
  "zeroize",
-]
-
-[[package]]
-name = "arc-malachitebft-starknet-app"
-version = "0.7.0-pre"
-dependencies = [
- "arc-malachitebft-app",
- "arc-malachitebft-config",
- "arc-malachitebft-starknet-host",
- "arc-malachitebft-test",
- "arc-malachitebft-test-cli",
- "clap",
- "color-eyre",
- "tempfile",
- "tikv-jemallocator",
- "tracing",
-]
-
-[[package]]
-name = "arc-malachitebft-starknet-host"
-version = "0.7.0-pre"
-dependencies = [
- "arc-malachitebft-app",
- "arc-malachitebft-codec",
- "arc-malachitebft-config",
- "arc-malachitebft-core-consensus",
- "arc-malachitebft-core-types",
- "arc-malachitebft-engine",
- "arc-malachitebft-metrics",
- "arc-malachitebft-network",
- "arc-malachitebft-proto",
- "arc-malachitebft-starknet-p2p-proto",
- "arc-malachitebft-starknet-p2p-types",
- "arc-malachitebft-sync",
- "arc-malachitebft-test",
- "arc-malachitebft-test-cli",
- "arc-malachitebft-test-mempool",
- "async-trait",
- "bytes",
- "bytesize",
- "config",
- "derive-where",
- "eyre",
- "itertools 0.14.0",
- "libp2p-identity",
- "prost",
- "ractor",
- "rand 0.8.5",
- "redb",
- "serde",
- "serde_json",
- "sha3",
- "tempfile",
- "thiserror 2.0.16",
- "tokio",
- "toml",
- "tracing",
-]
-
-[[package]]
-name = "arc-malachitebft-starknet-p2p-proto"
-version = "0.7.0-pre"
-dependencies = [
- "prost",
- "prost-build",
- "protox",
-]
-
-[[package]]
-name = "arc-malachitebft-starknet-p2p-types"
-version = "0.7.0-pre"
-dependencies = [
- "arc-malachitebft-core-types",
- "arc-malachitebft-proto",
- "arc-malachitebft-signing",
- "arc-malachitebft-signing-ed25519",
- "arc-malachitebft-starknet-p2p-proto",
- "async-trait",
- "bytes",
- "rand 0.8.5",
- "serde",
- "sha3",
- "starknet-core",
- "starknet-crypto",
-]
-
-[[package]]
-name = "arc-malachitebft-starknet-test"
-version = "0.7.0-pre"
-dependencies = [
- "arc-malachitebft-config",
- "arc-malachitebft-core-consensus",
- "arc-malachitebft-core-types",
- "arc-malachitebft-engine",
- "arc-malachitebft-metrics",
- "arc-malachitebft-starknet-host",
- "arc-malachitebft-test-framework",
- "async-trait",
- "axum",
- "bytesize",
- "eyre",
- "ractor",
- "rand 0.8.5",
- "serde_json",
- "tempfile",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "arc-malachitebft-starknet-test-mbt"
-version = "0.7.0-pre"
-dependencies = [
- "arc-malachitebft-core-types",
- "arc-malachitebft-engine",
- "arc-malachitebft-peer",
- "arc-malachitebft-starknet-host",
- "bytes",
- "glob",
- "itf",
- "multihash",
- "serde",
- "tempfile",
 ]
 
 [[package]]
@@ -680,6 +545,7 @@ dependencies = [
  "arc-malachitebft-core-consensus",
  "arc-malachitebft-core-types",
  "arc-malachitebft-engine",
+ "arc-malachitebft-engine-byzantine",
  "arc-malachitebft-peer",
  "arc-malachitebft-proto",
  "arc-malachitebft-signing",
@@ -688,7 +554,7 @@ dependencies = [
  "arc-malachitebft-test-app",
  "arc-malachitebft-test-framework",
  "async-trait",
- "base64 0.22.1",
+ "base64",
  "bytes",
  "bytesize",
  "ed25519-consensus",
@@ -716,10 +582,13 @@ name = "arc-malachitebft-test-app"
 version = "0.7.0-pre"
 dependencies = [
  "arc-malachitebft-app-channel",
+ "arc-malachitebft-engine-byzantine",
  "arc-malachitebft-proto",
  "arc-malachitebft-test",
  "arc-malachitebft-test-cli",
  "arc-malachitebft-test-framework",
+ "arc-malachitebft-test-store",
+ "arc-malachitebft-test-streaming",
  "async-trait",
  "bytes",
  "color-eyre",
@@ -798,7 +667,6 @@ dependencies = [
  "arc-malachitebft-core-votekeeper",
  "arc-malachitebft-engine",
  "arc-malachitebft-peer",
- "arc-malachitebft-starknet-host",
  "arc-malachitebft-test",
  "glob",
  "itf",
@@ -809,7 +677,7 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "serde_json",
- "serde_with 3.12.0",
+ "serde_with",
  "tempfile",
 ]
 
@@ -830,6 +698,33 @@ dependencies = [
  "seahash",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "arc-malachitebft-test-store"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-app-channel",
+ "arc-malachitebft-proto",
+ "arc-malachitebft-test",
+ "arc-malachitebft-test-streaming",
+ "bytes",
+ "prost",
+ "redb",
+ "serde",
+ "serde_json",
+ "sha3",
+ "thiserror 2.0.16",
+ "tokio",
+]
+
+[[package]]
+name = "arc-malachitebft-test-streaming"
+version = "0.7.0-pre"
+dependencies = [
+ "arc-malachitebft-app-channel",
+ "arc-malachitebft-test",
+ "serde",
 ]
 
 [[package]]
@@ -948,9 +843,9 @@ dependencies = [
 
 [[package]]
 name = "async-trait"
-version = "0.1.88"
+version = "0.1.89"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e539d3fca749fcee5236ab05e93a52867dd549cc157c8cb7f99595f3cedffdb5"
+checksum = "9035ad2d096bed7955a320ee7e2230574d28fd3c3a0f186cbea1ff3c7eed5dbb"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1058,7 +953,7 @@ dependencies = [
  "cc",
  "cfg-if",
  "libc",
- "miniz_oxide 0.7.4",
+ "miniz_oxide",
  "object",
  "rustc-demangle",
 ]
@@ -1074,18 +969,6 @@ name = "base16ct"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4c7f02d4ea65f2c1853089ffd8d2787bdbc63de2f0d29dedbcf8ccdfa0ccd4cf"
-
-[[package]]
-name = "base64"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
-
-[[package]]
-name = "base64"
-version = "0.21.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
 
 [[package]]
 name = "base64"
@@ -1242,11 +1125,11 @@ dependencies = [
 
 [[package]]
 name = "bytesize"
-version = "1.3.2"
+version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d2c12f985c78475a6b8d629afd0c360260ef34cfef52efccdcfd31972f81c2e"
+checksum = "6bd91ee7b2422bcb158d90ef4d14f75ef67f340943fc4149891dcce8f8b972a3"
 dependencies = [
- "serde",
+ "serde_core",
 ]
 
 [[package]]
@@ -1315,9 +1198,9 @@ dependencies = [
 
 [[package]]
 name = "cfg-if"
-version = "1.0.1"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9555578bc9e57714c812a1f84e4fc5b4d21fcb063490c624de019f7464c91268"
+checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
 name = "cfg_aliases"
@@ -2060,16 +1943,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d674e81391d1e1ab681a28d99df07927c6d4aa5b027d7da16ba32d1d21ecd99"
 
 [[package]]
-name = "flate2"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11faaf5a5236997af9848be0bef4db95824b1d534ebc64d0f0c6cf3e67bd38dc"
-dependencies = [
- "crc32fast",
- "miniz_oxide 0.8.5",
-]
-
-[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2299,9 +2172,9 @@ checksum = "4271d37baee1b8c7e4b708028c57d816cf9d2434acb33a549475f78c181f6253"
 
 [[package]]
 name = "glob"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8d1add55171497b4705a648c6b583acafb01d58050a51727785f0b2c8e0a2b2"
+checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 
 [[package]]
 name = "group"
@@ -2922,7 +2795,7 @@ dependencies = [
  "num-traits",
  "serde",
  "serde_json",
- "serde_with 3.12.0",
+ "serde_with",
 ]
 
 [[package]]
@@ -2960,28 +2833,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ecc2af9a1119c51f12a14607e783cb977bde58bc069ff0c3da1095e635d70654"
 dependencies = [
  "cpufeatures",
-]
-
-[[package]]
-name = "lambdaworks-crypto"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbc2a4da0d9e52ccfe6306801a112e81a8fc0c76aa3e4449fefeda7fef72bb34"
-dependencies = [
- "lambdaworks-math",
- "serde",
- "sha2 0.10.8",
- "sha3",
-]
-
-[[package]]
-name = "lambdaworks-math"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d1bd2632acbd9957afc5aeec07ad39f078ae38656654043bf16e046fa2730e23"
-dependencies = [
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -3112,7 +2963,7 @@ checksum = "a538e571cd38f504f761c61b8f79127489ea7a7d6f05c41ca15d31ffb5726326"
 dependencies = [
  "async-channel",
  "asynchronous-codec",
- "base64 0.22.1",
+ "base64",
  "byteorder",
  "bytes",
  "either",
@@ -3631,15 +3482,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "miniz_oxide"
-version = "0.8.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e3e04debbb59698c15bacbb6d93584a8c0ca9cc3213cb423d31f760d8843ce5"
-dependencies = [
- "adler2",
-]
-
-[[package]]
 name = "mio"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4073,7 +3915,7 @@ version = "3.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "38af38e8470ac9dee3ce1bae1af9c1671fffc44ddfd8bd1d0a3445bf349a8ef3"
 dependencies = [
- "base64 0.22.1",
+ "base64",
  "serde",
 ]
 
@@ -4960,17 +4802,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde_json_pythonic"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62212da9872ca2a0cad0093191ee33753eddff9266cbbc1b4a602d13a3a768db"
-dependencies = [
- "itoa",
- "ryu",
- "serde",
-]
-
-[[package]]
 name = "serde_path_to_error"
 version = "0.1.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5003,26 +4834,11 @@ dependencies = [
 
 [[package]]
 name = "serde_with"
-version = "2.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07ff71d2c147a7b57362cead5e22f772cd52f6ab31cfcd9edcd7f6aeb2a0afbe"
-dependencies = [
- "base64 0.13.1",
- "chrono",
- "hex",
- "serde",
- "serde_json",
- "serde_with_macros 2.3.3",
- "time",
-]
-
-[[package]]
-name = "serde_with"
 version = "3.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6b6f7f2fcb69f747921f79f3926bd1e203fce4fef62c268dd3abfb6d86029aa"
 dependencies = [
- "base64 0.22.1",
+ "base64",
  "chrono",
  "hex",
  "indexmap 1.9.3",
@@ -5030,20 +4846,8 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "serde_with_macros 3.12.0",
+ "serde_with_macros",
  "time",
-]
-
-[[package]]
-name = "serde_with_macros"
-version = "2.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "881b6f881b17d13214e5d494c939ebab463d01264ce1811e9d4ac3a882e7695f"
-dependencies = [
- "darling",
- "proc-macro2",
- "quote",
- "syn 2.0.100",
 ]
 
 [[package]]
@@ -5193,67 +4997,6 @@ name = "stable_deref_trait"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
-
-[[package]]
-name = "starknet-core"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d506e02a4083290d13b427dfe437fd95aa8b56315c455bb2f9cdeca76620d457"
-dependencies = [
- "base64 0.21.7",
- "crypto-bigint",
- "flate2",
- "hex",
- "serde",
- "serde_json",
- "serde_json_pythonic",
- "serde_with 2.3.3",
- "sha3",
- "starknet-crypto",
- "starknet-types-core",
-]
-
-[[package]]
-name = "starknet-crypto"
-version = "0.7.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "039a3bad70806b494c9e6b21c5238a6c8a373d66a26071859deb0ccca6f93634"
-dependencies = [
- "crypto-bigint",
- "hex",
- "hmac",
- "num-bigint",
- "num-integer",
- "num-traits",
- "rfc6979",
- "sha2 0.10.8",
- "starknet-curve",
- "starknet-types-core",
- "zeroize",
-]
-
-[[package]]
-name = "starknet-curve"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bcde6bd74269b8161948190ace6cf069ef20ac6e79cd2ba09b320efa7500b6de"
-dependencies = [
- "starknet-types-core",
-]
-
-[[package]]
-name = "starknet-types-core"
-version = "0.1.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa1b9e01ccb217ab6d475c5cda05dbb22c30029f7bb52b192a010a00d77a3d74"
-dependencies = [
- "lambdaworks-crypto",
- "lambdaworks-math",
- "num-bigint",
- "num-integer",
- "num-traits",
- "serde",
-]
 
 [[package]]
 name = "static_assertions"
@@ -5457,26 +5200,6 @@ checksum = "8b9ef9bad013ada3808854ceac7b46812a6465ba368859a37e2100283d2d719c"
 dependencies = [
  "cfg-if",
  "once_cell",
-]
-
-[[package]]
-name = "tikv-jemalloc-sys"
-version = "0.6.0+5.3.0-1-ge13ca993e8ccb9ba9847cc330696e02839f328f7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd3c60906412afa9c2b5b5a48ca6a5abe5736aec9eb48ad05037a677e52e4e2d"
-dependencies = [
- "cc",
- "libc",
-]
-
-[[package]]
-name = "tikv-jemallocator"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4cec5ff18518d81584f477e9bfdf957f5bb0979b0bac3af4ca30b5b3ae2d2865"
-dependencies = [
- "libc",
- "tikv-jemalloc-sys",
 ]
 
 [[package]]

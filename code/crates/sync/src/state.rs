@@ -1,5 +1,5 @@
 use std::cmp::max;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::ops::RangeInclusive;
 
 use malachitebft_core_types::{Context, Height};
@@ -7,6 +7,17 @@ use malachitebft_peer::PeerId;
 
 use crate::scoring::{ema, PeerScorer, Strategy};
 use crate::{Config, OutboundRequestId, Status};
+
+/// The value stored for each pending request.
+#[derive(Debug, Clone)]
+pub struct PendingRequestEntry<H> {
+    /// The requested height range.
+    pub range: RangeInclusive<H>,
+    /// The peer currently handling this request.
+    pub peer: PeerId,
+    /// Peers already tried and failed for this range, accumulated across retries.
+    pub excluded_peers: BTreeSet<PeerId>,
+}
 
 pub struct State<Ctx>
 where
@@ -30,8 +41,9 @@ where
     /// Invariant: `sync_height > tip_height`
     pub sync_height: Ctx::Height,
 
-    /// The requested range of heights.
-    pub pending_requests: BTreeMap<OutboundRequestId, (RangeInclusive<Ctx::Height>, PeerId)>,
+    /// The requested range of heights, the peer handling the request, and
+    /// the set of peers already tried (and failed) for this range.
+    pub pending_requests: BTreeMap<OutboundRequestId, PendingRequestEntry<Ctx::Height>>,
 
     /// The set of peers we are connected to in order to get values, certificates and votes.
     pub peers: BTreeMap<PeerId, Status<Ctx>>,
@@ -82,8 +94,16 @@ where
         request_id: OutboundRequestId,
         peer_id: PeerId,
         range: RangeInclusive<Ctx::Height>,
+        excluded_peers: BTreeSet<PeerId>,
     ) {
-        self.pending_requests.insert(request_id, (range, peer_id));
+        self.pending_requests.insert(
+            request_id,
+            PendingRequestEntry {
+                range,
+                peer: peer_id,
+                excluded_peers,
+            },
+        );
     }
 
     /// Filter peers to only include those that can provide the given range of values, or at least a prefix of the range.
@@ -94,7 +114,7 @@ where
     pub fn filter_peers_by_range(
         peers: &BTreeMap<PeerId, Status<Ctx>>,
         range: &RangeInclusive<Ctx::Height>,
-        except: Option<PeerId>,
+        except: &BTreeSet<PeerId>,
     ) -> HashMap<PeerId, RangeInclusive<Ctx::Height>> {
         // Peers that can provide the whole range of values.
         let peers_with_whole_range = peers
@@ -103,7 +123,7 @@ where
                 status.history_min_height <= *range.start()
                     && *range.start() <= *range.end()
                     && *range.end() <= status.tip_height
-                    && except.is_none_or(|p| p != **peer)
+                    && !except.contains(peer)
             })
             .map(|(peer, _)| (*peer, range.clone()))
             .collect::<HashMap<_, _>>();
@@ -116,8 +136,7 @@ where
             peers
                 .iter()
                 .filter(|(peer, status)| {
-                    status.history_min_height <= *range.start()
-                        && except.is_none_or(|p| p != **peer)
+                    status.history_min_height <= *range.start() && !except.contains(peer)
                 })
                 .map(|(peer, status)| (*peer, *range.start()..=status.tip_height))
                 .filter(|(_, range)| !range.is_empty())
@@ -125,11 +144,12 @@ where
         }
     }
 
-    /// Select at random a peer that can provide the given range of values, while excluding the given peer if provided.
+    /// Select at random a peer that can provide the given range of values,
+    /// while excluding the given set of peers.
     pub fn random_peer_with_except(
         &mut self,
         range: &RangeInclusive<Ctx::Height>,
-        except: Option<PeerId>,
+        except: &BTreeSet<PeerId>,
     ) -> Option<(PeerId, RangeInclusive<Ctx::Height>)> {
         // Filtered peers together with the range of heights they can provide.
         let peers_range = Self::filter_peers_by_range(&self.peers, range, except);
@@ -149,7 +169,7 @@ where
     where
         Ctx: Context,
     {
-        self.random_peer_with_except(range, None)
+        self.random_peer_with_except(range, &BTreeSet::new())
     }
 
     /// Get the request that contains the given height.
@@ -158,8 +178,8 @@ where
     pub fn get_request_id_by(&self, height: Ctx::Height) -> Option<(OutboundRequestId, PeerId)> {
         self.pending_requests
             .iter()
-            .find(|(_, (range, _))| range.contains(&height))
-            .map(|(request_id, (_, stored_peer_id))| (request_id.clone(), *stored_peer_id))
+            .find(|(_, entry)| entry.range.contains(&height))
+            .map(|(request_id, entry)| (request_id.clone(), entry.peer))
     }
 
     /// Return a new range of heights, trimming from the beginning any height
@@ -175,6 +195,6 @@ where
     /// Remove pending requests that are for heights that have already been validated by consensus.
     pub fn prune_pending_requests(&mut self) {
         self.pending_requests
-            .retain(|_, (range, _)| range.end() > &self.tip_height);
+            .retain(|_, entry| entry.range.end() > &self.tip_height);
     }
 }

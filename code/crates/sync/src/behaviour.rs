@@ -9,6 +9,16 @@ use crate::rpc::Codec;
 use crate::types::{RawRequest, RawResponse, ResponseChannel};
 use crate::Config;
 
+/// Compute the maximum number of concurrent inbound + outbound streams
+/// per connection for the sync request/response protocol.
+///
+/// Budget: up to `parallel_requests` outbound + `parallel_requests` inbound
+/// (remote peer running the same software), doubled as margin for stream
+/// open/close overlap during normal operation.
+fn max_concurrent_streams(config: &Config) -> usize {
+    config.parallel_requests * 2 * 2
+}
+
 #[derive(NetworkBehaviour)]
 #[behaviour(to_swarm = "Event")]
 pub struct Behaviour {
@@ -23,7 +33,9 @@ impl Behaviour {
             StreamProtocol::try_from_owned(sync_protocol)?,
             ProtocolSupport::Full,
         )];
-        let rpc_config = rpc::Config::default().with_request_timeout(config.request_timeout);
+        let rpc_config = rpc::Config::default()
+            .with_request_timeout(config.request_timeout)
+            .with_max_concurrent_streams(max_concurrent_streams(&config));
 
         Ok(Self {
             rpc: rpc::Behaviour::with_codec(Codec::new(config), protocol, rpc_config),
@@ -57,7 +69,9 @@ impl Behaviour {
             StreamProtocol::new("/malachitebft-sync/v1beta1"),
             ProtocolSupport::Full,
         )];
-        let rpc_config = rpc::Config::default().with_request_timeout(config.request_timeout);
+        let rpc_config = rpc::Config::default()
+            .with_request_timeout(config.request_timeout)
+            .with_max_concurrent_streams(max_concurrent_streams(&config));
 
         Self {
             rpc: rpc::Behaviour::with_codec(Codec::new(config), protocol, rpc_config),
