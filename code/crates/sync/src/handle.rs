@@ -620,7 +620,6 @@ where
     Ok(())
 }
 
-// When receiving an invalid value, re-request the whole batch from another peer.
 async fn on_invalid_value<Ctx>(
     co: Co<Ctx>,
     state: &mut State<Ctx>,
@@ -632,22 +631,7 @@ where
     Ctx: Context,
 {
     error!(%peer_id, %height, "Received invalid value");
-
-    state.peer_scorer.update_score(peer_id, SyncResult::Failure);
-
-    if let Some((request_id, stored_peer_id)) = state.get_request_id_by(height) {
-        if stored_peer_id != peer_id {
-            warn!(
-                %request_id, peer.actual = %peer_id, peer.expected = %stored_peer_id,
-                "Received response from different peer than expected"
-            );
-        }
-        re_request_values_from_peer_except(co, state, metrics, request_id, Some(peer_id)).await?;
-    } else {
-        error!(%peer_id, %height, "Received height of invalid value for unknown request");
-    }
-
-    Ok(())
+    penalize_peer_and_retry(co, state, metrics, peer_id, height).await
 }
 
 async fn on_value_processing_error<Ctx>(
@@ -661,14 +645,34 @@ where
     Ctx: Context,
 {
     error!(%peer_id, %height, "Error while processing value");
+    penalize_peer_and_retry(co, state, metrics, peer_id, height).await
+}
 
-    // NOTE: We do not update the peer score here, as this is an internal error
-    //       and not a failure from the peer's side.
+// Penalize the peer and re-request the batch covering `height` from a different peer.
+async fn penalize_peer_and_retry<Ctx>(
+    co: Co<Ctx>,
+    state: &mut State<Ctx>,
+    metrics: &Metrics,
+    peer_id: PeerId,
+    height: Ctx::Height,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    state.peer_scorer.update_score(peer_id, SyncResult::Failure);
 
-    if let Some((request_id, _)) = state.get_request_id_by(height) {
-        re_request_values_from_peer_except(co, state, metrics, request_id, None).await?;
+    if let Some((request_id, stored_peer_id)) = state.get_request_id_by(height) {
+        if stored_peer_id != peer_id {
+            // Defensive check: `on_value_response` already rejects responses from
+            // a different peer than the one recorded in the pending entry.
+            error!(
+                %request_id, peer.actual = %peer_id, peer.expected = %stored_peer_id,
+                "Received response from different peer than expected"
+            );
+        }
+        re_request_values_from_peer_except(co, state, metrics, request_id, Some(peer_id)).await?;
     } else {
-        error!(%peer_id, %height, "Received height of invalid value for unknown request");
+        error!(%peer_id, %height, "Received height for unknown request");
     }
 
     Ok(())
@@ -2002,6 +2006,77 @@ mod tests {
         // sync_height should reset to the start of the failed range (11),
         // which is above tip_height (10).
         assert_eq!(state.sync_height, Height::new(11));
+    }
+
+    // -- on_value_processing_error: peer fault handling --
+
+    #[test]
+    fn test_value_processing_error_penalizes_peer_and_retries_via_other_peer() {
+        let mut state = make_test_state();
+        state.started = true;
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        state.tip_height = Height::new(10);
+        state.sync_height = Height::new(16);
+
+        let peer_a = PeerId::random();
+        let peer_b = PeerId::random();
+
+        state.peers.insert(
+            peer_a,
+            crate::Status {
+                peer_id: peer_a,
+                tip_height: Height::new(20),
+                history_min_height: Height::new(1),
+            },
+        );
+        state.peers.insert(
+            peer_b,
+            crate::Status {
+                peer_id: peer_b,
+                tip_height: Height::new(20),
+                history_min_height: Height::new(1),
+            },
+        );
+
+        state.pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            PendingRequestEntry {
+                range: Height::new(11)..=Height::new(15),
+                peer: peer_a,
+                excluded_peers: BTreeSet::new(),
+            },
+        );
+
+        let initial_score = state.peer_scorer.get_score(&peer_a);
+
+        let effects = drive_input_with_retries(
+            &mut state,
+            &metrics,
+            Input::ValueProcessingError(peer_a, Height::new(11)),
+        )
+        .unwrap();
+
+        assert!(
+            state.peer_scorer.get_score(&peer_a) < initial_score,
+            "Peer A should be penalized for serving an undecodable value"
+        );
+
+        assert!(
+            effects
+                .iter()
+                .any(|e| matches!(e, Effect::SendValueRequest(..))),
+            "Expected a re-request after ValueProcessingError"
+        );
+
+        assert_eq!(state.pending_requests.len(), 1);
+        let (_, entry) = state.pending_requests.iter().next().unwrap();
+        assert_ne!(entry.peer, peer_a, "Retry should not go back to peer A");
+        assert_eq!(entry.peer, peer_b);
+        assert!(
+            entry.excluded_peers.contains(&peer_a),
+            "Peer A should be in the excluded set"
+        );
     }
 
     // -- on_value_response: certificate height validation --
