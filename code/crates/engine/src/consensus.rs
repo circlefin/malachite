@@ -22,7 +22,7 @@ use malachitebft_core_consensus::{
 };
 use malachitebft_core_types::{
     CommitCertificate, Context, Proposal, Round, Timeout, TimeoutKind, Timeouts, ValidatorProof,
-    ValidatorSet, Validity, Value, ValueId, ValueOrigin, ValueResponse as CoreValueResponse, Vote,
+    ValidatorSet, Value, ValueId, ValueOrigin, ValueResponse as CoreValueResponse, Vote,
 };
 use malachitebft_metrics::Metrics;
 use malachitebft_signing::{Signer, Verifier, VerifierExt};
@@ -1604,16 +1604,25 @@ where
                         reply_to,
                     },
                     move |proposed| {
-                        if proposed.validity == Validity::Invalid
-                            || proposed.value.id() != value.certificate.value_id
-                        {
+                        if proposed.value.id() == value.certificate.value_id {
+                            // Id matches the certificate — forward to consensus.
+                            // A locally-invalid validity is still forwarded so the
+                            // downstream `maybe_sync_decision` path can surface the
+                            // version-skew diagnostic to operators.
+                            let _ = myself.cast(Msg::<Ctx>::ReceivedProposedValue(
+                                proposed,
+                                ValueOrigin::Sync,
+                            ));
+                        } else {
+                            warn!(
+                                peer = %value.peer,
+                                height = %certificate_height,
+                                proposed.value_id = %proposed.value.id(),
+                                certificate.value_id = %value.certificate.value_id,
+                                "Synced value id does not match commit certificate, rejecting"
+                            );
                             sync.send(SyncMsg::InvalidValue(value.peer, certificate_height));
                         }
-
-                        let _ = myself.cast(Msg::<Ctx>::ReceivedProposedValue(
-                            proposed,
-                            ValueOrigin::Sync,
-                        ));
                     },
                     move || {
                         sync_on_none.send(SyncMsg::ValueProcessingError(
