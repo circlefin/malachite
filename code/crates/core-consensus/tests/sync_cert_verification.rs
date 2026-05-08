@@ -74,6 +74,50 @@ fn build_commit_certificate(
     }
 }
 
+/// Handle the effects emitted by the consensus core during these tests:
+/// signature verification, signing, and commit-certificate verification.
+///
+/// All signing/verification is performed using `signers[0]`. If `verify_cert_count` is
+/// `Some`, it is incremented every time a `VerifyCommitCertificate` effect is observed.
+///
+/// Effects not handled here are forwarded to `fallback` so the caller can apply
+/// test-specific logic.
+fn handle_effect_with_default<F>(
+    signers: &[Ed25519Signer],
+    verify_cert_count: Option<&Cell<u32>>,
+    effect: Effect<TestContext>,
+    fallback: F,
+) -> Resume<TestContext>
+where
+    F: FnOnce(Effect<TestContext>) -> Resume<TestContext>,
+{
+    use Effect::*;
+    match effect {
+        VerifySignature(_, _, r) => r.resume_with(true),
+        SignVote(vote, r) => {
+            let signed = block_on(signers[0].sign_vote(vote)).unwrap();
+            r.resume_with(signed)
+        }
+        SignProposal(proposal, r) => {
+            let signed = block_on(signers[0].sign_proposal(proposal)).unwrap();
+            r.resume_with(signed)
+        }
+        VerifyCommitCertificate(cert, validator_set, tp, r) => {
+            if let Some(counter) = verify_cert_count {
+                counter.set(counter.get() + 1);
+            }
+            let result = block_on(signers[0].verify_commit_certificate(
+                &TestContext::new(),
+                &cert,
+                &validator_set,
+                tp,
+            ));
+            r.resume_with(result)
+        }
+        other => fallback(other),
+    }
+}
+
 /// Test that the sync decision path verifies the commit certificate only once,
 /// in sync.rs at the trust boundary. The certificate stored in the driver is
 /// already verified and does not need re-verification in decide.rs.
@@ -100,29 +144,12 @@ fn sync_decision_path_verifies_commit_certificate_once() {
     let verify_count = Cell::new(0u32);
 
     let handle_effect = |effect: Effect<TestContext>| -> Result<Resume<TestContext>, ()> {
-        use Effect::*;
-        Ok(match effect {
-            VerifySignature(_, _, r) => r.resume_with(true),
-            SignVote(vote, r) => {
-                let signed = block_on(signers[0].sign_vote(vote)).unwrap();
-                r.resume_with(signed)
-            }
-            SignProposal(proposal, r) => {
-                let signed = block_on(signers[0].sign_proposal(proposal)).unwrap();
-                r.resume_with(signed)
-            }
-            VerifyCommitCertificate(cert, validator_set, tp, r) => {
-                verify_count.set(verify_count.get() + 1);
-                let result = block_on(signers[0].verify_commit_certificate(
-                    &TestContext::new(),
-                    &cert,
-                    &validator_set,
-                    tp,
-                ));
-                r.resume_with(result)
-            }
-            _ => Resume::Continue,
-        })
+        Ok(handle_effect_with_default(
+            &signers,
+            Some(&verify_count),
+            effect,
+            |_| Resume::Continue,
+        ))
     };
 
     // Step 1: Start height
@@ -177,5 +204,171 @@ fn sync_decision_path_verifies_commit_certificate_once() {
         verify_count.get(),
         1,
         "Certificate should be verified only once on sync decision path"
+    );
+}
+
+/// When a sync `ValueResponse` is processed and the matching `ProposedValue` is already
+/// known locally (e.g., from WAL replay or via the consensus race), `process_commit_certificate`
+/// drives the state machine to a decision. In that case there is no point in forwarding the
+/// raw value bytes to the host via `Effect::ValidSyncValue` as the host has already accepted
+/// the value through the local proposed-value path. This test asserts that `ValidSyncValue`
+/// is not emitted in that case.
+#[test]
+fn sync_value_response_skips_valid_sync_value_when_already_decided() {
+    let entries: Vec<(Validator, _)> = make_validators([25, 25, 25, 25]).into();
+    let validators: Vec<Validator> = entries.iter().map(|(v, _)| v.clone()).collect();
+    let signers: Vec<Ed25519Signer> = entries
+        .into_iter()
+        .map(|(_, pk)| Ed25519Signer::new(pk))
+        .collect();
+
+    let my_addr = validators[0].address;
+    let mut state = make_state(&validators, my_addr);
+    let metrics = Metrics::new();
+    let vs = ValidatorSet::new(validators.clone());
+
+    let height = Height::new(1);
+    let round = Round::new(0);
+    let value = Value::new(42);
+
+    let valid_sync_value_count = Cell::new(0u32);
+    let invalid_sync_value_count = Cell::new(0u32);
+
+    let handle_effect = |effect: Effect<TestContext>| -> Result<Resume<TestContext>, ()> {
+        Ok(handle_effect_with_default(
+            &signers,
+            None,
+            effect,
+            |effect| {
+                use Effect::*;
+                match effect {
+                    ValidSyncValue(_, _, r) => {
+                        valid_sync_value_count.set(valid_sync_value_count.get() + 1);
+                        r.resume_with(())
+                    }
+                    InvalidSyncValue(_, _, _, r) => {
+                        invalid_sync_value_count.set(invalid_sync_value_count.get() + 1);
+                        r.resume_with(())
+                    }
+                    _ => Resume::Continue,
+                }
+            },
+        ))
+    };
+
+    run(process!(
+        input: Input::StartHeight(height, vs, false, None),
+        state: &mut state,
+        metrics: &metrics,
+        with: effect => handle_effect(effect)
+    ));
+
+    // Step 1: Provide the proposed value first (simulates WAL-replayed/locally-stored value)
+    run(process!(
+        input: Input::ProposedValue(
+            ProposedValue {
+                height,
+                round,
+                valid_round: Round::Nil,
+                proposer: my_addr,
+                value: value.clone(),
+                validity: Validity::Valid,
+            },
+            ValueOrigin::Consensus,
+        ),
+        state: &mut state,
+        metrics: &metrics,
+        with: effect => handle_effect(effect)
+    ));
+
+    // Step 2: The sync value response arrives with the matching certificate.
+    // Since the value is already stored, `process_commit_certificate` should drive
+    // the state machine straight to a decision, and `ValidSyncValue` must be skipped.
+    let certificate = build_commit_certificate(&validators, &signers, height, round, &value);
+    let value_response =
+        ValueResponse::new(PeerId::random(), Bytes::from("value-bytes"), certificate);
+
+    run(process!(
+        input: Input::SyncValueResponse(value_response),
+        state: &mut state,
+        metrics: &metrics,
+        with: effect => handle_effect(effect)
+    ));
+
+    assert_eq!(
+        valid_sync_value_count.get(),
+        0,
+        "ValidSyncValue must not be emitted when the certificate processing already decided"
+    );
+    assert_eq!(
+        invalid_sync_value_count.get(),
+        0,
+        "InvalidSyncValue must not be emitted on a successful sync decision"
+    );
+}
+
+/// Sanity-check the inverse: when no matching `ProposedValue` is stored locally,
+/// `process_commit_certificate` cannot reach a decision on its own and `ValidSyncValue`
+/// must still be emitted so the host can decode the value bytes.
+#[test]
+fn sync_value_response_emits_valid_sync_value_when_not_decided() {
+    let entries: Vec<(Validator, _)> = make_validators([25, 25, 25, 25]).into();
+    let validators: Vec<Validator> = entries.iter().map(|(v, _)| v.clone()).collect();
+    let signers: Vec<Ed25519Signer> = entries
+        .into_iter()
+        .map(|(_, pk)| Ed25519Signer::new(pk))
+        .collect();
+
+    let my_addr = validators[0].address;
+    let mut state = make_state(&validators, my_addr);
+    let metrics = Metrics::new();
+    let vs = ValidatorSet::new(validators.clone());
+
+    let height = Height::new(1);
+    let round = Round::new(0);
+    let value = Value::new(42);
+
+    let valid_sync_value_count = Cell::new(0u32);
+
+    let handle_effect = |effect: Effect<TestContext>| -> Result<Resume<TestContext>, ()> {
+        Ok(handle_effect_with_default(
+            &signers,
+            None,
+            effect,
+            |effect| {
+                use Effect::*;
+                match effect {
+                    ValidSyncValue(_, _, r) => {
+                        valid_sync_value_count.set(valid_sync_value_count.get() + 1);
+                        r.resume_with(())
+                    }
+                    _ => Resume::Continue,
+                }
+            },
+        ))
+    };
+
+    run(process!(
+        input: Input::StartHeight(height, vs, false, None),
+        state: &mut state,
+        metrics: &metrics,
+        with: effect => handle_effect(effect)
+    ));
+
+    let certificate = build_commit_certificate(&validators, &signers, height, round, &value);
+    let value_response =
+        ValueResponse::new(PeerId::random(), Bytes::from("value-bytes"), certificate);
+
+    run(process!(
+        input: Input::SyncValueResponse(value_response),
+        state: &mut state,
+        metrics: &metrics,
+        with: effect => handle_effect(effect)
+    ));
+
+    assert_eq!(
+        valid_sync_value_count.get(),
+        1,
+        "ValidSyncValue must be emitted when no decision was reached during certificate processing"
     );
 }

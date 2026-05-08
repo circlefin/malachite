@@ -104,15 +104,35 @@ where
 
     let peer = value.peer;
 
-    let effect = process_commit_certificate(co, state, metrics, value.certificate.clone())
-        .await
-        .map(|_| Effect::ValidSyncValue(value, proposer, Default::default()))
-        .unwrap_or_else(|e| {
+    match process_commit_certificate(co, state, metrics, value.certificate.clone()).await {
+        Ok(()) => {
+            // If consensus has decided after certificate processing, then a matching
+            // `ProposedValue` must be stored locally (from WAL replay or from a race
+            // with consensus path). This can only happen if the host had previously
+            // accepted and stored a valid value matching the certificate.
+            // Forwarding the value bytes to the host would be redundant work and the
+            // new `ProposedValue` from the host response would be dropped later.
+            // We skip penalizing the peer if the value_id didn't match the certificate.
+            if state.driver.step_is_commit() {
+                debug!(
+                    certificate.height = %cert_height,
+                    "Decided using existing proposed value and certificate from sync; skip forwarding of value bytes to the application"
+                );
+            } else {
+                perform!(
+                    co,
+                    Effect::ValidSyncValue(value, proposer, Default::default())
+                );
+            }
+        }
+        Err(e) => {
             error!("Error when processing commit certificate: {e}");
-            Effect::InvalidSyncValue(peer, cert_height, e, Default::default())
-        });
-
-    perform!(co, effect);
+            perform!(
+                co,
+                Effect::InvalidSyncValue(peer, cert_height, e, Default::default())
+            );
+        }
+    }
 
     Ok(())
 }
