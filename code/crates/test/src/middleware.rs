@@ -11,9 +11,9 @@ pub trait Middleware: fmt::Debug + Send + Sync {
         _ctx: &TestContext,
         _current_height: Height,
         _height: Height,
-        genesis: &Genesis,
+        _genesis: &Genesis,
     ) -> Option<ValidatorSet> {
-        Some(genesis.validator_set.clone())
+        None
     }
 
     fn get_timeouts(
