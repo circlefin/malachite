@@ -25,7 +25,6 @@ pub(crate) struct PeerInfoLabels {
     slot: String,
     peer_moniker: String,
     peer_id: String,
-    address: String,
     peer_type: PeerType,
     consensus_address: String, // Consensus address for validators, "none" for non-validators
 }
@@ -52,7 +51,6 @@ impl PeerInfo {
             slot: slot.to_string(),
             peer_moniker: self.moniker.clone(),
             peer_id: peer_id.to_string(),
-            address: self.address.to_string(),
             peer_type: self.peer_type,
             // Show verified consensus_address if known, "none" if never verified
             consensus_address: self
@@ -66,7 +64,6 @@ impl PeerInfo {
     /// Used to determine if metrics need to be updated (stale marking).
     pub(crate) fn labels_match(&self, other: &PeerInfo) -> bool {
         self.moniker == other.moniker
-            && self.address == other.address
             && self.peer_type == other.peer_type
             && self.consensus_address == other.consensus_address
     }
@@ -88,9 +85,12 @@ pub(crate) struct Metrics {
     local_node_info: Family<LocalNodeLabels, Gauge>,
     /// Discovered peers with basic info (gauge value = peer score)
     discovered_peers: Family<PeerInfoLabels, Gauge>,
-    /// Per-peer, per-topic mesh membership (1 = in mesh, 0 = not in mesh)
+    /// Per-peer, per-topic mesh membership.
+    /// Entry present with value 1 = in mesh; entry absent = not in mesh.
     peer_mesh_membership: Family<MeshMembershipLabels, Gauge>,
-    /// Explicit peers in gossipsub (1 = active, i64::MIN = disconnected/stale)
+    /// Explicit peers in gossipsub.
+    /// Entry present with value 1 = currently configured as an explicit peer;
+    /// entry absent = not explicit / disconnected.
     explicit_peers: Family<ExplicitPeerLabels, Gauge>,
     /// PeerId to slot number mapping
     peer_slots: Slots<PeerId>,
@@ -126,13 +126,13 @@ impl Metrics {
 
         registry.register(
             "peer_mesh_membership",
-            "Per-peer, per-topic gossipsub mesh membership (1 = in mesh, 0 = not in mesh)",
+            "Per-peer, per-topic gossipsub mesh membership (entry present with value 1 = in mesh; entry absent = not in mesh)",
             mesh_membership.clone(),
         );
 
         registry.register(
             "explicit_peers",
-            "Peers added as explicit peers in gossipsub (1 = active, i64::MIN = disconnected)",
+            "Peers added as explicit peers in gossipsub (entry present with value 1 = active; entry absent = not explicit / disconnected)",
             explicit_peers.clone(),
         );
 
@@ -182,17 +182,17 @@ impl Metrics {
             // Update mesh membership metrics for topics that changed
             let old_topics = &peer_info.topics;
 
-            // Topics that were removed: set to 0
+            // Topics that were removed
             for topic in old_topics.difference(new_topics) {
                 let mesh_labels = MeshMembershipLabels {
                     peer_id: peer_id.to_string(),
                     peer_moniker: peer_info.moniker.clone(),
                     topic: topic.clone(),
                 };
-                self.peer_mesh_membership.get_or_create(&mesh_labels).set(0);
+                self.peer_mesh_membership.remove(&mesh_labels);
             }
 
-            // Topics that were added: set to 1
+            // Topics that were added
             for topic in new_topics.difference(old_topics) {
                 let mesh_labels = MeshMembershipLabels {
                     peer_id: peer_id.to_string(),
@@ -217,19 +217,18 @@ impl Metrics {
     pub(crate) fn free_slot(&mut self, peer_id: &PeerId, peer_info: &PeerInfo) {
         // Return slot to available pool
         if let Some(slot) = self.peer_slots.release(peer_id) {
-            // Set discovered_peers to i64::MIN to signal disconnection
-            // This allows distinguishing stale entries from active peers in metrics
+            // Remove the peer's entry from the discovered_peers family entirely.
             let labels = peer_info.to_labels(peer_id, slot);
-            self.discovered_peers.get_or_create(&labels).set(i64::MIN);
+            self.discovered_peers.remove(&labels);
 
-            // Clear mesh membership metrics - peer is no longer in any mesh
+            // Clear mesh membership metrics
             for topic in &peer_info.topics {
                 let mesh_labels = MeshMembershipLabels {
                     peer_id: peer_id.to_string(),
                     peer_moniker: peer_info.moniker.clone(),
                     topic: topic.clone(),
                 };
-                self.peer_mesh_membership.get_or_create(&mesh_labels).set(0);
+                self.peer_mesh_membership.remove(&mesh_labels);
             }
 
             debug!("Freed slot {slot} for peer {peer_id}");
@@ -245,13 +244,13 @@ impl Metrics {
         self.explicit_peers.get_or_create(&labels).set(1);
     }
 
-    /// Mark an explicit peer as stale (disconnected)
+    /// Remove an explicit peer entry (peer is disconnected or no longer explicit).
     pub(crate) fn mark_explicit_peer_stale(&self, peer_id: &PeerId, moniker: &str) {
         let labels = ExplicitPeerLabels {
             peer_id: peer_id.to_string(),
             peer_moniker: moniker.to_string(),
         };
-        self.explicit_peers.get_or_create(&labels).set(i64::MIN);
+        self.explicit_peers.remove(&labels);
     }
 
     /// Record metrics for a new peer (assigns slot if needed).
@@ -275,8 +274,9 @@ impl Metrics {
     /// Update metrics for an existing peer when labels may have changed.
     ///
     /// Compares old and new peer info:
-    /// - If labels changed: marks old entry stale, creates new entry
-    /// - If labels unchanged: just updates the score
+    /// - If labels changed: removes the old entry from the metric family and
+    ///   creates a new entry under the updated labels.
+    /// - If labels unchanged: just updates the score.
     ///
     /// Returns true if labels changed.
     pub(crate) fn update_peer_labels(
@@ -292,12 +292,11 @@ impl Metrics {
         let labels_changed = !old_peer_info.labels_match(new_peer_info);
 
         if labels_changed {
-            // Mark old entry as stale
+            // Remove the old entry so it does not leak as a permanent stale
+            // time series.
             let old_labels = old_peer_info.to_labels(peer_id, slot);
-            tracing::debug!(%peer_id, ?old_labels, "Marking peer metric stale");
-            self.discovered_peers
-                .get_or_create(&old_labels)
-                .set(i64::MIN);
+            tracing::debug!(%peer_id, ?old_labels, "Removing stale peer metric entry");
+            self.discovered_peers.remove(&old_labels);
         }
 
         // Create/update metric entry with current labels
@@ -307,5 +306,216 @@ impl Metrics {
             .set(new_peer_info.score as i64);
 
         labels_changed
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::peer_scoring::FULL_NODE_SCORE;
+    use crate::state::PeerInfo;
+    use libp2p::Multiaddr;
+    use malachitebft_metrics::prometheus::encoding::text::encode;
+    use malachitebft_metrics::Registry;
+    use std::collections::HashSet;
+
+    /// Build a `PeerInfo` for testing. The `address` is included to exercise
+    /// the historical bug path: in the broken implementation, a new address on
+    /// the same peer produced a new time series because the address was part
+    /// of the label set.
+    fn peer_info(moniker: &str, address: &str) -> PeerInfo {
+        PeerInfo {
+            moniker: moniker.to_string(),
+            address: address.parse::<Multiaddr>().unwrap(),
+            consensus_address: None,
+            consensus_public_key: None,
+            peer_type: PeerType::new(false, false),
+            connection_direction: None,
+            score: FULL_NODE_SCORE,
+            topics: HashSet::new(),
+            is_explicit: false,
+        }
+    }
+
+    /// Count time series for a metric name in the encoded Prometheus output.
+    /// Every `<metric_name>{...}` line is a unique series.
+    fn metric_series_count(registry: &Registry, metric_name: &str) -> usize {
+        let mut buf = String::new();
+        encode(&mut buf, registry).unwrap();
+        let prefix = format!("{metric_name}{{");
+        buf.lines().filter(|line| line.starts_with(&prefix)).count()
+    }
+
+    fn discovered_peers_series_count(registry: &Registry) -> usize {
+        metric_series_count(registry, "discovered_peers")
+    }
+
+    /// Repeatedly connect and disconnect the same peer using a fresh ephemeral
+    /// port each time.
+    #[test]
+    fn discovered_peers_bounded_under_ephemeral_port_churn() {
+        let mut registry = Registry::default();
+        let mut metrics = Metrics::new(&mut registry);
+        let peer_id = libp2p::PeerId::random();
+
+        // 500 churns is more than enough to expose unbounded growth — the
+        // production bug saw hundreds of thousands of series per peer.
+        for port in 0..500u16 {
+            let addr = format!("/ip4/10.0.0.1/tcp/{port}");
+            let info = peer_info("peer-a", &addr);
+            metrics.record_new_peer(&peer_id, &info);
+            metrics.free_slot(&peer_id, &info);
+        }
+
+        // After all peers have disconnected, no series should remain.
+        assert_eq!(
+            discovered_peers_series_count(&registry),
+            0,
+            "disconnect must prune the discovered_peers entry"
+        );
+    }
+
+    /// While connected, the same peer must produce at most one series even
+    /// across many reconnections from different ephemeral addresses.
+    #[test]
+    fn discovered_peers_single_series_per_connected_peer() {
+        let mut registry = Registry::default();
+        let mut metrics = Metrics::new(&mut registry);
+        let peer_id = libp2p::PeerId::random();
+
+        for port in 0..100u16 {
+            let addr = format!("/ip4/10.0.0.1/tcp/{port}");
+            let info = peer_info("peer-a", &addr);
+            // Simulate a label-change update with a fresh address on each
+            // iteration; the previous PeerInfo address is irrelevant for
+            // labels and should not leak.
+            let previous = peer_info(
+                "peer-a",
+                &format!("/ip4/10.0.0.1/tcp/{}", port.wrapping_sub(1)),
+            );
+            metrics.record_new_peer(&peer_id, &info);
+            metrics.update_peer_labels(&peer_id, &previous, &info);
+        }
+
+        let count = discovered_peers_series_count(&registry);
+        assert_eq!(
+            count, 1,
+            "same peer reconnecting from different ephemeral ports must yield one series, got {count}"
+        );
+    }
+
+    /// 100 distinct peers connect, then all disconnect. Cardinality should
+    /// peak at the connected count and return to zero.
+    #[test]
+    fn discovered_peers_cardinality_tracks_connected_peers() {
+        let mut registry = Registry::default();
+        let mut metrics = Metrics::new(&mut registry);
+
+        let peers: Vec<_> = (0..100u16)
+            .map(|i| {
+                let id = libp2p::PeerId::random();
+                let info = peer_info(&format!("peer-{i}"), &format!("/ip4/10.0.0.{i}/tcp/26656"));
+                (id, info)
+            })
+            .collect();
+
+        for (id, info) in &peers {
+            metrics.record_new_peer(id, info);
+        }
+        assert_eq!(
+            discovered_peers_series_count(&registry),
+            peers.len(),
+            "one series per connected peer while connected"
+        );
+
+        for (id, info) in &peers {
+            metrics.free_slot(id, info);
+        }
+        assert_eq!(
+            discovered_peers_series_count(&registry),
+            0,
+            "all series must be pruned once every peer disconnects"
+        );
+    }
+
+    #[test]
+    fn peer_mesh_membership_pruned_on_leave() {
+        let mut registry = Registry::default();
+        let mut metrics = Metrics::new(&mut registry);
+        let peer_id = libp2p::PeerId::random();
+
+        let mut info = peer_info("peer-a", "/ip4/10.0.0.1/tcp/26656");
+        metrics.record_new_peer(&peer_id, &info);
+
+        let consensus: HashSet<String> = ["/consensus".to_string()].into_iter().collect();
+        let none: HashSet<String> = HashSet::new();
+
+        for _ in 0..200 {
+            // Join /consensus
+            metrics
+                .update_peer_metrics(&peer_id, &info, info.score, Some(consensus.clone()))
+                .unwrap();
+            info.topics = consensus.clone();
+
+            // Leave /consensus — entry must be removed, not zeroed
+            metrics
+                .update_peer_metrics(&peer_id, &info, info.score, Some(none.clone()))
+                .unwrap();
+            info.topics = none.clone();
+        }
+
+        assert_eq!(
+            metric_series_count(&registry, "peer_mesh_membership"),
+            0,
+            "leaving a topic mesh must prune the peer_mesh_membership entry"
+        );
+    }
+
+    #[test]
+    fn peer_mesh_membership_pruned_on_disconnect() {
+        let mut registry = Registry::default();
+        let mut metrics = Metrics::new(&mut registry);
+        let peer_id = libp2p::PeerId::random();
+
+        let topics: HashSet<String> = ["/consensus", "/liveness", "/proposal_parts"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+
+        let mut info = peer_info("peer-a", "/ip4/10.0.0.1/tcp/26656");
+        metrics.record_new_peer(&peer_id, &info);
+        metrics
+            .update_peer_metrics(&peer_id, &info, info.score, Some(topics.clone()))
+            .unwrap();
+        info.topics = topics;
+
+        assert_eq!(metric_series_count(&registry, "peer_mesh_membership"), 3);
+
+        metrics.free_slot(&peer_id, &info);
+
+        assert_eq!(
+            metric_series_count(&registry, "peer_mesh_membership"),
+            0,
+            "disconnect must prune all mesh-membership entries for the peer"
+        );
+    }
+
+    #[test]
+    fn explicit_peers_pruned_on_stale() {
+        let mut registry = Registry::default();
+        let metrics = Metrics::new(&mut registry);
+
+        for i in 0..200 {
+            let peer_id = libp2p::PeerId::random();
+            let moniker = format!("peer-{i}");
+            metrics.record_explicit_peer(&peer_id, &moniker);
+            metrics.mark_explicit_peer_stale(&peer_id, &moniker);
+        }
+
+        assert_eq!(
+            metric_series_count(&registry, "explicit_peers"),
+            0,
+            "marking an explicit peer stale must prune the entry"
+        );
     }
 }

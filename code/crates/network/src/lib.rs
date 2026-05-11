@@ -1137,32 +1137,34 @@ async fn handle_sync_event(
                 } => {
                     state.sync_channels.insert(request_id, channel);
 
-                    let _ = tx_event
+                    if let Err(e) = tx_event
                         .send(Event::Sync(sync::RawMessage::Request {
                             request_id,
                             peer: PeerId::from_libp2p(&peer),
                             body: request.0,
                         }))
                         .await
-                        .map_err(|e| {
-                            error!("Error sending Sync request to handle: {e}");
-                        });
+                    {
+                        error!("Error sending Sync request to handle: {e}");
+                        return ControlFlow::Break(());
+                    }
                 }
 
                 libp2p::request_response::Message::Response {
                     request_id,
                     response,
                 } => {
-                    let _ = tx_event
+                    if let Err(e) = tx_event
                         .send(Event::Sync(sync::RawMessage::Response {
                             request_id,
                             peer: PeerId::from_libp2p(&peer),
                             body: response.0,
                         }))
                         .await
-                        .map_err(|e| {
-                            error!("Error sending Sync response to handle: {e}");
-                        });
+                    {
+                        error!("Error sending Sync response to handle: {e}");
+                        return ControlFlow::Break(());
+                    }
                 }
             }
 
@@ -1193,15 +1195,16 @@ async fn handle_validator_proof_event(
     match event {
         validator_proof::Event::ProofReceived { peer, proof_bytes } => {
             // Forward to engine for verification
-            let _ = tx_event
+            if let Err(e) = tx_event
                 .send(Event::ValidatorProofReceived {
                     peer_id: PeerId::from_libp2p(&peer),
                     proof_bytes,
                 })
                 .await
-                .map_err(|e| {
-                    error!("Error sending ValidatorProofReceived to handle: {e}");
-                });
+            {
+                error!("Error sending ValidatorProofReceived to handle: {e}");
+                return ControlFlow::Break(());
+            }
 
             ControlFlow::Continue(())
         }
@@ -1236,5 +1239,50 @@ impl PeerIdExt for PeerId {
 
     fn from_libp2p(peer_id: &libp2p::PeerId) -> Self {
         Self::from_bytes(&peer_id.to_bytes()).expect("valid PeerId")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn handle_validator_proof_event_breaks_when_event_receiver_dropped() {
+        let (tx_event, rx_event) = mpsc::channel::<Event>(1);
+        drop(rx_event);
+
+        let event = validator_proof::Event::ProofReceived {
+            peer: libp2p::PeerId::random(),
+            proof_bytes: Bytes::new(),
+        };
+
+        let result = handle_validator_proof_event(event, &tx_event).await;
+        assert!(matches!(result, ControlFlow::Break(())));
+    }
+
+    #[tokio::test]
+    async fn handle_validator_proof_event_forwards_proof_and_continues() {
+        let (tx_event, mut rx_event) = mpsc::channel::<Event>(1);
+
+        let peer = libp2p::PeerId::random();
+        let event = validator_proof::Event::ProofReceived {
+            peer,
+            proof_bytes: Bytes::from_static(b"proof"),
+        };
+
+        let result = handle_validator_proof_event(event, &tx_event).await;
+        assert!(matches!(result, ControlFlow::Continue(())));
+
+        let forwarded = rx_event.recv().await.expect("event forwarded to engine");
+        match forwarded {
+            Event::ValidatorProofReceived {
+                peer_id,
+                proof_bytes,
+            } => {
+                assert_eq!(peer_id, PeerId::from_libp2p(&peer));
+                assert_eq!(proof_bytes.as_ref(), b"proof");
+            }
+            other => panic!("unexpected event: {other:?}"),
+        }
     }
 }
