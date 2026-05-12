@@ -520,6 +520,11 @@ where
 {
     debug!(%request_id, %peer_id, "Received invalid response");
 
+    if !state.pending_requests.contains_key(&request_id) {
+        warn!(%request_id, %peer_id, "Received invalid response for unknown request ID");
+        return Ok(());
+    }
+
     state.peer_scorer.update_score(peer_id, SyncResult::Failure);
 
     // We do not trust the response, so we remove the pending request and re-request
@@ -2353,6 +2358,36 @@ mod tests {
         assert!(
             !has_process_value_response(&effects),
             "An empty response is indistinguishable from a denial and must be rejected"
+        );
+    }
+
+    #[test]
+    fn test_invalid_value_response_ignores_unknown_request_id() {
+        let mut state = make_test_state();
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+        let peer = PeerId::random();
+        let request_id = OutboundRequestId::new("stale");
+        let initial_score = state.peer_scorer.get_score(&peer);
+
+        let effects = drive_input(
+            &mut state,
+            &metrics,
+            Input::ValueResponse(request_id, peer, None),
+        )
+        .unwrap();
+
+        assert!(
+            effects.is_empty(),
+            "Stale invalid responses should not trigger effects"
+        );
+        assert_eq!(
+            state.peer_scorer.get_score(&peer),
+            initial_score,
+            "Stale invalid responses should not penalize the peer"
+        );
+        assert!(
+            state.pending_requests.is_empty(),
+            "Stale invalid responses should not create pending requests"
         );
     }
 
