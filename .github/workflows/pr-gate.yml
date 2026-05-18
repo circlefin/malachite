@@ -41,8 +41,9 @@ jobs:
               });
 
               const content = Buffer.from(response.data.content, 'base64').toString('utf-8');
-              // Extract usernames from CODEOWNERS (matches @username patterns)
-              const codeowners = content.match(/@[\w-]+/g) || [];
+              // Match individual @username handles only; skip team handles (@org/team)
+              // via negative lookahead so they don't get truncated to just @org.
+              const codeowners = content.match(/@[\w-]+(?!\/)\b/g) || [];
               const codeownerUsernames = codeowners.map(c => c.substring(1).toLowerCase());
 
               core.setOutput('codeowner_list', JSON.stringify(codeownerUsernames));
