@@ -4,6 +4,11 @@ on:
   pull_request_target:
     types: [opened, reopened]
 
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
 jobs:
   check-eligibility:
     name: Check eligibility
