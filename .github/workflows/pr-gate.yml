@@ -14,221 +14,42 @@ jobs:
     name: Check eligibility
     runs-on: github-hosted-small
     steps:
+      # actions/checkout defaults to the base ref under pull_request_target,
+      # so PR head code is never executed. We only need the base checkout to
+      # load the scripts below; trust-input files (DENOUNCED, VOUCHED, etc.)
+      # are still fetched via the REST API against base.ref for defense in
+      # depth.
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          sparse-checkout: |
+            .github/scripts/pr-gate
+          sparse-checkout-cone-mode: false
+
       - name: Evaluate eligibility
         id: evaluate
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           script: |
-            const prAuthor = context.payload.pull_request.user.login;
-            const prAuthorLower = prAuthor.toLowerCase();
-            const prBody = context.payload.pull_request.body || '';
-            const { owner, repo } = context.repo;
-            const baseRef = context.payload.pull_request.base.ref;
-
-            async function readBaseFile(path) {
-              try {
-                const response = await github.rest.repos.getContent({ owner, repo, path, ref: baseRef });
-                return Buffer.from(response.data.content, 'base64').toString('utf-8');
-              } catch (error) {
-                console.log(`Could not read ${path} from ${baseRef}: ${error.message}`);
-                return null;
-              }
-            }
-
-            // Parse a one-username-per-line list with `#` comments and optional
-            // `: reason` suffix. Returns Map<usernameLower, reasonString>.
-            function parseList(content) {
-              const map = new Map();
-              if (!content) return map;
-              for (const rawLine of content.split('\n')) {
-                const line = rawLine.trim();
-                if (!line || line.startsWith('#')) continue;
-                const colonIdx = line.indexOf(':');
-                const name = (colonIdx === -1 ? line : line.slice(0, colonIdx)).trim().toLowerCase();
-                const reason = colonIdx === -1 ? '' : line.slice(colonIdx + 1).trim();
-                if (name) map.set(name, reason);
-              }
-              return map;
-            }
-
-            function decide(status, reason, extras = {}) {
-              console.log(`Decision: ${status} (${reason})`);
-              core.setOutput('status', status);
-              core.setOutput('reason', reason);
-              for (const [k, v] of Object.entries(extras)) {
-                core.setOutput(k, v);
-              }
-            }
-
-            // 1. Denounce list overrides everything else.
-            const denounced = parseList(await readBaseFile('.github/DENOUNCED'));
-            if (denounced.has(prAuthorLower)) {
-              return decide('close', 'denounced', { denounce_reason: denounced.get(prAuthorLower) });
-            }
-
-            // 2. Allowed bots.
-            if (prAuthor === 'dependabot[bot]' || prAuthor === 'stepsecurity-app[bot]') {
-              return decide('allow', 'bot');
-            }
-
-            // 3. Codeowner — parse CODEOWNERS but skip @org/team handles
-            //    (negative lookahead) so they aren't truncated to just @org.
-            const codeownersFile = (await readBaseFile('.github/CODEOWNERS')) || '';
-            const codeowners = (codeownersFile.match(/@[\w-]+(?!\/)\b/g) || [])
-              .map(c => c.substring(1).toLowerCase());
-            if (codeowners.includes(prAuthorLower)) {
-              return decide('allow', 'codeowner');
-            }
-
-            // 4. Repo collaborator (any access level: read/triage/write/admin).
-            try {
-              await github.rest.repos.checkCollaborator({ owner, repo, username: prAuthor });
-              return decide('allow', 'collaborator');
-            } catch (error) {
-              console.log(`${prAuthor} is not a collaborator: ${error.status}`);
-            }
-
-            // 5. Org member.
-            const org = 'circlefin';
-            try {
-              await github.rest.orgs.checkMembershipForUser({ org, username: prAuthor });
-              return decide('allow', 'org_member');
-            } catch (error) {
-              console.log(`${prAuthor} is not a member of ${org}: ${error.status}`);
-            }
-
-            // 6. Vouched list.
-            const vouched = parseList(await readBaseFile('.github/VOUCHED'));
-            if (vouched.has(prAuthorLower)) {
-              return decide('allow', 'vouched');
-            }
-
-            // 7. Issue reference + assignment.
-            const issuePrefixes = ['closes', 'fixes', 'fix', 'close', 'resolve', 'resolves'];
-            const issueRefRegex = new RegExp(`(?:${issuePrefixes.join('|')}):?\\s*#(\\d+)`, 'i');
-            const issueMatch = prBody.match(issueRefRegex);
-            if (!issueMatch) {
-              return decide('close', 'no_issue_reference');
-            }
-            const issueNumber = parseInt(issueMatch[1], 10);
-
-            let issue;
-            try {
-              issue = await github.rest.issues.get({ owner, repo, issue_number: issueNumber });
-            } catch (error) {
-              console.log(`Could not fetch issue #${issueNumber}: ${error.message}`);
-              return decide('close', 'issue_not_found', { issue_number: String(issueNumber) });
-            }
-
-            const assignees = issue.data.assignees.map(a => a.login.toLowerCase());
-            if (assignees.includes(prAuthorLower)) {
-              return decide('allow', 'assigned', { issue_number: String(issueNumber) });
-            }
-
-            // 8. /assign @user from any codeowner — union across all codeowner
-            //    comments and across all /assign occurrences within each
-            //    comment, so A's /assign @alice doesn't invalidate B's earlier
-            //    /assign @bob and `/assign @alice @bob` names both.
-            if (codeowners.length > 0) {
-              try {
-                const comments = await github.paginate(github.rest.issues.listComments, {
-                  owner, repo, issue_number: issueNumber, per_page: 100,
-                });
-                const assignPattern = /\/assign((?:\s+@[\w-]+)+)/gi;
-                const userPattern = /@([\w-]+)/g;
-                const taggedSet = new Set();
-                for (const comment of comments) {
-                  if (!codeowners.includes(comment.user.login.toLowerCase())) continue;
-                  for (const assignMatch of comment.body.matchAll(assignPattern)) {
-                    for (const userMatch of assignMatch[1].matchAll(userPattern)) {
-                      taggedSet.add(userMatch[1].toLowerCase());
-                      console.log(`/assign @${userMatch[1]} from codeowner @${comment.user.login} (${comment.html_url})`);
-                    }
-                  }
-                }
-                if (taggedSet.has(prAuthorLower)) {
-                  return decide('allow', 'tagged_by_codeowner', { issue_number: String(issueNumber) });
-                }
-                console.log(`No /assign @${prAuthor} from any codeowner. Tagged set: ${[...taggedSet].join(', ') || '(none)'}`);
-              } catch (error) {
-                console.log(`Error fetching comments for issue #${issueNumber}: ${error.message}`);
-              }
-            }
-
-            return decide('close', 'not_assigned_to_issue', { issue_number: String(issueNumber) });
+            const { evaluate } = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/pr-gate/evaluate.js`);
+            await evaluate({ github, context, core });
 
       - name: Close ineligible PR
         if: steps.evaluate.outputs.status == 'close'
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         env:
           DENOUNCE_REASON: ${{ steps.evaluate.outputs.denounce_reason }}
+          REJECTION_REASON: ${{ steps.evaluate.outputs.reason }}
+          ISSUE_NUMBER: ${{ steps.evaluate.outputs.issue_number }}
         with:
           script: |
-            const reason = '${{ steps.evaluate.outputs.reason }}';
-            const issueNumber = '${{ steps.evaluate.outputs.issue_number }}';
-            const prAuthor = context.payload.pull_request.user.login;
-            const denounceReason = process.env.DENOUNCE_REASON || '';
-
-            const knownTemplates = new Set([
-              'denounced',
-              'no_issue_reference',
-              'not_assigned_to_issue',
-              'issue_not_found',
-            ]);
-            const templateName = knownTemplates.has(reason) ? reason : 'default';
-
-            // Load the rejection message from the base ref — pull_request_target
-            // pins this to trusted content so a malicious PR can't substitute
-            // its own message.
-            let template;
-            try {
-              const response = await github.rest.repos.getContent({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                path: `.github/pr-gate-messages/${templateName}.md`,
-                ref: context.payload.pull_request.base.ref,
-              });
-              template = Buffer.from(response.data.content, 'base64').toString('utf-8');
-            } catch (error) {
-              console.log(`Could not load template ${templateName}.md: ${error.message}`);
-              template = `Hi @{{prAuthor}}, this PR was closed because it does not meet our contribution requirements. See CONTRIBUTING.md.`;
-            }
-
-            const vars = {
-              prAuthor,
-              issueNumber,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              reasonBlock: denounceReason ? ` Reason: ${denounceReason}.` : '',
-            };
-            const message = Object.entries(vars).reduce(
-              (acc, [k, v]) => acc.replaceAll(`{{${k}}}`, v),
-              template,
-            );
-
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              body: message,
+            const { close } = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/pr-gate/close.js`);
+            await close({
+              github,
+              context,
+              core,
+              inputs: {
+                reason: process.env.REJECTION_REASON || '',
+                issueNumber: process.env.ISSUE_NUMBER || '',
+                denounceReason: process.env.DENOUNCE_REASON || '',
+              },
             });
-
-            try {
-              await github.rest.issues.addLabels({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.payload.pull_request.number,
-                labels: ['need-triage'],
-              });
-            } catch (error) {
-              console.log('Could not add label (may not exist):', error.message);
-            }
-
-            await github.rest.pulls.update({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.payload.pull_request.number,
-              state: 'closed',
-            });
-
-            console.log('PR closed successfully');
