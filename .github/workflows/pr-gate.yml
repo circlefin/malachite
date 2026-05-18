@@ -225,56 +225,41 @@ jobs:
             const issueNumber = '${{ steps.check-assignment.outputs.issue_number }}';
             const prAuthor = context.payload.pull_request.user.login;
 
-            let message = '';
+            const knownReasons = new Set([
+              'no_issue_reference',
+              'not_assigned_to_issue',
+              'issue_not_found',
+            ]);
+            const templateName = knownReasons.has(reason) ? reason : 'default';
 
-            if (reason === 'no_issue_reference') {
-              message = `Hi @${prAuthor},
-
-            Thank you for your interest in contributing to Malachite.
-
-            This PR has been automatically closed because it does not reference a GitHub issue. All PRs must reference an existing issue using the format \`Closes: #XXX\`.
-
-            **To contribute properly:**
-            1. Find an existing issue you'd like to work on, or [open a new issue](https://github.com/${context.repo.owner}/${context.repo.repo}/issues/new) describing your proposed change
-            2. Comment on the issue requesting assignment and wait for maintainer approval
-            3. Only submit a PR after you have been assigned to the issue
-
-            Please see our [CONTRIBUTING.md](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/CONTRIBUTING.md) for more details.`;
-            } else if (reason === 'not_assigned_to_issue') {
-              message = `Hi @${prAuthor},
-
-            Thank you for your interest in contributing to Malachite.
-
-            This PR has been automatically closed because you are not assigned to issue #${issueNumber}. We require contributors to be explicitly assigned to an issue before submitting a PR.
-
-            **To contribute properly:**
-            1. Comment on issue #${issueNumber} requesting assignment
-            2. Wait for maintainer approval
-            3. Only submit a PR after you have been assigned
-
-            Please see our [CONTRIBUTING.md](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/CONTRIBUTING.md) for more details.`;
-            } else if (reason === 'issue_not_found') {
-              message = `Hi @${prAuthor},
-
-            Thank you for your interest in contributing to Malachite.
-
-            This PR has been automatically closed because the referenced issue could not be found. Please ensure you reference a valid, existing issue using the format \`Closes: #XXX\`.
-
-            **To contribute properly:**
-            1. Find an existing issue you'd like to work on, or [open a new issue](https://github.com/${context.repo.owner}/${context.repo.repo}/issues/new) describing your proposed change
-            2. Comment on the issue requesting assignment and wait for maintainer approval
-            3. Only submit a PR after you have been assigned to the issue
-
-            Please see our [CONTRIBUTING.md](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/CONTRIBUTING.md) for more details.`;
-            } else {
-              message = `Hi @${prAuthor},
-
-            Thank you for your interest in contributing to Malachite.
-
-            This PR has been automatically closed because it does not meet our contribution requirements.
-
-            Please see our [CONTRIBUTING.md](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/CONTRIBUTING.md) for details on how to contribute properly.`;
+            // Load the rejection message from the base ref — pull_request_target
+            // runs against the merge base, but reading template content via the
+            // contents API explicitly pins us to the trusted base so a malicious
+            // PR can't substitute its own message.
+            let template;
+            try {
+              const response = await github.rest.repos.getContent({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                path: `.github/pr-gate-messages/${templateName}.md`,
+                ref: context.payload.pull_request.base.ref,
+              });
+              template = Buffer.from(response.data.content, 'base64').toString('utf-8');
+            } catch (error) {
+              console.log(`Could not load template ${templateName}.md: ${error.message}`);
+              template = `Hi @{{prAuthor}}, this PR was closed because it does not meet our contribution requirements. See CONTRIBUTING.md.`;
             }
+
+            const vars = {
+              prAuthor,
+              issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            };
+            const message = Object.entries(vars).reduce(
+              (acc, [k, v]) => acc.replaceAll(`{{${k}}}`, v),
+              template,
+            );
 
             // Add comment
             await github.rest.issues.createComment({
