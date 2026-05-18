@@ -14,362 +14,172 @@ jobs:
     name: Check eligibility
     runs-on: github-hosted-small
     steps:
-      - name: Check if author is denounced
-        id: check-denounced
+      - name: Evaluate eligibility
+        id: evaluate
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           script: |
             const prAuthor = context.payload.pull_request.user.login;
-
-            let content;
-            try {
-              const response = await github.rest.repos.getContent({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                path: '.github/DENOUNCED',
-                ref: context.payload.pull_request.base.ref,
-              });
-              content = Buffer.from(response.data.content, 'base64').toString('utf-8');
-            } catch (error) {
-              console.log(`No DENOUNCED file found: ${error.message}`);
-              core.setOutput('is_denounced', 'false');
-              return;
-            }
-
             const prAuthorLower = prAuthor.toLowerCase();
-            for (const rawLine of content.split('\n')) {
-              const line = rawLine.trim();
-              if (!line || line.startsWith('#')) continue;
-              const colonIdx = line.indexOf(':');
-              const name = (colonIdx === -1 ? line : line.slice(0, colonIdx)).trim().toLowerCase();
-              const reason = colonIdx === -1 ? '' : line.slice(colonIdx + 1).trim();
-              if (name === prAuthorLower) {
-                console.log(`${prAuthor} is denounced${reason ? `: ${reason}` : ''}`);
-                core.setOutput('is_denounced', 'true');
-                core.setOutput('denounce_reason', reason);
-                return;
-              }
-            }
-
-            console.log(`${prAuthor} is not denounced`);
-            core.setOutput('is_denounced', 'false');
-
-      - name: Check if author is allowed bot
-        id: check-dependabot
-        if: steps.check-denounced.outputs.is_denounced == 'false'
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
-        with:
-          script: |
-            const prAuthor = context.payload.pull_request.user.login;
-            const isAllowed = prAuthor === 'dependabot[bot]' || prAuthor === 'stepsecurity-app[bot]';
-            console.log(`PR author: ${prAuthor}, is allowed bot: ${isAllowed}`);
-            core.setOutput('is_allowed_bot', isAllowed ? 'true' : 'false');
-
-      - name: Check if author is codeowner
-        id: check-codeowner
-        if: |
-          steps.check-denounced.outputs.is_denounced == 'false' &&
-          steps.check-dependabot.outputs.is_allowed_bot == 'false'
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
-        with:
-          script: |
-            const prAuthor = context.payload.pull_request.user.login;
-
-            try {
-              const response = await github.rest.repos.getContent({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                path: '.github/CODEOWNERS',
-                ref: context.payload.pull_request.base.ref
-              });
-
-              const content = Buffer.from(response.data.content, 'base64').toString('utf-8');
-              // Match individual @username handles only; skip team handles (@org/team)
-              // via negative lookahead so they don't get truncated to just @org.
-              const codeowners = content.match(/@[\w-]+(?!\/)\b/g) || [];
-              const codeownerUsernames = codeowners.map(c => c.substring(1).toLowerCase());
-
-              core.setOutput('codeowner_list', JSON.stringify(codeownerUsernames));
-
-              if (codeownerUsernames.includes(prAuthor.toLowerCase())) {
-                console.log(`${prAuthor} is a codeowner`);
-                core.setOutput('is_codeowner', 'true');
-              } else {
-                console.log(`${prAuthor} is NOT a codeowner`);
-                core.setOutput('is_codeowner', 'false');
-              }
-            } catch (error) {
-              console.log(`Could not read CODEOWNERS file: ${error.message}`);
-              core.setOutput('is_codeowner', 'false');
-            }
-
-      - name: Check if author is repo collaborator
-        id: check-collaborator
-        if: |
-          steps.check-denounced.outputs.is_denounced == 'false' &&
-          steps.check-dependabot.outputs.is_allowed_bot == 'false' &&
-          steps.check-codeowner.outputs.is_codeowner == 'false'
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
-        with:
-          script: |
-            const prAuthor = context.payload.pull_request.user.login;
-
-            try {
-              await github.rest.repos.checkCollaborator({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                username: prAuthor,
-              });
-              // 204 = any access level (read/triage/write/admin). Catches outside
-              // collaborators who aren't necessarily org members.
-              console.log(`${prAuthor} is a collaborator on ${context.repo.owner}/${context.repo.repo}`);
-              core.setOutput('is_collaborator', 'true');
-            } catch (error) {
-              console.log(`${prAuthor} is NOT a collaborator: ${error.status}`);
-              core.setOutput('is_collaborator', 'false');
-            }
-
-      - name: Check if author is org member
-        id: check-org-member
-        if: |
-          steps.check-denounced.outputs.is_denounced == 'false' &&
-          steps.check-dependabot.outputs.is_allowed_bot == 'false' &&
-          steps.check-codeowner.outputs.is_codeowner == 'false' &&
-          steps.check-collaborator.outputs.is_collaborator == 'false'
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
-        with:
-          script: |
-            const prAuthor = context.payload.pull_request.user.login;
-            const org = 'circlefin';
-
-            try {
-              const response = await github.rest.orgs.checkMembershipForUser({
-                org: org,
-                username: prAuthor
-              });
-              // Status 204 means the user is a member
-              console.log(`${prAuthor} is a member of ${org}`);
-              core.setOutput('is_org_member', 'true');
-            } catch (error) {
-              // Status 404 means the user is not a member (or org doesn't exist)
-              // Status 302 means the requester is not an org member (redirect to login)
-              console.log(`${prAuthor} is NOT a member of ${org}: ${error.status}`);
-              core.setOutput('is_org_member', 'false');
-            }
-
-      - name: Check if author is vouched
-        id: check-vouched
-        if: |
-          steps.check-denounced.outputs.is_denounced == 'false' &&
-          steps.check-dependabot.outputs.is_allowed_bot == 'false' &&
-          steps.check-codeowner.outputs.is_codeowner == 'false' &&
-          steps.check-collaborator.outputs.is_collaborator == 'false' &&
-          steps.check-org-member.outputs.is_org_member == 'false'
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
-        with:
-          script: |
-            const prAuthor = context.payload.pull_request.user.login;
-
-            let content;
-            try {
-              const response = await github.rest.repos.getContent({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                path: '.github/VOUCHED',
-                ref: context.payload.pull_request.base.ref,
-              });
-              content = Buffer.from(response.data.content, 'base64').toString('utf-8');
-            } catch (error) {
-              console.log(`No VOUCHED file found: ${error.message}`);
-              core.setOutput('is_vouched', 'false');
-              return;
-            }
-
-            const prAuthorLower = prAuthor.toLowerCase();
-            for (const rawLine of content.split('\n')) {
-              const line = rawLine.trim();
-              if (!line || line.startsWith('#')) continue;
-              const colonIdx = line.indexOf(':');
-              const name = (colonIdx === -1 ? line : line.slice(0, colonIdx)).trim().toLowerCase();
-              if (name === prAuthorLower) {
-                console.log(`${prAuthor} is vouched`);
-                core.setOutput('is_vouched', 'true');
-                return;
-              }
-            }
-
-            console.log(`${prAuthor} is not vouched`);
-            core.setOutput('is_vouched', 'false');
-
-      - name: Check issue assignment
-        id: check-assignment
-        if: |
-          steps.check-denounced.outputs.is_denounced == 'false' &&
-          steps.check-dependabot.outputs.is_allowed_bot == 'false' &&
-          steps.check-codeowner.outputs.is_codeowner == 'false' &&
-          steps.check-collaborator.outputs.is_collaborator == 'false' &&
-          steps.check-org-member.outputs.is_org_member == 'false' &&
-          steps.check-vouched.outputs.is_vouched == 'false'
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
-        with:
-          script: |
             const prBody = context.payload.pull_request.body || '';
-            const prAuthor = context.payload.pull_request.user.login;
+            const { owner, repo } = context.repo;
+            const baseRef = context.payload.pull_request.base.ref;
 
-            // Extract issue number from PR body
-            const issuePrefixes = ['closes', 'fixes', 'fix', 'close', 'resolve', 'resolves'];
-            const prefixPattern = issuePrefixes.join('|');
-            const issueMatch = prBody.match(new RegExp(`(?:${prefixPattern}):?\\s*#(\\d+)`, 'i'));
-
-            if (!issueMatch) {
-              console.log('No issue reference found in PR body');
-              core.setOutput('is_assigned', 'false');
-              core.setOutput('reason', 'no_issue_reference');
-              return;
-            }
-
-            const issueNumber = parseInt(issueMatch[1], 10);
-            console.log(`Found issue reference: #${issueNumber}`);
-
-            try {
-              const issue = await github.rest.issues.get({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: issueNumber
-              });
-
-              // Check if PR author is assigned to the issue
-              const assignees = issue.data.assignees.map(a => a.login);
-              console.log(`Issue assignees: ${assignees.join(', ')}`);
-
-              if (assignees.includes(prAuthor)) {
-                console.log(`PR author ${prAuthor} is assigned to issue #${issueNumber}`);
-                core.setOutput('is_assigned', 'true');
-              } else {
-                console.log(`PR author ${prAuthor} is NOT assigned to issue #${issueNumber}`);
-                core.setOutput('is_assigned', 'false');
-                core.setOutput('reason', 'not_assigned_to_issue');
-                core.setOutput('issue_number', issueNumber.toString());
+            async function readBaseFile(path) {
+              try {
+                const response = await github.rest.repos.getContent({ owner, repo, path, ref: baseRef });
+                return Buffer.from(response.data.content, 'base64').toString('utf-8');
+              } catch (error) {
+                console.log(`Could not read ${path} from ${baseRef}: ${error.message}`);
+                return null;
               }
-            } catch (error) {
-              console.log(`Error fetching issue #${issueNumber}: ${error.message}`);
-              core.setOutput('is_assigned', 'false');
-              core.setOutput('reason', 'issue_not_found');
             }
 
-      - name: Check if author is tagged by codeowner
-        id: check-tagged-by-codeowner
-        if: |
-          steps.check-denounced.outputs.is_denounced == 'false' &&
-          steps.check-dependabot.outputs.is_allowed_bot == 'false' &&
-          steps.check-codeowner.outputs.is_codeowner == 'false' &&
-          steps.check-collaborator.outputs.is_collaborator == 'false' &&
-          steps.check-org-member.outputs.is_org_member == 'false' &&
-          steps.check-vouched.outputs.is_vouched == 'false' &&
-          steps.check-assignment.outputs.is_assigned == 'false' &&
-          steps.check-assignment.outputs.reason == 'not_assigned_to_issue'
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
-        with:
-          script: |
-            const prAuthor = context.payload.pull_request.user.login;
-            const issueNumber = parseInt('${{ steps.check-assignment.outputs.issue_number }}', 10);
-
-            const codeownerUsernames = JSON.parse('${{ steps.check-codeowner.outputs.codeowner_list }}' || '[]');
-
-            if (codeownerUsernames.length === 0) {
-              console.log('No codeowners found');
-              core.setOutput('is_tagged_by_codeowner', 'false');
-              return;
+            // Parse a one-username-per-line list with `#` comments and optional
+            // `: reason` suffix. Returns Map<usernameLower, reasonString>.
+            function parseList(content) {
+              const map = new Map();
+              if (!content) return map;
+              for (const rawLine of content.split('\n')) {
+                const line = rawLine.trim();
+                if (!line || line.startsWith('#')) continue;
+                const colonIdx = line.indexOf(':');
+                const name = (colonIdx === -1 ? line : line.slice(0, colonIdx)).trim().toLowerCase();
+                const reason = colonIdx === -1 ? '' : line.slice(colonIdx + 1).trim();
+                if (name) map.set(name, reason);
+              }
+              return map;
             }
 
-            // Get all comments on the issue
+            function decide(status, reason, extras = {}) {
+              console.log(`Decision: ${status} (${reason})`);
+              core.setOutput('status', status);
+              core.setOutput('reason', reason);
+              for (const [k, v] of Object.entries(extras)) {
+                core.setOutput(k, v);
+              }
+            }
+
+            // 1. Denounce list overrides everything else.
+            const denounced = parseList(await readBaseFile('.github/DENOUNCED'));
+            if (denounced.has(prAuthorLower)) {
+              return decide('close', 'denounced', { denounce_reason: denounced.get(prAuthorLower) });
+            }
+
+            // 2. Allowed bots.
+            if (prAuthor === 'dependabot[bot]' || prAuthor === 'stepsecurity-app[bot]') {
+              return decide('allow', 'bot');
+            }
+
+            // 3. Codeowner — parse CODEOWNERS but skip @org/team handles
+            //    (negative lookahead) so they aren't truncated to just @org.
+            const codeownersFile = (await readBaseFile('.github/CODEOWNERS')) || '';
+            const codeowners = (codeownersFile.match(/@[\w-]+(?!\/)\b/g) || [])
+              .map(c => c.substring(1).toLowerCase());
+            if (codeowners.includes(prAuthorLower)) {
+              return decide('allow', 'codeowner');
+            }
+
+            // 4. Repo collaborator (any access level: read/triage/write/admin).
             try {
-              const comments = await github.paginate(github.rest.issues.listComments, {
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: issueNumber,
-                per_page: 100
-              });
+              await github.rest.repos.checkCollaborator({ owner, repo, username: prAuthor });
+              return decide('allow', 'collaborator');
+            } catch (error) {
+              console.log(`${prAuthor} is not a collaborator: ${error.status}`);
+            }
 
-              console.log(`Found ${comments.length} comments on issue #${issueNumber}`);
+            // 5. Org member.
+            const org = 'circlefin';
+            try {
+              await github.rest.orgs.checkMembershipForUser({ org, username: prAuthor });
+              return decide('allow', 'org_member');
+            } catch (error) {
+              console.log(`${prAuthor} is not a member of ${org}: ${error.status}`);
+            }
 
-              // Collect every user any codeowner has /assign'd anywhere in the
-              // thread. The union is what matters: codeowner A assigning
-              // @alice should not invalidate codeowner B's earlier /assign
-              // @bob, and `/assign @alice @bob` in one comment names both.
-              // Revocation isn't supported here — closing the PR is the
-              // intended escape hatch.
-              const prAuthorLower = prAuthor.toLowerCase();
-              const assignPattern = /\/assign((?:\s+@[\w-]+)+)/gi;
-              const userPattern = /@([\w-]+)/g;
-              const assignedUsers = new Set();
+            // 6. Vouched list.
+            const vouched = parseList(await readBaseFile('.github/VOUCHED'));
+            if (vouched.has(prAuthorLower)) {
+              return decide('allow', 'vouched');
+            }
 
-              for (const comment of comments) {
-                const commentAuthor = comment.user.login.toLowerCase();
-                if (!codeownerUsernames.includes(commentAuthor)) {
-                  continue;
-                }
+            // 7. Issue reference + assignment.
+            const issuePrefixes = ['closes', 'fixes', 'fix', 'close', 'resolve', 'resolves'];
+            const issueRefRegex = new RegExp(`(?:${issuePrefixes.join('|')}):?\\s*#(\\d+)`, 'i');
+            const issueMatch = prBody.match(issueRefRegex);
+            if (!issueMatch) {
+              return decide('close', 'no_issue_reference');
+            }
+            const issueNumber = parseInt(issueMatch[1], 10);
 
-                for (const assignMatch of comment.body.matchAll(assignPattern)) {
-                  for (const userMatch of assignMatch[1].matchAll(userPattern)) {
-                    const assignedUser = userMatch[1].toLowerCase();
-                    assignedUsers.add(assignedUser);
-                    console.log(`/assign @${userMatch[1]} from codeowner @${comment.user.login} (${comment.html_url})`);
+            let issue;
+            try {
+              issue = await github.rest.issues.get({ owner, repo, issue_number: issueNumber });
+            } catch (error) {
+              console.log(`Could not fetch issue #${issueNumber}: ${error.message}`);
+              return decide('close', 'issue_not_found', { issue_number: String(issueNumber) });
+            }
+
+            const assignees = issue.data.assignees.map(a => a.login.toLowerCase());
+            if (assignees.includes(prAuthorLower)) {
+              return decide('allow', 'assigned', { issue_number: String(issueNumber) });
+            }
+
+            // 8. /assign @user from any codeowner — union across all codeowner
+            //    comments and across all /assign occurrences within each
+            //    comment, so A's /assign @alice doesn't invalidate B's earlier
+            //    /assign @bob and `/assign @alice @bob` names both.
+            if (codeowners.length > 0) {
+              try {
+                const comments = await github.paginate(github.rest.issues.listComments, {
+                  owner, repo, issue_number: issueNumber, per_page: 100,
+                });
+                const assignPattern = /\/assign((?:\s+@[\w-]+)+)/gi;
+                const userPattern = /@([\w-]+)/g;
+                const taggedSet = new Set();
+                for (const comment of comments) {
+                  if (!codeowners.includes(comment.user.login.toLowerCase())) continue;
+                  for (const assignMatch of comment.body.matchAll(assignPattern)) {
+                    for (const userMatch of assignMatch[1].matchAll(userPattern)) {
+                      taggedSet.add(userMatch[1].toLowerCase());
+                      console.log(`/assign @${userMatch[1]} from codeowner @${comment.user.login} (${comment.html_url})`);
+                    }
                   }
                 }
+                if (taggedSet.has(prAuthorLower)) {
+                  return decide('allow', 'tagged_by_codeowner', { issue_number: String(issueNumber) });
+                }
+                console.log(`No /assign @${prAuthor} from any codeowner. Tagged set: ${[...taggedSet].join(', ') || '(none)'}`);
+              } catch (error) {
+                console.log(`Error fetching comments for issue #${issueNumber}: ${error.message}`);
               }
-
-              if (assignedUsers.has(prAuthorLower)) {
-                console.log(`PR author @${prAuthor} was /assign'd by a codeowner`);
-                core.setOutput('is_tagged_by_codeowner', 'true');
-              } else {
-                const assignedList = [...assignedUsers].join(', ') || '(none)';
-                console.log(`No /assign @${prAuthor} from any codeowner. Assigned set: ${assignedList}`);
-                core.setOutput('is_tagged_by_codeowner', 'false');
-              }
-            } catch (error) {
-              console.log(`Error fetching comments for issue #${issueNumber}: ${error.message}`);
-              core.setOutput('is_tagged_by_codeowner', 'false');
             }
 
+            return decide('close', 'not_assigned_to_issue', { issue_number: String(issueNumber) });
+
       - name: Close ineligible PR
-        if: |
-          steps.check-denounced.outputs.is_denounced == 'true' || (
-            steps.check-dependabot.outputs.is_allowed_bot == 'false' &&
-            steps.check-codeowner.outputs.is_codeowner == 'false' &&
-            steps.check-collaborator.outputs.is_collaborator == 'false' &&
-            steps.check-org-member.outputs.is_org_member == 'false' &&
-            steps.check-vouched.outputs.is_vouched == 'false' &&
-            steps.check-assignment.outputs.is_assigned == 'false' &&
-            steps.check-tagged-by-codeowner.outputs.is_tagged_by_codeowner != 'true'
-          )
+        if: steps.evaluate.outputs.status == 'close'
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         env:
-          DENOUNCE_REASON: ${{ steps.check-denounced.outputs.denounce_reason }}
+          DENOUNCE_REASON: ${{ steps.evaluate.outputs.denounce_reason }}
         with:
           script: |
-            const isDenounced = '${{ steps.check-denounced.outputs.is_denounced }}' === 'true';
-            const reason = '${{ steps.check-assignment.outputs.reason }}';
-            const issueNumber = '${{ steps.check-assignment.outputs.issue_number }}';
+            const reason = '${{ steps.evaluate.outputs.reason }}';
+            const issueNumber = '${{ steps.evaluate.outputs.issue_number }}';
             const prAuthor = context.payload.pull_request.user.login;
             const denounceReason = process.env.DENOUNCE_REASON || '';
 
-            let templateName;
-            if (isDenounced) {
-              templateName = 'denounced';
-            } else {
-              const knownReasons = new Set([
-                'no_issue_reference',
-                'not_assigned_to_issue',
-                'issue_not_found',
-              ]);
-              templateName = knownReasons.has(reason) ? reason : 'default';
-            }
+            const knownTemplates = new Set([
+              'denounced',
+              'no_issue_reference',
+              'not_assigned_to_issue',
+              'issue_not_found',
+            ]);
+            const templateName = knownTemplates.has(reason) ? reason : 'default';
 
             // Load the rejection message from the base ref — pull_request_target
-            // runs against the merge base, but reading template content via the
-            // contents API explicitly pins us to the trusted base so a malicious
-            // PR can't substitute its own message.
+            // pins this to trusted content so a malicious PR can't substitute
+            // its own message.
             let template;
             try {
               const response = await github.rest.repos.getContent({
@@ -396,32 +206,29 @@ jobs:
               template,
             );
 
-            // Add comment
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.payload.pull_request.number,
-              body: message
+              body: message,
             });
 
-            // Add label
             try {
               await github.rest.issues.addLabels({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: context.payload.pull_request.number,
-                labels: ['need-triage']
+                labels: ['need-triage'],
               });
             } catch (error) {
               console.log('Could not add label (may not exist):', error.message);
             }
 
-            // Close PR
             await github.rest.pulls.update({
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: context.payload.pull_request.number,
-              state: 'closed'
+              state: 'closed',
             });
 
             console.log('PR closed successfully');
