@@ -14,8 +14,49 @@ jobs:
     name: Check eligibility
     runs-on: github-hosted-small
     steps:
+      - name: Check if author is denounced
+        id: check-denounced
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          script: |
+            const prAuthor = context.payload.pull_request.user.login;
+
+            let content;
+            try {
+              const response = await github.rest.repos.getContent({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                path: '.github/DENOUNCED',
+                ref: context.payload.pull_request.base.ref,
+              });
+              content = Buffer.from(response.data.content, 'base64').toString('utf-8');
+            } catch (error) {
+              console.log(`No DENOUNCED file found: ${error.message}`);
+              core.setOutput('is_denounced', 'false');
+              return;
+            }
+
+            const prAuthorLower = prAuthor.toLowerCase();
+            for (const rawLine of content.split('\n')) {
+              const line = rawLine.trim();
+              if (!line || line.startsWith('#')) continue;
+              const colonIdx = line.indexOf(':');
+              const name = (colonIdx === -1 ? line : line.slice(0, colonIdx)).trim().toLowerCase();
+              const reason = colonIdx === -1 ? '' : line.slice(colonIdx + 1).trim();
+              if (name === prAuthorLower) {
+                console.log(`${prAuthor} is denounced${reason ? `: ${reason}` : ''}`);
+                core.setOutput('is_denounced', 'true');
+                core.setOutput('denounce_reason', reason);
+                return;
+              }
+            }
+
+            console.log(`${prAuthor} is not denounced`);
+            core.setOutput('is_denounced', 'false');
+
       - name: Check if author is allowed bot
         id: check-dependabot
+        if: steps.check-denounced.outputs.is_denounced == 'false'
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           script: |
@@ -26,7 +67,9 @@ jobs:
 
       - name: Check if author is codeowner
         id: check-codeowner
-        if: steps.check-dependabot.outputs.is_allowed_bot == 'false'
+        if: |
+          steps.check-denounced.outputs.is_denounced == 'false' &&
+          steps.check-dependabot.outputs.is_allowed_bot == 'false'
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           script: |
@@ -63,6 +106,7 @@ jobs:
       - name: Check if author is repo collaborator
         id: check-collaborator
         if: |
+          steps.check-denounced.outputs.is_denounced == 'false' &&
           steps.check-dependabot.outputs.is_allowed_bot == 'false' &&
           steps.check-codeowner.outputs.is_codeowner == 'false'
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
@@ -88,6 +132,7 @@ jobs:
       - name: Check if author is org member
         id: check-org-member
         if: |
+          steps.check-denounced.outputs.is_denounced == 'false' &&
           steps.check-dependabot.outputs.is_allowed_bot == 'false' &&
           steps.check-codeowner.outputs.is_codeowner == 'false' &&
           steps.check-collaborator.outputs.is_collaborator == 'false'
@@ -115,6 +160,7 @@ jobs:
       - name: Check issue assignment
         id: check-assignment
         if: |
+          steps.check-denounced.outputs.is_denounced == 'false' &&
           steps.check-dependabot.outputs.is_allowed_bot == 'false' &&
           steps.check-codeowner.outputs.is_codeowner == 'false' &&
           steps.check-collaborator.outputs.is_collaborator == 'false' &&
@@ -169,6 +215,7 @@ jobs:
       - name: Check if author is tagged by codeowner
         id: check-tagged-by-codeowner
         if: |
+          steps.check-denounced.outputs.is_denounced == 'false' &&
           steps.check-dependabot.outputs.is_allowed_bot == 'false' &&
           steps.check-codeowner.outputs.is_codeowner == 'false' &&
           steps.check-collaborator.outputs.is_collaborator == 'false' &&
@@ -241,25 +288,36 @@ jobs:
 
       - name: Close ineligible PR
         if: |
-          steps.check-dependabot.outputs.is_allowed_bot == 'false' &&
-          steps.check-codeowner.outputs.is_codeowner == 'false' &&
-          steps.check-collaborator.outputs.is_collaborator == 'false' &&
-          steps.check-org-member.outputs.is_org_member == 'false' &&
-          steps.check-assignment.outputs.is_assigned == 'false' &&
-          steps.check-tagged-by-codeowner.outputs.is_tagged_by_codeowner != 'true'
+          steps.check-denounced.outputs.is_denounced == 'true' || (
+            steps.check-dependabot.outputs.is_allowed_bot == 'false' &&
+            steps.check-codeowner.outputs.is_codeowner == 'false' &&
+            steps.check-collaborator.outputs.is_collaborator == 'false' &&
+            steps.check-org-member.outputs.is_org_member == 'false' &&
+            steps.check-assignment.outputs.is_assigned == 'false' &&
+            steps.check-tagged-by-codeowner.outputs.is_tagged_by_codeowner != 'true'
+          )
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        env:
+          DENOUNCE_REASON: ${{ steps.check-denounced.outputs.denounce_reason }}
         with:
           script: |
+            const isDenounced = '${{ steps.check-denounced.outputs.is_denounced }}' === 'true';
             const reason = '${{ steps.check-assignment.outputs.reason }}';
             const issueNumber = '${{ steps.check-assignment.outputs.issue_number }}';
             const prAuthor = context.payload.pull_request.user.login;
+            const denounceReason = process.env.DENOUNCE_REASON || '';
 
-            const knownReasons = new Set([
-              'no_issue_reference',
-              'not_assigned_to_issue',
-              'issue_not_found',
-            ]);
-            const templateName = knownReasons.has(reason) ? reason : 'default';
+            let templateName;
+            if (isDenounced) {
+              templateName = 'denounced';
+            } else {
+              const knownReasons = new Set([
+                'no_issue_reference',
+                'not_assigned_to_issue',
+                'issue_not_found',
+              ]);
+              templateName = knownReasons.has(reason) ? reason : 'default';
+            }
 
             // Load the rejection message from the base ref — pull_request_target
             // runs against the merge base, but reading template content via the
@@ -284,6 +342,7 @@ jobs:
               issueNumber,
               owner: context.repo.owner,
               repo: context.repo.repo,
+              reasonBlock: denounceReason ? ` Reason: ${denounceReason}.` : '',
             };
             const message = Object.entries(vars).reduce(
               (acc, [k, v]) => acc.replaceAll(`{{${k}}}`, v),

@@ -1,0 +1,12 @@
+# Denounced contributors.
+#
+# Users listed here have their pull requests automatically closed by the
+# PR Gate workflow regardless of any other signal (codeowner status, org
+# membership, repo collaborator role, issue assignment, /assign tag).
+#
+# Format: one GitHub username per line, with an optional reason after a
+# colon. Comments start with `#`. Blank lines are ignored.
+#
+# Example:
+#   baduser
+#   spammer: opens AI-generated PRs that ignore review feedback
