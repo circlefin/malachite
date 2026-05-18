@@ -157,6 +157,50 @@ jobs:
               core.setOutput('is_org_member', 'false');
             }
 
+      - name: Check if author is vouched
+        id: check-vouched
+        if: |
+          steps.check-denounced.outputs.is_denounced == 'false' &&
+          steps.check-dependabot.outputs.is_allowed_bot == 'false' &&
+          steps.check-codeowner.outputs.is_codeowner == 'false' &&
+          steps.check-collaborator.outputs.is_collaborator == 'false' &&
+          steps.check-org-member.outputs.is_org_member == 'false'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          script: |
+            const prAuthor = context.payload.pull_request.user.login;
+
+            let content;
+            try {
+              const response = await github.rest.repos.getContent({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                path: '.github/VOUCHED',
+                ref: context.payload.pull_request.base.ref,
+              });
+              content = Buffer.from(response.data.content, 'base64').toString('utf-8');
+            } catch (error) {
+              console.log(`No VOUCHED file found: ${error.message}`);
+              core.setOutput('is_vouched', 'false');
+              return;
+            }
+
+            const prAuthorLower = prAuthor.toLowerCase();
+            for (const rawLine of content.split('\n')) {
+              const line = rawLine.trim();
+              if (!line || line.startsWith('#')) continue;
+              const colonIdx = line.indexOf(':');
+              const name = (colonIdx === -1 ? line : line.slice(0, colonIdx)).trim().toLowerCase();
+              if (name === prAuthorLower) {
+                console.log(`${prAuthor} is vouched`);
+                core.setOutput('is_vouched', 'true');
+                return;
+              }
+            }
+
+            console.log(`${prAuthor} is not vouched`);
+            core.setOutput('is_vouched', 'false');
+
       - name: Check issue assignment
         id: check-assignment
         if: |
@@ -164,7 +208,8 @@ jobs:
           steps.check-dependabot.outputs.is_allowed_bot == 'false' &&
           steps.check-codeowner.outputs.is_codeowner == 'false' &&
           steps.check-collaborator.outputs.is_collaborator == 'false' &&
-          steps.check-org-member.outputs.is_org_member == 'false'
+          steps.check-org-member.outputs.is_org_member == 'false' &&
+          steps.check-vouched.outputs.is_vouched == 'false'
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           script: |
@@ -220,6 +265,7 @@ jobs:
           steps.check-codeowner.outputs.is_codeowner == 'false' &&
           steps.check-collaborator.outputs.is_collaborator == 'false' &&
           steps.check-org-member.outputs.is_org_member == 'false' &&
+          steps.check-vouched.outputs.is_vouched == 'false' &&
           steps.check-assignment.outputs.is_assigned == 'false' &&
           steps.check-assignment.outputs.reason == 'not_assigned_to_issue'
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
@@ -293,6 +339,7 @@ jobs:
             steps.check-codeowner.outputs.is_codeowner == 'false' &&
             steps.check-collaborator.outputs.is_collaborator == 'false' &&
             steps.check-org-member.outputs.is_org_member == 'false' &&
+            steps.check-vouched.outputs.is_vouched == 'false' &&
             steps.check-assignment.outputs.is_assigned == 'false' &&
             steps.check-tagged-by-codeowner.outputs.is_tagged_by_codeowner != 'true'
           )

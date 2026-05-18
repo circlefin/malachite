@@ -1,0 +1,18 @@
+# Vouched contributors.
+#
+# Users listed here bypass the issue-assignment requirement of the PR
+# Gate workflow. Their pull requests are admitted as if they were org
+# members or repo collaborators. This is the path for trusted external
+# contributors who have demonstrated they understand the project well
+# enough that requiring a fresh issue claim for every PR is overhead.
+#
+# Codeowners, repo collaborators, and circlefin org members are already
+# trusted through earlier checks — they do not need to be vouched here.
+#
+# Format: one GitHub username per line, with an optional reason after a
+# colon for maintainer reference. Comments start with `#`. Blank lines
+# are ignored.
+#
+# Example:
+#   trusted-contributor
+#   long-time-helper: maintainer of the upstream foo crate
