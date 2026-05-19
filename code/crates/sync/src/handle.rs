@@ -937,16 +937,22 @@ where
 ///
 /// If the candidate violates either invariant, it is raised to the next
 /// uncovered height at or above `tip_height + 1`.
+///
+/// Only the pending-range skip is logged: callers are expected to pass a
+/// candidate outside every pending range, so a skip there means an unsafe
+/// value was passed in. The tip-floor bump (candidate ≤ tip_height) is the
+/// routine post-decide/rollback path and is not logged.
 fn set_sync_height<Ctx: Context>(state: &mut State<Ctx>, candidate: Ctx::Height) {
     let floor = max(state.tip_height.increment(), candidate);
     let new_sync_height = find_next_uncovered_height::<Ctx>(floor, &state.pending_requests);
 
-    if new_sync_height != candidate {
+    if new_sync_height != floor {
         warn!(
             %candidate,
             tip_height = %state.tip_height,
+            floor = %floor,
             sync_height = %new_sync_height,
-            "Adjusted sync_height from candidate to satisfy invariants"
+            "sync_height candidate is inside a pending request range; advancing past it"
         );
     }
 
