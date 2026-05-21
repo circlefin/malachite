@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use eyre::bail;
@@ -7,9 +9,10 @@ use arc_malachitebft_test::{self as malachitebft_test};
 
 use malachitebft_config::ValuePayload;
 use malachitebft_core_consensus::LocallyProposedValue;
-use malachitebft_core_types::SignedVote;
+use malachitebft_core_types::{Round, SignedVote};
 use malachitebft_engine::util::events::Event;
-use malachitebft_test::TestContext;
+use malachitebft_test::middleware::Middleware;
+use malachitebft_test::{Height, TestContext};
 
 use crate::middlewares::{ByzantineProposer, PrevoteNil};
 use crate::{HandlerResult, TestBuilder, TestParams};
@@ -444,4 +447,144 @@ async fn multi_rounds_1() {
 #[tokio::test]
 async fn multi_rounds_2() {
     test_multi_rounds(3, Duration::from_secs(10)).await
+}
+
+#[tokio::test]
+async fn sync_recovery_handles_multiple_certificates() {
+    #[derive(Clone, Debug, Default)]
+    struct State {
+        decisions_at_crash_height: u32,
+    }
+
+    const CRASH_HEIGHT: u64 = 3;
+    const FINAL_HEIGHT: u64 = CRASH_HEIGHT + 2;
+
+    let mut test = TestBuilder::<State>::new();
+
+    test.add_node()
+        .start()
+        .wait_until(CRASH_HEIGHT)
+        // Wait for an `Event::Published` so the WAL is not empty when crashing.
+        .on_event(|event, _| match event {
+            Event::Published(_) => Ok(HandlerResult::ContinueTest),
+            _ => Ok(HandlerResult::WaitForNextEvent),
+        })
+        .crash()
+        // While the validator is down, the other three keep making progress.
+        .restart_after(Duration::from_secs(10))
+        // Catch up via sync (no WAL replay), and assert idempotence: only one
+        // `Decided` at `CRASH_HEIGHT`.
+        .on_event(move |event, state| match event {
+            Event::WalReplayBegin(height, count) => {
+                bail!(
+                    "Unexpected WAL replay at height {height} with {count} entries; \
+                     expected sync to deliver a certificate during WaitingForSync"
+                );
+            }
+            Event::Decided { commit_certificate } => {
+                let h = commit_certificate.height.as_u64();
+                if h < CRASH_HEIGHT {
+                    bail!(
+                        "Decided at height {h} < CRASH_HEIGHT={CRASH_HEIGHT}: \
+                         unexpected height regression after recovery"
+                    );
+                }
+                if h == CRASH_HEIGHT {
+                    state.decisions_at_crash_height += 1;
+                    if state.decisions_at_crash_height > 1 {
+                        bail!(
+                            "Duplicate Decided at CRASH_HEIGHT={CRASH_HEIGHT}: \
+                             bypass is not idempotent under multi-peer cert delivery"
+                        );
+                    }
+                    Ok(HandlerResult::WaitForNextEvent)
+                } else {
+                    Ok(HandlerResult::ContinueTest)
+                }
+            }
+            _ => Ok(HandlerResult::WaitForNextEvent),
+        })
+        .wait_until(FINAL_HEIGHT)
+        .success();
+
+    test.add_node().start().wait_until(FINAL_HEIGHT).success();
+    test.add_node().start().wait_until(FINAL_HEIGHT).success();
+    test.add_node().start().wait_until(FINAL_HEIGHT).success();
+
+    test.build()
+        .run_with_params(
+            Duration::from_secs(90),
+            TestParams {
+                enable_value_sync: true,
+                ..TestParams::default()
+            },
+        )
+        .await
+}
+
+/// Middleware that fails `ProcessSyncedValue` decode while a shared flag is set.
+#[derive(Debug, Clone)]
+struct FailSyncDecodeWhileFlagSet {
+    fail: Arc<AtomicBool>,
+}
+
+impl Middleware for FailSyncDecodeWhileFlagSet {
+    fn fail_synced_value_decode(&self, _ctx: &TestContext, _height: Height, _round: Round) -> bool {
+        self.fail.load(Ordering::SeqCst)
+    }
+}
+
+/// Regression test for the WAL-replay-delay sync path. Without the fix,
+/// `WalReplayBegin` would never fire, because the original `end_wal_wait` would call `wal_reset`.
+#[tokio::test]
+async fn sync_recovery_falls_back_to_wal_replay_on_decode_failure() {
+    const CRASH_HEIGHT: u64 = 3;
+    const FINAL_HEIGHT: u64 = CRASH_HEIGHT + 2;
+
+    let fail = Arc::new(AtomicBool::new(true));
+    let middleware = FailSyncDecodeWhileFlagSet {
+        fail: Arc::clone(&fail),
+    };
+
+    let mut test = TestBuilder::<()>::new();
+
+    test.add_node()
+        .with_middleware(middleware)
+        .start()
+        .wait_until(CRASH_HEIGHT)
+        // Wait for an `Event::Published` so the WAL is not empty when crashing.
+        .on_event(|event, _| match event {
+            Event::Published(_) => Ok(HandlerResult::ContinueTest),
+            _ => Ok(HandlerResult::WaitForNextEvent),
+        })
+        .crash()
+        // While the validator is down, the other three keep making progress.
+        .restart_after(Duration::from_secs(10))
+        .on_event(move |event, _| match event {
+            Event::WalReplayBegin(height, _count) if height.as_u64() == CRASH_HEIGHT => {
+                info!("Observed WAL replay at crash height; clearing fail-decode flag");
+                fail.store(false, Ordering::SeqCst);
+                Ok(HandlerResult::ContinueTest)
+            }
+            Event::WalReplayBegin(height, _count) => {
+                bail!("Unexpected WAL replay at height {height}, expected {CRASH_HEIGHT}");
+            }
+            _ => Ok(HandlerResult::WaitForNextEvent),
+        })
+        .wait_until(FINAL_HEIGHT)
+        .success();
+
+    test.add_node().start().wait_until(FINAL_HEIGHT).success();
+    test.add_node().start().wait_until(FINAL_HEIGHT).success();
+    test.add_node().start().wait_until(FINAL_HEIGHT).success();
+
+    test.build()
+        .run_with_params(
+            Duration::from_secs(90),
+            TestParams {
+                enable_value_sync: true,
+                ..TestParams::default()
+            },
+        )
+        .await
 }
