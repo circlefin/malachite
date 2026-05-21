@@ -1013,6 +1013,25 @@ where
                         return Err(e);
                     }
                 }
+
+                WalEntry::PolkaCertificate(certificate) => {
+                    info!("Replaying polka certificate: {certificate:?}");
+
+                    if let Err(e) = self
+                        .process_input(myself, state, ConsensusInput::PolkaCertificate(certificate))
+                        .await
+                    {
+                        error!("Error when replaying PolkaCertificate: {e}");
+
+                        let e = Arc::new(e);
+                        self.tx_event.send({
+                            let e = Arc::clone(&e);
+                            || Event::WalReplayError(e)
+                        });
+
+                        return Err(e);
+                    }
+                }
             }
         }
 
