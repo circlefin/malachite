@@ -1,0 +1,32 @@
+name: PR Gate Scripts
+
+on:
+  pull_request:
+    paths:
+      - '.github/scripts/pr-gate/**'
+      - '.github/workflows/pr-gate.yml'
+      - '.github/workflows/pr-gate-scripts.yml'
+  push:
+    branches: main
+    paths:
+      - '.github/scripts/pr-gate/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test pr-gate scripts
+    runs-on: github-hosted-small
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
+        with:
+          node-version: '20'
+      - name: Run tests
+        working-directory: .github/scripts/pr-gate
+        run: node --test
