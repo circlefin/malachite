@@ -27,7 +27,6 @@ where
             consensus.round = %consensus_round,
             vote.height = %vote_height,
             vote.round = %vote_round,
-            vote.msg = %PrettyVote::<Ctx>(&signed_vote.message),
             validator = %validator_address,
             "Received vote for lower height, dropping"
         );
@@ -42,7 +41,6 @@ where
             consensus.round = %consensus_round,
             vote.height = %vote_height,
             vote.round = %vote_round,
-            vote.msg = %PrettyVote::<Ctx>(&signed_vote.message),
             validator = %validator_address,
             "Received vote for higher height, queuing for later"
         );
@@ -61,7 +59,6 @@ where
             consensus.round = %consensus_round,
             vote.height = %vote_height,
             vote.round = %vote_round,
-            vote.msg = %PrettyVote::<Ctx>(&signed_vote.message),
             validator = %validator_address,
             "Received vote at round -1, queuing for later"
         );

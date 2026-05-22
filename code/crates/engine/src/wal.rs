@@ -17,7 +17,6 @@ mod thread;
 
 pub use entry::WalCodec;
 pub use entry::WalEntry;
-pub use entry::{decode_entry, encode_entry};
 pub use iter::log_entries;
 
 pub type WalRef<Ctx> = ActorRef<Msg<Ctx>>;

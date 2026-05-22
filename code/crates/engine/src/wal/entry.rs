@@ -4,20 +4,17 @@ use byteorder::{ReadBytesExt, WriteBytesExt, BE};
 
 use malachitebft_codec::Codec;
 use malachitebft_core_consensus::{ProposedValue, SignedConsensusMsg};
-use malachitebft_core_types::{Context, PolkaCertificate, Round, Timeout};
+use malachitebft_core_types::{Context, Round, Timeout};
 
 /// Codec for encoding and decoding WAL entries.
 ///
 /// This trait is automatically implemented for any type that implements:
 /// - [`Codec<SignedConsensusMsg<Ctx>>`]
-/// - [`Codec<ProposedValue<Ctx>>`]
-/// - [`Codec<PolkaCertificate<Ctx>>`]
 pub trait WalCodec<Ctx>
 where
     Ctx: Context,
     Self: Codec<SignedConsensusMsg<Ctx>>,
     Self: Codec<ProposedValue<Ctx>>,
-    Self: Codec<PolkaCertificate<Ctx>>,
 {
 }
 
@@ -26,7 +23,6 @@ where
     Ctx: Context,
     C: Codec<SignedConsensusMsg<Ctx>>,
     C: Codec<ProposedValue<Ctx>>,
-    C: Codec<PolkaCertificate<Ctx>>,
 {
 }
 
@@ -35,7 +31,6 @@ pub use malachitebft_core_consensus::WalEntry;
 const TAG_CONSENSUS: u8 = 0x01;
 const TAG_TIMEOUT: u8 = 0x02;
 const TAG_PROPOSED_VALUE: u8 = 0x04;
-const TAG_POLKA_CERTIFICATE: u8 = 0x08;
 
 pub fn encode_entry<Ctx, C, W>(entry: &WalEntry<Ctx>, codec: &C, buf: W) -> io::Result<()>
 where
@@ -48,9 +43,6 @@ where
         WalEntry::Timeout(timeout) => encode_timeout(TAG_TIMEOUT, timeout, buf),
         WalEntry::ProposedValue(value) => {
             encode_proposed_value(TAG_PROPOSED_VALUE, value, codec, buf)
-        }
-        WalEntry::PolkaCertificate(certificate) => {
-            encode_polka_certificate(TAG_POLKA_CERTIFICATE, certificate, codec, buf)
         }
     }
 }
@@ -67,9 +59,6 @@ where
         TAG_CONSENSUS => decode_consensus_msg(codec, buf).map(WalEntry::ConsensusMsg),
         TAG_TIMEOUT => decode_timeout(buf).map(WalEntry::Timeout),
         TAG_PROPOSED_VALUE => decode_proposed_value(codec, buf).map(WalEntry::ProposedValue),
-        TAG_POLKA_CERTIFICATE => {
-            decode_polka_certificate(codec, buf).map(WalEntry::PolkaCertificate)
-        }
         _ => Err(io::Error::new(io::ErrorKind::InvalidData, "invalid tag")),
     }
 }
@@ -246,48 +235,6 @@ where
         io::Error::new(
             io::ErrorKind::InvalidData,
             format!("failed to decode proposed value: {e}"),
-        )
-    })
-}
-
-fn encode_polka_certificate<Ctx, C, W>(
-    tag: u8,
-    certificate: &PolkaCertificate<Ctx>,
-    codec: &C,
-    mut buf: W,
-) -> io::Result<()>
-where
-    Ctx: Context,
-    C: WalCodec<Ctx>,
-    W: Write,
-{
-    let bytes = codec.encode(certificate).map_err(|e| {
-        io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("failed to encode polka certificate: {e}"),
-        )
-    })?;
-
-    buf.write_u8(tag)?;
-    buf.write_u64::<BE>(bytes.len() as u64)?;
-    buf.write_all(&bytes)?;
-    Ok(())
-}
-
-fn decode_polka_certificate<Ctx, C, R>(codec: &C, mut buf: R) -> io::Result<PolkaCertificate<Ctx>>
-where
-    Ctx: Context,
-    C: WalCodec<Ctx>,
-    R: Read,
-{
-    let len = buf.read_u64::<BE>()?;
-    let mut bytes = vec![0; len as usize];
-    buf.read_exact(&mut bytes)?;
-
-    codec.decode(bytes.into()).map_err(|e| {
-        io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("failed to decode polka certificate: {e}"),
         )
     })
 }

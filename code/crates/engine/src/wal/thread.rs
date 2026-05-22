@@ -284,6 +284,5 @@ fn wal_entry_type<Ctx: Context>(entry: &WalEntry<Ctx>) -> &'static str {
         },
         WalEntry::ProposedValue(_) => "LocallyProposedValue",
         WalEntry::Timeout(_) => "Timeout",
-        WalEntry::PolkaCertificate(_) => "PolkaCertificate",
     }
 }

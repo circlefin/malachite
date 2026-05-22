@@ -51,7 +51,6 @@
 - Changed `Msg::StartHeight` from `StartHeight(Height, ValidatorSet)` to `StartHeight(Height, HeightParams)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Changed `Msg::RestartHeight` from `RestartHeight(Height, ValidatorSet)` to `RestartHeight(Height, HeightParams)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Added `timeouts` field to `State` struct - timeouts are now stored in State instead of Driver ([#1227](https://github.com/circlefin/malachite/pull/1227))
-- Added `WalEntry::PolkaCertificate` variant - polka certificates are now stored in the WAL; if recovering with downgraded version fails, restart with the new version 
 
 ### `malachitebft-config`
 

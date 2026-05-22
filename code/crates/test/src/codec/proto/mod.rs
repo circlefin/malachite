@@ -315,20 +315,6 @@ impl Codec<ProposedValue<TestContext>> for ProtobufCodec {
     }
 }
 
-impl Codec<PolkaCertificate<TestContext>> for ProtobufCodec {
-    type Error = ProtoError;
-
-    fn decode(&self, bytes: Bytes) -> Result<PolkaCertificate<TestContext>, Self::Error> {
-        let proto = proto::PolkaCertificate::decode(bytes.as_ref())?;
-        decode_polka_certificate(proto)
-    }
-
-    fn encode(&self, msg: &PolkaCertificate<TestContext>) -> Result<Bytes, Self::Error> {
-        let proto = encode_polka_certificate(msg)?;
-        Ok(Bytes::from(proto.encode_to_vec()))
-    }
-}
-
 impl Codec<sync::Status<TestContext>> for ProtobufCodec {
     type Error = ProtoError;
 
@@ -486,6 +472,8 @@ pub fn decode_synced_value(
     })
 }
 
+// NOTE: Will be used again in #997
+#[allow(dead_code)]
 pub(crate) fn encode_polka_certificate(
     polka_certificate: &PolkaCertificate<TestContext>,
 ) -> Result<proto::PolkaCertificate, ProtoError> {
@@ -511,6 +499,8 @@ pub(crate) fn encode_polka_certificate(
     })
 }
 
+// NOTE: Will be used again in #997
+#[allow(dead_code)]
 pub(crate) fn decode_polka_certificate(
     certificate: proto::PolkaCertificate,
 ) -> Result<PolkaCertificate<TestContext>, ProtoError> {
@@ -685,49 +675,9 @@ impl Codec<ValidatorProof<TestContext>> for ProtobufCodec {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Address, Height, ValueId};
-    use malachitebft_core_types::{NilOrVal, PolkaSignature, Round, RoundSignature, VoteType};
+    use crate::{Address, Height};
+    use malachitebft_core_types::{NilOrVal, Round, RoundSignature, VoteType};
     use malachitebft_signing_ed25519::Signature;
-
-    #[test]
-    fn test_polka_certificate_encode_decode() {
-        let height = Height::new(7);
-        let round = Round::new(3);
-        let value_id = ValueId::new(0xC0FFEE);
-        let address_a = Address::new([1; 20]);
-        let address_b = Address::new([2; 20]);
-        let signature_a = Signature::from_bytes([3; 64]);
-        let signature_b = Signature::from_bytes([4; 64]);
-
-        let certificate = PolkaCertificate {
-            height,
-            round,
-            value_id,
-            polka_signatures: vec![
-                PolkaSignature::new(address_a, signature_a),
-                PolkaSignature::new(address_b, signature_b),
-            ],
-        };
-
-        let encoded = encode_polka_certificate(&certificate).unwrap();
-        let decoded = decode_polka_certificate(encoded).unwrap();
-
-        assert_eq!(decoded.height, certificate.height);
-        assert_eq!(decoded.round, certificate.round);
-        assert_eq!(decoded.value_id, certificate.value_id);
-        assert_eq!(
-            decoded.polka_signatures.len(),
-            certificate.polka_signatures.len()
-        );
-        for (got, want) in decoded
-            .polka_signatures
-            .iter()
-            .zip(certificate.polka_signatures.iter())
-        {
-            assert_eq!(got.address, want.address);
-            assert_eq!(got.signature.to_bytes(), want.signature.to_bytes());
-        }
-    }
 
     #[test]
     fn test_round_certificate_encode_decode() {

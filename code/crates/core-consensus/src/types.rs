@@ -102,7 +102,6 @@ pub enum WalEntry<Ctx: Context> {
     ConsensusMsg(SignedConsensusMsg<Ctx>),
     Timeout(Timeout),
     ProposedValue(ProposedValue<Ctx>),
-    PolkaCertificate(PolkaCertificate<Ctx>),
 }
 
 impl<Ctx: Context> WalEntry<Ctx> {
