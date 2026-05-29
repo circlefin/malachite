@@ -805,8 +805,13 @@ where
         },
     );
 
-    // Update sync_height to the next uncovered height after this range
-    set_sync_height(state, final_range.end().increment());
+    // Advance sync_height past this range only if it sat inside the range.
+    // If sync_height is already below the range — because a concurrent
+    // exhaustion path rewound it to an earlier untracked range — leave it
+    // alone so the next request cycle picks that range up.
+    if final_range.contains(&state.sync_height) {
+        set_sync_height(state, final_range.end().increment());
+    }
 
     Ok(())
 }
@@ -1813,6 +1818,111 @@ mod tests {
         // sync_height should have been reset but remain above tip_height.
         // sync_height should reset to the start of the failed range (11),
         // which is above tip_height (10).
+        assert_eq!(state.sync_height, Height::new(11));
+    }
+
+    #[test]
+    fn test_re_request_preserves_rewound_sync_height_below_other_pending_range() {
+        let mut state = make_test_state();
+        state.started = true;
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        state.tip_height = Height::new(10);
+        state.sync_height = Height::new(21);
+
+        let peer_a = PeerId::random();
+        let peer_b = PeerId::random();
+
+        state.peers.insert(
+            peer_a,
+            crate::Status {
+                peer_id: peer_a,
+                tip_height: Height::new(30),
+                history_min_height: Height::new(1),
+            },
+        );
+        state.peers.insert(
+            peer_b,
+            crate::Status {
+                peer_id: peer_b,
+                tip_height: Height::new(30),
+                history_min_height: Height::new(1),
+            },
+        );
+
+        // Entry A holds heights 11..=15 and has already excluded peer_a, so
+        // when peer_b also times out, every eligible peer is exhausted and
+        // sync_height rewinds to 11.
+        state.pending_requests.insert(
+            OutboundRequestId::new("req_a"),
+            PendingRequestEntry {
+                range: Height::new(11)..=Height::new(15),
+                peer: peer_b,
+                excluded_peers: [peer_a].into_iter().collect(),
+            },
+        );
+
+        // Entry B holds heights 16..=20 with peer_a still available as a
+        // retry target.
+        state.pending_requests.insert(
+            OutboundRequestId::new("req_b"),
+            PendingRequestEntry {
+                range: Height::new(16)..=Height::new(20),
+                peer: peer_b,
+                excluded_peers: BTreeSet::new(),
+            },
+        );
+
+        // Entry A times out on peer_b — all eligible peers exhausted.
+        drive_input_with_retries(
+            &mut state,
+            &metrics,
+            Input::SyncRequestTimedOut(
+                OutboundRequestId::new("req_a"),
+                peer_b,
+                crate::Request::ValueRequest(crate::ValueRequest::new(
+                    Height::new(11)..=Height::new(15),
+                )),
+            ),
+        )
+        .unwrap();
+
+        assert_eq!(
+            state.sync_height,
+            Height::new(11),
+            "exhaustion should rewind sync_height to the start of the failed range"
+        );
+
+        // Entry B times out on peer_b — peer_a is still eligible, so a new
+        // request goes out. sync_height must stay at 11 so the next request
+        // cycle picks up the 11..=15 range that the exhaustion rewound to.
+        let effects = drive_input_with_retries(
+            &mut state,
+            &metrics,
+            Input::SyncRequestTimedOut(
+                OutboundRequestId::new("req_b"),
+                peer_b,
+                crate::Request::ValueRequest(crate::ValueRequest::new(
+                    Height::new(16)..=Height::new(20),
+                )),
+            ),
+        )
+        .unwrap();
+
+        assert!(
+            effects
+                .iter()
+                .any(|e| matches!(e, Effect::SendValueRequest(..))),
+            "Expected a re-request to be sent for entry B"
+        );
+
+        let req_b_entry = state
+            .pending_requests
+            .values()
+            .find(|entry| entry.range == (Height::new(16)..=Height::new(20)))
+            .expect("re-requested entry for 16..=20 should be present");
+        assert_eq!(req_b_entry.peer, peer_a);
+
         assert_eq!(state.sync_height, Height::new(11));
     }
 
