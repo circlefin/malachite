@@ -64,6 +64,7 @@
   peer-score update by the `received / requested` ratio
 - Reject sync responses with non-contiguous certificate heights ([#1541](https://github.com/circlefin/malachite/issues/1541))
 - Fix partial range request not being tracked in pending requests
+- Preserve a sync_height rewind when a concurrent re-request to a different range succeeds, so the rewound range is picked up by the next request cycle instead of being silently abandoned
 - Initial random (fixed) period adjustment in sync status ticker
 - Refactor sync actor to notify consensus of sync responses
 - Support batch retrieval of decided values
