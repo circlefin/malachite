@@ -105,9 +105,10 @@ where
 /// the vote keeper will still be able to generate the threshold output using the existing
 /// stored and incoming votes from the certificate.
 ///
-/// (*) There is currently no validation of the correctness of the certificate in this function.
-/// A byzantine validator may send a certificate that does not have enough votes to reach the
-/// thresholds for `PrecommitAny` or `SkipRound`.
+/// The round certificate is fully validated by `verify_round_certificate`,
+/// which checks each vote signature and enforces the required voting-power
+/// threshold for `PrecommitAny` (2f+1) or `SkipRound` (f+1) before this
+/// function applies the certificate to the driver.
 ///
 /// # Returns
 /// * `Result<(), Error<Ctx>>` - Ok(()) if processing completed successfully,
