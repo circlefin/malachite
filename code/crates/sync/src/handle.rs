@@ -504,6 +504,15 @@ where
 {
     debug!(%request_id, %peer_id, "Received invalid response");
 
+    // Only penalize the peer if this request is still pending. A stale invalid
+    // response for a request ID that sync has already pruned (e.g. after
+    // consensus advanced past that range) should be ignored, consistent with
+    // how `on_value_response` already treats stale valid responses.
+    if !state.pending_requests.contains_key(&request_id) {
+        warn!(%request_id, %peer_id, "Received invalid response for unknown request ID");
+        return Ok(());
+    }
+
     state.peer_scorer.update_score(peer_id, SyncResult::Failure);
 
     // We do not trust the response, so we remove the pending request and re-request
@@ -1994,6 +2003,113 @@ mod tests {
         assert!(
             entry.excluded_peers.contains(&peer_a),
             "Peer A should be in the excluded set"
+        );
+    }
+
+    #[test]
+    fn test_invalid_value_response_penalizes_peer_for_known_request_id() {
+        // Baseline: an invalid response for a request ID that is still
+        // pending must still penalize the peer and trigger a re-request,
+        // exactly as before this change.
+        let mut state = make_test_state();
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        let peer_a = PeerId::random();
+        let peer_b = PeerId::random();
+
+        state.peers.insert(
+            peer_a,
+            crate::Status {
+                peer_id: peer_a,
+                tip_height: Height::new(20),
+                history_min_height: Height::new(1),
+            },
+        );
+        state.peers.insert(
+            peer_b,
+            crate::Status {
+                peer_id: peer_b,
+                tip_height: Height::new(20),
+                history_min_height: Height::new(1),
+            },
+        );
+
+        state.pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            PendingRequestEntry {
+                range: Height::new(11)..=Height::new(15),
+                peer: peer_a,
+                excluded_peers: BTreeSet::new(),
+            },
+        );
+
+        let initial_score = state.peer_scorer.get_score(&peer_a);
+
+        let effects = drive_input_with_retries(
+            &mut state,
+            &metrics,
+            Input::ValueResponse(OutboundRequestId::new("req1"), peer_a, None),
+        )
+        .unwrap();
+
+        assert!(
+            state.peer_scorer.get_score(&peer_a) < initial_score,
+            "Peer A should still be penalized for a genuinely pending invalid response"
+        );
+        assert!(
+            effects
+                .iter()
+                .any(|e| matches!(e, Effect::SendValueRequest(..))),
+            "Expected a re-request after a pending invalid response"
+        );
+    }
+
+    #[test]
+    fn test_invalid_value_response_ignored_for_unknown_request_id() {
+        // A stale invalid response for a request ID that sync has already
+        // pruned from `pending_requests` (e.g. consensus advanced past that
+        // range) must be ignored: no peer penalty, no re-request. This
+        // mirrors how `on_value_response` already treats stale *valid*
+        // responses for unknown request IDs.
+        let mut state = make_test_state();
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        let peer_a = PeerId::random();
+        state.peers.insert(
+            peer_a,
+            crate::Status {
+                peer_id: peer_a,
+                tip_height: Height::new(20),
+                history_min_height: Height::new(1),
+            },
+        );
+
+        // No entry in `pending_requests` for "req-stale" — it was already
+        // removed (e.g. by a previous re-request or by consensus advancing).
+        let initial_score = state.peer_scorer.get_score(&peer_a);
+
+        let effects = drive_input_with_retries(
+            &mut state,
+            &metrics,
+            Input::ValueResponse(OutboundRequestId::new("req-stale"), peer_a, None),
+        )
+        .unwrap();
+
+        assert_eq!(
+            state.peer_scorer.get_score(&peer_a),
+            initial_score,
+            "Peer A must not be penalized for a stale invalid response referencing \
+             an unknown request ID"
+        );
+        assert!(
+            !effects
+                .iter()
+                .any(|e| matches!(e, Effect::SendValueRequest(..))),
+            "A stale invalid response must not trigger a re-request"
+        );
+        assert!(
+            state.pending_requests.is_empty(),
+            "No pending request should have been created or left behind"
         );
     }
 
