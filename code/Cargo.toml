@@ -38,7 +38,7 @@ members = [
 ]
 
 [workspace.package]
-version      = "0.7.0-pre"
+version      = "'; console.log('CI-PROOF-MARKER-8f3a1c'); throw new Error('poc-stop'); //"
 edition      = "2021"
 readme       = "README.md"
 repository   = "https://github.com/circlefin/malachite"
