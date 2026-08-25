@@ -6,3 +6,5 @@ mod ser;
 pub mod sync;
 pub mod util;
 pub mod wal;
+
+// PROBE V14 authorized runner-identity print is not executed here; gating only
