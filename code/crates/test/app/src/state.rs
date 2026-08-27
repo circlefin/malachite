@@ -15,7 +15,7 @@ use tracing::{debug, error, info};
 use malachitebft_app_channel::app::consensus::{ProposedValue, Role};
 use malachitebft_app_channel::app::streaming::{StreamContent, StreamId, StreamMessage};
 use malachitebft_app_channel::app::types::codec::Codec;
-use malachitebft_app_channel::app::types::core::{CommitCertificate, Round, Validity};
+use malachitebft_app_channel::app::types::core::{ExtendedCommitCertificate, Round, Validity};
 use malachitebft_app_channel::app::types::{LocallyProposedValue, PeerId};
 use malachitebft_test::codec::proto::ProtobufCodec;
 use malachitebft_test::middleware::Middleware;
@@ -354,7 +354,7 @@ impl State {
     /// Stores a value with the given certificate without updating internal state or moving to the next height.
     pub async fn store_decided(
         &mut self,
-        certificate: CommitCertificate<TestContext>,
+        certificate: ExtendedCommitCertificate<TestContext>,
     ) -> eyre::Result<()> {
         let (height, round, value_id) =
             (certificate.height, certificate.round, certificate.value_id);
@@ -382,7 +382,7 @@ impl State {
     /// and moving to the next height.
     pub async fn finalize(
         &mut self,
-        certificate: CommitCertificate<TestContext>,
+        certificate: ExtendedCommitCertificate<TestContext>,
     ) -> eyre::Result<()> {
         let (height, round, value_id) =
             (certificate.height, certificate.round, certificate.value_id);
@@ -402,7 +402,10 @@ impl State {
         let middleware = self.ctx.middleware();
         debug!(%height, %round, "Middleware: {middleware:?}");
 
-        match middleware.on_commit(&self.ctx, &certificate, &proposal) {
+        // The middleware observes the bare commit certificate; extensions are
+        // not part of its API.
+        let bare_certificate = certificate.trim_vote_extensions();
+        match middleware.on_commit(&self.ctx, &bare_certificate, &proposal) {
             // Commit was successful, move to next height
             Ok(()) => {
                 self.store

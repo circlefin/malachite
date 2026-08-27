@@ -1,10 +1,55 @@
 use async_trait::async_trait;
 use bytes::Bytes;
+use core::mem::size_of;
 
-use malachitebft_core_types::{SignedExtension, SignedProposal, SignedVote, ValidatorProof};
+use malachitebft_core_types::{
+    NilOrVal, SignedExtension, SignedMessage, SignedProposal, SignedVote, ValidatorProof,
+    VoteExtensionScope,
+};
 use malachitebft_signing::{Error, Signer, VerificationResult, Verifier};
 
 use crate::{Proposal, TestContext, Vote};
+
+/// Domain-separation tag for vote-extension signatures.
+///
+/// Differentiates the vote-extension preimage from other signed messages in
+/// the system (votes, proposals, validator proofs). The version suffix lets
+/// us bump the canonical envelope without ambiguity.
+const VOTE_EXTENSION_DOMAIN: &[u8] = b"malachitebft/vote-extension/v1\0";
+
+/// Build the canonical preimage that binds a vote extension to its precommit scope.
+///
+/// The preimage is
+/// `DOMAIN || precommit_len || precommit_sign_bytes || extension_len || extension_bytes`,
+/// where `precommit_sign_bytes` is the same canonical form already used to sign
+/// the underlying precommit vote (so the binding is over height, round,
+/// value_id, vote_type=Precommit, and validator_address).
+fn vote_extension_sign_bytes(
+    scope: &VoteExtensionScope<TestContext>,
+    extension: &Bytes,
+) -> Vec<u8> {
+    let precommit = Vote::new_precommit(
+        scope.height,
+        scope.round,
+        NilOrVal::Val(scope.value_id),
+        scope.validator_address,
+    );
+    let precommit_bytes = precommit.to_sign_bytes();
+
+    let mut buf = Vec::with_capacity(
+        VOTE_EXTENSION_DOMAIN.len()
+            + size_of::<u64>()
+            + precommit_bytes.len()
+            + size_of::<u64>()
+            + extension.len(),
+    );
+    buf.extend_from_slice(VOTE_EXTENSION_DOMAIN);
+    buf.extend_from_slice(&(precommit_bytes.len() as u64).to_be_bytes());
+    buf.extend_from_slice(&precommit_bytes);
+    buf.extend_from_slice(&(extension.len() as u64).to_be_bytes());
+    buf.extend_from_slice(extension);
+    buf
+}
 
 pub use malachitebft_signing_ed25519::*;
 
@@ -63,12 +108,14 @@ impl Verifier<TestContext> for Ed25519Verifier {
 
     async fn verify_signed_vote_extension(
         &self,
+        scope: &VoteExtensionScope<TestContext>,
         extension: &Bytes,
         signature: &Signature,
         public_key: &PublicKey,
     ) -> Result<VerificationResult, Error> {
+        let preimage = vote_extension_sign_bytes(scope, extension);
         Ok(VerificationResult::from_bool(
-            public_key.verify(extension.as_ref(), signature).is_ok(),
+            public_key.verify(&preimage, signature).is_ok(),
         ))
     }
 
@@ -138,12 +185,13 @@ impl Verifier<TestContext> for Ed25519Signer {
 
     async fn verify_signed_vote_extension(
         &self,
+        scope: &VoteExtensionScope<TestContext>,
         extension: &Bytes,
         signature: &Signature,
         public_key: &PublicKey,
     ) -> Result<VerificationResult, Error> {
         Ed25519Verifier
-            .verify_signed_vote_extension(extension, signature, public_key)
+            .verify_signed_vote_extension(scope, extension, signature, public_key)
             .await
     }
 
@@ -172,12 +220,12 @@ impl Signer<TestContext> for Ed25519Signer {
 
     async fn sign_vote_extension(
         &self,
+        scope: VoteExtensionScope<TestContext>,
         extension: Bytes,
     ) -> Result<SignedExtension<TestContext>, Error> {
-        let signature = self.private_key.sign(extension.as_ref());
-        Ok(malachitebft_core_types::SignedMessage::new(
-            extension, signature,
-        ))
+        let preimage = vote_extension_sign_bytes(&scope, &extension);
+        let signature = self.private_key.sign(&preimage);
+        Ok(SignedMessage::new(extension, signature))
     }
 
     async fn sign_validator_proof(

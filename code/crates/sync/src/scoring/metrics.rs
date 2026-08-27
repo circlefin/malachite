@@ -50,7 +50,9 @@ impl Default for Metrics {
 impl Metrics {
     pub fn new() -> Self {
         Self {
-            scores: Family::new_with_constructor(|| Histogram::new(linear_buckets(0.0, 0.05, 20))),
+            // Scores are bounded in [0.0, 1.0]; 21 linear buckets of width 0.05
+            // cover the full range including values right at 1.0.
+            scores: Family::new_with_constructor(|| Histogram::new(linear_buckets(0.0, 0.05, 21))),
         }
     }
 

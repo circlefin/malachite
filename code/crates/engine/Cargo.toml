@@ -24,14 +24,13 @@ malachitebft-config.workspace = true
 malachitebft-core-consensus.workspace = true
 malachitebft-core-driver.workspace = true
 malachitebft-core-state-machine.workspace = true
-malachitebft-core-types.workspace = true
 malachitebft-core-votekeeper.workspace = true
+malachitebft-core-types.workspace = true
 malachitebft-network.workspace = true
 malachitebft-metrics.workspace = true
 malachitebft-signing.workspace = true
 malachitebft-sync.workspace = true
 malachitebft-wal.workspace = true
-
 async-trait = { workspace = true }
 async-recursion = { workspace = true }
 borsh = { workspace = true, optional = true }
@@ -47,3 +46,6 @@ ractor = { workspace = true }
 rand = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true }
+
+[dev-dependencies]
+malachitebft-peer = { workspace = true, features = ["rand"] }

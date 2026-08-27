@@ -130,7 +130,7 @@ where
 mod tests {
     use super::*;
 
-    #[derive(Clone, Copy, Default, Debug, Eq, PartialEq, Ord, PartialOrd)]
+    #[derive(Clone, Copy, Default, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
     struct TestHeight(u64);
 
     impl core::fmt::Display for TestHeight {

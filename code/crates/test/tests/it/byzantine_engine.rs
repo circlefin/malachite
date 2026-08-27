@@ -27,6 +27,7 @@ impl Middleware for ShortTimeouts {
             precommit: Duration::from_millis(100),
             precommit_delta: Duration::from_millis(50),
             rebroadcast: Duration::from_millis(200),
+            ..LinearTimeouts::default()
         })
     }
 }

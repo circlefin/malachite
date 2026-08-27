@@ -4,21 +4,21 @@ use libp2p::gossipsub;
 use libp2p_broadcast as broadcast;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug)]
 pub struct ChannelNames {
-    pub consensus: &'static str,
-    pub proposal_parts: &'static str,
-    pub sync: &'static str,
-    pub liveness: &'static str,
+    pub consensus: String,
+    pub proposal_parts: String,
+    pub sync: String,
+    pub liveness: String,
 }
 
 impl Default for ChannelNames {
     fn default() -> Self {
         Self {
-            consensus: "/consensus",
-            proposal_parts: "/proposal_parts",
-            sync: "/sync",
-            liveness: "/liveness",
+            consensus: "/consensus".to_string(),
+            proposal_parts: "/proposal_parts".to_string(),
+            sync: "/sync".to_string(),
+            liveness: "/liveness".to_string(),
         }
     }
 }
@@ -49,33 +49,33 @@ impl Channel {
         ]
     }
 
-    pub fn to_gossipsub_topic(self, channel_names: ChannelNames) -> gossipsub::IdentTopic {
+    pub fn to_gossipsub_topic(self, channel_names: &ChannelNames) -> gossipsub::IdentTopic {
         gossipsub::IdentTopic::new(self.as_str(channel_names))
     }
 
-    pub fn to_broadcast_topic(self, channel_names: ChannelNames) -> broadcast::Topic {
+    pub fn to_broadcast_topic(self, channel_names: &ChannelNames) -> broadcast::Topic {
         broadcast::Topic::new(self.as_str(channel_names).as_bytes())
     }
 
-    pub fn as_str(&self, channel_names: ChannelNames) -> &'static str {
+    pub fn as_str<'a>(&self, channel_names: &'a ChannelNames) -> &'a str {
         match self {
-            Channel::Consensus => channel_names.consensus,
-            Channel::ProposalParts => channel_names.proposal_parts,
-            Channel::Sync => channel_names.sync,
-            Channel::Liveness => channel_names.liveness,
+            Channel::Consensus => &channel_names.consensus,
+            Channel::ProposalParts => &channel_names.proposal_parts,
+            Channel::Sync => &channel_names.sync,
+            Channel::Liveness => &channel_names.liveness,
         }
     }
 
     pub fn has_gossipsub_topic(
         topic_hash: &gossipsub::TopicHash,
-        channel_names: ChannelNames,
+        channel_names: &ChannelNames,
     ) -> bool {
         Self::all()
             .iter()
             .any(|channel| &channel.to_gossipsub_topic(channel_names).hash() == topic_hash)
     }
 
-    pub fn has_broadcast_topic(topic: &broadcast::Topic, channel_names: ChannelNames) -> bool {
+    pub fn has_broadcast_topic(topic: &broadcast::Topic, channel_names: &ChannelNames) -> bool {
         Self::all()
             .iter()
             .any(|channel| &channel.to_broadcast_topic(channel_names) == topic)
@@ -83,7 +83,7 @@ impl Channel {
 
     pub fn from_gossipsub_topic_hash(
         topic: &gossipsub::TopicHash,
-        channel_names: ChannelNames,
+        channel_names: &ChannelNames,
     ) -> Option<Self> {
         if topic == &Self::Consensus.to_gossipsub_topic(channel_names).hash() {
             Some(Self::Consensus)
@@ -100,7 +100,7 @@ impl Channel {
 
     pub fn from_broadcast_topic(
         topic: &broadcast::Topic,
-        channel_names: ChannelNames,
+        channel_names: &ChannelNames,
     ) -> Option<Self> {
         if topic == &Self::Consensus.to_broadcast_topic(channel_names) {
             Some(Self::Consensus)

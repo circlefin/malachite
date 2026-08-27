@@ -7,7 +7,7 @@ use libp2p::request_response;
 use serde::{Deserialize, Serialize};
 
 use malachitebft_core_types::ValueResponse as CoreValueResponse;
-use malachitebft_core_types::{CommitCertificate, Context, Height};
+use malachitebft_core_types::{Context, ExtendedCommitCertificate, Height};
 
 pub use malachitebft_peer::PeerId;
 
@@ -57,6 +57,38 @@ impl OutboundRequestId {
     pub fn new(id: impl ToString) -> Self {
         Self(Arc::from(id.to_string()))
     }
+}
+
+/// Categorical reason an outbound sync request was reported as failed by the
+/// network layer. Mirrors `libp2p::request_response::OutboundFailure` minus
+/// the inner `io::Error` payload, so it is `Clone + Hash + Eq` and usable as a
+/// Prometheus label key.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum OutboundFailureReason {
+    /// Failed to dial the peer (e.g. unreachable address, no route).
+    DialFailure,
+    /// The underlying connection was closed before the request completed.
+    ConnectionClosed,
+    /// The libp2p-level request-response timeout fired (distinct from the
+    /// sync state machine's application-level `request_timeout`).
+    Timeout,
+    /// The peer does not speak the sync request-response protocol.
+    UnsupportedProtocols,
+    /// A substream IO error occurred.
+    Io,
+}
+
+/// Categorical reason a pending inbound sync request was dropped before a
+/// response was sent. Used as a Prometheus label key, so it is
+/// `Copy + Hash + Eq`.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum InboundFailureReason {
+    /// The peer that issued the request disconnected before the response was
+    /// sent.
+    RequesterDisconnected,
+    /// The host did not return the requested values within the inbound request
+    /// budget.
+    HostStallTimeout,
 }
 
 pub type ResponseChannel = request_response::ResponseChannel<RawResponse>;
@@ -115,14 +147,20 @@ impl<Ctx: Context> ValueResponse<Ctx> {
     }
 }
 
+/// A decided value as it travels over the sync wire.
+///
+/// Carries an [`ExtendedCommitCertificate`] so that vote extensions are
+/// preserved across sync, allowing a sync-recovered node to act as a proposer
+/// for the next height when the application uses extensions for load-bearing
+/// data.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct RawDecidedValue<Ctx: Context> {
     pub value_bytes: Bytes,
-    pub certificate: CommitCertificate<Ctx>,
+    pub certificate: ExtendedCommitCertificate<Ctx>,
 }
 
 impl<Ctx: Context> RawDecidedValue<Ctx> {
-    pub fn new(value_bytes: Bytes, certificate: CommitCertificate<Ctx>) -> Self {
+    pub fn new(value_bytes: Bytes, certificate: ExtendedCommitCertificate<Ctx>) -> Self {
         Self {
             value_bytes,
             certificate,

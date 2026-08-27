@@ -27,28 +27,13 @@ use crate::metrics::{Metrics, SharedRegistry};
 use crate::types::core::Context;
 use crate::types::ValuePayload;
 
-pub async fn spawn_node_actor<Ctx>(
-    ctx: Ctx,
-    network: NetworkRef<Ctx>,
-    consensus: ConsensusRef<Ctx>,
-    wal: WalRef<Ctx>,
-    sync: Option<SyncRef<Ctx>>,
-    host: HostRef<Ctx>,
-) -> Result<(NodeRef, JoinHandle<()>)>
-where
-    Ctx: Context,
-{
-    // Spawn the node actor
-    let node = Node::new(
-        ctx,
-        network,
-        consensus,
-        wal,
-        sync,
-        host,
-        tracing::Span::current(),
-    );
-
+/// Spawn the [`Node`] supervisor.
+///
+/// Spawned **first**, before any children, so its [`NodeRef`] can be threaded
+/// into actors that signal safety-critical failures (the WAL worker thread and
+/// the Consensus actor). Children link to it after they are spawned.
+pub async fn spawn_node_actor(metrics: Metrics) -> Result<(NodeRef, JoinHandle<()>)> {
+    let node = Node::new(metrics, tracing::Span::current());
     let (actor_ref, handle) = node.spawn().await?;
     Ok((actor_ref, handle))
 }
@@ -65,6 +50,12 @@ where
     Codec: ConsensusCodec<Ctx>,
     Codec: SyncCodec<Ctx>,
 {
+    consensus_cfg
+        .p2p
+        .channel_names
+        .validate()
+        .map_err(|e| eyre!("Invalid P2P channel names: {e}"))?;
+
     let config = make_network_config(consensus_cfg, value_sync_cfg);
 
     Network::spawn(identity, config, registry.clone(), codec, Span::current())
@@ -85,6 +76,7 @@ pub async fn spawn_consensus_actor<Ctx>(
     sync: Arc<OutputPort<SyncMsg<Ctx>>>,
     metrics: Metrics,
     tx_event: TxEvent<Ctx>,
+    node: NodeRef,
 ) -> Result<ConsensusRef<Ctx>>
 where
     Ctx: Context,
@@ -92,7 +84,6 @@ where
     use crate::config;
 
     let value_payload = match cfg.value_payload {
-        config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
         config::ValuePayload::ProposalOnly => ValuePayload::ProposalOnly,
         config::ValuePayload::ProposalAndParts => ValuePayload::ProposalAndParts,
     };
@@ -116,6 +107,7 @@ where
         sync,
         metrics,
         tx_event,
+        node,
         Span::current(),
     )
     .await
@@ -127,6 +119,7 @@ pub async fn spawn_wal_actor<Ctx, Codec>(
     codec: Codec,
     path: &Path,
     registry: &SharedRegistry,
+    node: NodeRef,
 ) -> Result<WalRef<Ctx>>
 where
     Ctx: Context,
@@ -144,6 +137,7 @@ where
         path.to_owned(),
         registry.clone(),
         Span::current(),
+        node,
     )
     .await
     .map_err(Into::into)
@@ -231,6 +225,7 @@ fn make_network_config(cfg: &ConsensusConfig, value_sync_cfg: &ValueSyncConfig) 
             num_outbound_peers: cfg.p2p.discovery.num_outbound_peers,
             num_inbound_peers: cfg.p2p.discovery.num_inbound_peers,
             max_connections_per_ip: cfg.p2p.discovery.max_connections_per_ip,
+            ip_throttle_duration: cfg.p2p.discovery.ip_throttle_duration,
             max_connections_per_peer: cfg.p2p.discovery.max_connections_per_peer,
             ephemeral_connection_timeout: cfg.p2p.discovery.ephemeral_connection_timeout,
             dial_max_retries: cfg.p2p.discovery.dial_max_retries,
@@ -263,7 +258,12 @@ fn make_network_config(cfg: &ConsensusConfig, value_sync_cfg: &ValueSyncConfig) 
             },
             config::PubSubProtocol::Broadcast => GossipSubConfig::default(),
         },
-        channel_names: ChannelNames::default(),
+        channel_names: ChannelNames {
+            consensus: cfg.p2p.channel_names.consensus.clone(),
+            proposal_parts: cfg.p2p.channel_names.proposal_parts.clone(),
+            sync: cfg.p2p.channel_names.sync.clone(),
+            liveness: cfg.p2p.channel_names.liveness.clone(),
+        },
         rpc_max_size: cfg.p2p.rpc_max_size.as_u64() as usize,
         pubsub_max_size: cfg.p2p.pubsub_max_size.as_u64() as usize,
         enable_consensus: cfg.enabled,
@@ -275,5 +275,22 @@ fn make_network_config(cfg: &ConsensusConfig, value_sync_cfg: &ValueSyncConfig) 
             sync: cfg.p2p.protocol_names.sync.clone(),
             validator_proof: cfg.p2p.protocol_names.validator_proof.clone(),
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use malachitebft_config::DiscoveryConfig as SerdeDiscoveryConfig;
+    use malachitebft_network::DiscoveryConfig as RuntimeDiscoveryConfig;
+
+    /// The serde-deserialized default in `malachitebft-config` and the runtime
+    /// default in `malachitebft-discovery` are defined independently. Pin them
+    /// so a change in one without the other is caught immediately.
+    #[test]
+    fn ip_throttle_duration_default_matches_across_crates() {
+        assert_eq!(
+            RuntimeDiscoveryConfig::default().ip_throttle_duration,
+            SerdeDiscoveryConfig::default().ip_throttle_duration,
+        );
     }
 }

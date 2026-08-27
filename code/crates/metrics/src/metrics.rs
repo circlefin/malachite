@@ -99,6 +99,19 @@ pub struct Inner {
     /// Number of additional precommits received during finalization period
     pub additional_precommits: Counter,
 
+    /// Node-level safety failure indicator.
+    /// 1 when the node has entered the safety-hang state (e.g. WAL failure or WAL worker thread panic), 0 otherwise.
+    pub node_safety_failure: Gauge,
+
+    /// Number of votes dropped because their round exceeded the future-round lookahead
+    pub dropped_future_round_votes: Counter,
+
+    /// Number of proposals dropped because the per-(height, round) cap was reached
+    pub dropped_capped_proposals: Counter,
+
+    /// Number of proposed values dropped because the per-(height, round) cap was reached
+    pub dropped_capped_proposed_values: Counter,
+
     /// Internal state for measuring time taken for consensus
     instant_consensus_started: Arc<AtomicInstant>,
 
@@ -112,10 +125,12 @@ pub struct Inner {
 impl Metrics {
     pub fn new() -> Self {
         Self(Arc::new(Inner {
-            consensus_time: Histogram::new(linear_buckets(0.0, 0.1, 20)),
-            time_per_block: Histogram::new(linear_buckets(0.0, 0.1, 20)),
+            // 50ms to ~14.6s (exp, factor 1.5): dense resolution in the 100-500ms
+            // hot range while still capturing multi-round / abnormal block times.
+            consensus_time: Histogram::new(exponential_buckets(0.05, 1.5, 15)),
+            time_per_block: Histogram::new(exponential_buckets(0.05, 1.5, 15)),
             time_per_step: Family::new_with_constructor(|| {
-                Histogram::new(linear_buckets(0.0, 0.1, 20))
+                Histogram::new(exponential_buckets(0.05, 1.5, 15))
             }),
             consensus_round: Histogram::new(linear_buckets(0.0, 1.0, 20)),
             proposal_round: Histogram::new(linear_buckets(0.0, 1.0, 20)),
@@ -123,13 +138,19 @@ impl Metrics {
             connected_peers: Gauge::default(),
             height: Gauge::default(),
             round: Gauge::default(),
-            signature_signing_time: Histogram::new(exponential_buckets(0.001, 2.0, 10)),
-            signature_verification_time: Histogram::new(exponential_buckets(0.001, 2.0, 10)),
+            // 0.1ms to ~819ms (exp, factor 2.0): captures sub-millisecond
+            // verification times and signing outliers up to the rebroadcast timeout.
+            signature_signing_time: Histogram::new(exponential_buckets(0.0001, 2.0, 14)),
+            signature_verification_time: Histogram::new(exponential_buckets(0.0001, 2.0, 14)),
             queue_heights: Gauge::default(),
             queue_size: Gauge::default(),
             equivocation_votes: Counter::default(),
             equivocation_proposals: Counter::default(),
             additional_precommits: Counter::default(),
+            node_safety_failure: Gauge::default(),
+            dropped_future_round_votes: Counter::default(),
+            dropped_capped_proposals: Counter::default(),
+            dropped_capped_proposed_values: Counter::default(),
             instant_consensus_started: Arc::new(AtomicInstant::empty()),
             instant_block_started: Arc::new(AtomicInstant::empty()),
             instant_step_started: Arc::new(Mutex::new((Step::Unstarted, Instant::now()))),
@@ -235,6 +256,30 @@ impl Metrics {
                 "Number of additional precommits received during finalization period",
                 metrics.additional_precommits.clone(),
             );
+
+            registry.register(
+                "dropped_future_round_votes",
+                "Number of votes dropped because their round exceeded the future-round lookahead",
+                metrics.dropped_future_round_votes.clone(),
+            );
+
+            registry.register(
+                "dropped_capped_proposals",
+                "Number of proposals dropped because the per-(height, round) cap was reached",
+                metrics.dropped_capped_proposals.clone(),
+            );
+
+            registry.register(
+                "dropped_capped_proposed_values",
+                "Number of proposed values dropped because the per-(height, round) cap was reached",
+                metrics.dropped_capped_proposed_values.clone(),
+            );
+
+            registry.register(
+                "node_safety_failure",
+                "1 when the node has entered the safety-hang state (e.g. WAL failure or WAL worker thread panic), 0 otherwise. Stays at 1 until the operator restarts the process.",
+                metrics.node_safety_failure.clone(),
+            );
         });
 
         metrics
@@ -269,6 +314,14 @@ impl Metrics {
     pub fn step_start(&self, step: Step) {
         let mut guard = self.instant_step_started.lock().expect("poisoned mutex");
         *guard = (step, Instant::now());
+    }
+
+    /// Mark the node as having entered the safety-hang state.
+    ///
+    /// Idempotent — repeated calls are a no-op. The gauge stays at 1
+    /// until the process is restarted.
+    pub fn set_safety_failure(&self) {
+        self.node_safety_failure.set(1);
     }
 
     pub fn step_end(&self, step: Step) {

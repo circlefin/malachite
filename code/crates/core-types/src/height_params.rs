@@ -1,7 +1,7 @@
 use core::time::Duration;
 use derive_where::derive_where;
 
-use crate::Context;
+use crate::{Context, VoteExtensionPolicy};
 
 /// Consensus parameters to use when starting or restarting a height.
 #[derive_where(Debug, Clone, PartialEq, Eq)]
@@ -14,6 +14,9 @@ pub struct HeightParams<Ctx: Context> {
 
     /// Target time for this height
     pub target_time: Option<Duration>,
+
+    /// Vote-extension verification policy for this height.
+    pub vote_extension_policy: VoteExtensionPolicy,
 }
 
 impl<Ctx: Context> HeightParams<Ctx> {
@@ -27,6 +30,16 @@ impl<Ctx: Context> HeightParams<Ctx> {
             validator_set,
             timeouts,
             target_time,
+            vote_extension_policy: VoteExtensionPolicy::default(),
         }
+    }
+
+    /// Create new height parameters with an explicit vote-extension policy.
+    pub fn with_vote_extension_policy(
+        mut self,
+        vote_extension_policy: VoteExtensionPolicy,
+    ) -> Self {
+        self.vote_extension_policy = vote_extension_policy;
+        self
     }
 }

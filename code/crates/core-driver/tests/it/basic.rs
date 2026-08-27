@@ -1016,10 +1016,8 @@ fn driver_steps_proposer_not_found() {
     assert_eq!(output, Err(Error::ProposerNotFound(v1.address)));
 }
 
-// Regression test for . Prior to the fix,
-// `apply_input` took `round_state` out via `core::mem::take` before
-// calling `get_proposer()?`. If that lookup failed, the driver was left
-// with a default `round_state` — losing `locked` and `valid`.
+// Proposer lookup can fail after `apply_input` temporarily takes `round_state`.
+// The error path must restore it so `locked` and `valid` are preserved.
 #[test]
 fn driver_preserves_round_state_when_proposer_not_found() {
     let value = Value::new(9999);

@@ -2,7 +2,6 @@ use crate::handle::driver::apply_driver_input;
 use crate::prelude::*;
 
 use super::signature::{verify_polka_certificate, verify_round_certificate};
-use crate::types::WalEntry;
 
 /// Handles the processing of a polka certificate.
 ///
@@ -75,7 +74,7 @@ where
         co,
         Effect::WalAppend(
             certificate.height,
-            WalEntry::PolkaCertificate(certificate.clone()),
+            Input::PolkaCertificate(certificate.clone()),
             Default::default()
         )
     );
@@ -161,6 +160,25 @@ where
         }
     }
 
+    // Skip certificate processing if an equivalent one is already stored, to avoid redundant
+    // signature verification, duplicate WAL appends, and no-op driver inputs. The driver keeps
+    // a single round_certificate slot; matching height/round/cert_type is sufficient because a
+    // later threshold for the same (round, cert_type) would replace, not duplicate, the slot.
+    if let Some(existing) = state.round_certificate() {
+        if existing.certificate.height == certificate.height
+            && existing.certificate.round == certificate.round
+            && existing.certificate.cert_type == certificate.cert_type
+        {
+            debug!(
+                %certificate.height,
+                %certificate.round,
+                "Round certificate already known, ignoring"
+            );
+
+            return Ok(());
+        }
+    }
+
     assert_eq!(certificate.height, state.height());
 
     let validator_set = state.validator_set();
@@ -192,6 +210,10 @@ where
     //
     // As a result, we decided to simplify the logic for round certificates by handling their votes individually.
     // This avoids extra complexity and edge case handling in the driver.
+    //
+    // We persist each vote to the WAL the same way a vote received over the network is persisted, rather
+    // than the certificate as a whole. On restart the vote keeper re-aggregates the replayed votes and
+    // reconstructs the round certificate through the ordinary vote path — no dedicated WAL entry needed.
     for signature in certificate.round_signatures {
         let vote = {
             let vote_msg = match signature.vote_type {
@@ -210,6 +232,15 @@ where
             };
             SignedVote::new(vote_msg, signature.signature)
         };
+
+        perform!(
+            co,
+            Effect::WalAppend(
+                certificate.height,
+                Input::Vote(vote.clone()),
+                Default::default()
+            )
+        );
 
         apply_driver_input(co, state, metrics, DriverInput::Vote(vote)).await?;
     }

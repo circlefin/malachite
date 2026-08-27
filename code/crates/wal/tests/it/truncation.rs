@@ -9,8 +9,11 @@ use arc_malachitebft_wal::ext::*;
 use arc_malachitebft_wal::log::constants::*;
 use arc_malachitebft_wal::Log;
 
-static TESTDIR: LazyLock<NumberedDir> =
-    LazyLock::new(|| NumberedDirBuilder::new("wal".to_string()).create().unwrap());
+static TESTDIR: LazyLock<NumberedDir> = LazyLock::new(|| {
+    NumberedDirBuilder::new("wal-truncation".to_string())
+        .create()
+        .unwrap()
+});
 
 macro_rules! testwal {
     ($e:expr) => {{

@@ -99,29 +99,15 @@ pub enum ValuePayload {
     /// In this case `Value` is typically set to be the block and `Id` is its hash.
     ProposalOnly,
 
-    /// The proposer does not broadcast a `Proposal` consensus message at all. The proposer only streams the proposed value as proposal parts.
-    /// In this case `Value` is typically set to the same type as `Id`.
-    PartsOnly,
-
     /// The proposer broadcasts a `Proposal` message carrying `id(v)` and streams the full proposed value `v` as proposal parts.
     /// In this case `Value` is typically set to the same type as `Id`.
     ProposalAndParts,
 }
 
 impl ValuePayload {
-    /// Whether the proposer must publish the proposed value as a `Proposal` message.
-    pub fn include_proposal(self) -> bool {
-        matches!(self, Self::ProposalOnly | Self::ProposalAndParts)
-    }
-
     /// Whether the proposer must publish the proposed value as parts.
     pub fn include_parts(self) -> bool {
-        matches!(self, Self::PartsOnly | Self::ProposalAndParts)
-    }
-
-    /// Whether the proposal must only publish proposal parts, no `Proposal` message.
-    pub fn parts_only(self) -> bool {
-        matches!(self, Self::PartsOnly)
+        matches!(self, Self::ProposalAndParts)
     }
 
     /// Whether the proposer must only publish a `Proposal` message, no proposal parts.

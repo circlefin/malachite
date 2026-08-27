@@ -16,7 +16,7 @@ mod params;
 pub use params::{Params, ThresholdParams};
 
 #[doc(hidden)]
-pub use params::HIDDEN_LOCK_ROUND;
+pub use params::{HIDDEN_LOCK_ROUND, MAX_FUTURE_ROUND_LOOKAHEAD};
 
 mod effect;
 pub use effect::{Effect, Resumable, Resume};

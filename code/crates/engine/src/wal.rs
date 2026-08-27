@@ -7,16 +7,18 @@ use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, RpcReplyPort, Spa
 use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, info, warn};
 
+use malachitebft_core_consensus::Input;
 use malachitebft_core_types::{Context, Height};
 use malachitebft_metrics::SharedRegistry;
 use malachitebft_wal as wal;
+
+use crate::node::NodeRef;
 
 mod entry;
 mod iter;
 mod thread;
 
 pub use entry::WalCodec;
-pub use entry::WalEntry;
 pub use entry::{decode_entry, encode_entry};
 pub use iter::log_entries;
 
@@ -45,8 +47,10 @@ where
         path: PathBuf,
         _metrics: SharedRegistry,
         span: tracing::Span,
+        node: NodeRef,
     ) -> Result<WalRef<Ctx>, SpawnErr> {
-        let (actor_ref, _) = Actor::spawn(None, Self::new(span), Args { path, codec }).await?;
+        let (actor_ref, _) =
+            Actor::spawn(None, Self::new(span), Args { path, codec, node }).await?;
         Ok(actor_ref)
     }
 }
@@ -54,9 +58,9 @@ where
 pub type WalReply<T> = RpcReplyPort<eyre::Result<T>>;
 
 pub enum Msg<Ctx: Context> {
-    StartedHeight(Ctx::Height, WalReply<Vec<io::Result<WalEntry<Ctx>>>>),
+    StartedHeight(Ctx::Height, WalReply<Vec<io::Result<Input<Ctx>>>>),
     Reset(Ctx::Height, WalReply<()>),
-    Append(Ctx::Height, WalEntry<Ctx>, WalReply<()>),
+    Append(Ctx::Height, Input<Ctx>, WalReply<()>),
     Flush(WalReply<()>),
     Dump,
 }
@@ -64,6 +68,7 @@ pub enum Msg<Ctx: Context> {
 pub struct Args<Codec> {
     pub path: PathBuf,
     pub codec: Codec,
+    pub node: NodeRef,
 }
 
 pub struct State<Ctx: Context> {
@@ -157,7 +162,7 @@ where
         &self,
         state: &mut State<Ctx>,
         height: Ctx::Height,
-        reply_to: WalReply<Vec<io::Result<WalEntry<Ctx>>>>,
+        reply_to: WalReply<Vec<io::Result<Input<Ctx>>>>,
     ) -> Result<(), ActorProcessingErr> {
         let (tx, rx) = oneshot::channel();
 
@@ -178,10 +183,9 @@ where
     async fn write_log(
         &self,
         state: &mut State<Ctx>,
-        msg: impl Into<WalEntry<Ctx>>,
+        entry: Input<Ctx>,
         reply_to: WalReply<()>,
     ) -> Result<(), ActorProcessingErr> {
-        let entry = msg.into();
         let (tx, rx) = oneshot::channel();
 
         state
@@ -246,7 +250,10 @@ where
         let (tx, rx) = mpsc::channel(100);
 
         // Spawn a system thread to perform blocking WAL operations.
-        let handle = self::thread::spawn(self.span.clone(), log, args.codec, rx);
+        // It holds a NodeRef to signal a safety failure if it panics —
+        // otherwise the WAL actor would outlive its dead worker and stall
+        // consensus silently.
+        let handle = self::thread::spawn(self.span.clone(), log, args.codec, rx, args.node);
 
         Ok(State {
             height: Ctx::Height::ZERO,

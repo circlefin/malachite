@@ -5,8 +5,8 @@ use malachitebft_app::engine::util::streaming::{StreamContent, StreamId, StreamM
 use malachitebft_codec::{Codec, HasEncodedLen};
 use malachitebft_core_consensus::{LivenessMsg, ProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{
-    CommitCertificate, CommitSignature, NilOrVal, PolkaCertificate, PolkaSignature, Round,
-    RoundCertificate, RoundCertificateType, RoundSignature, SignedExtension, SignedProposal,
+    ExtendedCommitCertificate, ExtendedCommitSignature, NilOrVal, PolkaCertificate, PolkaSignature,
+    Round, RoundCertificate, RoundCertificateType, RoundSignature, SignedExtension, SignedProposal,
     SignedVote, ValidatorProof, Validity,
 };
 use malachitebft_proto::{Error as ProtoError, Protobuf};
@@ -469,7 +469,9 @@ pub fn encode_synced_value(
 ) -> Result<proto::SyncedValue, ProtoError> {
     Ok(proto::SyncedValue {
         value_bytes: synced_value.value_bytes.clone(),
-        certificate: Some(encode_commit_certificate(&synced_value.certificate)?),
+        certificate: Some(encode_extended_commit_certificate(
+            &synced_value.certificate,
+        )?),
     })
 }
 
@@ -482,7 +484,7 @@ pub fn decode_synced_value(
 
     Ok(sync::RawDecidedValue {
         value_bytes: proto.value_bytes,
-        certificate: decode_commit_certificate(certificate)?,
+        certificate: decode_extended_commit_certificate(certificate)?,
     })
 }
 
@@ -541,58 +543,65 @@ pub(crate) fn decode_polka_certificate(
     })
 }
 
-pub fn decode_commit_certificate(
-    certificate: proto::CommitCertificate,
-) -> Result<CommitCertificate<TestContext>, ProtoError> {
+pub fn decode_extended_commit_certificate(
+    certificate: proto::ExtendedCommitCertificate,
+) -> Result<ExtendedCommitCertificate<TestContext>, ProtoError> {
     let value_id = certificate
         .value_id
-        .ok_or_else(|| ProtoError::missing_field::<proto::CommitCertificate>("value_id"))
+        .ok_or_else(|| ProtoError::missing_field::<proto::ExtendedCommitCertificate>("value_id"))
         .and_then(ValueId::from_proto)?;
 
-    let commit_signatures = certificate
+    let signatures = certificate
         .signatures
         .into_iter()
-        .map(|sig| -> Result<CommitSignature<TestContext>, ProtoError> {
-            let address = sig.validator_address.ok_or_else(|| {
-                ProtoError::missing_field::<proto::CommitCertificate>("validator_address")
-            })?;
-            let signature = sig.signature.ok_or_else(|| {
-                ProtoError::missing_field::<proto::CommitCertificate>("signature")
-            })?;
-            let signature = decode_signature(signature)?;
-            let address = Address::from_proto(address)?;
-            Ok(CommitSignature::new(address, signature))
-        })
+        .map(
+            |sig| -> Result<ExtendedCommitSignature<TestContext>, ProtoError> {
+                let address = sig.validator_address.ok_or_else(|| {
+                    ProtoError::missing_field::<proto::ExtendedCommitCertificate>(
+                        "validator_address",
+                    )
+                })?;
+                let signature = sig.signature.ok_or_else(|| {
+                    ProtoError::missing_field::<proto::ExtendedCommitCertificate>("signature")
+                })?;
+                let signature = decode_signature(signature)?;
+                let address = Address::from_proto(address)?;
+                let extension = sig.extension.map(decode_extension).transpose()?;
+                Ok(ExtendedCommitSignature::new(address, signature, extension))
+            },
+        )
         .collect::<Result<Vec<_>, _>>()?;
 
-    let certificate = CommitCertificate {
+    Ok(ExtendedCommitCertificate {
         height: Height::new(certificate.height),
         round: Round::new(certificate.round),
         value_id,
-        commit_signatures,
-    };
-
-    Ok(certificate)
+        commit_signatures: signatures,
+    })
 }
 
-pub fn encode_commit_certificate(
-    certificate: &CommitCertificate<TestContext>,
-) -> Result<proto::CommitCertificate, ProtoError> {
-    Ok(proto::CommitCertificate {
+pub fn encode_extended_commit_certificate(
+    certificate: &ExtendedCommitCertificate<TestContext>,
+) -> Result<proto::ExtendedCommitCertificate, ProtoError> {
+    Ok(proto::ExtendedCommitCertificate {
         height: certificate.height.as_u64(),
         round: certificate.round.as_u32().expect("round should not be nil"),
         value_id: Some(certificate.value_id.to_proto()?),
         signatures: certificate
             .commit_signatures
             .iter()
-            .map(|sig| -> Result<proto::CommitSignature, ProtoError> {
-                let address = sig.address.to_proto()?;
-                let signature = encode_signature(&sig.signature);
-                Ok(proto::CommitSignature {
-                    validator_address: Some(address),
-                    signature: Some(signature),
-                })
-            })
+            .map(
+                |sig| -> Result<proto::ExtendedCommitSignature, ProtoError> {
+                    let address = sig.address.to_proto()?;
+                    let signature = encode_signature(&sig.signature);
+                    let extension = sig.extension.as_ref().map(encode_extension).transpose()?;
+                    Ok(proto::ExtendedCommitSignature {
+                        validator_address: Some(address),
+                        signature: Some(signature),
+                        extension,
+                    })
+                },
+            )
             .collect::<Result<Vec<_>, _>>()?,
     })
 }

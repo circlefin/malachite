@@ -159,6 +159,8 @@ pub struct State {
     pub(crate) metrics: NetworkMetrics,
     /// Local node information
     pub local_node: LocalNodeInfo,
+    /// Whether this node promotes its persistent peers to explicit gossipsub peers.
+    pub(crate) enable_explicit_peering: bool,
     /// Detailed peer information indexed by PeerId
     pub peer_info: HashMap<libp2p::PeerId, PeerInfo>,
     /// Pending verified proofs for peers not yet in peer_info (Identify not received yet).
@@ -326,6 +328,7 @@ impl State {
         persistent_peer_addrs: Vec<Multiaddr>,
         local_node: LocalNodeInfo,
         metrics: NetworkMetrics,
+        enable_explicit_peering: bool,
     ) -> Self {
         // Extract PeerIds from persistent peer Multiaddrs if they contain /p2p/<peer_id>
         let persistent_peer_ids = persistent_peer_addrs
@@ -341,6 +344,7 @@ impl State {
             validator_set: HashSet::new(),
             metrics,
             local_node,
+            enable_explicit_peering,
             peer_info: HashMap::new(),
             pending_verified_proofs: HashMap::new(),
         }
@@ -354,6 +358,20 @@ impl State {
     ) -> bool {
         self.persistent_peer_ids.contains(peer_id)
             || self.is_persistent_peer_by_address(connection_id)
+    }
+
+    /// Remove a peer identity learned from a transport-only persistent address.
+    /// Identities embedded in configured addresses remain valid while disconnected.
+    pub(crate) fn remove_learned_persistent_peer_id(&mut self, peer_id: &libp2p::PeerId) {
+        let is_configured_by_id = self
+            .persistent_peer_addrs
+            .iter()
+            .filter_map(extract_peer_id_from_multiaddr)
+            .any(|configured_peer_id| configured_peer_id == *peer_id);
+
+        if !is_configured_by_id {
+            self.persistent_peer_ids.remove(peer_id);
+        }
     }
 
     /// Check if a peer is a persistent peer by matching its addresses against persistent peer addresses
@@ -387,7 +405,7 @@ impl State {
         &mut self,
         gossipsub: &libp2p_gossipsub::Behaviour,
         channels: &[Channel],
-        channel_names: ChannelNames,
+        channel_names: &ChannelNames,
     ) {
         // Build a map of peer_id to the set of topics they're in
         let mut peer_topics: HashMap<libp2p::PeerId, HashSet<String>> = HashMap::new();
@@ -549,6 +567,68 @@ impl State {
         lines.join("\n")
     }
 
+    /// Add a persistent peer as an explicit peer in gossipsub.
+    ///
+    /// A node always sends and forwards messages to its explicit peers,
+    /// regardless of mesh membership.
+    ///
+    /// No-op if explicit peering is disabled, if `peer_info` is missing
+    /// (peer not yet connected), if the peer is already explicit, if the
+    /// peer is not classified as persistent, or if gossipsub is disabled.
+    pub(crate) fn add_explicit_peer_to_gossipsub(
+        &mut self,
+        swarm: &mut libp2p::Swarm<Behaviour>,
+        peer_id: libp2p::PeerId,
+    ) {
+        if !self.enable_explicit_peering {
+            return;
+        }
+
+        let Some(peer_info) = self.peer_info.get_mut(&peer_id) else {
+            return;
+        };
+
+        if peer_info.peer_type.is_persistent() && !peer_info.is_explicit {
+            if let Some(gossipsub) = swarm.behaviour_mut().gossipsub.as_mut() {
+                gossipsub.add_explicit_peer(&peer_id);
+                self.metrics
+                    .record_explicit_peer(&peer_id, &peer_info.moniker);
+                peer_info.is_explicit = true;
+                tracing::info!("Added persistent peer {peer_id} as explicit peer in gossipsub");
+            }
+        }
+    }
+
+    /// Remove a persistent peer from explicit peers in gossipsub and mark the metric stale.
+    ///
+    /// No-op if explicit peering is disabled, if `peer_info` is missing,
+    /// or if the peer is not currently in the explicit set.
+    pub(crate) fn remove_explicit_peer_from_gossipsub(
+        &mut self,
+        swarm: &mut libp2p::Swarm<Behaviour>,
+        peer_id: &libp2p::PeerId,
+    ) {
+        if !self.enable_explicit_peering {
+            return;
+        }
+
+        let Some(peer_info) = self.peer_info.get_mut(peer_id) else {
+            return;
+        };
+
+        if peer_info.is_explicit {
+            if let Some(gossipsub) = swarm.behaviour_mut().gossipsub.as_mut() {
+                gossipsub.remove_explicit_peer(peer_id);
+                self.metrics
+                    .mark_explicit_peer_stale(peer_id, &peer_info.moniker);
+                peer_info.is_explicit = false;
+                tracing::info!(
+                    "Removed persistent peer {peer_id} from explicit peers in gossipsub"
+                );
+            }
+        }
+    }
+
     /// Update peer's persistent status, recalculate score, and update GossipSub
     fn update_peer_persistent_status(
         peer_id: libp2p::PeerId,
@@ -604,6 +684,12 @@ impl State {
 
             // Promote from ephemeral if already connected
             self.try_prioritize_peer(peer_id);
+
+            // For a peer that is already connected, add it to the gossipsub
+            // explicit-peer set now. For one not yet connected, this is a
+            // no-op; the Identify handler picks it up when the connection
+            // completes.
+            self.add_explicit_peer_to_gossipsub(swarm, peer_id);
         }
 
         // Add to persistent peer list
@@ -612,14 +698,16 @@ impl State {
         // Update discovery layer to add this as a bootstrap node
         self.discovery.add_bootstrap_node(addr.clone());
 
-        // Attempt to dial the new persistent peer
-        if let Err(e) = swarm.dial(addr.clone()) {
-            tracing::warn!(
-                error = %e,
-                addr = %addr,
-                "Failed to dial newly added persistent peer, will retry via discovery"
-            );
-            // Don't return error - the peer is added, dialing might succeed later
+        // Only dial if the address has a transport component. A peer-only
+        // address (/p2p/<peer_id>) has no network destination to dial.
+        if crate::TransportProtocol::from_multiaddr(&addr).is_some() {
+            if let Err(e) = swarm.dial(addr.clone()) {
+                tracing::warn!(
+                    error = %e,
+                    addr = %addr,
+                    "Failed to dial newly added persistent peer, will retry via discovery"
+                );
+            }
         }
 
         Ok(())
@@ -638,12 +726,17 @@ impl State {
 
         self.persistent_peer_addrs.remove(pos);
 
-        // Look up the peer_id from discovery, learned via TLS/noise handshake
-        // when we successfully connected to this address
-        let peer_id = self.discovery.get_peer_id_for_addr(&addr);
+        // Prefer the stable identity in the configured address because discovery
+        // clears its learned association after the last connection closes.
+        let peer_id = extract_peer_id_from_multiaddr(&addr)
+            .or_else(|| self.discovery.get_peer_id_for_addr(&addr));
 
         if let Some(peer_id) = peer_id {
             self.persistent_peer_ids.remove(&peer_id);
+
+            // Remove from the gossipsub explicit-peer set before the peer
+            // stays connected as a non-persistent peer.
+            self.remove_explicit_peer_from_gossipsub(swarm, &peer_id);
 
             // Update peer type and score if connected
             Self::update_peer_persistent_status(
@@ -765,11 +858,14 @@ fn extract_peer_id_from_multiaddr(addr: &Multiaddr) -> Option<libp2p::PeerId> {
     None
 }
 
-/// Helper to apply a peer type change, updating score and metrics.
+/// Applies a peer type change, refreshes the stored metric labels, and reports
+/// whether the gossipsub application-specific score must be pushed to the swarm.
 ///
-/// Takes old_peer_info for stale metric labels (before any modifications)
-/// and uses peer_info for current metric labels (after modifications).
-/// Returns Some(new_score) if any label field changed, None otherwise.
+/// Returns `Some(new_score)` when the peer's classification changed, and `None`
+/// otherwise. The metric refresh is performed purely for its side effect: it is
+/// a no-op for peers without an allocated metric slot, but that must not block
+/// score propagation to gossipsub, which is consensus-critical and cannot be
+/// gated on metric-cardinality limits.
 fn apply_peer_type_change(
     peer_id: &libp2p::PeerId,
     peer_info: &mut PeerInfo,
@@ -777,20 +873,20 @@ fn apply_peer_type_change(
     new_type: PeerType,
     metrics: &mut NetworkMetrics,
 ) -> Option<f64> {
-    // Update peer type and score
     let new_score = crate::peer_scoring::get_peer_score(new_type);
+    let type_changed = new_type != old_peer_info.peer_type;
     peer_info.peer_type = new_type;
     peer_info.score = new_score;
 
-    // Update metrics (marks old stale if labels changed)
-    metrics
-        .update_peer_labels(peer_id, old_peer_info, peer_info)
-        .then_some(new_score)
+    metrics.update_peer_labels(peer_id, old_peer_info, peer_info);
+
+    type_changed.then_some(new_score)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::metrics::MAX_PEER_SLOTS;
     use crate::peer_scoring::{FULL_NODE_SCORE, VALIDATOR_SCORE};
     use malachitebft_discovery::Config;
 
@@ -817,7 +913,35 @@ mod tests {
             subscribed_topics: HashSet::new(),
         };
 
-        State::new(discovery, vec![], local_node, metrics)
+        State::new(discovery, vec![], local_node, metrics, false)
+    }
+
+    #[test]
+    fn remove_learned_persistent_peer_id_drops_address_learned_identity() {
+        let mut state = test_state();
+        let peer_id = libp2p::PeerId::random();
+        state
+            .persistent_peer_addrs
+            .push("/ip4/127.0.0.1/tcp/26656".parse().unwrap());
+        state.persistent_peer_ids.insert(peer_id);
+
+        state.remove_learned_persistent_peer_id(&peer_id);
+
+        assert!(!state.persistent_peer_ids.contains(&peer_id));
+    }
+
+    #[test]
+    fn remove_learned_persistent_peer_id_keeps_configured_identity() {
+        let mut state = test_state();
+        let peer_id = libp2p::PeerId::random();
+        state
+            .persistent_peer_addrs
+            .push(format!("/p2p/{peer_id}").parse().unwrap());
+        state.persistent_peer_ids.insert(peer_id);
+
+        state.remove_learned_persistent_peer_id(&peer_id);
+
+        assert!(state.persistent_peer_ids.contains(&peer_id));
     }
 
     /// Create default full-node peer info.
@@ -879,10 +1003,8 @@ mod tests {
 
         let result = state.record_verified_proof(&peer_id, public_key.clone());
 
-        // Labels do change (consensus_public_key is stored, peer_type stays full_node
-        // but the labels_match check in apply_peer_type_change returns false since
-        // consensus_address and peer_type haven't changed from the label perspective).
-        // Actually peer_type doesn't change, consensus_address stays None → labels unchanged → None.
+        // Peer type and score are unchanged (still a full node), so gossipsub
+        // does not need a new score pushed.
         assert!(result.is_none());
 
         let info = &state.peer_info[&peer_id];
@@ -981,6 +1103,44 @@ mod tests {
         // No changes since peer has no proof to match
         assert!(changed.is_empty());
         assert!(!state.peer_info[&peer_id].peer_type.is_validator());
+    }
+
+    #[test]
+    fn reclassify_reports_every_peer_even_beyond_metric_slot_cap() {
+        let mut state = test_state();
+        let peer_count = MAX_PEER_SLOTS + 20;
+        let mut peers = Vec::with_capacity(peer_count);
+
+        // Register more peers than the metric cap so the excess have no slot;
+        // `record_new_peer` silently skips them while `peer_info` still tracks them.
+        for i in 0..peer_count {
+            let peer_id = libp2p::PeerId::random();
+            let public_key = vec![(i >> 8) as u8, i as u8];
+            let mut info = test_peer_info();
+            info.consensus_public_key = Some(public_key.clone());
+            insert_peer(&mut state, peer_id, info);
+            peers.push((peer_id, public_key));
+        }
+
+        // Promote every peer to a validator in one validator-set update.
+        let mut validators = HashSet::new();
+        for (i, (_peer_id, public_key)) in peers.iter().enumerate() {
+            validators.insert(ValidatorInfo {
+                address: format!("val_addr_{i}"),
+                public_key: public_key.clone(),
+                voting_power: 10,
+            });
+        }
+
+        let changed = state.process_validator_set_update(validators);
+
+        // Every promoted peer must be reported so its score reaches gossipsub,
+        // including those whose metric slot was never allocated.
+        assert_eq!(changed.len(), peer_count);
+        for (peer_id, new_score) in &changed {
+            assert_eq!(*new_score, VALIDATOR_SCORE);
+            assert_eq!(state.peer_info[peer_id].score, VALIDATOR_SCORE);
+        }
     }
 
     // ── Local node reclassification ──────────────────────────────────
@@ -1172,7 +1332,7 @@ mod tests {
             subscribed_topics: HashSet::new(),
         };
 
-        State::new(discovery, vec![], local_node, metrics)
+        State::new(discovery, vec![], local_node, metrics, false)
     }
 
     /// Simulate a peer with an active connection (ephemeral by default).

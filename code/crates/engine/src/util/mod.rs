@@ -1,4 +1,5 @@
 pub mod events;
+pub mod failure;
 pub mod msg_buffer;
 pub mod output_port;
 pub mod ractor;

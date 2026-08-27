@@ -121,4 +121,3 @@ For the latency as seen by libp2p:
 ```
 # curl -s localhost:29000/metrics | grep 'consensus_libp2p_ping_rtt_seconds'
 ```
-

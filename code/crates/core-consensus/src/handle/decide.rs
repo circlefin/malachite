@@ -31,9 +31,12 @@ where
 
     // Determine if we have an existing certificate or need to restore one.
     let (certificate, extensions, sync_decision) = if let Some(certificate) = existing_certificate {
-        // NOTE: Existence implies the decision was reached via Sync protocol.
-        // FIXME: No guarantee vote extensions are found in sync.
-        (certificate, VoteExtensions::default(), true)
+        // Decision was reached via the Sync protocol. The driver stores the
+        // extended certificate, but the application-facing effect still exposes
+        // the existing parallel `(CommitCertificate, VoteExtensions)` shape.
+        let extensions = certificate.vote_extensions();
+        let certificate = certificate.trim_vote_extensions();
+        (certificate, extensions, true)
     } else {
         // Restore the precommits (removes them from `state`).
         let mut commits = state.restore_precommits(height, proposal_round, &decided_value);

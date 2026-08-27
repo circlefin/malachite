@@ -291,8 +291,12 @@ impl Behaviour {
         // Limits for transport layer defense against connection attacks
         let connection_limits = connection_limits::Behaviour::new(connection_limits(config));
 
-        // Per-IP connection limits to prevent DoS from multiple PeerIds on same IP
-        let ip_limits = ip_limits::Behaviour::new(config.discovery.max_connections_per_ip);
+        // Per-IP connection limits and reconnect throttle
+        let ip_limits = ip_limits::Behaviour::new(
+            config.discovery.max_connections_per_ip,
+            config.discovery.ip_throttle_duration,
+            &config.persistent_peers,
+        );
 
         Ok(Self {
             connection_limits,

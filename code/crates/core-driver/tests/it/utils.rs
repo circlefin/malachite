@@ -2,8 +2,8 @@
 
 use malachitebft_core_state_machine::state::{RoundValue, State, Step};
 use malachitebft_core_types::{
-    CommitCertificate, NilOrVal, PolkaCertificate, Round, SignedProposal, SignedVote, Timeout,
-    Validity,
+    ExtendedCommitCertificate, NilOrVal, PolkaCertificate, Round, SignedProposal, SignedVote,
+    Timeout, Validity,
 };
 use malachitebft_test::{Address, Height, Proposal, Signature, TestContext, Value, Vote};
 
@@ -168,7 +168,9 @@ pub fn commit_certificate_input_at(
         })
         .collect();
 
-    Input::CommitCertificate(CommitCertificate::new(height, round, value_id, votes))
+    Input::CommitCertificate(ExtendedCommitCertificate::from_votes(
+        height, round, value_id, votes,
+    ))
 }
 
 pub fn decide_output(round: Round, proposal: Proposal) -> Output<TestContext> {

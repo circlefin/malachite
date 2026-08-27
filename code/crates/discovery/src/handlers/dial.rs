@@ -1,13 +1,13 @@
 use libp2p::{
     core::ConnectedPoint,
     swarm::{ConnectionId, DialError},
-    PeerId, Swarm,
+    Multiaddr, PeerId, Swarm,
 };
 use tracing::{debug, error, warn};
 
 use crate::{
-    controller::PeerData, dial::DialData, ConnectionDirection, ConnectionInfo, Discovery,
-    DiscoveryClient,
+    controller::PeerData, dial::DialData, util::strip_peer_id_from_multiaddr, ConnectionDirection,
+    ConnectionInfo, Discovery, DiscoveryClient,
 };
 
 impl<C> Discovery<C>
@@ -165,6 +165,19 @@ where
                     | DialError::NoAddresses
                     | DialError::WrongPeerId { .. }
             ) {
+                if let DialError::LocalPeerId { address } = &error {
+                    if is_not_own_address(
+                        address,
+                        swarm.listeners().chain(swarm.external_addresses()),
+                    ) {
+                        warn!(
+                            dialed_address = %address,
+                            local_peer_id = %swarm.local_peer_id(),
+                            "Dialed a peer that presented our own libp2p identity; another node is running with the same key"
+                        );
+                    }
+                }
+
                 self.make_extension_step(swarm);
                 return;
             }
@@ -238,6 +251,12 @@ where
                 continue;
             }
 
+            // Skip identity-only entries (e.g. /p2p/<peer_id>) — they carry
+            // no transport address to dial against.
+            if listen_addrs.iter().all(crate::util::is_peer_id_only) {
+                continue;
+            }
+
             let dial_data = DialData::new_bootstrap(*peer_id, listen_addrs.clone());
 
             // For bootstrap nodes, always attempt to dial even if previously failed
@@ -254,5 +273,47 @@ where
                 self.controller.dial.add_to_queue(dial_data, None);
             }
         }
+    }
+}
+
+/// Whether `dialed` is none of the node's own addresses, ignoring any
+/// `/p2p/<peer_id>` component.
+fn is_not_own_address<'a>(
+    dialed: &Multiaddr,
+    mut own_addresses: impl Iterator<Item = &'a Multiaddr>,
+) -> bool {
+    let dialed = strip_peer_id_from_multiaddr(dialed);
+    !own_addresses.any(|own| strip_peer_id_from_multiaddr(own) == dialed)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use libp2p::multiaddr::Protocol;
+
+    use super::*;
+
+    #[test]
+    fn foreign_address_when_not_among_own() {
+        let dialed = Multiaddr::from_str("/ip4/203.0.113.5/tcp/26656").unwrap();
+        let own = [Multiaddr::from_str("/ip4/10.0.0.1/tcp/26656").unwrap()];
+
+        assert!(is_not_own_address(&dialed, own.iter()));
+    }
+
+    #[test]
+    fn own_address_not_foreign_ignoring_peer_id_suffix() {
+        let own = Multiaddr::from_str("/ip4/10.0.0.1/tcp/26656").unwrap();
+        let dialed = own.clone().with(Protocol::P2p(PeerId::random()));
+
+        assert!(!is_not_own_address(&dialed, [own].iter()));
+    }
+
+    #[test]
+    fn foreign_address_when_own_addresses_empty() {
+        let dialed = Multiaddr::from_str("/ip4/10.0.0.1/tcp/26656").unwrap();
+
+        assert!(is_not_own_address(&dialed, std::iter::empty()));
     }
 }

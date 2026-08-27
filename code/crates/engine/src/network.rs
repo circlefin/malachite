@@ -1,9 +1,8 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::marker::PhantomData;
 
 use async_trait::async_trait;
 use derive_where::derive_where;
-use eyre::eyre;
 use libp2p::request_response;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
@@ -109,6 +108,8 @@ pub enum NetworkEvent<Ctx: Context> {
     PeerConnected(PeerId),
     PeerDisconnected(PeerId),
 
+    PeerSubscribed(PeerId, Channel),
+
     Vote(PeerId, SignedVote<Ctx>),
 
     Proposal(PeerId, SignedProposal<Ctx>),
@@ -128,6 +129,7 @@ pub enum NetworkEvent<Ctx: Context> {
 
     SyncRequest(InboundRequestId, PeerId, Request<Ctx>),
     SyncResponse(OutboundRequestId, PeerId, Option<Response<Ctx>>),
+    SyncRequestFailed(OutboundRequestId, PeerId, sync::OutboundFailureReason),
 }
 
 pub enum State<Ctx: Context> {
@@ -135,6 +137,7 @@ pub enum State<Ctx: Context> {
     Running {
         listen_addrs: Vec<Multiaddr>,
         peers: BTreeSet<PeerId>,
+        subscriptions: Box<HashSet<(PeerId, Channel)>>,
         output_port: OutputPort<NetworkEvent<Ctx>>,
         ctrl_handle: Box<CtrlHandle>,
         recv_task: JoinHandle<()>,
@@ -176,8 +179,22 @@ pub enum Msg<Ctx: Context> {
     /// Send a request to a peer, returning the outbound request ID
     OutgoingRequest(PeerId, Request<Ctx>, RpcReplyPort<OutboundRequestId>),
 
+    /// Cancel a previously sent outbound request.
+    ///
+    /// The network layer should drop the in-flight request and any late
+    /// response that may still arrive. Implementations that lack a true
+    /// cancellation primitive (e.g. libp2p's `request_response`) may
+    /// no-op and rely on their own transport-level timeout.
+    CancelRequest(OutboundRequestId),
+
     /// Send a response for a request to a peer
     OutgoingResponse(InboundRequestId, Response<Ctx>),
+
+    /// Drop a pending inbound request without sending a response.
+    ///
+    /// Used when the request will never be answered: the requesting peer
+    /// disconnected, or the host stalled past the inbound request budget.
+    CancelInboundRequest(InboundRequestId),
 
     /// Request to dump the current network state
     DumpState(RpcReplyPort<Option<NetworkStateDump>>),
@@ -242,6 +259,7 @@ where
         Ok(State::Running {
             listen_addrs: Vec::new(),
             peers: BTreeSet::new(),
+            subscriptions: Box::new(HashSet::new()),
             output_port: OutputPort::with_capacity(128),
             ctrl_handle: Box::new(ctrl_handle),
             recv_task,
@@ -278,6 +296,7 @@ where
         let State::Running {
             listen_addrs,
             peers,
+            subscriptions,
             output_port,
             ctrl_handle,
             inbound_requests,
@@ -295,6 +314,10 @@ where
 
                 for peer in peers.iter() {
                     subscriber.send(NetworkEvent::PeerConnected(*peer));
+                }
+
+                for (peer, channel) in subscriptions.iter() {
+                    subscriber.send(NetworkEvent::PeerSubscribed(*peer, *channel));
                 }
 
                 subscriber.subscribe_to_port(output_port);
@@ -344,10 +367,22 @@ where
                 match request {
                     Ok(data) => {
                         let p2p_request_id = ctrl_handle.sync_request(peer_id, data).await?;
-                        reply_to.send(OutboundRequestId::new(p2p_request_id))?;
+                        // The requester may have dropped its reply receiver; that's
+                        // benign, so don't fail the actor (which would restart the Node).
+                        if let Err(e) = reply_to.send(OutboundRequestId::new(p2p_request_id)) {
+                            error!("Failed to send outbound request ID to requester: {e:?}");
+                        }
                     }
                     Err(e) => error!("Failed to encode request message: {e:?}"),
                 }
+            }
+
+            Msg::CancelRequest(request_id) => {
+                // libp2p's `request_response` (0.29) exposes no public API to
+                // cancel an outbound request. We rely on its per-request
+                // timeout to clean up the in-flight stream; the sync actor
+                // already drops late responses for evicted request IDs.
+                debug!(%request_id, "Cancel requested (no-op for libp2p transport)");
             }
 
             Msg::OutgoingResponse(request_id, response) => {
@@ -355,9 +390,13 @@ where
 
                 match response {
                     Ok(data) => {
-                        let request_id = inbound_requests
-                            .remove(&request_id)
-                            .ok_or_else(|| eyre!("Unknown inbound request ID: {request_id}"))?;
+                        // The inbound request may already have been evicted (e.g. it
+                        // timed out); if so, skip the reply rather than fail the actor
+                        // (which would restart the Node).
+                        let Some(request_id) = inbound_requests.remove(&request_id) else {
+                            error!(%request_id, "Unknown inbound request ID, dropping response");
+                            return Ok(());
+                        };
 
                         ctrl_handle.sync_reply(request_id, data).await?
                     }
@@ -366,6 +405,12 @@ where
                         return Ok(());
                     }
                 };
+            }
+
+            Msg::CancelInboundRequest(request_id) => {
+                if inbound_requests.remove(&request_id).is_some() {
+                    debug!(%request_id, "Dropped pending inbound request");
+                }
             }
 
             Msg::NewEvent(Event::Listening(addr)) => {
@@ -380,7 +425,17 @@ where
 
             Msg::NewEvent(Event::PeerDisconnected(peer_id)) => {
                 peers.remove(&peer_id);
+                subscriptions.retain(|(peer, _)| *peer != peer_id);
                 output_port.send(NetworkEvent::PeerDisconnected(peer_id));
+            }
+
+            Msg::NewEvent(Event::PeerSubscribed(peer_id, channel)) => {
+                subscriptions.insert((peer_id, channel));
+                output_port.send(NetworkEvent::PeerSubscribed(peer_id, channel));
+            }
+
+            Msg::NewEvent(Event::PeerUnsubscribed(peer_id, channel)) => {
+                subscriptions.remove(&(peer_id, channel));
             }
 
             Msg::NewEvent(Event::LivenessMessage(Channel::Liveness, from, data)) => {
@@ -548,6 +603,18 @@ where
                     ));
                 }
             },
+
+            Msg::NewEvent(Event::SyncRequestFailed {
+                request_id,
+                peer,
+                reason,
+            }) => {
+                output_port.send(NetworkEvent::SyncRequestFailed(
+                    OutboundRequestId::new(request_id),
+                    peer,
+                    reason,
+                ));
+            }
 
             Msg::UpdateValidatorSet(validator_set) => {
                 info!(

@@ -2,6 +2,87 @@
 
 ## Unreleased
 
+## 0.8.0
+
+*August 27th, 2026*
+
+### `malachitebft-core-types`
+
+- Added a `max_timeout` field to `LinearTimeouts` (defaults to 60s); `LinearTimeouts::duration_for` now clamps per-round timeouts (`Propose`, `Prevote`, `Precommit`, `Rebroadcast`) to this cap
+- Removed the `ValuePayload::PartsOnly` variant and the `ValuePayload::parts_only()` helper. Applications that disseminated values without an explicit `Proposal` message must migrate to `ValuePayload::ProposalAndParts`.
+- Added new `VoteExtensionScope<Ctx> { height, round, value_id, validator_address }` type used to bind vote-extension signatures to their precommit
+- Added new `ExtendedCommitSignature<Ctx>` and `ExtendedCommitCertificate<Ctx>` types. `ExtendedCommitCertificate` bundles per-validator commit signatures together with their optional vote extensions in a single self-verifiable object. Construct via `ExtendedCommitCertificate::from_votes` (from precommit votes that may still carry extensions) or `ExtendedCommitCertificate::from_commit_certificate_and_extensions(certificate, extensions)` (rebuilding from the parallel `(CommitCertificate, VoteExtensions)` shape exposed by the host API). Project back down via `trim_vote_extensions()`.
+- Added `CertificateError::InvalidVoteExtensionSignature(Ctx::Address)` variant.
+- Added `CertificateError::VotingPowerOverflow { signed, added }` variant, returned when commit-certificate verification would overflow while accumulating signed voting power.
+- Added `Hash` to the `Height` trait's supertrait bounds. Custom `Height` implementations must now also implement `Hash` (all built-in heights already do). Required so `Ctx::Height` can key the sync layer's retry-backoff timers.
+- `ValueResponse<Ctx>.certificate` is now `ExtendedCommitCertificate<Ctx>` instead of `CommitCertificate<Ctx>`. The constructor signature changes accordingly.
+- Added `VoteExtensionPolicy` and a `vote_extension_policy` field to `HeightParams<Ctx>`. `HeightParams::new` defaults it to `VoteExtensionPolicy::Disabled`, meaning non-nil precommits must not carry vote extensions; applications that require every non-nil precommit to carry a vote extension should call `.with_vote_extension_policy(VoteExtensionPolicy::Required)` for those heights.
+
+### `malachitebft-signing`
+
+- `Signer::sign_vote_extension` and `Verifier::verify_signed_vote_extension` now take a `VoteExtensionScope<Ctx>` argument so the signature binds the extension to `(height, round, value_id, validator_address)`. The wire format of `SignedExtension` is unchanged; only the signed preimage changes — implementations must rebuild the canonical envelope to keep producing/verifying compatible signatures.
+  - Old: `sign_vote_extension(&self, extension: Ctx::Extension) -> Result<SignedExtension<Ctx>, Error>`
+  - New: `sign_vote_extension(&self, scope: VoteExtensionScope<Ctx>, extension: Ctx::Extension) -> Result<SignedExtension<Ctx>, Error>`
+  - Old: `verify_signed_vote_extension(&self, extension, signature, public_key) -> Result<VerificationResult, Error>`
+  - New: `verify_signed_vote_extension(&self, scope: &VoteExtensionScope<Ctx>, extension, signature, public_key) -> Result<VerificationResult, Error>`
+- Added `VerifierExt::verify_extended_commit_certificate` as a required method. It validates each precommit signature against the reconstructed precommit, each attached vote extension against its precommit scope, and enforces the 2/3+ voting-power quorum. It now takes a `VoteExtensionPolicy` argument, which controls whether vote extensions are required or rejected.
+
+### `malachitebft-core-driver`
+
+- The `Driver` now stores `ExtendedCommitCertificate<Ctx>` instead of `CommitCertificate<Ctx>`. `Driver::commit_certificate(round, value_id)` and `Driver::commit_certificates()` return references to the extended type. Callers that need the bare commit certificate should project via `extended.trim_vote_extensions()`. `Input::CommitCertificate` likewise carries the extended type.
+
+### `malachitebft-core-consensus`
+
+- `Effect::VerifyVoteExtension` now carries an extra `Ctx::Address` field (the precommit's validator) so the verify path can reconstruct the new `VoteExtensionScope`. Custom effect handlers that match on this variant must add the address field.
+- Renamed `Effect::ValidSyncValue` → `Effect::CertVerifiedSyncValue` and `Effect::InvalidSyncValue` → `Effect::CertRejectedSyncValue` (fields unchanged). The names now describe the commit-certificate gate they fire on, not the value's validity. Custom effect handlers matching these variants must update the names.
+- Added `Effect::VerifyExtendedCommitCertificate` variant. Effect handlers that match exhaustively must add this arm and pass through its `VoteExtensionPolicy` argument.
+- `Input::StartHeight` and `State::reset_and_start_height` now carry the height's `VoteExtensionPolicy`. Core integrations should pass `VoteExtensionPolicy::Disabled` for legacy heights and `VoteExtensionPolicy::Required` once vote extensions are mandatory.
+- `Error::InvalidCommitCertificate` now carries `ExtendedCommitCertificate<Ctx>` instead of `CommitCertificate<Ctx>`. Pattern matches must adjust.
+- `FullProposalKeeper::store_proposal` takes a new `cap_exempt: bool` argument, which admits the proposal even when the `(height, round)` bucket already holds `MAX_PROPOSALS_PER_ROUND` entries. The keeper holds no certificates of its own, so the caller decides: pass `true` when the value holds a polka certificate at that round, and `false` otherwise to keep the previous behavior.
+
+### `malachitebft-engine`
+
+- `RawDecidedBlock<Ctx>.certificate` is now `ExtendedCommitCertificate<Ctx>` instead of `CommitCertificate<Ctx>`.
+- Added new `NetworkMsg::CancelRequest(OutboundRequestId)` variant on the network actor, used by sync to drop abandoned outbound requests. Custom network actor implementations that match `NetworkMsg` exhaustively must handle the new variant.
+- Changed `NodeRef` from `ActorRef<()>` to `ActorRef<NodeMsg>` to support the new safety-hang signaling path; downstream consumers that pass a `NodeRef` need to update type signatures accordingly
+- Removed the `Ctx` type parameter from the `Node` struct (the Node supervisor is no longer generic); `Node::new` and `Node::spawn` no longer require a `Ctx` annotation
+- Added new `NodeMsg` enum with a `SafetyFailure(String)` variant, cast by child actors (e.g. the WAL worker thread on panic, the Consensus actor on runtime WAL errors) to signal safety-critical failures to the Node supervisor
+- Changed `HostMsg::ProcessSyncedValue` reply type from `Option<ProposedValue<Ctx>>` to the new `SyncedValueOutcome<Ctx>` enum (`Verdict(ProposedValue<Ctx>)` / `PeerFault` / `LocalTransientError`). Replying `None` previously conflated a peer fault with a local/transient failure; hosts must now return the explicit outcome.
+- Renamed the sync actor `Msg::InvalidValue(PeerId, Height)` → `Msg::PeerFault(PeerId, Height)` and `Msg::ValueProcessingError(PeerId, Height)` → `Msg::LocalTransientError(Height)` (the peer argument is dropped from the no-blame variant).
+
+### `malachitebft-config`
+
+- Removed the `ValuePayload::PartsOnly` variant and changed the default `value_payload` from `parts-only` to `proposal-and-parts`. Existing configs containing `value_payload = "parts-only"` will fail to deserialize and must be updated.
+- Added new `ChannelNames` struct (with `String` fields and a `validate()` method that enforces non-empty, pairwise-unique names) and a `channel_names: ChannelNames` field on `P2pConfig` (opt-in via `#[serde(default)]`). Applications can now configure the GossipSub topic / broadcast channel names from TOML.
+
+### `malachitebft-app-channel`
+
+- Changed `AppMsg::ProcessSyncedValue` reply type from `Option<ProposedValue<Ctx>>` to `SyncedValueOutcome<Ctx>` (`Verdict` / `PeerFault` / `LocalTransientError`); applications must reply with the explicit outcome instead of `Some(value)` / `None`.
+
+### `malachitebft-test-store`
+
+- `DecidedValue.certificate` and `Store::store_decided_value(...)` now take/return `ExtendedCommitCertificate<TestContext>` instead of `CommitCertificate<TestContext>`, so the producer persists vote extensions alongside the decided value and can serve them via sync. The on-disk encoding changes accordingly (proto `ExtendedCommitCertificate`).
+
+### `malachitebft-sync`
+
+- `RawDecidedValue<Ctx>.certificate` is now `ExtendedCommitCertificate<Ctx>` instead of `CommitCertificate<Ctx>`. For protobuf-encoded sync messages or records, the new certificate preserves the previous field layout and adds optional vote-extension fields, so old and new binaries can decode each other's certificates while vote extensions remain disabled. Once an application starts a height with `VoteExtensionPolicy::Required`, all validators and sync-serving nodes must be upgraded first because old binaries cannot produce the required extensions. Borsh-encoded sync messages or records are not wire-compatible across this change.
+- The `borsh`/`proto` codec entries for the sync wire have been updated accordingly. Proto messages `CommitCertificate` and `CommitSignature` in `sync.proto` are replaced by `ExtendedCommitCertificate` and `ExtendedCommitSignature`; they keep the same core field numbers, and `ExtendedCommitSignature` adds an optional `Extension`.
+- Added new `Effect::CancelValueRequest(OutboundRequestId, resume::Continue)` variant, emitted on sync request timeout so the network layer can drop the abandoned in-flight request. Custom effect handlers that match `Effect` exhaustively must handle the new variant.
+- Renamed the `Input` variants `InvalidValue(PeerId, Height)` → `PeerFault(PeerId, Height)` and `ValueProcessingError(PeerId, Height)` → `LocalTransientError(Height)` (the peer argument is dropped from the no-blame variant, which now re-requests without penalizing or excluding any peer).
+- Added an `inflight` field to `PendingRequestEntry`, set to `false` once the response for the range has arrived. Only in-flight entries count against `parallel_requests`. Code that builds this struct literally must set the new field, and code that reads `pending_requests.len()` as a measure of outstanding requests should use `State::inflight_requests()` instead. `State::update_request` takes a matching `inflight` argument.
+
+### `malachitebft-network`
+
+- `ChannelNames` fields are now owned `String`s instead of `&'static str`. The struct no longer implements `Copy`, and the following methods on `Channel` now take `&ChannelNames` by reference:
+  - `Channel::to_gossipsub_topic`, `Channel::to_broadcast_topic`, `Channel::as_str`
+  - `Channel::has_gossipsub_topic`, `Channel::has_broadcast_topic`
+  - `Channel::from_gossipsub_topic_hash`, `Channel::from_broadcast_topic`
+- Removed the `validator_proof::Event::ProofReceiveFailed` variant and the `validator_proof::Error::UnexpectedEof` variant. Malformed or failed inbound proofs now disconnect the peer directly inside the behaviour, so neither is emitted.
+
+## 0.7.0
+
+*June 22nd, 2026*
+
 > [!IMPORTANT]
 > All crates were renamed from `informalsystems-malachitebft-$crate` to `arc-malachitebft-$crate`.
 
@@ -51,7 +132,7 @@
 - Changed `Msg::StartHeight` from `StartHeight(Height, ValidatorSet)` to `StartHeight(Height, HeightParams)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Changed `Msg::RestartHeight` from `RestartHeight(Height, ValidatorSet)` to `RestartHeight(Height, HeightParams)` ([#1227](https://github.com/circlefin/malachite/pull/1227))
 - Added `timeouts` field to `State` struct - timeouts are now stored in State instead of Driver ([#1227](https://github.com/circlefin/malachite/pull/1227))
-- Added `WalEntry::PolkaCertificate` variant - polka certificates are now stored in the WAL; if recovering with downgraded version fails, restart with the new version 
+- Added `WalEntry::PolkaCertificate` variant - polka certificates are now stored in the WAL; if recovering with downgraded version fails, restart with the new version
 
 ### `malachitebft-config`
 
@@ -173,11 +254,13 @@
 - Added new parallel requests related parameters to sync config.
   See ([#1092](https://github.com/circlefin/malachite/issues/1092)) for more details.
 
+
 ## 0.3.1
 
 *July 7th, 2025*
 
 No breaking changes.
+
 
 ## 0.3.0
 
@@ -313,6 +396,7 @@ No breaking changes.
   - `State::full_proposals_for_value`
   - `State::remove_full_proposals`
 
+
 ### `arc-malachitebft-sync`
 
 #### Struct Changes
@@ -378,4 +462,3 @@ No breaking changes.
 
 #### Function Renames
   - `run` is now called `start_engine`
-

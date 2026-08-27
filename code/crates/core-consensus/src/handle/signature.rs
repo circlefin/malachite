@@ -62,6 +62,24 @@ where
     Ok(result)
 }
 
+pub async fn verify_extended_commit_certificate<Ctx>(
+    co: &Co<Ctx>,
+    certificate: ExtendedCommitCertificate<Ctx>,
+    validator_set: Ctx::ValidatorSet,
+    threshold_params: ThresholdParams,
+    vote_extension_policy: VoteExtensionPolicy,
+) -> Result<Result<(), CertificateError<Ctx>>, Error<Ctx>>
+where
+    Ctx: Context,
+{
+    let result = perform!(co,
+        Effect::VerifyExtendedCommitCertificate(certificate, validator_set, threshold_params, vote_extension_policy, Default::default()),
+        Resume::CertificateValidity(result) => result
+    );
+
+    Ok(result)
+}
+
 pub async fn verify_polka_certificate<Ctx>(
     co: &Co<Ctx>,
     certificate: PolkaCertificate<Ctx>,

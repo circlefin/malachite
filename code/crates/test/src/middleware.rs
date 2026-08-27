@@ -100,8 +100,22 @@ pub trait Middleware: fmt::Debug + Send + Sync {
         Ok(())
     }
 
-    /// If true, the synced value decode is treated as a failure.
+    /// If true, the synced value decode is treated as a failure attributable to
+    /// the peer (e.g. undecodable bytes), reported as `SyncedValueOutcome::PeerFault`.
     fn fail_synced_value_decode(&self, _ctx: &TestContext, _height: Height, _round: Round) -> bool {
+        false
+    }
+
+    /// If true, processing the synced value is treated as a local/transient
+    /// failure (e.g. the execution layer being temporarily unavailable),
+    /// reported as `SyncedValueOutcome::LocalTransientError`. Unlike a decode
+    /// failure, the peer is not at fault and must not be penalized.
+    fn fail_synced_value_processing(
+        &self,
+        _ctx: &TestContext,
+        _height: Height,
+        _round: Round,
+    ) -> bool {
         false
     }
 }

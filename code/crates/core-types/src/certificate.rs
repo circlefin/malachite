@@ -1,3 +1,4 @@
+use alloc::collections::BTreeMap;
 use alloc::string::ToString;
 use alloc::vec::Vec;
 use bytes::Bytes;
@@ -6,7 +7,8 @@ use malachitebft_peer::PeerId;
 use thiserror::Error;
 
 use crate::{
-    BoxError, Context, NilOrVal, Round, Signature, SignedVote, ValueId, Vote, VoteType, VotingPower,
+    BoxError, Context, NilOrVal, Round, Signature, SignedExtension, SignedVote, ValueId, Vote,
+    VoteExtensions, VoteType, VotingPower,
 };
 
 /// Represents a signature for a commit certificate, with the address of the validator that produced it.
@@ -69,6 +71,174 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
             value_id,
             commit_signatures,
         }
+    }
+}
+
+/// A commit signature bundled with the (optional) vote extension that was attached
+/// to the same precommit vote.
+///
+/// Both signatures are scoped to the same height/round/value/validator, so a verifier
+/// holding an [`ExtendedCommitSignature`] can cryptographically prove that the
+/// extension and the precommit signature were produced together by the same validator
+/// for the same decision.
+#[derive_where(Clone, Debug, PartialEq, Eq)]
+pub struct ExtendedCommitSignature<Ctx: Context> {
+    /// Address of the validator that produced the signature.
+    pub address: Ctx::Address,
+    /// Signature over the precommit (same bytes as [`CommitSignature::signature`]).
+    pub signature: Signature<Ctx>,
+    /// Vote extension signed by the same validator, bound to the same precommit
+    /// scope via [`VoteExtensionScope`](crate::VoteExtensionScope).
+    /// `None` when the validator did not attach an extension, or when the
+    /// caller rebuilds this certificate from the host API's parallel
+    /// `(CommitCertificate, VoteExtensions)` shape and no matching extension is
+    /// available for this validator.
+    pub extension: Option<SignedExtension<Ctx>>,
+}
+
+impl<Ctx: Context> ExtendedCommitSignature<Ctx> {
+    /// Create a new `ExtendedCommitSignature`.
+    pub fn new(
+        address: Ctx::Address,
+        signature: Signature<Ctx>,
+        extension: Option<SignedExtension<Ctx>>,
+    ) -> Self {
+        Self {
+            address,
+            signature,
+            extension,
+        }
+    }
+}
+
+/// A self-verifiable commit certificate that bundles precommit signatures together
+/// with their (optional) vote extensions.
+///
+/// Unlike the pair `(CommitCertificate, VoteExtensions)`, this type makes the
+/// link between each commit signature and its extension structural. Combined with
+/// the [`VoteExtensionScope`](crate::VoteExtensionScope)-bound signing scheme,
+/// holding an `ExtendedCommitCertificate` is enough to prove that a quorum of
+/// validators both committed to a value at `(height, round, value_id)` and
+/// attested any included extensions for exactly that decision.
+///
+/// A bare [`CommitCertificate`] can always be derived from an
+/// `ExtendedCommitCertificate` via [`Self::trim_vote_extensions`].
+#[derive_where(Clone, Debug, PartialEq, Eq)]
+pub struct ExtendedCommitCertificate<Ctx: Context> {
+    /// Height at which the value was decided.
+    pub height: Ctx::Height,
+    /// Round in which the value was decided.
+    pub round: Round,
+    /// Identifier of the decided value.
+    pub value_id: ValueId<Ctx>,
+    /// Per-validator commit signatures paired with their (optional) extensions,
+    /// sorted by validator address.
+    pub commit_signatures: Vec<ExtendedCommitSignature<Ctx>>,
+}
+
+impl<Ctx: Context> ExtendedCommitCertificate<Ctx> {
+    /// Build an `ExtendedCommitCertificate` from precommit votes that may carry
+    /// signed extensions.
+    ///
+    /// Filters votes that do not match the certificate's `(height, round,
+    /// value_id, vote_type=Precommit)` scope, then takes ownership of each vote's
+    /// extension to attach it to the corresponding signature entry.
+    pub fn from_votes(
+        height: Ctx::Height,
+        round: Round,
+        value_id: ValueId<Ctx>,
+        commits: Vec<SignedVote<Ctx>>,
+    ) -> Self {
+        let mut signatures: Vec<_> = commits
+            .into_iter()
+            .filter(|vote| {
+                matches!(vote.value(), NilOrVal::Val(id) if id == &value_id)
+                    && vote.vote_type() == VoteType::Precommit
+                    && vote.round() == round
+                    && vote.height() == height
+            })
+            .map(|mut signed_vote| {
+                let address = signed_vote.validator_address().clone();
+                let extension = signed_vote.message.take_extension();
+                ExtendedCommitSignature::new(address, signed_vote.signature, extension)
+            })
+            .collect();
+        Self::sort_signatures_by_address(&mut signatures);
+
+        Self {
+            height,
+            round,
+            value_id,
+            commit_signatures: signatures,
+        }
+    }
+
+    /// Rebuild an `ExtendedCommitCertificate` from the parallel
+    /// `(CommitCertificate, VoteExtensions)` shape that the host API exposes.
+    ///
+    /// Each extension is matched to its commit signature by the signing
+    /// validator's address. Extensions whose address does not appear in the
+    /// certificate are discarded (they cannot be bound to a precommit signature
+    /// here, so they would not be self-verifiable anyway). Commit signatures
+    /// for which no extension is supplied get `extension: None`.
+    pub fn from_commit_certificate_and_extensions(
+        certificate: CommitCertificate<Ctx>,
+        extensions: VoteExtensions<Ctx>,
+    ) -> Self {
+        let mut ext_by_address: BTreeMap<Ctx::Address, SignedExtension<Ctx>> =
+            extensions.extensions.into_iter().collect();
+
+        let mut signatures: Vec<_> = certificate
+            .commit_signatures
+            .into_iter()
+            .map(|sig| {
+                let extension = ext_by_address.remove(&sig.address);
+                ExtendedCommitSignature::new(sig.address, sig.signature, extension)
+            })
+            .collect();
+        Self::sort_signatures_by_address(&mut signatures);
+
+        Self {
+            height: certificate.height,
+            round: certificate.round,
+            value_id: certificate.value_id,
+            commit_signatures: signatures,
+        }
+    }
+
+    fn sort_signatures_by_address(signatures: &mut [ExtendedCommitSignature<Ctx>]) {
+        signatures.sort_by(|a, b| a.address.cmp(&b.address));
+    }
+
+    /// Project this extended certificate down to a bare [`CommitCertificate`],
+    /// dropping the vote extensions.
+    pub fn trim_vote_extensions(&self) -> CommitCertificate<Ctx> {
+        CommitCertificate {
+            height: self.height,
+            round: self.round,
+            value_id: self.value_id.clone(),
+            commit_signatures: self
+                .commit_signatures
+                .iter()
+                .map(|s| CommitSignature::new(s.address.clone(), s.signature.clone()))
+                .collect(),
+        }
+    }
+
+    /// Extract the vote extensions carried by this certificate as a standalone
+    /// [`VoteExtensions`] view, preserving each extension's signing validator.
+    pub fn vote_extensions(&self) -> VoteExtensions<Ctx> {
+        let extensions = self
+            .commit_signatures
+            .iter()
+            .filter_map(|s| {
+                s.extension
+                    .as_ref()
+                    .map(|ext| (s.address.clone(), ext.clone()))
+            })
+            .collect();
+
+        VoteExtensions::new(extensions)
     }
 }
 
@@ -151,6 +321,21 @@ pub enum CertificateError<Ctx: Context> {
     #[error("Invalid round signature: {0:?}")]
     InvalidRoundSignature(RoundSignature<Ctx>),
 
+    /// A vote extension carried by an [`ExtendedCommitCertificate`] has an
+    /// invalid signature for its precommit scope.
+    #[error("Invalid vote extension signature from validator: {0}")]
+    InvalidVoteExtensionSignature(Ctx::Address),
+
+    /// A commit signature in an [`ExtendedCommitCertificate`] is missing its
+    /// required vote extension.
+    #[error("Missing vote extension from validator: {0}")]
+    MissingVoteExtension(Ctx::Address),
+
+    /// A commit signature in an [`ExtendedCommitCertificate`] carries a vote
+    /// extension at a height where extensions must be absent.
+    #[error("Unexpected vote extension from validator: {0}")]
+    UnexpectedVoteExtension(Ctx::Address),
+
     /// A validator in the certificate is not in the validator set.
     #[error("A validator in the certificate is not in the validator set: {0:?}")]
     UnknownValidator(Ctx::Address),
@@ -167,6 +352,18 @@ pub enum CertificateError<Ctx: Context> {
         total: VotingPower,
         /// Expected voting power
         expected: VotingPower,
+    },
+
+    /// Signed voting power overflowed while verifying the certificate.
+    #[error(
+        "Signed voting power overflowed while verifying the certificate: \
+         signed={signed}, added={added}"
+    )]
+    VotingPowerOverflow {
+        /// Signed voting power accumulated before the overflow.
+        signed: VotingPower,
+        /// Voting power that would overflow the accumulator.
+        added: VotingPower,
     },
 
     /// Multiple votes from the same validator.
@@ -293,22 +490,73 @@ impl<Ctx: Context> EnterRoundCertificate<Ctx> {
             enter_round,
         }
     }
+
+    /// Creates a new `EnterRoundCertificate` by lifting the precommit signatures
+    /// of an existing `CommitCertificate`.
+    ///
+    /// The caller chooses how the resulting certificate is to be interpreted:
+    /// - `cert_type = Skip` with `enter_round = certificate.round` justifies
+    ///   skipping into the certificate's round.
+    /// - `cert_type = Precommit` with `enter_round = certificate.round.increment()`
+    ///   justifies advancing past the certificate's round on a precommit timeout.
+    pub fn from_commit_certificate(
+        certificate: &CommitCertificate<Ctx>,
+        cert_type: RoundCertificateType,
+        enter_round: Round,
+    ) -> Self {
+        let round_signatures = certificate
+            .commit_signatures
+            .iter()
+            .map(|cs| {
+                RoundSignature::new(
+                    VoteType::Precommit,
+                    NilOrVal::Val(certificate.value_id.clone()),
+                    cs.address.clone(),
+                    cs.signature.clone(),
+                )
+            })
+            .collect();
+
+        Self {
+            certificate: RoundCertificate {
+                height: certificate.height,
+                round: certificate.round,
+                cert_type,
+                round_signatures,
+            },
+            enter_round,
+        }
+    }
 }
 
 /// Represents a response to a value request.
+///
+/// Carries an [`ExtendedCommitCertificate`] so that a node deciding via sync can
+/// observe the vote extensions attached to the original precommits, not just
+/// the bare commit signatures. Without this, the sync-recovered node has no
+/// extensions for the synced height and cannot act as the proposer of the
+/// next height when the application uses extensions for load-bearing data
+/// (oracle aggregation, threshold attestations, bridge outputs, etc.).
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct ValueResponse<Ctx: Context> {
     /// The peer that sent the value response
     pub peer: PeerId,
     /// The raw bytes of the value
     pub value_bytes: Bytes,
-    /// The commit certificate proving the value was decided
-    pub certificate: CommitCertificate<Ctx>,
+    /// The extended commit certificate proving the value was decided, bundling
+    /// per-validator commit signatures with the vote extensions
+    /// they attached if required to do so.
+    pub certificate: ExtendedCommitCertificate<Ctx>,
 }
 
 impl<Ctx: Context> ValueResponse<Ctx> {
-    /// Creates a new `ValueResponse` from the raw bytes of the value and the commit certificate.
-    pub fn new(peer: PeerId, value_bytes: Bytes, certificate: CommitCertificate<Ctx>) -> Self {
+    /// Creates a new `ValueResponse` from the raw bytes of the value and the
+    /// extended commit certificate.
+    pub fn new(
+        peer: PeerId,
+        value_bytes: Bytes,
+        certificate: ExtendedCommitCertificate<Ctx>,
+    ) -> Self {
         Self {
             peer,
             value_bytes,

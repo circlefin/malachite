@@ -2,6 +2,7 @@ use bytes::Bytes;
 use malachitebft_core_types::{NilOrVal, Round, SignedExtension, VoteType};
 use malachitebft_proto::{Error as ProtoError, Protobuf};
 
+use crate::codec::proto::{decode_extension, encode_extension};
 use crate::proto;
 use crate::{Address, Height, TestContext, ValueId};
 
@@ -124,7 +125,7 @@ impl Protobuf for Vote {
                     .validator_address
                     .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("validator_address"))?,
             )?,
-            extension: Default::default(),
+            extension: proto.extension.map(decode_extension).transpose()?,
         })
     }
 
@@ -139,6 +140,7 @@ impl Protobuf for Vote {
                 NilOrVal::Val(v) => Some(v.to_proto()?),
             },
             validator_address: Some(self.validator_address.to_proto()?),
+            extension: self.extension.as_ref().map(encode_extension).transpose()?,
         })
     }
 }

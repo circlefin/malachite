@@ -6,8 +6,8 @@ use derive_where::derive_where;
 use tokio::sync::broadcast;
 
 use malachitebft_core_consensus::{
-    Error as ConsensusError, LocallyProposedValue, MisbehaviorEvidence, ProposedValue, Role,
-    SignedConsensusMsg, WalEntry,
+    Error as ConsensusError, Input, LocallyProposedValue, MisbehaviorEvidence, ProposedValue, Role,
+    SignedConsensusMsg,
 };
 use malachitebft_core_types::{
     CommitCertificate, Context, PolkaCertificate, Round, RoundCertificate, SignedVote, ValueOrigin,
@@ -63,7 +63,7 @@ pub enum Event<Ctx: Context> {
     SkipRoundCertificate(RoundCertificate<Ctx>),
     PolkaCertificate(PolkaCertificate<Ctx>),
     WalReplayBegin(Ctx::Height, usize),
-    WalReplayEntry(WalEntry<Ctx>),
+    WalReplayEntry(Input<Ctx>),
     WalReplayDone(Ctx::Height),
     WalReplayError(Arc<ConsensusError<Ctx>>),
     WalResetError(Arc<eyre::Report>),

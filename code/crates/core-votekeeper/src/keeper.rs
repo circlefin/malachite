@@ -96,7 +96,12 @@ where
         vote: SignedVote<Ctx>,
         weight: Weight,
     ) -> Result<(), RecordVoteError<Ctx>> {
-        if let Some(existing) = self.get_vote(vote.vote_type(), vote.validator_address()) {
+        let existing_idx = self.received_votes.iter().position(|v| {
+            v.vote_type() == vote.vote_type() && v.validator_address() == vote.validator_address()
+        });
+
+        if let Some(idx) = existing_idx {
+            let existing = &self.received_votes[idx];
             if existing.value() != vote.value() {
                 // This is an equivocating vote
                 return Err(RecordVoteError::ConflictingVote {
@@ -104,7 +109,14 @@ where
                     conflicting: vote,
                 });
             }
-            // Do not add duplicate vote
+            // Upgrade the stored vote if the incoming one carries an extension
+            // while the stored vote lacks one. This can happen if the stored
+            // vote came from a precommit round certificate whose votes do not
+            // carry extensions, while individual votes are received after and
+            // include extensions.
+            if existing.extension().is_none() && vote.extension().is_some() {
+                self.received_votes[idx] = vote;
+            }
             return Ok(());
         }
 
@@ -240,10 +252,19 @@ where
     }
 
     /// Check if we have already seen a vote.
+    ///
+    /// Matches `PerRound::add`'s duplicate semantic: a stored vote from the
+    /// same validator with the same type and value counts as "seen", unless
+    /// the incoming vote carries an extension the stored one lacks — in
+    /// which case the stored vote can still be upgraded.
     pub fn has_vote(&self, vote: &SignedVote<Ctx>) -> bool {
         self.per_round
             .get(&vote.round())
-            .is_some_and(|per_round| per_round.received_votes().contains(vote))
+            .and_then(|per_round| per_round.get_vote(vote.vote_type(), vote.validator_address()))
+            .is_some_and(|existing| {
+                existing.value() == vote.value()
+                    && !(existing.extension().is_none() && vote.extension().is_some())
+            })
     }
 
     /// Apply a vote with a given weight, potentially triggering an output.

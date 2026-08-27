@@ -1,8 +1,9 @@
 use crate::handle::driver::apply_driver_input;
 use crate::handle::signature::verify_signature;
 use crate::input::Input;
+use crate::params::MAX_FUTURE_ROUND_LOOKAHEAD;
 use crate::prelude::*;
-use crate::types::{ConsensusMsg, SignedConsensusMsg, WalEntry};
+use crate::types::ConsensusMsg;
 use crate::util::pretty::PrettyVote;
 
 pub async fn on_vote<Ctx>(
@@ -73,6 +74,28 @@ where
 
     debug_assert_eq!(consensus_height, vote_height);
 
+    // Drop votes whose round is too far ahead of the current consensus round.
+    // This bounds per-height vote-keeper state, signature verification work,
+    // and WAL I/O when votes carry arbitrarily high round numbers.
+    let ceiling = consensus_round
+        .as_i64()
+        .saturating_add(i64::from(MAX_FUTURE_ROUND_LOOKAHEAD));
+    if vote_round.as_i64() > ceiling {
+        debug!(
+            consensus.height = %consensus_height,
+            consensus.round = %consensus_round,
+            vote.height = %vote_height,
+            vote.round = %vote_round,
+            validator = %validator_address,
+            "Received vote for round beyond the future-round lookahead, dropping"
+        );
+
+        #[cfg(feature = "metrics")]
+        metrics.dropped_future_round_votes.inc();
+
+        return Ok(());
+    }
+
     // Only process this vote if we have not yet seen it.
     if state.driver.votes().has_vote(&signed_vote) {
         return Ok(());
@@ -96,7 +119,7 @@ where
         co,
         Effect::WalAppend(
             signed_vote.height(),
-            WalEntry::ConsensusMsg(SignedConsensusMsg::Vote(signed_vote.clone())),
+            Input::Vote(signed_vote.clone()),
             Default::default()
         )
     );
@@ -161,16 +184,68 @@ where
     Ctx: Context,
 {
     let VoteType::Precommit = vote.vote_type() else {
+        if vote.extension().is_some() {
+            warn!(
+                consensus.height = %state.height(),
+                vote.height = %vote.height(),
+                vote.round = %vote.round(),
+                validator = %validator.address(),
+                "Received non-precommit vote with vote extension: {}",
+                PrettyVote::<Ctx>(&vote.message)
+            );
+
+            return Ok(false);
+        }
+
         return Ok(true);
     };
 
     let NilOrVal::Val(value_id) = vote.value().as_ref() else {
+        if vote.extension().is_some() {
+            warn!(
+                consensus.height = %state.height(),
+                vote.height = %vote.height(),
+                vote.round = %vote.round(),
+                validator = %validator.address(),
+                "Received nil precommit with vote extension: {}",
+                PrettyVote::<Ctx>(&vote.message)
+            );
+
+            return Ok(false);
+        }
+
         return Ok(true);
     };
 
     let Some(extension) = vote.extension() else {
+        if state.vote_extension_policy.is_required() {
+            warn!(
+                consensus.height = %state.height(),
+                vote.height = %vote.height(),
+                vote.round = %vote.round(),
+                validator = %validator.address(),
+                "Received non-nil precommit without required vote extension: {}",
+                PrettyVote::<Ctx>(&vote.message)
+            );
+
+            return Ok(false);
+        }
+
         return Ok(true);
     };
+
+    if state.vote_extension_policy.is_disabled() {
+        warn!(
+            consensus.height = %state.height(),
+            vote.height = %vote.height(),
+            vote.round = %vote.round(),
+            validator = %validator.address(),
+            "Received non-nil precommit with disabled vote extension: {}",
+            PrettyVote::<Ctx>(&vote.message)
+        );
+
+        return Ok(false);
+    }
 
     let result = perform!(
         co,
@@ -178,6 +253,7 @@ where
             vote.height(),
             vote.round(),
             value_id.clone(),
+            validator.address().clone(),
             extension.clone(),
             validator.public_key().clone(),
             Default::default()

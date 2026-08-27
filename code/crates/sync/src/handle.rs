@@ -11,9 +11,9 @@ use malachitebft_core_types::{Context, Height};
 use crate::co::Co;
 use crate::scoring::SyncResult;
 use crate::{
-    perform, Effect, Error, HeightStartType, InboundRequestId, Metrics, OutboundRequestId, PeerId,
-    PendingRequestEntry, RawDecidedValue, Request, Resume, State, Status, ValueRequest,
-    ValueResponse,
+    perform, Effect, Error, HeightStartType, InboundRequestId, Metrics, OutboundFailureReason,
+    OutboundRequestId, PeerId, PendingRequestEntry, RawDecidedValue, Request, Resume, State,
+    Status, ValueRequest, ValueResponse,
 };
 
 #[derive_where(Debug)]
@@ -47,11 +47,27 @@ pub enum Input<Ctx: Context> {
     /// A request for a value timed out
     SyncRequestTimedOut(OutboundRequestId, PeerId, Request<Ctx>),
 
-    /// We received an invalid value (either certificate or value)
-    InvalidValue(PeerId, Ctx::Height),
+    /// The network layer reported that an outbound sync request could not be
+    /// delivered or completed (dial failure, connection closed mid-request,
+    /// libp2p-level timeout, etc.).
+    SyncRequestFailed(
+        OutboundRequestId,
+        PeerId,
+        Request<Ctx>,
+        OutboundFailureReason,
+    ),
 
-    /// An error occurred while processing a value
-    ValueProcessingError(PeerId, Ctx::Height),
+    /// A fault in a synced value (its certificate or its bytes) is attributable
+    /// to the peer that served it: penalize and re-request from another peer.
+    PeerFault(PeerId, Ctx::Height),
+
+    /// Processing a synced value hit a local/transient failure (e.g. the
+    /// execution layer being temporarily unavailable). No peer is to blame, so
+    /// none is carried — re-request without penalizing or excluding anyone.
+    LocalTransientError(Ctx::Height),
+
+    /// A peer has disconnected
+    PeerDisconnected(PeerId),
 }
 
 pub async fn handle<Ctx>(
@@ -94,10 +110,18 @@ where
             on_sync_request_timed_out(co, state, metrics, request_id, peer_id, request).await
         }
 
-        Input::InvalidValue(peer, value) => on_invalid_value(co, state, metrics, peer, value).await,
+        Input::SyncRequestFailed(request_id, peer_id, request, reason) => {
+            on_sync_request_failed(&co, state, metrics, request_id, peer_id, request, reason).await
+        }
 
-        Input::ValueProcessingError(peer, height) => {
-            on_value_processing_error(co, state, metrics, peer, height).await
+        Input::PeerFault(peer, value) => on_peer_fault(co, state, metrics, peer, value).await,
+
+        Input::LocalTransientError(height) => {
+            on_local_transient_error(co, state, metrics, height).await
+        }
+
+        Input::PeerDisconnected(peer_id) => {
+            on_peer_disconnected(&co, state, metrics, peer_id).await
         }
     }
 }
@@ -288,7 +312,11 @@ where
 {
     debug!(%height, "Consensus decided on new value");
 
-    state.tip_height = height;
+    // Decisions are notified by independent tasks, so they can arrive out of
+    // order. Keep the tip at the highest height seen: a lower tip shrinks the
+    // read-ahead limit and can hold the request frontier below the height
+    // consensus waits for.
+    state.tip_height = max(state.tip_height, height);
 
     // Garbage collect pending requests for heights up to the new tip.
     state.prune_pending_requests();
@@ -336,7 +364,7 @@ where
         return Ok(());
     }
 
-    metrics.value_request_received(request.range.start().as_u64());
+    metrics.value_request_received(&request_id);
 
     let range = clamp_request_range::<Ctx>(&request.range, state.tip_height);
 
@@ -429,7 +457,6 @@ where
     };
     let entry_peer = entry.peer;
     let range_start = *entry.range.start();
-    let range_end = *entry.range.end();
     let requested_len = entry.range.len();
 
     if entry_peer != peer_id {
@@ -480,14 +507,37 @@ where
 
         let entry = state.pending_requests.remove(&request_id).unwrap();
         let updated_range = range_start..=new_start.decrement().unwrap_or_default();
-        state.update_request(request_id, peer_id, updated_range, entry.excluded_peers);
+        state.update_request(
+            request_id,
+            peer_id,
+            updated_range,
+            entry.excluded_peers,
+            false,
+        );
+        state.prune_pending_requests();
 
-        // Issue a new request for the remaining values to any peer (not necessarily the same one).
-        let new_range = new_start..=range_end;
-        request_values_range(co, state, metrics, new_range).await?;
+        // Return the suffix to the global frontier instead of scheduling it
+        // directly, so the next request pass starts at the lowest uncovered
+        // height rather than at the suffix of the range just answered.
+        set_sync_height(state, min(state.sync_height, new_start));
+        request_values(co, state, metrics).await?;
+    } else {
+        if let Some(entry) = state.pending_requests.get_mut(&request_id) {
+            // Full response — the entry becomes a reservation. It keeps its range
+            // reserved so the range is not requested twice, and it releases its
+            // slot in the parallel-request budget. `prune_pending_requests` drops
+            // it once consensus advances past the range.
+            entry.inflight = false;
+        }
+
+        // Spend the released slot now. The other callers of `request_values` are
+        // a peer status and the start of a height. Neither is guaranteed here:
+        // consensus cannot start a height while a lower height is missing, and a
+        // peer that has stopped deciding broadcasts no further status when status
+        // updates are eager. Without this pass the released slot would stay idle
+        // and the missing height would stay unrequested.
+        request_values(co, state, metrics).await?;
     }
-    // Full response — entry stays as-is; prune_pending_requests cleans it up
-    // once consensus advances past this range.
 
     Ok(())
 }
@@ -508,7 +558,7 @@ where
 
     // We do not trust the response, so we remove the pending request and re-request
     // the whole range from another peer.
-    re_request_values_from_peer_except(co, state, metrics, request_id, Some(peer_id)).await?;
+    re_request_values_from_peer_except(&co, state, metrics, request_id, Some(peer_id)).await?;
 
     Ok(())
 }
@@ -566,13 +616,13 @@ where
     perform!(
         co,
         Effect::SendValueResponse(
-            request_id,
+            request_id.clone(),
             ValueResponse::new(*start, values),
             Default::default()
         )
     );
 
-    metrics.value_response_sent(start.as_u64());
+    metrics.value_response_sent(&request_id);
 
     Ok(())
 }
@@ -596,6 +646,43 @@ where
 
             metrics.value_request_timed_out(value_request.range.start().as_u64());
 
+            // Ask the network layer to drop the now-abandoned request so any
+            // late response is discarded at the source instead of triggering
+            // downstream work (e.g. certificate fetches that hit upstream rate
+            // limits, only to be dropped here as "unknown request ID").
+            perform!(
+                co,
+                Effect::CancelValueRequest(request_id.clone(), Default::default())
+            );
+
+            re_request_values_from_peer_except(&co, state, metrics, request_id, Some(peer_id))
+                .await?;
+        }
+    };
+
+    Ok(())
+}
+
+pub async fn on_sync_request_failed<Ctx>(
+    co: &Co<Ctx>,
+    state: &mut State<Ctx>,
+    metrics: &Metrics,
+    request_id: OutboundRequestId,
+    peer_id: PeerId,
+    request: Request<Ctx>,
+    reason: OutboundFailureReason,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    match request {
+        Request::ValueRequest(value_request) => {
+            info!(%peer_id, ?reason, range = %DisplayRange(&value_request.range), "Sync request failed");
+
+            state.peer_scorer.update_score(peer_id, SyncResult::Failure);
+
+            metrics.value_request_failed(reason, value_request.range.start().as_u64());
+
             re_request_values_from_peer_except(co, state, metrics, request_id, Some(peer_id))
                 .await?;
         }
@@ -604,7 +691,46 @@ where
     Ok(())
 }
 
-async fn on_invalid_value<Ctx>(
+async fn on_peer_disconnected<Ctx>(
+    co: &Co<Ctx>,
+    state: &mut State<Ctx>,
+    metrics: &Metrics,
+    peer_id: PeerId,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    if state.peers.remove(&peer_id).is_none() {
+        // Peer never sent a status, so nothing to clean up.
+        return Ok(());
+    }
+
+    info!(%peer_id, "Peer disconnected");
+
+    // Re-request pending values assigned to this peer from another peer,
+    // adding the disconnected peer to the exclusion set so it is not selected
+    // again before reconnecting.
+    //
+    // Only requests still awaiting a response are re-issued. A reservation
+    // already holds its values, which consensus has buffered, so re-requesting
+    // it would take a request slot and buffer a second copy of every height in
+    // its range. The reservation keeps its range reserved and its former owner
+    // recorded until consensus advances past it and prunes it.
+    let peer_request_ids: Vec<OutboundRequestId> = state
+        .pending_requests
+        .iter()
+        .filter(|(_, entry)| entry.peer == peer_id && entry.inflight)
+        .map(|(request_id, _)| request_id.clone())
+        .collect();
+
+    for request_id in peer_request_ids {
+        re_request_values_from_peer_except(co, state, metrics, request_id, Some(peer_id)).await?;
+    }
+
+    Ok(())
+}
+
+async fn on_peer_fault<Ctx>(
     co: Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
@@ -614,22 +740,37 @@ async fn on_invalid_value<Ctx>(
 where
     Ctx: Context,
 {
-    error!(%peer_id, %height, "Received invalid value");
+    error!(%peer_id, %height, "Synced value fault is attributable to peer, penalizing");
     penalize_peer_and_retry(co, state, metrics, peer_id, height).await
 }
 
-async fn on_value_processing_error<Ctx>(
+/// Handle a local/transient failure while processing a synced value (e.g. the
+/// execution layer being temporarily unavailable). No peer is to blame, so we
+/// re-request the batch covering `height` without penalizing or excluding any
+/// peer.
+async fn on_local_transient_error<Ctx>(
     co: Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    peer_id: PeerId,
     height: Ctx::Height,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
-    error!(%peer_id, %height, "Error while processing value");
-    penalize_peer_and_retry(co, state, metrics, peer_id, height).await
+    warn!(
+        %height,
+        "Transient local error while processing value, re-requesting without penalizing any peer"
+    );
+
+    if let Some((request_id, _stored_peer_id)) = state.get_request_id_by(height) {
+        // `except_peer_id = None`: the failure is not attributable to a peer,
+        // so re-request without adding anyone to the exclusion set.
+        re_request_values_from_peer_except(&co, state, metrics, request_id, None).await?;
+    } else {
+        error!(%height, "Received height for unknown request");
+    }
+
+    Ok(())
 }
 
 // Penalize the peer and re-request the batch covering `height` from a different peer.
@@ -654,7 +795,7 @@ where
                 "Received response from different peer than expected"
             );
         }
-        re_request_values_from_peer_except(co, state, metrics, request_id, Some(peer_id)).await?;
+        re_request_values_from_peer_except(&co, state, metrics, request_id, Some(peer_id)).await?;
     } else {
         error!(%peer_id, %height, "Received height for unknown request");
     }
@@ -673,9 +814,10 @@ where
 {
     let max_parallel_requests = state.max_parallel_requests();
 
-    if state.pending_requests.len() >= max_parallel_requests {
+    if state.inflight_requests() >= max_parallel_requests {
         info!(
             max_parallel_requests,
+            inflight_requests = state.inflight_requests(),
             pending_requests = state.pending_requests.len(),
             "Maximum number of parallel requests reached, skipping request for values"
         );
@@ -683,7 +825,7 @@ where
         return Ok(());
     };
 
-    while state.pending_requests.len() < max_parallel_requests {
+    while state.inflight_requests() < max_parallel_requests {
         // Find the next uncovered range starting from current sync_height
         let initial_height = state.sync_height;
         let range = find_next_uncovered_range_from::<Ctx>(
@@ -692,6 +834,19 @@ where
             &state.pending_requests,
         );
 
+        // Values are useless to consensus until every height below them is
+        // decided, so stop once the frontier runs far enough ahead of the tip.
+        let read_ahead_limit = state.read_ahead_limit();
+        if *range.start() > read_ahead_limit {
+            debug!(
+                range = %DisplayRange(&range),
+                tip_height = %state.tip_height,
+                read_ahead_limit = %read_ahead_limit,
+                "Read-ahead limit reached, skipping request for values"
+            );
+            break;
+        }
+
         // Get a random peer that can provide the values in the range.
         let Some((peer, range)) = state.random_peer_with(&range) else {
             debug!("No peer to request sync from");
@@ -699,59 +854,27 @@ where
             break;
         };
 
-        send_and_track_request_to_peer(&co, state, metrics, peer, range, BTreeSet::new()).await?;
+        let tracked =
+            send_and_track_request_to_peer(&co, state, metrics, peer, range, BTreeSet::new())
+                .await?;
+
+        if !tracked {
+            // The send was not tracked, so the in-flight count is unchanged and
+            // the same range stays uncovered. Stop the cycle and let a later
+            // trigger (status update, decision, height start) resume it.
+            debug!("Sync request was not tracked, stopping request cycle");
+            break;
+        }
     }
 
     Ok(())
 }
 
-/// Request values for this specific range from a peer.
-/// Should only be used when re-requesting a partial range of values from a peer.
-async fn request_values_range<Ctx>(
-    co: Co<Ctx>,
-    state: &mut State<Ctx>,
-    metrics: &Metrics,
-    range: RangeInclusive<Ctx::Height>,
-) -> Result<(), Error<Ctx>>
-where
-    Ctx: Context,
-{
-    // NOTE: We do not perform a `max_parallel_requests` check and return here in contrast to what is done, for
-    // example, in `request_values`. This is because `request_values_range` is only called for retrieving
-    // partial responses, which means the original request is not on the wire anymore. Nevertheless,
-    // we log here because seeing this log frequently implies that we keep getting partial responses
-    // from peers and hints to potential reconfiguration.
-    let max_parallel_requests = state.max_parallel_requests();
-
-    if state.pending_requests.len() >= max_parallel_requests {
-        info!(
-            %max_parallel_requests,
-            pending_requests = %state.pending_requests.len(),
-            "Maximum number of pending requests reached when re-requesting a partial range of values"
-        );
-    };
-
-    // Capture the range start before `range` is shadowed by the peer-selected sub-range,
-    // so we can roll sync_height back if no peer can serve it.
-    let range_start = *range.start();
-
-    // Get a random peer that can provide the values in the range.
-    let Some((peer, range)) = state.random_peer_with(&range) else {
-        // No connected peer reached this height yet, we can stop syncing here.
-        debug!(range = %DisplayRange(&range), "No peer to request sync from");
-        // Roll sync_height back towards the range start so this range is
-        // picked up again once a peer advances past it. The original request
-        // has already advanced sync_height past the range, so without this
-        // rollback the missing segment would stall until an external event.
-        set_sync_height(state, min(state.sync_height, range_start));
-        return Ok(());
-    };
-
-    send_and_track_request_to_peer(&co, state, metrics, peer, range, BTreeSet::new()).await?;
-
-    Ok(())
-}
-
+/// Send a value request to `peer` and track it as a pending request on success.
+///
+/// Returns whether a request was tracked. `false` means the send was skipped or
+/// failed at the transport level: no pending request is recorded and
+/// `sync_height` is rolled back so the range is reconsidered on the next cycle.
 async fn send_and_track_request_to_peer<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
@@ -759,7 +882,7 @@ async fn send_and_track_request_to_peer<Ctx>(
     peer: PeerId,
     range: RangeInclusive<<Ctx as Context>::Height>,
     excluded_peers: BTreeSet<PeerId>,
-) -> Result<(), Error<Ctx>>
+) -> Result<bool, Error<Ctx>>
 where
     Ctx: Context,
 {
@@ -792,7 +915,7 @@ where
         // entry before calling us would leave sync_height past an untracked
         // range and stall sync for that segment until an external event.
         set_sync_height(state, min(state.sync_height, range_start));
-        return Ok(());
+        return Ok(false);
     };
 
     // Store the pending request
@@ -802,6 +925,7 @@ where
             range: final_range.clone(),
             peer,
             excluded_peers,
+            inflight: true,
         },
     );
 
@@ -813,7 +937,7 @@ where
         set_sync_height(state, final_range.end().increment());
     }
 
-    Ok(())
+    Ok(true)
 }
 
 /// Send a value request to a peer. Returns the request_id and final range if successful.
@@ -875,7 +999,7 @@ where
 /// If `except_peer_id` is `None` (internal processing error), no peer is
 /// added to the exclusion set because the failure was not the peer's fault.
 async fn re_request_values_from_peer_except<Ctx>(
-    co: Co<Ctx>,
+    co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
     request_id: OutboundRequestId,
@@ -911,6 +1035,21 @@ where
         }
     };
 
+    // A reservation holds no request slot, so re-requesting one adds a request
+    // the budget never accounted for. An entry that was still in flight gave its
+    // own slot back when it was removed above, so a retry is never blocked here.
+    if state.inflight_requests() >= state.max_parallel_requests() {
+        debug!(
+            %request_id,
+            inflight_requests = state.inflight_requests(),
+            max_parallel_requests = state.max_parallel_requests(),
+            "Parallel request budget is full, leaving the range to the next request pass"
+        );
+
+        set_sync_height(state, min(state.sync_height, *entry.range.start()));
+        return Ok(());
+    }
+
     let Some((peer, peer_range)) =
         state.random_peer_with_except(&entry.range, &entry.excluded_peers)
     else {
@@ -924,14 +1063,23 @@ where
         return Ok(());
     };
 
+    let to_request_end = *entry.range.end();
+    let peer_offered_end = *peer_range.end();
+
     // NOTE: `entry.excluded_peers` is moved into `send_and_track_request_to_peer`
     // and is dropped if the send fails (`Ok(None)` branch). This is
     // intentional — the next request cycle starts with a clean exclusion
     // set, and convergence away from unhealthy peers is left to the peer
     // scorer, which biases `random_peer_with_except`'s selection (timeouts
     // and invalid responses from the same peer will score it down).
-    send_and_track_request_to_peer(&co, state, metrics, peer, peer_range, entry.excluded_peers)
-        .await?;
+    let _ =
+        send_and_track_request_to_peer(co, state, metrics, peer, peer_range, entry.excluded_peers)
+            .await?;
+
+    // Keep any suffix omitted by a prefix-only retry on the next request frontier.
+    if peer_offered_end < to_request_end {
+        set_sync_height(state, min(state.sync_height, peer_offered_end.increment()));
+    }
 
     Ok(())
 }
@@ -1044,7 +1192,7 @@ mod tests {
     use super::*;
     use arc_malachitebft_test::{Height, TestContext, ValueId};
     use bytes::Bytes;
-    use malachitebft_core_types::{CommitCertificate, Round};
+    use malachitebft_core_types::Round;
     use rand::SeedableRng;
     use std::collections::{BTreeMap, BTreeSet};
 
@@ -1154,6 +1302,7 @@ mod tests {
                         range: Height::new(start)..=Height::new(end),
                         peer,
                         excluded_peers: BTreeSet::new(),
+                        inflight: true,
                     },
                 );
             }
@@ -1232,6 +1381,7 @@ mod tests {
                         range: Height::new(start)..=Height::new(end),
                         peer,
                         excluded_peers: BTreeSet::new(),
+                        inflight: true,
                     },
                 );
             }
@@ -1318,6 +1468,7 @@ mod tests {
                         range: Height::new(start)..=Height::new(end),
                         peer,
                         excluded_peers: BTreeSet::new(),
+                        inflight: true,
                     },
                 );
             }
@@ -1505,6 +1656,7 @@ mod tests {
                 range: Height::new(110)..=Height::new(120),
                 peer: peer_a,
                 excluded_peers: BTreeSet::new(),
+                inflight: true,
             },
         );
 
@@ -1546,6 +1698,7 @@ mod tests {
                 range: Height::new(100)..=Height::new(110),
                 peer: peer_a,
                 excluded_peers: BTreeSet::new(),
+                inflight: true,
             },
         );
         state.pending_requests.insert(
@@ -1554,6 +1707,7 @@ mod tests {
                 range: Height::new(111)..=Height::new(120),
                 peer: peer_b,
                 excluded_peers: BTreeSet::new(),
+                inflight: true,
             },
         );
         state.peers.insert(
@@ -1618,6 +1772,7 @@ mod tests {
                 range: Height::new(10)..=Height::new(14),
                 peer: PeerId::random(),
                 excluded_peers: BTreeSet::new(),
+                inflight: true,
             },
         );
 
@@ -1651,6 +1806,7 @@ mod tests {
                 range: Height::new(11)..=Height::new(15),
                 peer: peer_a,
                 excluded_peers: BTreeSet::new(),
+                inflight: true,
             },
         );
         state.peers.insert(
@@ -1752,6 +1908,7 @@ mod tests {
                 range: Height::new(11)..=Height::new(15),
                 peer: peer_a,
                 excluded_peers: BTreeSet::new(),
+                inflight: true,
             },
         );
 
@@ -1821,6 +1978,108 @@ mod tests {
         assert_eq!(state.sync_height, Height::new(11));
     }
 
+    // peer_a can serve the whole range 11..=15; peer_b only the prefix 11..=13
+    // (tip 13). Pending request req1 (11..=15) is assigned to peer_a; sync_height
+    // sits at 16 (already advanced past the range when req1 was sent).
+    fn setup_prefix_retry_state() -> (State<TestContext>, crate::Metrics, PeerId, PeerId) {
+        let mut state = make_test_state();
+        state.started = true;
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        state.tip_height = Height::new(10);
+        state.sync_height = Height::new(16);
+
+        let peer_a = PeerId::random();
+        let peer_b = PeerId::random();
+
+        state.peers.insert(
+            peer_a,
+            crate::Status {
+                peer_id: peer_a,
+                tip_height: Height::new(15),
+                history_min_height: Height::new(1),
+            },
+        );
+        state.peers.insert(
+            peer_b,
+            crate::Status {
+                peer_id: peer_b,
+                tip_height: Height::new(13),
+                history_min_height: Height::new(1),
+            },
+        );
+        state.pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            PendingRequestEntry {
+                range: Height::new(11)..=Height::new(15),
+                peer: peer_a,
+                excluded_peers: BTreeSet::new(),
+                inflight: true,
+            },
+        );
+
+        (state, metrics, peer_a, peer_b)
+    }
+
+    fn assert_retry_preserves_coverage(state: &State<TestContext>, peer_a: PeerId, peer_b: PeerId) {
+        assert!(
+            state.pending_requests.values().any(|e| e.peer == peer_b
+                && e.range == (Height::new(11)..=Height::new(13))
+                && e.excluded_peers.contains(&peer_a)),
+            "Expected a prefix re-request 11..=13 to peer_b excluding peer_a; \
+             pending_requests = {:?}",
+            state.pending_requests,
+        );
+
+        let uncovered: Vec<u64> = ((state.tip_height.as_u64() + 1)..state.sync_height.as_u64())
+            .filter(|h| {
+                !state
+                    .pending_requests
+                    .values()
+                    .any(|e| e.range.start().as_u64() <= *h && *h <= e.range.end().as_u64())
+            })
+            .collect();
+        assert!(
+            uncovered.is_empty(),
+            "Uncovered heights {uncovered:?}: above tip_height ({}) and below sync_height ({})",
+            state.tip_height.as_u64(),
+            state.sync_height.as_u64(),
+        );
+    }
+
+    #[test]
+    fn test_timeout_retry_to_prefix_peer_preserves_coverage() {
+        let (mut state, metrics, peer_a, peer_b) = setup_prefix_retry_state();
+
+        drive_input_with_retries(
+            &mut state,
+            &metrics,
+            Input::SyncRequestTimedOut(
+                OutboundRequestId::new("req1"),
+                peer_a,
+                crate::Request::ValueRequest(crate::ValueRequest::new(
+                    Height::new(11)..=Height::new(15),
+                )),
+            ),
+        )
+        .unwrap();
+
+        assert_retry_preserves_coverage(&state, peer_a, peer_b);
+    }
+
+    #[test]
+    fn test_disconnect_retry_to_prefix_peer_preserves_coverage() {
+        let (mut state, metrics, peer_a, peer_b) = setup_prefix_retry_state();
+
+        drive_input_with_retries(&mut state, &metrics, Input::PeerDisconnected(peer_a)).unwrap();
+
+        assert!(
+            !state.peers.contains_key(&peer_a),
+            "Disconnected peer_a should be removed from the peers map"
+        );
+        assert_retry_preserves_coverage(&state, peer_a, peer_b);
+    }
+
     #[test]
     fn test_re_request_preserves_rewound_sync_height_below_other_pending_range() {
         let mut state = make_test_state();
@@ -1859,6 +2118,7 @@ mod tests {
                 range: Height::new(11)..=Height::new(15),
                 peer: peer_b,
                 excluded_peers: [peer_a].into_iter().collect(),
+                inflight: true,
             },
         );
 
@@ -1870,6 +2130,7 @@ mod tests {
                 range: Height::new(16)..=Height::new(20),
                 peer: peer_b,
                 excluded_peers: BTreeSet::new(),
+                inflight: true,
             },
         );
 
@@ -1926,10 +2187,169 @@ mod tests {
         assert_eq!(state.sync_height, Height::new(11));
     }
 
-    // -- on_value_processing_error: peer fault handling --
+    /// The value-sync wedge invariant: every height strictly between
+    /// `tip_height` and `sync_height` must be covered by some pending request.
+    ///
+    /// If a height in that window is covered by nothing, the forward-only
+    /// request scanner (`find_next_uncovered_range_from`, which only ever looks
+    /// forward from `sync_height`) can never revisit it, so consensus starves on
+    /// it indefinitely.
+    fn assert_no_uncovered_gap_below_sync_height(state: &State<TestContext>) {
+        let mut height = state.tip_height.increment();
+        while height < state.sync_height {
+            let covered = state
+                .pending_requests
+                .values()
+                .any(|entry| entry.range.contains(&height));
+            assert!(
+                covered,
+                "height {} lies below sync_height {} but is covered by no pending request \
+                 — this is the value-sync wedge gap",
+                height.as_u64(),
+                state.sync_height.as_u64(),
+            );
+            height = height.increment();
+        }
+    }
+
+    /// Exhaustion of a low range rewinds `sync_height` so the forward request
+    /// scanner revisits it. A concurrent successful re-request of a higher range
+    /// must not clobber that rewind and strand needed heights below `sync_height`.
+    ///
+    /// This exercises five parallel slots, exhaustion on the lowest range, and a
+    /// concurrent successful re-request of a higher range. No height below
+    /// `sync_height` may remain uncovered, and the next request cycle must request
+    /// the height consensus needs.
+    #[test]
+    fn test_value_sync_wedge_does_not_form_after_exhaustion_storm() {
+        let mut state = make_test_state();
+        state.started = true;
+        state.config.parallel_requests = 5;
+        state.config.batch_size = 5;
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        // Consensus is stuck needing height 11; sync_height sits past five
+        // in-flight batches covering 11..=35.
+        state.tip_height = Height::new(10);
+        state.sync_height = Height::new(36);
+
+        let peer_a = PeerId::random(); // healthy: can serve every range
+        let peer_b = PeerId::random(); // the flaky peer the requests are routed to
+
+        for &peer in &[peer_a, peer_b] {
+            state.peers.insert(
+                peer,
+                crate::Status {
+                    peer_id: peer,
+                    tip_height: Height::new(100),
+                    history_min_height: Height::new(1),
+                },
+            );
+        }
+
+        // Lowest batch (11..=15) — the one consensus needs first. It already has
+        // peer_a excluded and is routed to peer_b, so when peer_b times out every
+        // eligible peer is exhausted and sync_height rewinds to 11.
+        state.pending_requests.insert(
+            OutboundRequestId::new("req_11_15"),
+            PendingRequestEntry {
+                range: Height::new(11)..=Height::new(15),
+                peer: peer_b,
+                excluded_peers: [peer_a].into_iter().collect(),
+                inflight: true,
+            },
+        );
+        // Four higher batches routed to peer_b with peer_a still available.
+        for (id, start, end) in [
+            ("req_16_20", 16, 20),
+            ("req_21_25", 21, 25),
+            ("req_26_30", 26, 30),
+            ("req_31_35", 31, 35),
+        ] {
+            state.pending_requests.insert(
+                OutboundRequestId::new(id),
+                PendingRequestEntry {
+                    range: Height::new(start)..=Height::new(end),
+                    peer: peer_b,
+                    excluded_peers: BTreeSet::new(),
+                    inflight: true,
+                },
+            );
+        }
+
+        // 1. The lowest batch times out on peer_b → all eligible peers exhausted
+        //    → sync_height rewinds to the start of the needed range (11).
+        drive_input_with_retries(
+            &mut state,
+            &metrics,
+            Input::SyncRequestTimedOut(
+                OutboundRequestId::new("req_11_15"),
+                peer_b,
+                crate::Request::ValueRequest(crate::ValueRequest::new(
+                    Height::new(11)..=Height::new(15),
+                )),
+            ),
+        )
+        .unwrap();
+
+        assert_eq!(
+            state.sync_height,
+            Height::new(11),
+            "exhaustion should rewind sync_height to the start of the needed range"
+        );
+
+        // 2. A higher batch times out on peer_b → re-request succeeds on peer_a.
+        //    An unconditional forward set would move sync_height to 21 and strand
+        //    11..=15 below it. The conditional advance must leave it at 11.
+        drive_input_with_retries(
+            &mut state,
+            &metrics,
+            Input::SyncRequestTimedOut(
+                OutboundRequestId::new("req_16_20"),
+                peer_b,
+                crate::Request::ValueRequest(crate::ValueRequest::new(
+                    Height::new(16)..=Height::new(20),
+                )),
+            ),
+        )
+        .unwrap();
+
+        // The needed range 11..=15 is no longer pending (exhausted), but it must
+        // not be stranded below sync_height.
+        assert_no_uncovered_gap_below_sync_height(&state);
+        assert_eq!(
+            state.sync_height,
+            Height::new(11),
+            "successful re-request of a higher range must not clobber the rewind"
+        );
+
+        // 3. The next request cycle (driven by a peer status) must re-request the
+        //    needed range starting at 11 — proving the node recovers rather than
+        //    wedging on the skipped-over height.
+        let effects = drive_input_with_retries(
+            &mut state,
+            &metrics,
+            Input::Status(crate::Status {
+                peer_id: peer_a,
+                tip_height: Height::new(100),
+                history_min_height: Height::new(1),
+            }),
+        )
+        .unwrap();
+
+        assert!(
+            effects.iter().any(|e| matches!(
+                e,
+                Effect::SendValueRequest(_, req, _) if req.range.contains(&Height::new(11))
+            )),
+            "next request cycle must re-request the needed height 11"
+        );
+    }
+
+    // -- on_sync_request_failed: libp2p outbound failure handling --
 
     #[test]
-    fn test_value_processing_error_penalizes_peer_and_retries_via_other_peer() {
+    fn test_sync_request_failed_penalizes_peer_and_reroutes() {
         let mut state = make_test_state();
         state.started = true;
         let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
@@ -1963,6 +2383,7 @@ mod tests {
                 range: Height::new(11)..=Height::new(15),
                 peer: peer_a,
                 excluded_peers: BTreeSet::new(),
+                inflight: true,
             },
         );
 
@@ -1971,30 +2392,334 @@ mod tests {
         let effects = drive_input_with_retries(
             &mut state,
             &metrics,
-            Input::ValueProcessingError(peer_a, Height::new(11)),
+            Input::SyncRequestFailed(
+                OutboundRequestId::new("req1"),
+                peer_a,
+                crate::Request::ValueRequest(crate::ValueRequest::new(
+                    Height::new(11)..=Height::new(15),
+                )),
+                OutboundFailureReason::ConnectionClosed,
+            ),
         )
         .unwrap();
 
         assert!(
             state.peer_scorer.get_score(&peer_a) < initial_score,
-            "Peer A should be penalized for serving an undecodable value"
+            "Peer A should be penalized when its sync request fails"
         );
 
         assert!(
             effects
                 .iter()
                 .any(|e| matches!(e, Effect::SendValueRequest(..))),
-            "Expected a re-request after ValueProcessingError"
+            "Expected a re-request after SyncRequestFailed"
         );
 
         assert_eq!(state.pending_requests.len(), 1);
         let (_, entry) = state.pending_requests.iter().next().unwrap();
-        assert_ne!(entry.peer, peer_a, "Retry should not go back to peer A");
-        assert_eq!(entry.peer, peer_b);
+        assert_eq!(entry.peer, peer_b, "Retry should go to peer B");
         assert!(
             entry.excluded_peers.contains(&peer_a),
             "Peer A should be in the excluded set"
         );
+    }
+
+    // -- on_local_transient_error: local/transient fault handling --
+
+    #[test]
+    fn test_local_transient_error_re_requests_without_penalizing_or_excluding_peer() {
+        let mut state = make_test_state();
+        state.started = true;
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        state.tip_height = Height::new(10);
+        state.sync_height = Height::new(16);
+
+        // A single peer on purpose: a local/transient failure (e.g. the
+        // execution layer being down) must not exclude the only peer we have.
+        let peer_a = PeerId::random();
+
+        state.peers.insert(
+            peer_a,
+            crate::Status {
+                peer_id: peer_a,
+                tip_height: Height::new(20),
+                history_min_height: Height::new(1),
+            },
+        );
+
+        state.pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            PendingRequestEntry {
+                range: Height::new(11)..=Height::new(15),
+                peer: peer_a,
+                excluded_peers: BTreeSet::new(),
+                inflight: true,
+            },
+        );
+
+        let initial_score = state.peer_scorer.get_score(&peer_a);
+
+        let effects = drive_input_with_retries(
+            &mut state,
+            &metrics,
+            Input::LocalTransientError(Height::new(11)),
+        )
+        .unwrap();
+
+        assert_eq!(
+            state.peer_scorer.get_score(&peer_a),
+            initial_score,
+            "Peer A must not be penalized for a local/transient processing error"
+        );
+
+        assert!(
+            effects
+                .iter()
+                .any(|e| matches!(e, Effect::SendValueRequest(..))),
+            "Expected a re-request after LocalTransientError"
+        );
+
+        assert_eq!(state.pending_requests.len(), 1);
+        let (_, entry) = state.pending_requests.iter().next().unwrap();
+        assert_eq!(
+            entry.peer, peer_a,
+            "Retry may go back to peer A since it is not at fault"
+        );
+        assert!(
+            entry.excluded_peers.is_empty(),
+            "No peer should be excluded for a local/transient processing error"
+        );
+    }
+
+    // -- on_peer_disconnected: requests to disconnected peer get rerouted --
+
+    #[test]
+    fn test_peer_disconnected_reroutes_pending_requests_to_alternate_peer() {
+        let mut state = make_test_state();
+        state.started = true;
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        state.tip_height = Height::new(10);
+        state.sync_height = Height::new(21);
+
+        let peer_a = PeerId::random();
+        let peer_b = PeerId::random();
+        let peer_c = PeerId::random();
+
+        for &peer in &[peer_a, peer_b, peer_c] {
+            state.peers.insert(
+                peer,
+                crate::Status {
+                    peer_id: peer,
+                    tip_height: Height::new(30),
+                    history_min_height: Height::new(1),
+                },
+            );
+        }
+
+        // Two pending requests assigned to peer_a, one to peer_b.
+        state.pending_requests.insert(
+            OutboundRequestId::new("req_a1"),
+            PendingRequestEntry {
+                range: Height::new(11)..=Height::new(15),
+                peer: peer_a,
+                excluded_peers: BTreeSet::new(),
+                inflight: true,
+            },
+        );
+        state.pending_requests.insert(
+            OutboundRequestId::new("req_a2"),
+            PendingRequestEntry {
+                range: Height::new(16)..=Height::new(20),
+                peer: peer_a,
+                excluded_peers: BTreeSet::new(),
+                inflight: true,
+            },
+        );
+        state.pending_requests.insert(
+            OutboundRequestId::new("req_b1"),
+            PendingRequestEntry {
+                range: Height::new(21)..=Height::new(25),
+                peer: peer_b,
+                excluded_peers: BTreeSet::new(),
+                inflight: true,
+            },
+        );
+
+        let effects =
+            drive_input_with_retries(&mut state, &metrics, Input::PeerDisconnected(peer_a))
+                .unwrap();
+
+        assert!(
+            !state.peers.contains_key(&peer_a),
+            "Disconnected peer should be removed from peers map",
+        );
+
+        let send_count = effects
+            .iter()
+            .filter(|e| matches!(e, Effect::SendValueRequest(..)))
+            .count();
+        assert_eq!(
+            send_count, 2,
+            "Both requests to the disconnected peer should be re-issued"
+        );
+
+        assert_eq!(state.pending_requests.len(), 3);
+
+        for entry in state.pending_requests.values() {
+            assert_ne!(
+                entry.peer, peer_a,
+                "Retry must not be routed back to the disconnected peer"
+            );
+        }
+
+        let rerouted_ranges: BTreeSet<(u64, u64)> = state
+            .pending_requests
+            .values()
+            .filter(|entry| entry.excluded_peers.contains(&peer_a))
+            .map(|entry| (entry.range.start().as_u64(), entry.range.end().as_u64()))
+            .collect();
+        assert!(
+            rerouted_ranges.contains(&(11, 15)) && rerouted_ranges.contains(&(16, 20)),
+            "Both ranges originally assigned to peer A should carry it in their exclusion set"
+        );
+
+        // Peer B's request must remain untouched.
+        let peer_b_entry = state
+            .pending_requests
+            .get(&OutboundRequestId::new("req_b1"))
+            .expect("Peer B's request should be preserved");
+        assert_eq!(peer_b_entry.peer, peer_b);
+        assert!(peer_b_entry.excluded_peers.is_empty());
+    }
+
+    #[test]
+    fn test_peer_disconnected_leaves_reservations_in_place() {
+        let mut state = make_test_state();
+        state.started = true;
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        state.tip_height = Height::new(10);
+        state.sync_height = Height::new(21);
+
+        let peer_a = PeerId::random();
+        let peer_b = PeerId::random();
+
+        for &peer in &[peer_a, peer_b] {
+            state.peers.insert(
+                peer,
+                crate::Status {
+                    peer_id: peer,
+                    tip_height: Height::new(30),
+                    history_min_height: Height::new(1),
+                },
+            );
+        }
+
+        // Peer A owns one outstanding request and one reservation whose values arrived.
+        state.pending_requests.insert(
+            OutboundRequestId::new("req_inflight"),
+            PendingRequestEntry {
+                range: Height::new(11)..=Height::new(15),
+                peer: peer_a,
+                excluded_peers: BTreeSet::new(),
+                inflight: true,
+            },
+        );
+        state.pending_requests.insert(
+            OutboundRequestId::new("req_reservation"),
+            PendingRequestEntry {
+                range: Height::new(16)..=Height::new(20),
+                peer: peer_a,
+                excluded_peers: BTreeSet::new(),
+                inflight: false,
+            },
+        );
+
+        let effects =
+            drive_input_with_retries(&mut state, &metrics, Input::PeerDisconnected(peer_a))
+                .unwrap();
+
+        // Only the outstanding request is re-issued.
+        assert_eq!(
+            requested_ranges(&effects),
+            vec![Height::new(11)..=Height::new(15)]
+        );
+
+        // The reservation keeps its range, its owner and its slot-free status.
+        let reservation = state
+            .pending_requests
+            .get(&OutboundRequestId::new("req_reservation"))
+            .expect("Reservation should be preserved");
+        assert_eq!(reservation.range, Height::new(16)..=Height::new(20));
+        assert_eq!(reservation.peer, peer_a);
+        assert!(!reservation.inflight);
+        assert_eq!(state.inflight_requests(), 1);
+    }
+
+    #[test]
+    fn test_peer_disconnected_clears_pending_when_no_alternate_peer() {
+        let mut state = make_test_state();
+        state.started = true;
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        state.tip_height = Height::new(10);
+        state.sync_height = Height::new(16);
+
+        let peer_a = PeerId::random();
+        state.peers.insert(
+            peer_a,
+            crate::Status {
+                peer_id: peer_a,
+                tip_height: Height::new(20),
+                history_min_height: Height::new(1),
+            },
+        );
+
+        state.pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            PendingRequestEntry {
+                range: Height::new(11)..=Height::new(15),
+                peer: peer_a,
+                excluded_peers: BTreeSet::new(),
+                inflight: true,
+            },
+        );
+
+        let effects =
+            drive_input_with_retries(&mut state, &metrics, Input::PeerDisconnected(peer_a))
+                .unwrap();
+
+        assert!(
+            !effects
+                .iter()
+                .any(|e| matches!(e, Effect::SendValueRequest(..))),
+            "No request should be issued when no alternate peer is available"
+        );
+        assert!(state.pending_requests.is_empty());
+        // sync_height rolls back to the start of the failed range (11), preserving the
+        // invariant sync_height > tip_height (10).
+        assert_eq!(state.sync_height, Height::new(11));
+    }
+
+    #[test]
+    fn test_peer_disconnected_for_untracked_peer_is_noop() {
+        let mut state = make_test_state();
+        state.started = true;
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        state.tip_height = Height::new(10);
+        state.sync_height = Height::new(16);
+
+        let unknown_peer = PeerId::random();
+
+        let effects =
+            drive_input(&mut state, &metrics, Input::PeerDisconnected(unknown_peer)).unwrap();
+
+        assert!(effects.is_empty());
+        assert!(state.pending_requests.is_empty());
+        assert!(state.peers.is_empty());
     }
 
     // -- on_value_response: certificate height validation --
@@ -2003,11 +2728,11 @@ mod tests {
     fn make_raw_value(height: u64) -> crate::RawDecidedValue<TestContext> {
         use arc_malachitebft_test::ValueId;
         use bytes::Bytes;
-        use malachitebft_core_types::{CommitCertificate, Round};
+        use malachitebft_core_types::{ExtendedCommitCertificate, Round};
 
         crate::RawDecidedValue::new(
             Bytes::from_static(b"test"),
-            CommitCertificate {
+            ExtendedCommitCertificate {
                 height: Height::new(height),
                 round: Round::ZERO,
                 value_id: ValueId::new(height),
@@ -2039,6 +2764,7 @@ mod tests {
                 range: Height::new(range_start)..=Height::new(range_end),
                 peer,
                 excluded_peers: BTreeSet::new(),
+                inflight: true,
             },
         );
 
@@ -2119,6 +2845,96 @@ mod tests {
                 .iter()
                 .any(|e| matches!(e, crate::Effect::SendValueRequest(..))),
             "A prefix response must trigger a re-request for the remaining suffix"
+        );
+    }
+
+    #[test]
+    fn test_partial_response_after_status_change_preserves_coverage() {
+        let mut state = make_test_state();
+        state.started = true;
+        state.tip_height = Height::new(10);
+        state.sync_height = Height::new(21);
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        let peer_a = PeerId::random();
+        state.peers.insert(
+            peer_a,
+            crate::Status {
+                peer_id: peer_a,
+                tip_height: Height::new(20),
+                history_min_height: Height::new(1),
+            },
+        );
+        state.pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            PendingRequestEntry {
+                range: Height::new(11)..=Height::new(20),
+                peer: peer_a,
+                excluded_peers: BTreeSet::new(),
+                inflight: true,
+            },
+        );
+
+        // The original peer has pruned past the remaining range's start since
+        // accepting the request, while another peer can serve only a prefix.
+        drive_input(
+            &mut state,
+            &metrics,
+            Input::Status(crate::Status {
+                peer_id: peer_a,
+                tip_height: Height::new(20),
+                history_min_height: Height::new(16),
+            }),
+        )
+        .unwrap();
+
+        let peer_b = PeerId::random();
+        drive_input(
+            &mut state,
+            &metrics,
+            Input::Status(crate::Status {
+                peer_id: peer_b,
+                tip_height: Height::new(17),
+                history_min_height: Height::new(1),
+            }),
+        )
+        .unwrap();
+
+        let response = crate::ValueResponse::new(
+            Height::new(11),
+            vec![
+                make_raw_value(11),
+                make_raw_value(12),
+                make_raw_value(13),
+                make_raw_value(14),
+            ],
+        );
+
+        drive_input_with_retries(
+            &mut state,
+            &metrics,
+            Input::ValueResponse(OutboundRequestId::new("req1"), peer_a, Some(response)),
+        )
+        .unwrap();
+
+        assert!(state.pending_requests.values().any(|entry| {
+            entry.peer == peer_b && entry.range == (Height::new(15)..=Height::new(17))
+        }));
+        assert_eq!(state.sync_height, Height::new(21));
+
+        let uncovered: Vec<u64> = ((state.tip_height.as_u64() + 1)..state.sync_height.as_u64())
+            .filter(|height| {
+                !state
+                    .pending_requests
+                    .values()
+                    .any(|entry| entry.range.contains(&Height::new(*height)))
+            })
+            .collect();
+        assert!(
+            uncovered.is_empty(),
+            "Uncovered heights {uncovered:?}: above tip_height ({}) and below sync_height ({})",
+            state.tip_height.as_u64(),
+            state.sync_height.as_u64(),
         );
     }
 
@@ -2208,6 +3024,43 @@ mod tests {
         let response = extract_value_response(&effects);
         assert_eq!(response.start_height, Height::new(5));
         assert_eq!(response.values.len(), 3);
+    }
+
+    #[test]
+    fn test_same_height_value_requests_record_independent_server_latencies() {
+        let mut state = make_test_state();
+        state.tip_height = Height::new(5);
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+        let peer = PeerId::random();
+        let range = Height::new(5)..=Height::new(5);
+
+        for request_id in ["req1", "req2"] {
+            drive_input(
+                &mut state,
+                &metrics,
+                Input::ValueRequest(
+                    InboundRequestId::new(request_id),
+                    peer,
+                    ValueRequest::new(range.clone()),
+                ),
+            )
+            .unwrap();
+        }
+
+        for request_id in ["req1", "req2"] {
+            drive_input(
+                &mut state,
+                &metrics,
+                Input::GotDecidedValues(
+                    InboundRequestId::new(request_id),
+                    range.clone(),
+                    vec![make_raw_value(5)],
+                ),
+            )
+            .unwrap();
+        }
+
+        assert_eq!(metrics.value_server_latency_observation_count(), 2);
     }
 
     #[test]
@@ -2346,6 +3199,7 @@ mod tests {
                 range: Height::new(11)..=Height::new(15),
                 peer: peer_a,
                 excluded_peers: BTreeSet::new(),
+                inflight: true,
             },
         );
 
@@ -2385,6 +3239,124 @@ mod tests {
         assert_eq!(state.sync_height, Height::new(11));
     }
 
+    /// A transport-level send failure inside the request loop produces a single
+    /// attempt and stops the cycle: the in-flight count does not advance, so the
+    /// loop does not re-select the identical range. The range stays the sync
+    /// target (sync_height preserved above tip) for a later trigger to resume.
+    #[test]
+    fn test_request_values_attempts_once_and_stops_on_send_failure() {
+        let mut state = make_test_state();
+        state.started = true;
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        state.tip_height = Height::new(10);
+        state.sync_height = Height::new(11);
+
+        // A status from a peer ahead of us triggers the request loop. Its
+        // `update_status` adds the peer to the routable set, so a peer is always
+        // available to select.
+        let peer = PeerId::random();
+        let status = crate::Status {
+            peer_id: peer,
+            tip_height: Height::new(20),
+            history_min_height: Height::new(1),
+        };
+
+        let effects =
+            drive_input_with_send_failures(&mut state, &metrics, Input::Status(status)).unwrap();
+
+        let send_attempts = effects
+            .iter()
+            .filter(|e| matches!(e, Effect::SendValueRequest(..)))
+            .count();
+
+        assert_eq!(
+            send_attempts, 1,
+            "request loop should attempt the send once per cycle"
+        );
+        assert!(
+            state.pending_requests.is_empty(),
+            "no request is tracked when the send fails"
+        );
+        // The range remains the sync target so a later trigger can resume it.
+        assert_eq!(state.sync_height, Height::new(11));
+    }
+
+    #[test]
+    fn test_timeout_emits_cancel_value_request_before_retry() {
+        let mut state = make_test_state();
+        state.started = true;
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        state.tip_height = Height::new(10);
+        state.sync_height = Height::new(16);
+
+        let peer_a = PeerId::random();
+        let peer_b = PeerId::random();
+        state.peers.insert(
+            peer_a,
+            crate::Status {
+                peer_id: peer_a,
+                tip_height: Height::new(20),
+                history_min_height: Height::new(1),
+            },
+        );
+        state.peers.insert(
+            peer_b,
+            crate::Status {
+                peer_id: peer_b,
+                tip_height: Height::new(20),
+                history_min_height: Height::new(1),
+            },
+        );
+
+        state.pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            PendingRequestEntry {
+                range: Height::new(11)..=Height::new(15),
+                peer: peer_a,
+                excluded_peers: BTreeSet::new(),
+                inflight: true,
+            },
+        );
+
+        let effects = drive_input_with_retries(
+            &mut state,
+            &metrics,
+            Input::SyncRequestTimedOut(
+                OutboundRequestId::new("req1"),
+                peer_a,
+                crate::Request::ValueRequest(crate::ValueRequest::new(
+                    Height::new(11)..=Height::new(15),
+                )),
+            ),
+        )
+        .unwrap();
+
+        // The cancellation effect must be emitted, and it must reference the
+        // request ID that just timed out — so the network layer drops the
+        // right in-flight request.
+        let cancel_pos = effects.iter().position(|e| {
+            matches!(
+                e,
+                Effect::CancelValueRequest(id, _) if id == &OutboundRequestId::new("req1")
+            )
+        });
+        let send_pos = effects
+            .iter()
+            .position(|e| matches!(e, Effect::SendValueRequest(..)));
+
+        let cancel_pos = cancel_pos.expect("CancelValueRequest must be emitted on timeout");
+        let send_pos = send_pos.expect("Retry SendValueRequest must be emitted on timeout");
+
+        // Cancel before retry: the late response should be dropped before we
+        // commit to a new in-flight request.
+        assert!(
+            cancel_pos < send_pos,
+            "CancelValueRequest (idx {cancel_pos}) must precede the retry SendValueRequest (idx {send_pos})"
+        );
+    }
+
     #[test]
     fn test_request_values_range_rolls_back_sync_height_when_no_peer_available() {
         let mut state = make_test_state();
@@ -2413,6 +3385,7 @@ mod tests {
                 range: Height::new(11)..=Height::new(15),
                 peer,
                 excluded_peers: BTreeSet::new(),
+                inflight: true,
             },
         );
 
@@ -2443,6 +3416,582 @@ mod tests {
         }
     }
 
+    // Drive an input, assigning a fresh sequential request id to every
+    // `SendValueRequest` effect, starting at `next_id`.
+    fn drive_input_numbering_requests(
+        state: &mut State<TestContext>,
+        metrics: &crate::Metrics,
+        input: Input<TestContext>,
+        next_id: &mut u64,
+    ) -> Vec<crate::Effect<TestContext>> {
+        use crate::Resume;
+
+        drive_input_with(state, metrics, input, |effect| match effect {
+            Effect::SendValueRequest(..) => {
+                *next_id += 1;
+                Resume::ValueRequestId(Some(OutboundRequestId::new(format!("req{next_id}"))))
+            }
+            _ => Resume::default(),
+        })
+        .unwrap()
+    }
+
+    fn status(peer: PeerId, tip: u64) -> crate::Status<TestContext> {
+        crate::Status {
+            peer_id: peer,
+            tip_height: Height::new(tip),
+            history_min_height: Height::new(1),
+        }
+    }
+
+    fn requested_ranges(effects: &[crate::Effect<TestContext>]) -> Vec<RangeInclusive<Height>> {
+        effects
+            .iter()
+            .filter_map(|effect| match effect {
+                Effect::SendValueRequest(_, request, _) => Some(request.range.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+    #[test]
+    fn test_received_entries_do_not_block_re_request_of_lower_missing_height() {
+        let mut state = make_test_state();
+        state.config = crate::Config::default()
+            .with_parallel_requests(2)
+            .with_batch_size(5);
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+        let mut next_id = 0;
+
+        let peer = PeerId::random();
+
+        // Node is at tip 0 and needs heights 1, 2 and 3.
+        drive_input_numbering_requests(
+            &mut state,
+            &metrics,
+            Input::StartedHeight(Height::new(1), HeightStartType::Start),
+            &mut next_id,
+        );
+        assert_eq!(state.tip_height, Height::new(0));
+        assert_eq!(state.sync_height, Height::new(1));
+
+        // The peer holds only height 1, so the request is trimmed to 1..=1.
+        let effects = drive_input_numbering_requests(
+            &mut state,
+            &metrics,
+            Input::Status(status(peer, 1)),
+            &mut next_id,
+        );
+        assert_eq!(
+            requested_ranges(&effects),
+            vec![Height::new(1)..=Height::new(1)]
+        );
+
+        // The peer advances to height 3, so heights 2..=3 are requested too.
+        let effects = drive_input_numbering_requests(
+            &mut state,
+            &metrics,
+            Input::Status(status(peer, 3)),
+            &mut next_id,
+        );
+        assert_eq!(
+            requested_ranges(&effects),
+            vec![Height::new(2)..=Height::new(3)]
+        );
+        assert_eq!(state.pending_requests.len(), 2);
+
+        // The request for height 1 times out. The peer is excluded for the
+        // retry and no other peer can serve height 1, so the entry is dropped.
+        drive_input_numbering_requests(
+            &mut state,
+            &metrics,
+            Input::SyncRequestTimedOut(
+                OutboundRequestId::new("req1"),
+                peer,
+                Request::ValueRequest(ValueRequest::new(Height::new(1)..=Height::new(1))),
+            ),
+            &mut next_id,
+        );
+        assert_eq!(state.sync_height, Height::new(1));
+        assert_eq!(state.pending_requests.len(), 1);
+
+        // The response to 2..=3 covers only height 2. The prefix is kept as a
+        // reservation and the suffix returns to the frontier. Consensus still
+        // cannot advance, and this response is the last input the node
+        // receives: no further status arrives, and no height can start while
+        // height 1 is missing. The released slot must go to height 1.
+        drive_input_numbering_requests(
+            &mut state,
+            &metrics,
+            Input::ValueResponse(
+                OutboundRequestId::new("req2"),
+                peer,
+                Some(crate::ValueResponse::new(
+                    Height::new(2),
+                    vec![make_raw_value(2)],
+                )),
+            ),
+            &mut next_id,
+        );
+
+        assert_eq!(state.tip_height, Height::new(0));
+
+        // The answered prefix is kept as a reservation, so it holds no slot.
+        // Without this the pass below would still find a free slot and the
+        // assertion on height 1 would pass for the wrong reason.
+        let prefix = state
+            .pending_requests
+            .values()
+            .find(|entry| entry.range == (Height::new(2)..=Height::new(2)))
+            .expect("The answered prefix should stay reserved");
+        assert!(!prefix.inflight);
+
+        // The pass takes both the gap below the prefix and the suffix above it.
+        assert_eq!(state.inflight_requests(), 2);
+
+        assert!(
+            state
+                .pending_requests
+                .values()
+                .any(|entry| entry.inflight && entry.range.contains(&Height::new(1))),
+            "height 1 was never re-requested: sync_height={}, pending={:?}",
+            state.sync_height,
+            state
+                .pending_requests
+                .values()
+                .map(|entry| format!("{}", DisplayRange(&entry.range)))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_full_response_releases_parallel_request_slot() {
+        let mut state = make_test_state();
+        state.config = crate::Config::default()
+            .with_parallel_requests(2)
+            .with_batch_size(5);
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+        let mut next_id = 0;
+
+        let peer = PeerId::random();
+
+        drive_input_numbering_requests(
+            &mut state,
+            &metrics,
+            Input::StartedHeight(Height::new(1), HeightStartType::Start),
+            &mut next_id,
+        );
+
+        // The peer holds heights 1 to 3 only, so the first request is trimmed.
+        let effects = drive_input_numbering_requests(
+            &mut state,
+            &metrics,
+            Input::Status(status(peer, 3)),
+            &mut next_id,
+        );
+        assert_eq!(
+            requested_ranges(&effects),
+            vec![Height::new(1)..=Height::new(3)]
+        );
+
+        // The peer catches up, so the next batch takes the second slot.
+        let effects = drive_input_numbering_requests(
+            &mut state,
+            &metrics,
+            Input::Status(status(peer, 100)),
+            &mut next_id,
+        );
+        assert_eq!(
+            requested_ranges(&effects),
+            vec![Height::new(4)..=Height::new(8)]
+        );
+        assert_eq!(state.inflight_requests(), 2);
+
+        // A full response leaves a reservation behind, releases its slot, and
+        // spends that slot on the next uncovered range straight away.
+        let effects = drive_input_numbering_requests(
+            &mut state,
+            &metrics,
+            Input::ValueResponse(
+                OutboundRequestId::new("req1"),
+                peer,
+                Some(crate::ValueResponse::new(
+                    Height::new(1),
+                    (1..=3).map(make_raw_value).collect(),
+                )),
+            ),
+            &mut next_id,
+        );
+        assert_eq!(
+            requested_ranges(&effects),
+            vec![Height::new(9)..=Height::new(13)]
+        );
+
+        // The answered range stays reserved but holds no request.
+        let reservation = state
+            .pending_requests
+            .get(&OutboundRequestId::new("req1"))
+            .expect("Answered range should stay reserved");
+        assert_eq!(reservation.range, Height::new(1)..=Height::new(3));
+        assert!(!reservation.inflight);
+        assert_eq!(state.inflight_requests(), 2);
+        assert_eq!(state.pending_requests.len(), 3);
+    }
+
+    #[test]
+    fn test_requests_stop_at_the_read_ahead_limit_above_the_tip() {
+        let mut state = make_test_state();
+        state.config = crate::Config::default()
+            .with_parallel_requests(2)
+            .with_batch_size(5);
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+        let mut next_id = 0;
+
+        let peer = PeerId::random();
+
+        drive_input_numbering_requests(
+            &mut state,
+            &metrics,
+            Input::StartedHeight(Height::new(1), HeightStartType::Start),
+            &mut next_id,
+        );
+
+        // Two batches fill the budget, covering heights 1 to 10.
+        let effects = drive_input_numbering_requests(
+            &mut state,
+            &metrics,
+            Input::Status(status(peer, 100)),
+            &mut next_id,
+        );
+        assert_eq!(
+            requested_ranges(&effects),
+            vec![
+                Height::new(1)..=Height::new(5),
+                Height::new(6)..=Height::new(10)
+            ]
+        );
+
+        // Both responses arrive in full, so no request is in flight any more.
+        for (request_id, start) in [("req1", 1u64), ("req2", 6)] {
+            drive_input_numbering_requests(
+                &mut state,
+                &metrics,
+                Input::ValueResponse(
+                    OutboundRequestId::new(request_id),
+                    peer,
+                    Some(crate::ValueResponse::new(
+                        Height::new(start),
+                        (start..=start + 4).map(make_raw_value).collect(),
+                    )),
+                ),
+                &mut next_id,
+            );
+        }
+        assert_eq!(state.inflight_requests(), 0);
+
+        // The budget is free, but height 11 is above the highest permitted
+        // request start, `tip + parallel_requests * batch_size` (10).
+        let effects = drive_input_numbering_requests(
+            &mut state,
+            &metrics,
+            Input::Status(status(peer, 100)),
+            &mut next_id,
+        );
+        assert!(
+            requested_ranges(&effects).is_empty(),
+            "no request is expected above the read-ahead limit, got {:?}",
+            requested_ranges(&effects)
+        );
+        assert_eq!(state.pending_requests.len(), 2);
+
+        // The limit moves up with the tip.
+        drive_input_numbering_requests(
+            &mut state,
+            &metrics,
+            Input::Decided(Height::new(5)),
+            &mut next_id,
+        );
+        let effects = drive_input_numbering_requests(
+            &mut state,
+            &metrics,
+            Input::Status(status(peer, 100)),
+            &mut next_id,
+        );
+        assert_eq!(
+            requested_ranges(&effects),
+            vec![Height::new(11)..=Height::new(15)]
+        );
+    }
+
+    #[test]
+    fn test_a_decision_below_the_tip_keeps_the_read_ahead_limit() {
+        let mut state = make_test_state();
+        state.config = crate::Config::default()
+            .with_parallel_requests(1)
+            .with_batch_size(1);
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+        let mut next_id = 0;
+
+        let peer = PeerId::random();
+
+        // Decide heights 1 and 2 with no peer around, then move on to height 3.
+        for height in [1u64, 2] {
+            drive_input_numbering_requests(
+                &mut state,
+                &metrics,
+                Input::StartedHeight(Height::new(height), HeightStartType::Start),
+                &mut next_id,
+            );
+            drive_input_numbering_requests(
+                &mut state,
+                &metrics,
+                Input::Decided(Height::new(height)),
+                &mut next_id,
+            );
+        }
+        drive_input_numbering_requests(
+            &mut state,
+            &metrics,
+            Input::StartedHeight(Height::new(3), HeightStartType::Start),
+            &mut next_id,
+        );
+        assert_eq!(state.tip_height, Height::new(2));
+        assert_eq!(state.sync_height, Height::new(3));
+
+        // The decision for height 1 arrives after the one for height 2.
+        drive_input_numbering_requests(
+            &mut state,
+            &metrics,
+            Input::Decided(Height::new(1)),
+            &mut next_id,
+        );
+        assert_eq!(state.tip_height, Height::new(2));
+
+        // A peer reaches height 3, which is still inside the read-ahead limit.
+        let effects = drive_input_numbering_requests(
+            &mut state,
+            &metrics,
+            Input::Status(status(peer, 3)),
+            &mut next_id,
+        );
+        assert_eq!(
+            requested_ranges(&effects),
+            vec![Height::new(3)..=Height::new(3)]
+        );
+    }
+
+    #[test]
+    fn test_status_requests_a_gap_below_reservations_that_fill_the_map() {
+        let mut state = make_test_state();
+        state.started = true;
+        state.config = crate::Config::default()
+            .with_parallel_requests(2)
+            .with_batch_size(5);
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        let peer = PeerId::random();
+
+        // Both slots hold a reservation, and height 1 below them is uncovered.
+        // The read-ahead limit is tip + 10, so the gap is well inside it and
+        // only the capacity check decides whether the request goes out.
+        state.tip_height = Height::new(0);
+        state.sync_height = Height::new(1);
+        for (id, height) in [("res_a", 2u64), ("res_b", 3)] {
+            state.pending_requests.insert(
+                OutboundRequestId::new(id),
+                PendingRequestEntry {
+                    range: Height::new(height)..=Height::new(height),
+                    peer,
+                    excluded_peers: BTreeSet::new(),
+                    inflight: false,
+                },
+            );
+        }
+        assert_eq!(state.pending_requests.len(), state.max_parallel_requests());
+        assert_eq!(state.inflight_requests(), 0);
+
+        let effects =
+            drive_input_with_retries(&mut state, &metrics, Input::Status(status(peer, 100)))
+                .unwrap();
+
+        // The gap goes out first. The freed second slot then goes to the next
+        // uncovered range above the reservations.
+        let requested = requested_ranges(&effects);
+        assert_eq!(
+            requested.first(),
+            Some(&(Height::new(1)..=Height::new(1))),
+            "the gap below the reservations was not requested first: {requested:?}"
+        );
+    }
+
+    #[test]
+    fn test_re_request_respects_the_parallel_request_budget() {
+        let mut state = make_test_state();
+        state.config = crate::Config::default()
+            .with_parallel_requests(2)
+            .with_batch_size(5);
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+        let mut next_id = 0;
+        let peer = PeerId::random();
+
+        drive_input_numbering_requests(
+            &mut state,
+            &metrics,
+            Input::StartedHeight(Height::new(1), HeightStartType::Start),
+            &mut next_id,
+        );
+        drive_input_numbering_requests(
+            &mut state,
+            &metrics,
+            Input::Status(status(peer, 100)),
+            &mut next_id,
+        );
+
+        // A one-value response leaves a one-height reservation. The freed slot
+        // goes to the range just above it, so the budget is full again. A larger
+        // reservation would leave the read-ahead limit as the binding gate, and
+        // the budget would never fill.
+        drive_input_numbering_requests(
+            &mut state,
+            &metrics,
+            Input::ValueResponse(
+                OutboundRequestId::new("req1"),
+                peer,
+                Some(crate::ValueResponse::new(
+                    Height::new(1),
+                    vec![make_raw_value(1)],
+                )),
+            ),
+            &mut next_id,
+        );
+        assert_eq!(state.inflight_requests(), 2);
+
+        // A height inside the reservation fails locally. Re-requesting it must
+        // not add a third request.
+        drive_input_numbering_requests(
+            &mut state,
+            &metrics,
+            Input::LocalTransientError(Height::new(1)),
+            &mut next_id,
+        );
+
+        assert_eq!(
+            state.inflight_requests(),
+            2,
+            "in-flight requests exceeded parallel_requests: {:?}",
+            state
+                .pending_requests
+                .values()
+                .map(|entry| format!("{}", DisplayRange(&entry.range)))
+                .collect::<Vec<_>>()
+        );
+
+        // The range is uncovered again and the frontier points at it, so the
+        // next request pass picks it up.
+        assert_eq!(state.sync_height, Height::new(1));
+        assert!(!state
+            .pending_requests
+            .values()
+            .any(|entry| entry.range.contains(&Height::new(1))));
+    }
+
+    #[test]
+    fn test_stale_partial_response_does_not_block_next_uncovered_range() {
+        let mut state = make_test_state();
+        state.started = true;
+        state.consensus_height = Height::new(1);
+        state.tip_height = Height::new(0);
+        state.sync_height = Height::new(26);
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        let peer = PeerId::random();
+        state.peers.insert(
+            peer,
+            crate::Status {
+                peer_id: peer,
+                tip_height: Height::new(25),
+                history_min_height: Height::new(1),
+            },
+        );
+
+        for (index, start) in [1, 6, 11, 16, 21].into_iter().enumerate() {
+            state.pending_requests.insert(
+                OutboundRequestId::new(format!("req{index}")),
+                PendingRequestEntry {
+                    range: Height::new(start)..=Height::new(start + 4),
+                    peer,
+                    excluded_peers: BTreeSet::new(),
+                    inflight: true,
+                },
+            );
+        }
+
+        drive_input(
+            &mut state,
+            &metrics,
+            Input::StartedHeight(Height::new(2), HeightStartType::Start),
+        )
+        .unwrap();
+
+        drive_input(
+            &mut state,
+            &metrics,
+            Input::Status(crate::Status {
+                peer_id: peer,
+                tip_height: Height::new(1),
+                history_min_height: Height::new(1),
+            }),
+        )
+        .unwrap();
+
+        drive_input(
+            &mut state,
+            &metrics,
+            Input::ValueResponse(
+                OutboundRequestId::new("req0"),
+                peer,
+                Some(crate::ValueResponse::new(
+                    Height::new(1),
+                    vec![make_raw_value(1)],
+                )),
+            ),
+        )
+        .unwrap();
+
+        for (index, start) in [6, 11, 16, 21].into_iter().enumerate() {
+            let values = (start..=start + 4).map(make_raw_value).collect();
+            drive_input(
+                &mut state,
+                &metrics,
+                Input::ValueResponse(
+                    OutboundRequestId::new(format!("req{}", index + 1)),
+                    peer,
+                    Some(crate::ValueResponse::new(Height::new(start), values)),
+                ),
+            )
+            .unwrap();
+        }
+
+        let effects = drive_input_with_retries(
+            &mut state,
+            &metrics,
+            Input::Status(crate::Status {
+                peer_id: peer,
+                tip_height: Height::new(25),
+                history_min_height: Height::new(1),
+            }),
+        )
+        .unwrap();
+
+        assert!(
+            effects.iter().any(|effect| matches!(
+                effect,
+                Effect::SendValueRequest(_, request, _)
+                    if request.range == (Height::new(2)..=Height::new(5))
+            )),
+            "the next request cycle must request the uncovered range 2..=5"
+        );
+    }
+
     #[test]
     fn test_request_values_range_rolls_back_sync_height_on_send_failure() {
         let mut state = make_test_state();
@@ -2470,6 +4019,7 @@ mod tests {
                 range: Height::new(11)..=Height::new(15),
                 peer,
                 excluded_peers: BTreeSet::new(),
+                inflight: true,
             },
         );
 
@@ -2569,9 +4119,10 @@ mod tests {
     }
 
     fn make_raw_decided_value(height: u64) -> RawDecidedValue<TestContext> {
+        use malachitebft_core_types::ExtendedCommitCertificate;
         RawDecidedValue {
             value_bytes: Bytes::new(),
-            certificate: CommitCertificate {
+            certificate: ExtendedCommitCertificate {
                 height: Height::new(height),
                 round: Round::new(0),
                 value_id: ValueId::new(height),
@@ -2606,6 +4157,7 @@ mod tests {
                 range: Height::new(1)..=Height::new(10),
                 peer: peer_a,
                 excluded_peers: BTreeSet::new(),
+                inflight: true,
             },
         );
 
@@ -2667,6 +4219,7 @@ mod tests {
                         Effect::SendValueResponse(_, _, r) => r.resume_with(()),
                         Effect::GetDecidedValues(_, _, r) => r.resume_with(()),
                         Effect::ProcessValueResponse(_, _, _, r) => r.resume_with(()),
+                        Effect::CancelValueRequest(_, r) => r.resume_with(()),
                     })
                 }
             )

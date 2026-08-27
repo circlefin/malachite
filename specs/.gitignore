@@ -1,0 +1,4 @@
+# Apalache build/output artifacts from `quint verify`
+_apalache-out/
+# Counterexample traces
+*.itf.json

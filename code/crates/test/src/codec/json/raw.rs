@@ -5,8 +5,9 @@ use serde::{Deserialize, Serialize};
 use malachitebft_app::streaming::StreamId;
 use malachitebft_core_consensus::{LivenessMsg, SignedConsensusMsg};
 use malachitebft_core_types::{
-    CommitCertificate, CommitSignature, NilOrVal, PolkaCertificate, PolkaSignature, Round,
-    RoundCertificate, RoundCertificateType, RoundSignature, SignedProposal, SignedVote, VoteType,
+    ExtendedCommitCertificate, ExtendedCommitSignature, NilOrVal, PolkaCertificate, PolkaSignature,
+    Round, RoundCertificate, RoundCertificateType, RoundSignature, SignedExtension, SignedProposal,
+    SignedVote, VoteType,
 };
 use malachitebft_engine::util::streaming::{StreamContent, StreamMessage};
 use malachitebft_proto::Protobuf;
@@ -32,7 +33,7 @@ impl From<SignedConsensusMsg<TestContext>> for RawSignedConsensusMsg {
     fn from(value: SignedConsensusMsg<TestContext>) -> Self {
         match value {
             SignedConsensusMsg::Vote(vote) => Self::Vote(RawSignedMessage {
-                message: vote.message.to_sign_bytes(),
+                message: Protobuf::to_bytes(&vote.message).unwrap(),
                 signature: *vote.signature.inner(),
             }),
             SignedConsensusMsg::Proposal(proposal) => Self::Proposal(RawSignedMessage {
@@ -47,7 +48,7 @@ impl From<RawSignedConsensusMsg> for SignedConsensusMsg<TestContext> {
     fn from(value: RawSignedConsensusMsg) -> Self {
         match value {
             RawSignedConsensusMsg::Vote(vote) => SignedConsensusMsg::Vote(SignedVote {
-                message: Vote::from_sign_bytes(&vote.message).unwrap(),
+                message: Vote::from_bytes(&vote.message).unwrap(),
                 signature: vote.signature.into(),
             }),
             RawSignedConsensusMsg::Proposal(proposal) => {
@@ -181,56 +182,64 @@ pub struct RawSignedExtension {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct RawCommitSignature {
+pub struct RawExtendedCommitSignature {
     pub address: Address,
     pub signature: Signature,
+    pub extension: Option<RawSignedExtension>,
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct RawCommitSignatures {
-    pub signatures: Vec<RawCommitSignature>,
+pub struct RawExtendedCommitSignatures {
+    pub signatures: Vec<RawExtendedCommitSignature>,
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct RawCommitCertificate {
+pub struct RawExtendedCommitCertificate {
     pub height: Height,
     pub round: Round,
     pub value_id: ValueId,
-    pub commit_signatures: RawCommitSignatures,
+    pub signatures: RawExtendedCommitSignatures,
 }
 
-impl From<RawCommitCertificate> for CommitCertificate<TestContext> {
-    fn from(value: RawCommitCertificate) -> Self {
-        CommitCertificate {
+impl From<RawExtendedCommitCertificate> for ExtendedCommitCertificate<TestContext> {
+    fn from(value: RawExtendedCommitCertificate) -> Self {
+        ExtendedCommitCertificate {
             height: value.height,
             round: value.round,
             value_id: value.value_id,
             commit_signatures: value
-                .commit_signatures
                 .signatures
-                .iter()
-                .map(|sig| CommitSignature {
+                .signatures
+                .into_iter()
+                .map(|sig| ExtendedCommitSignature {
                     address: sig.address,
                     signature: sig.signature.into(),
+                    extension: sig
+                        .extension
+                        .map(|ext| SignedExtension::new(ext.extension.data, ext.signature.into())),
                 })
                 .collect(),
         }
     }
 }
 
-impl From<CommitCertificate<TestContext>> for RawCommitCertificate {
-    fn from(value: CommitCertificate<TestContext>) -> Self {
+impl From<ExtendedCommitCertificate<TestContext>> for RawExtendedCommitCertificate {
+    fn from(value: ExtendedCommitCertificate<TestContext>) -> Self {
         Self {
             height: value.height,
             round: value.round,
             value_id: value.value_id,
-            commit_signatures: RawCommitSignatures {
+            signatures: RawExtendedCommitSignatures {
                 signatures: value
                     .commit_signatures
-                    .iter()
-                    .map(|sig| RawCommitSignature {
+                    .into_iter()
+                    .map(|sig| RawExtendedCommitSignature {
                         address: sig.address,
                         signature: *sig.signature.inner(),
+                        extension: sig.extension.map(|ext| RawSignedExtension {
+                            extension: RawExtension { data: ext.message },
+                            signature: *ext.signature.inner(),
+                        }),
                     })
                     .collect(),
             },
@@ -241,7 +250,7 @@ impl From<CommitCertificate<TestContext>> for RawCommitCertificate {
 #[derive(Serialize, Deserialize)]
 pub struct RawSyncedValue {
     pub value_bytes: Bytes,
-    pub certificate: RawCommitCertificate,
+    pub certificate: RawExtendedCommitCertificate,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -346,7 +355,7 @@ impl From<LivenessMsg<TestContext>> for RawLivenessMsg {
     fn from(value: LivenessMsg<TestContext>) -> Self {
         match value {
             LivenessMsg::Vote(vote) => Self::Vote(RawSignedMessage {
-                message: vote.message.to_sign_bytes(),
+                message: Protobuf::to_bytes(&vote.message).unwrap(),
                 signature: *vote.signature.inner(),
             }),
             LivenessMsg::PolkaCertificate(polka) => Self::PolkaCertificate(RawPolkaCertificate {

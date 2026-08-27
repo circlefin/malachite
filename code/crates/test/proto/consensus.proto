@@ -25,6 +25,7 @@ message Vote {
     uint32 round = 3;
     ValueId value = 4;
     Address validator_address = 5;
+    optional Extension extension = 6;
 }
 
 message SignedMessage {

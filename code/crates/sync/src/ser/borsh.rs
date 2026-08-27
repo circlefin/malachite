@@ -1,7 +1,7 @@
 use {
     crate::{RawDecidedValue, Request, Response, Status, ValueRequest, ValueResponse},
     borsh::BorshSerialize,
-    malachitebft_core_types::{CommitCertificate, Context},
+    malachitebft_core_types::{Context, ExtendedCommitCertificate},
     malachitebft_peer::PeerId,
     std::ops::RangeInclusive,
 };
@@ -105,7 +105,7 @@ where
 
 impl<Ctx: Context> borsh::BorshSerialize for RawDecidedValue<Ctx>
 where
-    CommitCertificate<Ctx>: borsh::BorshSerialize,
+    ExtendedCommitCertificate<Ctx>: borsh::BorshSerialize,
 {
     fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
         BorshSerialize::serialize(&self.value_bytes.to_vec(), writer)?;
@@ -116,11 +116,11 @@ where
 
 impl<Ctx: Context> borsh::BorshDeserialize for RawDecidedValue<Ctx>
 where
-    CommitCertificate<Ctx>: borsh::BorshDeserialize,
+    ExtendedCommitCertificate<Ctx>: borsh::BorshDeserialize,
 {
     fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
         let value_bytes = Vec::<u8>::deserialize_reader(reader)?;
-        let certificate = CommitCertificate::deserialize_reader(reader)?;
+        let certificate = ExtendedCommitCertificate::deserialize_reader(reader)?;
         Ok(RawDecidedValue {
             value_bytes: value_bytes.into(),
             certificate,

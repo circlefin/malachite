@@ -171,6 +171,11 @@ impl<const N: usize> Test<N> {
                 protocol_names: ProtocolNames::default(),
             };
 
+            // All test nodes share 127.0.0.1, so raise the per-IP cap well above
+            // any topology these tests assert on. The dedicated ip_limits test
+            // builds its Config directly and sets its own cap.
+            config.discovery.max_connections_per_ip = usize::MAX;
+
             // Apply custom configuration if provided
             self.nodes[i].customize_config(&mut config);
 

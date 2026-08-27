@@ -5,24 +5,26 @@ use alloc::vec;
 use alloc::vec::Vec;
 
 use derive_where::derive_where;
-use thiserror::Error;
 
 use malachitebft_core_types::{
     Context, DoubleProposal, Proposal, Round, SignedProposal, Validity, Value, ValueId,
 };
 use tracing::{error, warn};
 
-/// Errors can that be yielded when recording a proposal.
-#[derive_where(Debug)]
-#[derive(Error)]
-pub enum RecordProposalError<Ctx>
-where
-    Ctx: Context,
-{
-    /// Attempted to record a conflicting proposal.
-    #[error("Conflicting proposal: existing: {existing}, conflicting: {conflicting}")]
-    ConflictingProposal {
-        /// The proposal already recorded for the same value.
+/// Outcome of storing a proposal in a [`PerRound`] / [`ProposalKeeper`].
+///
+/// Equivocation is surfaced to the caller rather than recorded by the keeper, matching the
+/// convention of the full-proposal keeper in the consensus layer. The caller records the pair
+/// via [`ProposalKeeper::record_evidence`].
+#[must_use]
+#[derive_where(Clone, Debug)]
+pub enum StoreProposalResult<Ctx: Context> {
+    /// The proposal was stored, or an exact duplicate was ignored.
+    Stored,
+    /// A different proposal from the same validator is already stored for this round, so the
+    /// proposer has equivocated. Both proposals are returned so the caller can record evidence.
+    Equivocation {
+        /// The proposal already stored for this round.
         existing: SignedProposal<Ctx>,
         /// The conflicting proposal, from the same validator.
         conflicting: SignedProposal<Ctx>,
@@ -70,16 +72,17 @@ where
     /// this is considered a calling code bug and the function will panic.
     ///
     /// - Stores each unique proposal once.
-    /// - Returns an error if equivocation is detected from the **same** validator.
+    /// - Returns [`StoreProposalResult::Equivocation`] if equivocation is detected from the
+    ///   **same** validator.
     /// - Panics if proposals come from **different validators**.
     pub fn add(
         &mut self,
         proposal: SignedProposal<Ctx>,
         validity: Validity,
-    ) -> Result<(), RecordProposalError<Ctx>> {
+    ) -> StoreProposalResult<Ctx> {
         // Early return for exact duplicates
         if self.contains_exact(&proposal, validity) {
-            return Ok(());
+            return StoreProposalResult::Stored;
         }
 
         // Ensure all proposals come from the same validator
@@ -153,22 +156,19 @@ where
         }
     }
 
-    fn check_equivocation(
-        &self,
-        proposal: SignedProposal<Ctx>,
-    ) -> Result<(), RecordProposalError<Ctx>> {
+    fn check_equivocation(&self, proposal: SignedProposal<Ctx>) -> StoreProposalResult<Ctx> {
         if self.proposals.len() > 1 {
             let existing = self
                 .get_first_proposal()
                 .expect("at least one proposal should exist")
                 .clone();
 
-            Err(RecordProposalError::ConflictingProposal {
+            StoreProposalResult::Equivocation {
                 existing,
                 conflicting: proposal,
-            })
+            }
         } else {
-            Ok(())
+            StoreProposalResult::Stored
         }
     }
 }
@@ -232,25 +232,41 @@ where
         core::mem::take(&mut self.evidence)
     }
 
-    /// Store a proposal, checking for conflicts and storing evidence of equivocation if necessary.
-    pub fn store_proposal(&mut self, proposal: SignedProposal<Ctx>, validity: Validity) {
-        let per_round = self.per_round.entry(proposal.round()).or_default();
+    /// Store a proposal, returning whether it revealed an equivocation.
+    ///
+    /// On [`StoreProposalResult::Equivocation`] the caller records the surfaced pair via
+    /// [`record_evidence`](Self::record_evidence).
+    pub fn store_proposal(
+        &mut self,
+        proposal: SignedProposal<Ctx>,
+        validity: Validity,
+    ) -> StoreProposalResult<Ctx> {
+        self.per_round
+            .entry(proposal.round())
+            .or_default()
+            .add(proposal, validity)
+    }
 
-        match per_round.add(proposal, validity) {
-            Ok(()) => (),
-
-            Err(RecordProposalError::ConflictingProposal {
-                existing,
-                conflicting,
-            }) => {
-                // This is an equivocating proposal
-                warn!(
-                    "Received equivocating proposal {:?}, existing {:?}",
-                    conflicting, existing
-                );
-                self.evidence.add(existing, conflicting);
-            }
-        }
+    /// Record a pair of equivocating proposals directly in the evidence map.
+    ///
+    /// Callers record evidence here after [`store_proposal`](Self::store_proposal) returns a
+    /// [`StoreProposalResult::Equivocation`], or when an upstream layer detects equivocation for
+    /// two proposals that share a value id but differ in another field (such as `pol_round`) and
+    /// filters the conflicting one before it reaches the per-round store.
+    /// [`EvidenceMap::add`] deduplicates, so calling this for a pair already recorded is a no-op.
+    pub fn record_evidence(
+        &mut self,
+        existing: SignedProposal<Ctx>,
+        conflicting: SignedProposal<Ctx>,
+    ) {
+        warn!(
+            height = %conflicting.message.height(),
+            round = %conflicting.message.round(),
+            proposer = %conflicting.message.validator_address(),
+            value_id = %conflicting.message.value().id(),
+            "Received equivocating proposal"
+        );
+        self.evidence.add(existing, conflicting);
     }
 }
 
@@ -282,8 +298,9 @@ where
         self.map.get(address)
     }
 
-    /// Add evidence of equivocating proposals, ie. two proposals submitted by the same validator,
-    /// but with different values but for the same height and round.
+    /// Add evidence of equivocating proposals, ie. two proposals submitted by the same validator
+    /// for the same height and round that differ in any field — a different value, or the same
+    /// value with a different `pol_round`, for example.
     /// If evidence for the same pair of proposals already exists, it will not be added again.
     ///
     /// # Precondition
@@ -310,10 +327,39 @@ where
         }
     }
 
+    /// Return the number of addresses with recorded proposal equivocations.
+    pub fn len(&self) -> usize {
+        self.map.len()
+    }
+
     /// Iterate over all addresses with recorded proposal equivocations.
     pub fn iter(
         &self,
     ) -> alloc::collections::btree_map::Iter<'_, Ctx::Address, Vec<DoubleProposal<Ctx>>> {
         self.map.iter()
+    }
+}
+
+impl<'a, Ctx> IntoIterator for &'a EvidenceMap<Ctx>
+where
+    Ctx: Context,
+{
+    type Item = (&'a Ctx::Address, &'a Vec<DoubleProposal<Ctx>>);
+    type IntoIter = alloc::collections::btree_map::Iter<'a, Ctx::Address, Vec<DoubleProposal<Ctx>>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.map.iter()
+    }
+}
+
+impl<Ctx> IntoIterator for EvidenceMap<Ctx>
+where
+    Ctx: Context,
+{
+    type Item = (Ctx::Address, Vec<DoubleProposal<Ctx>>);
+    type IntoIter = alloc::collections::btree_map::IntoIter<Ctx::Address, Vec<DoubleProposal<Ctx>>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.map.into_iter()
     }
 }

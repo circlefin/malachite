@@ -9,8 +9,8 @@ use arc_malachitebft_core_consensus::{
     process, Effect, Error, Input, Params, ProposedValue, Resumable, Resume, State,
 };
 use malachitebft_core_types::{
-    CommitCertificate, CommitSignature, Context, NilOrVal, Round, Validity, ValueOrigin,
-    ValuePayload, ValueResponse,
+    CertificateError, Context, ExtendedCommitCertificate, ExtendedCommitSignature, NilOrVal, Round,
+    Validity, ValueOrigin, ValuePayload, ValueResponse, VoteExtensionPolicy, VoteExtensionScope,
 };
 use malachitebft_metrics::Metrics;
 use malachitebft_peer::PeerId;
@@ -44,7 +44,7 @@ fn make_state(validators: &[Validator], my_addr: Address) -> State<TestContext> 
     )
 }
 
-/// Build a valid commit certificate for the given height, round, and value,
+/// Build a valid extended commit certificate for the given height, round, and value,
 /// signed by the given validators/signers.
 fn build_commit_certificate(
     validators: &[Validator],
@@ -52,26 +52,54 @@ fn build_commit_certificate(
     height: Height,
     round: Round,
     value: &Value,
-) -> CommitCertificate<TestContext> {
+) -> ExtendedCommitCertificate<TestContext> {
+    build_commit_certificate_with_extensions(validators, signers, height, round, value, true)
+}
+
+fn build_commit_certificate_with_extensions(
+    validators: &[Validator],
+    signers: &[Ed25519Signer],
+    height: Height,
+    round: Round,
+    value: &Value,
+    include_extensions: bool,
+) -> ExtendedCommitCertificate<TestContext> {
     let ctx = TestContext::new();
     let value_id = value.id();
 
-    let commit_signatures: Vec<_> = validators
+    let signatures: Vec<_> = validators
         .iter()
         .zip(signers.iter())
         .map(|(v, signer)| {
             let vote = ctx.new_precommit(height, round, NilOrVal::Val(value_id), v.address);
             let signed = block_on(signer.sign_vote(vote)).unwrap();
-            CommitSignature::new(v.address, signed.signature)
+            let extension = include_extensions.then(|| {
+                let scope = VoteExtensionScope::new(height, round, value_id, v.address);
+                block_on(signer.sign_vote_extension(scope, Bytes::from_static(b"sync-ext")))
+                    .unwrap()
+            });
+            ExtendedCommitSignature::new(v.address, signed.signature, extension)
         })
         .collect();
 
-    CommitCertificate {
+    ExtendedCommitCertificate {
         height,
         round,
         value_id,
-        commit_signatures,
+        commit_signatures: signatures,
     }
+}
+
+/// Build a commit certificate that intentionally omits vote extensions from
+/// all precommit signatures.
+fn build_commit_certificate_without_extensions(
+    validators: &[Validator],
+    signers: &[Ed25519Signer],
+    height: Height,
+    round: Round,
+    value: &Value,
+) -> ExtendedCommitCertificate<TestContext> {
+    build_commit_certificate_with_extensions(validators, signers, height, round, value, false)
 }
 
 /// Handle the effects emitted by the consensus core during these tests:
@@ -111,6 +139,19 @@ where
                 &cert,
                 &validator_set,
                 tp,
+            ));
+            r.resume_with(result)
+        }
+        VerifyExtendedCommitCertificate(cert, validator_set, tp, vote_extension_policy, r) => {
+            if let Some(counter) = verify_cert_count {
+                counter.set(counter.get() + 1);
+            }
+            let result = block_on(signers[0].verify_extended_commit_certificate(
+                &TestContext::new(),
+                &cert,
+                &validator_set,
+                tp,
+                vote_extension_policy,
             ));
             r.resume_with(result)
         }
@@ -154,7 +195,7 @@ fn sync_decision_path_verifies_commit_certificate_once() {
 
     // Step 1: Start height
     run(process!(
-        input: Input::StartHeight(height, vs, false, None),
+        input: Input::StartHeight(height, vs, false, None, VoteExtensionPolicy::Required),
         state: &mut state,
         metrics: &metrics,
         with: effect => handle_effect(effect)
@@ -207,14 +248,8 @@ fn sync_decision_path_verifies_commit_certificate_once() {
     );
 }
 
-/// When a sync `ValueResponse` is processed and the matching `ProposedValue` is already
-/// known locally (e.g., from WAL replay or via the consensus race), `process_commit_certificate`
-/// drives the state machine to a decision. In that case there is no point in forwarding the
-/// raw value bytes to the host via `Effect::ValidSyncValue` as the host has already accepted
-/// the value through the local proposed-value path. This test asserts that `ValidSyncValue`
-/// is not emitted in that case.
 #[test]
-fn sync_value_response_skips_valid_sync_value_when_already_decided() {
+fn sync_value_response_rejects_missing_extensions_when_policy_is_required() {
     let entries: Vec<(Validator, _)> = make_validators([25, 25, 25, 25]).into();
     let validators: Vec<Validator> = entries.iter().map(|(v, _)| v.clone()).collect();
     let signers: Vec<Ed25519Signer> = entries
@@ -231,23 +266,31 @@ fn sync_value_response_skips_valid_sync_value_when_already_decided() {
     let round = Round::new(0);
     let value = Value::new(42);
 
-    let valid_sync_value_count = Cell::new(0u32);
-    let invalid_sync_value_count = Cell::new(0u32);
+    let verify_count = Cell::new(0u32);
+    let cert_verified_count = Cell::new(0u32);
+    let cert_rejected_count = Cell::new(0u32);
 
     let handle_effect = |effect: Effect<TestContext>| -> Result<Resume<TestContext>, ()> {
         Ok(handle_effect_with_default(
             &signers,
-            None,
+            Some(&verify_count),
             effect,
             |effect| {
                 use Effect::*;
                 match effect {
-                    ValidSyncValue(_, _, r) => {
-                        valid_sync_value_count.set(valid_sync_value_count.get() + 1);
+                    CertVerifiedSyncValue(_, _, r) => {
+                        cert_verified_count.set(cert_verified_count.get() + 1);
                         r.resume_with(())
                     }
-                    InvalidSyncValue(_, _, _, r) => {
-                        invalid_sync_value_count.set(invalid_sync_value_count.get() + 1);
+                    CertRejectedSyncValue(_, _, error, r) => {
+                        cert_rejected_count.set(cert_rejected_count.get() + 1);
+                        assert!(matches!(
+                            error,
+                            Error::InvalidCommitCertificate(
+                                _,
+                                CertificateError::MissingVoteExtension(_)
+                            )
+                        ));
                         r.resume_with(())
                     }
                     _ => Resume::Continue,
@@ -257,7 +300,178 @@ fn sync_value_response_skips_valid_sync_value_when_already_decided() {
     };
 
     run(process!(
-        input: Input::StartHeight(height, vs, false, None),
+        input: Input::StartHeight(height, vs, false, None, VoteExtensionPolicy::Required),
+        state: &mut state,
+        metrics: &metrics,
+        with: effect => handle_effect(effect)
+    ));
+
+    let certificate =
+        build_commit_certificate_without_extensions(&validators, &signers, height, round, &value);
+    let value_response =
+        ValueResponse::new(PeerId::random(), Bytes::from("value-bytes"), certificate);
+
+    run(process!(
+        input: Input::SyncValueResponse(value_response),
+        state: &mut state,
+        metrics: &metrics,
+        with: effect => handle_effect(effect)
+    ));
+
+    assert_eq!(
+        verify_count.get(),
+        1,
+        "sync certificate verification should run once before rejection"
+    );
+    assert_eq!(
+        cert_verified_count.get(),
+        0,
+        "invalid sync certificate must not be forwarded as verified"
+    );
+    assert_eq!(
+        cert_rejected_count.get(),
+        1,
+        "missing vote extensions under Required must reject the synced value"
+    );
+}
+
+#[test]
+fn sync_value_response_rejects_present_extensions_when_policy_is_disabled() {
+    let entries: Vec<(Validator, _)> = make_validators([25, 25, 25, 25]).into();
+    let validators: Vec<Validator> = entries.iter().map(|(v, _)| v.clone()).collect();
+    let signers: Vec<Ed25519Signer> = entries
+        .into_iter()
+        .map(|(_, pk)| Ed25519Signer::new(pk))
+        .collect();
+
+    let my_addr = validators[0].address;
+    let mut state = make_state(&validators, my_addr);
+    let metrics = Metrics::new();
+    let vs = ValidatorSet::new(validators.clone());
+
+    let height = Height::new(1);
+    let round = Round::new(0);
+    let value = Value::new(42);
+
+    let verify_count = Cell::new(0u32);
+    let cert_verified_count = Cell::new(0u32);
+    let cert_rejected_count = Cell::new(0u32);
+
+    let handle_effect = |effect: Effect<TestContext>| -> Result<Resume<TestContext>, ()> {
+        Ok(handle_effect_with_default(
+            &signers,
+            Some(&verify_count),
+            effect,
+            |effect| {
+                use Effect::*;
+                match effect {
+                    CertVerifiedSyncValue(_, _, r) => {
+                        cert_verified_count.set(cert_verified_count.get() + 1);
+                        r.resume_with(())
+                    }
+                    CertRejectedSyncValue(_, _, error, r) => {
+                        cert_rejected_count.set(cert_rejected_count.get() + 1);
+                        assert!(matches!(
+                            error,
+                            Error::InvalidCommitCertificate(
+                                _,
+                                CertificateError::UnexpectedVoteExtension(_)
+                            )
+                        ));
+                        r.resume_with(())
+                    }
+                    _ => Resume::Continue,
+                }
+            },
+        ))
+    };
+
+    run(process!(
+        input: Input::StartHeight(height, vs, false, None, VoteExtensionPolicy::Disabled),
+        state: &mut state,
+        metrics: &metrics,
+        with: effect => handle_effect(effect)
+    ));
+
+    let certificate = build_commit_certificate(&validators, &signers, height, round, &value);
+    let value_response =
+        ValueResponse::new(PeerId::random(), Bytes::from("value-bytes"), certificate);
+
+    run(process!(
+        input: Input::SyncValueResponse(value_response),
+        state: &mut state,
+        metrics: &metrics,
+        with: effect => handle_effect(effect)
+    ));
+
+    assert_eq!(
+        verify_count.get(),
+        1,
+        "sync certificate verification should run once before rejection"
+    );
+    assert_eq!(
+        cert_verified_count.get(),
+        0,
+        "certificate with disabled extensions must not be forwarded as verified"
+    );
+    assert_eq!(
+        cert_rejected_count.get(),
+        1,
+        "present vote extensions under Disabled must reject the synced value"
+    );
+}
+
+/// When a sync `ValueResponse` is processed and the matching `ProposedValue` is already
+/// known locally (e.g., from WAL replay or via the consensus race), `process_commit_certificate`
+/// drives the state machine to a decision. In that case there is no point in forwarding the
+/// raw value bytes to the host via `Effect::CertVerifiedSyncValue` as the host has already accepted
+/// the value through the local proposed-value path. This test asserts that `CertVerifiedSyncValue`
+/// is not emitted in that case.
+#[test]
+fn sync_value_response_skips_cert_verified_sync_value_when_already_decided() {
+    let entries: Vec<(Validator, _)> = make_validators([25, 25, 25, 25]).into();
+    let validators: Vec<Validator> = entries.iter().map(|(v, _)| v.clone()).collect();
+    let signers: Vec<Ed25519Signer> = entries
+        .into_iter()
+        .map(|(_, pk)| Ed25519Signer::new(pk))
+        .collect();
+
+    let my_addr = validators[0].address;
+    let mut state = make_state(&validators, my_addr);
+    let metrics = Metrics::new();
+    let vs = ValidatorSet::new(validators.clone());
+
+    let height = Height::new(1);
+    let round = Round::new(0);
+    let value = Value::new(42);
+
+    let cert_verified_count = Cell::new(0u32);
+    let cert_rejected_count = Cell::new(0u32);
+
+    let handle_effect = |effect: Effect<TestContext>| -> Result<Resume<TestContext>, ()> {
+        Ok(handle_effect_with_default(
+            &signers,
+            None,
+            effect,
+            |effect| {
+                use Effect::*;
+                match effect {
+                    CertVerifiedSyncValue(_, _, r) => {
+                        cert_verified_count.set(cert_verified_count.get() + 1);
+                        r.resume_with(())
+                    }
+                    CertRejectedSyncValue(_, _, _, r) => {
+                        cert_rejected_count.set(cert_rejected_count.get() + 1);
+                        r.resume_with(())
+                    }
+                    _ => Resume::Continue,
+                }
+            },
+        ))
+    };
+
+    run(process!(
+        input: Input::StartHeight(height, vs, false, None, VoteExtensionPolicy::Required),
         state: &mut state,
         metrics: &metrics,
         with: effect => handle_effect(effect)
@@ -283,7 +497,7 @@ fn sync_value_response_skips_valid_sync_value_when_already_decided() {
 
     // Step 2: The sync value response arrives with the matching certificate.
     // Since the value is already stored, `process_commit_certificate` should drive
-    // the state machine straight to a decision, and `ValidSyncValue` must be skipped.
+    // the state machine straight to a decision, and `CertVerifiedSyncValue` must be skipped.
     let certificate = build_commit_certificate(&validators, &signers, height, round, &value);
     let value_response =
         ValueResponse::new(PeerId::random(), Bytes::from("value-bytes"), certificate);
@@ -296,22 +510,22 @@ fn sync_value_response_skips_valid_sync_value_when_already_decided() {
     ));
 
     assert_eq!(
-        valid_sync_value_count.get(),
+        cert_verified_count.get(),
         0,
-        "ValidSyncValue must not be emitted when the certificate processing already decided"
+        "CertVerifiedSyncValue must not be emitted when the certificate processing already decided"
     );
     assert_eq!(
-        invalid_sync_value_count.get(),
+        cert_rejected_count.get(),
         0,
-        "InvalidSyncValue must not be emitted on a successful sync decision"
+        "CertRejectedSyncValue must not be emitted on a successful sync decision"
     );
 }
 
 /// Sanity-check the inverse: when no matching `ProposedValue` is stored locally,
-/// `process_commit_certificate` cannot reach a decision on its own and `ValidSyncValue`
+/// `process_commit_certificate` cannot reach a decision on its own and `CertVerifiedSyncValue`
 /// must still be emitted so the host can decode the value bytes.
 #[test]
-fn sync_value_response_emits_valid_sync_value_when_not_decided() {
+fn sync_value_response_emits_cert_verified_sync_value_when_not_decided() {
     let entries: Vec<(Validator, _)> = make_validators([25, 25, 25, 25]).into();
     let validators: Vec<Validator> = entries.iter().map(|(v, _)| v.clone()).collect();
     let signers: Vec<Ed25519Signer> = entries
@@ -328,7 +542,7 @@ fn sync_value_response_emits_valid_sync_value_when_not_decided() {
     let round = Round::new(0);
     let value = Value::new(42);
 
-    let valid_sync_value_count = Cell::new(0u32);
+    let cert_verified_count = Cell::new(0u32);
 
     let handle_effect = |effect: Effect<TestContext>| -> Result<Resume<TestContext>, ()> {
         Ok(handle_effect_with_default(
@@ -338,8 +552,8 @@ fn sync_value_response_emits_valid_sync_value_when_not_decided() {
             |effect| {
                 use Effect::*;
                 match effect {
-                    ValidSyncValue(_, _, r) => {
-                        valid_sync_value_count.set(valid_sync_value_count.get() + 1);
+                    CertVerifiedSyncValue(_, _, r) => {
+                        cert_verified_count.set(cert_verified_count.get() + 1);
                         r.resume_with(())
                     }
                     _ => Resume::Continue,
@@ -349,7 +563,7 @@ fn sync_value_response_emits_valid_sync_value_when_not_decided() {
     };
 
     run(process!(
-        input: Input::StartHeight(height, vs, false, None),
+        input: Input::StartHeight(height, vs, false, None, VoteExtensionPolicy::Required),
         state: &mut state,
         metrics: &metrics,
         with: effect => handle_effect(effect)
@@ -367,8 +581,8 @@ fn sync_value_response_emits_valid_sync_value_when_not_decided() {
     ));
 
     assert_eq!(
-        valid_sync_value_count.get(),
+        cert_verified_count.get(),
         1,
-        "ValidSyncValue must be emitted when no decision was reached during certificate processing"
+        "CertVerifiedSyncValue must be emitted when no decision was reached during certificate processing"
     );
 }

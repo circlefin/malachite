@@ -2,9 +2,8 @@ use std::time::{Duration, Instant};
 use tracing::info;
 
 use malachitebft_core_driver::Driver;
-use malachitebft_core_types::*;
 
-use crate::full_proposal::{FullProposal, FullProposalKeeper};
+use crate::full_proposal::{FullProposal, FullProposalKeeper, StoreProposalResult};
 use crate::input::Input;
 use crate::params::Params;
 use crate::prelude::*;
@@ -39,6 +38,9 @@ where
 
     /// Target time for the current height
     pub target_time: Option<Duration>,
+
+    /// Vote-extension policy for the current height.
+    pub vote_extension_policy: VoteExtensionPolicy,
 
     /// Start time of the current height
     pub height_start_time: Option<Instant>,
@@ -82,6 +84,7 @@ where
             last_signed_prevote: None,
             last_signed_precommit: None,
             target_time: None,
+            vote_extension_policy: VoteExtensionPolicy::default(),
             height_start_time: None,
             finalization_period: false,
         }
@@ -185,8 +188,51 @@ where
             .proposals_for_value(proposed_value)
     }
 
-    pub fn store_proposal(&mut self, new_proposal: SignedProposal<Ctx>) {
-        self.full_proposal_keeper.store_proposal(new_proposal)
+    /// Returns `true` if storing an entry with `value_id` at `(height, round)` would append a new
+    /// distinct entry beyond the per-`(height, round)` cap. Used to drop a message before it
+    /// reaches the WAL.
+    ///
+    /// An entry whose value already holds a polka certificate at `round` is admitted regardless
+    /// of the cap: the certificate carries a quorum of signed prevotes, so at most one value per
+    /// round can qualify.
+    pub fn exceeds_per_round_cap(
+        &self,
+        height: Ctx::Height,
+        round: Round,
+        value_id: &ValueId<Ctx>,
+    ) -> bool {
+        self.full_proposal_keeper
+            .would_append_distinct(height, round, value_id)
+            && self.polka_certificate(round, value_id).is_none()
+    }
+
+    pub fn store_proposal(&mut self, new_proposal: SignedProposal<Ctx>, _metrics: &Metrics) {
+        let cap_exempt = self
+            .polka_certificate(new_proposal.round(), &new_proposal.value().id())
+            .is_some();
+
+        match self
+            .full_proposal_keeper
+            .store_proposal(new_proposal, cap_exempt)
+        {
+            StoreProposalResult::Stored | StoreProposalResult::DuplicateIgnored => {}
+            StoreProposalResult::CapReached => {
+                // Backstop: the proposal handler's `exceeds_per_round_cap` pre-gate already drops
+                // and counts over-cap proposals before calling here, so this only fires if
+                // `store_proposal` is ever called from a path without that pre-gate.
+                #[cfg(feature = "metrics")]
+                _metrics.dropped_capped_proposals.inc();
+            }
+            StoreProposalResult::Equivocation {
+                existing,
+                conflicting,
+            } => {
+                // The keeper filters same-value-id proposals to preserve its at-most-one-entry
+                // invariant. Surface the equivocation to the driver's evidence map so it is not
+                // lost when the conflicting proposal differs only in `pol_round`.
+                self.driver.record_proposal_evidence(existing, conflicting);
+            }
+        }
     }
 
     /// Store the proposed value and return its validity,
@@ -225,11 +271,25 @@ where
         height: Ctx::Height,
         validator_set: Ctx::ValidatorSet,
         target_time: Option<Duration>,
+        vote_extension_policy: VoteExtensionPolicy,
     ) {
+        let previous_height = self.height();
+        let previous_vote_extension_policy = self.vote_extension_policy;
+        if previous_vote_extension_policy.is_required() && vote_extension_policy.is_disabled() {
+            warn!(
+                previous.height = %previous_height,
+                new.height = %height,
+                previous.policy = ?previous_vote_extension_policy,
+                new.policy = ?vote_extension_policy,
+                "Vote extension policy moved from required-present to required-absent"
+            );
+        }
+
         self.full_proposal_keeper.clear();
         self.last_signed_prevote = None;
         self.last_signed_precommit = None;
         self.target_time = target_time;
+        self.vote_extension_policy = vote_extension_policy;
         self.height_start_time = Some(Instant::now());
         self.finalization_period = false;
 

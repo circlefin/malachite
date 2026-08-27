@@ -26,13 +26,17 @@ struct SignatureCountTracker {
 #[rstest]
 #[case::no_target_time(None, ValuePayload::ProposalAndParts, false)]
 #[case::target_time(Some(Duration::from_millis(10)), ValuePayload::ProposalAndParts, false)]
-#[case::with_parts_only(Some(Duration::from_millis(1)), ValuePayload::PartsOnly, false)]
+#[case::with_short_target_time(
+    Some(Duration::from_millis(1)),
+    ValuePayload::ProposalAndParts,
+    false
+)]
 #[case::with_stable_block_times(
     Some(Duration::from_millis(5)),
     ValuePayload::ProposalAndParts,
     true
 )]
-#[case::with_both(Some(Duration::from_millis(15)), ValuePayload::PartsOnly, true)]
+#[case::with_both(Some(Duration::from_millis(15)), ValuePayload::ProposalAndParts, true)]
 #[tokio::test]
 pub async fn test_finalize_with_params(
     #[case] target_time: Option<Duration>,

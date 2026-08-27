@@ -1,6 +1,6 @@
 use malachitebft_core_types::{
-    CommitCertificate, Context, PolkaCertificate, Round, SignedProposal, SignedVote, Timeout,
-    Validity,
+    Context, ExtendedCommitCertificate, PolkaCertificate, Round, SignedProposal, SignedVote,
+    Timeout, Validity,
 };
 
 use derive_where::derive_where;
@@ -23,8 +23,8 @@ where
     /// Receive a vote
     Vote(SignedVote<Ctx>),
 
-    /// Received a commit certificate
-    CommitCertificate(CommitCertificate<Ctx>),
+    /// Receive an extended commit certificate.
+    CommitCertificate(ExtendedCommitCertificate<Ctx>),
 
     /// Received a polka certificate
     PolkaCertificate(PolkaCertificate<Ctx>),

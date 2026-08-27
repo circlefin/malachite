@@ -1,4 +1,5 @@
 use core::fmt::{Debug, Display};
+use core::hash::Hash;
 
 /// Defines the requirements for a height type.
 ///
@@ -7,7 +8,7 @@ use core::fmt::{Debug, Display};
 /// A height of 0 represents a chain which has not yet produced a block.
 pub trait Height
 where
-    Self: Copy + Clone + Default + Debug + Display + Eq + Ord + Send + Sync,
+    Self: Copy + Clone + Default + Debug + Display + Eq + Ord + Hash + Send + Sync,
 {
     /// The zero-th height. Typically 0.
     ///

@@ -732,7 +732,7 @@ where
     /// - Request (via `with_request_builder`)
     ///
     /// The build process will:
-    /// 1. Spawn actors in dependency order (network → wal → host → consensus → sync → node)
+    /// 1. Spawn actors in dependency order (node → network → wal → host → consensus → sync)
     /// 2. Set up request handling tasks
     /// 3. Return channels for the application and the engine handle
     pub async fn build(self) -> Result<(Channels<Ctx>, EngineHandle)> {
@@ -744,107 +744,136 @@ where
         let network_builder = self.network.unwrap();
         let sync_builder = self.sync.unwrap();
 
+        // Move owned fields out of `self` so the inner `async move` block can
+        // capture them without a partial borrow.
+        let ctx = self.ctx;
+        let config = self.config;
+
         // Set up metrics
-        let registry = SharedRegistry::global().with_moniker(self.config.moniker());
+        let registry = SharedRegistry::global().with_moniker(config.moniker());
         let metrics = Metrics::register(&registry);
 
-        // 1. Network actor (default or custom)
-        let (network, tx_network) = match network_builder {
-            NetworkBuilder::Custom(custom) => custom,
-            NetworkBuilder::Default(network_ctx) => {
-                spawn_network_actor(
-                    network_ctx.identity,
-                    self.config.consensus(),
-                    self.config.value_sync(),
-                    &registry,
-                    network_ctx.codec,
-                )
-                .await?
+        // 1. Node actor — spawned first so its NodeRef can be threaded into the
+        //    WAL worker thread and Consensus actor. Children link to it once spawned.
+        let (node, node_join_handle) = spawn_node_actor(metrics.clone()).await?;
+
+        // Spawn the children in an async block so a failed `?` can be caught and
+        // the Node (plus children linked so far) stopped, rather than leaked.
+        let node_for_cleanup = node.clone();
+        let result: Result<(Channels<Ctx>, EngineHandle)> = async move {
+            // 2. Network actor (default or custom)
+            let (network, tx_network) = match network_builder {
+                NetworkBuilder::Custom(custom) => custom,
+                NetworkBuilder::Default(network_ctx) => {
+                    spawn_network_actor(
+                        network_ctx.identity,
+                        config.consensus(),
+                        config.value_sync(),
+                        &registry,
+                        network_ctx.codec,
+                    )
+                    .await?
+                }
+            };
+            network.link(node.get_cell());
+
+            // 3. WAL actor (default or custom)
+            let wal = match wal_builder {
+                WalBuilder::Custom(wal_ref) => wal_ref,
+                WalBuilder::Default(wal_ctx) => {
+                    spawn_wal_actor(&ctx, wal_ctx.codec, &wal_ctx.path, &registry, node.clone())
+                        .await?
+                }
+            };
+            wal.link(node.get_cell());
+
+            // 4. Host actor (use the default channel-based Connector)
+            let (connector, rx_consensus) = spawn_host_actor(metrics.clone()).await?;
+            connector.link(node.get_cell());
+
+            let tx_event = TxEvent::new();
+            let sync_port = Arc::new(OutputPort::new());
+
+            // 5. Consensus actor (spawned before sync so sync can reference it)
+            let consensus = spawn_consensus_actor(
+                ctx.clone(),
+                consensus_ctx.address,
+                config.consensus().clone(),
+                consensus_ctx.verifier,
+                consensus_ctx.signer,
+                network.clone(),
+                connector.clone(),
+                wal.clone(),
+                sync_port.clone(),
+                metrics,
+                tx_event.clone(),
+                node.clone(),
+            )
+            .await?;
+            consensus.link(node.get_cell());
+
+            // 6. Sync actor (default or custom)
+            let sync = match sync_builder {
+                SyncBuilder::Custom(sync_ref) => sync_ref,
+                SyncBuilder::Default(sync_ctx) => {
+                    spawn_sync_actor(
+                        ctx.clone(),
+                        network.clone(),
+                        connector.clone(),
+                        consensus.clone(),
+                        sync_ctx.codec,
+                        config.value_sync(),
+                        &registry,
+                    )
+                    .await?
+                }
+            };
+            if let Some(sync) = &sync {
+                sync.link(node.get_cell());
             }
-        };
 
-        // 2. WAL actor (default or custom)
-        let wal = match wal_builder {
-            WalBuilder::Custom(wal_ref) => wal_ref,
-            WalBuilder::Default(wal_ctx) => {
-                spawn_wal_actor(&self.ctx, wal_ctx.codec, &wal_ctx.path, &registry).await?
+            // Subscribe sync actor to the sync port
+            if let Some(sync) = &sync {
+                sync.subscribe_to_port(&sync_port);
             }
-        };
 
-        // 3. Host actor (use the default channel-based Connector)
-        let (connector, rx_consensus) = spawn_host_actor(metrics.clone()).await?;
+            // Drop the owned Ctx now that all children have been spawned.
+            drop(ctx);
 
-        let tx_event = TxEvent::new();
-        let sync_port = Arc::new(OutputPort::new());
+            // Spawn request handling tasks
+            let (tx_request, rx_request) = mpsc::channel(request_ctx.channel_size);
+            crate::run::spawn_consensus_request_task(rx_request, consensus);
 
-        // 4. Consensus actor (spawned before sync so sync can reference it)
-        let consensus = spawn_consensus_actor(
-            self.ctx.clone(),
-            consensus_ctx.address,
-            self.config.consensus().clone(),
-            consensus_ctx.verifier,
-            consensus_ctx.signer,
-            network.clone(),
-            connector.clone(),
-            wal.clone(),
-            sync_port.clone(),
-            metrics,
-            tx_event.clone(),
-        )
-        .await?;
+            let (tx_net_request, rx_net_request) = mpsc::channel(request_ctx.channel_size);
+            crate::run::spawn_network_request_task(rx_net_request, network);
 
-        // 5. Sync actor (default or custom)
-        let sync = match sync_builder {
-            SyncBuilder::Custom(sync_ref) => sync_ref,
-            SyncBuilder::Default(sync_ctx) => {
-                spawn_sync_actor(
-                    self.ctx.clone(),
-                    network.clone(),
-                    connector.clone(),
-                    consensus.clone(),
-                    sync_ctx.codec,
-                    self.config.value_sync(),
-                    &registry,
-                )
-                .await?
-            }
-        };
+            // Build channels and handle
+            let channels = Channels {
+                consensus: rx_consensus,
+                network: tx_network,
+                events: tx_event,
+                requests: tx_request,
+                net_requests: tx_net_request,
+            };
 
-        // Subscribe sync actor to the sync port
-        if let Some(sync) = &sync {
-            sync.subscribe_to_port(&sync_port);
+            let handle = EngineHandle::new(node, node_join_handle);
+
+            Ok((channels, handle))
         }
+        .await;
 
-        // 6. Node actor
-        let (node, handle) = spawn_node_actor(
-            self.ctx,
-            network.clone(),
-            consensus.clone(),
-            wal,
-            sync,
-            connector,
-        )
-        .await?;
-
-        // Spawn request handling tasks
-        let (tx_request, rx_request) = mpsc::channel(request_ctx.channel_size);
-        crate::run::spawn_consensus_request_task(rx_request, consensus);
-
-        let (tx_net_request, rx_net_request) = mpsc::channel(request_ctx.channel_size);
-        crate::run::spawn_network_request_task(rx_net_request, network);
-
-        // Build channels and handle
-        let channels = Channels {
-            consensus: rx_consensus,
-            network: tx_network,
-            events: tx_event,
-            requests: tx_request,
-            net_requests: tx_net_request,
-        };
-
-        let handle = EngineHandle::new(node, handle);
-
-        Ok((channels, handle))
+        match result {
+            Ok(built) => Ok(built),
+            Err(e) => {
+                // Stop children, then the Node. Fire-and-forget — the caller is
+                // bailing with an error, no value in waiting.
+                node_for_cleanup
+                    .get_cell()
+                    .stop_children(Some("engine build failed".into()));
+                node_for_cleanup.stop(Some("engine build failed".into()));
+                Err(e)
+            }
+        }
     }
 }
 

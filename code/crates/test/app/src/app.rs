@@ -1,13 +1,16 @@
 use std::time::Duration;
 
+use bytes::Bytes;
 use eyre::eyre;
 use tokio::time::sleep;
 use tracing::{debug, error, info};
 
-use malachitebft_app_channel::app::engine::host::{HeightParams, Next};
+use malachitebft_app_channel::app::engine::host::{HeightParams, Next, SyncedValueOutcome};
 use malachitebft_app_channel::app::streaming::StreamContent;
 use malachitebft_app_channel::app::types::core::utils::height::HeightRangeExt;
-use malachitebft_app_channel::app::types::core::{Round, Validity};
+use malachitebft_app_channel::app::types::core::{
+    ExtendedCommitCertificate, Round, Validity, VoteExtensionPolicy,
+};
 use malachitebft_app_channel::app::types::sync::RawDecidedValue;
 use malachitebft_app_channel::app::types::ProposedValue;
 use malachitebft_app_channel::{AppMsg, Channels, NetworkMsg};
@@ -56,6 +59,21 @@ fn reload_log_level(_height: Height, round: Round) {
     }
 }
 
+fn height_params(state: &State, height: Height) -> HeightParams<TestContext> {
+    let vote_extension_policy = if state.config.test.vote_extensions.enabled {
+        VoteExtensionPolicy::Required
+    } else {
+        VoteExtensionPolicy::Disabled
+    };
+
+    HeightParams::new(
+        state.get_validator_set(height),
+        state.get_timeouts(height),
+        state.config.test.target_time,
+    )
+    .with_vote_extension_policy(vote_extension_policy)
+}
+
 pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyre::Result<()> {
     // If the MALACHITE_MONITOR_STATE env var is set, start monitoring the consensus state
     if std::env::var("MALACHITE_MONITOR_STATE").is_ok() {
@@ -80,11 +98,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
                 // We can simply respond by telling the engine to start consensus
                 // at the next height, and provide it with the appropriate validator set
-                let params = HeightParams::new(
-                    state.get_validator_set(start_height),
-                    state.get_timeouts(start_height),
-                    state.config.test.target_time,
-                );
+                let params = height_params(state, start_height);
 
                 if reply.send((start_height, params)).is_err() {
                     error!("Failed to send ConsensusReady reply");
@@ -280,7 +294,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             // ie. the precommits together with their (aggregated) signatures.
             AppMsg::Decided {
                 certificate,
-                extensions: _,
+                extensions,
                 reply,
             } => {
                 assert!(!certificate.commit_signatures.is_empty());
@@ -304,7 +318,12 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         "Middleware: skipping early decision commit"
                     );
                 } else {
-                    // Commit the decision now so Sync can see it
+                    // Commit the decision now so Sync can see it (with extensions).
+                    let certificate =
+                        ExtendedCommitCertificate::from_commit_certificate_and_extensions(
+                            certificate,
+                            extensions,
+                        );
                     if let Err(e) = state.store_decided(certificate).await {
                         error!("Failed to store decided value: {e}");
                     }
@@ -317,7 +336,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
             AppMsg::Finalized {
                 certificate,
-                extensions: _,
+                extensions,
                 evidence: _,
                 reply,
             } => {
@@ -331,15 +350,15 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 assert!(!certificate.commit_signatures.is_empty());
 
                 // When that happens, we store the decided value in our store
+                let certificate = ExtendedCommitCertificate::from_commit_certificate_and_extensions(
+                    certificate,
+                    extensions,
+                );
                 match state.finalize(certificate).await {
                     Ok(_) => {
                         // And then we instruct consensus to start the next height
                         // NOTE: `current_height` has already been incremented in `finalize()`
-                        let params = HeightParams::new(
-                            state.get_validator_set(state.current_height),
-                            state.get_timeouts(state.current_height),
-                            state.config.test.target_time,
-                        );
+                        let params = height_params(state, state.current_height);
 
                         if reply
                             .send(Next::Start(state.current_height, params))
@@ -353,11 +372,7 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                         error!("Commit failed: {e}");
                         error!("Restarting height {}", state.current_height);
 
-                        let params = HeightParams::new(
-                            state.get_validator_set(state.current_height),
-                            state.get_timeouts(state.current_height),
-                            state.config.test.target_time,
-                        );
+                        let params = height_params(state, state.current_height);
 
                         if reply
                             .send(Next::Restart(state.current_height, params))
@@ -388,38 +403,50 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             } => {
                 info!(%height, %round, "Processing synced value");
 
-                let should_fail = state
-                    .middleware
-                    .as_ref()
+                let middleware = state.middleware.as_ref();
+                let fail_processing = middleware
+                    .is_some_and(|m| m.fail_synced_value_processing(&state.ctx, height, round));
+                let fail_decode = middleware
                     .is_some_and(|m| m.fail_synced_value_decode(&state.ctx, height, round));
 
-                let decoded = if should_fail {
-                    None
+                let outcome = if fail_processing {
+                    // Simulate a local/transient processing failure (e.g. the
+                    // execution layer being temporarily unavailable). The peer
+                    // is not at fault, so report a `LocalTransientError` — the
+                    // sync layer re-requests without penalizing or excluding it.
+                    error!(%height, %round, "Transient failure while processing synced value");
+                    SyncedValueOutcome::LocalTransientError
                 } else {
-                    decode_value(value_bytes)
-                };
-
-                if let Some(value) = decoded {
-                    let proposal = ProposedValue {
-                        height,
-                        round,
-                        valid_round: Round::Nil,
-                        proposer,
-                        value,
-                        validity: Validity::Valid,
+                    // A forced (`fail_decode`) or genuine decode failure yields
+                    // no value: undecodable bytes are a peer-attributable fault.
+                    let decoded = if fail_decode {
+                        None
+                    } else {
+                        decode_value(value_bytes)
                     };
 
-                    // TODO: We plan to add some validation here in the future.
-                    state.store_synced_value(proposal.clone()).await?;
+                    if let Some(value) = decoded {
+                        let proposal = ProposedValue {
+                            height,
+                            round,
+                            valid_round: Round::Nil,
+                            proposer,
+                            value,
+                            validity: Validity::Valid,
+                        };
 
-                    if reply.send(Some(proposal)).is_err() {
-                        error!("Failed to send ProcessSyncedValue reply");
+                        // TODO: We plan to add some validation here in the future.
+                        state.store_synced_value(proposal.clone()).await?;
+
+                        SyncedValueOutcome::Verdict(proposal)
+                    } else {
+                        error!(%height, %round, "Failed to decode synced value");
+                        SyncedValueOutcome::PeerFault
                     }
-                } else {
-                    error!(%height, %round, "Failed to decode synced value");
-                    if reply.send(None).is_err() {
-                        error!("Failed to send ProcessSyncedValue reply");
-                    }
+                };
+
+                if reply.send(outcome).is_err() {
+                    error!("Failed to send ProcessSyncedValue reply");
                 }
             }
 
@@ -516,8 +543,29 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 }
             }
 
-            AppMsg::ExtendVote { reply, .. } => {
-                if reply.send(None).is_err() {
+            AppMsg::ExtendVote {
+                height,
+                round,
+                reply,
+                ..
+            } => {
+                // When vote extensions are enabled in config, attach a
+                // deterministic payload so integration tests can assert the
+                // extension travelled through consensus and sync.
+                let extension = if state.config.test.vote_extensions.enabled {
+                    let size = state.config.test.vote_extensions.size.as_u64() as usize;
+                    let mut payload = format!("ext h={} r={}", height, round).into_bytes();
+                    if payload.len() < size {
+                        payload.resize(size, 0u8);
+                    } else {
+                        payload.truncate(size);
+                    }
+                    Some(Bytes::from(payload))
+                } else {
+                    None
+                };
+
+                if reply.send(extension).is_err() {
                     error!("Failed to send ExtendVote reply");
                 }
             }

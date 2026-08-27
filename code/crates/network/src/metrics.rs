@@ -15,7 +15,7 @@ use crate::PeerType;
 use libp2p::PeerId;
 
 /// Maximum number of peer slots to track in metrics (to prevent unbounded memory growth)
-const MAX_PEER_SLOTS: usize = 100;
+pub(crate) const MAX_PEER_SLOTS: usize = 100;
 
 /// Labels for peer info metrics
 /// Note: score is the gauge VALUE

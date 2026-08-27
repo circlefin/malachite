@@ -1,9 +1,8 @@
 use crate::prelude::*;
 
 use crate::handle::driver::apply_driver_input;
-use crate::types::{ProposedValue, WalEntry};
+use crate::types::ProposedValue;
 
-use super::signature::sign_proposal;
 use super::sync::maybe_sync_decision;
 
 /// Handles a proposed value that is not originated from the sync protocol.
@@ -11,7 +10,6 @@ use super::sync::maybe_sync_decision;
 /// This method looks for a matching (valid and signed) Proposal message to produce a
 /// Proposal driver's input, and applies it to the driver.
 ///
-/// For parts-only mode, generates and signs an internal Proposal message.
 /// Stores the value and applies any associated proposals to the driver.
 async fn process_proposal<Ctx>(
     co: &Co<Ctx>,
@@ -23,24 +21,6 @@ async fn process_proposal<Ctx>(
 where
     Ctx: Context,
 {
-    // For parts-only mode, we need to generate an internal Proposal message
-    if state.params.value_payload.parts_only() {
-        let proposal = Ctx::new_proposal(
-            &state.ctx,
-            proposed_value.height,
-            proposed_value.round,
-            proposed_value.value.clone(),
-            proposed_value.valid_round,
-            proposed_value.proposer.clone(),
-        );
-
-        // TODO: Keep unsigned proposals in keeper.
-        // For now we keep all happy by signing all "implicit" proposals with this node's key
-        let signed_proposal = sign_proposal(co, proposal).await?;
-
-        state.store_proposal(signed_proposal);
-    }
-
     // Get all proposals we have for this value.
     let proposals = state.proposals_for_value(&proposed_value);
 
@@ -66,9 +46,7 @@ where
 }
 
 /// Handles a proposed value that can originate from multiple sources:
-/// 1. Application layer:
-///    - In 'parts-only' mode
-///    - In 'proposal-and-parts' mode
+/// 1. Application layer, in 'proposal-and-parts' mode
 /// 2. WAL (Write-Ahead Log), replayed during node recovery
 /// 3. Sync protocol as part of state synchronization
 ///
@@ -76,7 +54,6 @@ where
 /// - Drops values from lower heights
 /// - Queues values from higher heights for later processing
 /// - If a commit certificate exists for this value, uses direct decision path
-/// - For parts-only mode, generates and signs internal Proposal messages
 /// - Stores the value and appends it to the WAL if new
 /// - Applies any associated proposals to the driver
 ///
@@ -120,13 +97,37 @@ where
         return Ok(());
     }
 
+    // Drop values that would grow the keeper, and therefore the WAL, past the per-(height, round)
+    // cap, before persisting anything. Two kinds of value are exempt: sync values, which carry
+    // verified commit certificates, and values that already hold a polka certificate at their
+    // round. Both carry a quorum of signatures that cannot be forged.
+    if origin.is_consensus()
+        && state.exceeds_per_round_cap(
+            proposed_value.height,
+            proposed_value.round,
+            &proposed_value.value.id(),
+        )
+    {
+        warn!(
+            consensus.height = %state.height(),
+            value.height = %proposed_value.height,
+            value.round = %proposed_value.round,
+            "Rejecting proposed value: per-(height, round) cap reached"
+        );
+
+        #[cfg(feature = "metrics")]
+        metrics.dropped_capped_proposed_values.inc();
+
+        return Ok(());
+    }
+
     // We may consider in the future some optimization to avoid multiple identical entries in the
     // WAL, in the case of multiple node restarts. For now we write every ProposedValue to it.
     perform!(
         co,
         Effect::WalAppend(
             proposed_value.height,
-            WalEntry::ProposedValue(proposed_value.clone()),
+            Input::ProposedValue(proposed_value.clone(), origin),
             Default::default()
         )
     );

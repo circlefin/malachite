@@ -10,15 +10,18 @@ use tracing::{debug, error, info};
 use malachitebft_core_types::{Context, Height};
 use malachitebft_wal as wal;
 
-use super::entry::{decode_entry, encode_entry, WalCodec, WalEntry};
+use crate::node::{NodeMsg, NodeRef};
+use malachitebft_core_consensus::Input;
+
+use super::entry::{decode_entry, encode_entry, WalCodec};
 use super::iter::log_entries;
 
 pub type ReplyTo<T> = oneshot::Sender<Result<T>>;
 
 pub enum WalMsg<Ctx: Context> {
-    StartedHeight(Ctx::Height, ReplyTo<Vec<io::Result<WalEntry<Ctx>>>>),
+    StartedHeight(Ctx::Height, ReplyTo<Vec<io::Result<Input<Ctx>>>>),
     Reset(Ctx::Height, ReplyTo<()>),
-    Append(WalEntry<Ctx>, ReplyTo<()>),
+    Append(Input<Ctx>, ReplyTo<()>),
     Flush(ReplyTo<()>),
     Shutdown,
     Dump,
@@ -29,6 +32,7 @@ pub fn spawn<Ctx, Codec>(
     mut log: wal::Log,
     codec: Codec,
     mut rx: mpsc::Receiver<WalMsg<Ctx>>,
+    node: NodeRef,
 ) -> JoinHandle<()>
 where
     Ctx: Context,
@@ -51,9 +55,29 @@ where
         }));
 
         if let Err(e) = result {
-            error!("WAL thread panicked: {e:?}");
+            let reason = format_panic_reason(e.as_ref());
+            error!("WAL thread panicked: {reason}");
+
+            // The worker died mid-operation, so persistent state may be in an
+            // unknown condition: route to the Node's safety-hang path rather
+            // than let the orchestrator auto-restart (which could double-sign).
+            // The cast is thread-safe and non-blocking; if the Node is already
+            // gone it silently fails and we still exit the thread.
+            let _ = node.cast(NodeMsg::SafetyFailure(format!(
+                "WAL worker thread panicked: {reason}"
+            )));
         }
     })
+}
+
+fn format_panic_reason(payload: &(dyn std::any::Any + Send)) -> String {
+    if let Some(s) = payload.downcast_ref::<&'static str>() {
+        (*s).to_string()
+    } else if let Some(s) = payload.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        "unknown panic payload".to_string()
+    }
 }
 
 #[tracing::instrument(
@@ -115,7 +139,7 @@ where
             let mut buf = Vec::new();
 
             // Capture encoding result and always send a reply to prevent deadlock
-            let result = encode_entry(&entry, codec, &mut buf)
+            let result = encode_entry(entry, codec, &mut buf)
                 .and_then(|_| {
                     if !buf.is_empty() {
                         log.append(&buf)
@@ -175,7 +199,7 @@ where
 fn fetch_entries<Ctx, Codec>(
     log: &mut wal::Log,
     codec: &Codec,
-) -> Result<Vec<io::Result<WalEntry<Ctx>>>>
+) -> Result<Vec<io::Result<Input<Ctx>>>>
 where
     Ctx: Context,
     Codec: WalCodec<Ctx>,
@@ -216,7 +240,7 @@ fn decode_result<Ctx, Codec>(
     idx: usize,
     result: io::Result<Vec<u8>>,
     codec: &Codec,
-) -> io::Result<WalEntry<Ctx>>
+) -> io::Result<Input<Ctx>>
 where
     Ctx: Context,
     Codec: WalCodec<Ctx>,
@@ -274,16 +298,16 @@ fn span_sequence(sequence: u64, msg: &WalMsg<impl Context>) -> u64 {
     }
 }
 
-fn wal_entry_type<Ctx: Context>(entry: &WalEntry<Ctx>) -> &'static str {
-    use malachitebft_core_consensus::SignedConsensusMsg;
-
+fn wal_entry_type<Ctx: Context>(entry: &Input<Ctx>) -> &'static str {
     match entry {
-        WalEntry::ConsensusMsg(msg) => match msg {
-            SignedConsensusMsg::Vote(_) => "Consensus(Vote)",
-            SignedConsensusMsg::Proposal(_) => "Consensus(Proposal)",
-        },
-        WalEntry::ProposedValue(_) => "LocallyProposedValue",
-        WalEntry::Timeout(_) => "Timeout",
-        WalEntry::PolkaCertificate(_) => "PolkaCertificate",
+        Input::Vote(_) => "Consensus(Vote)",
+        Input::Proposal(_) => "Consensus(Proposal)",
+        Input::ProposedValue(_, _) => "ProposedValue",
+        Input::TimeoutElapsed(_) => "Timeout",
+        Input::PolkaCertificate(_) => "PolkaCertificate",
+        Input::StartHeight(..)
+        | Input::Propose(..)
+        | Input::RoundCertificate(..)
+        | Input::SyncValueResponse(..) => "Unpersisted",
     }
 }

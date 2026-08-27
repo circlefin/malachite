@@ -27,6 +27,37 @@ pub enum Next<Ctx: Context> {
     Restart(Ctx::Height, HeightParams<Ctx>),
 }
 
+/// Outcome of the application processing a value synced from the network,
+/// returned in reply to [`HostMsg::ProcessSyncedValue`]. The sync layer routes
+/// each variant distinctly:
+///
+/// - [`Verdict`](Self::Verdict): the host produced a verdict for the value
+///   (`Valid`, or an engine-side `Invalid` — the validity rides inside the
+///   payload); forward it to consensus. An engine-`Invalid` validity is still
+///   forwarded so the downstream `maybe_sync_decision` path can surface the
+///   version-skew diagnostic.
+/// - [`PeerFault`](Self::PeerFault): the fault is attributable to the peer
+///   (e.g. undecodable/garbage bytes); penalize the peer and re-request from
+///   another.
+/// - [`LocalTransientError`](Self::LocalTransientError): a local or transient
+///   failure on our side (e.g. execution layer `SYNCING`/`ACCEPTED`, a
+///   transport blip); the peer is innocent, so re-request without penalizing
+///   or excluding it.
+#[derive_where(Debug)]
+pub enum SyncedValueOutcome<Ctx: Context> {
+    /// The host produced a verdict for the value (the validity — `Valid` or
+    /// `Invalid` — rides inside the payload); forward it to consensus.
+    Verdict(ProposedValue<Ctx>),
+
+    /// The error is attributable to the peer (e.g. undecodable bytes); penalize
+    /// and re-request from another peer.
+    PeerFault,
+
+    /// A local or transient failure on our side prevented producing a verdict;
+    /// the peer is innocent, so re-request without penalizing or excluding it.
+    LocalTransientError,
+}
+
 /// Messages that need to be handled by the host actor.
 #[derive_where(Debug)]
 pub enum HostMsg<Ctx: Context> {
@@ -208,8 +239,12 @@ pub enum HostMsg<Ctx: Context> {
     /// Notifies the application that a value has been synced from the network.
     /// This may happen when the node is catching up with the network.
     ///
-    /// If a value can be decoded from the bytes provided, then the application MUST reply
-    /// to this message with the decoded value. Otherwise, it MUST reply with `None`.
+    /// The application MUST reply with a [`SyncedValueOutcome`] stating how the
+    /// value was processed: [`Verdict`](SyncedValueOutcome::Verdict) with the
+    /// decoded value, [`PeerFault`](SyncedValueOutcome::PeerFault) for a
+    /// peer-attributable fault (e.g. undecodable bytes), or
+    /// [`LocalTransientError`](SyncedValueOutcome::LocalTransientError) for a
+    /// local/transient failure on our side.
     ProcessSyncedValue {
         /// Height of the synced value
         height: Ctx::Height,
@@ -219,8 +254,7 @@ pub enum HostMsg<Ctx: Context> {
         proposer: Ctx::Address,
         /// Raw encoded value data
         value_bytes: Bytes,
-        /// Channel for sending back the proposed value, if successfully decoded
-        /// or `None` if the value could not be decoded
-        reply_to: RpcReplyPort<Option<ProposedValue<Ctx>>>,
+        /// Channel for sending back how the synced value was processed.
+        reply_to: RpcReplyPort<SyncedValueOutcome<Ctx>>,
     },
 }

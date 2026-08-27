@@ -6,6 +6,7 @@
 * 2025-03-21: Current design description
 * 2025-03-25: Diagrams and more detailed description of the three modes of operation
 * 2025-03-26: Reviewed & accepted
+* 2026-05-25: Removed `PartsOnly` mode
 
 ## Overview
 
@@ -20,9 +21,8 @@ Propagation of proposed values among system nodes is often critical for
 system performance. Hence, allowing different optimizations and modes of
 propagation is an important architectural requirement for Malachite.
 
-Malachite supports three modes for value propagation:
+Malachite supports two modes for value propagation:
 * `ProposalOnly`
-* `PartsOnly`
 * `ProposalAndParts`
 
 Their respective use-case and design are documented in the following sections.
@@ -116,12 +116,11 @@ Malachite deviates from the [vanilla Tendermint consensus][tendermint-code] in t
 
 ### Value Payload Modes
 
-At the moment, the Malachite core consensus library supports three
+At the moment, the Malachite core consensus library supports two
 different modes of operation to handle value propagation:
 
 1) **ProposalOnly**
-2) **PartsOnly**
-3) **ProposalAndParts**
+2) **ProposalAndParts**
 
 A specific mode can be set as a `value_payload` consensus parameter:
 
@@ -138,7 +137,7 @@ pub struct Params<Ctx: Context> {
 }
 ```
 
-In the following sections, for each of the three modes of operation, the consensus core interactions with the environment are described.
+In the following sections, for each of the two modes of operation, the consensus core interactions with the environment are described.
 
 In general, events from the environment may trigger different inputs to the consensus core, and a complete overview of all inputs can be found in [ADR-004 Coroutine-Based Effect System for Consensus][adr-004].
 
@@ -223,8 +222,8 @@ In this mode, the application only needs to provide a value to the consensus cor
 
 This mode is the simplest, as the application is only responsible for providing the value to be ordered. However, if the value is large, the resulting proposal messages will also be large and must be propagated as such through the network. Any optimizations for value propagation, such as chunking the value into smaller parts and reassembling it on the receiving side, must be implemented outside the consensus core. This is because both the consensus and application remain unaware of how the value is transmitted.
 
-The other two modes of operation are designed to support such optimizations at the application level rather than at the network level. 
-The following sections describe how this is achieved.
+`ProposalAndParts` is designed to support such optimizations at the application level rather than at the network level.
+The following section describes how this is achieved.
 
 ### ProposalAndParts
 
@@ -276,56 +275,9 @@ When a node receives the `Proposal(SignedProposal(v))` message it passes it to t
 
 This confirmation is delivered via the `ProposedValue(ProposedValue(v, validity))` input, which the application generates upon receiving the full value through the network. Only when the consensus core has both `Proposal(SignedProposal(v))` and `ProposedValue(ProposedValue(v, validity))` inputs, it can consider the proposal complete.
 
-### PartsOnly
-
-In this mode of operation, the application is responsible to define and implement the dissemination protocol for the full value `V` and its metadata (`height`, `round` and `valid_round`). It is expected that the application splits the value `V` into parts, signs each part individually, and disseminates them throughout the network. At the receiving end, the application should verify that the parts are properly signed by the Proposer for the `height` and `round` as derived from the parts and reassemble the full value `V`.
-The application communicates to consensus that a value is available using a reference `v` to `V`. `v` is expected to be short representation of `V` and a possible (but not mandatory) implementation for `id` is `id(v) = v`.
-
-In addition the consensus implementation does not produce and publish a `Proposal` message.
-The reason is that all the information that would be carried in such a message can be derived from `V` and its metadata.
-In other words, the application is able to reconstruct the `Proposal` message from the disseminated data, thus rendering the consensus-level `Proposal` message redundant.
-
-```mermaid
-sequenceDiagram
-    box Proposer
-      participant A1 as Application
-      participant E1 as Consensus Engine
-      participant C1 as Consensus Core
-    end
-
-    box Other nodes
-      participant A2 as Application
-      participant E2 as Consensus Engine
-      participant C2 as Consensus Core
-    end
-
-    C1->>E1: Effect::GetValue()
-    E1->>A1: GetValue()
-
-    A1->>E2: Full value V
-    E2->>A2: Full value V
-
-    A1->>E1: Propose(LocallyProposedValue(v))
-    E1->>C1: Propose(LocallyProposedValue(v))
-    C1->>C1: Proposal(SignedProposal(V))
-    C1--xE1: Effect::Publish(SignedProposal(v))
-
-    A2->>E2: ProposedValue(ProposedValue(v, validity))
-    E2->>C2: ProposedValue(ProposedValue(v, validity))
-    C2->>C2: Proposal(SignedProposal(v))
-
-    Note over C2: Has v and its validity → can proceed
-```
-
-This mode is very similar to `ProposalAndParts` but the difference is that when receiving
-`Propose(LocallyProposedValue(v))` , and after processed by the consensus core state machine,
-the `Publish` effect is not emitted and a `Proposal` message is not sent through the network.
-
-At the receiving side, consensus core waits to receive `ProposedValue(ProposedValue(v, validity))` input and when this happens it considers the proposal as complete and proceeds. The application generates this input upon receiving the full value `V` from the network. As a result, in this case value propagation is totally delegated to the application.
-
 ### Value Restreaming
 
-When operating in either `ProposalAndParts` or `PartsOnly` mode, there are situations where the proposer must re-propose a value observed in a previous round. This scenario arises when implementing line 16 of the Tendermint algorithm, where the proposer enters a new round already holding a valid value from an earlier round. 
+When operating in `ProposalAndParts` mode, there are situations where the proposer must re-propose a value observed in a previous round. This scenario arises when implementing line 16 of the Tendermint algorithm, where the proposer enters a new round already holding a valid value from an earlier round.
 
 > **Note:** The application is responsible for storing all previously received propagated values from earlier rounds to support such re-proposals.
 
@@ -342,12 +294,10 @@ The restreaming flow mirrors the initial proposal flow, with the following key d
 
 ### Summary
 
-To sum up, different modes rely on different inputs to achieve the same effect as
+To sum up, the two supported modes rely on different inputs to achieve the same effect as
 the original Tendermint algorithm achieve via the `PROPOSAL` message.
 
-* In `ProposalOnly` and `ProposalAndParts`, both `Proposal(SignedProposal(x))` and `ProposedValue(ProposedValue(x, validity))` inputs are needed, with `x == V` for the former and `x == v` for the latter.
-* In `PartsOnly`, only `ProposedValue(ProposedValue(v, validity))` input is enough, as no explicit proposal message is sent over the network.
-In other words, the Proposal propagation role is entirely up to the application.
+* In both `ProposalOnly` and `ProposalAndParts`, both `Proposal(SignedProposal(x))` and `ProposedValue(ProposedValue(x, validity))` inputs are needed, with `x == V` for the former and `x == v` for the latter.
 
 Regardless of the mode of operation, the value that consensus operates at the proposal level is defined by the application in the `Value` trait concrete implementation.
 The mode of operation is used outside the consensus driver and state machine in order to decide whether to send or accept explicit `Proposal` messages to the caller (via `Effect`).
@@ -418,10 +368,10 @@ value `V` that `v` refers to.
 
 #### Relevance to present ADR
 
-Malachite, in `ProposalAndParts` and `PartsOnly` modes, represent a variant of this approach. 
-In these modes, the responsibility for disseminating full values is entirely delegated to 
-the application. When the application provides a `ProposedValue(v)`, it signals to the 
-consensus layer that it possesses the full value `V` corresponding to the reference `v`, 
+Malachite, in `ProposalAndParts` mode, represents a variant of this approach.
+In this mode, the responsibility for disseminating full values is entirely delegated to
+the application. When the application provides a `ProposedValue(v)`, it signals to the
+consensus layer that it possesses the full value `V` corresponding to the reference `v`,
 allowing the consensus logic to proceed safely.
 
 Since value dissemination is not handled by the consensus protocol but explicitly by the application, 
@@ -436,7 +386,7 @@ Accepted and implemented as of `ec9c421` (March 2025).
 
 ### Positive
 
-* The three modes **ProposalOnly**, **PartsOnly**, and **ProposalAndParts** provide application builders with flexibility
+* The two modes **ProposalOnly** and **ProposalAndParts** provide application builders with flexibility for small inline payloads versus application-driven streaming of large values.
 
 ### Negative
 

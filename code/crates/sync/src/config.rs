@@ -1,3 +1,4 @@
+use std::cmp::max;
 use std::time::Duration;
 
 use crate::scoring::Strategy;
@@ -59,6 +60,22 @@ impl Config {
         self.batch_size = batch_size;
         self
     }
+
+    /// The parallel-request limit used by ValueSync.
+    pub fn effective_parallel_requests(&self) -> usize {
+        max(1, self.parallel_requests)
+    }
+
+    /// The batch-size limit used by ValueSync.
+    pub fn effective_batch_size(&self) -> usize {
+        max(1, self.batch_size)
+    }
+
+    /// The distance from the tip to the highest permitted request start.
+    pub fn read_ahead_window(&self) -> usize {
+        self.effective_parallel_requests()
+            .saturating_mul(self.effective_batch_size())
+    }
 }
 
 impl Default for Config {
@@ -73,5 +90,20 @@ impl Default for Config {
             inactive_threshold: None,
             batch_size: DEFAULT_BATCH_SIZE,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Config;
+
+    #[test]
+    fn zero_request_limits_default_to_one() {
+        let config = Config::default()
+            .with_parallel_requests(0)
+            .with_batch_size(0);
+
+        assert_eq!(config.effective_parallel_requests(), 1);
+        assert_eq!(config.effective_batch_size(), 1);
     }
 }

@@ -16,13 +16,11 @@ all-features = true
 workspace = true
 
 [dependencies]
-malachitebft-core-types.workspace = true
-
 bytesize = { workspace = true, features = ["serde"] }
-config = { workspace = true }
 humantime-serde = { workspace = true }
 multiaddr = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
 tracing = { workspace = true, default-features = false }
 
 [dev-dependencies]

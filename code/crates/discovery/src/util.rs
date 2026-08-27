@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use libp2p::Multiaddr;
+use libp2p::{Multiaddr, PeerId};
 
 /// Strip /p2p/<peer_id> component from a Multiaddr for address comparison.
 /// This allows comparing addresses regardless of whether they include a peer ID.
@@ -14,6 +14,23 @@ pub fn strip_peer_id_from_multiaddr(addr: &Multiaddr) -> Multiaddr {
         }
     }
     result
+}
+
+/// Extract the peer id from a Multiaddr's /p2p/<peer_id> component, if present.
+pub fn peer_id_from_multiaddr(addr: &Multiaddr) -> Option<PeerId> {
+    addr.iter().find_map(|protocol| {
+        if let libp2p::multiaddr::Protocol::P2p(peer_id) = protocol {
+            Some(peer_id)
+        } else {
+            None
+        }
+    })
+}
+
+/// Returns true if the address carries no transport component to dial against,
+/// i.e. it consists solely of a /p2p/<peer_id> identity.
+pub fn is_peer_id_only(addr: &Multiaddr) -> bool {
+    strip_peer_id_from_multiaddr(addr).is_empty()
 }
 
 #[derive(Debug, Clone)]
