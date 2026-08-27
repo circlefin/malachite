@@ -298,9 +298,19 @@ pub enum Event {
     Listening(Multiaddr),
     PeerConnected(PeerId),
     PeerDisconnected(PeerId),
+    PeerSubscribed(PeerId, Channel),
+    PeerUnsubscribed(PeerId, Channel),
     ConsensusMessage(Channel, PeerId, Bytes),
     LivenessMessage(Channel, PeerId, Bytes),
     Sync(sync::RawMessage),
+    /// libp2p reported that an outbound sync request to `peer` could not be
+    /// delivered or completed (dial failure, connection closed, libp2p-level
+    /// timeout, etc.).
+    SyncRequestFailed {
+        request_id: OutboundRequestId,
+        peer: PeerId,
+        reason: sync::OutboundFailureReason,
+    },
     /// A validator proof received from a peer (one-way, no response expected).
     ValidatorProofReceived {
         peer_id: PeerId,
@@ -386,7 +396,7 @@ pub async fn spawn(
     let mut subscribed_topics = std::collections::HashSet::new();
     if config.enable_consensus {
         for channel in Channel::consensus() {
-            subscribed_topics.insert(channel.as_str(config.channel_names).to_string());
+            subscribed_topics.insert(channel.as_str(&config.channel_names).to_string());
         }
     }
 
@@ -426,6 +436,7 @@ pub async fn spawn(
         config.persistent_peers.clone(),
         local_node_info,
         network_metrics,
+        config.gossipsub.enable_explicit_peering,
     );
 
     let span = error_span!("network");
@@ -459,7 +470,7 @@ async fn run(
             &mut swarm,
             config.pubsub_protocol,
             Channel::consensus(),
-            config.channel_names,
+            &config.channel_names,
         ) {
             error!("Error subscribing to consensus channels: {e}");
             return;
@@ -471,7 +482,7 @@ async fn run(
             &mut swarm,
             PubSubProtocol::Broadcast,
             &[Channel::Sync],
-            config.channel_names,
+            &config.channel_names,
         ) {
             error!("Error subscribing to Sync channel: {e}");
             return;
@@ -523,7 +534,7 @@ async fn run(
                     state.update_peer_info(
                         gossipsub,
                         Channel::consensus(),
-                        config.channel_names,
+                        &config.channel_names,
                     );
                 }
 
@@ -556,7 +567,7 @@ async fn handle_ctrl_msg(
                 swarm,
                 config.pubsub_protocol,
                 channel,
-                config.channel_names,
+                &config.channel_names,
                 data,
             );
 
@@ -579,7 +590,7 @@ async fn handle_ctrl_msg(
                 swarm,
                 PubSubProtocol::Broadcast,
                 channel,
-                config.channel_names,
+                &config.channel_names,
                 data,
             );
 
@@ -701,8 +712,24 @@ async fn handle_ctrl_msg(
 
         CtrlMsg::UpdatePersistentPeers(op, reply_to) => {
             let result = match op {
-                PersistentPeersOp::Add(addr) => state.add_persistent_peer(addr, swarm),
-                PersistentPeersOp::Remove(addr) => state.remove_persistent_peer(addr, swarm),
+                PersistentPeersOp::Add(ref addr) => {
+                    let res = state.add_persistent_peer(addr.clone(), swarm);
+                    if res.is_ok() {
+                        if let Some(ip) = ip_limits::extract_ip(addr) {
+                            swarm.behaviour_mut().ip_limits.add_persistent_ip(ip);
+                        }
+                    }
+                    res
+                }
+                PersistentPeersOp::Remove(ref addr) => {
+                    let res = state.remove_persistent_peer(addr.clone(), swarm);
+                    if res.is_ok() {
+                        if let Some(ip) = ip_limits::extract_ip(addr) {
+                            swarm.behaviour_mut().ip_limits.remove_persistent_ip(ip);
+                        }
+                    }
+                    res
+                }
             };
             if reply_to.send(result).is_err() {
                 error!("Error replying to UpdatePersistentPeers");
@@ -729,51 +756,6 @@ fn set_peer_score(swarm: &mut swarm::Swarm<Behaviour>, peer_id: libp2p::PeerId, 
     if let Some(gossipsub) = swarm.behaviour_mut().gossipsub.as_mut() {
         if gossipsub.set_application_score(&peer_id, score) {
             debug!("Upgraded application score to {score} for peer {peer_id}");
-        }
-    }
-}
-
-/// Add a persistent peer as an explicit peer in gossipsub (if explicit peering is enabled).
-/// A node always sends and forwards messages to its explicit peers, regardless of mesh membership.
-fn add_explicit_peer_to_gossipsub(
-    swarm: &mut swarm::Swarm<Behaviour>,
-    state: &mut State,
-    peer_id: libp2p::PeerId,
-) {
-    let Some(peer_info) = state.peer_info.get_mut(&peer_id) else {
-        return;
-    };
-
-    if peer_info.peer_type.is_persistent() {
-        if let Some(gossipsub) = swarm.behaviour_mut().gossipsub.as_mut() {
-            gossipsub.add_explicit_peer(&peer_id);
-            state
-                .metrics
-                .record_explicit_peer(&peer_id, &peer_info.moniker);
-            peer_info.is_explicit = true;
-            info!("Added persistent peer {peer_id} as explicit peer in gossipsub");
-        }
-    }
-}
-
-/// Remove a persistent peer from explicit peers in gossipsub and mark the metric stale.
-fn remove_explicit_peer_from_gossipsub(
-    swarm: &mut swarm::Swarm<Behaviour>,
-    state: &mut State,
-    peer_id: &libp2p::PeerId,
-) {
-    let Some(peer_info) = state.peer_info.get_mut(peer_id) else {
-        return;
-    };
-
-    if peer_info.peer_type.is_persistent() {
-        if let Some(gossipsub) = swarm.behaviour_mut().gossipsub.as_mut() {
-            gossipsub.remove_explicit_peer(peer_id);
-            state
-                .metrics
-                .mark_explicit_peer_stale(peer_id, &peer_info.moniker);
-            peer_info.is_explicit = false;
-            info!("Removed persistent peer {peer_id} from explicit peers in gossipsub");
         }
     }
 }
@@ -858,9 +840,8 @@ async fn handle_swarm_event(
 
             if num_established == 0 {
                 // Remove explicit peer before removing peer_info (needs peer_info to exist)
-                if config.gossipsub.enable_explicit_peering {
-                    remove_explicit_peer_from_gossipsub(swarm, state, &peer_id);
-                }
+                state.remove_explicit_peer_from_gossipsub(swarm, &peer_id);
+                state.remove_learned_persistent_peer_id(&peer_id);
                 if let Some(peer_info) = state.peer_info.remove(&peer_id) {
                     state.metrics.free_slot(&peer_id, &peer_info);
                 }
@@ -912,10 +893,9 @@ async fn handle_swarm_event(
                     // Promote high-value peer (validator/persistent) from ephemeral to inbound
                     state.try_prioritize_peer(peer_id);
 
-                    // If enabled, add persistent peers as explicit peers for guaranteed delivery
-                    if config.gossipsub.enable_explicit_peering {
-                        add_explicit_peer_to_gossipsub(swarm, state, peer_id);
-                    }
+                    // Add persistent peers as explicit peers for guaranteed delivery
+                    // (no-op when explicit peering is disabled)
+                    state.add_explicit_peer_to_gossipsub(swarm, peer_id);
 
                     if !is_already_connected {
                         if let Err(e) = tx_event
@@ -990,7 +970,7 @@ async fn handle_gossipsub_event(
 ) -> ControlFlow<()> {
     match event {
         gossipsub::Event::Subscribed { peer_id, topic } => {
-            if !Channel::has_gossipsub_topic(&topic, config.channel_names) {
+            if !Channel::has_gossipsub_topic(&topic, &config.channel_names) {
                 trace!("Peer {peer_id} tried to subscribe to unknown topic: {topic}");
                 return ControlFlow::Continue(());
             }
@@ -999,7 +979,7 @@ async fn handle_gossipsub_event(
         }
 
         gossipsub::Event::Unsubscribed { peer_id, topic } => {
-            if !Channel::has_gossipsub_topic(&topic, config.channel_names) {
+            if !Channel::has_gossipsub_topic(&topic, &config.channel_names) {
                 trace!("Peer {peer_id} tried to unsubscribe from unknown topic: {topic}");
                 return ControlFlow::Continue(());
             }
@@ -1017,7 +997,7 @@ async fn handle_gossipsub_event(
             };
 
             let Some(channel) =
-                Channel::from_gossipsub_topic_hash(&message.topic, config.channel_names)
+                Channel::from_gossipsub_topic_hash(&message.topic, &config.channel_names)
             else {
                 trace!(
                     "Received message {message_id} from {peer_id} on different channel: {}",
@@ -1074,25 +1054,42 @@ async fn handle_broadcast_event(
 ) -> ControlFlow<()> {
     match event {
         broadcast::Event::Subscribed(peer_id, topic) => {
-            if !Channel::has_broadcast_topic(&topic, config.channel_names) {
+            let Some(channel) = Channel::from_broadcast_topic(&topic, &config.channel_names) else {
                 trace!("Peer {peer_id} tried to subscribe to unknown topic: {topic:?}");
                 return ControlFlow::Continue(());
-            }
+            };
 
             trace!("Peer {peer_id} subscribed to {topic:?}");
+
+            let peer_id = PeerId::from_libp2p(&peer_id);
+
+            if let Err(e) = tx_event.send(Event::PeerSubscribed(peer_id, channel)).await {
+                error!("Error sending message to handle: {e}");
+                return ControlFlow::Break(());
+            }
         }
 
         broadcast::Event::Unsubscribed(peer_id, topic) => {
-            if !Channel::has_broadcast_topic(&topic, config.channel_names) {
+            let Some(channel) = Channel::from_broadcast_topic(&topic, &config.channel_names) else {
                 trace!("Peer {peer_id} tried to unsubscribe from unknown topic: {topic:?}");
                 return ControlFlow::Continue(());
-            }
+            };
 
             trace!("Peer {peer_id} unsubscribed from {topic:?}");
+
+            let peer_id = PeerId::from_libp2p(&peer_id);
+
+            if let Err(e) = tx_event
+                .send(Event::PeerUnsubscribed(peer_id, channel))
+                .await
+            {
+                error!("Error sending message to handle: {e}");
+                return ControlFlow::Break(());
+            }
         }
 
         broadcast::Event::Received(peer_id, topic, message) => {
-            let Some(channel) = Channel::from_broadcast_topic(&topic, config.channel_names) else {
+            let Some(channel) = Channel::from_broadcast_topic(&topic, &config.channel_names) else {
                 trace!("Received message from {peer_id} on different channel: {topic:?}");
                 return ControlFlow::Continue(());
             };
@@ -1173,7 +1170,27 @@ async fn handle_sync_event(
 
         sync::Event::ResponseSent { .. } => ControlFlow::Continue(()),
 
-        sync::Event::OutboundFailure { .. } => ControlFlow::Continue(()),
+        sync::Event::OutboundFailure {
+            request_id,
+            peer,
+            error,
+            ..
+        } => {
+            debug!(%request_id, %peer, ?error, "Outbound sync request failed");
+            let reason = outbound_failure_reason(&error);
+            if let Err(e) = tx_event
+                .send(Event::SyncRequestFailed {
+                    request_id,
+                    peer: PeerId::from_libp2p(&peer),
+                    reason,
+                })
+                .await
+            {
+                error!("Error sending sync request failure to handle: {e}");
+                return ControlFlow::Break(());
+            }
+            ControlFlow::Continue(())
+        }
 
         sync::Event::InboundFailure {
             request_id,
@@ -1185,6 +1202,19 @@ async fn handle_sync_event(
             state.sync_channels.remove(&request_id);
             ControlFlow::Continue(())
         }
+    }
+}
+
+fn outbound_failure_reason(
+    error: &libp2p::request_response::OutboundFailure,
+) -> sync::OutboundFailureReason {
+    use libp2p::request_response::OutboundFailure;
+    match error {
+        OutboundFailure::DialFailure => sync::OutboundFailureReason::DialFailure,
+        OutboundFailure::ConnectionClosed => sync::OutboundFailureReason::ConnectionClosed,
+        OutboundFailure::Timeout => sync::OutboundFailureReason::Timeout,
+        OutboundFailure::UnsupportedProtocols => sync::OutboundFailureReason::UnsupportedProtocols,
+        OutboundFailure::Io(_) => sync::OutboundFailureReason::Io,
     }
 }
 
@@ -1217,12 +1247,6 @@ async fn handle_validator_proof_event(
         validator_proof::Event::ProofSendFailed { peer, error } => {
             debug!(%peer, %error, "Failed to send validator proof");
             ControlFlow::Continue(())
-        }
-
-        validator_proof::Event::ProofReceiveFailed { .. } => {
-            // This is handled directly by behaviour (closes connection via ToSwarm::CloseConnection)
-            // and should never be emitted as an event to the swarm
-            unreachable!("ProofReceiveFailed is handled by behaviour, not emitted")
         }
     }
 }

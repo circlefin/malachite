@@ -1,4 +1,5 @@
-use malachitebft_core_types::{NilOrVal, Round, SignedVote};
+use bytes::Bytes;
+use malachitebft_core_types::{NilOrVal, Round, SignedExtension, SignedVote, Vote as _, VoteType};
 
 use arc_malachitebft_core_votekeeper::keeper::{Output, VoteKeeper};
 
@@ -40,6 +41,23 @@ fn new_signed_precommit(
         Vote::new_precommit(height, round, value, addr),
         Signature::test(),
     )
+}
+
+fn new_signed_precommit_with_extension(
+    height: Height,
+    round: Round,
+    value: NilOrVal<ValueId>,
+    addr: Address,
+    extension: SignedExtension<TestContext>,
+) -> SignedVote<TestContext> {
+    SignedVote::new(
+        Vote::new_precommit(height, round, value, addr).extend(extension),
+        Signature::test(),
+    )
+}
+
+fn test_extension(data: &'static [u8]) -> SignedExtension<TestContext> {
+    SignedExtension::new(Bytes::from_static(data), Signature::test())
 }
 
 #[test]
@@ -344,4 +362,134 @@ fn equivocation() {
     assert_eq!(msg, None);
 
     assert_eq!(keeper.evidence().get(&addr2), Some(&vec![(vote21, vote22)]));
+}
+
+#[test]
+fn precommit_with_extension_replaces_stored_precommit_without_extension() {
+    let ([addr1, _], mut keeper) = setup([1, 1]);
+
+    let height = Height::new(1);
+    let round = Round::new(0);
+    let id = ValueId::new(1);
+    let val = NilOrVal::Val(id);
+
+    let bare = new_signed_precommit(height, round, val, addr1);
+    assert_eq!(keeper.apply_vote(bare, round), None);
+
+    let extension = test_extension(b"app-data");
+    let extended =
+        new_signed_precommit_with_extension(height, round, val, addr1, extension.clone());
+    assert_eq!(keeper.apply_vote(extended, round), None);
+
+    let per_round = keeper.per_round(round).expect("per-round entry exists");
+    let stored = per_round
+        .get_vote(VoteType::Precommit, &addr1)
+        .expect("precommit stored for validator");
+    assert_eq!(stored.extension(), Some(&extension));
+}
+
+#[test]
+fn has_vote_true_for_same_value_bare_duplicate() {
+    let ([addr1, _], mut keeper) = setup([1, 1]);
+
+    let height = Height::new(1);
+    let round = Round::new(0);
+    let id = ValueId::new(1);
+    let val = NilOrVal::Val(id);
+
+    let vote = new_signed_precommit(height, round, val, addr1);
+    keeper.apply_vote(vote.clone(), round);
+
+    assert!(keeper.has_vote(&vote));
+}
+
+#[test]
+fn has_vote_false_for_extension_upgrade() {
+    let ([addr1, _], mut keeper) = setup([1, 1]);
+
+    let height = Height::new(1);
+    let round = Round::new(0);
+    let id = ValueId::new(1);
+    let val = NilOrVal::Val(id);
+
+    let bare = new_signed_precommit(height, round, val, addr1);
+    keeper.apply_vote(bare, round);
+
+    let extended =
+        new_signed_precommit_with_extension(height, round, val, addr1, test_extension(b"app-data"));
+    assert!(!keeper.has_vote(&extended));
+}
+
+#[test]
+fn has_vote_true_for_bare_duplicate_after_extension_upgrade() {
+    let ([addr1, _], mut keeper) = setup([1, 1]);
+
+    let height = Height::new(1);
+    let round = Round::new(0);
+    let id = ValueId::new(1);
+    let val = NilOrVal::Val(id);
+
+    let bare = new_signed_precommit(height, round, val, addr1);
+    keeper.apply_vote(bare.clone(), round);
+
+    let extended =
+        new_signed_precommit_with_extension(height, round, val, addr1, test_extension(b"app-data"));
+    keeper.apply_vote(extended, round);
+
+    assert!(keeper.has_vote(&bare));
+}
+
+#[test]
+fn has_vote_false_for_equivocating_value() {
+    let ([addr1, _], mut keeper) = setup([1, 1]);
+
+    let height = Height::new(1);
+    let round = Round::new(0);
+
+    let first = new_signed_precommit(height, round, NilOrVal::Val(ValueId::new(1)), addr1);
+    keeper.apply_vote(first, round);
+
+    let conflicting = new_signed_precommit(height, round, NilOrVal::Val(ValueId::new(2)), addr1);
+    assert!(!keeper.has_vote(&conflicting));
+}
+
+#[test]
+fn has_vote_true_for_signature_variant_duplicate() {
+    let ([addr1, _], mut keeper) = setup([1, 1]);
+
+    let height = Height::new(1);
+    let round = Round::new(0);
+    let val = NilOrVal::Val(ValueId::new(1));
+
+    let vote = Vote::new_prevote(height, round, val, addr1);
+
+    let stored = SignedVote::new(vote.clone(), Signature::from_bytes([1; 64]));
+    keeper.apply_vote(stored, round);
+
+    let variant = SignedVote::new(vote, Signature::from_bytes([2; 64]));
+    assert!(keeper.has_vote(&variant));
+}
+
+#[test]
+fn precommit_without_extension_does_not_clear_stored_extension() {
+    let ([addr1, _], mut keeper) = setup([1, 1]);
+
+    let height = Height::new(1);
+    let round = Round::new(0);
+    let id = ValueId::new(1);
+    let val = NilOrVal::Val(id);
+
+    let extension = test_extension(b"app-data");
+    let extended =
+        new_signed_precommit_with_extension(height, round, val, addr1, extension.clone());
+    assert_eq!(keeper.apply_vote(extended, round), None);
+
+    let bare = new_signed_precommit(height, round, val, addr1);
+    assert_eq!(keeper.apply_vote(bare, round), None);
+
+    let per_round = keeper.per_round(round).expect("per-round entry exists");
+    let stored = per_round
+        .get_vote(VoteType::Precommit, &addr1)
+        .expect("precommit stored for validator");
+    assert_eq!(stored.extension(), Some(&extension));
 }

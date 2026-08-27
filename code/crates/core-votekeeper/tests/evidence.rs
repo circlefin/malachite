@@ -1,6 +1,7 @@
 use malachitebft_core_types::{NilOrVal, Round, SignedVote};
 use malachitebft_test::{Address, Height, PrivateKey, TestContext, ValueId, Vote};
 
+use arc_malachitebft_core_votekeeper::evidence::MAX_EVIDENCE_PER_VALIDATOR;
 use arc_malachitebft_core_votekeeper::EvidenceMap;
 
 #[derive(Clone, Copy)]
@@ -125,6 +126,40 @@ fn test_vote_evidence_deduplication() {
             ],
             expected: &[("Alice", 1), ("Bob", 1)],
         },
+        TestCase {
+            name: "per-validator cap drops entries beyond the limit",
+            evidence: &[
+                ("Alice", Prevote, 0, [100, 200]),
+                ("Alice", Prevote, 1, [100, 200]),
+                ("Alice", Prevote, 2, [100, 200]),
+                ("Alice", Prevote, 3, [100, 200]),
+                ("Alice", Prevote, 4, [100, 200]),
+            ],
+            expected: &[("Alice", MAX_EVIDENCE_PER_VALIDATOR)],
+        },
+        TestCase {
+            name: "duplicates are dropped after cap is reached",
+            evidence: &[
+                ("Alice", Prevote, 0, [100, 200]),
+                ("Alice", Prevote, 1, [100, 200]),
+                ("Alice", Prevote, 2, [100, 200]),
+                ("Alice", Prevote, 0, [100, 200]), // duplicate of first
+                ("Alice", Prevote, 3, [100, 200]), // new pair past the cap
+            ],
+            expected: &[("Alice", MAX_EVIDENCE_PER_VALIDATOR)],
+        },
+        TestCase {
+            name: "cap is applied independently per validator",
+            evidence: &[
+                ("Alice", Prevote, 0, [100, 200]),
+                ("Alice", Prevote, 1, [100, 200]),
+                ("Alice", Prevote, 2, [100, 200]),
+                ("Alice", Prevote, 3, [100, 200]), // dropped, Alice at cap
+                ("Bob", Prevote, 0, [100, 200]),
+                ("Bob", Prevote, 1, [100, 200]),
+            ],
+            expected: &[("Alice", MAX_EVIDENCE_PER_VALIDATOR), ("Bob", 2)],
+        },
     ];
 
     for case in cases {
@@ -144,4 +179,42 @@ fn test_vote_evidence_deduplication() {
             );
         }
     }
+}
+
+#[test]
+fn test_vote_evidence_into_iterator_and_len() {
+    let mut evidence = EvidenceMap::<TestContext>::new();
+
+    let (v1_alice, v2_alice) = make_vote_pair("Alice", Prevote, 0, [100, 200]);
+    let (v1_bob, v2_bob) = make_vote_pair("Bob", Prevote, 0, [300, 400]);
+    evidence.add(v1_alice.clone(), v2_alice.clone());
+    evidence.add(v1_bob.clone(), v2_bob.clone());
+
+    // Test len()
+    assert_eq!(evidence.len(), 2);
+
+    // Test IntoIterator for &EvidenceMap
+    let mut ref_count = 0;
+    for (a, votes) in &evidence {
+        assert!(*a == addr("Alice") || *a == addr("Bob"));
+        assert_eq!(votes.len(), 1);
+        ref_count += 1;
+    }
+    assert_eq!(ref_count, 2);
+
+    // Test IntoIterator for EvidenceMap (owned)
+    let mut owned_count = 0;
+    for (a, votes) in evidence {
+        assert!(a == addr("Alice") || a == addr("Bob"));
+        assert_eq!(votes.len(), 1);
+        owned_count += 1;
+    }
+    assert_eq!(owned_count, 2);
+}
+
+#[test]
+fn test_vote_evidence_len_empty() {
+    let evidence = EvidenceMap::<TestContext>::new();
+    assert_eq!(evidence.len(), 0);
+    assert!(evidence.is_empty());
 }

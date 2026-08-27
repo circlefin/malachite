@@ -85,6 +85,15 @@ pub enum Effect<Ctx: Context> {
         ValueResponse<Ctx>,
         resume::Continue,
     ),
+
+    /// Cancel an in-flight ValueSync request.
+    ///
+    /// Emitted when the per-request timer fires and the request is being
+    /// abandoned. The network layer should drop the in-flight request and
+    /// any late response that may still arrive so that resources tied to
+    /// it (HTTP connections, upstream rate limit budget, etc.) are
+    /// released immediately rather than at the transport-level timeout.
+    CancelValueRequest(OutboundRequestId, resume::Continue),
 }
 
 pub mod resume {

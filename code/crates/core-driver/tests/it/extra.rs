@@ -1,7 +1,8 @@
 use futures::executor::block_on;
 use malachitebft_core_state_machine::state::State;
 use malachitebft_core_types::{
-    CommitCertificate, Context, NilOrVal, Round, ThresholdParams, Validity,
+    CommitCertificate, Context, NilOrVal, Round, RoundCertificateType, ThresholdParams, Validity,
+    VoteType,
 };
 use malachitebft_signing::{Signer, VerifierExt};
 
@@ -2984,6 +2985,123 @@ fn polka_any_and_prevote_step_timeout_prevote() {
     run_steps(&mut driver, steps);
 }
 
+// A PolkaCertificate received in Step::Propose (no proposal yet) must be replayed
+// as PolkaAny on the Propose → Prevote transition so timeoutPrevote is scheduled
+// (L34/L35). The certificate bypasses the vote keeper, so without explicit replay
+// the step change would produce no PolkaAny input.
+#[test]
+fn polka_certificate_in_propose_step_replayed_on_prevote_transition() {
+    let value = Value::new(9999);
+
+    let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
+
+    let height = Height::new(1);
+    let ctx = TestContext::new();
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
+
+    let steps = vec![
+        TestStep {
+            desc: "Start round 0, we (v3) are not the proposer, start timeout propose",
+            input: new_round_input(Round::new(0), v1.address),
+            expected_outputs: vec![start_propose_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Receive polka certificate for (r=0, v) in Step::Propose — no proposal yet",
+            input: polka_certificate_input_at(
+                Round::new(0),
+                value.clone(),
+                &[v1.address, v2.address],
+            ),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Timeout propose: prevote nil; stored polka cert replayed → timeout prevote scheduled",
+            input: timeout_propose_input(Round::new(0)),
+            expected_outputs: vec![
+                prevote_nil_output(Round::new(0), &my_addr),
+                start_prevote_timer_output(Round::new(0)),
+            ],
+            expected_round: Round::new(0),
+            new_state: prevote_state(Round::new(0)),
+        },
+    ];
+
+    run_steps(&mut driver, steps);
+}
+
+// Extension of the above: if the proposal arrives after the cert while already in Step::Prevote,
+// ProposalAndPolkaCurrent must fire (not a second PolkaAny), triggering a precommit for the value.
+#[test]
+fn polka_certificate_in_propose_step_proposal_arrives_in_prevote() {
+    let value = Value::new(9999);
+
+    let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
+
+    let height = Height::new(1);
+    let ctx = TestContext::new();
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let proposal = Proposal::new(
+        Height::new(1),
+        Round::new(0),
+        value.clone(),
+        Round::Nil,
+        v1.address,
+    );
+
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
+
+    let steps = vec![
+        TestStep {
+            desc: "Start round 0, we (v3) are not the proposer, start timeout propose",
+            input: new_round_input(Round::new(0), v1.address),
+            expected_outputs: vec![start_propose_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Receive polka certificate for (r=0, v) in Step::Propose — no proposal yet",
+            input: polka_certificate_input_at(
+                Round::new(0),
+                value.clone(),
+                &[v1.address, v2.address],
+            ),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Timeout propose: prevote nil; stored polka cert replayed → timeout prevote scheduled",
+            input: timeout_propose_input(Round::new(0)),
+            expected_outputs: vec![
+                prevote_nil_output(Round::new(0), &my_addr),
+                start_prevote_timer_output(Round::new(0)),
+            ],
+            expected_round: Round::new(0),
+            new_state: prevote_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Proposal arrives in Step::Prevote — polka cert already stored → ProposalAndPolkaCurrent → precommit value",
+            input: proposal_input_from_proposal(proposal.clone(), Validity::Valid),
+            expected_outputs: vec![
+                precommit_output(Round::new(0), value.clone(), &my_addr),
+            ],
+            expected_round: Round::new(0),
+            new_state: precommit_state_with_proposal_and_locked_and_valid(Round::new(0), proposal),
+        },
+    ];
+
+    run_steps(&mut driver, steps);
+}
+
 // A pending `PolkaAny` can also be produced upon receiving 2f + 1 prevotes for a value, whose
 // associated proposal is missing. This `PolkaAny` condition, however, can be produced during the
 // propose step; once the prevote step is reached, the pending `PolkaAny` must be consumed.
@@ -3899,11 +4017,13 @@ fn round_1_decision_via_certificate_proposal_arrives_later() {
             expected_round: Round::new(1),
             new_state: new_round(Round::new(1)),
         },
-        // This step is not necessary for the test to succeed, but it is expected to happen.
         TestStep {
-            desc: "Start round 1",
+            desc: "Start round 1, precommit threshold replayed",
             input: new_round_input(Round::new(1), v2.address),
-            expected_outputs: vec![start_propose_timer_output(Round::new(1))],
+            expected_outputs: vec![
+                start_propose_timer_output(Round::new(1)),
+                start_precommit_timer_output(Round::new(1)),
+            ],
             expected_round: Round::new(1),
             new_state: propose_state(Round::new(1)),
         },
@@ -3964,6 +4084,40 @@ fn round_certificate_stored_on_precommit_value_fallback_to_skip_round() {
     );
 }
 
+// A future-round polka certificate with no valid proposal must trigger SkipRound
+// and leave a stored round certificate.
+#[test]
+fn round_certificate_stored_on_polka_certificate_fallback_to_skip_round() {
+    let value = Value::new(9999);
+
+    let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
+
+    let height = Height::new(1);
+    let ctx = TestContext::new();
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
+
+    // Start round 0
+    let outputs = driver
+        .process(new_round_input(Round::new(0), v1.address))
+        .expect("process succeeded");
+    assert_eq!(outputs, vec![start_propose_timer_output(Round::new(0))]);
+    assert!(driver.round_certificate().is_none());
+
+    let outputs = driver
+        .process(polka_certificate_input_at(
+            Round::new(1),
+            value.clone(),
+            &[v1.address, v2.address],
+        ))
+        .expect("process succeeded");
+    assert_eq!(outputs, vec![new_round_output(Round::new(1))]);
+
+    assert!(driver.round_certificate().is_some());
+}
+
 // Symmetric to the vote-based test above: when a commit certificate for a future round triggers
 // a SkipRound (no valid proposal), the round certificate must be stored. The commit certificate
 // contains 2f+1 precommits, which is more than enough to justify entering the new round.
@@ -4001,6 +4155,60 @@ fn round_certificate_stored_on_commit_certificate_fallback_to_skip_round() {
     assert!(
         driver.round_certificate().is_some(),
         "round certificate for round 1 should be stored upon round-1 commit certificate"
+    );
+}
+
+// A process can receive prevote messages from a future round triggering both SkipRound
+// and PolkaValue for that same round: the vote keeper outputs SkipRound in this case.
+// When a PolkaValue is received from the vote keeper, the driver produces and stores a
+// polka certificate for that value and round. This certificate is used by the liveness
+// protocol, which re-broadcast it when it produces a new lock. This test ensures that
+// upon a SkipRound when a PolkaValue could be produced, a polka certificate is stored.
+#[test]
+fn polka_certificate_stored_after_skip_round_suppresses_polka_value() {
+    let value = Value::new(9999);
+
+    let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
+
+    let height = Height::new(1);
+    let ctx = TestContext::new();
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
+
+    // Start round 0
+    let outputs = driver
+        .process(new_round_input(Round::new(0), v1.address))
+        .expect("process succeeded");
+    assert_eq!(outputs, vec![start_propose_timer_output(Round::new(0))]);
+    assert!(driver.round_certificate().is_none());
+
+    // v1 prevotes v at round 1
+    let outputs = driver
+        .process(prevote_input_at(Round::new(1), value.clone(), &v1.address))
+        .expect("process succeeded");
+    assert_eq!(outputs, vec![]);
+
+    // v2 prevotes v at round 1: triggers both f+1 and 2/3+ PolkaValue.
+    // The f+1 threshold has priority so SkipRound(1) is produced.
+    let outputs = driver
+        .process(prevote_input_at(Round::new(1), value.clone(), &v2.address))
+        .expect("process succeeded");
+    assert_eq!(outputs, vec![new_round_output(Round::new(1))]);
+
+    // We must have a round certificate composed of the two Prevotes.
+    assert!(
+        driver.round_certificate().is_some(),
+        "round certificate for round 1 should be stored with SkipRound(1) when still on round 0"
+    );
+
+    // We must also have a polka certificate for value in round 1.
+    assert!(
+        driver
+            .polka_certificate(Round::new(1), &value.id())
+            .is_some(),
+        "polka certificate for round 1 and value should be stored"
     );
 }
 
@@ -4212,6 +4420,393 @@ fn commit_certificate_from_driver_verifies_after_reapplied_votes_from_round_cert
         "commit certificate built from driver vote keeper must verify: {:?}",
         result.err()
     );
+}
+
+// When a node is in round 0 and receives 2f+1 precommit votes for both round 0
+// and round 1, the round-1 votes trigger both f+1 (SkipRound) and 2f+1
+// (PrecommitAny) thresholds. The driver processes SkipRound first (higher
+// priority). When round 1 starts, the pending PrecommitAny event is processed,
+// scheduling a precommit timeout. When that timeout fires (L65), the node moves
+// to round 2 and a round certificate must be stored to justify entering round 2.
+// A subsequent stale TimeoutPrecommit for round 0 must NOT overwrite the
+// certificate, even though 2f+1 precommits for round 0 exist in the vote keeper.
+//
+// v1=2, v2=3, v3=2, we are v3
+//
+// L21 - v3 is not proposer for round 0, starts propose timer
+// L47 - 2f+1 precommits nil for round 0 (v1, v2) → PrecommitAny, precommit timer
+//     - Precommits nil from v1 and v2 for round 1 (weight 2+3=5 ≥ f+1=3 and ≥ 2f+1=5)
+//       → SkipRound(1) emitted by VK, moves to round 1
+// L21 - v3 is not proposer for round 1, starts propose timer
+// L47 - pending PrecommitAny for round 1 is replayed → starts precommit timer
+// L65 - TimeoutPrecommit(1) fires, starts new round 2
+//        → round certificate must be stored for entering round 2
+//     - Stale TimeoutPrecommit(0) arrives — must NOT overwrite the certificate
+#[test]
+fn skip_round_with_precommit_any_stores_round_certificate_for_next_round() {
+    let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
+
+    let height = Height::new(1);
+    let ctx = TestContext::new();
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
+
+    // Start round 0, we (v3) are not the proposer
+    let outputs = driver
+        .process(new_round_input(Round::new(0), v1.address))
+        .expect("process succeeded");
+    assert_eq!(outputs, vec![start_propose_timer_output(Round::new(0))]);
+    assert!(driver.round_certificate().is_none());
+
+    // v1 precommits nil for round 0 — weight 2, not yet a quorum
+    let outputs = driver
+        .process(precommit_nil_input(Round::new(0), &v1.address))
+        .expect("process succeeded");
+    assert_eq!(outputs, vec![]);
+
+    // v2 precommits nil for round 0 — weight 2+3=5 ≥ 2f+1=5.
+    // PrecommitAny triggers the precommit timer for round 0.
+    let outputs = driver
+        .process(precommit_nil_input(Round::new(0), &v2.address))
+        .expect("process succeeded");
+    assert_eq!(outputs, vec![start_precommit_timer_output(Round::new(0))],);
+
+    // v1 precommits nil for round 1 — weight 2, not yet f+1
+    let outputs = driver
+        .process(precommit_nil_input(Round::new(1), &v1.address))
+        .expect("process succeeded");
+    assert_eq!(outputs, vec![]);
+
+    // v2 precommits nil for round 1 — weight 2+3=5 ≥ f+1=3 and ≥ 2f+1=5.
+    // The VK emits SkipRound(1) (Precommit Nil at a future round → SkipRound).
+    // The driver moves to round 1.
+    let outputs = driver
+        .process(precommit_nil_input(Round::new(1), &v2.address))
+        .expect("process succeeded");
+    assert_eq!(outputs, vec![new_round_output(Round::new(1))]);
+    assert_eq!(driver.round(), Round::new(1));
+
+    // Start round 1. The pending PrecommitAny for round 1 is replayed via
+    // multiplex_step_change, scheduling the precommit timeout alongside the
+    // propose timeout.
+    let outputs = driver
+        .process(new_round_input(Round::new(1), v2.address))
+        .expect("process succeeded");
+    assert_eq!(
+        outputs,
+        vec![
+            start_propose_timer_output(Round::new(1)),
+            start_precommit_timer_output(Round::new(1)),
+        ],
+    );
+
+    // Timeout precommit fires for round 1 — we move to round 2.
+    let outputs = driver
+        .process(timeout_precommit_input(Round::new(1)))
+        .expect("process succeeded");
+    assert_eq!(outputs, vec![new_round_output(Round::new(2))]);
+    assert_eq!(driver.round(), Round::new(2));
+
+    // A round certificate must be stored to justify entering round 2.
+    let enter_cert = driver
+        .round_certificate()
+        .expect("round certificate should be stored when timeout precommit fires after SkipRound + PrecommitAny");
+    let cert = &enter_cert.certificate;
+    assert_eq!(cert.height, height);
+    assert_eq!(cert.round, Round::new(1));
+    assert_eq!(cert.cert_type, RoundCertificateType::Precommit);
+    assert_eq!(enter_cert.enter_round, Round::new(2));
+    // Two precommit signatures (v1, v2)
+    assert_eq!(cert.round_signatures.len(), 2);
+    for sig in &cert.round_signatures {
+        assert_eq!(sig.vote_type, VoteType::Precommit);
+    }
+
+    // A stale TimeoutPrecommit for round 0 arrives — it has no effect on the
+    // state machine (we are already in round 2), so the round certificate must
+    // NOT be updated. Note that 2f+1 precommits for round 0 exist in the vote
+    // keeper, so a naive check would find them and overwrite the certificate.
+    let outputs = driver
+        .process(timeout_precommit_input(Round::new(0)))
+        .expect("process succeeded");
+    assert_eq!(outputs, vec![]);
+    assert_eq!(driver.round(), Round::new(2));
+
+    // The round certificate must remain unchanged.
+    let enter_cert = driver
+        .round_certificate()
+        .expect("round certificate should still be present after stale timeout");
+    let cert = &enter_cert.certificate;
+    assert_eq!(cert.height, height);
+    assert_eq!(cert.round, Round::new(1));
+    assert_eq!(cert.cert_type, RoundCertificateType::Precommit);
+    assert_eq!(enter_cert.enter_round, Round::new(2));
+}
+
+// When a node is in round 0 and receives a CommitCertificate for round 1 without
+// a proposal for the certified value, the mux returns SkipRound(1). A Skip round
+// certificate is stored and the node enters round 1. When TimeoutPrecommit fires
+// for round 1, the stale Skip certificate (enter_round=1) must be replaced with
+// a Precommit certificate (enter_round=2) built from the stored CommitCertificate.
+//
+// Ev:             NewRound(0)  CommitCert(v, r=1)  NewRound(1)        Timeout(precommit,1)
+// State: NewRound -----------> Propose ----------> NewRound --------> Propose -----------> NewRound
+// Msg:           start_propose  new_round(1)        start_propose      new_round(2)
+// Alg:           L21                                L21                L65
+//
+// v1=2, v2=3, v3=2, we are v3
+//
+// L21 - v3 is not proposer for round 0, starts propose timer
+//     - CommitCertificate for round 1 with 2f+1 precommits (v1, v2) but no proposal
+//       → SkipRound(1), stores Skip cert (enter_round=1)
+// L21 - v3 is not proposer for round 1, starts propose timer
+// L65 - TimeoutPrecommit fires for round 1
+//       → Precommit cert (enter_round=2) built from stored CommitCertificate
+#[test]
+fn commit_certificate_skip_round_then_timeout_precommit_stores_round_certificates() {
+    let value = Value::new(9999);
+
+    let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
+
+    let height = Height::new(1);
+    let ctx = TestContext::new();
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
+
+    // Start round 0, we (v3) are not the proposer
+    let outputs = driver
+        .process(new_round_input(Round::new(0), v1.address))
+        .expect("process succeeded");
+    assert_eq!(outputs, vec![start_propose_timer_output(Round::new(0))]);
+    assert!(driver.round_certificate().is_none());
+
+    // Receive a CommitCertificate for round 1 with 2f+1 precommits for value v,
+    // but no proposal. The mux returns SkipRound(1) and the node enters round 1.
+    let outputs = driver
+        .process(commit_certificate_input_at(
+            Round::new(1),
+            value.clone(),
+            &[v1.address, v2.address],
+        ))
+        .expect("process succeeded");
+    assert_eq!(outputs, vec![new_round_output(Round::new(1))]);
+    assert_eq!(driver.round(), Round::new(1));
+
+    // A Skip round certificate must be stored for entering round 1.
+    let enter_cert = driver
+        .round_certificate()
+        .expect("Skip round certificate should be stored for entering round 1");
+    let cert = &enter_cert.certificate;
+    assert_eq!(cert.height, height);
+    assert_eq!(cert.round, Round::new(1));
+    assert_eq!(cert.cert_type, RoundCertificateType::Skip);
+    assert_eq!(enter_cert.enter_round, Round::new(1));
+    assert_eq!(cert.round_signatures.len(), 2);
+    for sig in &cert.round_signatures {
+        assert_eq!(sig.vote_type, VoteType::Precommit);
+        assert_eq!(sig.value_id, NilOrVal::Val(value.id()));
+    }
+
+    // Start round 1. The CommitCertificate's precommits are now in the vote
+    // keeper for round 1, so on the Propose step transition the mux replays
+    // PrecommitAny and the precommit timer is scheduled alongside the propose timer.
+    let outputs = driver
+        .process(new_round_input(Round::new(1), v2.address))
+        .expect("process succeeded");
+    assert_eq!(
+        outputs,
+        vec![
+            start_propose_timer_output(Round::new(1)),
+            start_precommit_timer_output(Round::new(1)),
+        ]
+    );
+
+    // Timeout precommit fires for round 1 — we move to round 2.
+    let outputs = driver
+        .process(timeout_precommit_input(Round::new(1)))
+        .expect("process succeeded");
+    assert_eq!(outputs, vec![new_round_output(Round::new(2))]);
+    assert_eq!(driver.round(), Round::new(2));
+
+    // The stale Skip certificate (enter_round=1) must be replaced with a
+    // Precommit certificate (enter_round=2) built from the stored CommitCertificate.
+    let enter_cert = driver
+        .round_certificate()
+        .expect("Precommit round certificate should be stored for entering round 2");
+    let cert = &enter_cert.certificate;
+    assert_eq!(cert.height, height);
+    assert_eq!(cert.round, Round::new(1));
+    assert_eq!(cert.cert_type, RoundCertificateType::Precommit);
+    assert_eq!(enter_cert.enter_round, Round::new(2));
+    assert_eq!(cert.round_signatures.len(), 2);
+    for sig in &cert.round_signatures {
+        assert_eq!(sig.vote_type, VoteType::Precommit);
+        assert_eq!(sig.value_id, NilOrVal::Val(value.id()));
+    }
+}
+
+// When a node receives 2f+1 precommits for value v in the current round but has
+// not received the proposal for v, the vote keeper emits PrecommitValue(v) which
+// the mux falls back to PrecommitAny (no valid proposal to match). This triggers
+// schedule_timeout_precommit (L47). When the precommit timeout fires (L65), a
+// round certificate must be stored to justify entering round r+1.
+//
+// Ev:             NewRound                    <quorum precommit(v)>         Timeout(precommit)
+// State: NewRound -------------------> Propose --------------------> Propose -----------------> NewRound
+// Msg:            start_propose_timer          start_precommit_timer         new_round(1)
+// Alg:            L21                          L47                           L65
+//
+// v1=2, v2=3, v3=2, we are v3
+//
+// L21 - v3 is not proposer, starts propose timer (step propose)
+// L47 - v3 gets +2/3 precommits for value v (from v1 and v2), but no proposal
+//        → PrecommitAny (mux fallback), starts precommit timer (step propose)
+// L65 - v3 receives timeout precommit, starts new round
+//        → round certificate must be stored
+#[test]
+fn precommit_quorum_without_proposal_stores_round_certificate() {
+    let value = Value::new(9999);
+
+    let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
+
+    let height = Height::new(1);
+    let ctx = TestContext::new();
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
+
+    // Start round 0, we (v3) are not the proposer
+    let outputs = driver
+        .process(new_round_input(Round::new(0), v1.address))
+        .expect("process succeeded");
+    assert_eq!(outputs, vec![start_propose_timer_output(Round::new(0))]);
+    assert!(driver.round_certificate().is_none());
+
+    // v1 precommits value v — not yet a quorum
+    let outputs = driver
+        .process(precommit_input(Round::new(0), value.clone(), &v1.address))
+        .expect("process succeeded");
+    assert_eq!(outputs, vec![]);
+
+    // v2 precommits value v — we now have 2f+1 precommits for v (weight 2+3=5 of 7).
+    // No proposal has been received, so the mux falls back from PrecommitValue(v)
+    // to PrecommitAny, scheduling the precommit timeout.
+    let outputs = driver
+        .process(precommit_input(Round::new(0), value.clone(), &v2.address))
+        .expect("process succeeded");
+    assert_eq!(
+        outputs,
+        vec![start_precommit_timer_output(Round::new(0))],
+        "PrecommitAny should schedule precommit timeout"
+    );
+
+    // Timeout precommit fires — we move to round 1.
+    let outputs = driver
+        .process(timeout_precommit_input(Round::new(0)))
+        .expect("process succeeded");
+    assert_eq!(outputs, vec![new_round_output(Round::new(1))]);
+    assert_eq!(driver.round(), Round::new(1));
+
+    // A round certificate must be stored to justify entering round 1.
+    let enter_cert = driver.round_certificate().expect(
+        "round certificate should be stored when timeout precommit fires after 2f+1 precommits",
+    );
+    let cert = &enter_cert.certificate;
+    assert_eq!(cert.height, height);
+    assert_eq!(cert.round, Round::new(0));
+    assert_eq!(cert.cert_type, RoundCertificateType::Precommit);
+    assert_eq!(enter_cert.enter_round, Round::new(1));
+    // Two precommit signatures (v1, v2)
+    assert_eq!(cert.round_signatures.len(), 2);
+    for sig in &cert.round_signatures {
+        assert_eq!(sig.vote_type, VoteType::Precommit);
+    }
+}
+
+// When a node receives a CommitCertificate (2f+1 precommits for value v) for the
+// current round but has not received the proposal for v, the mux falls back to
+// PrecommitAny (no valid proposal to match). This triggers schedule_timeout_precommit
+// (L47). When the precommit timeout fires (L65), a round certificate must be
+// stored to justify entering round r+1.
+//
+// Symmetric with round_certificate_stored_on_commit_certificate_fallback_to_skip_round
+// (future round → SkipRound path).
+//
+// Ev:             NewRound                    CommitCertificate(v, round=0)  Timeout(precommit)
+// State: NewRound -------------------> Propose --------------------> Propose -----------------> NewRound
+// Msg:            start_propose_timer          start_precommit_timer          new_round(1)
+// Alg:            L21                          L47                            L65
+//
+// v1=2, v2=3, v3=2, we are v3
+//
+// L21 - v3 is not proposer, starts propose timer (step propose)
+// L47 - v3 receives CommitCertificate with 2f+1 precommits for v, but no proposal
+//        → PrecommitAny (mux fallback), starts precommit timer (step propose)
+// L65 - v3 receives timeout precommit, starts new round
+//        → round certificate must be stored
+#[test]
+fn commit_certificate_without_proposal_stores_round_certificate() {
+    let value = Value::new(9999);
+
+    let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (_my_sk, my_addr) = (sk3.clone(), v3.address);
+
+    let height = Height::new(1);
+    let ctx = TestContext::new();
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
+
+    // Start round 0, we (v3) are not the proposer
+    let outputs = driver
+        .process(new_round_input(Round::new(0), v1.address))
+        .expect("process succeeded");
+    assert_eq!(outputs, vec![start_propose_timer_output(Round::new(0))]);
+    assert!(driver.round_certificate().is_none());
+
+    // Receive a CommitCertificate for round 0 with 2f+1 precommits for value v,
+    // but no proposal has been received. The mux falls back to PrecommitAny,
+    // scheduling the precommit timeout.
+    let outputs = driver
+        .process(commit_certificate_input_at(
+            Round::new(0),
+            value.clone(),
+            &[v1.address, v2.address],
+        ))
+        .expect("process succeeded");
+    assert_eq!(
+        outputs,
+        vec![start_precommit_timer_output(Round::new(0))],
+        "PrecommitAny should schedule precommit timeout"
+    );
+
+    // Timeout precommit fires — we move to round 1.
+    let outputs = driver
+        .process(timeout_precommit_input(Round::new(0)))
+        .expect("process succeeded");
+    assert_eq!(outputs, vec![new_round_output(Round::new(1))]);
+    assert_eq!(driver.round(), Round::new(1));
+
+    // A round certificate must be stored to justify entering round 1.
+    let enter_cert = driver.round_certificate().expect(
+        "round certificate should be stored when timeout precommit fires after CommitCertificate",
+    );
+    let cert = &enter_cert.certificate;
+    assert_eq!(cert.height, height);
+    assert_eq!(cert.round, Round::new(0));
+    assert_eq!(cert.cert_type, RoundCertificateType::Precommit);
+    assert_eq!(enter_cert.enter_round, Round::new(1));
+    // Two precommit signatures (v1, v2) from the commit certificate
+    assert_eq!(cert.round_signatures.len(), 2);
+    for sig in &cert.round_signatures {
+        assert_eq!(sig.vote_type, VoteType::Precommit);
+        assert_eq!(sig.value_id, NilOrVal::Val(value.id()));
+    }
 }
 
 fn run_steps(driver: &mut Driver<TestContext>, steps: Vec<TestStep>) {

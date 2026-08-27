@@ -14,6 +14,7 @@ mod timeout_updates;
 mod validator_set;
 mod validity_change_on_restart;
 mod value_sync;
+mod vote_extensions;
 mod vote_rebroadcast;
 mod wal;
 
@@ -195,7 +196,12 @@ impl TestRunner {
                 queue_capacity: 100,
                 p2p: P2pConfig {
                     protocol,
-                    discovery: DiscoveryConfig::default(),
+                    discovery: DiscoveryConfig {
+                        // All test nodes share 127.0.0.1; raise the per-IP cap so
+                        // multi-node topologies aren't clipped by DoS hardening.
+                        max_connections_per_ip: usize::MAX,
+                        ..DiscoveryConfig::default()
+                    },
                     listen_addr: transport.multiaddr("127.0.0.1", self.consensus_base_port + i),
                     persistent_peers: {
                         (0..self.nodes_info.len())

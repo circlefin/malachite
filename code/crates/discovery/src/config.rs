@@ -4,6 +4,7 @@ const DEFAULT_NUM_OUTBOUND_PEERS: usize = 50;
 const DEFAULT_NUM_INBOUND_PEERS: usize = 50;
 
 const DEFAULT_MAX_CONNECTIONS_PER_PEER: usize = 5;
+const DEFAULT_MAX_CONNECTIONS_PER_IP: usize = 5;
 
 const DEFAULT_EPHEMERAL_CONNECTION_TIMEOUT: Duration = Duration::from_secs(15);
 
@@ -12,6 +13,8 @@ const DEFAULT_PEERS_REQUEST_MAX_RETRIES: usize = 5;
 const DEFAULT_CONNECT_REQUEST_MAX_RETRIES: usize = 0;
 
 const DEFAULT_MAX_PEERS_PER_RESPONSE: usize = 100;
+
+const DEFAULT_IP_THROTTLE_DURATION: Duration = Duration::from_secs(30);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 pub enum BootstrapProtocol {
@@ -40,6 +43,11 @@ pub struct Config {
     pub num_inbound_peers: usize,
 
     pub max_connections_per_ip: usize,
+
+    /// Minimum time between reconnections from the same IP address.
+    /// After all connections from an IP close, new inbound connections from
+    /// that IP are rejected until this duration has elapsed.
+    pub ip_throttle_duration: Duration,
 
     pub max_connections_per_peer: usize,
 
@@ -72,7 +80,8 @@ impl Default for Config {
             num_inbound_peers: DEFAULT_NUM_INBOUND_PEERS,
 
             max_connections_per_peer: DEFAULT_MAX_CONNECTIONS_PER_PEER,
-            max_connections_per_ip: DEFAULT_NUM_INBOUND_PEERS,
+            max_connections_per_ip: DEFAULT_MAX_CONNECTIONS_PER_IP,
+            ip_throttle_duration: DEFAULT_IP_THROTTLE_DURATION,
 
             ephemeral_connection_timeout: DEFAULT_EPHEMERAL_CONNECTION_TIMEOUT,
 
@@ -151,5 +160,17 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(config.max_peers_per_response, 50);
+    }
+
+    #[test]
+    fn default_config_caps_connections_per_ip() {
+        let config = Config::default();
+        assert_eq!(config.max_connections_per_ip, 5);
+    }
+
+    #[test]
+    fn default_max_connections_per_ip_is_below_num_inbound_peers() {
+        let config = Config::default();
+        assert!(config.max_connections_per_ip < config.num_inbound_peers);
     }
 }

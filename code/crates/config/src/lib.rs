@@ -34,6 +34,79 @@ impl Default for ProtocolNames {
     }
 }
 
+/// GossipSub topic / broadcast channel names.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ChannelNames {
+    pub consensus: String,
+
+    pub proposal_parts: String,
+
+    pub sync: String,
+
+    pub liveness: String,
+}
+
+impl Default for ChannelNames {
+    fn default() -> Self {
+        Self {
+            consensus: "/consensus".to_string(),
+            proposal_parts: "/proposal_parts".to_string(),
+            sync: "/sync".to_string(),
+            liveness: "/liveness".to_string(),
+        }
+    }
+}
+
+/// Errors returned by [`ChannelNames::validate`].
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+pub enum ChannelNamesError {
+    #[error("channel name for `{0}` must not be empty")]
+    Empty(&'static str),
+
+    #[error("channel name `{name}` is used for both `{first}` and `{second}`")]
+    Duplicate {
+        name: String,
+        first: &'static str,
+        second: &'static str,
+    },
+}
+
+impl ChannelNames {
+    /// Validate that all channel names are non-empty and pairwise distinct.
+    ///
+    /// GossipSub and broadcast topics are derived solely from these strings,
+    /// so duplicates would cause messages to be silently misrouted between
+    /// logical channels (see `Channel::from_gossipsub_topic_hash`).
+    pub fn validate(&self) -> Result<(), ChannelNamesError> {
+        let entries = [
+            ("consensus", self.consensus.as_str()),
+            ("proposal_parts", self.proposal_parts.as_str()),
+            ("sync", self.sync.as_str()),
+            ("liveness", self.liveness.as_str()),
+        ];
+
+        for (field, name) in entries {
+            if name.is_empty() {
+                return Err(ChannelNamesError::Empty(field));
+            }
+        }
+
+        for i in 0..entries.len() {
+            for j in (i + 1)..entries.len() {
+                if entries[i].1 == entries[j].1 {
+                    return Err(ChannelNamesError::Duplicate {
+                        name: entries[i].1.to_string(),
+                        first: entries[i].0,
+                        second: entries[j].0,
+                    });
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
 /// P2P configuration options
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct P2pConfig {
@@ -63,6 +136,10 @@ pub struct P2pConfig {
     /// Protocol name configuration
     #[serde(default)]
     pub protocol_names: ProtocolNames,
+
+    /// GossipSub / broadcast channel name configuration
+    #[serde(default)]
+    pub channel_names: ChannelNames,
 }
 
 impl Default for P2pConfig {
@@ -76,6 +153,7 @@ impl Default for P2pConfig {
             rpc_max_size: ByteSize::mib(10),
             pubsub_max_size: ByteSize::mib(4),
             protocol_names: Default::default(),
+            channel_names: Default::default(),
         }
     }
 }
@@ -109,9 +187,15 @@ pub struct DiscoveryConfig {
 
     /// Maximum connections allowed per IP address.
     /// Prevents DoS attacks where an attacker generates many PeerIds from the same IP.
-    /// Defaults to num_inbound_peers (effectively disabled).
-    #[serde(default = "discovery::default_num_inbound_peers")]
+    #[serde(default = "discovery::default_max_connections_per_ip")]
     pub max_connections_per_ip: usize,
+
+    /// Minimum time between reconnections from the same IP address.
+    /// After all connections from an IP close, new inbound connections are rejected
+    /// until this duration has elapsed. Persistent peer IPs are exempt.
+    #[serde(default = "discovery::default_ip_throttle_duration")]
+    #[serde(with = "humantime_serde")]
+    pub ip_throttle_duration: Duration,
 
     /// Ephemeral connection timeout
     #[serde(default)]
@@ -140,7 +224,8 @@ impl Default for DiscoveryConfig {
             selector: Default::default(),
             num_outbound_peers: discovery::default_num_outbound_peers(),
             num_inbound_peers: discovery::default_num_inbound_peers(),
-            max_connections_per_ip: discovery::default_num_inbound_peers(),
+            max_connections_per_ip: discovery::default_max_connections_per_ip(),
+            ip_throttle_duration: discovery::default_ip_throttle_duration(),
             max_connections_per_peer: discovery::default_max_connections_per_peer(),
             ephemeral_connection_timeout: Duration::from_secs(60),
             dial_max_retries: discovery::default_dial_max_retries(),
@@ -152,6 +237,8 @@ impl Default for DiscoveryConfig {
 }
 
 mod discovery {
+    use std::time::Duration;
+
     pub fn default_num_outbound_peers() -> usize {
         50
     }
@@ -161,6 +248,10 @@ mod discovery {
     }
 
     pub fn default_max_connections_per_peer() -> usize {
+        5
+    }
+
+    pub fn default_max_connections_per_ip() -> usize {
         5
     }
 
@@ -178,6 +269,10 @@ mod discovery {
 
     pub fn default_max_peers_per_response() -> usize {
         100
+    }
+
+    pub fn default_ip_throttle_duration() -> Duration {
+        Duration::from_secs(30)
     }
 }
 
@@ -726,23 +821,15 @@ impl Default for ConsensusConfig {
 #[serde(rename_all = "kebab-case")]
 pub enum ValuePayload {
     #[default]
-    PartsOnly,
-    ProposalOnly, // TODO - add small block app to test this option
     ProposalAndParts,
+    ProposalOnly, // TODO - add small block app to test this option
 }
 
 impl ValuePayload {
     pub fn include_parts(&self) -> bool {
         match self {
             Self::ProposalOnly => false,
-            Self::PartsOnly | Self::ProposalAndParts => true,
-        }
-    }
-
-    pub fn include_proposal(&self) -> bool {
-        match self {
-            Self::PartsOnly => false,
-            Self::ProposalOnly | Self::ProposalAndParts => true,
+            Self::ProposalAndParts => true,
         }
     }
 }
@@ -927,6 +1014,28 @@ mod tests {
     }
 
     #[test]
+    fn discovery_config_default_caps_connections_per_ip() {
+        let config = DiscoveryConfig::default();
+        assert_eq!(config.max_connections_per_ip, 5);
+    }
+
+    #[test]
+    fn discovery_config_default_max_connections_per_ip_below_num_inbound_peers() {
+        let config = DiscoveryConfig::default();
+        assert!(config.max_connections_per_ip < config.num_inbound_peers);
+    }
+
+    #[test]
+    fn discovery_config_deserializes_without_max_connections_per_ip() {
+        let toml = r#"
+            enabled = true
+        "#;
+        let config: DiscoveryConfig = toml::from_str(toml).unwrap();
+        assert_eq!(config.max_connections_per_ip, 5);
+        assert!(config.max_connections_per_ip < config.num_inbound_peers);
+    }
+
+    #[test]
     fn log_format() {
         assert_eq!(
             LogFormat::from_str("yaml"),
@@ -1038,7 +1147,7 @@ mod tests {
         timeout_precommit = "1s"
         timeout_precommit_delta = "500ms"
         timeout_rebroadcast = "5s"
-        value_payload = "parts-only"
+        value_payload = "proposal-and-parts"
         
         [p2p]
         listen_addr = "/ip4/0.0.0.0/tcp/0"
@@ -1079,6 +1188,232 @@ mod tests {
     }
 
     #[test]
+    fn channel_names_validate_accepts_default() {
+        assert_eq!(ChannelNames::default().validate(), Ok(()));
+    }
+
+    #[test]
+    fn channel_names_validate_rejects_empty() {
+        let cases = [
+            (
+                "consensus",
+                ChannelNames {
+                    consensus: String::new(),
+                    ..Default::default()
+                },
+            ),
+            (
+                "proposal_parts",
+                ChannelNames {
+                    proposal_parts: String::new(),
+                    ..Default::default()
+                },
+            ),
+            (
+                "sync",
+                ChannelNames {
+                    sync: String::new(),
+                    ..Default::default()
+                },
+            ),
+            (
+                "liveness",
+                ChannelNames {
+                    liveness: String::new(),
+                    ..Default::default()
+                },
+            ),
+        ];
+
+        for (field, names) in cases {
+            assert_eq!(names.validate(), Err(ChannelNamesError::Empty(field)));
+        }
+    }
+
+    #[test]
+    fn channel_names_validate_rejects_duplicate() {
+        let cases = [
+            (
+                "consensus",
+                "proposal_parts",
+                ChannelNames {
+                    consensus: "/dup".to_string(),
+                    proposal_parts: "/dup".to_string(),
+                    ..Default::default()
+                },
+            ),
+            (
+                "consensus",
+                "sync",
+                ChannelNames {
+                    consensus: "/dup".to_string(),
+                    sync: "/dup".to_string(),
+                    ..Default::default()
+                },
+            ),
+            (
+                "consensus",
+                "liveness",
+                ChannelNames {
+                    consensus: "/dup".to_string(),
+                    liveness: "/dup".to_string(),
+                    ..Default::default()
+                },
+            ),
+            (
+                "proposal_parts",
+                "sync",
+                ChannelNames {
+                    proposal_parts: "/dup".to_string(),
+                    sync: "/dup".to_string(),
+                    ..Default::default()
+                },
+            ),
+            (
+                "proposal_parts",
+                "liveness",
+                ChannelNames {
+                    proposal_parts: "/dup".to_string(),
+                    liveness: "/dup".to_string(),
+                    ..Default::default()
+                },
+            ),
+            (
+                "sync",
+                "liveness",
+                ChannelNames {
+                    sync: "/dup".to_string(),
+                    liveness: "/dup".to_string(),
+                    ..Default::default()
+                },
+            ),
+        ];
+
+        for (first, second, names) in cases {
+            assert_eq!(
+                names.validate(),
+                Err(ChannelNamesError::Duplicate {
+                    name: "/dup".to_string(),
+                    first,
+                    second,
+                })
+            );
+        }
+    }
+
+    #[test]
+    fn channel_names_default() {
+        let channel_names = ChannelNames::default();
+        assert_eq!(channel_names.consensus, "/consensus");
+        assert_eq!(channel_names.proposal_parts, "/proposal_parts");
+        assert_eq!(channel_names.sync, "/sync");
+        assert_eq!(channel_names.liveness, "/liveness");
+    }
+
+    #[test]
+    fn channel_names_serde() {
+        use serde_json;
+
+        let channel_names = ChannelNames {
+            consensus: "/custom/consensus".to_string(),
+            proposal_parts: "/custom/proposal_parts".to_string(),
+            sync: "/custom/sync".to_string(),
+            liveness: "/custom/liveness".to_string(),
+        };
+
+        let json = serde_json::to_string(&channel_names).unwrap();
+        let deserialized: ChannelNames = serde_json::from_str(&json).unwrap();
+        assert_eq!(channel_names, deserialized);
+    }
+
+    #[test]
+    fn p2p_config_with_channel_names() {
+        let config = P2pConfig::default();
+        assert_eq!(config.channel_names, ChannelNames::default());
+
+        let custom_channel_names = ChannelNames {
+            consensus: "/app/consensus/v1".to_string(),
+            proposal_parts: "/app/proposal_parts/v1".to_string(),
+            sync: "/app/sync/v1".to_string(),
+            liveness: "/app/liveness/v1".to_string(),
+        };
+
+        let config_with_custom = P2pConfig {
+            channel_names: custom_channel_names.clone(),
+            ..Default::default()
+        };
+
+        assert_eq!(config_with_custom.channel_names, custom_channel_names);
+    }
+
+    #[test]
+    fn channel_names_toml_deserialization() {
+        let toml_content = r#"
+        timeout_propose = "3s"
+        timeout_propose_delta = "500ms"
+        timeout_prevote = "1s"
+        timeout_prevote_delta = "500ms"
+        timeout_precommit = "1s"
+        timeout_precommit_delta = "500ms"
+        timeout_rebroadcast = "5s"
+        value_payload = "proposal-and-parts"
+
+        [p2p]
+        listen_addr = "/ip4/0.0.0.0/tcp/0"
+        persistent_peers = []
+        pubsub_max_size = "4 MiB"
+        rpc_max_size = "10 MiB"
+
+        [p2p.channel_names]
+        consensus = "/custom/consensus/v2"
+        proposal_parts = "/custom/proposal_parts/v2"
+        sync = "/custom/sync/v2"
+        liveness = "/custom/liveness/v2"
+
+        [p2p.protocol]
+        type = "gossipsub"
+        "#;
+
+        let config: ConsensusConfig = toml::from_str(toml_content).unwrap();
+
+        assert_eq!(config.p2p.channel_names.consensus, "/custom/consensus/v2");
+        assert_eq!(
+            config.p2p.channel_names.proposal_parts,
+            "/custom/proposal_parts/v2"
+        );
+        assert_eq!(config.p2p.channel_names.sync, "/custom/sync/v2");
+        assert_eq!(config.p2p.channel_names.liveness, "/custom/liveness/v2");
+    }
+
+    #[test]
+    fn channel_names_toml_defaults_when_missing() {
+        let toml_content = r#"
+        timeout_propose = "3s"
+        timeout_propose_delta = "500ms"
+        timeout_prevote = "1s"
+        timeout_prevote_delta = "500ms"
+        timeout_precommit = "1s"
+        timeout_precommit_delta = "500ms"
+        timeout_rebroadcast = "5s"
+        value_payload = "proposal-and-parts"
+
+        [p2p]
+        listen_addr = "/ip4/0.0.0.0/tcp/0"
+        persistent_peers = []
+        pubsub_max_size = "4 MiB"
+        rpc_max_size = "10 MiB"
+
+        [p2p.protocol]
+        type = "gossipsub"
+        "#;
+
+        let config: ConsensusConfig = toml::from_str(toml_content).unwrap();
+
+        // Should use defaults when channel_names section is missing
+        assert_eq!(config.p2p.channel_names, ChannelNames::default());
+    }
+
+    #[test]
     fn protocol_names_toml_defaults_when_missing() {
         let toml_content = r#"
         timeout_propose = "3s"
@@ -1088,7 +1423,7 @@ mod tests {
         timeout_precommit = "1s"
         timeout_precommit_delta = "500ms"
         timeout_rebroadcast = "5s"
-        value_payload = "parts-only"
+        value_payload = "proposal-and-parts"
         
         [p2p]
         listen_addr = "/ip4/0.0.0.0/tcp/0"
@@ -1125,7 +1460,7 @@ mod tests {
         timeout_precommit = "1s"
         timeout_precommit_delta = "500ms"
         timeout_rebroadcast = "5s"
-        value_payload = "parts-only"
+        value_payload = "proposal-and-parts"
         
         [p2p]
         listen_addr = "/ip4/0.0.0.0/tcp/0"
@@ -1216,7 +1551,7 @@ mod tests {
                 timeout_precommit = "1s"
                 timeout_precommit_delta = "500ms"
                 timeout_rebroadcast = "5s"
-                value_payload = "parts-only"
+                value_payload = "proposal-and-parts"
                 
                 [p2p]
                 listen_addr = "/ip4/0.0.0.0/tcp/0"

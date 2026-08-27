@@ -31,12 +31,15 @@ use alloc::vec::Vec;
 
 use malachitebft_core_state_machine::input::Input as RoundInput;
 use malachitebft_core_state_machine::state::Step;
-use malachitebft_core_types::{CommitCertificate, PolkaCertificate, SignedProposal};
-use malachitebft_core_types::{Context, Proposal, Round, Validity, Value, ValueId, VoteType};
+use malachitebft_core_types::{
+    Context, ExtendedCommitCertificate, NilOrVal, PolkaCertificate, Proposal, Round,
+    SignedProposal, SignedVote, Validity, Value, ValueId, Vote, VoteType,
+};
 use malachitebft_core_votekeeper::keeper::Output as VKOutput;
 use malachitebft_core_votekeeper::keeper::VoteKeeper;
 use malachitebft_core_votekeeper::Threshold;
 
+use crate::proposal_keeper::StoreProposalResult;
 use crate::Driver;
 
 impl<Ctx> Driver<Ctx>
@@ -194,22 +197,78 @@ where
 
         let proposal = signed_proposal.message.clone();
 
-        // Store the proposal and its validity
-        self.proposal_keeper
-            .store_proposal(signed_proposal, validity);
+        // Store the proposal and its validity, recording evidence if it reveals an equivocation.
+        if let StoreProposalResult::Equivocation {
+            existing,
+            conflicting,
+        } = self
+            .proposal_keeper
+            .store_proposal(signed_proposal, validity)
+        {
+            self.proposal_keeper.record_evidence(existing, conflicting);
+        }
 
         self.multiplex_proposal(proposal, validity)
     }
 
+    /// Feed each precommit in an extended commit certificate to the vote keeper so that
+    /// conflicting signatures from the same validator are recorded as evidence.
+    ///
+    /// The threshold output is intentionally discarded: the caller produces its
+    /// own `RoundInput` for the state machine, and the vote keeper's per-round
+    /// `emitted_outputs` set deduplicates repeated outputs if the same threshold
+    /// is reached again via network votes.
+    fn apply_commit_certificate_votes(&mut self, certificate: &ExtendedCommitCertificate<Ctx>) {
+        let this_round = self.round_state.round;
+        for commit_signature in &certificate.commit_signatures {
+            let vote = self.ctx.new_precommit(
+                certificate.height,
+                certificate.round,
+                NilOrVal::Val(certificate.value_id.clone()),
+                commit_signature.address.clone(),
+            );
+            let vote = if let Some(extension) = commit_signature.extension.clone() {
+                vote.extend(extension)
+            } else {
+                vote
+            };
+            let signed_vote = SignedVote::new(vote, commit_signature.signature.clone());
+            let _ = self.vote_keeper.apply_vote(signed_vote, this_round);
+        }
+    }
+
+    /// Feed each prevote in a polka certificate to the vote keeper so that
+    /// conflicting signatures from the same validator are recorded as evidence.
+    ///
+    /// The threshold output is intentionally discarded: the caller produces its
+    /// own `RoundInput` for the state machine, and the vote keeper's per-round
+    /// `emitted_outputs` set deduplicates repeated outputs if the same threshold
+    /// is reached again via network votes.
+    fn apply_polka_certificate_votes(&mut self, certificate: &PolkaCertificate<Ctx>) {
+        let this_round = self.round_state.round;
+        for polka_signature in &certificate.polka_signatures {
+            let vote = self.ctx.new_prevote(
+                certificate.height,
+                certificate.round,
+                NilOrVal::Val(certificate.value_id.clone()),
+                polka_signature.address.clone(),
+            );
+            let signed_vote = SignedVote::new(vote, polka_signature.signature.clone());
+            let _ = self.vote_keeper.apply_vote(signed_vote, this_round);
+        }
+    }
+
     pub(crate) fn store_and_multiplex_commit_certificate(
         &mut self,
-        certificate: CommitCertificate<Ctx>,
+        certificate: ExtendedCommitCertificate<Ctx>,
     ) -> RoundInput<Ctx> {
         // Should only receive proposals for our height.
         assert_eq!(self.height(), certificate.height);
 
         let certificate_round = certificate.round;
         let certificate_value_id = certificate.value_id.clone();
+
+        self.apply_commit_certificate_votes(&certificate);
 
         // Store the certificate
         self.commit_certificates.push(certificate);
@@ -222,6 +281,7 @@ where
                 return RoundInput::ProposalAndPrecommitValue(signed_proposal.message.clone());
             }
         }
+
         // Proposal not received or deemed invalid
         if certificate_round > self.round() {
             RoundInput::SkipRound(certificate_round)
@@ -246,11 +306,19 @@ where
         let certificate_round = certificate.round;
         let certificate_value_id = certificate.value_id.clone();
 
+        self.apply_polka_certificate_votes(&certificate);
+
         // Only add if an identical certificate isn't already present
         if !self.polka_certificates.iter().any(|existing| {
             existing.round == certificate.round && existing.value_id == certificate.value_id
         }) {
             self.polka_certificates.push(certificate);
+        }
+
+        // Future-round polka certificates trigger SkipRound; the proposal-matching
+        // paths below only apply to the current or a past round.
+        if certificate_round > self.round() {
+            return Some((certificate_round, RoundInput::SkipRound(certificate_round)));
         }
 
         let Some((signed_proposal, validity)) = self
@@ -396,6 +464,30 @@ where
         for threshold in find_non_value_threshold(&self.vote_keeper, round) {
             result.push(self.multiplex_vote_threshold(threshold, round))
         }
+
+        // On Propose → Prevote, replay any stored polka certificate as PolkaAny so
+        // timeoutPrevote is scheduled (L34/L35). Polka certificates bypass the vote
+        // keeper, so `find_non_value_threshold` above would miss a certificate that
+        // arrived while still in Step::Propose.
+        if self.round_state.step == Step::Prevote {
+            let has_polka_input = result.iter().any(|(_, input)| {
+                matches!(
+                    input,
+                    RoundInput::PolkaAny | RoundInput::ProposalAndPolkaCurrent(_)
+                )
+            });
+
+            let has_polka_certificate = || {
+                self.polka_certificates
+                    .iter()
+                    .any(|cert| cert.round == round)
+            };
+
+            if !has_polka_input && has_polka_certificate() {
+                result.push((round, RoundInput::PolkaAny));
+            }
+        }
+
         result
     }
 }

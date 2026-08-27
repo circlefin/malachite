@@ -28,6 +28,7 @@ impl Middleware for TimeoutChangingMiddleware {
                 precommit: Duration::from_secs(1),
                 precommit_delta: Duration::from_millis(500),
                 rebroadcast: self.new_propose_timeout + Duration::from_secs(2),
+                ..LinearTimeouts::default()
             })
         } else {
             None
@@ -114,6 +115,7 @@ impl Middleware for VeryShortTimeouts {
             precommit: Duration::from_millis(50),
             precommit_delta: Duration::from_millis(50),
             rebroadcast: Duration::from_millis(300),
+            ..LinearTimeouts::default()
         })
     }
 }
@@ -161,6 +163,7 @@ impl Middleware for GraduallyDecreasingTimeouts {
             precommit: Duration::from_millis(500),
             precommit_delta: Duration::from_millis(100),
             rebroadcast: Duration::from_secs(2),
+            ..LinearTimeouts::default()
         })
     }
 }

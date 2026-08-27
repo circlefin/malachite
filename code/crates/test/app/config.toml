@@ -70,11 +70,10 @@ timeout_rebroadcast = "5s"
 
 # The message(s) required to carry the value payload.
 # Available options are:
-# - "parts-only": Full value is included in the proposal parts and there is no explicit Proposal message (default)
+# - "proposal-and-parts": Both proposal parts and Proposal message are required, similar to CometBFT's implementation of Tendermint (default)
 # - "proposal-only": Full value is included in the (explicit) consensus Proposal message (not supported by test app)
-# - "proposal-and-parts": Both proposal parts and Proposal message are required (similar to CometBFT implementation of Tendermint, not supported by test app)
 # Override with MALACHITE__CONSENSUS__VALUE_PAYLOAD env variable
-value_payload = "parts-only"
+value_payload = "proposal-and-parts"
 
 # VoteSync configuration options
 [consensus.vote_sync]
@@ -130,9 +129,14 @@ enabled = true
 # Maximum connections allowed per IP address.
 # Limits inbound connections from the same IP to prevent DoS attacks
 # where an attacker generates many PeerIds from the same IP.
-# Defaults to num_inbound_peers (effectively disabled).
 # Override with MALACHITE__CONSENSUS__P2P__DISCOVERY__MAX_CONNECTIONS_PER_IP env variable
-# max_connections_per_ip = 20
+# max_connections_per_ip = 5
+
+# Minimum time between reconnections from the same IP address.
+# After all connections from an IP close, new inbound connections
+# are rejected until this duration has elapsed. Persistent peers are exempt.
+# Defaults to 30s.
+# ip_throttle_duration = "30s"
 
 #######################################################
 ###  Consensus P2P Protocol Configuration Options   ###
@@ -179,6 +183,31 @@ enable_explicit_peering = false
 # Can be enabled together with explicit peering.
 # Override with MALACHITE__CONSENSUS__P2P__PROTOCOL__ENABLE_FLOOD_PUBLISH env variable
 enable_flood_publish = true
+
+#######################################################
+###  Consensus P2P Protocol Names (libp2p)          ###
+#######################################################
+# Override the libp2p protocol identifiers used by the consensus stack.
+# Defaults shown below — change only if you need to namespace a network
+# (e.g. to keep multiple deployments from interfering with one another).
+[consensus.p2p.protocol_names]
+consensus = "/malachitebft-core-consensus/v1beta1"
+discovery_kad = "/malachitebft-discovery/kad/v1beta1"
+discovery_regres = "/malachitebft-discovery/reqres/v1beta1"
+sync = "/malachitebft-sync/v1beta1"
+validator_proof = "/malachitebft-validator-proof/v1"
+
+#######################################################
+###  Consensus P2P Channel Names (GossipSub/topics) ###
+#######################################################
+# Override the GossipSub topic / broadcast channel names. Defaults shown
+# below. Names must be non-empty and pairwise distinct; duplicates are
+# rejected at startup because they would silently misroute messages.
+[consensus.p2p.channel_names]
+consensus = "/consensus"
+proposal_parts = "/proposal_parts"
+sync = "/sync"
+liveness = "/liveness"
 
 #######################################################
 ###         ValueSync Configuration Options         ###

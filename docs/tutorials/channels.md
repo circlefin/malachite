@@ -271,9 +271,10 @@ A brief description of each message can be found below:
 | `GetHistoryMinHeight`  | Requests the earliest height available in the history maintained by the application. The application MUST respond with its earliest available height.                                                                                                                                                                                                                                                                                      |
 | `ReceivedProposalPart` | Notifies the application that consensus has received a proposal part over the network. If this part completes the full proposal, the application MUST respond with the complete proposed value. Otherwise, it MUST respond with `None`.                                                                                                                                                                                                    |                                                                                                                                                                                                                    |
 | `GetValidatorSet`      | Requests the validator set for a specific height.                                                                                                                                                                                                                                                                                                                                                                                          |
-| `Decided`              | Notifies the application that consensus has decided on a value. This message includes a commit certificate containing the ID of the value that was decided on, the height and round at which it was decided, and the aggregated signatures of the validators that committed to it. In response to this message, the application MAY send a `ConsensusMsg::StartHeight` or `ConsensusMsg::RestartHeight` message back to consensus, instructing it to start another height. |
+| `Decided`              | Notifies the application that consensus has decided on a value. This message includes a commit certificate containing the ID of the value that was decided on, the height and round at which it was decided, and the aggregated signatures of the validators that committed to it. The application MUST commit the decision and reply to acknowledge it (`reply.send(())`). After acknowledging, the application MUST wait for `Finalized` before instructing consensus to start the next height. |
+| `Finalized`            | Notifies the application that a height has been finalized after the finalization period elapsed. The certificate may carry additional precommits collected during that period, and the message also includes any misbehavior evidence observed since `Decided`. The application MUST reply with a `Next` value — `Next::Start` to advance to the next height, or `Next::Restart` if the application could not commit and wants consensus to redo the height. If the application does not reply, consensus will stall.                                                                                                                                                                                                                                                                                                                            |
 | `GetDecidedValue`      | Requests a previously decided value from the application's storage. The application MUST respond with that value if available, or `None` otherwise.                                                                                                                                                                                                                                                                                        |
-| `ProcessSyncedValue`   | Notifies the application that a value has been synced from the network. This may happen when the node is catching up with the network. If a value can be decoded from the bytes provided, then the application MUST reply to this message with the decoded value.                                                                                                                                                                          |
+| `ProcessSyncedValue`   | Notifies the application that a value has been synced from the network. This may happen when the node is catching up with the network. The application MUST reply with a `SyncedValueOutcome`: `Verdict` with the decoded value, `PeerFault` for a peer-attributable fault (e.g. undecodable bytes), or `LocalTransientError` for a local/transient failure.                                                                                                |
 | `PeerJoined`  | Notifies the application that a peer has joined our local view of the network. In a gossip network, there is no guarantee that we will ever see all peers, as we are typically only connected to a subset of the network (i.e. in our mesh).                                                                                                                                                                                                                                                                                   |
 |`PeerLeft`  | Notifies the application that a peer has left our local view of the network. In a gossip network, there is no guarantee that this means that this peer has left the whole network altogether, just that it is not part of the subset of the network that we are connected to (i.e. our mesh).                                                                                                                                                                                                                                                                                  |
 
@@ -1067,8 +1068,14 @@ sequenceDiagram
    else
    Consensus->>Application: Decided
    activate Application
-   note right of Application: Store certificate in state<br>Start next height
-   Application->>Consensus: (Re)StartHeight
+   note right of Application: Commit the decision
+   Application->>Consensus: ()
+   deactivate Application
+   else
+   Consensus->>Application: Finalized
+   activate Application
+   note right of Application: Persist finalized certificate<br>Decide whether to advance or restart
+   Application->>Consensus: Next::Start / Next::Restart
    deactivate Application
    else
    Consensus->>Application: ProcessSyncedValue
@@ -1376,33 +1383,34 @@ to decode it from its wire format and send back the decoded value to consensus.
                     .store_undecided_proposal(proposed_value.clone())
                     .await?;
 
-                if reply.send(proposed_value).is_err() {
+                // Reply with how the value was processed. Here decoding always
+                // succeeds, so we return a `Verdict`. A real application would
+                // reply with `SyncedValueOutcome::PeerFault` if the bytes are a
+                // peer-attributable fault (e.g. undecodable), or
+                // `SyncedValueOutcome::LocalTransientError` on a local/transient
+                // failure so the peer is not penalized.
+                if reply
+                    .send(SyncedValueOutcome::Verdict(proposed_value))
+                    .is_err()
+                {
                     error!("Failed to send ProcessSyncedValue reply");
                 }
             }
 ```
 
-After some time, consensus will finally reach a decision on the value
+After some time, consensus will reach a decision on the value
 to commit for the current height, and will notify the application,
 providing it with a commit certificate which contains the ID of the value
 that was decided on as well as the set of commits for that value,
 ie. the precommits together with their (aggregated) signatures.
 
-When that happens, we try to "commit" the value. This may involve further processing the decided value and storing it.
-If `commit` is successful we instruct consensus to start the next height.
-If `commit` fails we can re-run consensus for the same height.
-
-> **Warning**
-> This operation should be used with extreme caution as it can lead to safety violations:
-> 1. The application must clean all state associated with the height for which commit has failed
-> 2. Since consensus resets its WriteAahead Log, the node may equivocate on proposals and votes
->    for the restarted height, potentially violating protocol safety
-> 3. The application MUST reply to the Decided message by sending a `ConsensusMsg::StartHeight` message back to consensus, instructing it to start the next height. If the application does not reply, consensus will stall.
+We commit the value and acknowledge the message so that the sync actor learns
+the height was decided. Advancing to the next height happens later, in response to `Finalized`.
 
 ```rust
     AppMsg::Decided {
         certificate,
-        extensions,
+        extensions: _,
         reply,
     } => {
         info!(
@@ -1412,31 +1420,70 @@ If `commit` fails we can re-run consensus for the same height.
             "Consensus has decided on value, committing..."
         );
 
-        // When that happens, we store the decided value in our store
-        match state.commit(certificate, extensions).await {
+        // Commit the decision now so that the sync actor can serve it to peers.
+        if let Err(e) = state.commit(certificate).await {
+            error!("Failed to commit decided value: {e}");
+        }
+
+        // Acknowledge the message. We will be asked to advance the height
+        // when we receive `Finalized`.
+        if reply.send(()).is_err() {
+            error!("Failed to send Decided reply");
+        }
+    }
+```
+
+After the finalization period elapses, the engine will then send `Finalized`. This message
+carries the final commit certificate (which may include additional precommits collected during the finalization
+period) and any misbehavior evidence observed since the decision. In response, the application replies with a
+`Next` value to instruct consensus to either start the next height or restart the current one.
+
+If the finalization step fails on the application side, we can ask consensus to re-run for the same height by replying
+with `Next::Restart`.
+
+> **Warning**
+> Restarting a height should be used with extreme caution as it can lead to safety violations:
+> 1. The application must clean all state associated with the height for which finalization has failed.
+> 2. Since consensus resets its Write-Ahead Log, the node may equivocate on proposals and votes
+>    for the restarted height, potentially violating protocol safety.
+> 3. The application MUST reply to the `Finalized` message; if it does not, consensus will stall.
+
+```rust
+    AppMsg::Finalized {
+        certificate,
+        extensions: _,
+        evidence: _,
+        reply,
+    } => {
+        info!(
+            height = %certificate.height,
+            round = %certificate.round,
+            value = %certificate.value_id,
+            "Consensus has finalized height"
+        );
+
+        match state.finalize(certificate).await {
             Ok(_) => {
-                // And then we instruct consensus to start the next height
                 if reply
-                    .send(ConsensusMsg::StartHeight(
+                    .send(Next::Start(
                         state.current_height,
                         state.get_validator_set(state.current_height).clone(),
                     ))
                     .is_err()
                 {
-                    error!("Failed to send StartHeight reply");
+                    error!("Failed to send Next::Start reply");
                 }
             }
             Err(_) => {
-                // Commit failed, restart the height
-                error!("Commit failed, restarting height {}", state.current_height);
+                error!("Finalize failed, restarting height {}", state.current_height);
                 if reply
-                    .send(ConsensusMsg::RestartHeight(
+                    .send(Next::Restart(
                         state.current_height,
                         state.get_validator_set(state.current_height).clone(),
                     ))
                     .is_err()
                 {
-                    error!("Failed to send RestartHeight reply");
+                    error!("Failed to send Next::Restart reply");
                 }
             }
         }

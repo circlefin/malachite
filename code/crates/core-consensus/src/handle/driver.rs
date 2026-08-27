@@ -1,6 +1,6 @@
 use malachitebft_core_driver::Input as DriverInput;
 use malachitebft_core_driver::Output as DriverOutput;
-use malachitebft_core_types::{NilOrVal, VoteType};
+use malachitebft_core_types::{NilOrVal, VoteExtensionPolicy, VoteType};
 
 use crate::handle::decide::decide;
 use crate::handle::on_proposal;
@@ -39,12 +39,12 @@ where
             // it guarantees that after GST, all correct replicas will receive
             // the round certificate and enter the same round within bounded time.
             if round > &Round::new(0) && state.is_active_validator() {
-                if let Some(cert) = state.driver.round_certificate() {
-                    if cert.enter_round == *round {
+                match state.driver.round_certificate() {
+                    Some(cert) if cert.enter_round == *round => {
                         info!(
-                            %cert.certificate.height,
-                            %cert.enter_round,
-                            number_of_votes = cert.certificate.round_signatures.len(),
+                            certificate_height = %cert.certificate.height,
+                            certificate_enter_round = %cert.enter_round,
+                            certificate_number_of_votes = cert.certificate.round_signatures.len(),
                             "Sending round certificate"
                         );
                         perform!(
@@ -55,6 +55,17 @@ where
                             )
                         );
                     }
+                    // Entering round > 0 without a fresh round certificate
+                    // means the new round was not justified by a 2f+1 quorum
+                    // we can broadcast.
+                    // FIXME: we probably should not allow entering a round
+                    // without the associated certificate to broadcast.
+                    Some(cert) => warn!(
+                        %round,
+                        certificate_enter_round = %cert.enter_round,
+                        "Stale RoundCertificate; not broadcasting"
+                    ),
+                    None => warn!(%round, "Missing RoundCertificate; not broadcasting"),
                 }
             }
 
@@ -256,7 +267,33 @@ where
             if state.is_active_validator() {
                 let signed_proposal = sign_proposal(co, proposal.clone()).await?;
 
+                // When the proposed value is a re-proposal (i.e., it has a pol_round),
+                // publishing the polka certificate of the re-proposed value
+                // ensures all validators receive it, which is necessary for
+                // them to accept the re-proposed value. It goes out ahead of the value so that
+                // a peer which has not assembled the polka from prevotes holds the certificate
+                // by the time the value reaches it.
                 if signed_proposal.pol_round().is_defined() {
+                    let polka_certificate = state
+                        .polka_certificate(proposal.pol_round(), &proposal.value().id())
+                        .ok_or_else(|| {
+                            Error::MissingPolkaCertificate(
+                                state.driver.height(),
+                                proposal.pol_round(),
+                                proposal.value().id().clone(),
+                                "reproposal",
+                            )
+                        })?
+                        .clone();
+
+                    perform!(
+                        co,
+                        Effect::PublishLivenessMsg(
+                            LivenessMsg::PolkaCertificate(polka_certificate),
+                            Default::default()
+                        )
+                    );
+
                     perform!(
                         co,
                         Effect::RestreamProposal(
@@ -272,43 +309,13 @@ where
 
                 on_proposal(co, state, metrics, signed_proposal.clone()).await?;
 
-                // Proposal messages should not be broadcasted if they are implicit,
-                // instead they should be inferred from the block parts.
-                if state.params.value_payload.include_proposal() {
-                    perform!(
-                        co,
-                        Effect::PublishConsensusMsg(
-                            SignedConsensusMsg::Proposal(signed_proposal),
-                            Default::default()
-                        )
-                    );
-                };
-
-                // When the proposed value is a re-proposal (i.e., it has a pol_round),
-                // publishing the polka certificate of the re-proposed value
-                // ensures all validators receive it, which is necessary for
-                // them to accept the re-proposed value.
-                if proposal.pol_round().is_defined() {
-                    let polka_certificate = state
-                        .polka_certificate(proposal.pol_round(), &proposal.value().id())
-                        .ok_or_else(|| {
-                            Error::MissingPolkaCertificate(
-                                state.driver.height(),
-                                proposal.pol_round(),
-                                proposal.value().id().clone(),
-                                "reproposal",
-                            )
-                        })?;
-
-                    // Publish the polka certificate at pol_round for the re-proposed value
-                    perform!(
-                        co,
-                        Effect::PublishLivenessMsg(
-                            LivenessMsg::PolkaCertificate(polka_certificate.clone()),
-                            Default::default()
-                        )
-                    );
-                }
+                perform!(
+                    co,
+                    Effect::PublishConsensusMsg(
+                        SignedConsensusMsg::Proposal(signed_proposal),
+                        Default::default()
+                    )
+                );
             }
 
             Ok(())
@@ -339,6 +346,29 @@ where
                         .driver
                         .proposal_and_validity_for_round_and_value(vote.round(), value_id.clone())
                     {
+                        // The certificate goes out ahead of the value so that a peer which has
+                        // not assembled the polka from prevotes holds it by the time the value
+                        // reaches it.
+                        let polka_certificate = state
+                            .polka_certificate(vote.round(), value_id)
+                            .ok_or_else(|| {
+                                Error::MissingPolkaCertificate(
+                                    state.driver.height(),
+                                    vote.round(),
+                                    value_id.clone(),
+                                    "precommit",
+                                )
+                            })?
+                            .clone();
+
+                        perform!(
+                            co,
+                            Effect::PublishLivenessMsg(
+                                LivenessMsg::PolkaCertificate(polka_certificate),
+                                Default::default()
+                            )
+                        );
+
                         perform!(
                             co,
                             Effect::RestreamProposal(
@@ -351,31 +381,10 @@ where
                             )
                         );
 
-                        if state.params.value_payload.include_proposal() {
-                            perform!(
-                                co,
-                                Effect::PublishConsensusMsg(
-                                    SignedConsensusMsg::Proposal(signed_proposal.clone()),
-                                    Default::default()
-                                )
-                            );
-                        }
-
-                        let polka_certificate = state
-                            .polka_certificate(vote.round(), value_id)
-                            .ok_or_else(|| {
-                                Error::MissingPolkaCertificate(
-                                    state.driver.height(),
-                                    vote.round(),
-                                    value_id.clone(),
-                                    "precommit",
-                                )
-                            })?;
-
                         perform!(
                             co,
-                            Effect::PublishLivenessMsg(
-                                LivenessMsg::PolkaCertificate(polka_certificate.clone()),
+                            Effect::PublishConsensusMsg(
+                                SignedConsensusMsg::Proposal(signed_proposal.clone()),
                                 Default::default()
                             )
                         );
@@ -391,7 +400,7 @@ where
                     "Voting",
                 );
 
-                let extended_vote = extend_vote(co, vote).await?;
+                let extended_vote = extend_vote(co, state.vote_extension_policy, vote).await?;
                 let signed_vote = sign_vote(co, extended_vote).await?;
 
                 on_vote(co, state, metrics, signed_vote.clone()).await?;
@@ -465,7 +474,11 @@ where
     }
 }
 
-async fn extend_vote<Ctx: Context>(co: &Co<Ctx>, vote: Ctx::Vote) -> Result<Ctx::Vote, Error<Ctx>> {
+async fn extend_vote<Ctx: Context>(
+    co: &Co<Ctx>,
+    vote_extension_policy: VoteExtensionPolicy,
+    vote: Ctx::Vote,
+) -> Result<Ctx::Vote, Error<Ctx>> {
     let VoteType::Precommit = vote.vote_type() else {
         return Ok(vote);
     };
@@ -474,16 +487,22 @@ async fn extend_vote<Ctx: Context>(co: &Co<Ctx>, vote: Ctx::Vote) -> Result<Ctx:
         return Ok(vote);
     };
 
+    if vote_extension_policy.is_disabled() {
+        return Ok(vote);
+    }
+
     let extension = perform!(
         co,
-
-
-        Effect::ExtendVote(vote.height(), vote.round(), value_id, Default::default()),
+        Effect::ExtendVote(vote.height(), vote.round(), value_id.clone(), Default::default()),
         Resume::VoteExtension(extension) => extension);
 
-    if let Some(extension) = extension {
-        Ok(vote.extend(extension))
-    } else {
-        Ok(vote)
-    }
+    let Some(extension) = extension else {
+        return Err(Error::VoteExtensionRequired(
+            vote.height(),
+            vote.round(),
+            value_id,
+        ));
+    };
+
+    Ok(vote.extend(extension))
 }

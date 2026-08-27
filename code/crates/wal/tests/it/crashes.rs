@@ -15,8 +15,11 @@ use arc_malachitebft_wal::log::Log;
 use arc_malachitebft_wal::Log as FileLog;
 use arc_malachitebft_wal::*;
 
-static TESTDIR: LazyLock<NumberedDir> =
-    LazyLock::new(|| NumberedDirBuilder::new("wal".to_string()).create().unwrap());
+static TESTDIR: LazyLock<NumberedDir> = LazyLock::new(|| {
+    NumberedDirBuilder::new("wal-crashes".to_string())
+        .create()
+        .unwrap()
+});
 
 macro_rules! testdir {
     () => {{

@@ -6,8 +6,10 @@ use malachitebft_wal as wal;
 
 use eyre::Result;
 
+use malachitebft_core_consensus::Input;
+
 use super::entry::decode_entry;
-use super::{WalCodec, WalEntry};
+use super::WalCodec;
 
 pub fn log_entries<'a, Ctx, Codec>(
     log: &'a mut wal::Log,
@@ -35,7 +37,7 @@ where
     Ctx: Context,
     Codec: WalCodec<Ctx>,
 {
-    type Item = io::Result<WalEntry<Ctx>>;
+    type Item = io::Result<Input<Ctx>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let entry = self.iter.next()?;

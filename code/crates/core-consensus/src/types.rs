@@ -3,7 +3,7 @@ use thiserror::Error;
 
 use malachitebft_core_types::{
     Context, PolkaCertificate, Proposal, Round, RoundCertificate, Signature, SignedProposal,
-    SignedVote, Timeout, Validity, Vote,
+    SignedVote, Validity, Vote,
 };
 
 pub use malachitebft_core_types::ValuePayload;
@@ -81,7 +81,7 @@ impl<Ctx: Context> LocallyProposedValue<Ctx> {
 /// A value proposed by a validator (typically delivered from the application / value builder).
 ///
 /// `round` and `valid_round` are **metadata** the app attaches for its own streaming and
-/// lock context (e.g. parts-only implicit proposals, WAL, sync). When matching a completed
+/// lock context (e.g. WAL replay, sync). When matching a completed
 /// value to a signed gossip `Proposal` in **proposal-only** or **proposal-and-parts** mode,
 /// Malachite correlates primarily by **height** and **value** (`value` / `id(value)`):
 /// any stored payload at this height with the same id may form a full proposal with a proposal
@@ -95,37 +95,6 @@ pub struct ProposedValue<Ctx: Context> {
     pub proposer: Ctx::Address,
     pub value: Ctx::Value,
     pub validity: Validity,
-}
-
-#[derive_where(Clone, Debug)]
-pub enum WalEntry<Ctx: Context> {
-    ConsensusMsg(SignedConsensusMsg<Ctx>),
-    Timeout(Timeout),
-    ProposedValue(ProposedValue<Ctx>),
-    PolkaCertificate(PolkaCertificate<Ctx>),
-}
-
-impl<Ctx: Context> WalEntry<Ctx> {
-    pub fn as_consensus_msg(&self) -> Option<&SignedConsensusMsg<Ctx>> {
-        match self {
-            WalEntry::ConsensusMsg(msg) => Some(msg),
-            _ => None,
-        }
-    }
-
-    pub fn as_timeout(&self) -> Option<&Timeout> {
-        match self {
-            WalEntry::Timeout(timeout) => Some(timeout),
-            _ => None,
-        }
-    }
-
-    pub fn as_proposed_value(&self) -> Option<&ProposedValue<Ctx>> {
-        match self {
-            WalEntry::ProposedValue(value) => Some(value),
-            _ => None,
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Error)]

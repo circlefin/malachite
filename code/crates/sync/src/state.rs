@@ -17,6 +17,13 @@ pub struct PendingRequestEntry<H> {
     pub peer: PeerId,
     /// Peers already tried and failed for this range, accumulated across retries.
     pub excluded_peers: BTreeSet<PeerId>,
+    /// Whether a response for this range is still outstanding.
+    ///
+    /// A `false` value marks a reservation: the values arrived and now wait for
+    /// consensus to decide them. The entry keeps reserving its range so the
+    /// range is not requested twice, but it holds no network request, so it
+    /// does not count against `parallel_requests`.
+    pub inflight: bool,
 }
 
 pub struct State<Ctx>
@@ -82,7 +89,29 @@ where
     /// The maximum number of parallel requests that can be made to peers.
     /// If the configuration is set to 0, it defaults to 1.
     pub fn max_parallel_requests(&self) -> usize {
-        max(1, self.config.parallel_requests)
+        self.config.effective_parallel_requests()
+    }
+
+    /// The number of pending requests still waiting for a response.
+    ///
+    /// Only these consume the parallel-request budget. Reservations left behind
+    /// by a response that already arrived hold no network request.
+    pub fn inflight_requests(&self) -> usize {
+        self.pending_requests
+            .values()
+            .filter(|entry| entry.inflight)
+            .count()
+    }
+
+    /// The highest height at which a new request may start.
+    ///
+    /// Values are useless to consensus until every height below them is
+    /// decided, so a new batch starts at most one full request budget ahead of
+    /// the tip. A batch that starts at this limit may extend beyond it.
+    pub fn read_ahead_limit(&self) -> Ctx::Height {
+        let window = self.config.read_ahead_window() as u64;
+
+        self.tip_height.increment_by(window)
     }
 
     pub fn update_status(&mut self, status: Status<Ctx>) {
@@ -95,6 +124,7 @@ where
         peer_id: PeerId,
         range: RangeInclusive<Ctx::Height>,
         excluded_peers: BTreeSet<PeerId>,
+        inflight: bool,
     ) {
         self.pending_requests.insert(
             request_id,
@@ -102,6 +132,7 @@ where
                 range,
                 peer: peer_id,
                 excluded_peers,
+                inflight,
             },
         );
     }

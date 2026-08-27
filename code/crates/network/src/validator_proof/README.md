@@ -16,13 +16,14 @@ The receiving peer verifies the signature and, if valid, marks the peer as a ver
 
 ## Wire Format
 
-This is a **one-way message** with no response (per ADR-006).
+This is a **one-way message** (per ADR-006). It is carried over `request_response`, but the response carries no bytes — it exists only to let the handler complete and close the stream, and is not a delivery acknowledgement.
 
 ### Transport Framing (implementation choice)
 
-The network layer (`codec.rs`) uses `unsigned-varint` length-delimited framing:
+The network layer (`codec.rs`) frames the request with `unsigned-varint` length-delimited framing:
 ```
-[unsigned-varint length prefix][proof_bytes]
+Request:  [unsigned-varint length prefix][proof_bytes]
+Response: <no bytes>
 ```
 
 This is consistent with libp2p's request-response and identify protocols. The codec also enforces a 1KB max message size (proofs are ~150 bytes for ed25519: 32-byte public key + 38-byte peer_id + 64-byte signature + serialization overhead).
@@ -54,9 +55,9 @@ The validator proof state is split between two locations:
 
 | Field | Type | Purpose |
 |-------|------|---------|
+| `inner` | `request_response::Behaviour<Codec>` | Carries the one-way proof (request) and empty response |
 | `proof_bytes` | `Option<Bytes>` | Our proof to send (set once at startup if the node has a consensus key) |
 | `proofs_received` | `HashSet<PeerId>` | Peers we've received from (anti-spam, cleared when last connection closes) |
-| `listening` | `bool` | Whether the listener task has been spawned |
 
 Connection tracking uses libp2p's built-in `other_established` (on `ConnectionEstablished`)
 and `remaining_established` (on `ConnectionClosed`) instead of maintaining a separate map.
@@ -83,7 +84,6 @@ durable classification (has this peer's proof been verified? are they in the val
 
 | Channel | Direction | Type | Purpose |
 |---------|-----------|------|---------|
-| `events_tx/rx` | Send/Listener tasks → Behaviour | `mpsc::unbounded` | Internal: proof protocol results to behaviour's `poll()` |
 | `tx_event` | Network task → Engine | `mpsc::channel(32)` | Network events (including `ValidatorProofReceived`) |
 | `tx_ctrl` | Engine → Network task | `mpsc::channel(32)` | Control messages (including `ValidatorProofVerified`) |
 
@@ -98,19 +98,18 @@ durable classification (has this peer's proof been verified? are they in the val
 
   behaviour.rs
   ┌──────────────────────────────────────────────────────────────────────────┐
-  │ on_connection_established()                                              │
+  │ on_swarm_event(ConnectionEstablished)                                    │
   │   ├─ Check: other_established == 0? (first connection to peer)           │
-  │   └─ send_proof()                                                        │
-  │        ├─ Check: proof_bytes.is_some()?                                  │
-  │        └─ spawn protocol::send_proof task                                │
+  │   ├─ Check: proof_bytes.is_some()?                                       │
+  │   └─ inner.send_request(peer, proof_bytes)                               │
   └──────────────────────────────────────────────────────────────────────────┘
                                   │
                                   ▼
-  protocol.rs
+  request_response
   ┌──────────────────────────────────────────────────────────────────────────┐
-  │ send_proof()                                                             │
-  │   └─ open_stream → write_proof → close                                   │
-  │   └─ Return: Event::ProofSent or Event::ProofSendFailed                  │
+  │ write_request (proof) → read empty response                              │
+  │   └─ Event::Message{Response} → Event::ProofSent                         │
+  │   └─ Event::OutboundFailure   → Event::ProofSendFailed                   │
   └──────────────────────────────────────────────────────────────────────────┘
 
 
@@ -122,10 +121,12 @@ durable classification (has this peer's proof been verified? are they in the val
   ┌──────────────────────────────────────────────────────────────────────────┐
   │ behaviour.set_proof(proof_bytes)  — once at startup                      │
   │                                                                          │
-  │ On every new connection (ConnectionEstablished):                          │
-  │   └─ behaviour.send_proof(peer_id)                                       │
-  │       └─ (dedup via other_established == 0 check)                        │
+  │ On first connection to a peer (other_established == 0):                   │
+  │   └─ inner.send_request(peer, proof_bytes)                               │
   └──────────────────────────────────────────────────────────────────────────┘
+
+  ProofSent marks local send completion, not confirmed delivery. There is no
+  same-session retry; a genuinely new connection sends the proof again.
 
   The proof is a static binding of (public_key, peer_id) and does not change
   with validator set membership. Whether the receiver classifies the sender
@@ -135,25 +136,27 @@ durable classification (has this peer's proof been verified? are they in the val
 ### Receiving Proof
 
 ```
-  protocol.rs
+  request_response + codec
   ┌──────────────────────────────────────────────────────────────────────────┐
-  │ recv_proof() - incoming stream                                           │
-  │   └─ Check: message size (codec, 1KB max)                                │
-  │   └─ Return: Event::ProofReceived or Event::ProofReceiveFailed           │
+  │ read_request - inbound proof (per-connection handler)                    │
+  │   └─ Well-framed within 1KB → ProofRequest::Proof(bytes)                 │
+  │   └─ Framing error / oversized / truncated / read timeout                │
+  │        → ProofRequest::Malformed (delivered in-band, never an Err)       │
+  │   └─ Event::Message{Request}                                             │
   └──────────────────────────────────────────────────────────────────────────┘
                                   │
                                   ▼
   behaviour.rs
   ┌──────────────────────────────────────────────────────────────────────────┐
-  │ poll() - process protocol events (called from swarm.select_next_some())  │
-  │   └─ ProofReceiveFailed → ToSwarm::CloseConnection (DISCONNECT)          │
-  │   └─ ProofSendFailed → forward to swarm (allow retry)                    │
-  │   └─ ProofReceived:                                                      │
-  │        └─ Check: peer in proofs_received? (ANTI-SPAM)                    │
-  │             └─ If yes → ToSwarm::CloseConnection (DISCONNECT)            │
-  │        └─ Add peer to proofs_received                                    │
-  │        └─ Forward event to swarm                                         │
-  │   └─ ProofSent → forward to swarm                                        │
+  │ poll() - translate inner events (drains inner.poll())                    │
+  │   └─ Message{Request} → classify_request:                               │
+  │        └─ Malformed → CloseConnection (DISCONNECT)                       │
+  │        └─ Proof, peer already recorded → CloseConnection (ANTI-SPAM)     │
+  │        └─ Proof, first this session → record, send empty resp, ProofRecv │
+  │   └─ Message{Response} → ProofSent                                       │
+  │   └─ OutboundFailure   → ProofSendFailed                                 │
+  │   └─ InboundFailure    → ignored (post-delivery stream-close race)       │
+  │   └─ (all other inner ToSwarm actions forwarded unchanged)              │
   └──────────────────────────────────────────────────────────────────────────┘
                                   │
                                   ▼
@@ -199,8 +202,8 @@ durable classification (has this peer's proof been verified? are they in the val
 |-------|----------|------------|
 | First connection (send) | behaviour.rs (`other_established == 0`) | Skip send |
 | proof_bytes set (send) | behaviour.rs | Skip send |
-| Message size (1KB max) | codec.rs | Close stream |
-| Stream read failure | behaviour.rs | Disconnect |
+| Message size (1KB max) | codec.rs → behaviour.rs | Disconnect (delivered as `ProofRequest::Malformed`) |
+| Read failure (framing / truncated / timeout) | codec.rs → behaviour.rs | Disconnect (delivered as `ProofRequest::Malformed`) |
 | Anti-spam (duplicate) | behaviour.rs | Disconnect |
 | Decode proof | engine/network.rs | Log + ignore |
 | PeerId matches sender | engine/network.rs | Disconnect |

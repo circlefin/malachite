@@ -2,7 +2,6 @@ use std::time::Duration;
 
 use rstest::rstest;
 
-use malachitebft_config::ValuePayload;
 use malachitebft_core_types::VoteType;
 
 use crate::{TestBuilder, TestParams};
@@ -55,7 +54,6 @@ pub async fn crash_restart_from_start(#[case] status_update_interval: Duration) 
             TestParams {
                 // Enable ValueSync to allow the node to catch up to the latest height
                 enable_value_sync: true,
-                value_payload: ValuePayload::PartsOnly,
                 status_update_interval,
                 ..TestParams::default()
             },

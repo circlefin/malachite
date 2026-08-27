@@ -154,7 +154,7 @@ where
             bootstrap_nodes: bootstrap_nodes
                 .clone()
                 .into_iter()
-                .map(|addr| (None, vec![addr]))
+                .map(|addr| (util::peer_id_from_multiaddr(&addr), vec![addr]))
                 .collect(),
             discovered_peers: HashMap::new(),
             signed_peer_records: HashMap::new(),
@@ -369,13 +369,7 @@ where
         }
 
         // Extract peer_id from multiaddr if present
-        let peer_id = addr.iter().find_map(|protocol| {
-            if let libp2p::multiaddr::Protocol::P2p(peer_id) = protocol {
-                Some(peer_id)
-            } else {
-                None
-            }
-        });
+        let peer_id = util::peer_id_from_multiaddr(&addr);
 
         // Add to bootstrap_nodes list
         self.bootstrap_nodes.push((peer_id, vec![addr]));

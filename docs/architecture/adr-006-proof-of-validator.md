@@ -134,7 +134,7 @@ PeerInfo {
 
 #### ValidatorProof Message
 
-Sent by a prover to claim validator status. This is a one-way message with no response.
+Sent by a prover to claim validator status. This is a one-way message with no response. It is carried over libp2p `request_response`: the request is the proof and the response carries no bytes. The empty response only lets the handler complete and close the stream — it is not a delivery acknowledgement, and the protocol adds no retry (see Alternative Approaches).
 
 ```
 ValidatorProofMessage {
@@ -368,6 +368,8 @@ The rationale is that a non-malicious prover receives this message because the v
 - **More messages**: Each proof exchange requires two messages (request + response), plus additional retry messages
 - **Spam vulnerability**: Malicious peers could spam proof requests, triggering responses and creating amplification
 - **No clear benefit**: The retry mechanism doesn't provide meaningful value—storing and re-evaluating achieves the same result with less complexity
+
+Note: the one-way message is nonetheless carried over `request_response` as a plain transport — one request, an empty response, no retry or `Pending`/`Verified`/`Failed` state machine. This is unrelated to the rejected retry semantics above; `request_response` admits inbound streams per connection, which avoids the shared-inbound-slot drop that lost proofs during startup bursts. A fixed receiver is protected as soon as it is upgraded.
 
 ### 2. Proof with Consensus Address Only
 

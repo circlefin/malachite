@@ -64,8 +64,9 @@ pub type DoubleProposal<Ctx> = (SignedProposal<Ctx>, SignedProposal<Ctx>);
 pub type SignedExtension<Ctx> = SignedMessage<Ctx, <Ctx as Context>::Extension>;
 
 pub use certificate::{
-    CertificateError, CommitCertificate, CommitSignature, EnterRoundCertificate, PolkaCertificate,
-    PolkaSignature, RoundCertificate, RoundCertificateType, RoundSignature, ValueResponse,
+    CertificateError, CommitCertificate, CommitSignature, EnterRoundCertificate,
+    ExtendedCommitCertificate, ExtendedCommitSignature, PolkaCertificate, PolkaSignature,
+    RoundCertificate, RoundCertificateType, RoundSignature, ValueResponse,
 };
 pub use context::Context;
 pub use error::BoxError;
@@ -83,4 +84,4 @@ pub use validator_proof::ValidatorProof;
 pub use validator_set::{Address, Validator, ValidatorSet, VotingPower};
 pub use value::{NilOrVal, Value, ValueOrigin, ValuePayload};
 pub use vote::{Vote, VoteType};
-pub use vote_extension::{Extension, VoteExtensions};
+pub use vote_extension::{Extension, VoteExtensionPolicy, VoteExtensionScope, VoteExtensions};

@@ -8,7 +8,7 @@ pub fn subscribe(
     swarm: &mut swarm::Swarm<Behaviour>,
     protocol: PubSubProtocol,
     channels: &[Channel],
-    channel_names: ChannelNames,
+    channel_names: &ChannelNames,
 ) -> Result<(), eyre::Report> {
     match protocol {
         PubSubProtocol::GossipSub => {
@@ -38,7 +38,7 @@ pub fn publish(
     swarm: &mut swarm::Swarm<Behaviour>,
     protocol: PubSubProtocol,
     channel: Channel,
-    channel_names: ChannelNames,
+    channel_names: &ChannelNames,
     data: Bytes,
 ) -> Result<(), eyre::Report> {
     match protocol {
@@ -65,7 +65,7 @@ pub fn publish(
 pub fn get_mesh_peers(
     swarm: &swarm::Swarm<Behaviour>,
     channel: Channel,
-    channel_names: ChannelNames,
+    channel_names: &ChannelNames,
 ) -> Vec<crate::PeerId> {
     if let Some(gossipsub) = swarm.behaviour().gossipsub.as_ref() {
         let topic = channel.to_gossipsub_topic(channel_names);

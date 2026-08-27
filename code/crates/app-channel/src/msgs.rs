@@ -14,7 +14,7 @@ use malachitebft_app::types::core::ValueOrigin;
 use malachitebft_app::types::MisbehaviorEvidence;
 use malachitebft_engine::consensus::state_dump::StateDump;
 use malachitebft_engine::consensus::Msg as ConsensusActorMsg;
-use malachitebft_engine::host::{HeightParams, Next};
+use malachitebft_engine::host::{HeightParams, Next, SyncedValueOutcome};
 use malachitebft_engine::network::Msg as NetworkActorMsg;
 use malachitebft_engine::network::{
     Multiaddr, NetworkStateDump, PersistentPeerError, PersistentPeersOp,
@@ -387,8 +387,12 @@ pub enum AppMsg<Ctx: Context> {
     /// Notifies the application that a value has been synced from the network.
     /// This may happen when the node is catching up with the network.
     ///
-    /// If a value can be decoded from the bytes provided, then the application MUST reply
-    /// to this message with the decoded value. Otherwise, it MUST reply with `None`.
+    /// The application MUST reply with a [`SyncedValueOutcome`] stating how the
+    /// value was processed: [`Verdict`](SyncedValueOutcome::Verdict) with the
+    /// decoded value, [`PeerFault`](SyncedValueOutcome::PeerFault) for a
+    /// peer-attributable fault (e.g. undecodable bytes), or
+    /// [`LocalTransientError`](SyncedValueOutcome::LocalTransientError) for a
+    /// local/transient failure on our side.
     ProcessSyncedValue {
         /// Height of the synced value
         height: Ctx::Height,
@@ -398,9 +402,8 @@ pub enum AppMsg<Ctx: Context> {
         proposer: Ctx::Address,
         /// Raw encoded value data
         value_bytes: Bytes,
-        /// Channel for sending back the proposed value, if successfully decoded
-        /// or `None` if the value could not be decoded
-        reply: Reply<Option<ProposedValue<Ctx>>>,
+        /// Channel for sending back how the synced value was processed.
+        reply: Reply<SyncedValueOutcome<Ctx>>,
     },
 }
 

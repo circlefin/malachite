@@ -9,8 +9,11 @@ use testdir::NumberedDirBuilder;
 
 use arc_malachitebft_wal::*;
 
-static TESTDIR: LazyLock<NumberedDir> =
-    LazyLock::new(|| NumberedDirBuilder::new("wal".to_string()).create().unwrap());
+static TESTDIR: LazyLock<NumberedDir> = LazyLock::new(|| {
+    NumberedDirBuilder::new("wal-stress".to_string())
+        .create()
+        .unwrap()
+});
 
 macro_rules! testwal {
     () => {{

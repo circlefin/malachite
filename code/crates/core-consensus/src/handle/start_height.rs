@@ -1,8 +1,10 @@
 use crate::prelude::*;
 
 use crate::handle::driver::apply_driver_input;
+use crate::handle::finalize::finalize_height;
 use crate::handle::handle_input;
 
+#[allow(clippy::too_many_arguments)]
 pub async fn reset_and_start_height<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
@@ -11,16 +13,22 @@ pub async fn reset_and_start_height<Ctx>(
     validator_set: Ctx::ValidatorSet,
     is_restart: bool,
     target_time: Option<std::time::Duration>,
+    vote_extension_policy: VoteExtensionPolicy,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
+    // Emit Finalize for the in-progress height before its state is torn down.
+    if state.finalization_period {
+        finalize_height(co, state, metrics).await?;
+    }
+
     perform!(co, Effect::CancelAllTimeouts(Default::default()));
 
     #[cfg(feature = "metrics")]
     metrics.step_end(state.driver.step());
 
-    state.reset_and_start_height(height, validator_set, target_time);
+    state.reset_and_start_height(height, validator_set, target_time, vote_extension_policy);
 
     debug_assert_eq!(state.height(), height);
     debug_assert_eq!(state.round(), Round::Nil);

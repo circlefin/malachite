@@ -27,20 +27,25 @@ message ValueResponse {
 
 message SyncedValue {
     bytes value_bytes = 1;
-    CommitCertificate certificate = 2;
+    ExtendedCommitCertificate certificate = 2;
 }
 
-message CommitSignature {
-    // TODO: Add flag (no vote, nil, value?)
+// A per-validator certificate entry. Each entry carries the validator's
+// precommit signature and, when present, the extension attached to that
+// validator's precommit.
+message ExtendedCommitSignature {
     Address validator_address = 1;
     Signature signature = 2;
+    // Vote extension signed for this precommit's (height, round, value_id,
+    // validator_address) scope. Absent if the height has extensions disabled.
+    optional Extension extension = 3;
 }
 
-message CommitCertificate {
+message ExtendedCommitCertificate {
     uint64 height = 1;
     uint32 round = 2;
     ValueId value_id = 3;
-    repeated CommitSignature signatures = 4;
+    repeated ExtendedCommitSignature signatures = 4;
 }
 
 message ProposedValue {

@@ -3,7 +3,7 @@ use derive_where::derive_where;
 use malachitebft_core_types::*;
 
 use crate::types::{LivenessMsg, MisbehaviorEvidence, SignedConsensusMsg};
-use crate::{ConsensusMsg, Error, PeerId, Role, VoteExtensionError, WalEntry};
+use crate::{ConsensusMsg, Error, Input, PeerId, Role, VoteExtensionError};
 
 /// Provides a way to construct the appropriate [`Resume`] value to
 /// resume execution after handling an [`Effect`].
@@ -121,10 +121,14 @@ where
         resume::Continue,
     ),
 
-    /// Notifies the application that consensus has received a valid sync value response.
+    /// The commit certificate for a synced value response verified: hand the
+    /// raw value bytes to the host for decoding/validation.
+    ///
+    /// "verified" refers to the certificate gate, not the value's validity —
+    /// the host's verdict (Valid or Invalid) is determined afterwards.
     ///
     /// Resume with: [`resume::Continue`]
-    ValidSyncValue(
+    CertVerifiedSyncValue(
         /// The value response
         ValueResponse<Ctx>,
         /// The proposer for that value
@@ -133,11 +137,13 @@ where
         resume::Continue,
     ),
 
-    /// Notifies the engine that consensus has received an invalid sync value response.
+    /// Processing the commit certificate for a synced value response failed
+    /// (verification rejected it, or a downstream error occurred while applying
+    /// it); the engine decides whether to blame the peer or treat it as local.
     ///
     /// Resume with: [`resume::Continue`]
-    InvalidSyncValue(
-        /// The peer that sent the invalid response
+    CertRejectedSyncValue(
+        /// The peer that sent the response
         PeerId,
         /// The height for which the response was sent
         Ctx::Height,
@@ -155,24 +161,13 @@ where
     ///
     /// In addition, it includes the vote extensions that were received for this height.
     ///
+    /// The application is expected to commit the decision, but advancing to the
+    /// next height happens later, in response to the [`Effect::Finalize`] effect.
+    ///
     /// Resume with: [`resume::Continue`]
     Decide(
         CommitCertificate<Ctx>,
         VoteExtensions<Ctx>,
-        resume::Continue,
-    ),
-
-    /// Notifies the application that a height has been finalized.
-    ///
-    /// This message includes an extended commit certificate containing the ID of the value
-    /// that was decided on, the height and round at which it was decided, and all precommits
-    /// for the decided value received until the target duration for the height.
-    ///
-    /// Resume with: [`resume::Continue`]
-    Finalize(
-        CommitCertificate<Ctx>,
-        VoteExtensions<Ctx>,
-        MisbehaviorEvidence<Ctx>,
         resume::Continue,
     ),
 
@@ -205,6 +200,22 @@ where
         resume::CertificateValidity,
     ),
 
+    /// Verify an extended commit certificate.
+    ///
+    /// Validates both per-validator precommit signatures and any attached
+    /// vote-extension signatures against their scope, plus the 2/3+ quorum.
+    /// Used on the sync receive path so that an extension cannot be forged
+    /// onto a sync-arrived certificate.
+    ///
+    /// Resume with: [`resume::CertificateValidity`]
+    VerifyExtendedCommitCertificate(
+        ExtendedCommitCertificate<Ctx>,
+        Ctx::ValidatorSet,
+        ThresholdParams,
+        VoteExtensionPolicy,
+        resume::CertificateValidity,
+    ),
+
     /// Verify a polka certificate
     ///
     /// Resume with: [`resume::CertificateValidity`]
@@ -225,11 +236,14 @@ where
         resume::CertificateValidity,
     ),
 
-    /// Append an entry to the Write-Ahead Log for crash recovery
-    /// If the WAL is not at the given height, the entry should be ignored.
+    /// Append an entry to the Write-Ahead Log for crash recovery.
+    ///
+    /// The entry carries a consensus [`Input`]; only a subset of variants is persisted by the
+    /// WAL codec — variants that must not be persisted are rejected at the codec layer with an
+    /// I/O error. If the WAL is not at the given height, the entry is ignored.
     ///
     /// Resume with: [`resume::Continue`]`
-    WalAppend(Ctx::Height, WalEntry<Ctx>, resume::Continue),
+    WalAppend(Ctx::Height, Input<Ctx>, resume::Continue),
 
     /// Allows the application to extend the pre-commit vote with arbitrary data.
     ///
@@ -246,6 +260,9 @@ where
     /// If the vote extension is deemed invalid, the vote it was part of
     /// will be discarded altogether.
     ///
+    /// The validator address identifies the validator that cast the precommit;
+    /// it is part of the cryptographic scope bound into the extension signature
+    /// so an extension cannot be replayed across validators.
     ///
     /// Only emitted if vote extensions are enabled.
     ///
@@ -254,9 +271,29 @@ where
         Ctx::Height,
         Round,
         ValueId<Ctx>,
+        Ctx::Address,
         SignedExtension<Ctx>,
         PublicKey<Ctx>,
         resume::VoteExtensionValidity,
+    ),
+
+    /// Notifies the application that a height has been finalized.
+    ///
+    /// Emitted after the finalization period for the height has elapsed (or immediately,
+    /// when no `target_time` was configured for the height). The certificate carries any
+    /// additional precommits collected during the finalization period, and the effect also
+    /// carries the misbehavior evidence accumulated since [`Effect::Decide`] was emitted.
+    ///
+    /// In response, the application must feed
+    /// [`Input::StartHeight`][crate::input::Input::StartHeight] to advance to the next height
+    /// (or to restart the current one).
+    ///
+    /// Resume with: [`resume::Continue`]
+    Finalize(
+        CommitCertificate<Ctx>,
+        VoteExtensions<Ctx>,
+        MisbehaviorEvidence<Ctx>,
+        resume::Continue,
     ),
 }
 

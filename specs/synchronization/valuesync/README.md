@@ -122,9 +122,12 @@ In the section on [Issues](#issues) below we will discuss future improvements.
 
 ## Formalizing the protocol in Quint
 
-We have formalized ValueSync in Quint.
-To do so, we abstracted away many details not relevant to the understanding of the protocol.
-The [specification](./quint/README.md) includes:
+Two Quint models are available:
+
+- [ValueSync client model](./client-model/README.md): AI-generated and grounded in the current Rust client implementation.
+- [MVP specification](./quint/README.md): manually authored and covering both the client and server.
+
+The MVP specification abstracts away details not relevant to understanding the protocol. It includes:
 
 - Protocol functionality: main complexity in the client, where it maintains statuses,  requests data, and feeds received data into consensus
 - State machine: We have encoded two alternatives

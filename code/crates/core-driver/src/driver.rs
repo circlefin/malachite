@@ -8,10 +8,10 @@ use malachitebft_core_state_machine::output::Output as RoundOutput;
 use malachitebft_core_state_machine::state::{RoundValue, State as RoundState, Step};
 use malachitebft_core_state_machine::state_machine::Info;
 use malachitebft_core_types::{
-    CommitCertificate, Context, EnterRoundCertificate, NilOrVal, PolkaCertificate, PolkaSignature,
-    Proposal, Round, RoundCertificate, RoundCertificateType, RoundSignature, SignedProposal,
-    SignedVote, Timeout, TimeoutKind, Validator, ValidatorSet, Validity, Value, ValueId, Vote,
-    VoteType,
+    Context, EnterRoundCertificate, ExtendedCommitCertificate, NilOrVal, PolkaCertificate,
+    PolkaSignature, Proposal, Round, RoundCertificate, RoundCertificateType, RoundSignature,
+    SignedProposal, SignedVote, Threshold, Timeout, TimeoutKind, Validator, ValidatorSet, Validity,
+    Value, ValueId, Vote, VoteType,
 };
 use malachitebft_core_votekeeper::keeper::Output as VKOutput;
 use malachitebft_core_votekeeper::keeper::VoteKeeper;
@@ -29,8 +29,7 @@ where
 {
     /// The context of the consensus engine,
     /// for defining the concrete data types and signature scheme.
-    #[allow(dead_code)]
-    ctx: Ctx,
+    pub(crate) ctx: Ctx,
 
     /// The address of the node.
     address: Ctx::Address,
@@ -50,8 +49,10 @@ where
     /// The vote keeper.
     pub(crate) vote_keeper: VoteKeeper<Ctx>,
 
-    /// The commit certificates
-    pub(crate) commit_certificates: Vec<CommitCertificate<Ctx>>,
+    /// The extended commit certificates, bundling per-validator precommit
+    /// signatures with their vote extensions (iff required) for each decided value
+    /// observed at this height.
+    pub(crate) commit_certificates: Vec<ExtendedCommitCertificate<Ctx>>,
 
     /// The polka certificates
     pub(crate) polka_certificates: Vec<PolkaCertificate<Ctx>>,
@@ -236,6 +237,18 @@ where
         self.proposal_keeper.take_evidence()
     }
 
+    /// Record a pair of equivocating proposals as evidence in the proposal keeper.
+    ///
+    /// Used by upstream layers that detect equivocation but filter the conflicting proposal
+    /// before it reaches the normal proposal-handling path.
+    pub fn record_proposal_evidence(
+        &mut self,
+        existing: SignedProposal<Ctx>,
+        conflicting: SignedProposal<Ctx>,
+    ) {
+        self.proposal_keeper.record_evidence(existing, conflicting);
+    }
+
     /// Remove and return recorded evidence of vote equivocation.
     pub fn take_vote_evidence(&mut self) -> malachitebft_core_votekeeper::EvidenceMap<Ctx> {
         self.vote_keeper.take_evidence()
@@ -255,19 +268,19 @@ where
         }
     }
 
-    /// Get a commit certificate for the given round and value id.
+    /// Get the extended commit certificate for the given round and value id.
     pub fn commit_certificate(
         &self,
         round: Round,
         value_id: &ValueId<Ctx>,
-    ) -> Option<&CommitCertificate<Ctx>> {
+    ) -> Option<&ExtendedCommitCertificate<Ctx>> {
         self.commit_certificates
             .iter()
             .find(|c| &c.value_id == value_id && c.round == round && c.height == self.height())
     }
 
-    /// Return the commit certificates, if any.
-    pub fn commit_certificates(&self) -> &[CommitCertificate<Ctx>] {
+    /// Return the extended commit certificates, if any.
+    pub fn commit_certificates(&self) -> &[ExtendedCommitCertificate<Ctx>] {
         self.commit_certificates.as_ref()
     }
 
@@ -453,7 +466,7 @@ where
 
     fn apply_commit_certificate(
         &mut self,
-        certificate: CommitCertificate<Ctx>,
+        certificate: ExtendedCommitCertificate<Ctx>,
     ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         if self.height() != certificate.height {
             return Err(Error::InvalidCertificateHeight {
@@ -485,6 +498,12 @@ where
                 certificate_height: certificate.height,
                 consensus_height: self.height(),
             });
+        }
+
+        // Store the Skip round certificate before the mux consumes the polka certificate,
+        // so the SkipRound transition has justification.
+        if certificate.round > self.round() {
+            self.store_round_certificate_from_polka_certificate(&certificate);
         }
 
         match self.store_and_multiplex_polka_certificate(certificate) {
@@ -560,6 +579,7 @@ where
         }
 
         let vote_round = vote.round();
+        let vote_value = vote.value().clone();
         let this_round = self.round();
 
         let Some(output) = self.vote_keeper.apply_vote(vote, this_round) else {
@@ -576,7 +596,21 @@ where
             VKOutput::PrecommitAny if this_round == vote_round => {
                 self.store_precommit_any_round_certificate(vote_round)
             }
-            VKOutput::SkipRound(round) => self.store_skip_round_certificate(*round),
+            VKOutput::SkipRound(round) => {
+                self.store_skip_round_certificate(*round);
+                // For future rounds, SkipRound may have taken priority over PolkaValue.
+                // In this case, store the associated polka certificate so it is available
+                // for the liveness protocol in the case a Precommit message is published.
+                if let NilOrVal::Val(value_id) = &vote_value {
+                    if self.vote_keeper.is_threshold_met(
+                        &vote_round,
+                        VoteType::Prevote,
+                        Threshold::Value(value_id.clone()),
+                    ) {
+                        self.store_polka_certificate(vote_round, value_id);
+                    }
+                }
+            }
             // For future rounds, PrecommitValue may have taken priority over SkipRound
             // in the vote keeper. Store the skip round certificate here so it's available
             // if the mux falls back to SkipRound (e.g. no valid proposal).
@@ -675,19 +709,31 @@ where
 
     fn store_round_certificate_from_commit_certificate(
         &mut self,
-        certificate: &CommitCertificate<Ctx>,
+        certificate: &ExtendedCommitCertificate<Ctx>,
     ) {
         // NOTE: We include all 2f+1 signatures from the commit certificate even though
         // only f+1 are needed for a Skip round certificate. Could be trimmed if needed.
+        let commit_certificate = certificate.trim_vote_extensions();
+        self.round_certificate = Some(EnterRoundCertificate::from_commit_certificate(
+            &commit_certificate,
+            RoundCertificateType::Skip,
+            certificate.round,
+        ));
+    }
+
+    fn store_round_certificate_from_polka_certificate(
+        &mut self,
+        certificate: &PolkaCertificate<Ctx>,
+    ) {
         let round_signatures = certificate
-            .commit_signatures
+            .polka_signatures
             .iter()
-            .map(|cs| {
+            .map(|ps| {
                 RoundSignature::new(
-                    VoteType::Precommit,
+                    VoteType::Prevote,
                     NilOrVal::Val(certificate.value_id.clone()),
-                    cs.address.clone(),
-                    cs.signature.clone(),
+                    ps.address.clone(),
+                    ps.signature.clone(),
                 )
             })
             .collect();
@@ -703,6 +749,37 @@ where
         });
     }
 
+    /// Ensure a precommit round certificate is stored for the given round.
+    ///
+    /// Called when TimeoutPrecommit fires and no round certificate exists yet.
+    /// Looks for evidence of 2f+1 precommits in:
+    ///  1. The vote keeper (individual precommit votes), or
+    ///  2. A stored commit certificate for the round.
+    fn ensure_precommit_round_certificate(&mut self, round: Round) {
+        // Try the vote keeper first: if we have 2f+1 precommits from individual votes
+        if self
+            .vote_keeper
+            .is_threshold_met(&round, VoteType::Precommit, Threshold::Any)
+        {
+            self.store_precommit_any_round_certificate(round);
+            return;
+        }
+
+        // Otherwise, try a stored commit certificate for this round
+        if let Some(cert) = self
+            .commit_certificates
+            .iter()
+            .find(|c| c.round == round && c.height == self.height())
+        {
+            let commit_certificate = cert.trim_vote_extensions();
+            self.round_certificate = Some(EnterRoundCertificate::from_commit_certificate(
+                &commit_certificate,
+                RoundCertificateType::Precommit,
+                cert.round.increment(),
+            ));
+        }
+    }
+
     fn apply_timeout(&mut self, timeout: Timeout) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         let input = match timeout.kind {
             TimeoutKind::Propose => RoundInput::TimeoutPropose,
@@ -714,7 +791,24 @@ where
             TimeoutKind::FinalizeHeight(_) => return Ok(None),
         };
 
-        self.apply_input(timeout.round, input)
+        let output = self.apply_input(timeout.round, input)?;
+
+        // If a precommit timeout caused the state machine to advance to a new
+        // round, ensure a precommit round certificate justifying that round is
+        // stored.
+        if matches!(timeout.kind, TimeoutKind::Precommit) {
+            if let Some(RoundOutput::NewRound(new_round)) = output.as_ref() {
+                let needs_refresh = self
+                    .round_certificate
+                    .as_ref()
+                    .is_none_or(|cert| cert.enter_round != *new_round);
+                if needs_refresh {
+                    self.ensure_precommit_round_certificate(timeout.round);
+                }
+            }
+        }
+
+        Ok(output)
     }
 
     /// Apply a sync decision using the provided unsigned proposal.

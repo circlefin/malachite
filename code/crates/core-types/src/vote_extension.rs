@@ -4,7 +4,75 @@ use alloc::vec::Vec;
 use bytes::Bytes;
 use derive_where::derive_where;
 
-use crate::{Context, SignedExtension};
+use crate::{Context, Round, SignedExtension, ValueId};
+
+/// Policy for handling vote extensions at a given height.
+///
+/// The application supplies this policy as part of the height parameters. When
+/// extensions are [`Disabled`](Self::Disabled), every non-nil precommit must
+/// omit its extension. When they are [`Required`](Self::Required), every
+/// non-nil precommit must carry a valid extension.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum VoteExtensionPolicy {
+    /// Vote extensions must be absent for this height.
+    #[default]
+    Disabled,
+
+    /// Vote extensions must be present for this height.
+    Required,
+}
+
+impl VoteExtensionPolicy {
+    /// Returns `true` when every applicable precommit must carry a vote extension.
+    pub const fn is_required(self) -> bool {
+        matches!(self, Self::Required)
+    }
+
+    /// Returns `true` when every applicable precommit must omit its vote extension.
+    pub const fn is_disabled(self) -> bool {
+        matches!(self, Self::Disabled)
+    }
+}
+
+/// Cryptographic scope that binds a vote extension to the precommit it accompanies.
+///
+/// A vote extension is meaningful only in the context of a precommit vote at a
+/// specific height/round/value, cast by a specific validator. Folding this scope
+/// into the extension's signed preimage prevents an extension blob from being
+/// replayed across heights, rounds, values, or validators: a signature produced
+/// for one scope will not verify against any other.
+///
+/// Producers ([`Signer::sign_vote_extension`](../../../signing/trait.Signer.html#tymethod.sign_vote_extension))
+/// and verifiers ([`Verifier::verify_signed_vote_extension`](../../../signing/trait.Verifier.html#tymethod.verify_signed_vote_extension))
+/// must agree on the canonical encoding of this scope.
+#[derive_where(Clone, Debug, PartialEq, Eq)]
+pub struct VoteExtensionScope<Ctx: Context> {
+    /// Height of the precommit the extension is attached to.
+    pub height: Ctx::Height,
+    /// Round of the precommit the extension is attached to.
+    pub round: Round,
+    /// Value id committed to by the precommit.
+    pub value_id: ValueId<Ctx>,
+    /// Address of the validator that cast the precommit and is signing the extension.
+    pub validator_address: Ctx::Address,
+}
+
+impl<Ctx: Context> VoteExtensionScope<Ctx> {
+    /// Create a new scope from its components.
+    pub fn new(
+        height: Ctx::Height,
+        round: Round,
+        value_id: ValueId<Ctx>,
+        validator_address: Ctx::Address,
+    ) -> Self {
+        Self {
+            height,
+            round,
+            value_id,
+            validator_address,
+        }
+    }
+}
 
 /// A set of vote extensions.
 #[derive_where(Clone, Debug, Default, PartialEq, Eq)]

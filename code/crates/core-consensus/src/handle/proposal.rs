@@ -2,7 +2,7 @@ use crate::handle::driver::apply_driver_input;
 use crate::handle::signature::verify_signature;
 use crate::input::Input;
 use crate::prelude::*;
-use crate::types::{ConsensusMsg, ProposedValue, SignedConsensusMsg, WalEntry};
+use crate::types::{ConsensusMsg, ProposedValue};
 use crate::util::pretty::PrettyProposal;
 
 /// Handles an incoming consensus proposal message.
@@ -98,21 +98,40 @@ where
         "Received proposal"
     );
 
-    // Store the proposal in the full proposal keeper
-    state.store_proposal(signed_proposal.clone());
-
-    // If consensus runs in a mode where it publishes proposals over the network,
-    // we need to persist in the Write-Ahead Log before we actually send it over the network.
-    if state.params.value_payload.include_proposal() {
-        perform!(
-            co,
-            Effect::WalAppend(
-                signed_proposal.height(),
-                WalEntry::ConsensusMsg(SignedConsensusMsg::Proposal(signed_proposal.clone())),
-                Default::default()
-            )
+    // Drop proposals that would grow the keeper, and therefore the WAL, past the
+    // per-(height, round) cap, before persisting anything. Proposals for a value that already
+    // holds a polka certificate are exempt: the certificate carries a quorum of signed prevotes.
+    if state.exceeds_per_round_cap(
+        proposal_height,
+        proposal_round,
+        &signed_proposal.value().id(),
+    ) {
+        warn!(
+            consensus.height = %consensus_height,
+            proposal.height = %proposal_height,
+            proposal.round = %proposal_round,
+            proposer = %proposer_address,
+            "Rejecting proposal: per-(height, round) cap reached"
         );
+
+        #[cfg(feature = "metrics")]
+        metrics.dropped_capped_proposals.inc();
+
+        return Ok(());
     }
+
+    // Store the proposal in the full proposal keeper
+    state.store_proposal(signed_proposal.clone(), metrics);
+
+    // Persist the proposal in the Write-Ahead Log before sending it over the network.
+    perform!(
+        co,
+        Effect::WalAppend(
+            signed_proposal.height(),
+            Input::Proposal(signed_proposal.clone()),
+            Default::default()
+        )
+    );
 
     if state.params.value_payload.proposal_only() {
         // TODO - pass the received value up to the host that will verify and give back validity and extension.

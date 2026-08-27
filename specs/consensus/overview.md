@@ -606,35 +606,61 @@ suggest to not use round numbers in validation of values for this reason.
 
 #### Backwards compatibility
 
-**Requirement 1 (Fixing bugs).**
-There might be a bug in the implementation of `valid(v)`. Then it might be possible that due to a bug,
-`valid` returns `false` 
-for values proposed by correct processes, and we are stuck at a given height. 
-A way to get out of the 
-situation is to produce a new implementation of `valid(v)` that returns `true` for the values proposed by correct processes.
-To be prepared for such a scenario we need to allow a change in the function.
+The implementation of `valid(v)` will evolve over time — to fix bugs
+in the validation logic, to introduce new rules as the application
+grows, or to deprecate rules that are no longer safe. This section
+states the requirement the consensus algorithm places on that
+evolution and the standard implementation pattern that satisfies it.
 
-**Requirement 2 (Future use).**
-If we allow changes to `valid`, we need to understand all uses of this function. Some
-synchronization protocols may use `valid(v)` for consistency checks, for instance, if a node
-fell behind, it might need to learn several past decisions. In doing so, it typically also
-uses (the current version) of `valid(v)` to check the decided values before accepting them.
-In this scenario, a value decided in the past (potentially using a now old version of 
-`valid(v)`) should be deemed valid with the current version of the function. 
+**The requirement.**
+Consider a sequence of `valid_i(v)` implementations with increasing
+versions `i`. For every value `v` that a quorum decided under some
+version `i`, every subsequent version `j > i` must continue to
+evaluate `valid_j(v) == true` for the same `v`. Equivalently, for
+any such `v`, `valid_i(v) == true` implies `valid_j(v) == true` for
+every `j > i`.
 
-These two requirements lead us to the following requirement on the implementations:
-we consider a sequence of `valid_i(v)` implementations, with increasing versions `i`, 
-so that to represent multiple _backwards compatible_ implementations of the validity checks.
-Formally we require that
-`valid_i(v) == true` implies `valid_j(v) == true `, for `j > i` and every value `v`.
+This property is what enables processes to synchronize with the
+network. A process running version `j` that has fallen behind fetches
+a historical decision from peers and, to accept it, re-evaluates the
+value under its own current `valid_j`. A quorum decided on `v` under
+version `i` having found `valid_i(v) == true`, and the requirement
+guarantees `valid_j(v) == true` as well, so synchronization converges.
 
-The logical implication allows newer versions of `valid(v)` to be more permissive (as required to
-fix bugs), while ensuring that newer versions allow to check validity
-of previously decided values.
+**The standard implementation pattern: soft upgrades.**
+Applications satisfy this requirement by keeping previous validation
+rules available and dispatching on the height of the value under
+inspection. When a new rule-set takes effect at upgrade height `h`,
+the implementation becomes, schematically,
 
->**Remark.** A similar way to address these concerns in implementations has been discussed in the
-context of soft upgrades [here](
-https://github.com/circlefin/malachite/issues/510#issuecomment-2589858811).
+```
+valid(v, chain, height) =
+  if height >= h then new_valid(v, chain, height)
+                 else old_valid(v, chain, height)
+```
+
+Under this pattern every version evaluates historical heights with
+the rules that were active at those heights, so the requirement
+holds by construction. The pattern accommodates upgrades in either
+direction — whether `new_valid` is more permissive (for instance,
+fixing an over-strict validator), more restrictive (deprecating a
+weak hash, signature scheme, or curve; lowering the maximum block
+size or gas per block; removing or restricting a VM opcode;
+narrowing an allow-list or making a schema field required; changing
+gas costs), or a mix — because the change is scoped to heights from
+`h` onwards while historical heights retain their original
+semantics. See the discussion at
+[malachite#510](https://github.com/circlefin/malachite/issues/510#issuecomment-2589858811)
+for additional context.
+
+**Applications outside this model.**
+An application that replaces `valid()` outright without retaining
+earlier rule-sets falls outside this specification. A process
+running such an application can fail to synchronize with the network on
+heights whose decided values are no longer accepted by the current
+`valid()`. Upgrade coordination for that case (planned hard forks,
+signalling, explicit fork heights agreed out of band) is not part
+of the consensus algorithm and out of scope here.
 
 ## Primitives
 

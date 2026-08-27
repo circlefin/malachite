@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 use crate::handle::driver::apply_driver_input;
-use crate::types::{LocallyProposedValue, ProposedValue, WalEntry};
+use crate::types::{LocallyProposedValue, ProposedValue};
 
 /// Handles a locally proposed value.
 /// Called when the application has built a value to propose.
@@ -53,7 +53,7 @@ where
         co,
         Effect::WalAppend(
             proposed_value.height,
-            WalEntry::ProposedValue(proposed_value.clone()),
+            Input::ProposedValue(proposed_value.clone(), ValueOrigin::Consensus),
             Default::default()
         )
     );

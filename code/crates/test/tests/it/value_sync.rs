@@ -66,8 +66,6 @@ pub async fn crash_restart_from_start(params: TestParams) {
 }
 
 #[rstest]
-#[case::parts_only_eager(ValuePayload::PartsOnly, Duration::ZERO)]
-#[case::parts_only_interval(ValuePayload::PartsOnly, Duration::from_secs(1))]
 #[case::proposal_and_parts_eager(ValuePayload::ProposalAndParts, Duration::ZERO)]
 #[case::proposal_and_parts_interval(ValuePayload::ProposalAndParts, Duration::from_secs(1))]
 #[tokio::test]
@@ -1004,8 +1002,9 @@ impl Middleware for FailSyncDecode {
 }
 
 /// Verifies that sync recovers when the application fails to decode a synced value.
-/// The engine receives None and notifies the sync state machine via ValueProcessingError,
-/// which re-requests from a different peer.
+/// A decode failure is a peer-attributable fault: the host replies with
+/// `SyncedValueOutcome::PeerFault`, the engine notifies the sync state machine via
+/// `PeerFault`, which penalizes the peer and re-requests from a different one.
 pub async fn sync_recovers_from_decode_failure(params: TestParams) {
     const HEIGHT: u64 = 6;
     const CRASH_HEIGHT: u64 = 3;
@@ -1053,8 +1052,6 @@ pub async fn sync_recovers_from_decode_failure(params: TestParams) {
 }
 
 #[rstest]
-#[case::parts_only_eager(ValuePayload::PartsOnly, Duration::ZERO)]
-#[case::parts_only_interval(ValuePayload::PartsOnly, Duration::from_secs(1))]
 #[case::proposal_and_parts_eager(ValuePayload::ProposalAndParts, Duration::ZERO)]
 #[case::proposal_and_parts_interval(ValuePayload::ProposalAndParts, Duration::from_secs(1))]
 #[tokio::test]
@@ -1068,4 +1065,148 @@ pub async fn sync_recovers_from_decode_failure_ok(
         ..Default::default()
     })
     .await
+}
+
+/// Middleware that reports a transient processing failure a configurable number
+/// of times before succeeding.
+#[derive(Debug, Clone)]
+struct FailSyncProcessing {
+    remaining_failures: Arc<AtomicU32>,
+}
+
+impl Middleware for FailSyncProcessing {
+    fn fail_synced_value_processing(
+        &self,
+        _ctx: &TestContext,
+        _height: Height,
+        _round: Round,
+    ) -> bool {
+        self.remaining_failures
+            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
+                if n > 0 {
+                    Some(n - 1)
+                } else {
+                    None
+                }
+            })
+            .is_ok()
+    }
+}
+
+/// A transient, local processing failure (e.g. the execution layer being
+/// temporarily unavailable) must NOT be attributed to
+/// the serving peer: the host replies with `SyncedValueOutcome::LocalTransientError`,
+/// the engine notifies the sync state machine via `LocalTransientError`, which
+/// re-requests without penalizing or excluding the peer. The node must recover
+/// once the transient failure clears, even if it is the only peer available.
+pub async fn sync_recovers_from_processing_error(params: TestParams) {
+    const HEIGHT: u64 = 6;
+    const CRASH_HEIGHT: u64 = 3;
+
+    let mut test = TestBuilder::<()>::new();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .success();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .success();
+
+    // Node 3 crashes, resets DB, and restarts with a middleware that reports a
+    // transient processing failure for the first few synced values. Sync must
+    // re-request (without penalizing any peer) until the failure clears.
+    let middleware = FailSyncProcessing {
+        remaining_failures: Arc::new(AtomicU32::new(3)),
+    };
+
+    test.add_node()
+        .with_voting_power(5)
+        .with_middleware(middleware)
+        .start()
+        .wait_until(CRASH_HEIGHT)
+        .crash()
+        .reset_db()
+        .restart_after(Duration::from_secs(5))
+        .wait_until(HEIGHT)
+        .success();
+
+    test.build()
+        .run_with_params(
+            Duration::from_secs(60),
+            TestParams {
+                enable_value_sync: true,
+                ..params
+            },
+        )
+        .await
+}
+
+#[rstest]
+#[case::proposal_and_parts_eager(ValuePayload::ProposalAndParts, Duration::ZERO)]
+#[case::proposal_and_parts_interval(ValuePayload::ProposalAndParts, Duration::from_secs(1))]
+#[tokio::test]
+pub async fn sync_recovers_from_processing_error_ok(
+    #[case] value_payload: ValuePayload,
+    #[case] status_update_interval: Duration,
+) {
+    sync_recovers_from_processing_error(TestParams {
+        value_payload,
+        status_update_interval,
+        ..Default::default()
+    })
+    .await
+}
+
+/// A node that syncs a past height with vote extensions must rejoin consensus
+/// and keep advancing after it becomes proposer.
+///
+/// This exercises extension transport and verification across sync end-to-end.
+#[tokio::test]
+pub async fn sync_carries_vote_extensions_across_recovery() {
+    const HEIGHT: u64 = 10;
+    const CRASH_HEIGHT: u64 = 4;
+
+    let mut test = TestBuilder::<()>::new();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .success();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .success();
+
+    // Node 3 crashes, has its DB wiped, and must recover via the sync protocol.
+    // After recovery it must continue making progress, which requires
+    // extensions to be available for any height where it is the proposer.
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(CRASH_HEIGHT)
+        .crash()
+        .reset_db()
+        .restart_after(Duration::from_secs(5))
+        .wait_until(HEIGHT)
+        .success();
+
+    test.build()
+        .run_with_params(
+            Duration::from_secs(60),
+            TestParams {
+                enable_value_sync: true,
+                target_time: Some(Duration::from_millis(15)),
+                ..Default::default()
+            }
+            .enable_vote_extensions(ByteSize::b(64)),
+        )
+        .await
 }

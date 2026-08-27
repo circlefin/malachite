@@ -17,12 +17,15 @@ use std::vec::Vec;
 
 use arc_malachitebft_core_consensus::{
     process, Effect, Error, Input, Params, ProposedValue, Resumable, Resume, SignedConsensusMsg,
-    State, ValuePayload, WalEntry,
+    State, ValuePayload,
 };
 use malachitebft_core_types::{
     NilOrVal, PolkaCertificate, Round, RoundCertificate, RoundCertificateType, SignedProposal,
     SignedVote, Timeout, Validity, ValueOrigin, VoteType,
 };
+// Brings the `Vote` trait accessors (`vote_type`, `validator_address`) into scope without
+// colliding with the concrete `Vote` type re-exported from `malachitebft_test`.
+use malachitebft_core_types::Vote as _;
 use malachitebft_metrics::Metrics;
 use malachitebft_test::utils::validators::make_validators;
 use malachitebft_test::{
@@ -32,7 +35,7 @@ use malachitebft_test::{
 
 #[derive(Default)]
 struct Captured {
-    wal: Vec<WalEntry<TestContext>>,
+    wal: Vec<Input<TestContext>>,
     published_votes: Vec<SignedVote<TestContext>>,
 }
 
@@ -61,7 +64,7 @@ fn handle_effect(
             r.resume_with(())
         }
         ExtendVote(_, _, _, r) => r.resume_with(None),
-        VerifyVoteExtension(_, _, _, _, _, r) => r.resume_with(Ok(())),
+        VerifyVoteExtension(_, _, _, _, _, _, r) => r.resume_with(Ok(())),
         _ => Resume::Continue,
     })
 }
@@ -129,7 +132,7 @@ fn restart_with_polka_certificate() {
     // Ordered consensus inputs to v3 before the crash.
     let inputs: Vec<Input<TestContext>> = vec![
         // Enter h=1, r=0.
-        Input::StartHeight(Height::new(1), vs.clone(), false, None),
+        Input::StartHeight(Height::new(1), vs.clone(), false, None, Default::default()),
         // Propose timer at r=0 fires: v3 prevotes nil at r=0.
         Input::TimeoutElapsed(Timeout::propose(Round::new(0))),
         // Peers' Precommit RoundCertificate(r=0, nil) carries 2f+1 precommits
@@ -202,17 +205,14 @@ fn restart_with_polka_certificate() {
     );
 
     // Recovery phase: replay the captured WAL entries to a fresh state.
-    let mut replay_inputs: Vec<Input<TestContext>> =
-        vec![Input::StartHeight(Height::new(1), vs, true, None)];
-    for entry in cap_normal.wal.drain(..) {
-        replay_inputs.push(match entry {
-            WalEntry::ConsensusMsg(SignedConsensusMsg::Vote(v)) => Input::Vote(v),
-            WalEntry::ConsensusMsg(SignedConsensusMsg::Proposal(p)) => Input::Proposal(p),
-            WalEntry::ProposedValue(pv) => Input::ProposedValue(pv, ValueOrigin::Consensus),
-            WalEntry::Timeout(t) => Input::TimeoutElapsed(t),
-            WalEntry::PolkaCertificate(c) => Input::PolkaCertificate(c),
-        });
-    }
+    let mut replay_inputs: Vec<Input<TestContext>> = vec![Input::StartHeight(
+        Height::new(1),
+        vs,
+        true,
+        None,
+        Default::default(),
+    )];
+    replay_inputs.append(&mut cap_normal.wal);
     // The propose timer for r=1 was scheduled when v3 entered r=1 during replay.
     replay_inputs.push(Input::TimeoutElapsed(Timeout::propose(Round::new(1))));
 
@@ -244,4 +244,97 @@ fn restart_with_polka_certificate() {
         state_replay.driver.round_state().valid,
         state_normal.driver.round_state().valid,
     );
+}
+
+/// A node that receives a Precommit `RoundCertificate` via gossip must replay
+/// it from the WAL after a crash. Without WAL persistence, the votekeeper
+/// loses the 2f+1 precommits the certificate delivered, the driver's stored
+/// `round_certificate` is empty, and the node has to re-fetch the certificate
+/// from peers to make progress on the round it was already past.
+#[test]
+fn restart_with_round_certificate() {
+    let validators: Vec<_> = make_validators([2, 3, 2])
+        .into_iter()
+        .map(|(v, _)| v)
+        .collect();
+    let v1 = validators[0].address;
+    let v2 = validators[1].address;
+    let v3 = validators[2].address;
+    let vs = ValidatorSet::new(validators.clone());
+
+    let inputs: Vec<Input<TestContext>> = vec![
+        Input::StartHeight(Height::new(1), vs.clone(), false, None, Default::default()),
+        Input::TimeoutElapsed(Timeout::propose(Round::new(0))),
+        // 2f+1 Precommits for nil at r=0 delivered as a single RoundCertificate.
+        Input::RoundCertificate(RoundCertificate::new_from_votes(
+            Height::new(1),
+            Round::new(0),
+            RoundCertificateType::Precommit,
+            vec![
+                precommit(v1, 0, NilOrVal::Nil),
+                precommit(v2, 0, NilOrVal::Nil),
+            ],
+        )),
+    ];
+
+    let metrics = Metrics::new();
+    let mut state_normal = make_state(&validators, v3);
+    let mut cap_normal = Captured::default();
+    drive(&mut state_normal, inputs, &mut cap_normal, &metrics);
+
+    // Sanity: the certificate's votes must have been persisted to the WAL as
+    // individual consensus-message entries (no dedicated certificate entry), so
+    // replay re-aggregates them through the ordinary vote path.
+    let walled_precommits: Vec<Address> = cap_normal
+        .wal
+        .iter()
+        .filter_map(|e| match e {
+            Input::Vote(v) if v.message.vote_type() == VoteType::Precommit => {
+                Some(*v.message.validator_address())
+            }
+            _ => None,
+        })
+        .collect();
+    assert!(
+        walled_precommits.contains(&v1) && walled_precommits.contains(&v2),
+        "expected the certificate's precommits from v1 and v2 in the WAL, got {:?}",
+        cap_normal.wal,
+    );
+
+    // Sanity: the driver stored the round certificate after live processing.
+    assert!(
+        state_normal.driver.round_certificate().is_some(),
+        "live driver should have a stored round_certificate",
+    );
+
+    // Replay WAL entries against a fresh state.
+    let mut replay_inputs: Vec<Input<TestContext>> = vec![Input::StartHeight(
+        Height::new(1),
+        vs,
+        true,
+        None,
+        Default::default(),
+    )];
+    replay_inputs.append(&mut cap_normal.wal);
+
+    let metrics = Metrics::new();
+    let mut state_replay = make_state(&validators, v3);
+    let mut cap_replay = Captured::default();
+    drive(&mut state_replay, replay_inputs, &mut cap_replay, &metrics);
+
+    // The replayed driver must hold the same round_certificate as the live one
+    // (identical height/round/cert_type) — proof that the certificate was
+    // recovered, not silently dropped.
+    let live = state_normal
+        .driver
+        .round_certificate()
+        .expect("live round_certificate");
+    let replayed = state_replay
+        .driver
+        .round_certificate()
+        .expect("replayed round_certificate");
+    assert_eq!(live.certificate.height, replayed.certificate.height);
+    assert_eq!(live.certificate.round, replayed.certificate.round);
+    assert_eq!(live.certificate.cert_type, replayed.certificate.cert_type);
+    assert_eq!(live.enter_round, replayed.enter_round);
 }

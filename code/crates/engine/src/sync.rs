@@ -18,10 +18,11 @@ use malachitebft_core_consensus::util::bounded_queue::BoundedQueue;
 use malachitebft_core_consensus::PeerId;
 use malachitebft_core_types::utils::height::DisplayRange;
 use malachitebft_core_types::ValueResponse as CoreValueResponse;
-use malachitebft_core_types::{CommitCertificate, Context};
+use malachitebft_core_types::{Context, ExtendedCommitCertificate};
+use malachitebft_network::Channel;
 use malachitebft_sync::{
-    self as sync, HeightStartType, InboundRequestId, OutboundRequestId, RawDecidedValue, Request,
-    Response, Resumable,
+    self as sync, HeightStartType, InboundFailureReason, InboundRequestId, OutboundRequestId,
+    RawDecidedValue, Request, Response, Resumable,
 };
 
 use crate::consensus::{ConsensusMsg, ConsensusRef};
@@ -56,12 +57,40 @@ where
 {
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum Timeout {
+#[derive_where(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Timeout<Ctx: Context> {
+    /// Timeout for an outbound sync request.
     Request(OutboundRequestId),
+
+    /// Budget for an inbound sync request: caps how long a pending inbound
+    /// request waits on the host before it is dropped.
+    InboundRequest(InboundRequestId),
+
+    /// Backoff before re-requesting a synced value at the given height after a
+    /// local/transient processing failure.
+    Retry(Ctx::Height),
 }
 
-type Timers = TimerScheduler<Timeout>;
+type Timers<Ctx> = TimerScheduler<Timeout<Ctx>>;
+
+/// Base delay for the exponential backoff applied before re-requesting a synced
+/// value after a local/transient processing failure.
+const LOCAL_TRANSIENT_RETRY_BASE: Duration = Duration::from_millis(100);
+
+/// Cap for the exponential backoff applied before re-requesting a synced value
+/// after a local/transient processing failure.
+const LOCAL_TRANSIENT_RETRY_CAP: Duration = Duration::from_secs(1);
+
+/// Capped exponential backoff before re-requesting a synced value after a
+/// local/transient processing failure: `min(BASE * 2^(attempt - 1), CAP)`.
+fn local_transient_retry_delay(attempt: u32) -> Duration {
+    // Clamp the shift exponent so it cannot overflow (2^16 fits in u32).
+    let shift = attempt.saturating_sub(1).min(16);
+    let factor = 1u32 << shift;
+    LOCAL_TRANSIENT_RETRY_BASE
+        .saturating_mul(factor)
+        .min(LOCAL_TRANSIENT_RETRY_CAP)
+}
 
 pub type SyncRef<Ctx> = ActorRef<Msg<Ctx>>;
 pub type SyncMsg<Ctx> = Msg<Ctx>;
@@ -69,7 +98,7 @@ pub type SyncMsg<Ctx> = Msg<Ctx>;
 #[derive_where(Clone, Debug)]
 pub struct RawDecidedBlock<Ctx: Context> {
     pub height: Ctx::Height,
-    pub certificate: CommitCertificate<Ctx>,
+    pub certificate: ExtendedCommitCertificate<Ctx>,
     pub value_bytes: Bytes,
 }
 
@@ -81,6 +110,9 @@ pub struct InflightRequest<Ctx: Context> {
 }
 
 pub type InflightRequests<Ctx> = HashMap<OutboundRequestId, InflightRequest<Ctx>>;
+
+/// Pending inbound sync requests and the peer that issued each.
+pub type InboundRequests = HashMap<InboundRequestId, PeerId>;
 
 #[derive_where(Clone, Debug)]
 pub enum Msg<Ctx: Context> {
@@ -106,13 +138,16 @@ pub enum Msg<Ctx: Context> {
     ),
 
     /// A timeout has elapsed
-    TimeoutElapsed(TimeoutElapsed<Timeout>),
+    TimeoutElapsed(TimeoutElapsed<Timeout<Ctx>>),
 
-    /// We received an invalid value (either certificate or value) from a peer
-    InvalidValue(PeerId, Ctx::Height),
+    /// A fault in a synced value (its certificate or its bytes) is attributable
+    /// to the peer that served it: penalize and re-request from another peer.
+    PeerFault(PeerId, Ctx::Height),
 
-    /// An error occurred while processing a value
-    ValueProcessingError(PeerId, Ctx::Height),
+    /// Processing a synced value hit a local/transient failure (e.g. the
+    /// execution layer being temporarily unavailable). No peer is to blame, so
+    /// no peer is carried — re-request without penalizing or excluding anyone.
+    LocalTransientError(Ctx::Height),
 }
 
 impl<Ctx: Context> From<NetworkEvent<Ctx>> for Msg<Ctx> {
@@ -121,8 +156,8 @@ impl<Ctx: Context> From<NetworkEvent<Ctx>> for Msg<Ctx> {
     }
 }
 
-impl<Ctx: Context> From<TimeoutElapsed<Timeout>> for Msg<Ctx> {
-    fn from(elapsed: TimeoutElapsed<Timeout>) -> Self {
+impl<Ctx: Context> From<TimeoutElapsed<Timeout<Ctx>>> for Msg<Ctx> {
+    fn from(elapsed: TimeoutElapsed<Timeout<Ctx>>) -> Self {
         Msg::TimeoutElapsed(elapsed)
     }
 }
@@ -164,6 +199,16 @@ impl<Ctx: Context> BufferedValue<Ctx> {
 /// A queue of buffered sync values for heights ahead of consensus, keyed by height.
 type SyncQueue<Ctx> = BoundedQueue<<Ctx as Context>::Height, BufferedValue<Ctx>>;
 
+fn sync_queue_capacity(config: &sync::Config) -> usize {
+    let read_ahead_window = config.read_ahead_window();
+    let capacity = read_ahead_window.saturating_mul(2);
+    let max_requested_heights =
+        read_ahead_window.saturating_add(config.effective_batch_size().saturating_sub(1));
+
+    debug_assert!(capacity >= max_requested_heights);
+    capacity
+}
+
 /// The mode for sending status updates
 enum StatusUpdateMode {
     /// Send status updates at regular intervals
@@ -178,10 +223,17 @@ pub struct State<Ctx: Context> {
     sync: sync::State<Ctx>,
 
     /// Scheduler for timers
-    timers: Timers,
+    timers: Timers<Ctx>,
+
+    /// Per-height count of consecutive local/transient processing failures,
+    /// used to compute the exponential backoff before re-requesting.
+    local_transient_attempts: HashMap<Ctx::Height, u32>,
 
     /// In-flight requests
     inflight: InflightRequests<Ctx>,
+
+    /// Pending inbound requests and the peer that issued each.
+    inbound: InboundRequests,
 
     /// Queue of sync value responses for heights ahead of consensus
     sync_queue: SyncQueue<Ctx>,
@@ -193,9 +245,11 @@ pub struct State<Ctx: Context> {
 struct HandlerState<'a, Ctx: Context> {
     /// Scheduler for timers, used to start new timers for outgoing requests
     /// and correlate elapsed timers to the original request and peer.
-    timers: &'a mut Timers,
+    timers: &'a mut Timers<Ctx>,
     /// In-flight requests, used to correlate timeouts and responses to the original request and peer.
     inflight: &'a mut InflightRequests<Ctx>,
+    /// Pending inbound requests, used to stop tracking a request once it is answered.
+    inbound: &'a mut InboundRequests,
     /// Buffer for sync responses for heights ahead of consensus, keyed by height.
     sync_queue: &'a mut SyncQueue<Ctx>,
     /// The current consensus height according to the last processed input.
@@ -285,6 +339,7 @@ where
         let mut handler_state = HandlerState {
             timers: &mut state.timers,
             inflight: &mut state.inflight,
+            inbound: &mut state.inbound,
             sync_queue: &mut state.sync_queue,
             consensus_height: state.sync.consensus_height,
         };
@@ -366,6 +421,14 @@ where
             }
 
             Effect::SendValueResponse(request_id, value_response, r) => {
+                // The inbound request is being answered: stop tracking it and
+                // cancel its stall timer before handing the response to the
+                // network layer.
+                state
+                    .timers
+                    .cancel(&Timeout::InboundRequest(request_id.clone()));
+                state.inbound.remove(&request_id);
+
                 let response = Response::ValueResponse(value_response);
                 self.network
                     .cast(NetworkMsg::OutgoingResponse(request_id, response))?;
@@ -389,6 +452,12 @@ where
 
             Effect::ProcessValueResponse(peer_id, request_id, response, r) => {
                 self.process_value_response(state, peer_id, request_id, response);
+                Ok(r.resume_with(()))
+            }
+
+            Effect::CancelValueRequest(request_id, r) => {
+                self.network.cast(NetworkMsg::CancelRequest(request_id))?;
+
                 Ok(r.resume_with(()))
             }
         }
@@ -472,9 +541,56 @@ where
             Msg::NetworkEvent(NetworkEvent::PeerDisconnected(peer_id)) => {
                 info!(%peer_id, "Disconnected from peer");
 
-                if state.sync.peers.remove(&peer_id).is_some() {
-                    debug!(%peer_id, "Removed disconnected peer");
+                // Cancel timers and drop in-flight requests routed to this peer,
+                // then let the sync state machine reissue them to another peer.
+                let peer_request_ids: Vec<OutboundRequestId> = state
+                    .inflight
+                    .iter()
+                    .filter(|(_, inflight)| inflight.peer_id == peer_id)
+                    .map(|(request_id, _)| request_id.clone())
+                    .collect();
+
+                for request_id in &peer_request_ids {
+                    state.timers.cancel(&Timeout::Request(request_id.clone()));
+                    state.inflight.remove(request_id);
                 }
+
+                if !peer_request_ids.is_empty() {
+                    debug!(
+                        %peer_id,
+                        count = peer_request_ids.len(),
+                        "Cleared in-flight requests for disconnected peer",
+                    );
+                }
+
+                // Drop any pending inbound requests issued by this peer: cancel
+                // their stall timers and evict them from the network layer
+                // before the host reply path runs.
+                let inbound_request_ids =
+                    drain_inbound_requests_for_peer(&mut state.inbound, peer_id);
+
+                for request_id in &inbound_request_ids {
+                    state
+                        .timers
+                        .cancel(&Timeout::InboundRequest(request_id.clone()));
+                    self.network
+                        .cast(NetworkMsg::CancelInboundRequest(request_id.clone()))?;
+                    self.metrics.value_inbound_request_failed(
+                        request_id,
+                        InboundFailureReason::RequesterDisconnected,
+                    );
+                }
+
+                if !inbound_request_ids.is_empty() {
+                    debug!(
+                        %peer_id,
+                        count = inbound_request_ids.len(),
+                        "Cleared pending inbound requests for disconnected peer",
+                    );
+                }
+
+                self.process_input(&myself, state, sync::Input::PeerDisconnected(peer_id))
+                    .await?;
             }
 
             Msg::NetworkEvent(NetworkEvent::Status(peer_id, status)) => {
@@ -489,6 +605,13 @@ where
             }
 
             Msg::NetworkEvent(NetworkEvent::SyncRequest(request_id, from, request)) => {
+                // Track the request against its requester and arm its stall timer.
+                state.inbound.insert(request_id.clone(), from);
+                state.timers.start_timer(
+                    Timeout::InboundRequest(request_id.clone()),
+                    self.params.request_timeout,
+                );
+
                 match request {
                     Request::ValueRequest(value_request) => {
                         self.process_input(
@@ -527,8 +650,32 @@ where
                 .await?;
             }
 
-            Msg::NetworkEvent(NetworkEvent::PeerConnected(peer_id)) => {
-                info!(%peer_id, "Peer connected, broadcasting status");
+            Msg::NetworkEvent(NetworkEvent::SyncRequestFailed(request_id, peer, reason)) => {
+                state.timers.cancel(&Timeout::Request(request_id.clone()));
+
+                let Some(inflight) = state.inflight.remove(&request_id) else {
+                    // Request was already cleaned up (e.g. by an earlier
+                    // `PeerDisconnected` for the same peer, or by the response
+                    // arriving in a tight race with the failure event).
+                    debug!(%request_id, %peer, ?reason, "Sync request failure for unknown request");
+                    return Ok(());
+                };
+
+                self.process_input(
+                    &myself,
+                    state,
+                    sync::Input::SyncRequestFailed(
+                        request_id,
+                        inflight.peer_id,
+                        inflight.request,
+                        reason,
+                    ),
+                )
+                .await?;
+            }
+
+            Msg::NetworkEvent(NetworkEvent::PeerSubscribed(peer_id, Channel::Sync)) => {
+                debug!(%peer_id, "Peer subscribed to sync channel, broadcasting status");
 
                 self.process_input(&myself, state, sync::Input::SendStatusUpdate)
                     .await?;
@@ -574,6 +721,20 @@ where
                 self.process_input(&myself, state, sync::Input::Decided(height))
                     .await?;
 
+                // Progress was made: drop the local/transient backoff state for any
+                // height at or below the decided one and cancel its pending retry timer.
+                let reset: Vec<Ctx::Height> = state
+                    .local_transient_attempts
+                    .keys()
+                    .filter(|h| **h <= height)
+                    .copied()
+                    .collect();
+
+                for h in reset {
+                    state.local_transient_attempts.remove(&h);
+                    state.timers.cancel(&Timeout::Retry(h));
+                }
+
                 // In Eager mode, broadcast our status immediately after deciding
                 // rather than waiting for the next height to start, so that peers
                 // who need to sync from us learn about our latest height sooner.
@@ -589,6 +750,13 @@ where
             // If it does, we truncate the response accordingly.
             // This is to prevent sending overly large messages that could lead to network issues.
             Msg::GotDecidedValues(request_id, range, mut values) => {
+                // Drop late host replies for inbound requests that were already
+                // evicted (requester disconnected, or the stall timer fired).
+                if !state.inbound.contains_key(&request_id) {
+                    debug!(%request_id, "Dropping decided values for evicted inbound request");
+                    return Ok(());
+                }
+
                 debug!(
                     %request_id,
                     range = %DisplayRange(&range),
@@ -608,8 +776,8 @@ where
                 .await?;
             }
 
-            Msg::InvalidValue(peer, height) => {
-                // Remove buffered values that came from the same request as the invalid value.
+            Msg::PeerFault(peer, height) => {
+                // Remove buffered values that came from the same request as the faulty value.
                 // This prevents stale values from a bad peer from being drained to consensus
                 // when the height advances.
                 if let Some((request_id, _)) = state.sync.get_request_id_by(height) {
@@ -625,17 +793,29 @@ where
                     }
                 }
 
-                self.process_input(&myself, state, sync::Input::InvalidValue(peer, height))
+                self.process_input(&myself, state, sync::Input::PeerFault(peer, height))
                     .await?
             }
 
-            Msg::ValueProcessingError(peer, height) => {
-                self.process_input(
-                    &myself,
-                    state,
-                    sync::Input::ValueProcessingError(peer, height),
-                )
-                .await?
+            Msg::LocalTransientError(height) => {
+                // Count the transient error when it is first observed, not when the
+                // backoff retry later fires: the Retry timer can be cancelled (e.g. the
+                // height is decided via another peer during backoff), which would
+                // otherwise drop the error from the metric.
+                self.metrics.value_local_transient_error();
+
+                // Do not re-request immediately: during a multi-minute execution-layer
+                // outage an immediate re-request becomes a tight loop. Back off with a
+                // capped exponential delay and let the retry timer fire the re-request.
+                let attempt = state.local_transient_attempts.entry(height).or_insert(0);
+                *attempt = attempt.saturating_add(1);
+                let attempt = *attempt;
+
+                let delay = local_transient_retry_delay(attempt);
+
+                debug!(%height, attempt, ?delay, "Backing off before re-requesting synced value after local/transient error");
+
+                state.timers.start_timer(Timeout::Retry(height), delay);
             }
 
             Msg::TimeoutElapsed(elapsed) => {
@@ -662,6 +842,35 @@ where
                         } else {
                             debug!(%request_id, "Timeout for unknown request");
                         }
+                    }
+
+                    // The host did not answer within the inbound request budget:
+                    // drop it from the network layer and record the reason.
+                    Timeout::InboundRequest(request_id) => {
+                        if state.inbound.remove(&request_id).is_some() {
+                            self.network
+                                .cast(NetworkMsg::CancelInboundRequest(request_id.clone()))?;
+                            self.metrics.value_inbound_request_failed(
+                                &request_id,
+                                InboundFailureReason::HostStallTimeout,
+                            );
+                            debug!(%request_id, "Inbound sync request timed out waiting on host");
+                        } else {
+                            debug!(%request_id, "Inbound request timeout for unknown request");
+                        }
+                    }
+
+                    // The backoff after a local/transient error has elapsed:
+                    // now re-request the synced value (without penalizing any peer).
+                    // The retry attempt was already counted when the engine
+                    // actor received `Msg::LocalTransientError`.
+                    Timeout::Retry(height) => {
+                        self.process_input(
+                            &myself,
+                            state,
+                            sync::Input::LocalTransientError(height),
+                        )
+                        .await?;
                     }
                 }
             }
@@ -739,6 +948,26 @@ fn truncate_values_to_size_limit<Ctx, Codec>(
     values.truncate(keep_count);
 }
 
+/// Remove and return the IDs of all pending inbound requests issued by
+/// `peer_id`.
+fn drain_inbound_requests_for_peer(
+    inbound: &mut InboundRequests,
+    peer_id: PeerId,
+) -> Vec<InboundRequestId> {
+    let mut request_ids = Vec::new();
+
+    inbound.retain(|request_id, requester| {
+        if *requester == peer_id {
+            request_ids.push(request_id.clone());
+            false
+        } else {
+            true
+        }
+    });
+
+    request_ids
+}
+
 #[async_trait]
 impl<Ctx, Codec> Actor for Sync<Ctx, Codec>
 where
@@ -762,14 +991,16 @@ where
         let status_update_mode =
             status_update_mode(self.params.status_update_interval, &myself, &mut rng);
 
-        // NOTE: The queue capacity is set to accommodate all individual values for the
-        // maximum number of parallel requests and batch size, with some additional buffer.
-        let queue_capacity = 2 * self.sync_config.parallel_requests * self.sync_config.batch_size;
+        // A batch may start at the end of the read-ahead window and extend by
+        // one batch less one height. Twice the window covers that full range.
+        let queue_capacity = sync_queue_capacity(&self.sync_config);
 
         Ok(State {
             sync: sync::State::new(rng, self.sync_config),
             timers: Timers::new(Box::new(myself.clone())),
+            local_transient_attempts: HashMap::new(),
             inflight: HashMap::new(),
+            inbound: HashMap::new(),
             sync_queue: SyncQueue::new(queue_capacity, queue_capacity),
             status_update_mode,
         })
@@ -807,5 +1038,68 @@ where
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sync_queue_capacity_covers_read_ahead_ranges() {
+        for parallel_requests in 0..=8 {
+            for batch_size in 0..=8 {
+                let config = sync::Config::default()
+                    .with_parallel_requests(parallel_requests)
+                    .with_batch_size(batch_size);
+                let max_requested_heights = config
+                    .read_ahead_window()
+                    .saturating_add(config.effective_batch_size().saturating_sub(1));
+                let queue_capacity = sync_queue_capacity(&config);
+
+                assert!(
+                    queue_capacity >= max_requested_heights,
+                    "queue capacity {queue_capacity} is smaller than the read-ahead range \
+                     {max_requested_heights} for parallel_requests={parallel_requests}, \
+                     batch_size={batch_size}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn drain_inbound_requests_for_peer_evicts_only_that_peers_requests() {
+        let peer_a = PeerId::random();
+        let peer_b = PeerId::random();
+
+        let mut inbound = InboundRequests::new();
+        inbound.insert(InboundRequestId::new("a1"), peer_a);
+        inbound.insert(InboundRequestId::new("a2"), peer_a);
+        inbound.insert(InboundRequestId::new("b1"), peer_b);
+
+        let mut evicted = drain_inbound_requests_for_peer(&mut inbound, peer_a);
+        evicted.sort();
+
+        assert_eq!(
+            evicted,
+            vec![InboundRequestId::new("a1"), InboundRequestId::new("a2")]
+        );
+        // Only the disconnected peer's requests are removed.
+        assert_eq!(inbound.len(), 1);
+        assert_eq!(inbound.get(&InboundRequestId::new("b1")), Some(&peer_b));
+    }
+
+    #[test]
+    fn drain_inbound_requests_for_peer_is_noop_for_unknown_peer() {
+        let peer_a = PeerId::random();
+        let unknown = PeerId::random();
+
+        let mut inbound = InboundRequests::new();
+        inbound.insert(InboundRequestId::new("a1"), peer_a);
+
+        let evicted = drain_inbound_requests_for_peer(&mut inbound, unknown);
+
+        assert!(evicted.is_empty());
+        assert_eq!(inbound.len(), 1);
     }
 }

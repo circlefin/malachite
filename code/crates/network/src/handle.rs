@@ -80,24 +80,6 @@ impl CtrlHandle {
         Ok(())
     }
 
-    /// Send a validator proof verification result.
-    /// If result is Valid, provide the public_key to store the proof.
-    pub async fn validator_proof_verified(
-        &self,
-        peer_id: crate::PeerId,
-        result: validator_proof::ProofVerificationResult,
-        public_key: Option<Vec<u8>>,
-    ) -> Result<(), eyre::Report> {
-        self.tx_ctrl
-            .send(CtrlMsg::ValidatorProofVerified {
-                peer_id,
-                result,
-                public_key,
-            })
-            .await?;
-        Ok(())
-    }
-
     pub async fn dump_state(&self) -> Result<crate::NetworkStateDump, eyre::Report> {
         let (tx, rx) = oneshot::channel();
 
@@ -136,6 +118,24 @@ impl CtrlHandle {
             .await?;
 
         Ok(rx.await?)
+    }
+
+    /// Send a validator proof verification result.
+    /// If result is Valid, provide the public_key to store the proof.
+    pub async fn validator_proof_verified(
+        &self,
+        peer_id: crate::PeerId,
+        result: validator_proof::ProofVerificationResult,
+        public_key: Option<Vec<u8>>,
+    ) -> Result<(), eyre::Report> {
+        self.tx_ctrl
+            .send(CtrlMsg::ValidatorProofVerified {
+                peer_id,
+                result,
+                public_key,
+            })
+            .await?;
+        Ok(())
     }
 
     pub async fn wait_shutdown(self) -> Result<(), eyre::Report> {
@@ -203,6 +203,10 @@ impl Handle {
         addr: Multiaddr,
     ) -> Result<Result<(), PersistentPeerError>, eyre::Report> {
         self.ctrl.remove_persistent_peer(addr).await
+    }
+
+    pub async fn dump_state(&self) -> Result<crate::NetworkStateDump, eyre::Report> {
+        self.ctrl.dump_state().await
     }
 
     pub async fn wait_shutdown(self) -> Result<(), eyre::Report> {

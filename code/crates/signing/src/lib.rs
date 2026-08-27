@@ -8,7 +8,9 @@ use alloc::sync::Arc;
 use alloc::vec::Vec;
 
 use async_trait::async_trait;
-use malachitebft_core_types::{Context, PublicKey, Signature, SignedMessage, ValidatorProof};
+use malachitebft_core_types::{
+    Context, PublicKey, Signature, SignedMessage, ValidatorProof, VoteExtensionScope,
+};
 
 mod error;
 pub use error::Error;
@@ -81,8 +83,22 @@ where
     ) -> Result<VerificationResult, Error>;
 
     /// Verify the given vote extension's signature using the given public key.
+    ///
+    /// The signature is verified against a canonical preimage that binds the
+    /// extension to its [`VoteExtensionScope`] (height, round, value id,
+    /// validator address). A signature produced for one scope MUST NOT verify
+    /// against any other scope, so that an extension blob cannot be relayed
+    /// across heights, rounds, values, or validators.
+    ///
+    /// Implementations must use an encoding where no two `(scope, extension)`
+    /// pairs produce the same preimage bytes, and must domain-separate this
+    /// preimage from every other signed message type (votes, proposals,
+    /// validator proofs, etc.). If an implementation adds application-specific
+    /// scope material, those bytes must be deterministically derivable at every
+    /// verification callsite.
     async fn verify_signed_vote_extension(
         &self,
+        scope: &VoteExtensionScope<Ctx>,
         extension: &Ctx::Extension,
         signature: &Signature<Ctx>,
         public_key: &PublicKey<Ctx>,
@@ -129,8 +145,21 @@ where
     ) -> Result<SignedMessage<Ctx, Ctx::Proposal>, Error>;
 
     /// Sign the given vote extension with our private key.
+    ///
+    /// The signature is computed over a canonical preimage that binds the
+    /// extension to its [`VoteExtensionScope`] (height, round, value id,
+    /// validator address), so the resulting signature cannot be replayed as
+    /// an extension for a different precommit.
+    ///
+    /// Implementations must use an encoding where no two `(scope, extension)`
+    /// pairs produce the same preimage bytes, and must domain-separate this
+    /// preimage from every other signed message type (votes, proposals,
+    /// validator proofs, etc.). If an implementation adds application-specific
+    /// scope material, those bytes must be deterministically derivable at every
+    /// verification callsite.
     async fn sign_vote_extension(
         &self,
+        scope: VoteExtensionScope<Ctx>,
         extension: Ctx::Extension,
     ) -> Result<SignedMessage<Ctx, Ctx::Extension>, Error>;
 
@@ -177,12 +206,13 @@ where
 
     async fn verify_signed_vote_extension(
         &self,
+        scope: &VoteExtensionScope<Ctx>,
         extension: &Ctx::Extension,
         signature: &Signature<Ctx>,
         public_key: &PublicKey<Ctx>,
     ) -> Result<VerificationResult, Error> {
         (*self)
-            .verify_signed_vote_extension(extension, signature, public_key)
+            .verify_signed_vote_extension(scope, extension, signature, public_key)
             .await
     }
 
@@ -213,9 +243,10 @@ where
 
     async fn sign_vote_extension(
         &self,
+        scope: VoteExtensionScope<Ctx>,
         extension: Ctx::Extension,
     ) -> Result<SignedMessage<Ctx, Ctx::Extension>, Error> {
-        (*self).sign_vote_extension(extension).await
+        (*self).sign_vote_extension(scope, extension).await
     }
 
     async fn sign_validator_proof(
@@ -258,12 +289,13 @@ where
 
     async fn verify_signed_vote_extension(
         &self,
+        scope: &VoteExtensionScope<Ctx>,
         extension: &Ctx::Extension,
         signature: &Signature<Ctx>,
         public_key: &PublicKey<Ctx>,
     ) -> Result<VerificationResult, Error> {
         self.as_ref()
-            .verify_signed_vote_extension(extension, signature, public_key)
+            .verify_signed_vote_extension(scope, extension, signature, public_key)
             .await
     }
 
@@ -293,9 +325,10 @@ where
 
     async fn sign_vote_extension(
         &self,
+        scope: VoteExtensionScope<Ctx>,
         extension: Ctx::Extension,
     ) -> Result<SignedMessage<Ctx, Ctx::Extension>, Error> {
-        self.as_ref().sign_vote_extension(extension).await
+        self.as_ref().sign_vote_extension(scope, extension).await
     }
 
     async fn sign_validator_proof(
@@ -340,12 +373,13 @@ where
 
     async fn verify_signed_vote_extension(
         &self,
+        scope: &VoteExtensionScope<Ctx>,
         extension: &Ctx::Extension,
         signature: &Signature<Ctx>,
         public_key: &PublicKey<Ctx>,
     ) -> Result<VerificationResult, Error> {
         self.as_ref()
-            .verify_signed_vote_extension(extension, signature, public_key)
+            .verify_signed_vote_extension(scope, extension, signature, public_key)
             .await
     }
 
@@ -375,9 +409,10 @@ where
 
     async fn sign_vote_extension(
         &self,
+        scope: VoteExtensionScope<Ctx>,
         extension: Ctx::Extension,
     ) -> Result<SignedMessage<Ctx, Ctx::Extension>, Error> {
-        self.as_ref().sign_vote_extension(extension).await
+        self.as_ref().sign_vote_extension(scope, extension).await
     }
 
     async fn sign_validator_proof(

@@ -1,5 +1,5 @@
 use crate::handle::driver::apply_driver_input;
-use crate::handle::signature::verify_commit_certificate;
+use crate::handle::signature::verify_extended_commit_certificate;
 use crate::prelude::*;
 use crate::types::ProposedValue;
 
@@ -121,7 +121,7 @@ where
             } else {
                 perform!(
                     co,
-                    Effect::ValidSyncValue(value, proposer, Default::default())
+                    Effect::CertVerifiedSyncValue(value, proposer, Default::default())
                 );
             }
         }
@@ -129,7 +129,7 @@ where
             error!("Error when processing commit certificate: {e}");
             perform!(
                 co,
-                Effect::InvalidSyncValue(peer, cert_height, e, Default::default())
+                Effect::CertRejectedSyncValue(peer, cert_height, e, Default::default())
             );
         }
     }
@@ -141,7 +141,7 @@ async fn process_commit_certificate<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    certificate: CommitCertificate<Ctx>,
+    certificate: ExtendedCommitCertificate<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
@@ -156,11 +156,13 @@ where
 
     let validator_set = state.validator_set();
 
-    if let Err(e) = verify_commit_certificate(
+    // Verify the synced certificate before applying it to consensus state.
+    if let Err(e) = verify_extended_commit_certificate(
         co,
         certificate.clone(),
         validator_set.clone(),
         state.params.threshold_params,
+        state.vote_extension_policy,
     )
     .await?
     {

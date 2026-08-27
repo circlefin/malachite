@@ -2,6 +2,66 @@
 
 ## Unreleased
 
+## 0.8.0
+
+*August 27th, 2026*
+
+### `app-channel`
+- Fix `build()` leaking the Node actor when a post-Node spawn fails; the Node (and any children linked to it so far) are now stopped before the error is returned
+- Change the `AppMsg::ProcessSyncedValue` reply from `Option<ProposedValue>` to `SyncedValueOutcome` (`Verdict` / `PeerFault` / `LocalTransientError`) so applications can distinguish a peer-attributable fault from a local/transient one
+
+### `consensus`
+- Cap per-round consensus timeouts via a new `max_timeout` field on `LinearTimeouts` (default 60s) so `duration_for` cannot grow without bound at high round numbers
+- Remove the `PartsOnly` value-propagation mode; the default is now `ProposalAndParts`. Applications carrying `Proposal` metadata in the `Init` part must migrate to `ProposalAndParts` or maintain a fork.
+- Emit `Effect::Finalize` before resetting state when `Input::StartHeight` arrives during the finalization window, so the commit certificate and equivocation evidence are not silently dropped
+- Persist the votes of a round certificate to the WAL after verification, so a node that crashes mid-round re-aggregates them on restart and recovers the certificate without re-fetching it from peers
+- Rename `Effect::ValidSyncValue` / `InvalidSyncValue` to `CertVerifiedSyncValue` / `CertRejectedSyncValue` to reflect that they gate on the commit-certificate check, not the value's validity
+- Exempt polka-certified values from the per-round proposal cap. A restreamed proposal carries its original round, so a round whose cap was already filled with equivocating values could permanently reject the one value the network had polka'd, at that round and every later one. This also left the hidden-lock liveness backstop unable to fire. A polka certificate carries a quorum of signed prevotes, so at most one value per round qualifies and the flood bound still holds for uncertified entries
+
+### `engine`
+- Add split safety/liveness supervisor policy on the Node actor, routing failures to one of two recovery paths based on what the failure means. Liveness failures (Host/Network/Sync crash, startup-path WAL errors) stop the Node so the orchestrator restarts the process; safety-critical failures (WAL worker thread panic, runtime `wal_append` / `wal_flush` errors) hang the Node for operator inspection to prevent auto-restart from double-signing on top of an incomplete WAL
+- Add `node_safety_failure` gauge, flipped to `1` when the Node enters the safety-hang state
+- Fix runtime `wal_append` / `wal_flush` errors being swallowed at `Effect::WalAppend`, `Effect::PublishConsensusMsg`, `Effect::Decide`, and `Effect::StartRound` — consensus could previously broadcast votes the WAL did not durably record, risking a double-sign on restart
+- Fix WAL worker thread panics disappearing silently into a logged error; the worker now casts `NodeMsg::SafetyFailure` before exiting so the Node enters safety-hang instead of auto-restarting on top of unknown WAL state
+- Fix `stop_on_failure` deadlock: the helper no longer calls `pending()` after `myself.stop()` (which never resolved from inside the calling actor's own handler); it returns `Result<A, ActorProcessingErr>` so callers `?`-propagate out of `handle`, which fails the actor (`ActorFailed`) and lets the Node supervisor restart the process
+- Model the `HostMsg::ProcessSyncedValue` reply as an explicit `SyncedValueOutcome` (`Verdict` / `PeerFault` / `LocalTransientError`) instead of `Option<ProposedValue>`, so a local/transient host failure is no longer conflated with a peer fault and routed into a peer penalty
+- Add `NetworkMsg::CancelRequest(OutboundRequestId)` so the consensus layer
+  can ask the network actor to drop an abandoned outbound sync request. The
+  bundled libp2p network actor logs and no-ops (no public cancel API in
+  `libp2p::request_response`); downstream network actors that own the
+  transport can use this to free transport resources eagerly
+
+### `driver`
+- Add `IntoIterator` impls and `len()` to `EvidenceMap` in `core-driver` and `core-votekeeper`
+
+### `network`
+- Support peer-only multiaddrs (`/p2p/<peer_id>`) in `persistent_peers`: entries without a transport component are used for inbound identity filtering and are never dialed
+- Make GossipSub topic / broadcast channel names configurable via `P2pConfig.channel_names`; channel names are validated for non-emptiness and uniqueness before the network actor is spawned
+
+### `signing`
+- Bind vote-extension signatures to their precommit scope `(height, round, value_id, validator_address)` so an extension blob cannot be relayed across heights, rounds, values, or validators
+- Add `ExtendedCommitCertificate<Ctx>`, a self-verifiable bundle of per-validator precommit signatures and their optional vote extensions, with constructors that rebuild it from raw votes (`from_votes`) or from the host API's parallel `(CommitCertificate, VoteExtensions)` pair (`from_commit_certificate_and_extensions`). Verify the whole bundle in one pass via `VerifierExt::verify_extended_commit_certificate`
+- Sync now carries vote extensions: `ValueResponse`, `RawDecidedValue`, `RawDecidedBlock`, and the on-disk `DecidedValue` all hold `ExtendedCommitCertificate` so a node catching up via sync can propose the next height when the application uses extensions for load-bearing data. Applications choose per height whether extensions must be absent or present via `HeightParams::with_vote_extension_policy(VoteExtensionPolicy::{Disabled, Required})`. Closes the second half of  (proposer-after-sync corner case).
+
+### `sync`
+- Count only requests awaiting a response against `parallel_requests`. A response that has arrived leaves a reservation in `pending_requests`, so its range is not requested twice, but it no longer consumes a request slot. Such reservations could previously fill the whole budget above a height that had no request left. They can neither be pruned (consensus decides in order) nor time out (their response arrived), so catch-up stalled until the serving peer disconnected or the process restarted. New batches do not start more than `parallel_requests * batch_size` heights above the tip; the final batch can extend by up to `batch_size - 1` additional heights. This replaces the implicit read-ahead control from the old slot accounting. This adds the `inflight` field to the public `PendingRequestEntry` and an `inflight` parameter to `State::update_request`
+- On peer disconnect, re-request only the ranges still awaiting a response. A reservation already holds its values, so re-requesting it took a request slot and buffered a second copy of every height in its range
+- Start a request pass as soon as a full response releases a request slot. The other triggers are a peer status and the start of a height, and neither is guaranteed while a lower height is missing: consensus cannot start a height, and a peer that has stopped deciding broadcasts no further status when `status_update_interval` is `0`
+- Schedule the remainder of a partial response from the global frontier. The dedicated suffix scheduler never read `sync_height`, so it could not request a lower uncovered height, and it left every other free request slot idle. A node that lost a low range to retry exhaustion kept fetching suffixes above the gap and never went back for it. With eager status updates no later input reopened the question, so the node stayed at a fixed tip while a connected peer still held every value it needed
+- Prune completed partial-response reservations after consensus has already advanced past them, so a full pending-request buffer cannot prevent ValueSync from requesting the next uncovered range
+- Emit new `Effect::CancelValueRequest` from `on_sync_request_timed_out`
+  before re-requesting, so the network layer can drop the abandoned
+  in-flight request instead of letting it complete and trigger downstream
+  work (certificate fetches, rate-limit headroom) for a response that will
+  be discarded
+- Fix the retry path orphaning a range suffix when the only eligible replacement peer can serve just a prefix (lower tip): `sync_height` is now rolled back to the suffix start so the next request cycle re-requests it, instead of stranding those heights below `sync_height` and stalling catch-up
+- Re-request a synced value on a local/transient processing failure (e.g. the execution layer being temporarily unavailable) without penalizing or excluding the serving peer, so an outage that fails every peer identically can no longer exhaust the peer set and rewind `sync_height` into a silent stall. Renamed the `InvalidValue` / `ValueProcessingError` sync inputs to `PeerFault` / `LocalTransientError`, dropping the peer argument from the no-blame variant
+- Stop the value-sync request loop after a transport-level send failure instead of re-selecting the identical range against an available peer, so an unreachable network layer no longer spins the sync actor; the range is reconsidered on the next request trigger
+
+## 0.7.0
+
+*June 22nd, 2026*
+
 > [!IMPORTANT]
 > All crates were renamed from `informalsystems-malachitebft-$crate` to `arc-malachitebft-$crate`.
 
@@ -62,7 +122,7 @@
 - Validate sync response length against the requested range and credit partial
   responses through a new `SyncResult::PartialSuccess` variant, scaling the
   peer-score update by the `received / requested` ratio
-- Reject sync responses with non-contiguous certificate heights ([#1541](https://github.com/circlefin/malachite/issues/1541))
+- Reject sync responses with non-contiguous certificate heights
 - Fix partial range request not being tracked in pending requests
 - Preserve a sync_height rewind when a concurrent re-request to a different range succeeds, so the rewound range is picked up by the next request cycle instead of being silently abandoned
 - Initial random (fixed) period adjustment in sync status ticker
@@ -152,6 +212,7 @@ This version introduces production-ready functionality with improved performance
 - [ADR 003][adr-003] describes the architecture adopted in Malachite for handling the propagation of proposed values.
 - [ADR 004][adr-004] describes the coroutine effect system used in Malachite.
   It is relevant if you are interested in building your own engine on top of the core consensus implementation of Malachite.
+
 
 [tutorial]: ./docs/tutorials/channels.md
 [adr-003]: ./docs/architecture/adr-003-values-propagation.md

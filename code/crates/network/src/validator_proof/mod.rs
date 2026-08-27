@@ -5,61 +5,59 @@
 //!
 //! ## Wire Format
 //!
+//! Carried over `request_response`, but one-way on the wire:
+//!
 //! ```text
-//! [length: unsigned-varint][proof_bytes]
+//! Request:  [length: unsigned-varint][proof_bytes]
+//! Response: <no bytes>
 //! ```
 //!
-//! Uses unsigned-varint length prefix, consistent with libp2p request-response
-//! and identify protocols. This is a one-way message with no response.
+//! The empty response only lets the request/response handler complete and close
+//! its stream; it is not a delivery acknowledgement. See the `codec` module.
 //!
 //! ## Sending Proof
 //!
-//! The proof is set once at startup and sent automatically on every new connection:
+//! The proof is set once at startup and sent on the first connection to a peer:
 //!
 //! ```text
 //! Startup:
 //!   └─► behaviour.set_proof(proof_bytes)  — once
 //!
-//! ConnectionEstablished event:
-//!   └─► behaviour.send_proof(peer_id)
-//!       - Checks: has proof_bytes? first connection (other_established == 0)?
-//!       └─► protocol::send_proof() spawned as task
-//!           └─► Opens stream, writes proof, closes
+//! ConnectionEstablished (other_established == 0):
+//!   └─► inner.send_request(peer, proof_bytes)
 //! ```
+//!
+//! `ProofSent` marks local send completion, not confirmed remote delivery. There
+//! is no same-session retry; a genuinely new connection starts a fresh session
+//! and sends the proof again.
 //!
 //! The proof is a static binding of (public_key, peer_id) and does not change
 //! with validator set membership. Whether the receiver classifies us as a
 //! validator depends on their own validator set.
 //!
-//! ### Sending Guards (in `validator_proof/behaviour.rs`)
-//! - `proof_bytes` must be set (set once at startup)
-//! - `other_established == 0` gates sending to first connection only (via libp2p)
-//!
 //! ## Receiving & Validation
 //!
 //! ```text
-//! Stream received
-//!   └─► protocol::recv_proof()
-//!       └─► Event::ProofReceived ──► network/lib.rs
-//!           └─► Event::ValidatorProofReceived ──► engine/network.rs
-//!               └─► NetworkEvent::ValidatorProofReceived ──► engine/consensus.rs
-//!                   └─► NetworkMsg::ValidatorProofVerified ──► back to network
+//! Request received
+//!   └─► Event::ProofReceived ──► network/lib.rs
+//!       └─► Event::ValidatorProofReceived ──► engine/network.rs
+//!           └─► NetworkEvent::ValidatorProofReceived ──► engine/consensus.rs
+//!               └─► NetworkMsg::ValidatorProofVerified ──► back to network
 //! ```
 //!
 //! Validations at each layer:
 //!
-//! ### 1. `validator_proof/behaviour.rs` (Network Layer - Stream)
+//! ### 1. `validator_proof/behaviour.rs` (Network Layer)
 //! - **Message size**: Max 1KB enforced by codec
-//! - **Stream read failure**: behaviour emits `CloseConnection` → DISCONNECT
+//! - **Inbound read failure**: behaviour emits `CloseConnection` → DISCONNECT
+//! - **Anti-spam**: a second proof from a peer this session → `CloseConnection`
 //!
 //! ### 2. `network/lib.rs` (Network Layer - Event Handling)
 //! - Forwards proof to engine (anti-spam already handled by behaviour)
 //!
 //! ### 3. `engine/network.rs` (Engine Layer - Decoding)
 //! - **Decode**: Proof bytes must decode as valid `ValidatorProof` → logged and ignored if not
-//!   (see "Decode failures" below)
 //! - **PeerId match**: `proof.peer_id` must equal sender's peer_id → DISCONNECT if not
-//!   (prevents forwarding someone else's proof)
 //!
 //! ### 4. `engine/consensus.rs` (Consensus Layer - Cryptographic)
 //! - **Signature verification**: Proof signature must be valid for the public key → DISCONNECT if not
@@ -67,33 +65,30 @@
 //! ### 5. `network/state.rs` (Network Layer - State)
 //! - **Store proof**: `consensus_public_key` stored for validator set matching
 //! - **Validator set check**: If public key matches a validator, mark peer as validator
-//!   (proof is stored regardless, for re-evaluation when validator set changes)
 //!
 //! ## Failure Handling
 //!
 //! **Send failures** (`ProofSendFailed`):
-//! - Forwarded to swarm; retry allowed on next connection or trigger
+//! - Forwarded to swarm; a new connection sends the proof again
 //!
-//! **Receive failures** (`ProofReceiveFailed`):
-//! - Cannot read stream (framing error, oversized message, connection drop)
-//!   → behaviour emits `CloseConnection` → DISCONNECT
+//! **Malformed requests**:
+//! - A framing error, oversized message, truncated payload, or read timeout is
+//!   delivered in-band as `ProofRequest::Malformed` (the codec never errors),
+//!   which the behaviour turns into `CloseConnection` → DISCONNECT
 //!
 //! **Anti-spam** (behaviour level):
-//! - Duplicate proof from same peer → behaviour emits `CloseConnection` → DISCONNECT
-//! - Tracked via `proofs_received` set, cleared when last connection closes
+//! - A second proof from a peer this session → `CloseConnection` → DISCONNECT
+//! - Tracked via `proofs_received`, cleared when the last connection closes
 //!
 //! **Decode failures** (application codec):
-//! - Proof bytes received but cannot be decoded (e.g., `CodecError::UnsupportedVersion`)
-//!   → logged and ignored (peer stays connected, just not classified as validator)
+//! - Proof bytes received but cannot be decoded → logged and ignored (peer stays connected)
 //!
 //! **Validation failures** (after successful decoding):
 //! - PeerId mismatch → DISCONNECT
 //! - Invalid signature → DISCONNECT
-//! - `Invalid` result sent back to network layer for disconnect
 
 mod behaviour;
 mod codec;
-mod protocol;
 mod types;
 
 pub use behaviour::{Behaviour, Error, Event};

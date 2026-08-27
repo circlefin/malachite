@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use futures::executor::block_on;
 use malachitebft_core_types::CommitCertificate;
 use malachitebft_signing::VerifierExt;
@@ -94,6 +96,47 @@ fn invalid_commit_certificate_insufficient_voting_power() {
             total: 100,
             expected: 67,
         });
+}
+
+#[test]
+fn invalid_commit_certificate_signed_voting_power_overflow() {
+    let (validators, signers) = make_validators([u64::MAX, 1], DEFAULT_SEED);
+    let ctx = TestContext::new();
+    let height = Height::new(1);
+    let round = Round::new(0);
+    let value_id = ValueId::new(42);
+
+    let votes: Vec<_> = (0..2)
+        .map(|i| {
+            block_on(signers[i].sign_vote(ctx.new_precommit(
+                height,
+                round,
+                NilOrVal::Val(value_id),
+                validators[i].address,
+            )))
+            .unwrap()
+        })
+        .collect();
+
+    let certificate = CommitCertificate::new(height, round, value_id, votes);
+    let validator_set = ValidatorSet {
+        validators: Arc::new(validators.to_vec()),
+    };
+
+    let result = block_on(signers[0].verify_commit_certificate(
+        &ctx,
+        &certificate,
+        &validator_set,
+        ThresholdParams::default(),
+    ));
+
+    assert_eq!(
+        result,
+        Err(CertificateError::VotingPowerOverflow {
+            signed: u64::MAX,
+            added: 1,
+        })
+    );
 }
 
 /// Tests the verification of a certificate containing multiple votes from the same validator.

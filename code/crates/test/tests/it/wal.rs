@@ -18,15 +18,6 @@ use crate::middlewares::{ByzantineProposer, PrevoteNil};
 use crate::{HandlerResult, TestBuilder, TestParams};
 
 #[tokio::test]
-async fn proposer_crashes_after_proposing_parts_only() {
-    proposer_crashes_after_proposing(TestParams {
-        value_payload: ValuePayload::PartsOnly,
-        ..TestParams::default()
-    })
-    .await
-}
-
-#[tokio::test]
 async fn proposer_crashes_after_proposing_proposal_and_parts() {
     proposer_crashes_after_proposing(TestParams {
         value_payload: ValuePayload::ProposalAndParts,
@@ -109,17 +100,6 @@ async fn proposer_crashes_after_proposing(params: TestParams) {
 }
 
 #[tokio::test]
-#[ignore] // NOTE: To re-enable once #997 is merged
-async fn non_proposer_crashes_after_voting_parts_only() {
-    non_proposer_crashes_after_voting(TestParams {
-        value_payload: ValuePayload::PartsOnly,
-        ..TestParams::default()
-    })
-    .await
-}
-
-#[tokio::test]
-#[ignore] // NOTE: To re-enable once #997 is merged
 async fn non_proposer_crashes_after_voting_proposal_and_parts() {
     non_proposer_crashes_after_voting(TestParams {
         value_payload: ValuePayload::ProposalAndParts,
@@ -189,11 +169,19 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
     test.add_node().with_voting_power(10).start().success();
     test.add_node().with_voting_power(10).start().success();
 
+    // Value sync must stay enabled: the crash node's precommit may reach the
+    // peers before the crash, in which case they decide the crash height and
+    // move on to the next one — after restart, only sync can then deliver the
+    // commit certificate the crash node is missing, since vote rebroadcast
+    // only covers a node's current height. The WAL replay delay is zeroed so
+    // that the WAL is always replayed on restart even when sync resolves the
+    // crash height first, keeping `expect_wal_replay` deterministic.
     test.build()
         .run_with_params(
             Duration::from_secs(60),
             TestParams {
-                enable_value_sync: false,
+                enable_value_sync: true,
+                wal_replay_delay: Some(Duration::ZERO),
                 ..params
             },
         )
@@ -201,17 +189,6 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
 }
 
 #[tokio::test]
-#[ignore]
-async fn restart_with_byzantine_proposer_1_parts_only() {
-    byzantine_proposer_crashes_after_proposing_1(TestParams {
-        value_payload: ValuePayload::PartsOnly,
-        ..TestParams::default()
-    })
-    .await
-}
-
-#[tokio::test]
-#[ignore]
 async fn restart_with_byzantine_proposer_1_proposal_and_parts() {
     byzantine_proposer_crashes_after_proposing_1(TestParams {
         value_payload: ValuePayload::ProposalAndParts,
@@ -303,17 +280,6 @@ async fn byzantine_proposer_crashes_after_proposing_1(params: TestParams) {
 }
 
 #[tokio::test]
-#[ignore]
-async fn restart_with_byzantine_proposer_2_parts_only() {
-    byzantine_proposer_crashes_after_proposing_2(TestParams {
-        value_payload: ValuePayload::PartsOnly,
-        ..TestParams::default()
-    })
-    .await
-}
-
-#[tokio::test]
-#[ignore]
 async fn restart_with_byzantine_proposer_2_proposal_and_parts() {
     byzantine_proposer_crashes_after_proposing_2(TestParams {
         value_payload: ValuePayload::ProposalAndParts,
@@ -534,8 +500,8 @@ impl Middleware for FailSyncDecodeWhileFlagSet {
     }
 }
 
-/// Regression test for the WAL-replay-delay sync path. Without the fix,
-/// `WalReplayBegin` would never fire, because the original `end_wal_wait` would call `wal_reset`.
+/// A synced-value decode failure must fall back to WAL replay and emit
+/// `WalReplayBegin` before `end_wal_wait` can reset the WAL.
 #[tokio::test]
 async fn sync_recovery_falls_back_to_wal_replay_on_decode_failure() {
     const CRASH_HEIGHT: u64 = 3;

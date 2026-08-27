@@ -2,7 +2,6 @@ use crate::handle::driver::apply_driver_input;
 use crate::handle::finalize::finalize_height;
 use crate::handle::rebroadcast_timeout::on_rebroadcast_timeout;
 use crate::prelude::*;
-use crate::types::WalEntry;
 
 pub async fn on_timeout_elapsed<Ctx>(
     co: &Co<Ctx>,
@@ -50,7 +49,7 @@ where
             // Persist the timeout in the Write-ahead Log.
             perform!(
                 co,
-                Effect::WalAppend(height, WalEntry::Timeout(timeout), Default::default())
+                Effect::WalAppend(height, Input::TimeoutElapsed(timeout), Default::default())
             );
 
             apply_driver_input(co, state, metrics, DriverInput::TimeoutElapsed(timeout)).await?;

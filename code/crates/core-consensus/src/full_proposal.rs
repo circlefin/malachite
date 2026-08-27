@@ -7,6 +7,11 @@ use malachitebft_core_types::{Context, Proposal, Round, SignedProposal, Validity
 
 use crate::ProposedValue;
 
+/// Maximum number of distinct entries stored per `(height, round)`.
+///
+/// Two entries are sufficient to detect and record equivocation.
+pub const MAX_PROPOSALS_PER_ROUND: usize = 2;
+
 /// A full proposal, ie. a proposal together with its value and validity.
 #[derive_where(Clone, Debug)]
 pub struct FullProposal<Ctx: Context> {
@@ -55,6 +60,16 @@ impl<Ctx: Context> Entry<Ctx> {
     fn full(value: Ctx::Value, validity: Validity, proposal: SignedProposal<Ctx>) -> Self {
         Entry::Full(FullProposal::new(value, validity, proposal))
     }
+
+    /// The value id this entry references, if any.
+    fn value_id(&self) -> Option<ValueId<Ctx>> {
+        match self {
+            Entry::Full(p) => Some(p.proposal.value().id()),
+            Entry::ProposalOnly(p) => Some(p.value().id()),
+            Entry::ValueOnly(v, _) => Some(v.id()),
+            Entry::Empty => None,
+        }
+    }
 }
 
 #[allow(clippy::derivable_impls)]
@@ -64,32 +79,57 @@ impl<Ctx: Context> Default for Entry<Ctx> {
     }
 }
 
+/// Outcome of [`FullProposalKeeper::store_proposal`].
+#[must_use]
+#[derive_where(Clone, Debug)]
+pub enum StoreProposalResult<Ctx: Context> {
+    /// The proposal was stored as a new entry, or it upgraded an existing entry to `Full`.
+    Stored,
+    /// The proposal was an exact duplicate of one already stored, and was ignored.
+    DuplicateIgnored,
+    /// The proposal was rejected because the per-`(height, round)` cap was already reached.
+    CapReached,
+    /// A different proposal with the same value id is already present for this `(height, round)`.
+    /// The two proposals differ in at least one field (e.g. `pol_round`), so the same proposer
+    /// has equivocated. Both proposals are returned so the caller can record evidence.
+    Equivocation {
+        existing: SignedProposal<Ctx>,
+        conflicting: SignedProposal<Ctx>,
+    },
+}
+
 /// Keeper for collecting proposed values and consensus proposals for a given height and round.
 ///
-/// When a new_value is received from the value builder the following entry is stored:
-/// `Entry::ValueOnly(new_value.value, new_value.validity)`
+/// Each `(height, round)` holds a small vector of [`Entry`] values, where an entry records how much
+/// of a proposed value is currently held:
 ///
-/// When a new_proposal is received from consensus gossip the following entry is stored:
-/// `Entry::ProposalOnly(new_proposal)`
+/// - `Entry::ValueOnly(value, validity)` — a value arrived from the value builder, with no matching
+///   proposal yet.
+/// - `Entry::ProposalOnly(proposal)` — a proposal arrived over consensus gossip, with no matching
+///   value yet.
+/// - `Entry::Full(value, validity, proposal)` — both halves are present. It is formed when the
+///   second half arrives: a proposal that finds an existing value, or a value that finds an
+///   existing proposal.
+/// - `Entry::Empty` — never stored; a transient placeholder used by `replace_with!` while an entry
+///   is upgraded in place.
 ///
-/// When both proposal and values have been received, the entry for `(height, round)` should be:
-/// `Entry::Full(FullProposal(value.value, value.validity, proposal))`
+/// A proposal and a value are paired **by value id alone**, searched across every round at the
+/// height (see `get_value_by_id`). `round` and `pol_round` are app-side metadata and take no part
+/// in pairing. So a new proposal becomes `Full` if a value with the same id is already stored at
+/// the height and `ProposalOnly` otherwise; symmetrically for a new value. Because matching spans
+/// rounds, a single incoming value can complete several `ProposalOnly` entries at once (see
+/// `upgrade_matching_proposals_at_height`); validity is reconciled along the way (`Invalid -> Valid`
+/// propagates, `Valid -> Invalid` is logged and rejected).
 ///
-/// It is possible that a proposer sends two (builder_value, proposal) pairs for same `(height, round)`.
-/// In this case both are stored, and we consider that the proposer is equivocating.
-/// Currently, the actual equivocation is caught in the driver, through consensus actor
-/// propagating both proposals.
+/// A proposer may send more than one proposal for the same `(height, round)`:
+/// - Distinct value ids are stored as separate entries; the driver flags the equivocation as each
+///   entry is forwarded to it.
+/// - The same value id differing in any other field (e.g. `pol_round`) keeps only the first entry
+///   and reports the conflict via [`StoreProposalResult::Equivocation`] so evidence is still
+///   recorded; an exact duplicate is ignored.
 ///
-/// When a new_proposal is received at most one complete proposal can be created. If a value at
-/// proposal round is found, they are matched together. Otherwise, a value at the pol_round
-/// is looked up and matched to form a full proposal (L28).
-///
-/// When a new value is received it is matched against the proposal at value round, and any proposal
-/// at higher round with pol_round equal to the value round (L28). Therefore when a value is added
-/// multiple complete proposals may form.
-///
-/// Note: For `parts_only` mode there is no explicit proposal wire message, instead
-/// one is synthesized by the caller (`on_proposed_value` handler) before it invokes the `store_proposal` method.
+/// At most [`MAX_PROPOSALS_PER_ROUND`] distinct entries are retained per `(height, round)`,
+/// beyond which an entry is admitted only when the caller declares it exempt.
 #[derive_where(Clone, Debug, Default)]
 pub struct FullProposalKeeper<Ctx: Context> {
     keeper: BTreeMap<(Ctx::Height, Round), Vec<Entry<Ctx>>>,
@@ -112,6 +152,29 @@ macro_rules! replace_with {
 impl<Ctx: Context> FullProposalKeeper<Ctx> {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Returns `true` if storing an entry with `value_id` at `(height, round)` would append a new
+    /// distinct entry beyond [`MAX_PROPOSALS_PER_ROUND`]. A value id already present at the key
+    /// upgrades or matches an existing entry and never grows the bucket, so it is not rejected.
+    ///
+    /// This reports bucket growth alone. Admission is decided by `State::exceeds_per_round_cap`,
+    /// which also admits an entry backed by a polka certificate, so `true` here does not on its
+    /// own mean the message is dropped.
+    pub fn would_append_distinct(
+        &self,
+        height: Ctx::Height,
+        round: Round,
+        value_id: &ValueId<Ctx>,
+    ) -> bool {
+        let Some(entries) = self.keeper.get(&(height, round)) else {
+            return false;
+        };
+
+        entries.len() >= MAX_PROPOSALS_PER_ROUND
+            && !entries
+                .iter()
+                .any(|e| e.value_id().as_ref() == Some(value_id))
     }
 
     pub fn proposals_for_value(
@@ -200,9 +263,8 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         None
     }
 
-    // Determines a new entry for L28 vs L22, L36, L49.
-    // Called when a proposal is received, only if an entry for new_proposal's round and/ or value
-    // is not found.
+    // Build the entry for a proposal that has no matching entry yet: `Full` if a value with the
+    // same id is already stored at this height (any round), otherwise `ProposalOnly`.
     fn new_entry(&self, new_proposal: SignedProposal<Ctx>) -> Entry<Ctx> {
         let value_id = new_proposal.value().id();
         if let Some((v, validity)) = self.get_value_by_id(&new_proposal.height(), &value_id) {
@@ -212,17 +274,24 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         Entry::ProposalOnly(new_proposal)
     }
 
-    pub fn store_proposal(&mut self, new_proposal: SignedProposal<Ctx>) {
+    /// Store a proposal, pairing it with a matching value when one is already present.
+    ///
+    /// `cap_exempt` admits the proposal even when the `(height, round)` bucket is full. The
+    /// caller owns that decision, as the keeper holds no certificates of its own.
+    pub fn store_proposal(
+        &mut self,
+        new_proposal: SignedProposal<Ctx>,
+        cap_exempt: bool,
+    ) -> StoreProposalResult<Ctx> {
         let key = (new_proposal.height(), new_proposal.round());
 
         match self.keeper.get_mut(&key) {
             None => {
-                // First time we see something (a proposal) for this height and round:
-                // - if pol_round is Nil then create a partial proposal with just the proposal.
-                // - if pol_round is defined and if a value at pol_round is present, add full entry,
-                // - else just add the proposal.
+                // First entry at this `(height, round)`: `Full` if a value with the same id is
+                // already stored at this height, otherwise `ProposalOnly`.
                 let new_entry = self.new_entry(new_proposal);
                 self.keeper.insert(key, vec![new_entry]);
+                StoreProposalResult::Stored
             }
             Some(entries) => {
                 // We have seen values and/ or proposals for this height and round.
@@ -232,8 +301,19 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                     match entry {
                         Entry::Full(full_proposal) => {
                             if full_proposal.proposal.value().id() == new_proposal.value().id() {
-                                // Redundant proposal, no need to check the pol_round if same value
-                                return;
+                                return if full_proposal.proposal == new_proposal {
+                                    // Exact duplicate (same signature): silently ignore.
+                                    StoreProposalResult::DuplicateIgnored
+                                } else {
+                                    // Same value id but a different proposal: the proposer has
+                                    // equivocated. One entry per `(height, round, value_id)` is
+                                    // kept, so surface the equivocation to the caller instead of
+                                    // pushing.
+                                    StoreProposalResult::Equivocation {
+                                        existing: full_proposal.proposal.clone(),
+                                        conflicting: new_proposal,
+                                    }
+                                };
                             }
                         }
                         Entry::ValueOnly(value, _validity) => {
@@ -243,13 +323,21 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                                     Entry::full(value, validity, new_proposal)
                                 });
 
-                                return;
+                                return StoreProposalResult::Stored;
                             }
                         }
                         Entry::ProposalOnly(proposal) => {
                             if proposal.value().id() == new_proposal.value().id() {
-                                // Redundant proposal, no need to check the pol_round if same value
-                                return;
+                                return if *proposal == new_proposal {
+                                    StoreProposalResult::DuplicateIgnored
+                                } else {
+                                    // Same value id but a different proposal: the proposer has
+                                    // equivocated.
+                                    StoreProposalResult::Equivocation {
+                                        existing: proposal.clone(),
+                                        conflicting: new_proposal,
+                                    }
+                                };
                             }
                         }
                         Entry::Empty => {
@@ -259,9 +347,20 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                     }
                 }
 
-                // Append new partial proposal
+                // Append new partial proposal, unless the per-(height, round) cap is reached.
+                if !cap_exempt && entries.len() >= MAX_PROPOSALS_PER_ROUND {
+                    warn!(
+                        height = %key.0,
+                        round = %key.1,
+                        cap = MAX_PROPOSALS_PER_ROUND,
+                        "Rejecting additional distinct proposal: per-(height, round) cap reached"
+                    );
+                    return StoreProposalResult::CapReached;
+                }
+
                 let new_entry = self.new_entry(new_proposal);
                 self.keeper.entry(key).or_default().push(new_entry);
+                StoreProposalResult::Stored
             }
         }
     }
@@ -319,8 +418,8 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
 
         match entries {
             None => {
-                // First time we see something (a proposed value) for this height and round
-                // Create a full proposal with just the proposal
+                // First entry at this `(height, round)`: store the value on its own as
+                // `ValueOnly`.
                 let entry = Entry::ValueOnly(new_value.value.clone(), new_value.validity);
                 self.keeper.insert(key, vec![entry]);
             }
@@ -375,7 +474,9 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                     }
                 }
 
-                // Append new value
+                // Append new value. This path is intentionally NOT capped at the keeper layer:
+                // callers must pre-gate non-sync values via `exceeds_per_round_cap`, while sync
+                // values (carrying verified commit certificates) are allowed to bypass the cap.
                 entries.push(Entry::ValueOnly(
                     new_value.value.clone(),
                     new_value.validity,
@@ -384,24 +485,48 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         }
     }
 
-    /// Attach a stored payload to every outstanding `ProposalOnly` at this height that references
-    /// the same value id (any `round` / `pol_round`), so restreamed parts can meet proposals.
+    /// Apply `new_value`'s `(value, validity)` to every entry at the same height that
+    /// references the same value id (matching by value id only — `round` / `pol_round`
+    /// are app-side metadata; validity is a property of `(height, value_id)`).
+    ///
+    /// - `ProposalOnly` → upgrade to `Full` so restreamed parts can meet proposals.
+    /// - `Full` → reconcile validity via `handle_validity_change` (only `Invalid -> Valid`
+    ///   propagates; `Valid -> Invalid` is logged and rejected).
+    /// - `ValueOnly` → reconcile validity the same way.
     fn upgrade_matching_proposals_at_height(&mut self, new_value: &ProposedValue<Ctx>) {
-        let Some((stored_value, stored_validity)) = self
-            .get_value_by_id(&new_value.height, &new_value.value.id())
-            .map(|(v, val)| (v.clone(), val))
-        else {
-            return;
-        };
-
-        for (_, proposals) in self.entries_at_mut(new_value.height) {
+        for ((_, round), proposals) in self.entries_at_mut(new_value.height) {
             for entry in proposals.iter_mut() {
-                if let Entry::ProposalOnly(proposal) = entry {
-                    if proposal.value().id() == new_value.value.id() {
+                match entry {
+                    Entry::ProposalOnly(proposal)
+                        if proposal.value().id() == new_value.value.id() =>
+                    {
                         replace_with!(entry, Entry::ProposalOnly(proposal) => {
-                            Entry::full(stored_value.clone(), stored_validity, proposal)
+                            Entry::full(new_value.value.clone(), new_value.validity, proposal)
                         });
                     }
+                    Entry::Full(full_proposal)
+                        if full_proposal.proposal.value().id() == new_value.value.id() =>
+                    {
+                        Self::handle_validity_change(
+                            &new_value.height,
+                            full_proposal.proposal.round(),
+                            &new_value.value.id(),
+                            &mut full_proposal.validity,
+                            new_value.validity,
+                            "full proposal at other round",
+                        );
+                    }
+                    Entry::ValueOnly(value, validity) if value.id() == new_value.value.id() => {
+                        Self::handle_validity_change(
+                            &new_value.height,
+                            *round,
+                            &new_value.value.id(),
+                            validity,
+                            new_value.validity,
+                            "value at other round",
+                        );
+                    }
+                    _ => {}
                 }
             }
         }

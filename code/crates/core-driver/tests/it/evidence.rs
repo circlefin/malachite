@@ -1,7 +1,9 @@
-use malachitebft_core_types::{Round, SignedProposal};
+use malachitebft_core_types::{Round, SignedProposal, Validity};
 use malachitebft_test::{Address, Height, PrivateKey, Proposal, TestContext, Value};
 
-use arc_malachitebft_core_driver::proposal_keeper::EvidenceMap;
+use arc_malachitebft_core_driver::proposal_keeper::{
+    EvidenceMap, ProposalKeeper, StoreProposalResult,
+};
 
 fn pk(id: &str) -> PrivateKey {
     let mut seed = [0u8; 32];
@@ -102,4 +104,78 @@ fn test_proposal_evidence_deduplication() {
             );
         }
     }
+}
+
+#[test]
+fn test_proposal_evidence_into_iterator_and_len() {
+    let mut evidence = EvidenceMap::<TestContext>::new();
+
+    let (p1_alice, p2_alice) = make_proposal_pair("Alice", 0, [100, 200]);
+    let (p1_bob, p2_bob) = make_proposal_pair("Bob", 0, [300, 400]);
+    evidence.add(p1_alice.clone(), p2_alice.clone());
+    evidence.add(p1_bob.clone(), p2_bob.clone());
+
+    // Test len()
+    assert_eq!(evidence.len(), 2);
+
+    // Test IntoIterator for &EvidenceMap
+    let mut ref_count = 0;
+    for (a, proposals) in &evidence {
+        assert!(*a == addr("Alice") || *a == addr("Bob"));
+        assert_eq!(proposals.len(), 1);
+        ref_count += 1;
+    }
+    assert_eq!(ref_count, 2);
+
+    // Test IntoIterator for EvidenceMap (owned)
+    let mut owned_count = 0;
+    for (a, proposals) in evidence {
+        assert!(a == addr("Alice") || a == addr("Bob"));
+        assert_eq!(proposals.len(), 1);
+        owned_count += 1;
+    }
+    assert_eq!(owned_count, 2);
+}
+
+#[test]
+fn test_proposal_evidence_len_empty() {
+    let evidence = EvidenceMap::<TestContext>::new();
+    assert_eq!(evidence.len(), 0);
+    assert!(evidence.is_empty());
+}
+
+#[test]
+fn store_proposal_surfaces_equivocation_to_caller() {
+    let mut keeper = ProposalKeeper::<TestContext>::new();
+    let (first, conflicting) = make_proposal_pair("Alice", 0, [100, 200]);
+
+    // First proposal from the validator is stored without equivocation.
+    assert!(matches!(
+        keeper.store_proposal(first.clone(), Validity::Valid),
+        StoreProposalResult::Stored
+    ));
+
+    // An exact duplicate is ignored, still reported as stored.
+    assert!(matches!(
+        keeper.store_proposal(first.clone(), Validity::Valid),
+        StoreProposalResult::Stored
+    ));
+
+    // A second, distinct proposal for the same round surfaces the equivocating pair.
+    match keeper.store_proposal(conflicting.clone(), Validity::Valid) {
+        StoreProposalResult::Equivocation {
+            existing,
+            conflicting: returned,
+        } => {
+            assert_eq!(existing, first);
+            assert_eq!(returned, conflicting);
+        }
+        StoreProposalResult::Stored => panic!("expected an equivocation to be surfaced"),
+    }
+
+    // The keeper does not record evidence on its own; the caller drives that.
+    assert!(keeper.evidence().is_empty());
+
+    keeper.record_evidence(first, conflicting);
+    assert_eq!(keeper.evidence().len(), 1);
 }

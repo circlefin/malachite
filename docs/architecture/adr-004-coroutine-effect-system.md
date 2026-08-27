@@ -192,8 +192,29 @@ where
     ///
     /// It also includes the vote extensions that were received for this height.
     ///
+    /// The application is expected to commit the decision, but advancing to the
+    /// next height happens later, in response to the [`Effect::Finalize`] effect.
+    ///
     /// Resume with: [`resume::Continue`]
     Decide(CommitCertificate<Ctx>, VoteExtensions<Ctx>, resume::Continue),
+
+    /// Notifies the application that a height has been finalized.
+    ///
+    /// Emitted after the finalization period for the height has elapsed (or immediately,
+    /// when no `target_time` was configured for the height). The certificate carries any
+    /// additional precommits collected during the finalization period, and the effect also
+    /// carries the misbehavior evidence accumulated since [`Effect::Decide`] was emitted.
+    ///
+    /// In response, the application must feed [`Input::StartHeight`] to advance to the
+    /// next height (or to restart the current one).
+    ///
+    /// Resume with: [`resume::Continue`]
+    Finalize(
+        CommitCertificate<Ctx>,
+        VoteExtensions<Ctx>,
+        MisbehaviorEvidence<Ctx>,
+        resume::Continue,
+    ),
 
     /// Sign a vote with this node's private key
     ///
@@ -240,6 +261,10 @@ where
     ///
     /// If the vote extension is deemed invalid, the vote it was part of will be discarded altogether.
     ///
+    /// The validator address identifies the validator that cast the precommit; it is part of the
+    /// cryptographic scope bound into the extension signature so an extension cannot be replayed
+    /// across validators.
+    ///
     /// Only emitted if vote extensions are enabled.
     ///
     /// Resume with: [`resume::VoteExtensionValidity`]
@@ -247,6 +272,7 @@ where
         Ctx::Height,
         Round,
         ValueId<Ctx>,
+        Ctx::Address,
         SignedExtension<Ctx>,
         PublicKey<Ctx>,
         resume::VoteExtensionValidity,
@@ -366,6 +392,7 @@ where
 Here is a list of all effects that can be yielded when processing an input:
 
 * StartHeight and RestartHeight:
+  - Finalize (when the previous height is still in its finalization window — flushed before the reset)
   - CancelAllTimeouts
   - ResetTimeouts
   - ScheduleTimeout
@@ -377,6 +404,8 @@ Here is a list of all effects that can be yielded when processing an input:
   - VerifyVoteExtension
   - GetValidatorSet
   - VerifySignature
+  - Decide (when the vote completes a precommit quorum)
+  - Finalize (when the height has no `target_time`, i.e. finalize is immediate)
 
 * Proposal:
   - WalAppendMessage
@@ -395,6 +424,7 @@ Here is a list of all effects that can be yielded when processing an input:
 * TimeoutElapsed;
   - WalAppendTimeout
   - Decide
+  - Finalize (when the FinalizeHeight timer elapses)
 
 * ProposedValue:
   - CancelTimeout
@@ -404,6 +434,7 @@ Here is a list of all effects that can be yielded when processing an input:
   - GetValidatorSet
   - VerifyCertificate
   - Decide
+  - Finalize (decisions reached via sync finalize immediately)
 
 ## Consequences
 

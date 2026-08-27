@@ -8,7 +8,7 @@ use redb::ReadableTable;
 use thiserror::Error;
 
 use malachitebft_app_channel::app::types::codec::Codec;
-use malachitebft_app_channel::app::types::core::{CommitCertificate, Round};
+use malachitebft_app_channel::app::types::core::{ExtendedCommitCertificate, Round};
 use malachitebft_app_channel::app::types::ProposedValue;
 use malachitebft_proto::{Error as ProtoError, Protobuf};
 use malachitebft_test::codec::proto as codec;
@@ -26,16 +26,18 @@ pub use metrics::{NoMetrics, StoreMetrics};
 #[derive(Clone, Debug)]
 pub struct DecidedValue {
     pub value: Value,
-    pub certificate: CommitCertificate<TestContext>,
+    pub certificate: ExtendedCommitCertificate<TestContext>,
 }
 
-fn decode_certificate(bytes: &[u8]) -> Result<CommitCertificate<TestContext>, ProtoError> {
-    let proto = proto::CommitCertificate::decode(bytes)?;
-    codec::decode_commit_certificate(proto)
+fn decode_certificate(bytes: &[u8]) -> Result<ExtendedCommitCertificate<TestContext>, ProtoError> {
+    let proto = proto::ExtendedCommitCertificate::decode(bytes)?;
+    codec::decode_extended_commit_certificate(proto)
 }
 
-fn encode_certificate(certificate: &CommitCertificate<TestContext>) -> Result<Vec<u8>, ProtoError> {
-    let proto = codec::encode_commit_certificate(certificate)?;
+fn encode_certificate(
+    certificate: &ExtendedCommitCertificate<TestContext>,
+) -> Result<Vec<u8>, ProtoError> {
+    let proto = codec::encode_extended_commit_certificate(certificate)?;
     Ok(proto.encode_to_vec())
 }
 
@@ -499,7 +501,7 @@ impl<M: StoreMetrics> Store<M> {
 
     pub async fn store_decided_value(
         &self,
-        certificate: &CommitCertificate<TestContext>,
+        certificate: &ExtendedCommitCertificate<TestContext>,
         value: Value,
     ) -> Result<(), StoreError> {
         let decided_value = DecidedValue {

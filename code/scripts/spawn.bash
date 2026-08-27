@@ -47,7 +47,7 @@ export MALACHITE__CONSENSUS__TIMEOUT_PRECOMMIT_DELTA="500ms"
 export MALACHITE__MEMPOOL__MAX_TX_COUNT="10000"
 export MALACHITE__MEMPOOL__GOSSIP_BATCH_SIZE=0
 export MALACHITE__TEST__MAX_BLOCK_SIZE="1024KiB"
-# Supported modes: "proposal-only", "parts-only", "proposal-and-parts"
+# Supported modes: "proposal-only", "proposal-and-parts"
 export MALACHITE__TEST__VALUE_PAYLOAD="proposal-and-parts"
 export MALACHITE__TEST__TX_SIZE="1KiB"
 export MALACHITE__TEST__TXS_PER_PART=256

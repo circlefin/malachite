@@ -153,8 +153,29 @@ where
     ///
     /// It also includes the vote extensions that were received for this height.
     ///
+    /// The application is expected to commit the decision, but advancing to the
+    /// next height happens later, in response to the [`Effect::Finalize`] effect.
+    ///
     /// Resume with: [`resume::Continue`]
     Decide(CommitCertificate<Ctx>, VoteExtensions<Ctx>, resume::Continue),
+
+    /// Notifies the application that a height has been finalized.
+    ///
+    /// Emitted after the finalization period for the height has elapsed (or immediately,
+    /// when no `target_time` was configured for the height). The certificate carries any
+    /// additional precommits collected during the finalization period, and the effect also
+    /// carries the misbehavior evidence accumulated since [`Effect::Decide`] was emitted.
+    ///
+    /// In response, the application must feed [`Input::StartHeight`] to advance to the
+    /// next height (or to restart the current one).
+    ///
+    /// Resume with: [`resume::Continue`]
+    Finalize(
+        CommitCertificate<Ctx>,
+        VoteExtensions<Ctx>,
+        MisbehaviorEvidence<Ctx>,
+        resume::Continue,
+    ),
 
     /// Sign a vote with this node's private key
     ///

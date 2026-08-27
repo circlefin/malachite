@@ -168,7 +168,7 @@ The `enum` that captures all the possible variations of an Effect is more verbos
 
 https://github.com/circlefin/malachite/blob/6f4cfce72fa0362d743320c0e3ea8fa46b4283b0/code/crates/core-consensus/src/effect.rs#L48-L150
 
-The variants that are most interesting among Effects are these four:
+The variants that are most interesting among Effects are these six:
 
 1. Publish: Malachite instructs the Host to broadcast to other peers in the network a certain consensus message. The type `SignedConsensusMsg` is also an enum of two variants:
 
@@ -177,7 +177,8 @@ https://github.com/circlefin/malachite/blob/6f4cfce72fa0362d743320c0e3ea8fa46b42
 2. GetValue: Using this variant, Malachite asks the Host to provide a value to serve as a proposal to the consensus protocol. Put differently, this value is the next block to build.
 3. SignProposal: Malachite asks the Host to sign a value to be proposed.
 4. SignVote: Malachite asks the Host to sign a vote that votes on a value received from another peer.
-5. Decide: With this variant, Malachite communicates to the Host that the network of peers has finalized a new value — e.g., a block — and therefore the application can process it.
+5. Decide: Malachite communicates to the Host that the network of peers has decided on a new value — e.g., a block — and the application is expected to commit it. Advancing to the next height happens later, in response to `Finalize`.
+6. Finalize: Emitted once the finalization period for the decided height has elapsed (or immediately, when no `target_time` is configured). It carries the final commit certificate — which may include additional precommits collected during the finalization period — and the equivocation evidence observed during the height. In response, the application feeds `Input::StartHeight` to advance to the next height.
 
 Regarding the `SignProposal` variant, something interesting to note is that `Ctx::Proposal` is an associated type.
 Malachite is unaware of the specific implementation of a Proposal;
@@ -191,8 +192,8 @@ Inputs, Effects, and the Context are the three key types that make up the Malach
 
 ### Equivocation Evidence
 
-Malachite detects and surfaces validator equivocation at decide time: on `Effect::Decide`, Malachite includes a `MisbehaviorEvidence` that aggregates all equivocating proposals and votes observed in the decided height.
-This is delivered to the host and application alongside the `CommitCertificate`.
+Malachite detects validator equivocation throughout the height and delivers the accumulated evidence on `Effect::Finalize`, alongside the final `CommitCertificate`.
+The evidence aggregates all equivocating proposals and votes observed since the previous height was finalized.
 
 Evidence structure:
 
@@ -205,7 +206,7 @@ Metrics:
 - `malachitebft_core_consensus_equivocation_proposals`: counter incremented on each detected proposal equivocation
 - `malachitebft_core_consensus_equivocation_votes`: counter incremented on each detected vote equivocation
 
-Applications can consume decide-time evidence to persist or act on aggregated misbehavior per height.
+Applications can consume the finalize-time evidence to persist or act on aggregated misbehavior per height.
 
 ## Going further
 

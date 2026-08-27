@@ -54,6 +54,16 @@ pub struct LinearTimeouts {
     /// How long we wait after entering a round before starting
     /// the rebroadcast liveness protocol
     pub rebroadcast: Duration,
+
+    /// Upper bound on the duration returned by [`LinearTimeouts::duration_for`]
+    /// for any of the per-round timeout kinds (`Propose`, `Prevote`,
+    /// `Precommit`, `Rebroadcast`).
+    ///
+    /// The computed `base + delta * round` value is clamped to this cap, so
+    /// timeouts cannot grow without bound at high round numbers.
+    /// [`TimeoutKind::FinalizeHeight`] carries its own duration and is not
+    /// affected.
+    pub max_timeout: Duration,
 }
 
 impl<Ctx: Context> Timeouts<Ctx> for LinearTimeouts {
@@ -76,6 +86,7 @@ impl Default for LinearTimeouts {
             precommit,
             precommit_delta: Duration::from_millis(500),
             rebroadcast,
+            max_timeout: Duration::from_secs(60),
         }
     }
 }
@@ -85,13 +96,31 @@ impl LinearTimeouts {
     pub fn duration_for(&self, timeout: Timeout) -> Duration {
         let round = timeout.round.as_u32().expect("Round must be defined");
 
+        // Saturating arithmetic: `delta * round` with Duration's `Mul<u32>`
+        // panics on overflow. The extrapolated per-round value is clamped
+        // to `max_timeout` immediately after, so any saturation beyond the
+        // cap is indistinguishable from a normal clamp.
         match timeout.kind {
-            TimeoutKind::Propose => self.propose + self.propose_delta * round,
-            TimeoutKind::Prevote => self.prevote + self.prevote_delta * round,
-            TimeoutKind::Precommit => self.precommit + self.precommit_delta * round,
+            TimeoutKind::Propose => self
+                .propose
+                .saturating_add(self.propose_delta.saturating_mul(round))
+                .min(self.max_timeout),
+            TimeoutKind::Prevote => self
+                .prevote
+                .saturating_add(self.prevote_delta.saturating_mul(round))
+                .min(self.max_timeout),
+            TimeoutKind::Precommit => self
+                .precommit
+                .saturating_add(self.precommit_delta.saturating_mul(round))
+                .min(self.max_timeout),
             TimeoutKind::Rebroadcast => {
+                let deltas = self
+                    .propose_delta
+                    .saturating_add(self.prevote_delta)
+                    .saturating_add(self.precommit_delta);
                 self.rebroadcast
-                    + (self.propose_delta + self.prevote_delta + self.precommit_delta) * round
+                    .saturating_add(deltas.saturating_mul(round))
+                    .min(self.max_timeout)
             }
             TimeoutKind::FinalizeHeight(duration) => duration,
         }
@@ -114,6 +143,7 @@ mod tests {
         assert_eq!(timeouts.precommit, Duration::from_secs(1));
         assert_eq!(timeouts.precommit_delta, Duration::from_millis(500));
         assert_eq!(timeouts.rebroadcast, Duration::from_secs(5)); // 3 + 1 + 1
+        assert_eq!(timeouts.max_timeout, Duration::from_secs(60));
     }
 
     #[test]
@@ -210,6 +240,7 @@ mod tests {
             precommit: Duration::from_secs(3),
             precommit_delta: Duration::from_millis(200),
             rebroadcast: Duration::from_secs(10),
+            ..LinearTimeouts::default()
         };
 
         // Test propose at round 3: 5s + 3*1s = 8s
@@ -227,5 +258,93 @@ mod tests {
         // Test rebroadcast at round 2: 10s + 2*(1s + 0.1s + 0.2s) = 10s + 2.6s = 12.6s
         let rebroadcast_r2 = timeouts.duration_for(Timeout::rebroadcast(Round::new(2)));
         assert_eq!(rebroadcast_r2, Duration::from_millis(12600));
+    }
+
+    #[test]
+    fn test_per_round_timeouts_clamped_at_max_timeout() {
+        let timeouts = LinearTimeouts {
+            max_timeout: Duration::from_secs(10),
+            ..LinearTimeouts::default()
+        };
+
+        // Propose: 3s + 0.5s * 100 = 53s, clamped to 10s
+        let propose = timeouts.duration_for(Timeout::propose(Round::new(100)));
+        assert_eq!(propose, Duration::from_secs(10));
+
+        // Prevote: 1s + 0.5s * 100 = 51s, clamped to 10s
+        let prevote = timeouts.duration_for(Timeout::prevote(Round::new(100)));
+        assert_eq!(prevote, Duration::from_secs(10));
+
+        // Precommit: 1s + 0.5s * 100 = 51s, clamped to 10s
+        let precommit = timeouts.duration_for(Timeout::precommit(Round::new(100)));
+        assert_eq!(precommit, Duration::from_secs(10));
+
+        // Rebroadcast: 5s + 1.5s * 100 = 155s, clamped to 10s
+        let rebroadcast = timeouts.duration_for(Timeout::rebroadcast(Round::new(100)));
+        assert_eq!(rebroadcast, Duration::from_secs(10));
+    }
+
+    #[test]
+    fn test_per_round_timeouts_not_clamped_below_max_timeout() {
+        let timeouts = LinearTimeouts::default();
+        // With default max_timeout of 60s, round 2 values all fall well below the cap.
+        assert_eq!(
+            timeouts.duration_for(Timeout::propose(Round::new(2))),
+            Duration::from_secs(4)
+        );
+        assert_eq!(
+            timeouts.duration_for(Timeout::prevote(Round::new(2))),
+            Duration::from_secs(2)
+        );
+        assert_eq!(
+            timeouts.duration_for(Timeout::precommit(Round::new(2))),
+            Duration::from_secs(2)
+        );
+        assert_eq!(
+            timeouts.duration_for(Timeout::rebroadcast(Round::new(2))),
+            Duration::from_secs(8)
+        );
+    }
+
+    #[test]
+    fn test_duration_for_does_not_overflow_at_max_round() {
+        let timeouts = LinearTimeouts {
+            propose_delta: Duration::MAX,
+            prevote_delta: Duration::MAX,
+            precommit_delta: Duration::MAX,
+            ..LinearTimeouts::default()
+        };
+        let round = Round::new(u32::MAX);
+
+        // Without saturating arithmetic, `delta * round` on Duration panics.
+        // All per-round kinds should saturate and then clamp to max_timeout.
+        assert_eq!(
+            timeouts.duration_for(Timeout::propose(round)),
+            timeouts.max_timeout
+        );
+        assert_eq!(
+            timeouts.duration_for(Timeout::prevote(round)),
+            timeouts.max_timeout
+        );
+        assert_eq!(
+            timeouts.duration_for(Timeout::precommit(round)),
+            timeouts.max_timeout
+        );
+        assert_eq!(
+            timeouts.duration_for(Timeout::rebroadcast(round)),
+            timeouts.max_timeout
+        );
+    }
+
+    #[test]
+    fn test_finalize_height_timeout_not_clamped() {
+        let timeouts = LinearTimeouts {
+            max_timeout: Duration::from_secs(10),
+            ..LinearTimeouts::default()
+        };
+        // A FinalizeHeight duration larger than max_timeout passes through unchanged.
+        let duration = Duration::from_secs(120);
+        let timeout = Timeout::finalize_height(Round::new(0), duration);
+        assert_eq!(timeouts.duration_for(timeout), duration);
     }
 }
