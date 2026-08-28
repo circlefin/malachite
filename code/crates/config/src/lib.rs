@@ -107,6 +107,17 @@ impl ChannelNames {
     }
 }
 
+/// Errors returned by [`P2pConfig::validate`].
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+pub enum P2pConfigError {
+    #[error(
+        "persistent peer address `{0}` is missing a /p2p/<PeerId> component; \
+         without it the peer is dialed but never gets persistent-peer treatment \
+         (priority, protection from pruning, gossipsub explicit-peer status)"
+    )]
+    PersistentPeerMissingPeerId(Multiaddr),
+}
+
 /// P2P configuration options
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct P2pConfig {
@@ -155,6 +166,30 @@ impl Default for P2pConfig {
             protocol_names: Default::default(),
             channel_names: Default::default(),
         }
+    }
+}
+
+impl P2pConfig {
+    /// Validate that every `persistent_peers` address includes a `/p2p/<PeerId>`
+    /// component.
+    ///
+    /// A persistent-peer address without a `PeerId` is still dialed, but silently
+    /// never receives persistent-peer treatment (priority scoring, protection from
+    /// pruning, gossipsub explicit-peer status) since that treatment is applied by
+    /// `PeerId`, not by address — see `extract_peer_id_from_multiaddr` in
+    /// `malachitebft-network`. Catching this at config-validation time turns a
+    /// silent degradation into an explicit startup error.
+    pub fn validate(&self) -> Result<(), P2pConfigError> {
+        use multiaddr::Protocol;
+
+        for addr in &self.persistent_peers {
+            let has_peer_id = addr.iter().any(|p| matches!(p, Protocol::P2p(_)));
+            if !has_peer_id {
+                return Err(P2pConfigError::PersistentPeerMissingPeerId(addr.clone()));
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -1299,6 +1334,55 @@ mod tests {
                 })
             );
         }
+    }
+
+    #[test]
+    fn p2p_config_validate_accepts_empty_persistent_peers() {
+        let config = P2pConfig::default();
+        assert_eq!(config.validate(), Ok(()));
+    }
+
+    #[test]
+    fn p2p_config_validate_accepts_persistent_peer_with_peer_id() {
+        let addr: Multiaddr =
+            "/ip4/127.0.0.1/tcp/26656/p2p/12D3KooWJvyP3VJYymTqG7eH4PM5rN4T2agk5cdNCfNyMVb1prPu"
+                .parse()
+                .unwrap();
+        let config = P2pConfig {
+            persistent_peers: vec![addr],
+            ..Default::default()
+        };
+        assert_eq!(config.validate(), Ok(()));
+    }
+
+    #[test]
+    fn p2p_config_validate_rejects_persistent_peer_without_peer_id() {
+        let addr: Multiaddr = "/ip4/127.0.0.1/tcp/26656".parse().unwrap();
+        let config = P2pConfig {
+            persistent_peers: vec![addr.clone()],
+            ..Default::default()
+        };
+        assert_eq!(
+            config.validate(),
+            Err(P2pConfigError::PersistentPeerMissingPeerId(addr))
+        );
+    }
+
+    #[test]
+    fn p2p_config_validate_rejects_first_offending_peer_among_several() {
+        let good: Multiaddr =
+            "/ip4/127.0.0.1/tcp/26656/p2p/12D3KooWJvyP3VJYymTqG7eH4PM5rN4T2agk5cdNCfNyMVb1prPu"
+                .parse()
+                .unwrap();
+        let bad: Multiaddr = "/ip4/10.0.0.1/tcp/26656".parse().unwrap();
+        let config = P2pConfig {
+            persistent_peers: vec![good, bad.clone()],
+            ..Default::default()
+        };
+        assert_eq!(
+            config.validate(),
+            Err(P2pConfigError::PersistentPeerMissingPeerId(bad))
+        );
     }
 
     #[test]

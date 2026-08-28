@@ -56,6 +56,11 @@ where
         .validate()
         .map_err(|e| eyre!("Invalid P2P channel names: {e}"))?;
 
+    consensus_cfg
+        .p2p
+        .validate()
+        .map_err(|e| eyre!("Invalid P2P configuration: {e}"))?;
+
     let config = make_network_config(consensus_cfg, value_sync_cfg);
 
     Network::spawn(identity, config, registry.clone(), codec, Span::current())
