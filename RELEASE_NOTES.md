@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.7.0
+
+*June 22nd, 2026*
+
 > [!IMPORTANT]
 > All crates were renamed from `informalsystems-malachitebft-$crate` to `arc-malachitebft-$crate`.
 
