@@ -37,6 +37,16 @@ where
     where
         I: Clone + Display + Ord,
     {
+        // Reject immediately when per-key capacity is zero.
+        if self.per_key_capacity == 0 {
+            debug!(
+                index = %index,
+                per_key_capacity = 0,
+                "Per-key capacity is zero, rejecting value"
+            );
+            return false;
+        }
+
         // If the index already exists, append the value to the existing vector,
         // but only if the per-key capacity has not been reached.
         if let Some(values) = self.queue.get_mut(&index) {
@@ -325,6 +335,18 @@ mod tests {
 
         assert!(!result);
         assert!(queue.queue.is_empty());
+    }
+
+    #[test]
+    fn push_rejected_when_per_key_capacity_is_zero() {
+        let mut queue = BoundedQueue::new(3, 0);
+
+        assert!(!queue.push(10, "unexpected"));
+        assert!(queue.is_empty());
+
+        // Second key should also be rejected.
+        assert!(!queue.push(20, "also unexpected"));
+        assert!(queue.is_empty());
     }
 
     #[test]
