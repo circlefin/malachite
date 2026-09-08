@@ -99,9 +99,20 @@ impl ChannelNames {
                         first: entries[i].0,
                         second: entries[j].0,
                     });
-                }
-            }
         }
+    }
+
+    #[test]
+    fn gossipsub_adjust_does_not_panic_on_small_mesh_values() {
+        // When mesh_n=1, mesh_n_low is clamped to max(1, 1*2/3) = 1.
+        // mesh_outbound_min = max(1, min(0, 1-1)) = max(1, 0) = 1.
+        // Previously, mesh_n_low could be 0, causing underflow on `mesh_n_low - 1`.
+        let mut config = GossipSubConfig::new(1, 0, 0, 0, false, false, true);
+        config.adjust();
+        assert!(config.mesh_n_low >= 1);
+        assert!(config.mesh_outbound_min >= 1);
+    }
+}
 
         Ok(())
     }
@@ -462,7 +473,7 @@ impl GossipSubConfig {
         }
 
         if self.mesh_n_low == 0 || self.mesh_n_low > self.mesh_n {
-            self.mesh_n_low = self.mesh_n * 2 / 3;
+            self.mesh_n_low = max(1, self.mesh_n * 2 / 3);
         }
 
         if self.mesh_outbound_min == 0
