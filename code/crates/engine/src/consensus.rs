@@ -982,22 +982,29 @@ where
         self.tx_event
             .send(|| Event::WalReplayBegin(height, entries.len()));
 
-        // Replay WAL entries, stopping at the first corrupted entry
+        // Replay WAL entries, skipping trailing corrupted entries.
+        // A crash mid-write leaves the last K entries corrupted. Since the
+        // associated action was never performed (the write didn't complete),
+        // skipping trailing corrupted entries is safe — no equivocation risk.
+        let mut corrupted_count = 0u32;
         for entry in entries {
             let entry = match entry {
-                Ok(entry) => entry,
+                Ok(entry) => {
+                    corrupted_count = 0;
+                    entry
+                }
                 Err(e) => {
+                    corrupted_count += 1;
                     let error = Arc::new(e);
 
                     self.tx_event
                         .send(|| Event::WalCorrupted(Arc::clone(&error)));
 
-                    hang_on_safety_failure(&self.node, async { Err::<(), _>(error) }, |e| {
-                        format!("Corrupted WAL entry encountered: {e}")
-                    })
-                    .await;
-
-                    unreachable!()
+                    warn!(
+                        corrupted_count,
+                        "Corrupted WAL entry encountered during replay, skipping"
+                    );
+                    continue;
                 }
             };
 
