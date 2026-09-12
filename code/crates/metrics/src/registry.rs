@@ -60,5 +60,9 @@ fn global_registry() -> &'static SharedRegistry {
 pub fn export<W: core::fmt::Write>(writer: &mut W) {
     use prometheus_client::encoding::text::encode;
 
-    SharedRegistry::global().read(|registry| encode(writer, registry).unwrap())
+    SharedRegistry::global().read(|registry| {
+        if let Err(e) = encode(writer, registry) {
+            tracing::warn!(error = %e, "failed to encode metrics");
+        }
+    })
 }

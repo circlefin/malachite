@@ -133,7 +133,13 @@ where
     R: Read,
 {
     let len = buf.read_u64::<BE>()?;
-    let mut bytes = vec![0; len as usize];
+    let len = usize::try_from(len).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("WAL entry payload length {len} exceeds platform address space"),
+        )
+    })?;
+    let mut bytes = vec![0; len];
     buf.read_exact(&mut bytes)?;
 
     codec.decode(bytes.into()).map_err(|e| {

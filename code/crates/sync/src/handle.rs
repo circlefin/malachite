@@ -505,7 +505,14 @@ where
         // `increment_by`/`decrement` arithmetic below is well-defined.
         let new_start = range_start.increment_by(values_count as u64);
 
-        let entry = state.pending_requests.remove(&request_id).unwrap();
+        let Some(entry) = state.pending_requests.remove(&request_id) else {
+            warn!(
+                request_id = %request_id,
+                peer_id = %peer_id,
+                "Received response for unknown or already-completed request, ignoring"
+            );
+            return;
+        };
         let updated_range = range_start..=new_start.decrement().unwrap_or_default();
         state.update_request(
             request_id,
