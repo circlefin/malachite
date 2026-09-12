@@ -340,7 +340,8 @@ impl Codec<sync::Status<TestContext>> for ProtobufCodec {
             .ok_or_else(|| ProtoError::missing_field::<proto::Status>("peer_id"))?;
 
         Ok(sync::Status {
-            peer_id: PeerId::from_bytes(proto_peer_id.id.as_ref()).unwrap(),
+            peer_id: PeerId::from_bytes(proto_peer_id.id.as_ref())
+                .map_err(|e| ProtoError::Other(format!("invalid peer id: {e}")))?,
             tip_height: Height::new(proto.height),
             history_min_height: Height::new(proto.earliest_height),
         })
