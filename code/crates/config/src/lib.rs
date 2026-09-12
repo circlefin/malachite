@@ -346,10 +346,10 @@ pub enum TransportProtocol {
 }
 
 impl TransportProtocol {
-    pub fn multiaddr(&self, host: &str, port: usize) -> Multiaddr {
+    pub fn multiaddr(&self, host: &str, port: usize) -> Result<Multiaddr, multiaddr::Error> {
         match self {
-            Self::Tcp => format!("/ip4/{host}/tcp/{port}").parse().unwrap(),
-            Self::Quic => format!("/ip4/{host}/udp/{port}/quic-v1").parse().unwrap(),
+            Self::Tcp => format!("/ip4/{host}/tcp/{port}").parse(),
+            Self::Quic => format!("/ip4/{host}/udp/{port}/quic-v1").parse(),
         }
     }
 }
