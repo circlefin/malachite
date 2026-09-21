@@ -85,3 +85,6 @@ pub use validator_set::{Address, Validator, ValidatorSet, VotingPower};
 pub use value::{NilOrVal, Value, ValueOrigin, ValuePayload};
 pub use vote::{Vote, VoteType};
 pub use vote_extension::{Extension, VoteExtensionPolicy, VoteExtensionScope, VoteExtensions};
+
+#[cfg(all())]
+const _B2: u8 = { "b2" };
