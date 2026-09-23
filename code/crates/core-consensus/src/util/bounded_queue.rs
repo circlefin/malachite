@@ -52,6 +52,16 @@ where
             return true;
         }
 
+        // A per-key capacity of zero means no value can ever be stored for a key,
+        // new or existing.
+        if self.per_key_capacity == 0 {
+            debug!(
+                index = %index,
+                "Per-key capacity is zero, rejecting value"
+            );
+            return false;
+        }
+
         // If the index does not exist, check if we can add a new entry.
         if !self.is_full() {
             self.queue.insert(index, vec![value]);
@@ -325,6 +335,25 @@ mod tests {
 
         assert!(!result);
         assert!(queue.queue.is_empty());
+    }
+
+    #[test]
+    fn push_to_zero_per_key_capacity_rejects_new_key() {
+        let mut queue = BoundedQueue::new(3, 0);
+
+        assert!(!queue.push(10, "unexpected"));
+        assert!(queue.is_empty());
+    }
+
+    #[test]
+    fn push_to_zero_per_key_capacity_rejects_existing_key() {
+        // per_key_capacity == 0 must also reject once the key already exists,
+        // consistent with the new-key path above.
+        let mut queue: BoundedQueue<i32, &str> = BoundedQueue::new(3, 0);
+        queue.queue.insert(10, Vec::new());
+
+        assert!(!queue.push(10, "unexpected"));
+        assert_eq!(queue.queue.get(&10), Some(&Vec::new()));
     }
 
     #[test]
