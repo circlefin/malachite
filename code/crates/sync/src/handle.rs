@@ -554,6 +554,16 @@ where
 {
     debug!(%request_id, %peer_id, "Received invalid response");
 
+    // Only penalize the peer if the request ID still corresponds to a
+    // pending sync request. A stale response for an already-removed or
+    // unknown request should be ignored consistently with the valid-response
+    // path in `on_value_response`, which also drops unknown request IDs
+    // before any scoring.
+    if !state.pending_requests.contains_key(&request_id) {
+        warn!(%request_id, %peer_id, "Received invalid response for unknown request ID");
+        return Ok(());
+    }
+
     state.peer_scorer.update_score(peer_id, SyncResult::Failure);
 
     // We do not trust the response, so we remove the pending request and re-request
@@ -4233,6 +4243,103 @@ mod tests {
         assert!(
             !saw_process_response.get(),
             "Non-contiguous response should NOT have been forwarded to consensus"
+        );
+    }
+
+    // -- on_invalid_value_response: stale/unknown request IDs must not penalize peers --
+
+    #[test]
+    fn test_stale_invalid_response_does_not_penalize_peer() {
+        let mut state = make_test_state();
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        let peer = PeerId::random();
+        state.peers.insert(
+            peer,
+            crate::Status {
+                peer_id: peer,
+                tip_height: Height::new(20),
+                history_min_height: Height::new(1),
+            },
+        );
+
+        let initial_score = state.peer_scorer.get_score(&peer);
+
+        // No pending request exists for this ID — it is stale/unknown.
+        let effects = drive_input(
+            &mut state,
+            &metrics,
+            Input::ValueResponse(OutboundRequestId::new("stale_req"), peer, None),
+        )
+        .unwrap();
+
+        assert_eq!(
+            state.peer_scorer.get_score(&peer),
+            initial_score,
+            "A stale invalid response for an unknown request ID must not penalize the peer"
+        );
+        assert!(
+            !effects
+                .iter()
+                .any(|e| matches!(e, Effect::SendValueRequest(..))),
+            "No re-request should be issued for an unknown request ID"
+        );
+    }
+
+    #[test]
+    fn test_invalid_response_for_known_request_penalizes_peer() {
+        let mut state = make_test_state();
+        state.started = true;
+        state.tip_height = Height::new(10);
+        state.sync_height = Height::new(16);
+        let metrics = crate::Metrics::new(std::time::Duration::from_secs(10));
+
+        let peer_a = PeerId::random();
+        let peer_b = PeerId::random();
+        state.peers.insert(
+            peer_a,
+            crate::Status {
+                peer_id: peer_a,
+                tip_height: Height::new(20),
+                history_min_height: Height::new(1),
+            },
+        );
+        state.peers.insert(
+            peer_b,
+            crate::Status {
+                peer_id: peer_b,
+                tip_height: Height::new(20),
+                history_min_height: Height::new(1),
+            },
+        );
+        state.pending_requests.insert(
+            OutboundRequestId::new("req1"),
+            PendingRequestEntry {
+                range: Height::new(11)..=Height::new(15),
+                peer: peer_a,
+                excluded_peers: BTreeSet::new(),
+                inflight: true,
+            },
+        );
+
+        let initial_score = state.peer_scorer.get_score(&peer_a);
+
+        let effects = drive_input_with_retries(
+            &mut state,
+            &metrics,
+            Input::ValueResponse(OutboundRequestId::new("req1"), peer_a, None),
+        )
+        .unwrap();
+
+        assert!(
+            state.peer_scorer.get_score(&peer_a) < initial_score,
+            "An invalid response for a known pending request must penalize the peer"
+        );
+        assert!(
+            effects
+                .iter()
+                .any(|e| matches!(e, Effect::SendValueRequest(..))),
+            "A known invalid request should trigger a re-request"
         );
     }
 }
