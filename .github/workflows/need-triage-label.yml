@@ -12,14 +12,24 @@ jobs:
 
       - name: Check if opener is CODEOWNER
         id: check-codeowner
+        # Security fix: `github.event.issue.user.login` is attacker-controlled (anyone can open
+        # an issue) and was interpolated directly into the shell source, which is the documented
+        # script-injection pattern. It is now passed through `env:` — the environment is not
+        # evaluated as shell — and matched with `grep -qx` so a crafted login cannot match a
+        # CODEOWNERS entry as a substring. This job also declares no `permissions:` block, so
+        # it inherits the repository default; `contents: read` is all it needs.
+        env:
+          OPENER_LOGIN: ${{ github.event.issue.user.login }}
+        permissions:
+          contents: read
         run: |
           # Get the CODEOWNERS file content
           if [ -f .github/CODEOWNERS ]; then
             # Extract GitHub usernames from CODEOWNERS file
             CODEOWNERS=$(grep -v '^#' .github/CODEOWNERS | grep -o '@[a-zA-Z0-9-]*' | sed 's/@//')
 
-            # Check if issue opener is in CODEOWNERS
-            if echo "$CODEOWNERS" | grep -q "^${{ github.event.issue.user.login }}$"; then
+            # Check if issue opener is in CODEOWNERS (exact match, not a prefix/substring)
+            if [ -n "$OPENER_LOGIN" ] && echo "$CODEOWNERS" | grep -qxF "$OPENER_LOGIN"; then
               echo "is_codeowner=true" >> $GITHUB_OUTPUT
             else
               echo "is_codeowner=false" >> $GITHUB_OUTPUT
