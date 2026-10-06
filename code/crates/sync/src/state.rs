@@ -1,12 +1,23 @@
 use std::cmp::max;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::num::NonZeroU32;
 use std::ops::RangeInclusive;
 
+use governor::clock::DefaultClock;
+use governor::state::keyed::DefaultKeyedStateStore;
+use governor::{Quota, RateLimiter};
 use malachitebft_core_types::{Context, Height};
 use malachitebft_peer::PeerId;
 
 use crate::scoring::{ema, PeerScorer, Strategy};
-use crate::{Config, OutboundRequestId, Status};
+use crate::{Config, InboundRequestId, OutboundRequestId, Status};
+
+/// Per-peer rate limiter for inbound value requests.
+///
+/// Backed by `governor`'s GCRA implementation: each peer has its own token
+/// bucket that replenishes at a steady rate up to the configured burst
+/// capacity.
+pub type InboundRateLimiter = RateLimiter<PeerId, DefaultKeyedStateStore<PeerId>, DefaultClock>;
 
 /// The value stored for each pending request.
 #[derive(Debug, Clone)]
@@ -44,6 +55,11 @@ where
     /// Height of last decided value
     pub tip_height: Ctx::Height,
 
+    /// Lowest height this node will serve. Starts at zero (no floor). The
+    /// engine raises it from `GetHistoryMinHeight` replies and never lowers
+    /// it, so a stale host fetch cannot reopen a pruned range.
+    pub history_min_height: Ctx::Height,
+
     /// Next height to send a sync request.
     /// Invariant: `sync_height > tip_height`
     pub sync_height: Ctx::Height,
@@ -57,6 +73,17 @@ where
 
     /// Peer scorer for scoring peers based on their performance.
     pub peer_scorer: PeerScorer,
+
+    /// Per-peer rate limiter for inbound value requests.
+    pub inbound_rate_limiter: InboundRateLimiter,
+
+    /// In-flight inbound value requests per peer, capped by
+    /// [`Config::parallel_requests`].
+    pub inbound_peer_inflight: HashMap<PeerId, u32>,
+
+    /// Reverse lookup from an admitted request to its originating peer, used
+    /// on completion to decrement [`Self::inbound_peer_inflight`].
+    pub inbound_request_peer: HashMap<InboundRequestId, PeerId>,
 }
 
 impl<Ctx> State<Ctx>
@@ -73,16 +100,35 @@ where
             Strategy::Ema => PeerScorer::new(ema::ExponentialMovingAverage::default()),
         };
 
+        let burst = NonZeroU32::new(config.max_inbound_requests_per_window)
+            .expect("max_inbound_requests_per_window must be non-zero");
+        let replenish_interval = config
+            .inbound_request_rate_limit_window
+            .checked_div(burst.get())
+            .filter(|d| !d.is_zero())
+            .expect(
+                "inbound_request_rate_limit_window must be large enough to yield a non-zero \
+                 replenish interval per burst token",
+            );
+        let quota = Quota::with_period(replenish_interval)
+            .expect("non-zero replenish interval")
+            .allow_burst(burst);
+        let inbound_rate_limiter = RateLimiter::keyed(quota);
+
         Self {
             rng,
             config,
             started: false,
             consensus_height: Ctx::Height::ZERO,
             tip_height: Ctx::Height::ZERO,
+            history_min_height: Ctx::Height::ZERO,
             sync_height: Ctx::Height::ZERO,
             pending_requests: BTreeMap::new(),
             peers: BTreeMap::new(),
             peer_scorer,
+            inbound_rate_limiter,
+            inbound_peer_inflight: HashMap::new(),
+            inbound_request_peer: HashMap::new(),
         }
     }
 
@@ -90,6 +136,13 @@ where
     /// If the configuration is set to 0, it defaults to 1.
     pub fn max_parallel_requests(&self) -> usize {
         self.config.effective_parallel_requests()
+    }
+
+    /// The maximum number of heights in one request, in either direction: what
+    /// we ask a peer for, and what we are willing to serve.
+    /// If the configuration is set to 0, it defaults to 1.
+    pub fn max_batch_size(&self) -> usize {
+        self.config.effective_batch_size()
     }
 
     /// The number of pending requests still waiting for a response.
@@ -140,7 +193,7 @@ where
     /// Filter peers to only include those that can provide the given range of values, or at least a prefix of the range.
     ///
     /// If there is no peer with all requested values, select a peer that has a tip at or above the start of the range.
-    /// Prefer peers that support batching (v2 sync protocol).
+    /// Peers do not advertise their `batch_size`, so a selected peer can still serve fewer heights than the range asks for.
     /// Return the peer ID and the range of heights that the peer can provide.
     pub fn filter_peers_by_range(
         peers: &BTreeMap<PeerId, Status<Ctx>>,
@@ -224,8 +277,38 @@ where
     }
 
     /// Remove pending requests that are for heights that have already been validated by consensus.
-    pub fn prune_pending_requests(&mut self) {
-        self.pending_requests
-            .retain(|_, entry| entry.range.end() > &self.tip_height);
+    ///
+    /// Returns the request ids of pruned entries that were still in flight, so
+    /// the caller can cancel the matching engine-side timer and network request.
+    /// Reservations (`inflight == false`) are omitted: their timer was already
+    /// cancelled when the response arrived.
+    pub fn prune_pending_requests(&mut self) -> Vec<OutboundRequestId> {
+        let mut cancelled = Vec::new();
+        let tip = self.tip_height;
+        self.pending_requests.retain(|request_id, entry| {
+            let keep = entry.range.end() > &tip;
+            if !keep && entry.inflight {
+                cancelled.push(request_id.clone());
+            }
+            keep
+        });
+        cancelled
+    }
+
+    /// Drop every pending request.
+    ///
+    /// Returns the request ids of cleared entries that were still in flight, so
+    /// the caller can cancel the matching engine-side timer and network request.
+    /// Reservations (`inflight == false`) are omitted: their timer was already
+    /// cancelled when the response arrived.
+    pub fn clear_pending_requests(&mut self) -> Vec<OutboundRequestId> {
+        let cancelled: Vec<OutboundRequestId> = self
+            .pending_requests
+            .iter()
+            .filter(|(_, entry)| entry.inflight)
+            .map(|(request_id, _)| request_id.clone())
+            .collect();
+        self.pending_requests.clear();
+        cancelled
     }
 }

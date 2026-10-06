@@ -6,7 +6,7 @@ edition.workspace = true
 repository.workspace = true
 license.workspace = true
 rust-version.workspace = true
-publish = false
+publish.workspace = true
 
 [lints]
 workspace = true
@@ -25,5 +25,5 @@ serde = { workspace = true, features = ["derive"] }
 tracing.workspace = true
 
 [dev-dependencies]
-malachitebft-test.workspace = true
+malachitebft-test = { package = "arc-malachitebft-test", path = "../test" }
 toml.workspace = true

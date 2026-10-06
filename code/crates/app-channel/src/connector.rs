@@ -111,6 +111,7 @@ where
                 height,
                 round,
                 value_id,
+                vote_extension_policy,
                 reply_to,
             } => {
                 let (reply, rx) = oneshot::channel();
@@ -120,6 +121,7 @@ where
                         height,
                         round,
                         value_id,
+                        vote_extension_policy,
                         reply,
                     })
                     .await?;
@@ -127,21 +129,21 @@ where
                 reply_to.send(rx.await?)?;
             }
 
-            HostMsg::VerifyVoteExtension {
+            HostMsg::VerifyVoteExtensions {
                 height,
                 round,
                 value_id,
-                extension,
+                extensions,
                 reply_to,
             } => {
                 let (reply, rx) = oneshot::channel();
 
                 self.sender
-                    .send(AppMsg::VerifyVoteExtension {
+                    .send(AppMsg::VerifyVoteExtensions {
                         height,
                         round,
                         value_id,
-                        extension,
+                        extensions,
                         reply,
                     })
                     .await?;
@@ -179,13 +181,19 @@ where
 
             HostMsg::ReceivedProposalPart {
                 from,
+                published_by,
                 part,
                 reply_to,
             } => {
                 let (reply, rx) = oneshot::channel();
 
                 self.sender
-                    .send(AppMsg::ReceivedProposalPart { from, part, reply })
+                    .send(AppMsg::ReceivedProposalPart {
+                        from,
+                        published_by,
+                        part,
+                        reply,
+                    })
                     .await?;
 
                 if let Some(value) = rx.await? {

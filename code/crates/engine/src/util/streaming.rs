@@ -32,7 +32,7 @@ impl fmt::Display for StreamId {
     derive(::borsh::BorshSerialize, ::borsh::BorshDeserialize)
 )]
 pub struct StreamMessage<T> {
-    /// Receivers identify streams by (sender, stream_id).
+    /// Receivers identify streams by (publisher, stream_id).
     /// This means each node can allocate stream_ids independently
     /// and that many streams can be sent on a single network topic.
     pub stream_id: StreamId,

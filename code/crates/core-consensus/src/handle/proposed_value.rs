@@ -1,6 +1,7 @@
 use crate::prelude::*;
 
 use crate::handle::driver::apply_driver_input;
+use crate::state::ProposedValueStorage;
 use crate::types::ProposedValue;
 
 use super::sync::maybe_sync_decision;
@@ -97,29 +98,36 @@ where
         return Ok(());
     }
 
-    // Drop values that would grow the keeper, and therefore the WAL, past the per-(height, round)
-    // cap, before persisting anything. Two kinds of value are exempt: sync values, which carry
-    // verified commit certificates, and values that already hold a polka certificate at their
-    // round. Both carry a quorum of signatures that cannot be forged.
-    if origin.is_consensus()
-        && state.exceeds_per_round_cap(
-            proposed_value.height,
-            proposed_value.round,
-            &proposed_value.value.id(),
-        )
-    {
-        warn!(
-            consensus.height = %state.height(),
-            value.height = %proposed_value.height,
-            value.round = %proposed_value.round,
-            "Rejecting proposed value: per-(height, round) cap reached"
-        );
+    // Do not apply the future-round lookahead here. WAL decode always reconstructs ProposedValue
+    // as ValueOrigin::Consensus and does not persist commit certificates, so an origin- or
+    // certificate-gated bound would drop a crash-recovered sync value. Gossip flood is closed on
+    // Proposal messages in on_proposal.
 
-        #[cfg(feature = "metrics")]
-        metrics.dropped_capped_proposed_values.inc();
+    // Select a bounded keeper placement before persisting the value. Sync values retain their
+    // source round. A consensus value can instead update matching entries without growing its
+    // full source bucket, or be retained at a round where it holds a polka certificate.
+    let value_id = proposed_value.value.id();
+    let storage = if origin.is_consensus() {
+        match state.proposed_value_storage(proposed_value.height, proposed_value.round, &value_id) {
+            Ok(storage) => storage,
+            Err(error) => {
+                warn!(
+                    consensus.height = %state.height(),
+                    value.height = %proposed_value.height,
+                    value.round = %proposed_value.round,
+                    value.id = ?value_id,
+                    reason = %error,
+                    "Rejecting proposed value"
+                );
+                #[cfg(feature = "metrics")]
+                metrics.dropped_capped_proposed_values.inc();
 
-        return Ok(());
-    }
+                return Ok(());
+            }
+        }
+    } else {
+        ProposedValueStorage::SourceRoundAndMatchingEntries
+    };
 
     // We may consider in the future some optimization to avoid multiple identical entries in the
     // WAL, in the case of multiple node restarts. For now we write every ProposedValue to it.
@@ -134,10 +142,9 @@ where
 
     // We MUST stick to the stored validity, which may have been updated
     // when storing the value (e.g., from Invalid to Valid).
-    let validity = state.store_value(&proposed_value);
+    let validity = state.store_value_with_storage(&proposed_value, storage);
     proposed_value.validity = validity;
 
-    let value_id = proposed_value.value.id();
     let certificate_available = state
         .driver
         .commit_certificate(proposed_value.round, &value_id)

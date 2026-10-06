@@ -159,7 +159,12 @@ where
     /// the value that was decided on, the height and round at which it was decided,
     /// and the aggregated signatures of the validators that committed to it.
     ///
-    /// In addition, it includes the vote extensions that were received for this height.
+    /// The accompanying [`VoteExtensions`] are those attached to the vote keeper's
+    /// precommits for the decided value **at emit time**. Under
+    /// `VoteExtensionPolicy::Required`, that set matches the committers: extensionless
+    /// precommits rebuilt from a round certificate are never stored. Late gossip during
+    /// a finalization window may enlarge the set on [`Effect::Finalize`]; Sync, no
+    /// `target_time`, and an already-overrun window keep this Decide-time snapshot.
     ///
     /// The application is expected to commit the decision, but advancing to the
     /// next height happens later, in response to the [`Effect::Finalize`] effect.
@@ -207,6 +212,13 @@ where
     /// Used on the sync receive path so that an extension cannot be forged
     /// onto a sync-arrived certificate.
     ///
+    /// The handler MUST also ask the application to verify the contents of
+    /// every attached vote extension, as it does for a live precommit, and
+    /// report a refusal as [`CertificateError::InvalidVoteExtension`].
+    /// Signatures alone do not establish that the extensions say anything the
+    /// application accepts, and the certified height is decided on the strength
+    /// of this answer.
+    ///
     /// Resume with: [`resume::CertificateValidity`]
     VerifyExtendedCommitCertificate(
         ExtendedCommitCertificate<Ctx>,
@@ -253,12 +265,29 @@ where
     /// The proposer of the next block will receive all vote extensions along with the commit certificate.
     ///
     /// Only emitted if vote extensions are enabled.
-    ExtendVote(Ctx::Height, Round, ValueId<Ctx>, resume::VoteExtension),
+    ///
+    /// A host that replays the write-ahead log through the ordinary input path
+    /// must first call
+    /// [`State::record_recovered_own_precommit_extensions`][crate::State::record_recovered_own_precommit_extensions]
+    /// so this effect is not emitted for a precommit this node already signed
+    /// and logged. Resume with that stored extension if you handle replay
+    /// yourself; a second application callout can diverge from what peers
+    /// already recorded.
+    ExtendVote(
+        Ctx::Height,
+        Round,
+        ValueId<Ctx>,
+        VoteExtensionPolicy,
+        resume::VoteExtension,
+    ),
 
     /// Verify a vote extension
     ///
     /// If the vote extension is deemed invalid, the vote it was part of
-    /// will be discarded altogether.
+    /// will be discarded altogether. Extensions on a synced commit certificate
+    /// are not emitted here; they are checked by the handler of
+    /// [`Effect::VerifyExtendedCommitCertificate`], which holds all of them at
+    /// once.
     ///
     /// The validator address identifies the validator that cast the precommit;
     /// it is part of the cryptographic scope bound into the extension signature
@@ -283,6 +312,10 @@ where
     /// when no `target_time` was configured for the height). The certificate carries any
     /// additional precommits collected during the finalization period, and the effect also
     /// carries the misbehavior evidence accumulated since [`Effect::Decide`] was emitted.
+    ///
+    /// The accompanying [`VoteExtensions`] are rebuilt from the vote keeper at finalize
+    /// time. Late gossip precommits that upgrade an earlier extensionless store (or that
+    /// arrive for the first time) can enlarge this set relative to [`Effect::Decide`].
     ///
     /// In response, the application must feed
     /// [`Input::StartHeight`][crate::input::Input::StartHeight] to advance to the next height

@@ -41,6 +41,14 @@ where
         self.map.get(address)
     }
 
+    /// Whether this validator already has [`MAX_EVIDENCE_PER_VALIDATOR`] pairs.
+    /// A further conflicting vote cannot add evidence and should not be
+    /// verified or written to the WAL.
+    pub fn is_full(&self, address: &Ctx::Address) -> bool {
+        self.get(address)
+            .is_some_and(|pairs| pairs.len() >= MAX_EVIDENCE_PER_VALIDATOR)
+    }
+
     /// Add evidence of equivocating votes, ie. two votes submitted by the same validator,
     /// but with different values but for the same height and round.
     /// If evidence for the same pair of votes already exists, it will not be added again.

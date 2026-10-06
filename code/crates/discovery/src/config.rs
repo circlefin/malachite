@@ -45,7 +45,7 @@ pub struct Config {
     pub max_connections_per_ip: usize,
 
     /// Minimum time between reconnections from the same IP address.
-    /// After all connections from an IP close, new inbound connections from
+    /// After any inbound connection from an IP closes, new inbound connections from
     /// that IP are rejected until this duration has elapsed.
     pub ip_throttle_duration: Duration,
 

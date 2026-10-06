@@ -113,6 +113,7 @@ fn build_commit_certificate_without_extensions(
 fn handle_effect_with_default<F>(
     signers: &[Ed25519Signer],
     verify_cert_count: Option<&Cell<u32>>,
+    verify_ext_count: Option<&Cell<u32>>,
     effect: Effect<TestContext>,
     fallback: F,
 ) -> Resume<TestContext>
@@ -155,6 +156,12 @@ where
             ));
             r.resume_with(result)
         }
+        VerifyVoteExtension(_, _, _, _, _, _, r) => {
+            if let Some(counter) = verify_ext_count {
+                counter.set(counter.get() + 1);
+            }
+            r.resume_with(Ok(()))
+        }
         other => fallback(other),
     }
 }
@@ -188,6 +195,7 @@ fn sync_decision_path_verifies_commit_certificate_once() {
         Ok(handle_effect_with_default(
             &signers,
             Some(&verify_count),
+            None,
             effect,
             |_| Resume::Continue,
         ))
@@ -274,6 +282,7 @@ fn sync_value_response_rejects_missing_extensions_when_policy_is_required() {
         Ok(handle_effect_with_default(
             &signers,
             Some(&verify_count),
+            None,
             effect,
             |effect| {
                 use Effect::*;
@@ -361,6 +370,7 @@ fn sync_value_response_rejects_present_extensions_when_policy_is_disabled() {
         Ok(handle_effect_with_default(
             &signers,
             Some(&verify_count),
+            None,
             effect,
             |effect| {
                 use Effect::*;
@@ -451,6 +461,7 @@ fn sync_value_response_skips_cert_verified_sync_value_when_already_decided() {
     let handle_effect = |effect: Effect<TestContext>| -> Result<Resume<TestContext>, ()> {
         Ok(handle_effect_with_default(
             &signers,
+            None,
             None,
             effect,
             |effect| {
@@ -548,6 +559,7 @@ fn sync_value_response_emits_cert_verified_sync_value_when_not_decided() {
         Ok(handle_effect_with_default(
             &signers,
             None,
+            None,
             effect,
             |effect| {
                 use Effect::*;
@@ -584,5 +596,250 @@ fn sync_value_response_emits_cert_verified_sync_value_when_not_decided() {
         cert_verified_count.get(),
         1,
         "CertVerifiedSyncValue must be emitted when no decision was reached during certificate processing"
+    );
+}
+
+/// The extensions on a synced certificate are checked by the handler of the
+/// certificate verification effect, which holds all of them at once. The sync
+/// path must therefore not also emit a per-extension effect.
+#[test]
+fn sync_value_response_delegates_extension_checks_to_the_certificate_effect() {
+    let entries: Vec<(Validator, _)> = make_validators([25, 25, 25, 25]).into();
+    let validators: Vec<Validator> = entries.iter().map(|(v, _)| v.clone()).collect();
+    let signers: Vec<Ed25519Signer> = entries
+        .into_iter()
+        .map(|(_, pk)| Ed25519Signer::new(pk))
+        .collect();
+
+    let my_addr = validators[0].address;
+    let mut state = make_state(&validators, my_addr);
+    let metrics = Metrics::new();
+    let vs = ValidatorSet::new(validators.clone());
+
+    let height = Height::new(1);
+    let round = Round::new(0);
+    let value = Value::new(42);
+
+    let verify_cert_count = Cell::new(0u32);
+    let verify_ext_count = Cell::new(0u32);
+    let cert_verified_count = Cell::new(0u32);
+
+    let handle_effect = |effect: Effect<TestContext>| -> Result<Resume<TestContext>, ()> {
+        Ok(handle_effect_with_default(
+            &signers,
+            Some(&verify_cert_count),
+            Some(&verify_ext_count),
+            effect,
+            |effect| {
+                use Effect::*;
+                match effect {
+                    CertVerifiedSyncValue(_, _, r) => {
+                        cert_verified_count.set(cert_verified_count.get() + 1);
+                        r.resume_with(())
+                    }
+                    _ => Resume::Continue,
+                }
+            },
+        ))
+    };
+
+    run(process!(
+        input: Input::StartHeight(height, vs, false, None, VoteExtensionPolicy::Required),
+        state: &mut state,
+        metrics: &metrics,
+        with: effect => handle_effect(effect)
+    ));
+
+    let certificate = build_commit_certificate(&validators, &signers, height, round, &value);
+    let value_response =
+        ValueResponse::new(PeerId::random(), Bytes::from("value-bytes"), certificate);
+
+    run(process!(
+        input: Input::SyncValueResponse(value_response),
+        state: &mut state,
+        metrics: &metrics,
+        with: effect => handle_effect(effect)
+    ));
+
+    assert_eq!(
+        verify_cert_count.get(),
+        1,
+        "the whole certificate, extensions included, must be verified in one effect"
+    );
+    assert_eq!(
+        verify_ext_count.get(),
+        0,
+        "a synced extension must not also be handed over one at a time"
+    );
+    assert_eq!(
+        cert_verified_count.get(),
+        1,
+        "a certificate the application accepts must still be forwarded as verified"
+    );
+}
+
+#[test]
+fn sync_value_response_rejects_when_application_rejects_an_extension() {
+    let entries: Vec<(Validator, _)> = make_validators([25, 25, 25, 25]).into();
+    let validators: Vec<Validator> = entries.iter().map(|(v, _)| v.clone()).collect();
+    let signers: Vec<Ed25519Signer> = entries
+        .into_iter()
+        .map(|(_, pk)| Ed25519Signer::new(pk))
+        .collect();
+
+    let my_addr = validators[0].address;
+    let rejected_validator = validators[1].address;
+    let mut state = make_state(&validators, my_addr);
+    let metrics = Metrics::new();
+    let vs = ValidatorSet::new(validators.clone());
+
+    let height = Height::new(1);
+    let round = Round::new(0);
+    let value = Value::new(42);
+
+    let cert_verified_count = Cell::new(0u32);
+    let cert_rejected_count = Cell::new(0u32);
+
+    let handle_effect = |effect: Effect<TestContext>| -> Result<Resume<TestContext>, ()> {
+        use Effect::*;
+        Ok(match effect {
+            VerifyExtendedCommitCertificate(_, _, _, _, r) => r.resume_with(Err(
+                CertificateError::InvalidVoteExtension(rejected_validator),
+            )),
+            other => {
+                handle_effect_with_default(&signers, None, None, other, |effect| match effect {
+                    CertVerifiedSyncValue(_, _, r) => {
+                        cert_verified_count.set(cert_verified_count.get() + 1);
+                        r.resume_with(())
+                    }
+                    CertRejectedSyncValue(_, _, error, r) => {
+                        cert_rejected_count.set(cert_rejected_count.get() + 1);
+
+                        let Error::InvalidCommitCertificate(_, cert_error) = &error else {
+                            panic!("expected an invalid commit certificate, got {error:?}");
+                        };
+
+                        assert!(
+                            matches!(
+                                cert_error,
+                                CertificateError::InvalidVoteExtension(address)
+                                    if *address == rejected_validator
+                            ),
+                            "the rejection must name the validator it came from, got {cert_error:?}"
+                        );
+
+                        r.resume_with(())
+                    }
+                    _ => Resume::Continue,
+                })
+            }
+        })
+    };
+
+    run(process!(
+        input: Input::StartHeight(height, vs, false, None, VoteExtensionPolicy::Required),
+        state: &mut state,
+        metrics: &metrics,
+        with: effect => handle_effect(effect)
+    ));
+
+    let certificate = build_commit_certificate(&validators, &signers, height, round, &value);
+    let value_response =
+        ValueResponse::new(PeerId::random(), Bytes::from("value-bytes"), certificate);
+
+    run(process!(
+        input: Input::SyncValueResponse(value_response),
+        state: &mut state,
+        metrics: &metrics,
+        with: effect => handle_effect(effect)
+    ));
+
+    assert_eq!(
+        cert_verified_count.get(),
+        0,
+        "an application-rejected extension must not forward the synced value"
+    );
+    assert_eq!(
+        cert_rejected_count.get(),
+        1,
+        "an application-rejected extension must fault the serving peer"
+    );
+    assert!(
+        state
+            .driver
+            .commit_certificate(round, &value.id())
+            .is_none(),
+        "the rejected certificate must not be stored"
+    );
+}
+
+#[test]
+fn sync_value_response_skips_application_check_when_disabled_and_bare() {
+    let entries: Vec<(Validator, _)> = make_validators([25, 25, 25, 25]).into();
+    let validators: Vec<Validator> = entries.iter().map(|(v, _)| v.clone()).collect();
+    let signers: Vec<Ed25519Signer> = entries
+        .into_iter()
+        .map(|(_, pk)| Ed25519Signer::new(pk))
+        .collect();
+
+    let my_addr = validators[0].address;
+    let mut state = make_state(&validators, my_addr);
+    let metrics = Metrics::new();
+    let vs = ValidatorSet::new(validators.clone());
+
+    let height = Height::new(1);
+    let round = Round::new(0);
+    let value = Value::new(42);
+
+    let verify_ext_count = Cell::new(0u32);
+    let cert_verified_count = Cell::new(0u32);
+
+    let handle_effect = |effect: Effect<TestContext>| -> Result<Resume<TestContext>, ()> {
+        Ok(handle_effect_with_default(
+            &signers,
+            None,
+            Some(&verify_ext_count),
+            effect,
+            |effect| {
+                use Effect::*;
+                match effect {
+                    CertVerifiedSyncValue(_, _, r) => {
+                        cert_verified_count.set(cert_verified_count.get() + 1);
+                        r.resume_with(())
+                    }
+                    _ => Resume::Continue,
+                }
+            },
+        ))
+    };
+
+    run(process!(
+        input: Input::StartHeight(height, vs, false, None, VoteExtensionPolicy::Disabled),
+        state: &mut state,
+        metrics: &metrics,
+        with: effect => handle_effect(effect)
+    ));
+
+    let certificate =
+        build_commit_certificate_without_extensions(&validators, &signers, height, round, &value);
+    let value_response =
+        ValueResponse::new(PeerId::random(), Bytes::from("value-bytes"), certificate);
+
+    run(process!(
+        input: Input::SyncValueResponse(value_response),
+        state: &mut state,
+        metrics: &metrics,
+        with: effect => handle_effect(effect)
+    ));
+
+    assert_eq!(
+        verify_ext_count.get(),
+        0,
+        "a Disabled-height certificate with no extensions must not ask the application"
+    );
+    assert_eq!(
+        cert_verified_count.get(),
+        1,
+        "a valid Disabled-height certificate must still be forwarded as verified"
     );
 }

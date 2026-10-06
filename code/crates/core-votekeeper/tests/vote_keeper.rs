@@ -1,6 +1,7 @@
 use bytes::Bytes;
 use malachitebft_core_types::{NilOrVal, Round, SignedExtension, SignedVote, Vote as _, VoteType};
 
+use arc_malachitebft_core_votekeeper::evidence::MAX_EVIDENCE_PER_VALIDATOR;
 use arc_malachitebft_core_votekeeper::keeper::{Output, VoteKeeper};
 
 use malachitebft_test::{
@@ -451,6 +452,41 @@ fn has_vote_false_for_equivocating_value() {
 
     let conflicting = new_signed_precommit(height, round, NilOrVal::Val(ValueId::new(2)), addr1);
     assert!(!keeper.has_vote(&conflicting));
+    assert!(!keeper.is_saturated_conflict(&conflicting));
+}
+
+#[test]
+fn saturated_conflict_after_evidence_cap() {
+    let ([addr1, _], mut keeper) = setup([1, 1]);
+
+    let height = Height::new(1);
+    let round = Round::new(0);
+
+    let first = new_signed_precommit(height, round, NilOrVal::Val(ValueId::new(1)), addr1);
+    keeper.apply_vote(first, round);
+
+    for i in 0..MAX_EVIDENCE_PER_VALIDATOR {
+        let conflicting = new_signed_precommit(
+            height,
+            round,
+            NilOrVal::Val(ValueId::new((i + 2) as u64)),
+            addr1,
+        );
+        assert!(
+            !keeper.is_saturated_conflict(&conflicting),
+            "conflict {i} should still be recordable"
+        );
+        keeper.apply_vote(conflicting, round);
+    }
+
+    let extra = new_signed_precommit(
+        height,
+        round,
+        NilOrVal::Val(ValueId::new((MAX_EVIDENCE_PER_VALIDATOR + 2) as u64)),
+        addr1,
+    );
+    assert!(keeper.is_saturated_conflict(&extra));
+    assert!(!keeper.has_vote(&extra));
 }
 
 #[test]
@@ -492,4 +528,172 @@ fn precommit_without_extension_does_not_clear_stored_extension() {
         .get_vote(VoteType::Precommit, &addr1)
         .expect("precommit stored for validator");
     assert_eq!(stored.extension(), Some(&extension));
+}
+
+#[test]
+fn per_round_holds_a_prevote_and_a_precommit_per_validator_without_reallocating() {
+    let (addrs, mut keeper) = setup([1, 1, 1]);
+
+    let height = Height::new(1);
+    let round = Round::new(0);
+
+    keeper.apply_vote(
+        new_signed_prevote(height, round, NilOrVal::Nil, addrs[0]),
+        round,
+    );
+
+    let reserved = keeper
+        .per_round(round)
+        .expect("per-round entry exists")
+        .received_votes()
+        .capacity();
+    assert!(reserved >= 2 * addrs.len());
+
+    for addr in addrs {
+        keeper.apply_vote(
+            new_signed_prevote(height, round, NilOrVal::Nil, addr),
+            round,
+        );
+        keeper.apply_vote(
+            new_signed_precommit(height, round, NilOrVal::Nil, addr),
+            round,
+        );
+    }
+
+    let received_votes = keeper
+        .per_round(round)
+        .expect("per-round entry exists")
+        .received_votes();
+    assert_eq!(received_votes.len(), 2 * addrs.len());
+    assert_eq!(received_votes.capacity(), reserved);
+}
+
+#[test]
+fn conflicting_vote_is_none_when_the_stored_vote_carries_the_same_value() {
+    let ([addr1, _], mut keeper) = setup([1, 1]);
+
+    let height = Height::new(1);
+    let round = Round::new(0);
+    let val = NilOrVal::Val(ValueId::new(1));
+
+    keeper.apply_vote(new_signed_prevote(height, round, val, addr1), round);
+
+    let same = new_signed_prevote(height, round, val, addr1);
+    assert_eq!(keeper.conflicting_vote(&same), None);
+}
+
+#[test]
+fn conflicting_vote_returns_the_stored_vote_of_the_same_type_for_a_different_value() {
+    let ([addr1, _], mut keeper) = setup([1, 1]);
+
+    let height = Height::new(1);
+    let round = Round::new(0);
+    let val = NilOrVal::Val(ValueId::new(1));
+
+    let stored = new_signed_prevote(height, round, val, addr1);
+    keeper.apply_vote(stored.clone(), round);
+
+    let conflicting = new_signed_prevote(height, round, NilOrVal::Nil, addr1);
+    assert_eq!(keeper.conflicting_vote(&conflicting), Some(&stored));
+
+    // A precommit is a different vote type, so it does not conflict with the stored prevote.
+    let other_type = new_signed_precommit(height, round, NilOrVal::Nil, addr1);
+    assert_eq!(keeper.conflicting_vote(&other_type), None);
+}
+
+#[test]
+fn conflicting_vote_is_none_for_an_unseen_round_or_validator() {
+    let ([addr1, addr2], mut keeper) = setup([1, 1]);
+
+    let height = Height::new(1);
+    let round = Round::new(0);
+    let val = NilOrVal::Val(ValueId::new(1));
+
+    keeper.apply_vote(new_signed_prevote(height, round, val, addr1), round);
+
+    let other_round = new_signed_prevote(height, Round::new(1), NilOrVal::Nil, addr1);
+    assert_eq!(keeper.conflicting_vote(&other_round), None);
+
+    let other_validator = new_signed_prevote(height, round, NilOrVal::Nil, addr2);
+    assert_eq!(keeper.conflicting_vote(&other_validator), None);
+}
+
+#[test]
+fn detect_equivocation_records_a_pair_once_and_reports_only_the_first() {
+    let ([addr1, _], mut keeper) = setup([1, 1]);
+
+    let height = Height::new(1);
+    let round = Round::new(0);
+    let val = NilOrVal::Val(ValueId::new(1));
+
+    let stored = new_signed_prevote(height, round, val, addr1);
+    keeper.apply_vote(stored.clone(), round);
+
+    let conflicting = new_signed_prevote(height, round, NilOrVal::Nil, addr1);
+    assert!(!keeper.has_equivocation_evidence(&conflicting));
+    assert!(keeper.can_record_equivocation(&conflicting));
+
+    assert_eq!(
+        keeper.detect_equivocation(conflicting.clone()),
+        Some((stored, conflicting.clone()))
+    );
+
+    // The pair is stored, so a redelivery reports nothing new and needs no verification.
+    assert!(keeper.has_equivocation_evidence(&conflicting));
+    assert!(!keeper.can_record_equivocation(&conflicting));
+    assert_eq!(keeper.detect_equivocation(conflicting), None);
+}
+
+#[test]
+fn detect_equivocation_is_none_without_a_conflict() {
+    let ([addr1, _], mut keeper) = setup([1, 1]);
+
+    let height = Height::new(1);
+    let round = Round::new(0);
+    let val = NilOrVal::Val(ValueId::new(1));
+
+    keeper.apply_vote(new_signed_prevote(height, round, val, addr1), round);
+
+    let same = new_signed_prevote(height, round, val, addr1);
+    assert!(!keeper.can_record_equivocation(&same));
+    assert_eq!(keeper.detect_equivocation(same), None);
+    assert!(keeper.evidence().is_empty());
+}
+
+#[test]
+fn a_capped_validator_can_no_longer_record_equivocation() {
+    let ([addr1, _], mut keeper) = setup([1, 1]);
+
+    let height = Height::new(1);
+    let round = Round::new(0);
+
+    keeper.apply_vote(
+        new_signed_prevote(height, round, NilOrVal::Nil, addr1),
+        round,
+    );
+
+    // Fill the per-validator cap with distinct conflicting values.
+    for i in 0..MAX_EVIDENCE_PER_VALIDATOR {
+        let value = NilOrVal::Val(ValueId::new(i as u64 + 1));
+        let conflicting = new_signed_prevote(height, round, value, addr1);
+        assert!(keeper.detect_equivocation(conflicting).is_some());
+    }
+
+    // A further distinct conflicting value is not retained, so it never becomes recorded
+    // evidence. Reporting it as recordable would have it verified on every redelivery.
+    let beyond_cap = new_signed_prevote(
+        height,
+        round,
+        NilOrVal::Val(ValueId::new(MAX_EVIDENCE_PER_VALIDATOR as u64 + 1)),
+        addr1,
+    );
+
+    assert!(keeper.conflicting_vote(&beyond_cap).is_some());
+    assert!(!keeper.has_equivocation_evidence(&beyond_cap));
+    assert!(!keeper.can_record_equivocation(&beyond_cap));
+    assert_eq!(keeper.detect_equivocation(beyond_cap), None);
+    assert_eq!(
+        keeper.evidence().get(&addr1).map(Vec::len),
+        Some(MAX_EVIDENCE_PER_VALIDATOR)
+    );
 }

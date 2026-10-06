@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use libp2p::{
     core::{PeerRecord, SignedEnvelope},
     request_response::{OutboundRequestId, ResponseChannel},
@@ -117,16 +119,12 @@ where
             return;
         }
 
-        // Extract peer_ids from received records to compute difference
-        let received_peer_ids: std::collections::HashSet<PeerId> = signed_records
-            .iter()
-            .filter_map(|bytes| {
-                SignedEnvelope::from_protobuf_encoding(bytes)
-                    .ok()
-                    .and_then(|env| PeerRecord::from_signed_envelope(env).ok())
-                    .map(|rec| rec.peer_id())
-            })
-            .collect();
+        // Cap this verify pass at `max_peers_per_response`, matching
+        // `process_signed_peer_records`. Extra records are not decoded, so a
+        // peer with more known records than the cap may get a few
+        // already-known records sent back to it.
+        let received_peer_ids =
+            peer_ids_from_signed_records(&signed_records, self.config.max_peers_per_response);
 
         // Process incoming signed records
         self.process_signed_peer_records(swarm, signed_records);
@@ -255,7 +253,7 @@ where
                         "Received verified signed peer record"
                     );
 
-                    // Add to dial queue with verified peer_id
+                    // Dial gating (including persistent_peers_only) lives in should_dial.
                     self.add_to_dial_queue(swarm, DialData::new(Some(peer_id), addresses));
                 }
                 Err(e) => {
@@ -274,5 +272,61 @@ where
             .take(self.config.max_peers_per_response)
             .map(|(_, envelope)| envelope.clone().into_protobuf_encoding())
             .collect()
+    }
+}
+
+/// Decode and verify at most `cap` peer-supplied records.
+/// Extra elements are ignored so this pass matches the sibling
+/// `process_signed_peer_records` cap.
+fn peer_ids_from_signed_records(
+    signed_records: &[SignedPeerRecordBytes],
+    cap: usize,
+) -> HashSet<PeerId> {
+    signed_records
+        .iter()
+        .take(cap)
+        .filter_map(|bytes| {
+            SignedEnvelope::from_protobuf_encoding(bytes)
+                .ok()
+                .and_then(|env| PeerRecord::from_signed_envelope(env).ok())
+                .map(|rec| rec.peer_id())
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use libp2p::identity::Keypair;
+    use libp2p::Multiaddr;
+
+    use super::*;
+
+    fn signed_record_bytes() -> (PeerId, SignedPeerRecordBytes) {
+        let keypair = Keypair::generate_ed25519();
+        let peer_id = PeerId::from_public_key(&keypair.public());
+        let addr: Multiaddr = "/ip4/127.0.0.1/tcp/1".parse().unwrap();
+        let record = PeerRecord::new(&keypair, vec![addr]).expect("sign peer record");
+        let bytes = record.into_signed_envelope().into_protobuf_encoding();
+        (peer_id, bytes)
+    }
+
+    #[test]
+    fn peer_ids_from_signed_records_stops_at_cap() {
+        let (a, bytes_a) = signed_record_bytes();
+        let (b, bytes_b) = signed_record_bytes();
+        let (c, bytes_c) = signed_record_bytes();
+
+        let ids = peer_ids_from_signed_records(&[bytes_a, bytes_b, bytes_c], 2);
+
+        assert_eq!(ids.len(), 2);
+        assert!(ids.contains(&a));
+        assert!(ids.contains(&b));
+        assert!(!ids.contains(&c));
+    }
+
+    #[test]
+    fn peer_ids_from_signed_records_skips_malformed_before_verify() {
+        let ids = peer_ids_from_signed_records(&[vec![0u8; 16], vec![1u8; 16]], 10);
+        assert!(ids.is_empty());
     }
 }

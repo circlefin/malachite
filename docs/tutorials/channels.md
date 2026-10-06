@@ -266,10 +266,10 @@ A brief description of each message can be found below:
 | `StartedRound`         | Notifies the application that a new consensus round has begun.                                                                                                                                                                                                                                                                                                                                                                             |
 | `GetValue`             | Requests the application to build a value for consensus to run on. The application MUST reply to this message with the requested value within the specified timeout duration.                                                                                                                                                                                                                                                              |
 | `ExtendVote`  | Allows the application to extend the pre-commit vote with arbitrary data. When consensus is preparing to send a pre-commit vote, it first calls `ExtendVote`. The application then returns a blob of data called a vote extension. This data is opaque to the consensus algorithm but can contain application-specific information. The proposer of the next block will receive all vote extensions along with the commit certificate.                                                                                                                                                                                                                                                                                   |
-| `VerifyVoteExtension`  | Requests the application to verify a vote extension. If the vote extension is deemed invalid, the vote it was part of will be discarded altogether.                                                                                                                                                                                                                                                                     |
+| `VerifyVoteExtensions` | Requests the application to verify a batch of vote extensions for the same height, round and value. A live precommit carries one; a synced commit certificate carries one per validator that signed it. Reply with one result per extension, in order, each paired with the validator address it answers for. A rejected extension discards the vote it was part of, or rejects the certificate that carried it. A reply that does not line up with the request is not applied: the live vote is dropped, and a synced certificate is left unstored so the height is requested again without treating the peer as faulty. |
 | `RestreamProposal`     | Requests the application to re-stream a proposal that it has already seen. The application MUST re-publish again all the proposal parts pertaining to that value by sending `NetworkMsg::PublishProposalPart` messages through the `Channels::network` channel.                                                                                                                                                                            |
 | `GetHistoryMinHeight`  | Requests the earliest height available in the history maintained by the application. The application MUST respond with its earliest available height.                                                                                                                                                                                                                                                                                      |
-| `ReceivedProposalPart` | Notifies the application that consensus has received a proposal part over the network. If this part completes the full proposal, the application MUST respond with the complete proposed value. Otherwise, it MUST respond with `None`.                                                                                                                                                                                                    |                                                                                                                                                                                                                    |
+| `ReceivedProposalPart` | Notifies the application that consensus has received a proposal part over the network. Carries `from` (delivering peer, for per-peer resource limits) and `published_by` (declared publisher, for grouping multi-part streams). If this part completes the full proposal, the application MUST respond with the complete proposed value. Otherwise, it MUST respond with `None`. |                                                                                                                                                                                                                    |
 | `GetValidatorSet`      | Requests the validator set for a specific height.                                                                                                                                                                                                                                                                                                                                                                                          |
 | `Decided`              | Notifies the application that consensus has decided on a value. This message includes a commit certificate containing the ID of the value that was decided on, the height and round at which it was decided, and the aggregated signatures of the validators that committed to it. The application MUST commit the decision and reply to acknowledge it (`reply.send(())`). After acknowledging, the application MUST wait for `Finalized` before instructing consensus to start the next height. |
 | `Finalized`            | Notifies the application that a height has been finalized after the finalization period elapsed. The certificate may carry additional precommits collected during that period, and the message also includes any misbehavior evidence observed since `Decided`. The application MUST reply with a `Next` value — `Next::Start` to advance to the next height, or `Next::Restart` if the application could not commit and wants consensus to redo the height. If the application does not reply, consensus will stall.                                                                                                                                                                                                                                                                                                                            |
@@ -446,10 +446,13 @@ The `streaming` module provides a `PartStreamsMap` data structure. This is used 
     /// Initialize the data structure
     pub fn new() -> Self
 
-    /// Insert a proposal part into the map, returning the full proposal if all parts have been received
+    /// Insert a proposal part into the map, returning the full proposal if all parts have been received.
+    /// `delivered_by` is the peer that delivered the part; `published_by` is the
+    /// publisher declared in the message (used to group parts of one proposal).
     pub fn insert(
         &mut self,
-        peer_id: PeerId,
+        delivered_by: PeerId,
+        published_by: Option<PeerId>,
         msg: StreamMessage<ProposalPart>,
     ) -> Option<ProposalParts>
 ```
@@ -834,12 +837,13 @@ impl State {
     pub async fn received_proposal_part(
         &mut self,
         from: PeerId,
+        published_by: Option<PeerId>,
         part: StreamMessage<ProposalPart>,
     ) -> eyre::Result<Option<ProposedValue<TestContext>>> {
         let sequence = part.sequence;
 
         // Check if we have a full proposal
-        let Some(parts) = self.streams_map.insert(from, part) else {
+        let Some(parts) = self.streams_map.insert(from, published_by, part) else {
             return Ok(None);
         };
 
@@ -1250,7 +1254,12 @@ have all its constituent parts. Then we send that value back to consensus for it
 consider and vote for or against it (ie. vote `nil`), depending on its validity.
 
 ```rust
-            AppMsg::ReceivedProposalPart { from, part, reply } => {
+            AppMsg::ReceivedProposalPart {
+                from,
+                published_by,
+                part,
+                reply,
+            } => {
                 let part_type = match &part.content {
                     StreamContent::Data(part) => part.get_type(),
                     StreamContent::Fin => "end of stream",
@@ -1258,7 +1267,9 @@ consider and vote for or against it (ie. vote `nil`), depending on its validity.
 
                 info!(%from, %part.sequence, part.type = %part_type, "Received proposal part");
 
-                let proposed_value = state.received_proposal_part(from, part).await?;
+                let proposed_value = state
+                    .received_proposal_part(from, published_by, part)
+                    .await?;
 
                 if reply.send(proposed_value).is_err() {
                     error!("Failed to send ReceivedProposalPart reply");
@@ -1305,33 +1316,44 @@ It is also possible that the application is requested to restream a proposal it 
 
 When consensus is preparing to send a pre-commit vote, it first calls `ExtendVote`, asking the application to returns a blob of data called a vote extension. This data is opaque to the consensus algorithm but can contain application-specific information. The proposer of the next block will receive all vote extensions along with the commit certificate.
 
-In our case, the vote extension is empty.
+`ExtendVote` is only issued when the height requires an extension. The reply
+must be `Some`; `None` aborts the local precommit before WAL append and hangs
+WAL replay. In this tutorial we send an empty extension.
 
 ```rust
             AppMsg::ExtendVote {
                 height: _,
                 round: _,
                 value_id: _,
+                vote_extension_policy: _,
                 reply,
             } => {
-                if reply.send(None).is_err() {
+                if reply.send(Some(Default::default())).is_err() {
                     error!("Failed to send ExtendVote reply");
                 }
             }
 ```
 
-The application is also responsible to verify a given vote extension. In our case, we simply return `OK(())`.
+The application is also responsible to verify vote extensions. A live precommit
+carries one; a synced commit certificate carries one per validator that signed it.
+Reply with one result per extension, in order, each paired with the validator
+address it answers for. A reply that does not line up with the request is not
+applied: the live vote is dropped, and a synced certificate is left unstored so
+the height is requested again without treating the peer as faulty. In our case,
+we accept them all.
 
 ```rust
-            AppMsg::VerifyVoteExtension {
-                height: _,
-                round: _,
-                value_id: _,
-                extension: _,
+            AppMsg::VerifyVoteExtensions {
+                extensions,
                 reply,
+                ..
             } => {
-                if reply.send(Ok(())).is_err() {
-                    error!("Failed to send VerifyVoteExtension reply");
+                let results = extensions
+                    .iter()
+                    .map(|(address, _)| (address.clone(), Ok(())))
+                    .collect();
+                if reply.send(results).is_err() {
+                    error!("Failed to send VerifyVoteExtensions reply");
                 }
             }
 ```

@@ -272,7 +272,12 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
             // To this end, we store each part that we receive and assemble the full value once we
             // have all its constituent parts. Then we send that value back to consensus for it to
             // consider and vote for or against it (ie. vote `nil`), depending on its validity.
-            AppMsg::ReceivedProposalPart { from, part, reply } => {
+            AppMsg::ReceivedProposalPart {
+                from,
+                published_by,
+                part,
+                reply,
+            } => {
                 let part_type = match &part.content {
                     StreamContent::Data(part) => part.get_type(),
                     StreamContent::Fin => "end of stream",
@@ -280,7 +285,9 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
 
                 debug!(%from, %part.sequence, part.type = %part_type, "Received proposal part");
 
-                let proposed_value = state.received_proposal_part(from, part).await?;
+                let proposed_value = state
+                    .received_proposal_part(from, published_by, part)
+                    .await?;
 
                 if reply.send(proposed_value).is_err() {
                     error!("Failed to send ReceivedProposalPart reply");
@@ -549,30 +556,36 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                 reply,
                 ..
             } => {
-                // When vote extensions are enabled in config, attach a
-                // deterministic payload so integration tests can assert the
+                // Deterministic payload so integration tests can assert the
                 // extension travelled through consensus and sync.
-                let extension = if state.config.test.vote_extensions.enabled {
-                    let size = state.config.test.vote_extensions.size.as_u64() as usize;
-                    let mut payload = format!("ext h={} r={}", height, round).into_bytes();
-                    if payload.len() < size {
-                        payload.resize(size, 0u8);
-                    } else {
-                        payload.truncate(size);
-                    }
-                    Some(Bytes::from(payload))
+                let size = state.config.test.vote_extensions.size.as_u64() as usize;
+                let mut payload = format!("ext h={} r={}", height, round).into_bytes();
+                if payload.len() < size {
+                    payload.resize(size, 0u8);
                 } else {
-                    None
-                };
+                    payload.truncate(size);
+                }
+                let extension = Some(Bytes::from(payload));
 
                 if reply.send(extension).is_err() {
                     error!("Failed to send ExtendVote reply");
                 }
             }
 
-            AppMsg::VerifyVoteExtension { reply, .. } => {
-                if reply.send(Ok(())).is_err() {
-                    error!("Failed to send VerifyVoteExtension reply");
+            AppMsg::VerifyVoteExtensions {
+                extensions, reply, ..
+            } => {
+                if let Some(middleware) = state.middleware.as_ref() {
+                    middleware.on_verify_vote_extensions(&state.ctx, extensions.len());
+                }
+
+                let results = extensions
+                    .iter()
+                    .map(|(address, _)| (*address, Ok(())))
+                    .collect();
+
+                if reply.send(results).is_err() {
+                    error!("Failed to send VerifyVoteExtensions reply");
                 }
             }
         }

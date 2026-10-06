@@ -9,6 +9,7 @@ use derive_where::derive_where;
 use malachitebft_core_types::{
     Context, DoubleProposal, Proposal, Round, SignedProposal, Validity, Value, ValueId,
 };
+pub use malachitebft_core_votekeeper::evidence::MAX_EVIDENCE_PER_VALIDATOR;
 use tracing::{error, warn};
 
 /// Outcome of storing a proposal in a [`PerRound`] / [`ProposalKeeper`].
@@ -19,7 +20,7 @@ use tracing::{error, warn};
 #[must_use]
 #[derive_where(Clone, Debug)]
 pub enum StoreProposalResult<Ctx: Context> {
-    /// The proposal was stored, or an exact duplicate was ignored.
+    /// The proposal was stored, or a duplicate proposal message was ignored.
     Stored,
     /// A different proposal from the same validator is already stored for this round, so the
     /// proposer has equivocated. Both proposals are returned so the caller can record evidence.
@@ -71,7 +72,7 @@ where
     /// If a proposal comes from a different validator than the first,
     /// this is considered a calling code bug and the function will panic.
     ///
-    /// - Stores each unique proposal once.
+    /// - Stores each unique proposal message once.
     /// - Returns [`StoreProposalResult::Equivocation`] if equivocation is detected from the
     ///   **same** validator.
     /// - Panics if proposals come from **different validators**.
@@ -80,8 +81,8 @@ where
         proposal: SignedProposal<Ctx>,
         validity: Validity,
     ) -> StoreProposalResult<Ctx> {
-        // Early return for exact duplicates
-        if self.contains_exact(&proposal, validity) {
+        // Signatures are not part of proposal identity.
+        if self.contains_message_with_validity(&proposal, validity) {
             return StoreProposalResult::Stored;
         }
 
@@ -102,10 +103,14 @@ where
         self.check_equivocation(proposal)
     }
 
-    fn contains_exact(&self, proposal: &SignedProposal<Ctx>, validity: Validity) -> bool {
+    fn contains_message_with_validity(
+        &self,
+        proposal: &SignedProposal<Ctx>,
+        validity: Validity,
+    ) -> bool {
         self.proposals
             .iter()
-            .any(|(p, v)| p == proposal && *v == validity)
+            .any(|(p, v)| p.message == proposal.message && *v == validity)
     }
 
     fn verify_same_validator(&self, proposal: &SignedProposal<Ctx>) {
@@ -124,7 +129,7 @@ where
     fn proposal_validity_mut(&mut self, proposal: &SignedProposal<Ctx>) -> Option<&mut Validity> {
         self.proposals
             .iter_mut()
-            .find(|(p, _)| p == proposal)
+            .find(|(p, _)| p.message == proposal.message)
             .map(|(_, v)| v)
     }
 
@@ -253,20 +258,32 @@ where
     /// [`StoreProposalResult::Equivocation`], or when an upstream layer detects equivocation for
     /// two proposals that share a value id but differ in another field (such as `pol_round`) and
     /// filters the conflicting one before it reaches the per-round store.
-    /// [`EvidenceMap::add`] deduplicates, so calling this for a pair already recorded is a no-op.
+    /// [`EvidenceMap::add`] deduplicates and caps evidence per validator.
+    ///
+    /// Returns `true` when the pair was retained, or `false` when it was already present or the
+    /// per-validator cap was reached.
     pub fn record_evidence(
         &mut self,
         existing: SignedProposal<Ctx>,
         conflicting: SignedProposal<Ctx>,
-    ) {
-        warn!(
-            height = %conflicting.message.height(),
-            round = %conflicting.message.round(),
-            proposer = %conflicting.message.validator_address(),
-            value_id = %conflicting.message.value().id(),
-            "Received equivocating proposal"
-        );
-        self.evidence.add(existing, conflicting);
+    ) -> bool {
+        let height = conflicting.message.height();
+        let round = conflicting.message.round();
+        let proposer = conflicting.message.validator_address().clone();
+        let value_id = conflicting.message.value().id();
+        let retained = self.evidence.add(existing, conflicting);
+
+        if retained {
+            warn!(
+                height = %height,
+                round = %round,
+                proposer = %proposer,
+                value_id = %value_id,
+                "Received equivocating proposal"
+            );
+        }
+
+        retained
     }
 }
 
@@ -301,30 +318,41 @@ where
     /// Add evidence of equivocating proposals, ie. two proposals submitted by the same validator
     /// for the same height and round that differ in any field — a different value, or the same
     /// value with a different `pol_round`, for example.
-    /// If evidence for the same pair of proposals already exists, it will not be added again.
+    /// If evidence for the same pair of proposal messages already exists, it will not be added
+    /// again. Once a validator has [`MAX_EVIDENCE_PER_VALIDATOR`] recorded pairs, further pairs
+    /// from that validator are dropped.
+    ///
+    /// Returns `true` when the pair was retained, or `false` when it was already present or the
+    /// per-validator cap was reached.
     ///
     /// # Precondition
     /// - Both proposals must be from the same validator (debug-asserted).
-    pub fn add(&mut self, existing: SignedProposal<Ctx>, conflicting: SignedProposal<Ctx>) {
+    pub fn add(&mut self, existing: SignedProposal<Ctx>, conflicting: SignedProposal<Ctx>) -> bool {
         debug_assert_eq!(
             existing.validator_address(),
             conflicting.validator_address()
         );
 
         if let Some(evidence) = self.map.get_mut(conflicting.validator_address()) {
-            // Check if this evidence already exists (in either order)
+            // Check if this proposal-message pair already exists in either order.
             let already_exists = evidence.iter().any(|(e, c)| {
-                (e == &existing && c == &conflicting) || (e == &conflicting && c == &existing)
+                (e.message == existing.message && c.message == conflicting.message)
+                    || (e.message == conflicting.message && c.message == existing.message)
             });
-            if !already_exists {
-                evidence.push((existing, conflicting));
+
+            if already_exists || evidence.len() >= MAX_EVIDENCE_PER_VALIDATOR {
+                return false;
             }
+
+            evidence.push((existing, conflicting));
         } else {
             self.map.insert(
                 conflicting.validator_address().clone(),
                 vec![(existing, conflicting)],
             );
         }
+
+        true
     }
 
     /// Return the number of addresses with recorded proposal equivocations.

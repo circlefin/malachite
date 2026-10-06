@@ -32,6 +32,32 @@ impl KademliaSelector {
     }
 }
 
+/// Completes a partial k-bucket selection with random discovered peers that are
+/// not already chosen and not excluded, then classifies the result via
+/// [`Selection::classify`].
+pub(crate) fn complete_with_discovered_peers(
+    mut candidates: Vec<PeerId>,
+    discovered: &HashMap<PeerId, identify::Info>,
+    excluded: &[PeerId],
+    n: usize,
+) -> Selection<PeerId> {
+    let remaining = n.saturating_sub(candidates.len());
+    if remaining > 0 {
+        let mut rng = rand::thread_rng();
+        candidates.extend(
+            discovered
+                .keys()
+                .filter(|peer_id| !candidates.contains(peer_id))
+                .filter(|peer_id| !excluded.contains(peer_id))
+                .cloned()
+                .collect::<Vec<PeerId>>()
+                .choose_multiple(&mut rng, remaining),
+        );
+    }
+
+    Selection::classify(candidates, n)
+}
+
 impl<C> Selector<C> for KademliaSelector
 where
     C: DiscoveryClient,
@@ -74,11 +100,7 @@ where
             .map(|(_, peers)| peers.len())
             .sum();
 
-        if total_kbuckets_candidates < n {
-            for (_, peers) in &kbuckets_candidates {
-                candidates.extend(peers.iter());
-            }
-        } else {
+        if total_kbuckets_candidates >= n {
             // Select candidates in round-robin fashion based on kbucket index in reverse order
             for (_, peers) in kbuckets_candidates.iter().rev().cycle() {
                 if candidates.len() >= n {
@@ -89,33 +111,99 @@ where
                 }
             }
 
-            return Selection::Exactly(candidates);
+            return Selection::classify(candidates, n);
+        }
+
+        for (_, peers) in &kbuckets_candidates {
+            candidates.extend(peers.iter());
         }
 
         debug!("Not enough peers in kbuckets, completing with random discovered peers");
 
-        let mut rng = rand::thread_rng();
-        let remaining = n - candidates.len();
+        complete_with_discovered_peers(candidates, discovered, &excluded, n)
+    }
+}
 
-        if discovered.len() < remaining {
-            candidates.extend(discovered.keys().cloned());
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-            if candidates.is_empty() {
-                return Selection::None;
-            }
-            return Selection::Only(candidates);
+    fn identify_info() -> identify::Info {
+        identify::Info {
+            public_key: libp2p::identity::Keypair::generate_ed25519().public(),
+            protocol_version: String::new(),
+            agent_version: String::new(),
+            listen_addrs: vec![],
+            protocols: vec![],
+            observed_addr: libp2p::Multiaddr::empty(),
+            signed_peer_record: None,
         }
+    }
 
-        candidates.extend(
-            discovered
-                .keys()
-                .filter(|peer_id| !candidates.contains(peer_id))
-                .filter(|peer_id| !excluded.contains(peer_id))
-                .cloned()
-                .collect::<Vec<PeerId>>()
-                .choose_multiple(&mut rng, remaining),
+    fn discovered(peers: &[PeerId]) -> HashMap<PeerId, identify::Info> {
+        peers
+            .iter()
+            .map(|peer_id| (*peer_id, identify_info()))
+            .collect()
+    }
+
+    #[test]
+    fn returns_none_when_all_discovered_peers_are_excluded() {
+        let peer = PeerId::random();
+        let selection = complete_with_discovered_peers(vec![], &discovered(&[peer]), &[peer], 1);
+
+        assert!(matches!(selection, Selection::None));
+    }
+
+    #[test]
+    fn returns_exactly_when_one_non_excluded_discovered_peer() {
+        let peer = PeerId::random();
+        let selection = complete_with_discovered_peers(vec![], &discovered(&[peer]), &[], 1);
+
+        match selection {
+            Selection::Exactly(peers) => assert_eq!(peers, vec![peer]),
+            _ => panic!("expected Selection::Exactly"),
+        }
+    }
+
+    #[test]
+    fn returns_only_when_fewer_than_requested_after_exclusion() {
+        let available = PeerId::random();
+        let excluded = PeerId::random();
+        let selection = complete_with_discovered_peers(
+            vec![],
+            &discovered(&[available, excluded]),
+            &[excluded],
+            2,
         );
 
-        Selection::Exactly(candidates)
+        match selection {
+            Selection::Only(peers) => {
+                assert_eq!(peers, vec![available]);
+                assert!(!peers.contains(&excluded));
+            }
+            _ => panic!("expected Selection::Only"),
+        }
+    }
+
+    #[test]
+    fn returns_none_when_discovered_and_kbucket_candidates_are_empty() {
+        let selection = complete_with_discovered_peers(vec![], &HashMap::new(), &[], 1);
+
+        assert!(matches!(selection, Selection::None));
+    }
+
+    #[test]
+    fn truncates_to_n_when_candidates_already_exceed_request() {
+        let peers: Vec<PeerId> = (0..3).map(|_| PeerId::random()).collect();
+        let selection = complete_with_discovered_peers(peers.clone(), &HashMap::new(), &[], 1);
+
+        match selection {
+            Selection::Exactly(selected) => {
+                assert_eq!(selected.len(), 1);
+                assert_eq!(selected[0], peers[0]);
+            }
+            _ => panic!("expected Selection::Exactly"),
+        }
     }
 }

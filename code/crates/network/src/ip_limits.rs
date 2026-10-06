@@ -4,7 +4,7 @@
 //! enforces a minimum delay between reconnections from the same IP. This
 //! prevents DoS attacks where an attacker either:
 //! - Generates many PeerIds from the same IP to exhaust connection slots, or
-//! - Cycles connections rapidly (connect N → close all → reconnect N → repeat).
+//! - Cycles connections rapidly (connect N → close some or all → reconnect → repeat).
 //!
 //! Only inbound connections are limited. Outbound connections are not counted,
 //! allowing nodes to connect to multiple peers behind the same NAT (e.g.,
@@ -41,9 +41,9 @@ const EVICTION_INTERVAL: Duration = Duration::from_secs(5);
 struct IpState {
     /// Number of active inbound connections from this IP.
     connections: usize,
-    /// When the last connection from this IP closed (count reached 0).
-    /// Set only when `connections` drops to 0; cleared when a new connection
-    /// is accepted.
+    /// When the most recent inbound connection from this IP closed.
+    /// Set on every close while throttling is enabled; cleared when a new
+    /// connection is accepted.
     last_disconnect: Option<Instant>,
 }
 
@@ -51,7 +51,7 @@ struct IpState {
 ///
 /// Tracks pending inbound connections immediately (before handshake completes)
 /// to prevent attackers from exhausting resources with incomplete connections.
-/// Also records when the last connection from an IP closes, rejecting new
+/// Also records when any inbound connection from an IP closes, rejecting new
 /// connections from the same IP until a configurable cooldown has elapsed.
 pub struct Behaviour {
     /// Map from ConnectionId to IP address for tracking.
@@ -61,8 +61,8 @@ pub struct Behaviour {
     ip_state: HashMap<IpAddr, IpState>,
     /// Maximum allowed connections per IP address.
     max_connections_per_ip: usize,
-    /// Minimum time that must elapse after all connections from an IP close
-    /// before a new inbound connection from that IP is accepted.
+    /// Minimum time that must elapse after any inbound connection from an IP
+    /// closes before a new inbound connection from that IP is accepted.
     ip_throttle_duration: Duration,
     /// IPs of persistent peers, exempt from the reconnect throttle.
     /// Refcounted: multiple persistent peers can share an IP (NAT, IPv6 /64),
@@ -154,7 +154,8 @@ impl Behaviour {
     }
 
     /// Decrement connection count when a connection closes or fails.
-    /// Records the disconnect time when all connections from an IP have closed.
+    /// Records the disconnect time on every close so a peer that keeps one
+    /// connection open cannot cycle the rest without the cooldown.
     fn untrack_connection(&mut self, connection_id: ConnectionId) {
         let Some(ip) = self.connection_ips.remove(&connection_id) else {
             return;
@@ -165,16 +166,10 @@ impl Behaviour {
 
         state.connections = state.connections.saturating_sub(1);
 
-        if state.connections == 0 {
-            // Record when the last connection from this IP closed.
-            // Skip for persistent IPs (they're exempt from throttle)
-            // and when throttling is disabled.
-            if self.ip_throttle_duration > Duration::ZERO && !self.persistent_ips.contains_key(&ip)
-            {
-                state.last_disconnect = Some(Instant::now());
-            } else {
-                self.ip_state.remove(&ip);
-            }
+        if self.ip_throttle_duration > Duration::ZERO && !self.persistent_ips.contains_key(&ip) {
+            state.last_disconnect = Some(Instant::now());
+        } else if state.connections == 0 {
+            self.ip_state.remove(&ip);
         }
     }
 }
@@ -438,11 +433,11 @@ mod tests {
         b.ip_state.get(ip).map(|s| s.connections).unwrap_or(0)
     }
 
-    /// Returns true if the IP has a pending throttle (connections == 0, last_disconnect set).
+    /// Returns true if the IP has a pending throttle (`last_disconnect` set).
     fn is_throttled(b: &Behaviour, ip: &IpAddr) -> bool {
         b.ip_state
             .get(ip)
-            .is_some_and(|s| s.connections == 0 && s.last_disconnect.is_some())
+            .is_some_and(|s| s.last_disconnect.is_some())
     }
 
     // ── Per-IP count limit tests ──────────────────────────────────────
@@ -577,6 +572,28 @@ mod tests {
     }
 
     #[test]
+    fn add_persistent_ip_clears_mid_connection_throttle() {
+        let mut b = new_throttled_behaviour(5, Duration::from_secs(30));
+        let conn1 = ConnectionId::new_unchecked(1);
+        let conn2 = ConnectionId::new_unchecked(2);
+
+        track_pending(&mut b, conn1);
+        track_pending(&mut b, conn2);
+        emit_connection_closed(&mut b, conn1);
+        assert!(is_throttled(&b, &remote_ip()));
+
+        b.add_persistent_ip(remote_ip());
+        assert!(!is_throttled(&b, &remote_ip()));
+
+        let conn3 = ConnectionId::new_unchecked(3);
+        let local = local_addr();
+        let remote = remote_addr();
+        assert!(b
+            .handle_pending_inbound_connection(conn3, &local, &remote)
+            .is_ok());
+    }
+
+    #[test]
     fn add_persistent_ip_clears_throttle() {
         let mut b = new_throttled_behaviour(5, Duration::from_secs(30));
         let conn1 = ConnectionId::new_unchecked(1);
@@ -600,7 +617,7 @@ mod tests {
     }
 
     #[test]
-    fn throttle_not_recorded_when_connections_remain() {
+    fn throttle_recorded_when_connections_remain() {
         let mut b = new_throttled_behaviour(5, Duration::from_secs(30));
         let conn1 = ConnectionId::new_unchecked(1);
         let conn2 = ConnectionId::new_unchecked(2);
@@ -612,17 +629,38 @@ mod tests {
         // Close only one connection — count goes from 2 to 1
         emit_connection_closed(&mut b, conn1);
 
-        // No throttle should be active (connections remain)
-        assert!(!is_throttled(&b, &remote_ip()));
+        assert!(is_throttled(&b, &remote_ip()));
         assert_eq!(connection_count(&b, &remote_ip()), 1);
 
-        // A new connection should still be allowed
+        // A replacement connection is delayed even though one connection remains
+        let conn3 = ConnectionId::new_unchecked(3);
+        let local = local_addr();
+        let remote = remote_addr();
+        assert!(b
+            .handle_pending_inbound_connection(conn3, &local, &remote)
+            .is_err());
+    }
+
+    #[test]
+    fn replacement_allowed_after_per_connection_throttle_expires() {
+        let mut b = new_throttled_behaviour(5, Duration::from_millis(1));
+        let conn1 = ConnectionId::new_unchecked(1);
+        let conn2 = ConnectionId::new_unchecked(2);
+
+        track_pending(&mut b, conn1);
+        track_pending(&mut b, conn2);
+        emit_connection_closed(&mut b, conn1);
+
+        std::thread::sleep(Duration::from_millis(5));
+
         let conn3 = ConnectionId::new_unchecked(3);
         let local = local_addr();
         let remote = remote_addr();
         assert!(b
             .handle_pending_inbound_connection(conn3, &local, &remote)
             .is_ok());
+        assert_eq!(connection_count(&b, &remote_ip()), 2);
+        assert!(!is_throttled(&b, &remote_ip()));
     }
 
     #[test]

@@ -2,6 +2,53 @@
 
 ## Unreleased
 
+## 0.8.1
+
+*September 24th, 2026*
+
+### `malachitebft-core-types`
+
+- Added `CertificateError::InvalidVoteExtension(Ctx::Address)`, returned when the application rejects a vote extension on a synced commit certificate. Exhaustive matches must add this arm.
+
+### `malachitebft-core-consensus`
+
+- `Effect::ExtendVote` now carries the height's `VoteExtensionPolicy`. Custom effect handlers that match this variant must add the field. When the policy is `Required`, resume with `Some`; resuming `None` still yields `Error::VoteExtensionRequired` before the local precommit is signed or WAL-appended.
+- Custom `Effect::VerifyExtendedCommitCertificate` handlers must ask the application about every attached vote extension. Resume `Err(CertificateError::InvalidVoteExtension(address))` when the application refuses one. Resuming `Ok(())` stores the certificate.
+- `StoreProposalResult` has a new `StoredWithEquivocation { existing, conflicting }` variant, returned when a proposal is stored as a new entry and at least one proposal with a different value id is already present for the same `(height, round)`. `existing` is a `Vec<SignedProposal<Ctx>>` because a cap-exempt entry can join an already-full bucket; each element pairs with `conflicting`. Unlike `Equivocation` the proposal is retained, so callers must both record the evidence and treat the proposal as stored. Exhaustive matches must adjust.
+- `Error` has a new `ReplayDivergence(RecordKind, Ctx::Height, Round)` variant, returned when a message re-derived during WAL replay disagrees with the one recorded for the same kind, height and round. Exhaustive matches on `Error` must adjust.
+
+### `malachitebft-engine`
+
+- `util::msg_buffer::MessageBuffer` is now generic over the buffered item (`MessageBuffer<T>`) instead of over the context (`MessageBuffer<Ctx>`); the consensus actor holds a `MessageBuffer<Msg<Ctx>>`. `MessageBuffer::buffer` returns `#[must_use] Result<(), BufferFull<T>>` instead of `bool`, where the new `BufferFull<T>` carries the rejected message back so callers can report it. Call sites that ignored the previous `bool` no longer compile.
+- Added a `vote_extension_policy: VoteExtensionPolicy` field to `HostMsg::ExtendVote`. Hosts that build or match this variant literally must add the field, and must reply `Some` when the policy is `Required`. An explicit `None` from the host, or a signing failure, is logged with height, round, and value and resumed as `None` so the driver raises `VoteExtensionRequired` rather than `UnexpectedResume`.
+- `ConsensusMsg::ProcessSyncResponse` and the sync actor's `Msg::PeerFault` gained an `OutboundRequestId` field. Actor integrations that construct either message must carry the id of the request that delivered the value, so a delayed peer fault remains tied to that request.
+- `NetworkEvent::ProposalPart` gained a second field, `Option<PeerId>`, and `HostMsg::ReceivedProposalPart` a `published_by: Option<PeerId>` field, both carrying the publisher declared in the message. Hosts that build or match either must add the field.
+- `ConsensusMsg::DecisionCommitted` gained a second `CommitGeneration` field, stamped when `HostMsg::Decided` was sent. Exhaustive matches and any constructor of this internal acknowledgement must include it.
+- Renamed `HostMsg::VerifyVoteExtension` to `HostMsg::VerifyVoteExtensions`. The message now takes `extensions: Vec<(Ctx::Address, Ctx::Extension)>` and the reply is `VoteExtensionVerdicts<Ctx>` (`Vec<(Ctx::Address, Result<(), VoteExtensionError>)>`): one result per extension, in order, each naming the validator it answers for. A live precommit sends a single-element vec; a synced commit certificate sends every attached extension. Hosts that match or construct this variant must update.
+- A `HostMsg::VerifyVoteExtensions` reply that does not line up with the request, or a failed host call, no longer fails the consensus actor on a live vote: the vote is dropped. On a synced certificate that same failure re-requests the height without storing the certificate or faulting the peer. An application refusal still rejects the certificate and faults the peer, reported as `CertificateError::InvalidVoteExtension` for either `VoteExtensionError`.
+
+### `malachitebft-config`
+
+- `P2pConfig` has a new `pubsub_max_size_per_topic: PubSubMaxSizePerTopic` field for application-payload limits on consensus GossipSub topics. Struct literals must set this field. Existing TOML files use the global limit because the field has a default value.
+
+### `malachitebft-app-channel`
+
+- Added a `vote_extension_policy: VoteExtensionPolicy` field to `AppMsg::ExtendVote`. Applications that match this variant literally must add the field, and must reply `Some` when the policy is `Required`. An empty reply under `Required` aborts the local precommit before WAL append and hangs WAL replay.
+- Added a `published_by: Option<PeerId>` field to `AppMsg::ReceivedProposalPart`, the publisher declared in the message; exhaustive matches must add it. Key proposal part reassembly on `published_by`, so the parts of one proposal group together whichever peer relays each one. Keep charging resource limits to `from`.
+- Renamed `AppMsg::VerifyVoteExtension` to `AppMsg::VerifyVoteExtensions`. The message now takes `extensions: Vec<(Ctx::Address, Ctx::Extension)>` and the reply is `VoteExtensionVerdicts<Ctx>` (`Vec<(Ctx::Address, Result<(), VoteExtensionError>)>`): one result per extension, in order, each naming the validator it answers for. Applications that match this variant must update. A reply whose length or addresses do not match the request is not applied: the live vote is dropped, and a synced certificate is left unstored so the height is requested again without a peer fault.
+
+### `malachitebft-sync`
+
+- `Input::PeerFault` gained a third field, `OutboundRequestId`: the request that delivered the faulty value. Callers that build this input must supply it — the height alone does not identify the request, because another request may have taken over the height by the time the fault is reported.
+- The four `Metrics` methods that track outbound request latency — `value_request_sent`, `value_response_received`, `value_request_timed_out` and `value_request_failed` — now take `&OutboundRequestId` instead of the range's start height as `u64`. A new `value_request_abandoned(&OutboundRequestId)` releases the entry for a request retired without a response, a timeout, or a network failure.
+
+### `malachitebft-network`
+
+- `Config` has a new `pubsub_max_size_per_topic: PubSubMaxSizePerTopic` field for application-payload limits on consensus GossipSub topics. Struct literals must set this field. Use `PubSubMaxSizePerTopic::default()` to keep the global limit for all consensus GossipSub topics.
+- `pubsub::publish` now takes `max_size: usize` and returns an error when the payload is larger than that limit, on both gossipsub and broadcast. Callers that construct this function must pass `Config::pubsub_max_size`.
+- `Event::ConsensusMessage` gained a third field, `Option<PeerId>`: the publisher declared in the message, or `None` when the transport carries none. Code that matches the variant must add the field. `Event::LivenessMessage` is unchanged — liveness messages are self-contained, so only the delivering peer matters there.
+- `Config` gained `sync_request_timeout`, `sync_max_request_size`, and `sync_parallel_requests`. Callers that construct `Config` literally must set them. The libp2p sync behaviour uses these instead of `sync::Config::default()` so the transport matches the operator's value-sync timeout, request-size cap, and parallel-request budget. Response size still comes from `rpc_max_size`.
+
 ## 0.8.0
 
 *August 27th, 2026*
@@ -30,6 +77,7 @@
 ### `malachitebft-core-driver`
 
 - The `Driver` now stores `ExtendedCommitCertificate<Ctx>` instead of `CommitCertificate<Ctx>`. `Driver::commit_certificate(round, value_id)` and `Driver::commit_certificates()` return references to the extended type. Callers that need the bare commit certificate should project via `extended.trim_vote_extensions()`. `Input::CommitCertificate` likewise carries the extended type.
+- Proposal `EvidenceMap::add`, `ProposalKeeper::record_evidence`, and `Driver::record_proposal_evidence` now return `bool`: `true` means the evidence pair was newly retained; `false` means it was a duplicate or the per-validator limit of `MAX_EVIDENCE_PER_VALIDATOR` was reached. Evidence pair identity now compares proposal messages rather than signatures.
 
 ### `malachitebft-core-consensus`
 
@@ -39,6 +87,7 @@
 - `Input::StartHeight` and `State::reset_and_start_height` now carry the height's `VoteExtensionPolicy`. Core integrations should pass `VoteExtensionPolicy::Disabled` for legacy heights and `VoteExtensionPolicy::Required` once vote extensions are mandatory.
 - `Error::InvalidCommitCertificate` now carries `ExtendedCommitCertificate<Ctx>` instead of `CommitCertificate<Ctx>`. Pattern matches must adjust.
 - `FullProposalKeeper::store_proposal` takes a new `cap_exempt: bool` argument, which admits the proposal even when the `(height, round)` bucket already holds `MAX_PROPOSALS_PER_ROUND` entries. The keeper holds no certificates of its own, so the caller decides: pass `true` when the value holds a polka certificate at that round, and `false` otherwise to keep the previous behavior.
+- `State::store_proposal` now returns `ProposalPersistence::{Required, NotRequired}`. Custom proposal handlers should append the proposal to the WAL only when the result is `Required`. `FullProposalKeeper` now treats signed proposals with the same proposal message as duplicates even when their signatures differ.
 
 ### `malachitebft-engine`
 
@@ -49,11 +98,15 @@
 - Added new `NodeMsg` enum with a `SafetyFailure(String)` variant, cast by child actors (e.g. the WAL worker thread on panic, the Consensus actor on runtime WAL errors) to signal safety-critical failures to the Node supervisor
 - Changed `HostMsg::ProcessSyncedValue` reply type from `Option<ProposedValue<Ctx>>` to the new `SyncedValueOutcome<Ctx>` enum (`Verdict(ProposedValue<Ctx>)` / `PeerFault` / `LocalTransientError`). Replying `None` previously conflated a peer fault with a local/transient failure; hosts must now return the explicit outcome.
 - Renamed the sync actor `Msg::InvalidValue(PeerId, Height)` → `Msg::PeerFault(PeerId, Height)` and `Msg::ValueProcessingError(PeerId, Height)` → `Msg::LocalTransientError(Height)` (the peer argument is dropped from the no-blame variant).
+- Added new `NetworkEvent::SyncInboundRequestFailed(InboundRequestId, PeerId)` variant, emitted when the connection carrying a pending inbound sync request closes. Code that matches `NetworkEvent` exhaustively must handle the new variant.
+- `NetworkMsg::CancelInboundRequest` now requires the network actor to release the transport's response channel for the request, not only its own request-id bookkeeping. The bundled libp2p actor does this via the new `CtrlMsg::SyncCancelReply`. The variant's signature is unchanged, so the compiler does not flag this: a custom network actor that only drops its id map keeps holding the peer's inbound stream slot until its own transport timeout.
+- Removed the consensus actor's `Msg::WalReplayDelayElapsed(Height)` variant. Code that matches `ConsensusMsg` exhaustively must drop that arm. A restarting validator now always replays its WAL immediately, so the WAL is never left unreplayed in favour of a sync certificate.
 
 ### `malachitebft-config`
 
 - Removed the `ValuePayload::PartsOnly` variant and changed the default `value_payload` from `parts-only` to `proposal-and-parts`. Existing configs containing `value_payload = "parts-only"` will fail to deserialize and must be updated.
 - Added new `ChannelNames` struct (with `String` fields and a `validate()` method that enforces non-empty, pairwise-unique names) and a `channel_names: ChannelNames` field on `P2pConfig` (opt-in via `#[serde(default)]`). Applications can now configure the GossipSub topic / broadcast channel names from TOML.
+- Removed the `wal_replay_delay` field from `ConsensusConfig`. Code that sets it must drop the assignment; `wal_replay_delay` keys in TOML and their `__CONSENSUS__WAL_REPLAY_DELAY` environment equivalents are now ignored rather than rejected, so deployments do not break, but they no longer have any effect.
 
 ### `malachitebft-app-channel`
 
@@ -69,6 +122,7 @@
 - The `borsh`/`proto` codec entries for the sync wire have been updated accordingly. Proto messages `CommitCertificate` and `CommitSignature` in `sync.proto` are replaced by `ExtendedCommitCertificate` and `ExtendedCommitSignature`; they keep the same core field numbers, and `ExtendedCommitSignature` adds an optional `Extension`.
 - Added new `Effect::CancelValueRequest(OutboundRequestId, resume::Continue)` variant, emitted on sync request timeout so the network layer can drop the abandoned in-flight request. Custom effect handlers that match `Effect` exhaustively must handle the new variant.
 - Renamed the `Input` variants `InvalidValue(PeerId, Height)` → `PeerFault(PeerId, Height)` and `ValueProcessingError(PeerId, Height)` → `LocalTransientError(Height)` (the peer argument is dropped from the no-blame variant, which now re-requests without penalizing or excluding any peer).
+- Added new `InboundFailureReason::ConnectionClosed` variant, recorded under the `connection_closed` label of `value_inbound_request_failures`. Code that matches `InboundFailureReason` exhaustively must handle the new variant.
 - Added an `inflight` field to `PendingRequestEntry`, set to `false` once the response for the range has arrived. Only in-flight entries count against `parallel_requests`. Code that builds this struct literally must set the new field, and code that reads `pending_requests.len()` as a measure of outstanding requests should use `State::inflight_requests()` instead. `State::update_request` takes a matching `inflight` argument.
 
 ### `malachitebft-network`
@@ -78,6 +132,7 @@
   - `Channel::has_gossipsub_topic`, `Channel::has_broadcast_topic`
   - `Channel::from_gossipsub_topic_hash`, `Channel::from_broadcast_topic`
 - Removed the `validator_proof::Event::ProofReceiveFailed` variant and the `validator_proof::Error::UnexpectedEof` variant. Malformed or failed inbound proofs now disconnect the peer directly inside the behaviour, so neither is emitted.
+- Added new `Event::SyncInboundRequestFailed { request_id, peer }` and `CtrlMsg::SyncCancelReply(InboundRequestId)` variants. Code that matches either enum exhaustively must handle the new variant.
 
 ## 0.7.0
 

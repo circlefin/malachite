@@ -117,6 +117,8 @@ impl ProposalParts {
 
 #[derive(Default)]
 pub struct PartStreamsMap {
+    /// Keyed by the publisher of the stream: the parts of one proposal can
+    /// arrive through different peers and must land in the same entry.
     streams: BTreeMap<(PeerId, StreamId), StreamState>,
 }
 
@@ -125,16 +127,23 @@ impl PartStreamsMap {
         Self::default()
     }
 
+    /// Insert a proposal part.
+    ///
+    /// `delivered_by` is the peer the part arrived from. `published_by` is the
+    /// publisher declared in the message, used to group parts of one proposal;
+    /// it falls back to `delivered_by` for transports that carry no publisher.
     pub fn insert(
         &mut self,
-        peer_id: PeerId,
+        delivered_by: PeerId,
+        published_by: Option<PeerId>,
         msg: StreamMessage<ProposalPart>,
     ) -> Option<ProposalParts> {
         let stream_id = msg.stream_id.clone();
+        let publisher = published_by.unwrap_or(delivered_by);
 
         let state = self
             .streams
-            .entry((peer_id, stream_id.clone()))
+            .entry((publisher, stream_id.clone()))
             .or_default();
 
         if !state.seen_sequences.insert(msg.sequence) {
@@ -145,9 +154,108 @@ impl PartStreamsMap {
         let result = state.insert(msg);
 
         if state.is_done() {
-            self.streams.remove(&(peer_id, stream_id));
+            self.streams.remove(&(publisher, stream_id));
         }
 
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use malachitebft_app_channel::app::streaming::StreamContent;
+    use malachitebft_app_channel::app::types::core::Round;
+    use malachitebft_test::{Address, Height, ProposalInit, ProposalPart};
+
+    use super::*;
+
+    fn init_part() -> ProposalPart {
+        ProposalPart::Init(ProposalInit::new(
+            Height::new(1),
+            Round::new(0),
+            Round::Nil,
+            Address::new([0xa; 20]),
+        ))
+    }
+
+    fn data_message(stream_id: &StreamId, sequence: Sequence) -> StreamMessage<ProposalPart> {
+        let part = if sequence == 0 {
+            init_part()
+        } else {
+            ProposalPart::Data(malachitebft_test::ProposalData::new(sequence))
+        };
+
+        StreamMessage::new(stream_id.clone(), sequence, StreamContent::Data(part))
+    }
+
+    fn fin_message(stream_id: &StreamId, sequence: Sequence) -> StreamMessage<ProposalPart> {
+        StreamMessage::new(stream_id.clone(), sequence, StreamContent::Fin)
+    }
+
+    #[test]
+    fn parts_relayed_by_different_peers_reassemble() {
+        let publisher = PeerId::random();
+        let first_relay = PeerId::random();
+        let second_relay = PeerId::random();
+        let stream_id = StreamId::new(vec![1].into());
+
+        let mut map = PartStreamsMap::new();
+
+        assert!(map
+            .insert(first_relay, Some(publisher), data_message(&stream_id, 0))
+            .is_none());
+        assert!(map
+            .insert(second_relay, Some(publisher), data_message(&stream_id, 1))
+            .is_none());
+
+        let parts = map
+            .insert(first_relay, Some(publisher), fin_message(&stream_id, 2))
+            .expect("parts published by one peer reassemble whichever peer relays them");
+
+        assert_eq!(parts.height, Height::new(1));
+        assert_eq!(parts.parts.len(), 2);
+    }
+
+    #[test]
+    fn parts_from_distinct_publishers_stay_separate() {
+        let publisher = PeerId::random();
+        let other_publisher = PeerId::random();
+        let relay = PeerId::random();
+        let stream_id = StreamId::new(vec![1].into());
+
+        let mut map = PartStreamsMap::new();
+
+        assert!(map
+            .insert(relay, Some(publisher), data_message(&stream_id, 0))
+            .is_none());
+
+        // Same stream id, different publisher: must not join the stream above.
+        assert!(map
+            .insert(relay, Some(other_publisher), fin_message(&stream_id, 1))
+            .is_none());
+
+        let parts = map
+            .insert(relay, Some(publisher), fin_message(&stream_id, 1))
+            .expect("the publisher's own stream completes");
+
+        assert_eq!(parts.parts.len(), 1);
+    }
+
+    #[test]
+    fn parts_without_a_publisher_group_by_delivering_peer() {
+        let sender = PeerId::random();
+        let stream_id = StreamId::new(vec![1].into());
+
+        let mut map = PartStreamsMap::new();
+
+        assert!(map
+            .insert(sender, None, data_message(&stream_id, 0))
+            .is_none());
+
+        let parts = map
+            .insert(sender, None, fin_message(&stream_id, 1))
+            .expect("a stream with no declared publisher still completes");
+
+        assert_eq!(parts.parts.len(), 1);
     }
 }

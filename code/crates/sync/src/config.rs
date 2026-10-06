@@ -5,6 +5,10 @@ use crate::scoring::Strategy;
 
 const DEFAULT_PARALLEL_REQUESTS: usize = 5;
 const DEFAULT_BATCH_SIZE: usize = 5;
+const DEFAULT_INBOUND_REQUEST_RATE_LIMIT_WINDOW: Duration = Duration::from_secs(10);
+const DEFAULT_MAX_INBOUND_REQUESTS_PER_WINDOW: u32 = 1000;
+const DEFAULT_MAX_CONCURRENT_INBOUND_REQUESTS: usize = 32;
+const DEFAULT_MAX_PENDING_INBOUND_REQUESTS: usize = 64;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Config {
@@ -16,6 +20,16 @@ pub struct Config {
     pub scoring_strategy: Strategy,
     pub inactive_threshold: Option<Duration>,
     pub batch_size: usize,
+    /// Rolling window over which inbound value requests from each peer are counted.
+    pub inbound_request_rate_limit_window: Duration,
+    /// Maximum inbound value requests accepted per peer within each window.
+    pub max_inbound_requests_per_window: u32,
+    /// Maximum number of inbound value requests processed concurrently against the host.
+    pub max_concurrent_inbound_requests: usize,
+    /// Maximum number of inbound value requests that may wait for a concurrent
+    /// slot once the concurrent cap is reached. Excess requests past this
+    /// capacity are rejected outright with an empty response.
+    pub max_pending_inbound_requests: usize,
 }
 
 impl Config {
@@ -61,6 +75,26 @@ impl Config {
         self
     }
 
+    pub fn with_inbound_request_rate_limit_window(mut self, window: Duration) -> Self {
+        self.inbound_request_rate_limit_window = window;
+        self
+    }
+
+    pub fn with_max_inbound_requests_per_window(mut self, max_requests: u32) -> Self {
+        self.max_inbound_requests_per_window = max_requests;
+        self
+    }
+
+    pub fn with_max_concurrent_inbound_requests(mut self, max_concurrent: usize) -> Self {
+        self.max_concurrent_inbound_requests = max_concurrent;
+        self
+    }
+
+    pub fn with_max_pending_inbound_requests(mut self, max_pending: usize) -> Self {
+        self.max_pending_inbound_requests = max_pending;
+        self
+    }
+
     /// The parallel-request limit used by ValueSync.
     pub fn effective_parallel_requests(&self) -> usize {
         max(1, self.parallel_requests)
@@ -89,6 +123,10 @@ impl Default for Config {
             scoring_strategy: Strategy::default(),
             inactive_threshold: None,
             batch_size: DEFAULT_BATCH_SIZE,
+            inbound_request_rate_limit_window: DEFAULT_INBOUND_REQUEST_RATE_LIMIT_WINDOW,
+            max_inbound_requests_per_window: DEFAULT_MAX_INBOUND_REQUESTS_PER_WINDOW,
+            max_concurrent_inbound_requests: DEFAULT_MAX_CONCURRENT_INBOUND_REQUESTS,
+            max_pending_inbound_requests: DEFAULT_MAX_PENDING_INBOUND_REQUESTS,
         }
     }
 }

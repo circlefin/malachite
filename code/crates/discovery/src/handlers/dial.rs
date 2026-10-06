@@ -34,6 +34,23 @@ where
             && (!check_already_dialed || !self.controller.dial_is_done_on(dial_data) || dial_data.retry.count() != 0)
             // Is not itself (listen addresses)
             && !swarm.listeners().any(|addr| dial_data.listen_addrs().contains(addr))
+            // Under persistent_peers_only, only dial the persistent list (or
+            // bootstrap entries that *are* that list). Peer-exchange dials
+            // enter here via add_to_dial_queue.
+            && self.may_dial_under_policy(dial_data)
+    }
+
+    /// Whether `persistent_peers_only` allows this dial attempt.
+    ///
+    /// Bootstrap dials are always allowed — they come from the configured
+    /// persistent list. Exchange dials need a peer id on that list.
+    fn may_dial_under_policy(&self, dial_data: &DialData) -> bool {
+        if dial_data.is_bootstrap() || !self.config.persistent_peers_only {
+            return true;
+        }
+        dial_data
+            .peer_id()
+            .is_some_and(|id| self.allows_peer_under_policy(&id))
     }
 
     pub fn dial_peer(&mut self, swarm: &mut Swarm<C>, dial_data: DialData) {
@@ -291,6 +308,10 @@ mod tests {
     use std::str::FromStr;
 
     use libp2p::multiaddr::Protocol;
+    use libp2p::swarm::dummy;
+    use malachitebft_metrics::Registry;
+
+    use crate::config::Config;
 
     use super::*;
 
@@ -315,5 +336,88 @@ mod tests {
         let dialed = Multiaddr::from_str("/ip4/10.0.0.1/tcp/26656").unwrap();
 
         assert!(is_not_own_address(&dialed, std::iter::empty()));
+    }
+
+    fn discovery(
+        persistent_peers_only: bool,
+        bootstrap: Vec<Multiaddr>,
+    ) -> Discovery<dummy::Behaviour> {
+        let mut config = Config::new(false);
+        config.set_persistent_peers_only(persistent_peers_only);
+        let mut registry = Registry::default();
+        Discovery::new(config, bootstrap, &mut registry)
+    }
+
+    #[test]
+    fn may_dial_rejects_exchanged_unknown_under_persistent_peers_only() {
+        let discovery = discovery(true, vec![]);
+        let dial = DialData::new(
+            Some(PeerId::random()),
+            vec!["/ip4/10.0.0.2/tcp/26656".parse().unwrap()],
+        );
+        assert!(!discovery.may_dial_under_policy(&dial));
+    }
+
+    #[test]
+    fn may_dial_allows_exchanged_persistent_under_persistent_peers_only() {
+        let peer_id = PeerId::random();
+        let addr: Multiaddr = format!("/ip4/10.0.0.1/tcp/26656/p2p/{peer_id}")
+            .parse()
+            .unwrap();
+        let discovery = discovery(true, vec![addr.clone()]);
+        let dial = DialData::new(Some(peer_id), vec![addr]);
+        assert!(discovery.may_dial_under_policy(&dial));
+    }
+
+    #[test]
+    fn may_dial_allows_bootstrap_even_when_peer_id_unresolved() {
+        let discovery = discovery(true, vec![]);
+        let dial = DialData::new_bootstrap(None, vec!["/ip4/10.0.0.1/tcp/26656".parse().unwrap()]);
+        assert!(discovery.may_dial_under_policy(&dial));
+    }
+
+    #[test]
+    fn may_dial_allows_any_when_persistent_peers_only_off() {
+        let discovery = discovery(false, vec![]);
+        let dial = DialData::new(
+            Some(PeerId::random()),
+            vec!["/ip4/10.0.0.2/tcp/26656".parse().unwrap()],
+        );
+        assert!(discovery.may_dial_under_policy(&dial));
+    }
+
+    fn build_swarm() -> Swarm<dummy::Behaviour> {
+        use libp2p::{noise, tcp, yamux, SwarmBuilder};
+        use std::time::Duration;
+
+        SwarmBuilder::with_new_identity()
+            .with_tokio()
+            .with_tcp(
+                tcp::Config::default(),
+                noise::Config::new,
+                yamux::Config::default,
+            )
+            .expect("tcp transport")
+            .with_behaviour(|_| dummy::Behaviour)
+            .expect("dummy behaviour")
+            .with_swarm_config(|config| {
+                config.with_idle_connection_timeout(Duration::from_secs(60))
+            })
+            .build()
+    }
+
+    #[tokio::test]
+    async fn add_to_dial_queue_skips_unknown_under_persistent_peers_only() {
+        let mut discovery = discovery(true, vec![]);
+        let swarm = build_swarm();
+        let addr: Multiaddr = "/ip4/10.0.0.2/tcp/26656".parse().unwrap();
+
+        assert_eq!(discovery.controller.dial.queue_len(), 0);
+        discovery.add_to_dial_queue(&swarm, DialData::new(Some(PeerId::random()), vec![addr]));
+        assert_eq!(
+            discovery.controller.dial.queue_len(),
+            0,
+            "sender-supplied non-persistent peers must not consume dial queue slots"
+        );
     }
 }

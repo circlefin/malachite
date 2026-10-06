@@ -18,7 +18,16 @@ use malachitebft_sync as sync;
 use tracing::info;
 
 use crate::validator_proof;
-use crate::{ip_limits, peer_scoring, Config, GossipSubConfig};
+use crate::{
+    ip_limits, peer_scoring, pubsub, Channel, ChannelNames, Config, GossipSubConfig,
+    PubSubMaxSizeError, PubSubMaxSizePerTopic,
+};
+
+/// Gossipsub behaviour that only records subscriptions for this node's
+/// configured channel names. The default filter accepts any topic a peer
+/// advertises and grows an unbounded per-peer set.
+pub type GossipsubBehaviour =
+    gossipsub::Behaviour<gossipsub::IdentityTransform, gossipsub::WhitelistSubscriptionFilter>;
 
 /// Multiplier for connection limits.
 /// Connection limits are higher than discovery limits to allow headroom for ephemeral
@@ -111,7 +120,7 @@ pub struct Behaviour {
     pub ip_limits: ip_limits::Behaviour,
     pub identify: identify::Behaviour,
     pub ping: ping::Behaviour,
-    pub gossipsub: Toggle<gossipsub::Behaviour>,
+    pub gossipsub: Toggle<GossipsubBehaviour>,
     pub broadcast: Toggle<broadcast::Behaviour>,
     pub sync: Toggle<sync::Behaviour>,
     pub discovery: Toggle<discovery::Behaviour>,
@@ -176,8 +185,16 @@ fn message_id(message: &gossipsub::Message) -> gossipsub::MessageId {
     gossipsub::MessageId::new(hasher.finish().to_be_bytes().as_slice())
 }
 
-fn gossipsub_config(config: GossipSubConfig, max_transmit_size: usize) -> gossipsub::Config {
-    gossipsub::ConfigBuilder::default()
+fn gossipsub_config(
+    config: GossipSubConfig,
+    keypair: &Keypair,
+    channel_names: &ChannelNames,
+    max_transmit_size: usize,
+    max_payload_size_per_topic: PubSubMaxSizePerTopic,
+) -> Result<gossipsub::Config> {
+    let mut builder = gossipsub::ConfigBuilder::default();
+
+    builder
         .max_transmit_size(max_transmit_size)
         .opportunistic_graft_ticks(peer_scoring::OPPORTUNISTIC_GRAFT_TICKS)
         .opportunistic_graft_peers(peer_scoring::OPPORTUNISTIC_GRAFT_PEERS)
@@ -190,9 +207,54 @@ fn gossipsub_config(config: GossipSubConfig, max_transmit_size: usize) -> gossip
         .mesh_outbound_min(config.mesh_outbound_min)
         .mesh_n(config.mesh_n)
         .flood_publish(config.enable_flood_publish)
-        .message_id_fn(message_id)
-        .build()
-        .unwrap()
+        .message_id_fn(message_id);
+
+    for (field, channel, max_payload_size) in [
+        (
+            "consensus",
+            Channel::Consensus,
+            max_payload_size_per_topic.consensus,
+        ),
+        (
+            "proposal_parts",
+            Channel::ProposalParts,
+            max_payload_size_per_topic.proposal_parts,
+        ),
+        (
+            "liveness",
+            Channel::Liveness,
+            max_payload_size_per_topic.liveness,
+        ),
+    ] {
+        if let Some(max_payload_size) = max_payload_size {
+            if max_payload_size >= max_transmit_size {
+                return Err(PubSubMaxSizeError::ExceedsGlobal {
+                    field,
+                    payload_size: max_payload_size,
+                    global: max_transmit_size,
+                }
+                .into());
+            }
+
+            let signed_size =
+                pubsub::signed_message_size(keypair, channel, channel_names, max_payload_size)?;
+            if signed_size > max_transmit_size {
+                return Err(PubSubMaxSizeError::ExceedsGlobal {
+                    field,
+                    payload_size: max_payload_size,
+                    global: max_transmit_size,
+                }
+                .into());
+            }
+
+            builder.max_transmit_size_for_topic(
+                signed_size,
+                channel.to_gossipsub_topic(channel_names).hash(),
+            );
+        }
+    }
+
+    builder.build().map_err(Into::into)
 }
 
 impl Behaviour {
@@ -221,31 +283,43 @@ impl Behaviour {
         let ping = ping::Behaviour::new(ping::Config::new().with_interval(Duration::from_secs(5)));
 
         let enable_gossipsub = config.pubsub_protocol.is_gossipsub() && config.enable_consensus;
-        let gossipsub = enable_gossipsub.then(|| {
-            let mut behaviour = gossipsub::Behaviour::new(
-                gossipsub::MessageAuthenticity::Signed(identity.keypair.clone()),
-                gossipsub_config(config.gossipsub, config.pubsub_max_size),
-            )
-            .unwrap();
+        let gossipsub = enable_gossipsub
+            .then(|| -> Result<_> {
+                let subscription_filter = gossipsub::WhitelistSubscriptionFilter(
+                    Channel::gossipsub_topic_hashes(&config.channel_names),
+                );
+                let mut behaviour = gossipsub::Behaviour::new_with_subscription_filter(
+                    gossipsub::MessageAuthenticity::Signed(identity.keypair.clone()),
+                    gossipsub_config(
+                        config.gossipsub,
+                        &identity.keypair,
+                        &config.channel_names,
+                        config.pubsub_max_size,
+                        config.pubsub_max_size_per_topic,
+                    )?,
+                    subscription_filter,
+                )
+                .map_err(|error| eyre::eyre!(error))?;
 
-            // Enable peer scoring if configured
-            if config.gossipsub.enable_peer_scoring {
-                info!("Enabling peer scoring for GossipSub");
-                behaviour
-                    .with_peer_score(
-                        peer_scoring::peer_score_params(),
-                        peer_scoring::peer_score_thresholds(),
-                    )
-                    .expect("Failed to enable peer scoring");
-            } else {
-                info!("Peer scoring is disabled for GossipSub");
-            }
+                // Enable peer scoring if configured
+                if config.gossipsub.enable_peer_scoring {
+                    info!("Enabling peer scoring for GossipSub");
+                    behaviour
+                        .with_peer_score(
+                            peer_scoring::peer_score_params(),
+                            peer_scoring::peer_score_thresholds(),
+                        )
+                        .expect("Failed to enable peer scoring");
+                } else {
+                    info!("Peer scoring is disabled for GossipSub");
+                }
 
-            behaviour.with_metrics(
-                registry.sub_registry_with_prefix("gossipsub"),
-                Default::default(),
-            )
-        });
+                Ok(behaviour.with_metrics(
+                    registry.sub_registry_with_prefix("gossipsub"),
+                    Default::default(),
+                ))
+            })
+            .transpose()?;
 
         let enable_broadcast = (config.pubsub_protocol.is_broadcast() && config.enable_consensus)
             || config.enable_sync;
@@ -260,7 +334,7 @@ impl Behaviour {
 
         let sync = if config.enable_sync {
             Some(sync::Behaviour::new(
-                sync::Config::default().with_max_response_size(config.rpc_max_size),
+                config.sync_transport_config(),
                 config.protocol_names.sync.clone(),
             )?)
         } else {
@@ -309,5 +383,112 @@ impl Behaviour {
             discovery: Toggle::from(discovery),
             validator_proof: Toggle::from(validator_proof),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gossipsub_config_applies_only_configured_topic_limits() {
+        let keypair = Keypair::generate_ed25519();
+        let channel_names = ChannelNames::default();
+        let default_max_size = 4 * 1024 * 1024;
+        let proposal_parts_max_payload_size = 130 * 1024;
+        let proposal_parts_max_signed_size = pubsub::signed_message_size(
+            &keypair,
+            Channel::ProposalParts,
+            &channel_names,
+            proposal_parts_max_payload_size,
+        )
+        .unwrap();
+
+        let config = gossipsub_config(
+            GossipSubConfig::default(),
+            &keypair,
+            &channel_names,
+            default_max_size,
+            PubSubMaxSizePerTopic {
+                proposal_parts: Some(proposal_parts_max_payload_size),
+                ..Default::default()
+            },
+        )
+        .expect("valid GossipSub configuration");
+
+        assert_eq!(
+            config.max_transmit_size_for_topic(
+                &Channel::ProposalParts
+                    .to_gossipsub_topic(&channel_names)
+                    .hash()
+            ),
+            proposal_parts_max_signed_size
+        );
+
+        for channel in [Channel::Consensus, Channel::Liveness] {
+            assert_eq!(
+                config.max_transmit_size_for_topic(
+                    &channel.to_gossipsub_topic(&channel_names).hash()
+                ),
+                default_max_size
+            );
+        }
+    }
+
+    #[test]
+    fn gossipsub_config_rejects_signed_topic_limit_above_global_limit() {
+        let keypair = Keypair::generate_ed25519();
+        let channel_names = ChannelNames::default();
+        let payload_size = 1024;
+        let signed_size = pubsub::signed_message_size(
+            &keypair,
+            Channel::ProposalParts,
+            &channel_names,
+            payload_size,
+        )
+        .unwrap();
+
+        let error = gossipsub_config(
+            GossipSubConfig::default(),
+            &keypair,
+            &channel_names,
+            signed_size - 1,
+            PubSubMaxSizePerTopic {
+                proposal_parts: Some(payload_size),
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+
+        assert_eq!(
+            error.downcast_ref::<PubSubMaxSizeError>(),
+            Some(&PubSubMaxSizeError::ExceedsGlobal {
+                field: "proposal_parts",
+                payload_size,
+                global: signed_size - 1,
+            })
+        );
+    }
+
+    #[test]
+    fn gossipsub_config_propagates_builder_errors() {
+        let keypair = Keypair::generate_ed25519();
+        let channel_names = ChannelNames::default();
+        let config = GossipSubConfig {
+            mesh_n: 1,
+            ..Default::default()
+        };
+
+        assert!(gossipsub_config(
+            config,
+            &keypair,
+            &channel_names,
+            4 * 1024 * 1024,
+            PubSubMaxSizePerTopic {
+                proposal_parts: Some(1024),
+                ..Default::default()
+            },
+        )
+        .is_err());
     }
 }

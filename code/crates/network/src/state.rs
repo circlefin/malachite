@@ -170,6 +170,10 @@ pub struct State {
     ///
     /// If proof verification completes before Identify, we buffer the public_key here
     /// and apply it when Identify completes and creates the PeerInfo.
+    ///
+    /// Entries are dropped on the peer's last close, and a verdict that arrives
+    /// after that close is not stored (the peer is gone and Identify will not
+    /// complete for this id).
     pub(crate) pending_verified_proofs: HashMap<libp2p::PeerId, Vec<u8>>,
 }
 
@@ -289,6 +293,8 @@ impl State {
         let Some(peer_info) = self.peer_info.get_mut(peer_id) else {
             // Peer not in peer_info yet (Identify not received).
             // Buffer the proof to apply when Identify completes.
+            // Last-close removes this entry. Callers must only record while the peer
+            // is still connected so a post-close verdict is not stored.
             self.pending_verified_proofs.insert(*peer_id, public_key);
             return None;
         };
@@ -403,7 +409,7 @@ impl State {
     /// Also updates metrics based on the updated State
     pub(crate) fn update_peer_info(
         &mut self,
-        gossipsub: &libp2p_gossipsub::Behaviour,
+        gossipsub: &crate::behaviour::GossipsubBehaviour,
         channels: &[Channel],
         channel_names: &ChannelNames,
     ) {
@@ -798,11 +804,15 @@ impl State {
         // Evict lowest-value peer if inbound is full
         let evicted = if !self.discovery.has_inbound_capacity() {
             let evict_id = self.find_lowest_priority_inbound_peer()?;
+            let (evicted_type, evicted_score) = {
+                let info = &self.peer_info[&evict_id];
+                (info.peer_type.primary_type_str(), info.score)
+            };
             tracing::info!(
                 %peer_id,
                 evicted = %evict_id,
-                evicted_type = self.peer_info.get(&evict_id).map_or("unknown", |i| i.peer_type.primary_type_str()),
-                evicted_score = self.peer_info.get(&evict_id).map_or(0.0, |i| i.score),
+                evicted_type,
+                evicted_score,
                 "Evicting low-value inbound peer to make room for high-value peer"
             );
             self.discovery.evict_inbound_peer(evict_id);
@@ -824,10 +834,10 @@ impl State {
         evicted
     }
 
-    /// Find the lowest-priority inbound peer eligible for eviction.
+    /// Lowest-scoring inbound peer that is neither a validator nor persistent.
     ///
-    /// Only non-validator, non-persistent peers are candidates. Among those,
-    /// returns the one with the lowest GossipSub score.
+    /// Returns `None` when the inbound set is empty or every inbound peer is a
+    /// validator or persistent peer.
     fn find_lowest_priority_inbound_peer(&self) -> Option<libp2p::PeerId> {
         self.discovery
             .inbound_peer_ids()
@@ -884,14 +894,14 @@ fn apply_peer_type_change(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::metrics::MAX_PEER_SLOTS;
     use crate::peer_scoring::{FULL_NODE_SCORE, VALIDATOR_SCORE};
     use malachitebft_discovery::Config;
 
     /// Create a minimal `State` with disabled discovery and a dummy local node.
-    fn test_state() -> State {
+    pub(crate) fn test_state() -> State {
         test_state_with_local_addr(None)
     }
 
@@ -1247,7 +1257,7 @@ mod tests {
     ///
     /// `InboundRequestId` has no public constructor; we transmute from `u64`.
     /// This is sound because `InboundRequestId` is a newtype wrapping `u64` with no invariants.
-    fn test_inbound_request_id(id: u64) -> InboundRequestId {
+    pub(crate) fn test_inbound_request_id(id: u64) -> InboundRequestId {
         // SAFETY: InboundRequestId is a #[repr(Rust)] newtype over u64.
         unsafe { std::mem::transmute(id) }
     }

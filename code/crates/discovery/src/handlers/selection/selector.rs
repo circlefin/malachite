@@ -61,6 +61,30 @@ pub enum Selection<T> {
     None,
 }
 
+impl<T> Selection<T> {
+    /// Classifies a candidate list against the requested count `n`.
+    ///
+    /// Returns [`Selection::None`] when `n` is zero or no candidates are available,
+    /// [`Selection::Only`] when fewer than `n` are available, and
+    /// [`Selection::Exactly`] with exactly `n` peers when at least `n` were
+    /// selected (surplus is truncated). Never returns an empty
+    /// [`Selection::Exactly`].
+    pub(crate) fn classify(mut candidates: Vec<T>, n: usize) -> Self {
+        if n == 0 {
+            return Self::None;
+        }
+
+        match candidates.len() {
+            0 => Self::None,
+            len if len < n => Self::Only(candidates),
+            _ => {
+                candidates.truncate(n);
+                Self::Exactly(candidates)
+            }
+        }
+    }
+}
+
 pub trait Selector<C>: Debug + Send
 where
     C: DiscoveryClient,
@@ -74,4 +98,46 @@ where
         excluded: Vec<PeerId>,
         n: usize,
     ) -> Selection<PeerId>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Selection;
+
+    #[test]
+    fn classify_maps_empty_to_none() {
+        assert!(matches!(
+            Selection::<u8>::classify(vec![], 1),
+            Selection::None
+        ));
+    }
+
+    #[test]
+    fn classify_maps_shortfall_to_only() {
+        match Selection::classify(vec![1u8, 2], 3) {
+            Selection::Only(peers) => assert_eq!(peers, vec![1, 2]),
+            _ => panic!("expected Selection::Only"),
+        }
+    }
+
+    #[test]
+    fn classify_maps_full_count_to_exactly() {
+        match Selection::classify(vec![1u8, 2], 2) {
+            Selection::Exactly(peers) => assert_eq!(peers, vec![1, 2]),
+            _ => panic!("expected Selection::Exactly"),
+        }
+    }
+
+    #[test]
+    fn classify_maps_zero_requested_to_none() {
+        assert!(matches!(Selection::classify(vec![1u8], 0), Selection::None));
+    }
+
+    #[test]
+    fn classify_truncates_surplus_to_requested_count() {
+        match Selection::classify(vec![1u8, 2, 3], 2) {
+            Selection::Exactly(peers) => assert_eq!(peers, vec![1, 2]),
+            _ => panic!("expected Selection::Exactly"),
+        }
+    }
 }

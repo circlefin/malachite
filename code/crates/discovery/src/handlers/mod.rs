@@ -1,5 +1,8 @@
 pub mod selection;
 
+#[cfg(test)]
+pub(crate) mod test_support;
+
 pub mod bootstrap;
 pub mod close;
 pub mod connect_request;

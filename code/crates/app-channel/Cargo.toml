@@ -37,5 +37,5 @@ malachitebft-signing.workspace = true
 workspace = true
 
 [dev-dependencies]
-malachitebft-test.workspace = true
+malachitebft-test = { package = "arc-malachitebft-test", path = "../test" }
 rand.workspace = true

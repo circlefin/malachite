@@ -5,6 +5,7 @@
 * 2026-01-27: Initial version
 * 2026-02-02: Version submitted for revision
 * 2026-02-04: Reviewed and published version
+* 2026-09-09: Cross-checking re-derived votes and proposals against the WAL
 
 ## Context
 
@@ -483,6 +484,45 @@ The WAL is not [reset](#reset-1) and the replayed inputs remain in the WAL for
 the case in which the process crashes or is shut down again.
 In addition, all inputs processed during normal operation are appended to the
 WAL as usual.
+
+#### Cross-checking re-derived messages
+
+Replaying inputs reproduces the driver's outputs as well, among them the votes
+and proposals the process itself cast before crashing: those messages are
+re-derived.
+The messages the process recorded for the height being replayed are therefore
+indexed before the replay loop starts, and the index is consulted before
+signing.
+When the record agrees with the re-derived message, its signature is reused and
+the signer is not called.
+When the WAL holds no record, the crash interrupted the process before it could
+record what it was about to send: this is live behavior, and the message is
+signed and sent as usual.
+When the record disagrees, it is considered a non-determinism bug and the replay
+fails.
+The alternative would be to broadcast an equivocating message.
+
+The index is built upfront because a message is appended to the WAL only after
+the input that triggers it, so re-derivation always runs before replay reaches
+the record.
+The lookup is keyed on the height and round of the message, and on its type for
+votes, rather than on its position in the WAL.
+Positional lookup would be brittle: replay does not observe the same input
+sequence as the original run.
+Some inputs, such as round certificates, do not translate 1-to-1 when being
+replayed.
+
+This is the same reasoning that leads `LocallyProposedValue` and
+`ProposedValue` to be [persisted verbatim](#inputs) rather than requested from
+the application again, applied one layer further in.
+Given the same replayed inputs, the driver is required to be deterministic, so
+a message that comes out different is evidence that it was not.
+The vote extension is the exception, for the reason those inputs are stored in
+the first place: it is supplied by the application and need not be reproducible
+across a restart.
+It is excluded from the comparison, and from the vote's signing preimage as
+well, so that a recorded signature stays valid for a re-derived vote differing
+only in its extension.
 
 ### Persistence
 

@@ -36,4 +36,5 @@ To suggest an ADR, please make use of the [ADR template](./adr-template.md) prov
 | [007](./adr-007-write-ahead-log.md)         | Consensus Write-Ahead Log (WAL)             | Accepted |
 | [008](./adr-008-consensus-input-queue.md)   | Consensus Input Queue                       | Accepted |
 | [009](./adr-009-test-framework.md)          | Integration Test Framework                  | Accepted |
+| [010](./adr-010-sync-inbound-resource-limits.md) | Sync Inbound Resource Limits           | Accepted |
 

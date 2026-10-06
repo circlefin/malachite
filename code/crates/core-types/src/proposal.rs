@@ -3,6 +3,13 @@ use core::fmt::Debug;
 use crate::{Context, Round};
 
 /// Defines the requirements for a proposal type.
+///
+/// # Equality and write-ahead log replay
+///
+/// `Eq` must distinguish proposals only by content that consensus re-derives deterministically.
+/// Replaying the write-ahead log re-derives every proposal this node made before a crash.
+/// The re-derived proposal and the recorded one are compared (`Eq`) and they must be equal.
+/// Otherwise, it is considered a non-determinism bug.
 pub trait Proposal<Ctx>
 where
     Self: Clone + Debug + Eq + Send + Sync + 'static,

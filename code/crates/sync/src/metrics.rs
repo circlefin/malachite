@@ -15,7 +15,7 @@ use malachitebft_metrics::SharedRegistry;
 // Make prometheus_client available for the EncodeLabelSet derive macro.
 use malachitebft_metrics::prometheus as prometheus_client;
 
-use crate::{InboundFailureReason, InboundRequestId, OutboundFailureReason};
+use crate::{InboundFailureReason, InboundRequestId, OutboundFailureReason, OutboundRequestId};
 
 impl EncodeLabelValue for OutboundFailureReason {
     fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
@@ -45,7 +45,11 @@ impl EncodeLabelValue for InboundFailureReason {
     fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
         let s = match self {
             InboundFailureReason::RequesterDisconnected => "requester_disconnected",
+            InboundFailureReason::ConnectionClosed => "connection_closed",
             InboundFailureReason::HostStallTimeout => "host_stall_timeout",
+            InboundFailureReason::RateLimited => "rate_limited",
+            InboundFailureReason::PerPeerInFlightCap => "per_peer_in_flight_cap",
+            InboundFailureReason::InvalidRange => "invalid_range",
         };
         std::fmt::Write::write_str(encoder, s)
     }
@@ -85,11 +89,15 @@ pub struct Inner {
     value_local_transient_errors: Counter,
     value_request_failures: Family<OutboundFailureReasonLabel, Counter>,
     value_inbound_request_failures: Family<InboundFailureReasonLabel, Counter>,
+    value_inbound_requests_shortened: Counter,
     status_interarrival: Histogram,
     status_interarrival_normalized: Histogram, // Independent of number of peers and status update interval
     status_total: Counter,
 
-    instant_request_sent: Arc<DashMap<u64, Instant>>,
+    /// Keyed by request id rather than height: a height consensus has validated
+    /// is never requested again, so an entry orphaned under a height key could
+    /// never be reclaimed.
+    instant_request_sent: Arc<DashMap<OutboundRequestId, Instant>>,
     instant_request_received: Arc<DashMap<InboundRequestId, Instant>>,
     instant_last_status_received: Arc<Mutex<Option<Instant>>>,
     status_update_interval: Duration,
@@ -132,6 +140,7 @@ impl Inner {
             value_local_transient_errors: Counter::default(),
             value_request_failures: Family::default(),
             value_inbound_request_failures: Family::default(),
+            value_inbound_requests_shortened: Counter::default(),
             status_interarrival: Histogram::new(exponential_buckets(0.05 * t.max(1e-6), 1.15, 40)),
             status_interarrival_normalized: Histogram::new(exponential_buckets(0.05, 1.15, 40)),
             status_total: Counter::default(),
@@ -216,6 +225,12 @@ impl Metrics {
                 metrics.value_inbound_request_failures.clone(),
             );
 
+            registry.register(
+                "value_inbound_requests_shortened",
+                "Number of inbound ValueSync requests whose range was longer than our batch size, and was shortened before being served",
+                metrics.value_inbound_requests_shortened.clone(),
+            );
+
             metrics.scoring.register(registry);
 
             registry.register(
@@ -251,9 +266,10 @@ impl Metrics {
         metrics
     }
 
-    pub fn value_request_sent(&self, height: u64) {
+    pub fn value_request_sent(&self, request_id: &OutboundRequestId) {
         self.value_requests_sent.inc();
-        self.instant_request_sent.insert(height, Instant::now());
+        self.instant_request_sent
+            .insert(request_id.clone(), Instant::now());
     }
 
     pub fn value_request_received(&self, request_id: &InboundRequestId) {
@@ -294,10 +310,10 @@ impl Metrics {
             .expect("histogram observation count should be an integer")
     }
 
-    pub fn value_response_received(&self, height: u64) -> Option<Duration> {
+    pub fn value_response_received(&self, request_id: &OutboundRequestId) -> Option<Duration> {
         self.value_responses_received.inc();
 
-        if let Some((_, instant_request_sent)) = self.instant_request_sent.remove(&height) {
+        if let Some((_, instant_request_sent)) = self.instant_request_sent.remove(request_id) {
             let latency = instant_request_sent.elapsed();
             self.value_client_latency.observe(latency.as_secs_f64());
             Some(latency)
@@ -306,9 +322,16 @@ impl Metrics {
         }
     }
 
-    pub fn value_request_timed_out(&self, height: u64) {
+    pub fn value_request_timed_out(&self, request_id: &OutboundRequestId) {
         self.value_request_timeouts.inc();
-        self.instant_request_sent.remove(&height);
+        self.instant_request_sent.remove(request_id);
+    }
+
+    /// Release the start instant of a request retired without a response, a
+    /// timeout, or a network failure of its own. Counts nothing: abandonment is
+    /// not observed as its own signal.
+    pub fn value_request_abandoned(&self, request_id: &OutboundRequestId) {
+        self.instant_request_sent.remove(request_id);
     }
 
     /// A synced value could not be processed due to a local/transient failure
@@ -318,15 +341,20 @@ impl Metrics {
         self.value_local_transient_errors.inc();
     }
 
-    pub fn value_request_failed(&self, reason: OutboundFailureReason, height: u64) {
+    pub fn value_request_failed(
+        &self,
+        reason: OutboundFailureReason,
+        request_id: &OutboundRequestId,
+    ) {
         self.value_request_failures
             .get_or_create(&OutboundFailureReasonLabel::new(reason))
             .inc();
-        self.instant_request_sent.remove(&height);
+        self.instant_request_sent.remove(request_id);
     }
 
-    /// A pending inbound request was dropped before a response was sent (the
-    /// requester disconnected, or the host stalled past the inbound budget).
+    /// A pending inbound request was dropped before a response was sent, for
+    /// the given `reason`. Also discards the request's server-latency start
+    /// instant.
     pub fn value_inbound_request_failed(
         &self,
         request_id: &InboundRequestId,
@@ -336,6 +364,18 @@ impl Metrics {
         self.value_inbound_request_failures
             .get_or_create(&InboundFailureReasonLabel::new(reason))
             .inc();
+    }
+
+    /// An inbound request asked for more heights than our `batch_size`, so we
+    /// serve a prefix of it. A sustained rate here means peers run a larger
+    /// `batch_size` than this node does.
+    pub fn value_inbound_request_shortened(&self) {
+        self.value_inbound_requests_shortened.inc();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn value_inbound_requests_shortened_count(&self) -> u64 {
+        self.value_inbound_requests_shortened.get()
     }
 
     pub fn status_received(&self, n_peers: u64) {
@@ -389,11 +429,14 @@ mod tests {
             OutboundFailureReason::UnsupportedProtocols,
             OutboundFailureReason::Io,
         ] {
-            metrics.value_request_failed(reason, 100);
+            metrics.value_request_failed(reason, &OutboundRequestId::new("req-100"));
         }
 
         // Increment DialFailure a second time to confirm per-label accumulation.
-        metrics.value_request_failed(OutboundFailureReason::DialFailure, 101);
+        metrics.value_request_failed(
+            OutboundFailureReason::DialFailure,
+            &OutboundRequestId::new("req-101"),
+        );
 
         let count_for = |reason: OutboundFailureReason| -> u64 {
             metrics
@@ -421,8 +464,24 @@ mod tests {
                 InboundFailureReason::RequesterDisconnected,
             ),
             (
+                InboundRequestId::new("connection-closed"),
+                InboundFailureReason::ConnectionClosed,
+            ),
+            (
                 InboundRequestId::new("host-stall-timeout"),
                 InboundFailureReason::HostStallTimeout,
+            ),
+            (
+                InboundRequestId::new("rate-limited"),
+                InboundFailureReason::RateLimited,
+            ),
+            (
+                InboundRequestId::new("per-peer-in-flight-cap"),
+                InboundFailureReason::PerPeerInFlightCap,
+            ),
+            (
+                InboundRequestId::new("invalid-range"),
+                InboundFailureReason::InvalidRange,
             ),
         ] {
             metrics.value_request_received(&request_id);
@@ -443,7 +502,25 @@ mod tests {
         };
 
         assert_eq!(count_for(InboundFailureReason::RequesterDisconnected), 2);
+        assert_eq!(count_for(InboundFailureReason::ConnectionClosed), 1);
         assert_eq!(count_for(InboundFailureReason::HostStallTimeout), 1);
+        assert_eq!(count_for(InboundFailureReason::RateLimited), 1);
+        assert_eq!(count_for(InboundFailureReason::PerPeerInFlightCap), 1);
+        assert_eq!(count_for(InboundFailureReason::InvalidRange), 1);
         assert!(metrics.instant_request_received.is_empty());
+    }
+
+    #[test]
+    fn test_value_inbound_requests_shortened_metric_registers_and_increments() {
+        let registry =
+            SharedRegistry::global().with_moniker("test_value_inbound_requests_shortened");
+        let metrics = Metrics::register(&registry, Duration::from_secs(1));
+
+        assert_eq!(metrics.value_inbound_requests_shortened_count(), 0);
+
+        metrics.value_inbound_request_shortened();
+        metrics.value_inbound_request_shortened();
+
+        assert_eq!(metrics.value_inbound_requests_shortened_count(), 2);
     }
 }

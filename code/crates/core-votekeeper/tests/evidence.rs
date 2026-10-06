@@ -218,3 +218,22 @@ fn test_vote_evidence_len_empty() {
     assert_eq!(evidence.len(), 0);
     assert!(evidence.is_empty());
 }
+
+#[test]
+fn is_full_only_at_the_per_validator_cap() {
+    let mut evidence = EvidenceMap::<TestContext>::new();
+    let alice = addr("Alice");
+
+    assert!(!evidence.is_full(&alice));
+
+    for i in 0..MAX_EVIDENCE_PER_VALIDATOR {
+        let (a, b) = make_vote_pair("Alice", Prevote, i as u32, [i as u64 * 2, i as u64 * 2 + 1]);
+        evidence.add(a, b);
+        if i + 1 < MAX_EVIDENCE_PER_VALIDATOR {
+            assert!(!evidence.is_full(&alice));
+        }
+    }
+
+    assert!(evidence.is_full(&alice));
+    assert!(!evidence.is_full(&addr("Bob")));
+}

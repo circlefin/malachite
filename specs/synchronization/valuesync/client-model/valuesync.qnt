@@ -18,7 +18,7 @@
 //     (scoring is a performance heuristic, not a safety mechanism).
 //   - libp2p transport / codecs / metrics are out.
 //   - All request-failure triggers are UNIFIED (identical effect on sync state: exclude
-//     the peer and re-request via `re_request_values_from_peer_except`): timeout, invalid
+//     the peer and re-request via `re_request_values_from_any_peer_except`): timeout, invalid
 //     response, network/dial failure (SyncRequestFailed), and peer disconnect
 //     (PeerDisconnected). Modeled by the `retry*` actions.
 module valuesync {
@@ -219,8 +219,9 @@ module valuesync {
   // What a retry does to the heights of the range that are already buffered. The two triggers
   // differ, so the caller says which one it is.
   //
-  //   `faulted` = true  — `Msg::PeerFault` drops every buffered value that came from the same
-  //                       response before it calls into sync, so the siblings go with it.
+  //   `faulted` = true  — `Msg::PeerFault` drops every buffered value that came from the request
+  //                       that served the faulty one, before it calls into sync, so the siblings
+  //                       go with it. That request is the one retried here, so the two agree.
   //   `faulted` = false — `Msg::LocalTransientError` only arms a backoff timer. It never touches
   //                       the queue, so buffered siblings stay.
   //
@@ -235,9 +236,11 @@ module valuesync {
                else c.buffered
     kept.exclude(Set(c.consensusHeight))
 
-  // Who a retry bars from serving the range next. `re_request_values_from_peer_except` adds the
-  // serving peer only when the caller names one. `on_local_transient_error` passes `None`, because
-  // the failure is the node's own, so the same peer stays eligible.
+  // Who a retry bars from serving the range next. `re_request_values_from_any_peer_except` bars the
+  // one peer its caller names, and `on_local_transient_error` names nobody, because the failure is
+  // the node's own, so the same peer stays eligible. The peer named on a fault is the one that
+  // served the value, which owns the entry being retried, so barring `e.peer` is the same thing
+  // here.
   pure def retryExcluded(e: PendingEntry, faulted: bool): Set[PeerId] =
     if (faulted) e.excluded.union(Set(e.peer)) else e.excluded
 
@@ -260,7 +263,7 @@ module valuesync {
   // Reroute one in-flight entry `rid` (owned by now-disconnected `dp`) to the best eligible peer
   // (highest tip = whole-range preferred), or roll syncHeight back to its start if no peer can
   // serve even a prefix. This is the per-range body of `on_peer_disconnected`'s loop over
-  // `re_request_values_from_peer_except` (which selects a peer per range via
+  // `re_request_values_from_any_peer_except` (which selects a peer per range via
   // `random_peer_with_except`), so it must NOT roll back merely because one particular peer is a
   // prefix peer — only when the eligible set is empty. A disconnect is not a fault and only
   // reaches in-flight entries, so nothing buffered is dropped here.
@@ -300,7 +303,7 @@ module valuesync {
   // A batch that starts at the limit may extend beyond it.
   val readAheadLimit: Height = client.tip + readAheadWindow
 
-  // `re_request_values_from_peer_except` removes the entry before it checks the budget, so an
+  // `re_request_values_from_any_peer_except` removes the entry before it checks the budget, so an
   // entry that was in flight gives its own slot back first. A reservation holds no slot, so
   // re-requesting one adds a request the budget has not accounted for.
   def budgetAfterRemoval(rid: ReqId): int =
@@ -390,7 +393,7 @@ module valuesync {
 
   // A peer disconnects (NetworkEvent::PeerDisconnected -> on_peer_disconnected): ATOMICALLY
   // remove it from the known-peer set AND reroute every in-flight range it owned via the same
-  // retry primitive (`re_request_values_from_peer_except`), exactly as the handler does within
+  // retry primitive (`re_request_values_from_any_peer_except`), exactly as the handler does within
   // one input path. Doing both in one action avoids a model-only transient state where a
   // disconnected peer still owns pending work (which the real synchronous handler never
   // exposes to other inputs).
@@ -448,8 +451,12 @@ module valuesync {
   // Which entries a failure can reach. An in-flight entry fails through an invalid response or a
   // timeout, so any range qualifies. A reservation fails through `on_peer_fault` or
   // `on_local_transient_error`, which both fire while consensus processes a value, so only the
-  // reservation holding `consensusHeight` qualifies. `get_request_id_by` then finds it by range
-  // membership alone, without testing the in-flight flag.
+  // reservation holding `consensusHeight` qualifies.
+  //
+  // The two resolve that entry differently. `on_peer_fault` is handed the request that served the
+  // value; `on_local_transient_error` still finds one by range membership through
+  // `get_request_id_by`, without testing the in-flight flag. Here a height has a single value and
+  // therefore a single owner, so both name the same entry and one predicate covers them.
   def retryable(rid: ReqId): bool =
     client.pending.get(rid).inflight
       or rContains(client.pending.get(rid).range, client.consensusHeight)
@@ -657,8 +664,16 @@ module vsBig {
 //   - on_peer_disconnected re-requests ALL of a gone peer's in-flight ranges; the model does
 //     this ATOMICALLY (peerDisconnect folds the retry primitive over every affected range in one
 //     action) but reroutes them to a single replacement peer rather than one-per-range.
-//   - Consensus-reported InvalidValue/ValueProcessingError on ALREADY-buffered values, and the
+//   - Consensus-reported PeerFault/LocalTransientError on ALREADY-buffered values, and the
 //     StartedHeight(Restart) path (clears pending, resets sync_height).
+//   - TWO REQUESTS HOLDING A VALUE FOR THE SAME HEIGHT. `buffered` is a set of heights, so a
+//     height has one value and one owner, and the request that served a value is always the one
+//     covering its height. The implementation can hold both: a retry buffers its own copy while
+//     the copy it replaced is still queued. Attribution then splits — the request that served the
+//     value and the request now covering the height are different entries — and only the first is
+//     the one to drop values from and bar from the retry. The engine carries the serving request
+//     through consensus and the host verdict to make that distinction; this model cannot express
+//     the states where it matters, so it neither exhibits the confusion nor demonstrates the fix.
 //   - The engine's transport-request map (`state.inflight` in engine/src/sync.rs). `pending` here
 //     stands for what ValueSync tracks, and the two can diverge: a restart clears
 //     `pending_requests` and pruning drops entries, neither of which ends the transport request.

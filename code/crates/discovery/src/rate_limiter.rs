@@ -19,6 +19,10 @@ const DEFAULT_MAX_VIOLATIONS: u32 = 3;
 /// call `clear_peer` when bans expire, making this expiry unnecessary.
 const DEFAULT_VIOLATION_EXPIRY: Duration = Duration::from_secs(10 * 60); // 10 minutes
 
+/// Minimum interval between pruning passes over expired violations.
+/// Requests and disconnects are frequent, so we avoid a full scan every time.
+const PRUNE_INTERVAL: Duration = Duration::from_secs(5);
+
 /// Result of a rate limit check.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RateLimitResult {
@@ -71,6 +75,11 @@ pub struct DiscoveryRateLimiter {
     /// Duration after which violations expire
     /// TODO: Remove once peer banning is implemented
     violation_expiry: Duration,
+    /// When the last pruning pass ran
+    last_prune: Instant,
+    /// Minimum interval between pruning passes. Fixed at `PRUNE_INTERVAL` in
+    /// production; only tests vary it.
+    prune_interval: Duration,
 }
 
 impl Default for DiscoveryRateLimiter {
@@ -99,6 +108,25 @@ impl DiscoveryRateLimiter {
             max_requests_per_window,
             max_violations,
             violation_expiry,
+            last_prune: Instant::now(),
+            prune_interval: PRUNE_INTERVAL,
+        }
+    }
+
+    /// Drop violations past their expiry. They are already reported as zero by
+    /// `violation_count`.
+    fn prune_expired(&mut self, now: Instant) {
+        let violation_expiry = self.violation_expiry;
+        self.violations.retain(|_, (_, last_violation)| {
+            now.duration_since(*last_violation) < violation_expiry
+        });
+    }
+
+    /// Prune expired violations, at most once per `prune_interval`.
+    fn prune_expired_if_due(&mut self, now: Instant) {
+        if now.duration_since(self.last_prune) >= self.prune_interval {
+            self.prune_expired(now);
+            self.last_prune = now;
         }
     }
 
@@ -121,6 +149,10 @@ impl DiscoveryRateLimiter {
                 self.requests.remove(peer_id);
             }
         }
+
+        // Runs after the check above, so it can only ever clear other peers'
+        // expired entries, never this one's.
+        self.prune_expired_if_due(now);
 
         // If peer already has max violations, reject immediately without any new requests
         let current_violations = self
@@ -188,11 +220,13 @@ impl DiscoveryRateLimiter {
     }
 
     /// Remove rate limiting state for a peer (e.g., on disconnect).
-    /// Note: This does NOT clear violation count, which persists across sessions
-    /// to support the backoff/banning system.
+    /// Note: This does NOT clear a violation count that is still within its
+    /// expiry, which persists across sessions to support the backoff/banning
+    /// system. Counts that have already expired may be pruned here, for this
+    /// peer or any other.
     pub fn remove_peer(&mut self, peer_id: &PeerId) {
+        self.prune_expired_if_due(Instant::now());
         self.requests.remove(peer_id);
-        // Violations are intentionally NOT cleared - they persist for backoff/ban decisions
     }
 
     /// Clear all state for a peer, including violations.
@@ -216,6 +250,12 @@ impl DiscoveryRateLimiter {
     /// Get the maximum violations before disconnect.
     pub fn max_violations(&self) -> u32 {
         self.max_violations
+    }
+
+    /// Number of tracked violation entries, including expired ones not yet pruned.
+    #[cfg(test)]
+    pub fn violations_len(&self) -> usize {
+        self.violations.len()
     }
 }
 
@@ -422,6 +462,151 @@ mod tests {
         // Should be allowed again
         let result = limiter.check_request(&peer);
         assert!(result.is_allowed());
+    }
+
+    #[test]
+    fn test_expired_violation_pruned_without_peer_returning() {
+        let mut limiter =
+            DiscoveryRateLimiter::new(Duration::from_secs(60), 1, 3, Duration::from_millis(50));
+        limiter.prune_interval = Duration::ZERO;
+        let gone = PeerId::random();
+
+        limiter.check_request(&gone); // allowed
+        limiter.check_request(&gone); // violation 1
+        limiter.remove_peer(&gone); // disconnect, never returns
+        assert_eq!(limiter.violations_len(), 1);
+
+        std::thread::sleep(Duration::from_millis(80));
+
+        // An unrelated peer's request drives the prune
+        limiter.check_request(&PeerId::random());
+        assert_eq!(limiter.violations_len(), 0);
+    }
+
+    #[test]
+    fn test_expired_violation_pruned_on_unrelated_disconnect() {
+        let mut limiter =
+            DiscoveryRateLimiter::new(Duration::from_secs(60), 1, 3, Duration::from_millis(50));
+        limiter.prune_interval = Duration::ZERO;
+        let gone = PeerId::random();
+
+        limiter.check_request(&gone); // allowed
+        limiter.check_request(&gone); // violation 1
+        limiter.remove_peer(&gone); // disconnect, never returns
+        assert_eq!(limiter.violations_len(), 1);
+
+        std::thread::sleep(Duration::from_millis(80));
+
+        // A disconnect alone drives the prune, with no request in between
+        limiter.remove_peer(&PeerId::random());
+        assert_eq!(limiter.violations_len(), 0);
+    }
+
+    #[test]
+    fn test_prune_is_throttled_and_expired_entries_still_read_as_zero() {
+        // Default prune interval, so no prune can run during this test.
+        let mut limiter =
+            DiscoveryRateLimiter::new(Duration::from_secs(60), 1, 3, Duration::from_millis(50));
+        let gone = PeerId::random();
+
+        limiter.check_request(&gone); // allowed
+        limiter.check_request(&gone); // violation 1
+        limiter.remove_peer(&gone);
+
+        std::thread::sleep(Duration::from_millis(80));
+
+        limiter.check_request(&PeerId::random());
+        assert_eq!(limiter.violations_len(), 1, "prune ran before it was due");
+        assert_eq!(limiter.violation_count(&gone), 0);
+    }
+
+    #[test]
+    fn test_violations_stay_bounded_across_fresh_peer_churn() {
+        let mut limiter =
+            DiscoveryRateLimiter::new(Duration::from_secs(60), 1, 3, Duration::from_millis(2));
+        limiter.prune_interval = Duration::ZERO;
+
+        const CYCLES: usize = 20;
+        for _ in 0..CYCLES {
+            let peer = PeerId::random();
+            limiter.check_request(&peer); // allowed
+            limiter.check_request(&peer); // violation 1
+            limiter.remove_peer(&peer);
+            std::thread::sleep(Duration::from_millis(5));
+        }
+
+        // Each entry is stale before the next cycle starts, so only the most
+        // recent one can still be live.
+        assert!(
+            limiter.violations_len() <= 2,
+            "occupancy {} tracks the {} cycles instead of staying bounded",
+            limiter.violations_len(),
+            CYCLES
+        );
+    }
+
+    #[test]
+    fn test_live_violation_survives_pruning() {
+        let mut limiter =
+            DiscoveryRateLimiter::new(Duration::from_secs(60), 1, 3, Duration::from_millis(50));
+        limiter.prune_interval = Duration::ZERO;
+
+        // A stale violation that will actually expire and get pruned.
+        let stale = PeerId::random();
+        limiter.check_request(&stale); // allowed
+        limiter.check_request(&stale); // violation 1
+        limiter.remove_peer(&stale);
+
+        std::thread::sleep(Duration::from_millis(80)); // stale's violation is now expired
+
+        // A fresh violation recorded after the sleep, so it's still live.
+        let peer = PeerId::random();
+        limiter.check_request(&peer); // allowed
+        limiter.check_request(&peer); // violation 1
+        limiter.remove_peer(&peer); // drives the prune pass
+
+        assert_eq!(limiter.violation_count(&peer), 1);
+        assert_eq!(
+            limiter.violations_len(),
+            1,
+            "stale entry should be gone, peer's kept"
+        );
+    }
+
+    #[test]
+    fn test_max_violations_still_blocks_after_pruning() {
+        let mut limiter =
+            DiscoveryRateLimiter::new(Duration::from_secs(60), 2, 2, Duration::from_millis(50));
+        limiter.prune_interval = Duration::ZERO;
+
+        // A stale peer whose violations will actually expire and get pruned.
+        let stale = PeerId::random();
+        limiter.check_request(&stale);
+        limiter.check_request(&stale);
+        limiter.check_request(&stale); // violation 1
+        assert!(limiter.check_request(&stale).should_disconnect()); // violation 2
+        limiter.remove_peer(&stale);
+
+        std::thread::sleep(Duration::from_millis(80)); // stale's violations now expired
+
+        // The peer under test accumulates its own violations after the sleep.
+        let peer = PeerId::random();
+        limiter.check_request(&peer);
+        limiter.check_request(&peer);
+        limiter.check_request(&peer); // violation 1
+        assert!(limiter.check_request(&peer).should_disconnect()); // violation 2
+        limiter.remove_peer(&peer); // drives the prune pass, dropping `stale`
+
+        assert_eq!(
+            limiter.violations_len(),
+            1,
+            "stale entry should be gone, peer's kept"
+        );
+
+        let result = limiter.check_request(&peer);
+        assert!(!result.is_allowed());
+        assert!(result.should_disconnect());
+        assert_eq!(limiter.violation_count(&peer), 2);
     }
 
     #[test]

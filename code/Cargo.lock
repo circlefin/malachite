@@ -192,7 +192,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-app"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "arc-malachitebft-codec",
  "arc-malachitebft-config",
@@ -219,7 +219,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-app-channel"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "arc-malachitebft-app",
  "arc-malachitebft-config",
@@ -239,14 +239,14 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-codec"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "bytes",
 ]
 
 [[package]]
 name = "arc-malachitebft-config"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "bytesize",
  "humantime-serde",
@@ -260,7 +260,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-core-consensus"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "arc-malachitebft-core-driver",
  "arc-malachitebft-core-types",
@@ -284,7 +284,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-core-driver"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "arc-malachitebft-core-state-machine",
  "arc-malachitebft-core-types",
@@ -299,7 +299,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-core-state-machine"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "arc-malachitebft-core-types",
  "derive-where",
@@ -309,7 +309,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-core-types"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "arc-malachitebft-peer",
  "async-trait",
@@ -323,7 +323,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-core-votekeeper"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "arc-malachitebft-core-types",
  "arc-malachitebft-test",
@@ -335,7 +335,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-discovery"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "arc-malachitebft-metrics",
  "either",
@@ -349,7 +349,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-discovery-test"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "arc-malachitebft-config",
  "arc-malachitebft-discovery-test",
@@ -357,6 +357,7 @@ dependencies = [
  "arc-malachitebft-network",
  "arc-malachitebft-signing-ed25519",
  "futures",
+ "libp2p",
  "libp2p-identity",
  "netstat2",
  "rand 0.8.5",
@@ -367,7 +368,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-engine"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "arc-malachitebft-codec",
  "arc-malachitebft-config",
@@ -381,6 +382,7 @@ dependencies = [
  "arc-malachitebft-peer",
  "arc-malachitebft-signing",
  "arc-malachitebft-sync",
+ "arc-malachitebft-test",
  "arc-malachitebft-wal",
  "async-recursion",
  "async-trait",
@@ -401,7 +403,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-engine-byzantine"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "arc-malachitebft-core-consensus",
  "arc-malachitebft-core-types",
@@ -419,7 +421,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-metrics"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "arc-malachitebft-core-state-machine",
  "prometheus-client",
@@ -427,7 +429,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-network"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "arc-malachitebft-discovery",
  "arc-malachitebft-metrics",
@@ -455,7 +457,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-peer"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "borsh",
  "bs58",
@@ -467,7 +469,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-proto"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "prost",
  "prost-types",
@@ -476,7 +478,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-signing"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "arc-malachitebft-core-types",
  "async-trait",
@@ -485,7 +487,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-signing-ecdsa"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "arc-malachitebft-core-types",
  "base64",
@@ -500,7 +502,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-signing-ed25519"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "arc-malachitebft-core-types",
  "base64",
@@ -513,7 +515,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-sync"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "arbtest",
  "arc-malachitebft-core-types",
@@ -528,6 +530,7 @@ dependencies = [
  "displaydoc",
  "eyre",
  "genawaiter",
+ "governor",
  "libp2p",
  "rand 0.8.5",
  "serde",
@@ -538,7 +541,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-test"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "arc-malachitebft-app",
  "arc-malachitebft-codec",
@@ -582,7 +585,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-test-app"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "arc-malachitebft-app-channel",
  "arc-malachitebft-engine-byzantine",
@@ -613,7 +616,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-test-cli"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "arc-malachitebft-app",
  "arc-malachitebft-config",
@@ -639,7 +642,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-test-framework"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "arc-malachitebft-app",
  "arc-malachitebft-config",
@@ -663,7 +666,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-test-mbt"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "arc-malachitebft-core-state-machine",
  "arc-malachitebft-core-types",
@@ -686,7 +689,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-test-mempool"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "arc-malachitebft-metrics",
  "arc-malachitebft-proto",
@@ -705,7 +708,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-test-store"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "arc-malachitebft-app-channel",
  "arc-malachitebft-proto",
@@ -723,7 +726,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-test-streaming"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "arc-malachitebft-app-channel",
  "arc-malachitebft-test",
@@ -732,7 +735,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-wal"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "advisory-lock",
  "bytes",
@@ -2152,8 +2155,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "43a49c392881ce6d5c3b8cb70f98717b7c07aabbdff06687b9030dbfbe2725f8"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "wasi 0.13.3+wasi-0.2.2",
+ "wasm-bindgen",
  "windows-targets 0.52.6",
 ]
 
@@ -2178,6 +2183,29 @@ name = "glob"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
+
+[[package]]
+name = "governor"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be93b4ec2e4710b04d9264c0c7350cdd62a8c20e5e4ac732552ebb8f0debe8eb"
+dependencies = [
+ "cfg-if",
+ "dashmap",
+ "futures-sink",
+ "futures-timer",
+ "futures-util",
+ "getrandom 0.3.1",
+ "no-std-compat",
+ "nonzero_ext",
+ "parking_lot",
+ "portable-atomic",
+ "quanta",
+ "rand 0.9.0",
+ "smallvec",
+ "spinning_top",
+ "web-time",
+]
 
 [[package]]
 name = "group"
@@ -3696,6 +3724,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "no-std-compat"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b93853da6d84c2e3c7d730d6473e8817692dd89be387eb01b94d7f108ecb5b8c"
+
+[[package]]
 name = "nohash-hasher"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3710,6 +3744,12 @@ dependencies = [
  "memchr",
  "minimal-lexical",
 ]
+
+[[package]]
+name = "nonzero_ext"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38bf9645c8b145698bb0b18a4637dcacbc421ea49bef2317e4fd8065a387cf21"
 
 [[package]]
 name = "ntapi"
@@ -4238,6 +4278,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "quanta"
+version = "0.12.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f3ab5a9d756f0d97bdc89019bd2e4ea098cf9cde50ee7564dde6b81ccc8f06c7"
+dependencies = [
+ "crossbeam-utils",
+ "libc",
+ "once_cell",
+ "raw-cpuid",
+ "wasi 0.11.0+wasi-snapshot-preview1",
+ "web-sys",
+ "winapi",
+]
+
+[[package]]
 name = "quick-error"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4406,6 +4461,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "99d9a13982dcf210057a8a78572b2217b667c3beacbf3a0d8b454f6f82837d38"
 dependencies = [
  "getrandom 0.3.1",
+]
+
+[[package]]
+name = "raw-cpuid"
+version = "11.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "498cd0dc59d73224351ee52a95fee0f1a617a2eae0e7d9d720cc622c73a54186"
+dependencies = [
+ "bitflags 2.9.0",
 ]
 
 [[package]]
@@ -4983,6 +5047,15 @@ checksum = "233504af464074f9d066d7b5416c5f9b894a5862a6506e306f7b816cdd6f1807"
 dependencies = [
  "libc",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "spinning_top"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d96d2d1d716fb500937168cc09353ffdc7a012be8475ac7308e1bdf0e3923300"
+dependencies = [
+ "lock_api",
 ]
 
 [[package]]

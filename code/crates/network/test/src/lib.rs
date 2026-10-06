@@ -166,6 +166,10 @@ impl<const N: usize> Test<N> {
                 channel_names: malachitebft_network::ChannelNames::default(),
                 rpc_max_size: 10 * 1024 * 1024,   // 10 MiB
                 pubsub_max_size: 4 * 1024 * 1024, // 4 MiB
+                pubsub_max_size_per_topic: Default::default(),
+                sync_request_timeout: Duration::from_secs(10),
+                sync_max_request_size: 1024 * 1024,
+                sync_parallel_requests: 5,
                 enable_consensus: true,
                 enable_sync: false,
                 protocol_names: ProtocolNames::default(),
@@ -247,23 +251,26 @@ impl<const N: usize> Test<N> {
                             }
                         }
                         _ = sleep(Duration::from_secs(1)) => {
-                            handle.shutdown().await.unwrap();
                             break;
                         }
                     }
                 }
 
-                peers
+                (handle, peers)
             });
 
             tasks.push(task);
         }
 
-        let actuals: Vec<Vec<PeerId>> = futures::future::join_all(tasks)
+        let (handles, actuals): (Vec<_>, Vec<Vec<PeerId>>) = futures::future::join_all(tasks)
             .await
             .into_iter()
             .map(|res| res.unwrap())
-            .collect();
+            .unzip();
+
+        for handle in handles {
+            handle.shutdown().await.unwrap();
+        }
 
         let peer_id_to_index = |peer_id: &PeerId| -> usize {
             self.keypairs

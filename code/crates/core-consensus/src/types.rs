@@ -105,6 +105,11 @@ pub enum VoteExtensionError {
     InvalidVoteExtension,
 }
 
+/// The application's verdict on each vote extension it was asked about, paired
+/// with the address of the validator that produced it.
+pub type VoteExtensionVerdicts<Ctx> =
+    Vec<(<Ctx as Context>::Address, Result<(), VoteExtensionError>)>;
+
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub enum LivenessMsg<Ctx: Context> {
     Vote(SignedVote<Ctx>),

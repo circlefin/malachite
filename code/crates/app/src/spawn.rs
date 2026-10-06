@@ -160,30 +160,14 @@ where
         return Ok(None);
     }
 
-    if config.enabled && config.batch_size == 0 {
-        return Err(eyre!("Value sync batch size cannot be zero"));
-    }
+    validate_value_sync_config(config)?;
 
     let params = SyncParams {
         status_update_interval: config.status_update_interval,
         request_timeout: config.request_timeout,
     };
 
-    let scoring_strategy = match config.scoring_strategy {
-        malachitebft_config::ScoringStrategy::Ema => sync::scoring::Strategy::Ema,
-    };
-
-    let sync_config = sync::Config {
-        enabled: config.enabled,
-        max_request_size: config.max_request_size.as_u64() as usize,
-        max_response_size: config.max_response_size.as_u64() as usize,
-        request_timeout: config.request_timeout,
-        parallel_requests: config.parallel_requests,
-        scoring_strategy,
-        inactive_threshold: (!config.inactive_threshold.is_zero())
-            .then_some(config.inactive_threshold),
-        batch_size: config.batch_size,
-    };
+    let sync_config = sync_config(config);
 
     let metrics = sync::Metrics::register(registry, params.status_update_interval);
 
@@ -203,9 +187,95 @@ where
     Ok(Some(actor_ref))
 }
 
+/// Check that an enabled [`ValueSyncConfig`] describes a workable ValueSync setup.
+fn validate_value_sync_config(config: &ValueSyncConfig) -> Result<()> {
+    if config.request_timeout.is_zero() {
+        return Err(eyre!("Value sync request_timeout cannot be zero"));
+    }
+
+    if config.max_request_size.as_u64() == 0 {
+        return Err(eyre!("Value sync max_request_size cannot be zero"));
+    }
+
+    if config.parallel_requests == 0 {
+        return Err(eyre!("Value sync parallel_requests cannot be zero"));
+    }
+
+    if config.batch_size == 0 {
+        return Err(eyre!("Value sync batch size cannot be zero"));
+    }
+
+    if config.max_inbound_requests_per_window == 0 {
+        return Err(eyre!(
+            "Value sync max_inbound_requests_per_window cannot be zero"
+        ));
+    }
+
+    if config.inbound_request_rate_limit_window.is_zero() {
+        return Err(eyre!(
+            "Value sync inbound_request_rate_limit_window cannot be zero"
+        ));
+    }
+
+    if config.max_concurrent_inbound_requests == 0 && config.max_pending_inbound_requests > 0 {
+        return Err(eyre!(
+            "Value sync max_concurrent_inbound_requests cannot be zero \
+             when max_pending_inbound_requests is non-zero"
+        ));
+    }
+
+    if config.max_concurrent_inbound_requests == 0 && config.max_pending_inbound_requests == 0 {
+        return Err(eyre!(
+            "Value sync admission capacity is zero: \
+             set max_concurrent_inbound_requests > 0 or disable value sync via `enabled = false`"
+        ));
+    }
+
+    // `sync::State::new` divides window by burst to build the GCRA quota; if
+    // the result rounds down to zero it panics. Fail fast with a clear error.
+    let replenish_interval = config
+        .inbound_request_rate_limit_window
+        .checked_div(config.max_inbound_requests_per_window);
+    if !matches!(replenish_interval, Some(interval) if !interval.is_zero()) {
+        return Err(eyre!(
+            "Value sync inbound_request_rate_limit_window is too small relative to \
+             max_inbound_requests_per_window: derived replenish interval must be non-zero"
+        ));
+    }
+
+    Ok(())
+}
+
+/// The one place where [`ValueSyncConfig`] becomes [`sync::Config`].
+fn sync_config(config: &ValueSyncConfig) -> sync::Config {
+    let scoring_strategy = match config.scoring_strategy {
+        malachitebft_config::ScoringStrategy::Ema => sync::scoring::Strategy::Ema,
+    };
+
+    sync::Config {
+        enabled: config.enabled,
+        max_request_size: config.max_request_size.as_u64() as usize,
+        max_response_size: config.max_response_size.as_u64() as usize,
+        request_timeout: config.request_timeout,
+        parallel_requests: config.parallel_requests,
+        scoring_strategy,
+        inactive_threshold: (!config.inactive_threshold.is_zero())
+            .then_some(config.inactive_threshold),
+        batch_size: config.batch_size,
+        inbound_request_rate_limit_window: config.inbound_request_rate_limit_window,
+        max_inbound_requests_per_window: config.max_inbound_requests_per_window,
+        max_concurrent_inbound_requests: config.max_concurrent_inbound_requests,
+        max_pending_inbound_requests: config.max_pending_inbound_requests,
+    }
+}
+
 fn make_network_config(cfg: &ConsensusConfig, value_sync_cfg: &ValueSyncConfig) -> NetworkConfig {
     use malachitebft_config as config;
     use malachitebft_network as network;
+
+    let sync_cfg = sync_config(value_sync_cfg);
+
+    let topic_max_sizes = &cfg.p2p.pubsub_max_size_per_topic;
 
     NetworkConfig {
         listen_addr: cfg.p2p.listen_addr.clone(),
@@ -266,6 +336,23 @@ fn make_network_config(cfg: &ConsensusConfig, value_sync_cfg: &ValueSyncConfig) 
         },
         rpc_max_size: cfg.p2p.rpc_max_size.as_u64() as usize,
         pubsub_max_size: cfg.p2p.pubsub_max_size.as_u64() as usize,
+        pubsub_max_size_per_topic: network::PubSubMaxSizePerTopic {
+            consensus: topic_max_sizes
+                .consensus
+                .as_ref()
+                .map(|size| size.as_u64() as usize),
+            proposal_parts: topic_max_sizes
+                .proposal_parts
+                .as_ref()
+                .map(|size| size.as_u64() as usize),
+            liveness: topic_max_sizes
+                .liveness
+                .as_ref()
+                .map(|size| size.as_u64() as usize),
+        },
+        sync_request_timeout: sync_cfg.request_timeout,
+        sync_max_request_size: sync_cfg.max_request_size,
+        sync_parallel_requests: sync_cfg.parallel_requests,
         enable_consensus: cfg.enabled,
         enable_sync: value_sync_cfg.enabled,
         protocol_names: network::ProtocolNames {
@@ -280,8 +367,14 @@ fn make_network_config(cfg: &ConsensusConfig, value_sync_cfg: &ValueSyncConfig) 
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use malachitebft_config::DiscoveryConfig as SerdeDiscoveryConfig;
     use malachitebft_network::DiscoveryConfig as RuntimeDiscoveryConfig;
+
+    use super::{
+        make_network_config, validate_value_sync_config, ConsensusConfig, ValueSyncConfig,
+    };
 
     /// The serde-deserialized default in `malachitebft-config` and the runtime
     /// default in `malachitebft-discovery` are defined independently. Pin them
@@ -292,5 +385,137 @@ mod tests {
             RuntimeDiscoveryConfig::default().ip_throttle_duration,
             SerdeDiscoveryConfig::default().ip_throttle_duration,
         );
+    }
+
+    #[test]
+    fn network_config_maps_pubsub_payload_limits() {
+        let mut config = ConsensusConfig::default();
+        config.p2p.listen_addr = "/ip4/127.0.0.1/tcp/0".parse().unwrap();
+        config.p2p.pubsub_max_size_per_topic.proposal_parts = Some("130 KiB".parse().unwrap());
+
+        let network_config = make_network_config(&config, &ValueSyncConfig::default());
+
+        assert_eq!(
+            network_config.pubsub_max_size_per_topic.proposal_parts,
+            Some(130 * 1024)
+        );
+        assert_eq!(network_config.pubsub_max_size_per_topic.consensus, None);
+        assert_eq!(network_config.pubsub_max_size_per_topic.liveness, None);
+    }
+
+    /// The checks short-circuit in order, so each rejection test asserts on the
+    /// message to pin down which limit it tripped.
+    fn rejection_of(config: &ValueSyncConfig) -> String {
+        validate_value_sync_config(config)
+            .expect_err("expected the configuration to be rejected")
+            .to_string()
+    }
+
+    #[test]
+    fn default_value_sync_config_is_accepted() {
+        assert!(validate_value_sync_config(&ValueSyncConfig::default()).is_ok());
+    }
+
+    #[test]
+    fn zero_request_timeout_is_rejected() {
+        let config = ValueSyncConfig {
+            request_timeout: Duration::ZERO,
+            ..Default::default()
+        };
+
+        assert!(rejection_of(&config).contains("request_timeout cannot be zero"));
+    }
+
+    #[test]
+    fn zero_max_request_size_is_rejected() {
+        let config = ValueSyncConfig {
+            max_request_size: Default::default(),
+            ..Default::default()
+        };
+
+        assert!(rejection_of(&config).contains("max_request_size cannot be zero"));
+    }
+
+    #[test]
+    fn zero_parallel_requests_is_rejected() {
+        let config = ValueSyncConfig {
+            parallel_requests: 0,
+            ..Default::default()
+        };
+
+        assert!(rejection_of(&config).contains("parallel_requests cannot be zero"));
+    }
+
+    #[test]
+    fn one_parallel_request_is_accepted() {
+        let config = ValueSyncConfig {
+            parallel_requests: 1,
+            ..Default::default()
+        };
+
+        assert!(validate_value_sync_config(&config).is_ok());
+    }
+
+    #[test]
+    fn zero_batch_size_is_rejected() {
+        let config = ValueSyncConfig {
+            batch_size: 0,
+            ..Default::default()
+        };
+
+        assert!(rejection_of(&config).contains("batch size cannot be zero"));
+    }
+
+    #[test]
+    fn zero_max_inbound_requests_per_window_is_rejected() {
+        let config = ValueSyncConfig {
+            max_inbound_requests_per_window: 0,
+            ..Default::default()
+        };
+
+        assert!(rejection_of(&config).contains("max_inbound_requests_per_window cannot be zero"));
+    }
+
+    #[test]
+    fn zero_inbound_request_rate_limit_window_is_rejected() {
+        let config = ValueSyncConfig {
+            inbound_request_rate_limit_window: Duration::ZERO,
+            ..Default::default()
+        };
+
+        assert!(rejection_of(&config).contains("inbound_request_rate_limit_window cannot be zero"));
+    }
+
+    #[test]
+    fn zero_concurrent_inbound_requests_is_rejected_with_pending_capacity() {
+        let config = ValueSyncConfig {
+            max_concurrent_inbound_requests: 0,
+            max_pending_inbound_requests: 1,
+            ..Default::default()
+        };
+
+        assert!(rejection_of(&config).contains("max_concurrent_inbound_requests cannot be zero"));
+    }
+
+    #[test]
+    fn zero_admission_capacity_is_rejected() {
+        let config = ValueSyncConfig {
+            max_concurrent_inbound_requests: 0,
+            max_pending_inbound_requests: 0,
+            ..Default::default()
+        };
+
+        assert!(rejection_of(&config).contains("admission capacity is zero"));
+    }
+
+    #[test]
+    fn rate_limit_window_smaller_than_its_burst_is_rejected() {
+        let config = ValueSyncConfig {
+            inbound_request_rate_limit_window: Duration::from_nanos(1),
+            max_inbound_requests_per_window: 2,
+            ..Default::default()
+        };
+
+        assert!(rejection_of(&config).contains("derived replenish interval must be non-zero"));
     }
 }
