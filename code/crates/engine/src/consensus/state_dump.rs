@@ -82,6 +82,10 @@ pub struct StateDump<Ctx: Context> {
 
     /// A queue of inputs for higher heights, buffered for future processing
     pub input_queue: BoundedQueue<Ctx::Height, ConsensusInput<Ctx>>,
+
+    /// Whether consensus is treating its inputs as replayed from the Write-Ahead Log,
+    /// which exempts them from the bounds that apply to network input
+    pub replaying_wal: bool,
 }
 
 impl<Ctx: Context> StateDump<Ctx> {
@@ -105,6 +109,7 @@ impl<Ctx: Context> StateDump<Ctx> {
             last_signed_precommit: state.last_signed_precommit.clone(),
             round_certificate: state.driver.round_certificate().cloned(),
             input_queue: state.input_queue.clone(),
+            replaying_wal: state.is_replaying_wal(),
         }
     }
 }

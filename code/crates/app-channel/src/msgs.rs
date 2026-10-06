@@ -9,7 +9,7 @@ use tokio::sync::oneshot;
 use tracing::error;
 
 use malachitebft_app::consensus::Role;
-use malachitebft_app::consensus::VoteExtensionError;
+use malachitebft_app::consensus::VoteExtensionVerdicts;
 use malachitebft_app::types::core::ValueOrigin;
 use malachitebft_app::types::MisbehaviorEvidence;
 use malachitebft_engine::consensus::state_dump::StateDump;
@@ -21,7 +21,9 @@ use malachitebft_engine::network::{
 };
 use malachitebft_engine::util::events::TxEvent;
 
-use crate::app::types::core::{CommitCertificate, Context, Round, ValueId, VoteExtensions};
+use crate::app::types::core::{
+    CommitCertificate, Context, Round, ValueId, VoteExtensionPolicy, VoteExtensions,
+};
 use crate::app::types::streaming::StreamMessage;
 use crate::app::types::sync::RawDecidedValue;
 use crate::app::types::{LocallyProposedValue, PeerId, ProposedValue};
@@ -262,28 +264,47 @@ pub enum AppMsg<Ctx: Context> {
     /// The application then returns a blob of data called a vote extension.
     /// This data is opaque to the consensus algorithm but can contain application-specific information.
     /// The proposer of the next block will receive all vote extensions along with the commit certificate.
+    ///
     ExtendVote {
         height: Ctx::Height,
         round: Round,
         value_id: ValueId<Ctx>,
+        /// Whether this height requires a vote extension.
+        vote_extension_policy: VoteExtensionPolicy,
+        /// The vote extension to attach.
+        /// Must be `Some` when `vote_extension_policy` is [`VoteExtensionPolicy::Required`].
         reply: Reply<Option<Ctx::Extension>>,
     },
 
-    /// Verify a vote extension
+    /// Verify a batch of vote extensions, all for the same height, round and
+    /// value.
     ///
-    /// If the vote extension is deemed invalid, the vote it was part of
-    /// will be discarded altogether.
-    VerifyVoteExtension {
-        /// The height for which the vote is.
+    /// A live precommit carries a single extension; a synced commit certificate
+    /// carries one per validator that signed it. Both arrive here, so the
+    /// application applies one rule to both and cannot accept on one path what
+    /// it rejects on the other.
+    ///
+    /// Each extension's signature has already been verified against the
+    /// validator's public key. What is asked here is whether the contents are
+    /// acceptable.
+    ///
+    /// A rejected extension discards the vote it was part of, or rejects the
+    /// certificate that carried it. A reply that does not line up with the
+    /// request is not applied: the live vote is dropped, and a synced
+    /// certificate is left unstored so the height is requested again without
+    /// treating the peer as faulty.
+    VerifyVoteExtensions {
+        /// The height for which the votes are.
         height: Ctx::Height,
-        /// The round for which the vote is.
+        /// The round for which the votes are.
         round: Round,
-        /// The ID of the value that the vote extension is for.
+        /// The ID of the value that the vote extensions are for.
         value_id: ValueId<Ctx>,
-        /// The vote extension to verify.
-        extension: Ctx::Extension,
-        /// Use this channel to send the result of the verification.
-        reply: Reply<Result<(), VoteExtensionError>>,
+        /// The vote extensions to verify, by the validator that produced each.
+        extensions: Vec<(Ctx::Address, Ctx::Extension)>,
+        /// Use this channel to send one result per extension, each carrying the
+        /// address it answers for, in the order the extensions were given.
+        reply: Reply<VoteExtensionVerdicts<Ctx>>,
     },
 
     /// Requests the application to re-stream a proposal that it has already seen.
@@ -314,8 +335,16 @@ pub enum AppMsg<Ctx: Context> {
     /// If this part completes the full proposal, the application MUST respond
     /// with the complete proposed value. Otherwise, it MUST respond with `None`.
     ReceivedProposalPart {
-        /// Peer whom the proposal part was received from
+        /// Peer that delivered this part (the neighbor that sent the frame).
+        ///
+        /// Use this for per-peer resource limits. Do not use it to group parts
+        /// of a multi-part stream: those parts can arrive through different
+        /// neighbors.
         from: PeerId,
+        /// Publisher declared in the message, when the transport provides one.
+        /// The parts of one proposal share it whichever peer relays each part,
+        /// so it is the key to group a multi-part stream on.
+        published_by: Option<PeerId>,
         /// Received proposal part, together with its stream metadata
         part: StreamMessage<Ctx::ProposalPart>,
         /// Channel for returning the complete value if the proposal is now complete
@@ -327,7 +356,12 @@ pub enum AppMsg<Ctx: Context> {
     /// This message includes a commit certificate containing the ID of
     /// the value that was decided on, the height and round at which it was decided,
     /// and the aggregated signatures of the validators that committed to it.
-    /// It also includes to the vote extensions received for that height.
+    ///
+    /// `extensions` are the vote extensions on the vote keeper's precommits for the
+    /// decided value **at emit time**. Under `VoteExtensionPolicy::Required` that set
+    /// matches the committers. Late gossip during a finalization window may enlarge
+    /// the set on [`AppMsg::Finalized`]; Sync / no `target_time` / already-overrun
+    /// keep this Decided-time snapshot.
     ///
     /// The application MUST commit the decision and then reply to
     /// acknowledge that the commit is complete. The sync actor will only be notified
@@ -336,7 +370,7 @@ pub enum AppMsg<Ctx: Context> {
         /// The certificate for the decided value
         certificate: CommitCertificate<Ctx>,
 
-        /// The vote extensions received for that height
+        /// Vote extensions on the deciding precommits at emit time
         extensions: VoteExtensions<Ctx>,
 
         /// Channel for acknowledging that the decision has been committed.
@@ -348,7 +382,8 @@ pub enum AppMsg<Ctx: Context> {
     /// This message is sent when the target time for the height has been reached,
     /// which may include a delay between `Decided` and `Finalized` messages.
     /// During this delay, additional precommits may have been collected. The certificate may contain more
-    /// signatures than the one sent in the previous Decided message.
+    /// signatures than the one sent in the previous Decided message, and late gossip
+    /// precommits may also enlarge `extensions` relative to [`AppMsg::Decided`].
     ///
     /// In response to this message, the application MUST send a [`Next`]
     /// message back to consensus, instructing it to either start the next height if
@@ -360,7 +395,7 @@ pub enum AppMsg<Ctx: Context> {
         /// The certificate with extended signatures collected during finalization period
         certificate: CommitCertificate<Ctx>,
 
-        /// The vote extensions received for that height (including additional ones)
+        /// Vote extensions at finalize time (may include late gossip upgrades)
         extensions: VoteExtensions<Ctx>,
 
         /// Misbehavior evidence observed since last decide

@@ -103,10 +103,18 @@ persistent_peers = []
 # Override with MALACHITE__CONSENSUS__P2P__TRANSPORT env variable
 transport = "tcp"
 
-# The maximum size of messages to send over pub-sub
+# The maximum wire size of messages to send over pub-sub
 # Must be larger than the maximum block part size.
 # Override with MALACHITE__CONSENSUS__P2P__PUBSUB_MAX_SIZE env variable
 pubsub_max_size = "4 MiB"
+
+# These optional values set application-payload limits for GossipSub topics.
+# Malachite adds signed-message overhead to each value.
+# Set proposal_parts to the maximum size of an encoded block-part payload.
+# If the application does not define a safe bound, leave consensus and liveness unset.
+# Value sync uses Broadcast and the global pubsub_max_size wire limit.
+# [consensus.p2p.pubsub_max_size_per_topic]
+# proposal_parts = "132 KiB"
 
 # The maximum size of messages to send over RPC
 # Must be larger than the maximum block size.
@@ -133,7 +141,7 @@ enabled = true
 # max_connections_per_ip = 5
 
 # Minimum time between reconnections from the same IP address.
-# After all connections from an IP close, new inbound connections
+# After any inbound connection from an IP closes, new inbound connections
 # are rejected until this duration has elapsed. Persistent peers are exempt.
 # Defaults to 30s.
 # ip_throttle_duration = "30s"
@@ -234,7 +242,10 @@ max_request_size = "1 MiB"
 # Override with MALACHITE__VALUE_SYNC__MAX_RESPONSE_SIZE env variable
 max_response_size = "10 MiB"
 
-# The maximum number of requests to send in parallel when syncing values.
+# The maximum number of outbound requests to send in parallel when syncing
+# values, and — reused symmetrically — the per-peer cap on concurrent inbound
+# value requests we accept. Requests past the inbound cap are rejected with an
+# empty response so the peer can retry.
 # Override with MALACHITE__VALUE_SYNC__PARALLEL_REQUESTS env variable
 parallel_requests = 5
 
@@ -251,6 +262,32 @@ inactive_threshold = "60s"
 # The number of values to request in a single batch.
 # Override with MALACHITE__VALUE_SYNC__BATCH_SIZE env variable
 batch_size = 5
+
+# Rolling window over which inbound value requests from each peer are counted.
+# Pair with `max_inbound_requests_per_window` to get a per-peer request rate cap
+# (1000 / 10s = 100 req/s sustained at the default settings).
+# Override with MALACHITE__VALUE_SYNC__INBOUND_REQUEST_RATE_LIMIT_WINDOW env variable
+inbound_request_rate_limit_window = "10s"
+
+# Maximum inbound value requests accepted per peer within each rate-limit window.
+# Sized for a single honest peer catching up from scratch; excess requests get
+# an empty response so the peer can retry.
+# Override with MALACHITE__VALUE_SYNC__MAX_INBOUND_REQUESTS_PER_WINDOW env variable
+max_inbound_requests_per_window = 1000
+
+# Maximum number of inbound value requests executing concurrently against the
+# host. This is the host-load guard — bounds concurrent host calls and the
+# associated tokio tasks / oneshot channels regardless of how many peers are
+# requesting. Requests that pass the rate limiter but exceed this cap wait for
+# a slot (up to `max_pending_inbound_requests` waiters).
+# Override with MALACHITE__VALUE_SYNC__MAX_CONCURRENT_INBOUND_REQUESTS env variable
+max_concurrent_inbound_requests = 32
+
+# Maximum number of inbound value requests that may wait for a concurrent slot
+# once the concurrent cap is reached. Requests past `concurrent + pending` are
+# rejected outright with an empty response.
+# Override with MALACHITE__VALUE_SYNC__MAX_PENDING_INBOUND_REQUESTS env variable
+max_pending_inbound_requests = 64
 
 #######################################################
 ###          Mempool Configuration Options          ###

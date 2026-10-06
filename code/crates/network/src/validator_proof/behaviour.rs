@@ -27,9 +27,9 @@ use super::codec::{Codec, ProofRequest};
 /// timeout so a stalled inbound read becomes an in-band malformed request.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Maximum concurrent proof streams per connection. Normal traffic is one
-/// inbound and one outbound proof per connection; the headroom bounds how many
-/// streams a single connection can hold open at once.
+/// Maximum concurrent proof streams per connection, inbound and outbound.
+/// Every new connection sends one copy per open connection, so a burst can
+/// exceed the cap. The extra copies are redundant, so the loss is safe.
 const MAX_CONCURRENT_STREAMS: usize = 4;
 
 /// Events emitted by the Validator Proof behaviour.
@@ -54,7 +54,9 @@ pub enum Error {
 enum RequestOutcome {
     /// First valid proof from this peer; deliver it.
     Deliver(Bytes),
-    /// Reject and disconnect (malformed, or a second proof this session).
+    /// Already accepted a proof from this peer this session.
+    Ignore,
+    /// Reject and disconnect (malformed).
     Reject(&'static str),
 }
 
@@ -118,19 +120,24 @@ impl Behaviour {
                 if self.proofs_received.insert(peer) {
                     RequestOutcome::Deliver(bytes)
                 } else {
-                    RequestOutcome::Reject("duplicate validator proof")
+                    RequestOutcome::Ignore
                 }
             }
         }
     }
 
-    fn on_connection_established(&mut self, peer: PeerId) {
+    /// Send our proof once per established connection. `request_response`
+    /// routes with `request_id % n`, so a single send can miss the new socket.
+    fn on_connection_established(&mut self, peer: PeerId, other_established: usize) {
         let Some(proof_bytes) = self.proof_bytes.clone() else {
             return;
         };
-        debug!(%peer, "Sending validator proof on first connection");
-        self.inner
-            .send_request(&peer, ProofRequest::Proof(proof_bytes));
+        let sends = outbound_sends_for_established(other_established);
+        debug!(%peer, sends, "Sending validator proof on new connection");
+        for _ in 0..sends {
+            self.inner
+                .send_request(&peer, ProofRequest::Proof(proof_bytes.clone()));
+        }
     }
 
     fn on_last_connection_closed(&mut self, peer: PeerId) {
@@ -163,6 +170,10 @@ impl Behaviour {
                             proof_bytes,
                         }))
                     }
+                    RequestOutcome::Ignore => {
+                        trace!(%peer, "Ignoring duplicate validator proof this session");
+                        None
+                    }
                     RequestOutcome::Reject(reason) => {
                         warn!(%peer, reason, "Rejecting validator proof, closing connection");
                         Some(ToSwarm::CloseConnection {
@@ -192,6 +203,11 @@ impl Behaviour {
             request_response::Event::ResponseSent { .. } => None,
         }
     }
+}
+
+/// One outbound send per established connection (`other_established + 1`).
+fn outbound_sends_for_established(other_established: usize) -> usize {
+    other_established + 1
 }
 
 impl Default for Behaviour {
@@ -264,10 +280,8 @@ impl NetworkBehaviour for Behaviour {
 
     fn on_swarm_event(&mut self, event: FromSwarm) {
         // Capture the peer lifecycle transitions before the event is consumed.
-        let first_connection = match &event {
-            FromSwarm::ConnectionEstablished(conn) if conn.other_established == 0 => {
-                Some(conn.peer_id)
-            }
+        let new_connection = match &event {
+            FromSwarm::ConnectionEstablished(conn) => Some((conn.peer_id, conn.other_established)),
             _ => None,
         };
         let last_connection = match &event {
@@ -281,8 +295,8 @@ impl NetworkBehaviour for Behaviour {
         // send targets the established connection.
         self.inner.on_swarm_event(event);
 
-        if let Some(peer) = first_connection {
-            self.on_connection_established(peer);
+        if let Some((peer, other_established)) = new_connection {
+            self.on_connection_established(peer, other_established);
         }
         if let Some(peer) = last_connection {
             self.on_last_connection_closed(peer);
@@ -326,7 +340,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn first_proof_delivers_then_duplicate_rejected() {
+    fn outbound_sends_cover_every_established_connection() {
+        assert_eq!(outbound_sends_for_established(0), 1);
+        assert_eq!(outbound_sends_for_established(1), 2);
+        assert_eq!(outbound_sends_for_established(4), 5);
+    }
+
+    #[test]
+    fn first_proof_delivers_then_duplicate_is_ignored() {
         let mut b = Behaviour::with_default_protocol();
         let peer = PeerId::random();
 
@@ -337,7 +358,7 @@ mod tests {
         assert!(b.proofs_received.contains(&peer));
         assert!(matches!(
             b.classify_request(peer, ProofRequest::Proof(Bytes::from_static(b"proof"))),
-            RequestOutcome::Reject(_)
+            RequestOutcome::Ignore
         ));
     }
 
@@ -393,7 +414,7 @@ mod tests {
         ));
         assert!(matches!(
             b.classify_request(peer, ProofRequest::Proof(Bytes::from_static(b"proof"))),
-            RequestOutcome::Reject(_)
+            RequestOutcome::Ignore
         ));
 
         b.on_last_connection_closed(peer);

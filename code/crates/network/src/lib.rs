@@ -56,8 +56,17 @@ use handle::Handle;
 const METRICS_PREFIX: &str = "malachitebft_network";
 const DISCOVERY_METRICS_PREFIX: &str = "malachitebft_discovery";
 
+/// Cadence of the network task's housekeeping timer.
+///
+/// TODO: Using 1 second for now, for faster reconnection during testing.
+/// Maybe adjust via config in the future.
+const PERIODIC_TICK: Duration = Duration::from_secs(1);
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProtocolNames {
+    /// Advertised as the `protocol_version` field of the node's Identify payload,
+    /// not negotiated as a stream protocol — gossipsub and the channel names are
+    /// independent of it. A peer advertising a different value is disconnected.
     pub consensus: String,
     pub discovery_kad: String,
     pub discovery_regres: String,
@@ -206,6 +215,18 @@ impl NetworkIdentity {
     }
 }
 
+/// This structure contains optional application-payload limits for GossipSub topics.
+///
+/// Malachite adds signed-message overhead when it sets the corresponding wire limit. Topics without
+/// a per-topic limit use the global wire limit in [`Config::pubsub_max_size`]. Value sync always uses
+/// the Broadcast protocol, so it has no per-topic GossipSub limit.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct PubSubMaxSizePerTopic {
+    pub consensus: Option<usize>,
+    pub proposal_parts: Option<usize>,
+    pub liveness: Option<usize>,
+}
+
 #[derive(Clone, Debug)]
 pub struct Config {
     pub listen_addr: Multiaddr,
@@ -219,12 +240,42 @@ pub struct Config {
     pub channel_names: ChannelNames,
     pub rpc_max_size: usize,
     pub pubsub_max_size: usize,
+    pub pubsub_max_size_per_topic: PubSubMaxSizePerTopic,
+    pub sync_request_timeout: Duration,
+    pub sync_max_request_size: usize,
+    pub sync_parallel_requests: usize,
     pub enable_consensus: bool,
     pub enable_sync: bool,
     pub protocol_names: ProtocolNames,
 }
 
+/// This error reports that a per-topic payload limit does not fit the global wire limit.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, thiserror::Error)]
+pub enum PubSubMaxSizeError {
+    #[error(
+        "pub-sub payload limit for `{field}` is {payload_size} B. Signed-message overhead makes it larger than `pubsub_max_size` of {global} B"
+    )]
+    ExceedsGlobal {
+        field: &'static str,
+        payload_size: usize,
+        global: usize,
+    },
+}
+
 impl Config {
+    /// Build the `sync::Config` handed to the libp2p sync behaviour.
+    ///
+    /// Response size still comes from [`Self::rpc_max_size`]. Timeout, request
+    /// size and the parallel-request stream budget come from the operator
+    /// values stored on this config, not from `sync::Config::default()`.
+    pub(crate) fn sync_transport_config(&self) -> sync::Config {
+        sync::Config::default()
+            .with_max_response_size(self.rpc_max_size)
+            .with_request_timeout(self.sync_request_timeout)
+            .with_max_request_size(self.sync_max_request_size)
+            .with_parallel_requests(self.sync_parallel_requests)
+    }
+
     fn apply_to_swarm(&self, cfg: swarm::Config) -> swarm::Config {
         cfg.with_idle_connection_timeout(self.idle_connection_timeout)
     }
@@ -300,7 +351,12 @@ pub enum Event {
     PeerDisconnected(PeerId),
     PeerSubscribed(PeerId, Channel),
     PeerUnsubscribed(PeerId, Channel),
-    ConsensusMessage(Channel, PeerId, Bytes),
+    /// A consensus-channel message.
+    ///
+    /// The first `PeerId` is the delivering neighbor. The `Option` is the
+    /// publisher declared in the message (`message.source`), or `None` when the
+    /// transport carries none. They differ once a message is relayed.
+    ConsensusMessage(Channel, PeerId, Option<PeerId>, Bytes),
     LivenessMessage(Channel, PeerId, Bytes),
     Sync(sync::RawMessage),
     /// libp2p reported that an outbound sync request to `peer` could not be
@@ -310,6 +366,12 @@ pub enum Event {
         request_id: OutboundRequestId,
         peer: PeerId,
         reason: sync::OutboundFailureReason,
+    },
+    /// libp2p reported that the connection carrying an inbound sync request
+    /// from `peer` closed before a response was sent.
+    SyncInboundRequestFailed {
+        request_id: InboundRequestId,
+        peer: PeerId,
     },
     /// A validator proof received from a peer (one-way, no response expected).
     ValidatorProofReceived {
@@ -324,6 +386,9 @@ pub enum CtrlMsg {
     Broadcast(Channel, Bytes),
     SyncRequest(PeerId, Bytes, oneshot::Sender<OutboundRequestId>),
     SyncReply(InboundRequestId, Bytes),
+    /// Drop the response channel held for an inbound sync request that will not
+    /// be answered, releasing the peer's inbound stream slot.
+    SyncCancelReply(InboundRequestId),
     UpdateValidatorSet(Vec<ValidatorInfo>),
     /// Validator proof verification result. If Valid, public_key should be Some.
     /// The public_key is stored and used to check validator set membership.
@@ -449,6 +514,31 @@ pub async fn spawn(
     Ok(Handle::new(peer_id, tx_ctrl, rx_event, task_handle))
 }
 
+/// Scatter sends `Subscribe` only on a peer's first connection. Retry when a
+/// further connection opens (`num_established` includes the new one), so the
+/// announcement can land on a connection other than the first.
+fn sync_subscribe_reannounce_on_open(enable_sync: bool, num_established: u32) -> bool {
+    enable_sync && num_established > 1
+}
+
+/// Scatter does not retry when one connection closes and another remains
+/// (`num_established` is the count still up). A failed oneshot closes only
+/// that connection, so re-send while the peer is still connected.
+fn sync_subscribe_reannounce_on_close(enable_sync: bool, num_established: u32) -> bool {
+    enable_sync && num_established > 0
+}
+
+fn reannounce_sync_subscription(swarm: &mut swarm::Swarm<Behaviour>, config: &Config) {
+    if let Err(e) = pubsub::subscribe(
+        swarm,
+        PubSubProtocol::Broadcast,
+        &[Channel::Sync],
+        &config.channel_names,
+    ) {
+        error!("Error re-announcing Sync subscribe: {e}");
+    }
+}
+
 async fn run(
     config: Config,
     metrics: Metrics,
@@ -490,9 +580,7 @@ async fn run(
     }
 
     // Timer to perform periodic network operations (peer reconnection, metrics updates, etc.)
-    // TODO: Using 1 second for now, for faster reconnection during testing
-    // Maybe adjust via config in the future
-    let mut periodic_timer = tokio::time::interval(std::time::Duration::from_secs(1));
+    let mut periodic_timer = tokio::time::interval(PERIODIC_TICK);
     let mut periodic_tick_count: u32 = 0;
 
     loop {
@@ -563,12 +651,19 @@ async fn handle_ctrl_msg(
     match msg {
         CtrlMsg::Publish(channel, data) => {
             let msg_size = data.len();
+            let max_size = pubsub::publish_max_payload_size(
+                config.pubsub_protocol,
+                channel,
+                config.pubsub_max_size,
+                config.pubsub_max_size_per_topic,
+            );
             let result = pubsub::publish(
                 swarm,
                 config.pubsub_protocol,
                 channel,
                 &config.channel_names,
                 data,
+                max_size,
             );
 
             match result {
@@ -586,12 +681,19 @@ async fn handle_ctrl_msg(
             }
 
             let msg_size = data.len();
+            let max_size = pubsub::publish_max_payload_size(
+                PubSubProtocol::Broadcast,
+                channel,
+                config.pubsub_max_size,
+                config.pubsub_max_size_per_topic,
+            );
             let result = pubsub::publish(
                 swarm,
                 PubSubProtocol::Broadcast,
                 channel,
                 &config.channel_names,
                 data,
+                max_size,
             );
 
             match result {
@@ -638,6 +740,14 @@ async fn handle_ctrl_msg(
             ControlFlow::Continue(())
         }
 
+        CtrlMsg::SyncCancelReply(request_id) => {
+            if state.sync_channels.remove(&request_id).is_some() {
+                debug!(%request_id, "Dropped response channel for Sync request");
+            }
+
+            ControlFlow::Continue(())
+        }
+
         CtrlMsg::UpdateValidatorSet(validators) => {
             // Process the validator set update and get peers that need score updates
             let validator_set = validators.into_iter().collect();
@@ -670,14 +780,21 @@ async fn handle_ctrl_msg(
                 return ControlFlow::Continue(());
             }
 
-            // If signature is valid, store the proof and check validator set membership
+            // If signature is valid, store the proof and check validator set membership.
+            // Close is handled on the swarm loop while this verdict is outstanding;
+            // do not buffer a key for a peer that has already gone.
             if let Some(public_key) = public_key {
-                if let Some(new_score) = state.record_verified_proof(&libp2p_peer_id, public_key) {
-                    set_peer_score(swarm, libp2p_peer_id, new_score);
-                }
+                let connected = swarm.is_connected(&libp2p_peer_id);
+                if connected {
+                    if let Some(new_score) =
+                        state.record_verified_proof(&libp2p_peer_id, public_key)
+                    {
+                        set_peer_score(swarm, libp2p_peer_id, new_score);
+                    }
 
-                // Promote newly verified validator from ephemeral to inbound
-                state.try_prioritize_peer(libp2p_peer_id);
+                    // Promote newly verified validator from ephemeral to inbound
+                    state.try_prioritize_peer(libp2p_peer_id);
+                }
             }
 
             ControlFlow::Continue(())
@@ -795,9 +912,14 @@ async fn handle_swarm_event(
 
             // Set a low default score immediately for gossipsub mesh formation
             // This will be upgraded later when Identify completes
-            if num_established.get() == 1 {
+            let established = num_established.get();
+            if established == 1 {
                 // Only set score on first connection to this peer
                 set_default_peer_score(swarm, peer_id);
+            }
+
+            if sync_subscribe_reannounce_on_open(config.enable_sync, established) {
+                reannounce_sync_subscription(swarm, config);
             }
 
             state
@@ -855,6 +977,8 @@ async fn handle_swarm_event(
                     error!("Error sending peer disconnected event to handle: {e}");
                     return ControlFlow::Break(());
                 }
+            } else if sync_subscribe_reannounce_on_close(config.enable_sync, num_established) {
+                reannounce_sync_subscription(swarm, config);
             }
         }
 
@@ -907,10 +1031,12 @@ async fn handle_swarm_event(
                         }
                     }
                 } else {
-                    trace!(
-                        "Peer {peer_id} is using incompatible protocol version: {:?}",
-                        info.protocol_version
+                    warn!(
+                        %peer_id,
+                        protocol_version = ?info.protocol_version,
+                        "Incompatible protocol version, disconnecting peer"
                     );
+                    let _ = swarm.disconnect_peer_id(peer_id);
                 }
             }
 
@@ -941,7 +1067,7 @@ async fn handle_swarm_event(
         }
 
         SwarmEvent::Behaviour(NetworkEvent::Sync(event)) => {
-            return handle_sync_event(event, metrics, swarm, state, tx_event).await;
+            return handle_sync_event(event, state, tx_event).await;
         }
 
         SwarmEvent::Behaviour(NetworkEvent::ValidatorProof(event)) => {
@@ -958,6 +1084,42 @@ async fn handle_swarm_event(
     }
 
     ControlFlow::Continue(())
+}
+
+/// Build an event from an inbound GossipSub message.
+///
+/// `propagation_source` is the peer whose connection delivered the frame.
+/// `message.source` is the publisher declared inside the message, absent in
+/// anonymous mode. Both are reported; they differ once a message is relayed.
+fn event_from_gossipsub_message(
+    propagation_source: libp2p::PeerId,
+    message_id: gossipsub::MessageId,
+    message: gossipsub::Message,
+    config: &Config,
+) -> Option<Event> {
+    let Some(channel) = Channel::from_gossipsub_topic_hash(&message.topic, &config.channel_names)
+    else {
+        trace!(
+            "Received message {message_id} from {propagation_source} on different channel: {}",
+            message.topic
+        );
+        return None;
+    };
+
+    let peer_id = PeerId::from_libp2p(&propagation_source);
+    let published_by = message.source.as_ref().map(PeerId::from_libp2p);
+
+    trace!(
+        "Received message {message_id} from {peer_id} on channel {channel} of {} bytes",
+        message.data.len()
+    );
+
+    let payload = Bytes::from(message.data);
+    Some(if channel == Channel::Liveness {
+        Event::LivenessMessage(channel, peer_id, payload)
+    } else {
+        Event::ConsensusMessage(channel, peer_id, published_by, payload)
+    })
 }
 
 async fn handle_gossipsub_event(
@@ -988,36 +1150,14 @@ async fn handle_gossipsub_event(
         }
 
         gossipsub::Event::Message {
+            propagation_source,
             message_id,
             message,
-            ..
         } => {
-            let Some(peer_id) = message.source else {
-                return ControlFlow::Continue(());
-            };
-
-            let Some(channel) =
-                Channel::from_gossipsub_topic_hash(&message.topic, &config.channel_names)
+            let Some(event) =
+                event_from_gossipsub_message(propagation_source, message_id, message, config)
             else {
-                trace!(
-                    "Received message {message_id} from {peer_id} on different channel: {}",
-                    message.topic
-                );
-
                 return ControlFlow::Continue(());
-            };
-
-            trace!(
-                "Received message {message_id} from {peer_id} on channel {channel} of {} bytes",
-                message.data.len()
-            );
-
-            let peer_id = PeerId::from_libp2p(&peer_id);
-
-            let event = if channel == Channel::Liveness {
-                Event::LivenessMessage(channel, peer_id, Bytes::from(message.data))
-            } else {
-                Event::ConsensusMessage(channel, peer_id, Bytes::from(message.data))
             };
 
             if let Err(e) = tx_event.send(event).await {
@@ -1048,14 +1188,16 @@ async fn handle_broadcast_event(
     event: broadcast::Event,
     config: &Config,
     _metrics: &Metrics,
-    _swarm: &mut swarm::Swarm<Behaviour>,
+    swarm: &mut swarm::Swarm<Behaviour>,
     _state: &mut State,
     tx_event: &mpsc::Sender<Event>,
 ) -> ControlFlow<()> {
     match event {
         broadcast::Event::Subscribed(peer_id, topic) => {
-            let Some(channel) = Channel::from_broadcast_topic(&topic, &config.channel_names) else {
-                trace!("Peer {peer_id} tried to subscribe to unknown topic: {topic:?}");
+            let Some(channel) =
+                pubsub::accepted_broadcast_channel(swarm, &topic, &config.channel_names)
+            else {
+                trace!("Peer {peer_id} subscribed to ignored broadcast topic: {topic:?}");
                 return ControlFlow::Continue(());
             };
 
@@ -1070,8 +1212,10 @@ async fn handle_broadcast_event(
         }
 
         broadcast::Event::Unsubscribed(peer_id, topic) => {
-            let Some(channel) = Channel::from_broadcast_topic(&topic, &config.channel_names) else {
-                trace!("Peer {peer_id} tried to unsubscribe from unknown topic: {topic:?}");
+            let Some(channel) =
+                pubsub::accepted_broadcast_channel(swarm, &topic, &config.channel_names)
+            else {
+                trace!("Peer {peer_id} unsubscribed from ignored broadcast topic: {topic:?}");
                 return ControlFlow::Continue(());
             };
 
@@ -1089,8 +1233,10 @@ async fn handle_broadcast_event(
         }
 
         broadcast::Event::Received(peer_id, topic, message) => {
-            let Some(channel) = Channel::from_broadcast_topic(&topic, &config.channel_names) else {
-                trace!("Received message from {peer_id} on different channel: {topic:?}");
+            let Some(channel) =
+                pubsub::accepted_broadcast_channel(swarm, &topic, &config.channel_names)
+            else {
+                trace!("Received message from {peer_id} on ignored broadcast topic: {topic:?}");
                 return ControlFlow::Continue(());
             };
 
@@ -1101,10 +1247,11 @@ async fn handle_broadcast_event(
 
             let peer_id = PeerId::from_libp2p(&peer_id);
 
+            // Broadcast never relays, so the delivering peer is the publisher.
             let event = if channel == Channel::Liveness {
                 Event::LivenessMessage(channel, peer_id, message)
             } else {
-                Event::ConsensusMessage(channel, peer_id, message)
+                Event::ConsensusMessage(channel, peer_id, Some(peer_id), message)
             };
 
             if let Err(e) = tx_event.send(event).await {
@@ -1119,8 +1266,6 @@ async fn handle_broadcast_event(
 
 async fn handle_sync_event(
     event: sync::Event,
-    _metrics: &Metrics,
-    _swarm: &mut swarm::Swarm<Behaviour>,
     state: &mut State,
     tx_event: &mpsc::Sender<Event>,
 ) -> ControlFlow<()> {
@@ -1200,6 +1345,25 @@ async fn handle_sync_event(
         } => {
             debug!(%request_id, %peer, ?error, "Inbound sync request failed");
             state.sync_channels.remove(&request_id);
+
+            if !matches!(
+                error,
+                libp2p::request_response::InboundFailure::ConnectionClosed
+            ) {
+                return ControlFlow::Continue(());
+            }
+
+            if let Err(e) = tx_event
+                .send(Event::SyncInboundRequestFailed {
+                    request_id,
+                    peer: PeerId::from_libp2p(&peer),
+                })
+                .await
+            {
+                error!("Error sending inbound sync request failure to handle: {e}");
+                return ControlFlow::Break(());
+            }
+
             ControlFlow::Continue(())
         }
     }
@@ -1269,6 +1433,129 @@ impl PeerIdExt for PeerId {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::tests::{test_inbound_request_id, test_state};
+    use libp2p::request_response::InboundFailure;
+
+    fn gossip_test_config() -> Config {
+        Config {
+            listen_addr: Multiaddr::empty(),
+            persistent_peers: vec![],
+            persistent_peers_only: false,
+            discovery: DiscoveryConfig::new(false),
+            idle_connection_timeout: Duration::from_secs(60),
+            transport: TransportProtocol::Tcp,
+            gossipsub: GossipSubConfig::default(),
+            pubsub_protocol: PubSubProtocol::GossipSub,
+            channel_names: ChannelNames::default(),
+            rpc_max_size: 10 * 1024 * 1024,
+            pubsub_max_size: 4 * 1024 * 1024,
+            pubsub_max_size_per_topic: Default::default(),
+            sync_request_timeout: Duration::from_secs(10),
+            sync_max_request_size: 1024 * 1024,
+            sync_parallel_requests: 5,
+            enable_consensus: true,
+            enable_sync: false,
+            protocol_names: ProtocolNames::default(),
+        }
+    }
+
+    #[test]
+    fn sync_transport_config_uses_the_operator_limits() {
+        let mut config = Config {
+            listen_addr: Multiaddr::empty(),
+            persistent_peers: vec![],
+            persistent_peers_only: false,
+            discovery: DiscoveryConfig::new(false),
+            idle_connection_timeout: Duration::from_secs(60),
+            transport: TransportProtocol::Tcp,
+            gossipsub: GossipSubConfig::default(),
+            pubsub_protocol: PubSubProtocol::GossipSub,
+            channel_names: ChannelNames::default(),
+            rpc_max_size: 10 * 1024 * 1024,
+            pubsub_max_size: 4 * 1024 * 1024,
+            pubsub_max_size_per_topic: Default::default(),
+            sync_request_timeout: Duration::from_secs(10),
+            sync_max_request_size: 1024 * 1024,
+            sync_parallel_requests: 5,
+            enable_consensus: true,
+            enable_sync: false,
+            protocol_names: ProtocolNames::default(),
+        };
+        config.rpc_max_size = 3 * 1024 * 1024;
+        config.sync_request_timeout = Duration::from_secs(1);
+        config.sync_max_request_size = 2048;
+        config.sync_parallel_requests = 7;
+
+        let sync = config.sync_transport_config();
+        assert_eq!(sync.max_response_size, 3 * 1024 * 1024);
+        assert_eq!(sync.request_timeout, Duration::from_secs(1));
+        assert_eq!(sync.max_request_size, 2048);
+        assert_eq!(sync.parallel_requests, 7);
+    }
+
+    /// Build an `InboundFailure` sync event for `request_id`.
+    fn inbound_failure_event(request_id: InboundRequestId, error: InboundFailure) -> sync::Event {
+        sync::Event::InboundFailure {
+            peer: libp2p::PeerId::random(),
+            connection_id: libp2p::swarm::ConnectionId::new_unchecked(0),
+            request_id,
+            error,
+        }
+    }
+
+    #[tokio::test]
+    async fn handle_sync_event_reports_inbound_connection_closed() {
+        let (tx_event, mut rx_event) = mpsc::channel::<Event>(1);
+        let mut state = test_state();
+        let request_id = test_inbound_request_id(1);
+
+        let result = handle_sync_event(
+            inbound_failure_event(request_id, InboundFailure::ConnectionClosed),
+            &mut state,
+            &tx_event,
+        )
+        .await;
+        assert!(matches!(result, ControlFlow::Continue(())));
+
+        let forwarded = rx_event.recv().await.expect("event forwarded to engine");
+        match forwarded {
+            Event::SyncInboundRequestFailed {
+                request_id: forwarded_id,
+                ..
+            } => assert_eq!(forwarded_id, request_id),
+            other => panic!("unexpected event: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn handle_sync_event_does_not_report_inbound_timeout() {
+        let (tx_event, mut rx_event) = mpsc::channel::<Event>(1);
+        let mut state = test_state();
+
+        let result = handle_sync_event(
+            inbound_failure_event(test_inbound_request_id(1), InboundFailure::Timeout),
+            &mut state,
+            &tx_event,
+        )
+        .await;
+        assert!(matches!(result, ControlFlow::Continue(())));
+        assert!(rx_event.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn handle_sync_event_breaks_when_event_receiver_dropped() {
+        let (tx_event, rx_event) = mpsc::channel::<Event>(1);
+        drop(rx_event);
+        let mut state = test_state();
+
+        let result = handle_sync_event(
+            inbound_failure_event(test_inbound_request_id(1), InboundFailure::ConnectionClosed),
+            &mut state,
+            &tx_event,
+        )
+        .await;
+        assert!(matches!(result, ControlFlow::Break(())));
+    }
 
     #[tokio::test]
     async fn handle_validator_proof_event_breaks_when_event_receiver_dropped() {
@@ -1305,6 +1592,90 @@ mod tests {
             } => {
                 assert_eq!(peer_id, PeerId::from_libp2p(&peer));
                 assert_eq!(proof_bytes.as_ref(), b"proof");
+            }
+            other => panic!("unexpected event: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn sync_subscribe_reannounce_skips_when_sync_is_disabled() {
+        assert!(!sync_subscribe_reannounce_on_open(false, 2));
+        assert!(!sync_subscribe_reannounce_on_close(false, 1));
+    }
+
+    #[test]
+    fn sync_subscribe_reannounce_skips_the_first_and_last_connection() {
+        assert!(!sync_subscribe_reannounce_on_open(true, 1));
+        assert!(!sync_subscribe_reannounce_on_close(true, 0));
+    }
+
+    #[test]
+    fn sync_subscribe_reannounce_retries_while_another_connection_remains() {
+        assert!(sync_subscribe_reannounce_on_open(true, 2));
+        assert!(sync_subscribe_reannounce_on_close(true, 1));
+    }
+
+    fn gossip_message(
+        topic: gossipsub::TopicHash,
+        source: Option<libp2p::PeerId>,
+    ) -> gossipsub::Message {
+        gossipsub::Message {
+            source,
+            data: b"part".to_vec(),
+            sequence_number: Some(1),
+            topic,
+        }
+    }
+
+    #[test]
+    fn gossip_event_uses_propagation_source_not_declared_source() {
+        let config = gossip_test_config();
+        let deliverer = libp2p::PeerId::random();
+        let declared = libp2p::PeerId::random();
+        let topic = Channel::ProposalParts
+            .to_gossipsub_topic(&config.channel_names)
+            .hash();
+
+        let event = event_from_gossipsub_message(
+            deliverer,
+            gossipsub::MessageId::new(b"id"),
+            gossip_message(topic, Some(declared)),
+            &config,
+        )
+        .expect("known topic");
+
+        match event {
+            Event::ConsensusMessage(Channel::ProposalParts, from, published_by, data) => {
+                assert_eq!(from, PeerId::from_libp2p(&deliverer));
+                assert_ne!(from, PeerId::from_libp2p(&declared));
+                assert_eq!(published_by, Some(PeerId::from_libp2p(&declared)));
+                assert_eq!(data.as_ref(), b"part");
+            }
+            other => panic!("unexpected event: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn gossip_event_attributes_anonymous_message_to_deliverer() {
+        let config = gossip_test_config();
+        let deliverer = libp2p::PeerId::random();
+        let topic = Channel::Consensus
+            .to_gossipsub_topic(&config.channel_names)
+            .hash();
+
+        let event = event_from_gossipsub_message(
+            deliverer,
+            gossipsub::MessageId::new(b"anon"),
+            gossip_message(topic, None),
+            &config,
+        )
+        .expect("known topic");
+
+        match event {
+            Event::ConsensusMessage(Channel::Consensus, from, published_by, data) => {
+                assert_eq!(from, PeerId::from_libp2p(&deliverer));
+                assert_eq!(published_by, None);
+                assert_eq!(data.as_ref(), b"part");
             }
             other => panic!("unexpected event: {other:?}"),
         }

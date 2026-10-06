@@ -70,6 +70,16 @@ impl CtrlHandle {
         Ok(())
     }
 
+    pub async fn sync_cancel_reply(
+        &self,
+        request_id: InboundRequestId,
+    ) -> Result<(), eyre::Report> {
+        self.tx_ctrl
+            .send(CtrlMsg::SyncCancelReply(request_id))
+            .await?;
+        Ok(())
+    }
+
     pub async fn update_validator_set(
         &self,
         validators: Vec<crate::ValidatorInfo>,

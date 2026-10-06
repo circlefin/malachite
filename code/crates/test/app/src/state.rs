@@ -273,12 +273,13 @@ impl State {
     pub async fn received_proposal_part(
         &mut self,
         from: PeerId,
+        published_by: Option<PeerId>,
         part: StreamMessage<ProposalPart>,
     ) -> eyre::Result<Option<ProposedValue<TestContext>>> {
         let sequence = part.sequence;
 
         // Check if we have a full proposal
-        let Some(parts) = self.streams_map.insert(from, part) else {
+        let Some(parts) = self.streams_map.insert(from, published_by, part) else {
             return Ok(None);
         };
 

@@ -21,6 +21,17 @@ pub enum VoteType {
 ///
 /// Votes are signed messages from validators for a particular value which
 /// include information about the validator signing it.
+///
+/// # Equality and write-ahead log replay
+///
+/// `Eq` must distinguish votes only by content that consensus re-derives deterministically.
+/// Replaying the write-ahead log re-derives every vote this node cast before a crash.
+/// The re-derived vote and the recorded one are compared (`Eq`) and they must be equal.
+/// Otherwise, it is considered a non-determinism bug.
+///
+/// The vote extension is exempt: the application supplies it and it need not be deterministic.
+/// It is excluded from the comparison, and must also be excluded from the vote's signing preimage.
+/// This way, a recorded signature stays valid for a vote that differs only in its extension.
 pub trait Vote<Ctx>
 where
     Self: Clone + Debug + Eq + Send + Sync + 'static,

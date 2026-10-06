@@ -10,7 +10,7 @@ use futures::executor::block_on;
 use malachitebft_core_types::{Round, SignedProposal, Validity, ValueOrigin};
 use malachitebft_signing::Signer;
 use malachitebft_test::utils::validators::make_validators;
-use malachitebft_test::{Address, Ed25519Signer, Proposal, Value};
+use malachitebft_test::{Address, Ed25519Signer, Proposal, Signature, Value};
 use malachitebft_test::{Height, TestContext};
 
 use arc_malachitebft_core_consensus::full_proposal::{
@@ -652,9 +652,11 @@ fn store_proposal_surfaces_equivocation_against_proposal_only_entry() {
         StoreProposalResult::Stored
     ));
 
-    // An exact duplicate of the first proposal is silently ignored.
+    // A duplicate proposal message is silently ignored.
+    let signature_variant =
+        SignedProposal::new(first.message.clone(), Signature::from_bytes([1; 64]));
     assert!(matches!(
-        keeper.store_proposal(first, false),
+        keeper.store_proposal(signature_variant, false),
         StoreProposalResult::DuplicateIgnored
     ));
 
@@ -673,6 +675,109 @@ fn store_proposal_surfaces_equivocation_against_proposal_only_entry() {
     };
     assert_eq!(existing, expected_existing);
     assert_eq!(conflicting, second);
+}
+
+#[test]
+fn store_proposal_surfaces_equivocation_across_distinct_value_ids_without_any_value() {
+    let [(v, sk)] = make_validators([1]);
+    let signer = Ed25519Signer::new(sk);
+    let addr = v.address;
+
+    let mut keeper = FullProposalKeeper::<TestContext>::new();
+
+    // Feed the first proposal with no matching value — it is kept as `Entry::ProposalOnly`.
+    let first = signed_proposal(&signer, addr, 0, 10, -1);
+    assert!(matches!(
+        keeper.store_proposal(first.clone(), false),
+        StoreProposalResult::Stored
+    ));
+
+    // A second proposal from the same proposer for the same `(height, round)` with a different
+    // value id is surfaced as equivocation while neither value is stored.
+    let second = signed_proposal(&signer, addr, 0, 20, -1);
+    let (existing, conflicting) = match keeper.store_proposal(second.clone(), false) {
+        StoreProposalResult::StoredWithEquivocation {
+            existing,
+            conflicting,
+        } => (existing, conflicting),
+        other => panic!("expected a stored equivocation, got {other:?}"),
+    };
+    assert_eq!(existing, vec![first]);
+    assert_eq!(conflicting, second);
+
+    // Both entries are retained, so each still pairs with its value once it arrives.
+    keeper.store_value(&proposed_value(addr, 0, 10, Validity::Valid));
+    keeper.store_value(&proposed_value(addr, 0, 20, Validity::Valid));
+    assert!(full_proposal_at(&keeper, 0, 10).is_some());
+    assert!(full_proposal_at(&keeper, 0, 20).is_some());
+}
+
+#[test]
+fn store_proposal_surfaces_equivocation_when_the_value_arrives_for_one_proposal_only() {
+    let [(v, sk)] = make_validators([1]);
+    let signer = Ed25519Signer::new(sk);
+    let addr = v.address;
+
+    let mut keeper = FullProposalKeeper::<TestContext>::new();
+
+    // The value arrives for the first proposal only, so that entry is `Entry::Full` and the
+    // second one stays `Entry::ProposalOnly`.
+    keeper.store_value(&proposed_value(addr, 0, 10, Validity::Valid));
+    let first = signed_proposal(&signer, addr, 0, 10, -1);
+    assert!(matches!(
+        keeper.store_proposal(first.clone(), false),
+        StoreProposalResult::Stored
+    ));
+
+    let second = signed_proposal(&signer, addr, 0, 20, -1);
+    let (existing, conflicting) = match keeper.store_proposal(second.clone(), false) {
+        StoreProposalResult::StoredWithEquivocation {
+            existing,
+            conflicting,
+        } => (existing, conflicting),
+        other => panic!("expected a stored equivocation, got {other:?}"),
+    };
+    assert_eq!(existing, vec![first]);
+    assert_eq!(conflicting, second);
+    assert!(full_proposal_at(&keeper, 0, 20).is_none());
+}
+
+#[test]
+fn store_proposal_reports_no_equivocation_against_a_value_only_entry() {
+    let [(v, sk)] = make_validators([1]);
+    let signer = Ed25519Signer::new(sk);
+    let addr = v.address;
+
+    let mut keeper = FullProposalKeeper::<TestContext>::new();
+
+    // An entry holding only a value carries no signature, so a proposal for a different value id
+    // has nothing to form a pair with.
+    keeper.store_value(&proposed_value(addr, 0, 10, Validity::Valid));
+    assert!(matches!(
+        keeper.store_proposal(signed_proposal(&signer, addr, 0, 20, -1), false),
+        StoreProposalResult::Stored
+    ));
+}
+
+#[test]
+fn store_proposal_ignores_signature_variant_against_full_entry() {
+    let [(v, sk)] = make_validators([1]);
+    let signer = Ed25519Signer::new(sk);
+    let addr = v.address;
+    let mut keeper = FullProposalKeeper::<TestContext>::new();
+
+    keeper.store_value(&proposed_value(addr, 0, 10, Validity::Valid));
+    let first = signed_proposal(&signer, addr, 0, 10, -1);
+    assert!(matches!(
+        keeper.store_proposal(first.clone(), false),
+        StoreProposalResult::Stored
+    ));
+
+    let signature_variant = SignedProposal::new(first.message, Signature::from_bytes([1; 64]));
+    assert!(matches!(
+        keeper.store_proposal(signature_variant, false),
+        StoreProposalResult::DuplicateIgnored
+    ));
 }
 
 #[test]
@@ -708,14 +813,15 @@ fn store_proposal_caps_distinct_entries_per_round() {
 
     let mut keeper = FullProposalKeeper::<TestContext>::new();
 
-    // Two distinct proposals from the same proposer at the same round fill the bucket.
+    // Two distinct proposals from the same proposer at the same round fill the bucket. The second
+    // is stored and reported as equivocation against the first.
     assert!(matches!(
         keeper.store_proposal(signed_proposal(&signer, addr, 0, 10, -1), false),
         StoreProposalResult::Stored
     ));
     assert!(matches!(
         keeper.store_proposal(signed_proposal(&signer, addr, 0, 20, -1), false),
-        StoreProposalResult::Stored
+        StoreProposalResult::StoredWithEquivocation { .. }
     ));
 
     // A third distinct proposal is rejected at the cap.
@@ -772,14 +878,23 @@ fn cap_exempt_proposal_is_stored_beyond_the_cap() {
     let mut keeper = FullProposalKeeper::<TestContext>::new();
 
     // Two distinct proposals fill the bucket.
-    let _ = keeper.store_proposal(signed_proposal(&signer, addr, 0, 10, -1), false);
-    let _ = keeper.store_proposal(signed_proposal(&signer, addr, 0, 20, -1), false);
+    let first = signed_proposal(&signer, addr, 0, 10, -1);
+    let second = signed_proposal(&signer, addr, 0, 20, -1);
+    let _ = keeper.store_proposal(first.clone(), false);
+    let _ = keeper.store_proposal(second.clone(), false);
 
-    // A third distinct proposal is stored when the caller declares it exempt.
-    assert!(matches!(
-        keeper.store_proposal(signed_proposal(&signer, addr, 0, 30, -1), true),
-        StoreProposalResult::Stored
-    ));
+    // A third distinct proposal is stored when the caller declares it exempt, and pairs with
+    // every proposal already in the bucket rather than only the first.
+    let third = signed_proposal(&signer, addr, 0, 30, -1);
+    let (existing, conflicting) = match keeper.store_proposal(third.clone(), true) {
+        StoreProposalResult::StoredWithEquivocation {
+            existing,
+            conflicting,
+        } => (existing, conflicting),
+        other => panic!("expected a stored equivocation, got {other:?}"),
+    };
+    assert_eq!(existing, vec![first, second]);
+    assert_eq!(conflicting, third);
     keeper.store_value(&proposed_value(addr, 0, 30, Validity::Valid));
     assert!(full_proposal_at(&keeper, 0, 30).is_some());
 

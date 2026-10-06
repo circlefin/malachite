@@ -12,11 +12,11 @@ use crate::Config;
 /// Compute the maximum number of concurrent inbound + outbound streams
 /// per connection for the sync request/response protocol.
 ///
-/// Budget: up to `parallel_requests` outbound + `parallel_requests` inbound
-/// (remote peer running the same software), doubled as margin for stream
-/// open/close overlap during normal operation.
+/// Budget: up to the effective parallel-request limit outbound + as many
+/// inbound (remote peer running the same software), doubled as margin for
+/// stream open/close overlap during normal operation.
 fn max_concurrent_streams(config: &Config) -> usize {
-    config.parallel_requests * 2 * 2
+    config.effective_parallel_requests() * 2 * 2
 }
 
 #[derive(NetworkBehaviour)]
@@ -82,5 +82,24 @@ impl Behaviour {
 impl Default for Behaviour {
     fn default() -> Self {
         Self::with_default_protocol(Config::default())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{max_concurrent_streams, Config};
+
+    #[test]
+    fn stream_budget_scales_with_the_parallel_request_limit() {
+        let config = Config::default().with_parallel_requests(3);
+
+        assert_eq!(max_concurrent_streams(&config), 12);
+    }
+
+    #[test]
+    fn stream_budget_stays_non_zero_when_parallel_requests_is_zero() {
+        let config = Config::default().with_parallel_requests(0);
+
+        assert_eq!(max_concurrent_streams(&config), 4);
     }
 }

@@ -7,7 +7,10 @@ mod input;
 pub use input::Input;
 
 mod state;
-pub use state::State;
+pub use state::{ProposalPersistence, State};
+
+pub mod wal_replay_index;
+pub use wal_replay_index::{RecordKind, ReplayIndex};
 
 mod error;
 pub use error::Error;

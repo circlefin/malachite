@@ -9,7 +9,7 @@ pub use crate::error::Error;
 pub use crate::gen::Co;
 pub use crate::input::Input;
 pub use crate::perform;
-pub use crate::state::State;
+pub use crate::state::{ProposalPersistence, State};
 
 #[cfg(feature = "metrics")]
 pub use malachitebft_metrics::Metrics;

@@ -1,7 +1,7 @@
 use crate::handle::driver::apply_driver_input;
 use crate::handle::signature::verify_signature;
 use crate::input::Input;
-use crate::params::MAX_FUTURE_ROUND_LOOKAHEAD;
+use crate::params::exceeds_future_round_lookahead;
 use crate::prelude::*;
 use crate::types::ConsensusMsg;
 use crate::util::pretty::PrettyVote;
@@ -77,10 +77,10 @@ where
     // Drop votes whose round is too far ahead of the current consensus round.
     // This bounds per-height vote-keeper state, signature verification work,
     // and WAL I/O when votes carry arbitrarily high round numbers.
-    let ceiling = consensus_round
-        .as_i64()
-        .saturating_add(i64::from(MAX_FUTURE_ROUND_LOOKAHEAD));
-    if vote_round.as_i64() > ceiling {
+    //
+    // Replayed votes are exempt: they were admitted and applied by an earlier run, and a
+    // round certificate can carry them arbitrarily far ahead of the round replay has reached.
+    if !state.is_replaying_wal() && exceeds_future_round_lookahead(consensus_round, vote_round) {
         debug!(
             consensus.height = %consensus_height,
             consensus.round = %consensus_round,
@@ -98,6 +98,19 @@ where
 
     // Only process this vote if we have not yet seen it.
     if state.driver.votes().has_vote(&signed_vote) {
+        return Ok(());
+    }
+
+    // A conflicting vote that cannot add evidence must not pay for a
+    // signature check or a WAL append. The first conflicts still pass so
+    // they can saturate EvidenceMap; after that the node already has proof.
+    if state.driver.votes().is_saturated_conflict(&signed_vote) {
+        debug!(
+            consensus.height = %consensus_height,
+            vote.round = %vote_round,
+            validator = %validator_address,
+            "Evidence for this validator is full, dropping further conflicting vote"
+        );
         return Ok(());
     }
 
@@ -171,25 +184,26 @@ where
         return Ok(false);
     }
 
-    verify_vote_extension(co, state, signed_vote, validator).await
+    verify_vote_extension(co, state, signed_vote).await
 }
 
-async fn verify_vote_extension<Ctx>(
+pub(crate) async fn verify_vote_extension<Ctx>(
     co: &Co<Ctx>,
     state: &State<Ctx>,
     vote: &SignedVote<Ctx>,
-    validator: &Ctx::Validator,
 ) -> Result<bool, Error<Ctx>>
 where
     Ctx: Context,
 {
+    let validator_address = vote.validator_address();
+
     let VoteType::Precommit = vote.vote_type() else {
         if vote.extension().is_some() {
             warn!(
                 consensus.height = %state.height(),
                 vote.height = %vote.height(),
                 vote.round = %vote.round(),
-                validator = %validator.address(),
+                validator = %validator_address,
                 "Received non-precommit vote with vote extension: {}",
                 PrettyVote::<Ctx>(&vote.message)
             );
@@ -206,7 +220,7 @@ where
                 consensus.height = %state.height(),
                 vote.height = %vote.height(),
                 vote.round = %vote.round(),
-                validator = %validator.address(),
+                validator = %validator_address,
                 "Received nil precommit with vote extension: {}",
                 PrettyVote::<Ctx>(&vote.message)
             );
@@ -223,7 +237,7 @@ where
                 consensus.height = %state.height(),
                 vote.height = %vote.height(),
                 vote.round = %vote.round(),
-                validator = %validator.address(),
+                validator = %validator_address,
                 "Received non-nil precommit without required vote extension: {}",
                 PrettyVote::<Ctx>(&vote.message)
             );
@@ -239,13 +253,25 @@ where
             consensus.height = %state.height(),
             vote.height = %vote.height(),
             vote.round = %vote.round(),
-            validator = %validator.address(),
+            validator = %validator_address,
             "Received non-nil precommit with disabled vote extension: {}",
             PrettyVote::<Ctx>(&vote.message)
         );
 
         return Ok(false);
     }
+
+    let Some(validator) = state.validator_set().get_by_address(validator_address) else {
+        warn!(
+            consensus.height = %state.height(),
+            vote.height = %vote.height(),
+            vote.round = %vote.round(),
+            validator = %validator_address,
+            "Received vote from unknown validator"
+        );
+
+        return Ok(false);
+    };
 
     let result = perform!(
         co,
@@ -266,7 +292,7 @@ where
             consensus.height = %state.height(),
             vote.height = %vote.height(),
             vote.round = %vote.round(),
-            validator = %validator.address(),
+            validator = %validator_address,
             "Received vote with invalid extension: {}, reason: {e}",
             PrettyVote::<Ctx>(&vote.message)
         );

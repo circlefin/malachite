@@ -1,11 +1,10 @@
 use malachitebft_core_driver::Input as DriverInput;
 use malachitebft_core_driver::Output as DriverOutput;
-use malachitebft_core_types::{NilOrVal, VoteExtensionPolicy, VoteType};
+use malachitebft_core_types::{NilOrVal, VoteType};
 
 use crate::handle::decide::decide;
 use crate::handle::on_proposal;
-use crate::handle::signature::sign_proposal;
-use crate::handle::signature::sign_vote;
+use crate::handle::signature::{sign_or_replay_proposal, sign_or_replay_vote};
 use crate::handle::vote::on_vote;
 use crate::params::HIDDEN_LOCK_ROUND;
 use crate::prelude::*;
@@ -265,7 +264,7 @@ where
 
             // Only sign and publish if we're an active validator
             if state.is_active_validator() {
-                let signed_proposal = sign_proposal(co, proposal.clone()).await?;
+                let signed_proposal = sign_or_replay_proposal(co, state, proposal.clone()).await?;
 
                 // When the proposed value is a re-proposal (i.e., it has a pol_round),
                 // publishing the polka certificate of the re-proposed value
@@ -400,8 +399,8 @@ where
                     "Voting",
                 );
 
-                let extended_vote = extend_vote(co, state.vote_extension_policy, vote).await?;
-                let signed_vote = sign_vote(co, extended_vote).await?;
+                let extended_vote = extend_vote(co, state, vote).await?;
+                let signed_vote = sign_or_replay_vote(co, state, extended_vote).await?;
 
                 on_vote(co, state, metrics, signed_vote.clone()).await?;
 
@@ -476,7 +475,7 @@ where
 
 async fn extend_vote<Ctx: Context>(
     co: &Co<Ctx>,
-    vote_extension_policy: VoteExtensionPolicy,
+    state: &State<Ctx>,
     vote: Ctx::Vote,
 ) -> Result<Ctx::Vote, Error<Ctx>> {
     let VoteType::Precommit = vote.vote_type() else {
@@ -487,13 +486,29 @@ async fn extend_vote<Ctx: Context>(
         return Ok(vote);
     };
 
-    if vote_extension_policy.is_disabled() {
+    if state.vote_extension_policy.is_disabled() {
         return Ok(vote);
+    }
+
+    if let Some(extension) = state.recovered_vote_extension(vote.round(), &value_id) {
+        debug!(
+            height = %vote.height(),
+            round = %vote.round(),
+            value = %value_id,
+            "Reusing vote extension recovered from the WAL"
+        );
+        return Ok(vote.extend(extension.clone()));
     }
 
     let extension = perform!(
         co,
-        Effect::ExtendVote(vote.height(), vote.round(), value_id.clone(), Default::default()),
+        Effect::ExtendVote(
+            vote.height(),
+            vote.round(),
+            value_id.clone(),
+            state.vote_extension_policy,
+            Default::default(),
+        ),
         Resume::VoteExtension(extension) => extension);
 
     let Some(extension) = extension else {

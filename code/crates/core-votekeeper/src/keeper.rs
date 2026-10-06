@@ -7,7 +7,8 @@ use tracing::warn;
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::vec::Vec;
 use malachitebft_core_types::{
-    Context, NilOrVal, Round, SignedVote, Validator, ValidatorSet, ValueId, Vote, VoteType,
+    Context, DoubleVote, NilOrVal, Round, SignedVote, Validator, ValidatorSet, ValueId, Vote,
+    VoteType,
 };
 
 use crate::evidence::EvidenceMap;
@@ -36,6 +37,9 @@ pub enum Output<Value> {
     /// We have f+1 honest votes for a value at a higher round
     SkipRound(Round),
 }
+
+/// Number of votes a validator casts per round: one prevote and one precommit.
+const VOTES_PER_VALIDATOR_PER_ROUND: usize = 2;
 
 /// Keeps track of votes and emitted outputs for a given round.
 #[derive_where(Clone, Debug, PartialEq, Eq, Default)]
@@ -267,6 +271,24 @@ where
             })
     }
 
+    /// A conflicting vote from this validator that would not add evidence
+    /// because the per-validator cap is already full.
+    ///
+    /// The first few conflicts still have to pass the already-seen gate so
+    /// they can reach [`EvidenceMap::add`]. Once the map is full, further
+    /// distinct values teach the node nothing and must not be verified or
+    /// WAL-appended.
+    pub fn is_saturated_conflict(&self, vote: &SignedVote<Ctx>) -> bool {
+        let Some(existing) = self
+            .per_round
+            .get(&vote.round())
+            .and_then(|per_round| per_round.get_vote(vote.vote_type(), vote.validator_address()))
+        else {
+            return false;
+        };
+        existing.value() != vote.value() && self.evidence.is_full(vote.validator_address())
+    }
+
     /// Apply a vote with a given weight, potentially triggering an output.
     pub fn apply_vote(
         &mut self,
@@ -278,7 +300,7 @@ where
             self.per_round
                 .entry(vote.round())
                 .or_insert(PerRound::with_expected_number_of_votes(
-                    self.validator_set.count(),
+                    self.validator_set.count() * VOTES_PER_VALIDATOR_PER_ROUND,
                 ));
 
         let Some(validator) = self.validator_set.get_by_address(vote.validator_address()) else {
@@ -353,6 +375,65 @@ where
     /// Prunes all stored votes from rounds less than `min_round`.
     pub fn prune_votes(&mut self, min_round: Round) {
         self.per_round.retain(|round, _| *round >= min_round);
+    }
+
+    /// Return the stored vote that conflicts with `vote` — same validator, same vote type,
+    /// different value — without mutating the keeper. Returns `None` if no conflict exists.
+    pub fn conflicting_vote<'a>(
+        &'a self,
+        vote: &'a SignedVote<Ctx>,
+    ) -> Option<&'a SignedVote<Ctx>> {
+        let existing = self
+            .per_round
+            .get(&vote.round())?
+            .get_vote(vote.vote_type(), vote.validator_address())?;
+
+        if existing.value() != vote.value() {
+            Some(existing)
+        } else {
+            None
+        }
+    }
+
+    /// Return whether `vote` has already been recorded as part of an equivocation pair.
+    ///
+    /// Lets callers skip re-verifying the signature of a conflicting vote whose evidence
+    /// is already stored.
+    pub fn has_equivocation_evidence(&self, vote: &SignedVote<Ctx>) -> bool {
+        self.evidence
+            .get(vote.validator_address())
+            .is_some_and(|pairs| pairs.iter().any(|(e, c)| e == vote || c == vote))
+    }
+
+    /// Return whether [`Self::detect_equivocation`] would record a new pair for `vote`.
+    ///
+    /// False when `vote` raises no conflict, when its pair is already stored, and when the
+    /// validator has reached the per-validator evidence cap — past the cap no further pair is
+    /// retained, so a conflicting vote would otherwise never satisfy
+    /// [`Self::has_equivocation_evidence`] and would be reconsidered on every delivery.
+    ///
+    /// This is the guard [`Self::detect_equivocation`] itself applies, so callers can use it to
+    /// gate the cost of verifying `vote`'s signature on there being something to gain from it.
+    pub fn can_record_equivocation(&self, vote: &SignedVote<Ctx>) -> bool {
+        self.conflicting_vote(vote).is_some()
+            && !self.has_equivocation_evidence(vote)
+            && !self.evidence.is_full(vote.validator_address())
+    }
+
+    /// Record `vote` as equivocation evidence when it conflicts with a stored vote from the
+    /// same validator, returning the conflicting pair only when it is newly recorded.
+    ///
+    /// Repeated deliveries of the same conflicting vote, and deliveries once the validator has
+    /// reached the per-validator cap, retain nothing and return `None`.
+    pub fn detect_equivocation(&mut self, vote: SignedVote<Ctx>) -> Option<DoubleVote<Ctx>> {
+        if !self.can_record_equivocation(&vote) {
+            return None;
+        }
+
+        let existing = self.conflicting_vote(&vote)?.clone();
+        self.evidence.add(existing.clone(), vote.clone());
+
+        Some((existing, vote))
     }
 }
 

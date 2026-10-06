@@ -9,6 +9,7 @@ use malachitebft_core_types::{
 };
 
 use crate::effect::Resume;
+use crate::wal_replay_index::RecordKind;
 
 /// The types of error that can be emitted by the consensus process.
 #[derive_where(Debug)]
@@ -32,8 +33,8 @@ where
     #[error("Driver failed to process input, reason: {0}")]
     DriverProcess(DriverError<Ctx>),
 
-    /// The certificate is invalid — either a precommit signature, the 2/3+
-    /// quorum, or a vote-extension signature failed to verify.
+    /// The certificate is invalid — a precommit signature, the 2/3+ quorum, a
+    /// vote-extension signature, or the application's vote-extension check failed.
     #[error("Invalid certificate: {1}")]
     InvalidCommitCertificate(ExtendedCommitCertificate<Ctx>, CertificateError<Ctx>),
 
@@ -49,4 +50,9 @@ where
     /// The write-ahead log is corrupted.
     #[error("Write-ahead log is corrupted: {0}")]
     WalCorrupted(Arc<io::Error>),
+
+    /// Replaying the write-ahead log re-derived a message that disagrees with the one recorded
+    /// for the same kind, height and round.
+    #[error("Write-ahead log replay re-derived a {0} at height {1}, round {2} that does not match the recorded one")]
+    ReplayDivergence(RecordKind, Ctx::Height, Round),
 }

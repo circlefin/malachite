@@ -57,6 +57,19 @@ impl Default for ChannelNames {
     }
 }
 
+/// This structure contains optional application-payload limits for GossipSub topics.
+///
+/// Malachite adds signed-message overhead when it sets the corresponding wire limit. Topics without
+/// a per-topic limit use the global wire limit in [`P2pConfig::pubsub_max_size`]. Value sync always
+/// uses the Broadcast protocol, so it has no per-topic GossipSub limit.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PubSubMaxSizePerTopic {
+    pub consensus: Option<ByteSize>,
+    pub proposal_parts: Option<ByteSize>,
+    pub liveness: Option<ByteSize>,
+}
+
 /// Errors returned by [`ChannelNames::validate`].
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum ChannelNamesError {
@@ -127,8 +140,12 @@ pub struct P2pConfig {
     /// The type of pub-sub protocol to use for consensus
     pub protocol: PubSubProtocol,
 
-    /// The maximum size of messages to send over pub-sub
+    /// The maximum wire size of messages to send over pub-sub
     pub pubsub_max_size: ByteSize,
+
+    /// Optional application-payload limits for individual GossipSub topics.
+    #[serde(default)]
+    pub pubsub_max_size_per_topic: PubSubMaxSizePerTopic,
 
     /// The maximum size of messages to send over RPC
     pub rpc_max_size: ByteSize,
@@ -152,6 +169,7 @@ impl Default for P2pConfig {
             protocol: Default::default(),
             rpc_max_size: ByteSize::mib(10),
             pubsub_max_size: ByteSize::mib(4),
+            pubsub_max_size_per_topic: Default::default(),
             protocol_names: Default::default(),
             channel_names: Default::default(),
         }
@@ -191,7 +209,7 @@ pub struct DiscoveryConfig {
     pub max_connections_per_ip: usize,
 
     /// Minimum time between reconnections from the same IP address.
-    /// After all connections from an IP close, new inbound connections are rejected
+    /// After any inbound connection from an IP closes, new inbound connections are rejected
     /// until this duration has elapsed. Persistent peer IPs are exempt.
     #[serde(default = "discovery::default_ip_throttle_duration")]
     #[serde(with = "humantime_serde")]
@@ -697,6 +715,42 @@ pub struct ValueSyncConfig {
 
     /// Maximum number of decided values to request in a single batch
     pub batch_size: usize,
+
+    /// Rolling window over which inbound value requests from each peer are counted
+    #[serde(
+        with = "humantime_serde",
+        default = "default_inbound_request_rate_limit_window"
+    )]
+    pub inbound_request_rate_limit_window: Duration,
+
+    /// Maximum inbound value requests accepted per peer within each rate-limit window
+    #[serde(default = "default_max_inbound_requests_per_window")]
+    pub max_inbound_requests_per_window: u32,
+
+    /// Maximum number of inbound value requests processed concurrently against the host
+    #[serde(default = "default_max_concurrent_inbound_requests")]
+    pub max_concurrent_inbound_requests: usize,
+
+    /// Maximum number of inbound value requests that may wait for a concurrent slot
+    /// once the concurrent cap is reached. Requests past this capacity are rejected.
+    #[serde(default = "default_max_pending_inbound_requests")]
+    pub max_pending_inbound_requests: usize,
+}
+
+fn default_inbound_request_rate_limit_window() -> Duration {
+    Duration::from_secs(10)
+}
+
+fn default_max_inbound_requests_per_window() -> u32 {
+    1000
+}
+
+fn default_max_concurrent_inbound_requests() -> usize {
+    32
+}
+
+fn default_max_pending_inbound_requests() -> usize {
+    64
 }
 
 impl Default for ValueSyncConfig {
@@ -711,6 +765,10 @@ impl Default for ValueSyncConfig {
             scoring_strategy: ScoringStrategy::default(),
             inactive_threshold: Duration::from_secs(60),
             batch_size: 5,
+            inbound_request_rate_limit_window: default_inbound_request_rate_limit_window(),
+            max_inbound_requests_per_window: default_max_inbound_requests_per_window(),
+            max_concurrent_inbound_requests: default_max_concurrent_inbound_requests(),
+            max_pending_inbound_requests: default_max_pending_inbound_requests(),
         }
     }
 }
@@ -753,10 +811,6 @@ fn default_queue_per_height_capacity() -> usize {
     500
 }
 
-fn default_wal_replay_delay() -> Duration {
-    Duration::from_secs(5)
-}
-
 /// Consensus configuration options
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ConsensusConfig {
@@ -790,17 +844,6 @@ pub struct ConsensusConfig {
     /// Default: 500
     #[serde(default = "default_queue_per_height_capacity")]
     pub queue_per_height_capacity: usize,
-
-    /// Duration to wait before replaying the WAL on recovery.
-    ///
-    /// When a validator recovers from a crash, this delay gives the sync protocol
-    /// time to retrieve a certificate for the crash height. If sync succeeds
-    /// during this window, WAL replay is skipped entirely.
-    ///
-    /// Set to 0 to disable the delay and replay immediately (previous behavior).
-    /// Default: 5s
-    #[serde(default = "default_wal_replay_delay", with = "humantime_serde")]
-    pub wal_replay_delay: Duration,
 }
 
 impl Default for ConsensusConfig {
@@ -811,7 +854,6 @@ impl Default for ConsensusConfig {
             value_payload: ValuePayload::default(),
             queue_capacity: default_queue_capacity(),
             queue_per_height_capacity: default_queue_per_height_capacity(),
-            wal_replay_delay: default_wal_replay_delay(),
         }
     }
 }
@@ -1383,6 +1425,41 @@ mod tests {
         );
         assert_eq!(config.p2p.channel_names.sync, "/custom/sync/v2");
         assert_eq!(config.p2p.channel_names.liveness, "/custom/liveness/v2");
+    }
+
+    #[test]
+    fn pubsub_max_size_per_topic_toml_deserialization() {
+        let toml_content = r#"
+        timeout_propose = "3s"
+        timeout_propose_delta = "500ms"
+        timeout_prevote = "1s"
+        timeout_prevote_delta = "500ms"
+        timeout_precommit = "1s"
+        timeout_precommit_delta = "500ms"
+        timeout_rebroadcast = "5s"
+        value_payload = "proposal-and-parts"
+
+        [p2p]
+        listen_addr = "/ip4/0.0.0.0/tcp/0"
+        persistent_peers = []
+        pubsub_max_size = "4 MiB"
+        rpc_max_size = "10 MiB"
+
+        [p2p.pubsub_max_size_per_topic]
+        proposal_parts = "130 KiB"
+
+        [p2p.protocol]
+        type = "gossipsub"
+        "#;
+
+        let config: ConsensusConfig = toml::from_str(toml_content).unwrap();
+
+        assert_eq!(
+            config.p2p.pubsub_max_size_per_topic.proposal_parts,
+            Some(ByteSize::kib(130))
+        );
+        assert_eq!(config.p2p.pubsub_max_size_per_topic.consensus, None);
+        assert_eq!(config.p2p.pubsub_max_size_per_topic.liveness, None);
     }
 
     #[test]

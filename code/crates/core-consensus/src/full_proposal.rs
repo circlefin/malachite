@@ -70,6 +70,16 @@ impl<Ctx: Context> Entry<Ctx> {
             Entry::Empty => None,
         }
     }
+
+    /// The signed proposal this entry holds, if any.
+    fn proposal(&self) -> Option<&SignedProposal<Ctx>> {
+        match self {
+            Entry::Full(p) => Some(&p.proposal),
+            Entry::ProposalOnly(p) => Some(p),
+            Entry::ValueOnly(..) => None,
+            Entry::Empty => None,
+        }
+    }
 }
 
 #[allow(clippy::derivable_impls)]
@@ -85,15 +95,30 @@ impl<Ctx: Context> Default for Entry<Ctx> {
 pub enum StoreProposalResult<Ctx: Context> {
     /// The proposal was stored as a new entry, or it upgraded an existing entry to `Full`.
     Stored,
-    /// The proposal was an exact duplicate of one already stored, and was ignored.
+    /// The proposal message was already stored and was ignored.
     DuplicateIgnored,
     /// The proposal was rejected because the per-`(height, round)` cap was already reached.
     CapReached,
     /// A different proposal with the same value id is already present for this `(height, round)`.
     /// The two proposals differ in at least one field (e.g. `pol_round`), so the same proposer
     /// has equivocated. Both proposals are returned so the caller can record evidence.
+    ///
+    /// The conflicting proposal was **not** stored: one entry per `(height, round, value_id)` is
+    /// kept, so only the evidence survives.
     Equivocation {
         existing: SignedProposal<Ctx>,
+        conflicting: SignedProposal<Ctx>,
+    },
+    /// The proposal was stored as a new entry, and at least one proposal with a different value id
+    /// was already present for this `(height, round)`, so the same proposer has equivocated.
+    ///
+    /// Unlike [`StoreProposalResult::Equivocation`], every entry is retained: they reference
+    /// distinct value ids, so each can still be paired with its value.
+    StoredWithEquivocation {
+        /// Every proposal already stored for this `(height, round)`. Each one forms a provable
+        /// equivocation pair with `conflicting`, so all are reported and the evidence map decides
+        /// which to retain. More than one is possible once a cap-exempt entry joins a full bucket.
+        existing: Vec<SignedProposal<Ctx>>,
         conflicting: SignedProposal<Ctx>,
     },
 }
@@ -116,20 +141,25 @@ pub enum StoreProposalResult<Ctx: Context> {
 /// A proposal and a value are paired **by value id alone**, searched across every round at the
 /// height (see `get_value_by_id`). `round` and `pol_round` are app-side metadata and take no part
 /// in pairing. So a new proposal becomes `Full` if a value with the same id is already stored at
-/// the height and `ProposalOnly` otherwise; symmetrically for a new value. Because matching spans
-/// rounds, a single incoming value can complete several `ProposalOnly` entries at once (see
-/// `upgrade_matching_proposals_at_height`); validity is reconciled along the way (`Invalid -> Valid`
+/// the height and `ProposalOnly` otherwise. A new value completes every matching `ProposalOnly`
+/// entry at the height. `store_value` retains it at its source round, `store_value_at_round`
+/// retains it at a selected round, and `store_value_in_matching_entries` only updates existing
+/// entries without growing any bucket. Validity is reconciled along the way (`Invalid -> Valid`
 /// propagates, `Valid -> Invalid` is logged and rejected).
 ///
-/// A proposer may send more than one proposal for the same `(height, round)`:
-/// - Distinct value ids are stored as separate entries; the driver flags the equivocation as each
-///   entry is forwarded to it.
+/// A proposer may send more than one proposal for the same `(height, round)`. Either way the
+/// conflict is reported as soon as the second proposal arrives, from the two signatures alone, so
+/// evidence never waits on a value:
+/// - Distinct value ids are stored as separate entries and the conflict is reported via
+///   [`StoreProposalResult::StoredWithEquivocation`].
 /// - The same value id differing in any other field (e.g. `pol_round`) keeps only the first entry
-///   and reports the conflict via [`StoreProposalResult::Equivocation`] so evidence is still
-///   recorded; an exact duplicate is ignored.
+///   and reports the conflict via [`StoreProposalResult::Equivocation`]; a duplicate proposal
+///   message is ignored.
 ///
-/// At most [`MAX_PROPOSALS_PER_ROUND`] distinct entries are retained per `(height, round)`,
-/// beyond which an entry is admitted only when the caller declares it exempt.
+/// Each `(height, round)` normally retains at most [`MAX_PROPOSALS_PER_ROUND`] distinct entries.
+/// Value insertion is not capped at the keeper layer. Callers use `store_value` or
+/// `store_value_at_round` when an entry may be retained, and `store_value_in_matching_entries`
+/// when no bucket may grow.
 #[derive_where(Clone, Debug, Default)]
 pub struct FullProposalKeeper<Ctx: Context> {
     keeper: BTreeMap<(Ctx::Height, Round), Vec<Entry<Ctx>>>,
@@ -158,9 +188,11 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
     /// distinct entry beyond [`MAX_PROPOSALS_PER_ROUND`]. A value id already present at the key
     /// upgrades or matches an existing entry and never grows the bucket, so it is not rejected.
     ///
-    /// This reports bucket growth alone. Admission is decided by `State::exceeds_per_round_cap`,
-    /// which also admits an entry backed by a polka certificate, so `true` here does not on its
-    /// own mean the message is dropped.
+    /// This reports source-bucket growth alone. Proposal admission uses
+    /// `State::exceeds_per_round_cap`; consensus-value admission uses
+    /// `State::proposed_value_storage` and a crate-private storage policy. The public
+    /// `store_value` method retains its direct-storage behavior, so `true` here does not by itself
+    /// mean an entry is dropped.
     pub fn would_append_distinct(
         &self,
         height: Ctx::Height,
@@ -175,6 +207,15 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
             && !entries
                 .iter()
                 .any(|e| e.value_id().as_ref() == Some(value_id))
+    }
+
+    /// Returns `true` if an entry at `height` references `value_id`.
+    pub(crate) fn has_matching_entry(&self, height: Ctx::Height, value_id: &ValueId<Ctx>) -> bool {
+        self.entries_at(height).any(|(_, entries)| {
+            entries
+                .iter()
+                .any(|entry| entry.value_id().as_ref() == Some(value_id))
+        })
     }
 
     pub fn proposals_for_value(
@@ -301,8 +342,8 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                     match entry {
                         Entry::Full(full_proposal) => {
                             if full_proposal.proposal.value().id() == new_proposal.value().id() {
-                                return if full_proposal.proposal == new_proposal {
-                                    // Exact duplicate (same signature): silently ignore.
+                                return if full_proposal.proposal.message == new_proposal.message {
+                                    // Signatures are not part of proposal identity.
                                     StoreProposalResult::DuplicateIgnored
                                 } else {
                                     // Same value id but a different proposal: the proposer has
@@ -328,7 +369,8 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                         }
                         Entry::ProposalOnly(proposal) => {
                             if proposal.value().id() == new_proposal.value().id() {
-                                return if *proposal == new_proposal {
+                                // Signatures are not part of proposal identity.
+                                return if proposal.message == new_proposal.message {
                                     StoreProposalResult::DuplicateIgnored
                                 } else {
                                     // Same value id but a different proposal: the proposer has
@@ -358,15 +400,50 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                     return StoreProposalResult::CapReached;
                 }
 
+                // No entry holds this value id, so the bucket grows. Every proposal accepted at a
+                // `(height, round)` comes from that round's proposer, so every proposal already
+                // stored here carries a different value id from the same proposer: equivocation
+                // provable from the signatures alone, with no value needed. Entries holding only a
+                // value carry no signature and cannot form a pair.
+                let existing: Vec<_> = entries
+                    .iter()
+                    .filter_map(Entry::proposal)
+                    .cloned()
+                    .collect();
+                let conflicting = (!existing.is_empty()).then(|| new_proposal.clone());
+
                 let new_entry = self.new_entry(new_proposal);
                 self.keeper.entry(key).or_default().push(new_entry);
-                StoreProposalResult::Stored
+
+                match conflicting {
+                    Some(conflicting) => StoreProposalResult::StoredWithEquivocation {
+                        existing,
+                        conflicting,
+                    },
+                    None => StoreProposalResult::Stored,
+                }
             }
         }
     }
 
+    /// Store a value at its source round, pairing it with matching proposals across the height.
+    /// Consensus inputs use the crate-private policy-aware method after admission validation.
     pub fn store_value(&mut self, new_value: &ProposedValue<Ctx>) {
-        self.store_value_at_value_round(new_value);
+        self.store_value_in_round(new_value, new_value.round);
+        self.upgrade_matching_proposals_at_height(new_value);
+    }
+
+    /// Store a value only at an admitted target round.
+    pub(crate) fn store_value_at_round_only(
+        &mut self,
+        new_value: &ProposedValue<Ctx>,
+        target_round: Round,
+    ) {
+        self.store_value_in_round(new_value, target_round);
+    }
+
+    /// Apply a value only to matching entries without appending at the value's source round.
+    pub(crate) fn store_value_in_matching_entries(&mut self, new_value: &ProposedValue<Ctx>) {
         self.upgrade_matching_proposals_at_height(new_value);
     }
 
@@ -412,8 +489,8 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         }
     }
 
-    fn store_value_at_value_round(&mut self, new_value: &ProposedValue<Ctx>) {
-        let key = (new_value.height, new_value.round);
+    fn store_value_in_round(&mut self, new_value: &ProposedValue<Ctx>, target_round: Round) {
+        let key = (new_value.height, target_round);
         let entries = self.keeper.get_mut(&key);
 
         match entries {
@@ -444,7 +521,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                                 // Same value received before; handle potential validity change.
                                 Self::handle_validity_change(
                                     &new_value.height,
-                                    new_value.round,
+                                    target_round,
                                     &new_value.value.id(),
                                     old_validity,
                                     new_value.validity,
@@ -458,7 +535,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                                 // Same value received before; handle potential validity change.
                                 Self::handle_validity_change(
                                     &new_value.height,
-                                    new_value.round,
+                                    target_round,
                                     &new_value.value.id(),
                                     &mut full_proposal.validity,
                                     new_value.validity,
@@ -474,9 +551,9 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                     }
                 }
 
-                // Append new value. This path is intentionally NOT capped at the keeper layer:
-                // callers must pre-gate non-sync values via `exceeds_per_round_cap`, while sync
-                // values (carrying verified commit certificates) are allowed to bypass the cap.
+                // This append is not capped at the keeper layer. Callers use `store_value` or
+                // `store_value_at_round` only when insertion is permitted, and
+                // `store_value_in_matching_entries` when no bucket may grow.
                 entries.push(Entry::ValueOnly(
                     new_value.value.clone(),
                     new_value.validity,
@@ -561,7 +638,12 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
 mod tests {
     use super::*;
 
-    use malachitebft_test::{Address, Height, TestContext, Value};
+    use futures::executor::block_on;
+    use malachitebft_signing::Signer;
+    use malachitebft_test::utils::validators::make_validators;
+    use malachitebft_test::{
+        Address, Ed25519Signer, Height, Proposal as TestProposal, TestContext, Value,
+    };
 
     fn addr() -> Address {
         Address::new([0; 20])
@@ -587,6 +669,65 @@ mod tests {
         height: Height,
     ) -> Vec<(Height, Round)> {
         keeper.entries_at_mut(height).map(|(k, _)| *k).collect()
+    }
+
+    fn signed_proposal(
+        signer: &Ed25519Signer,
+        address: Address,
+        round: u32,
+        value: u64,
+        pol_round: i64,
+    ) -> SignedProposal<TestContext> {
+        let proposal = TestProposal::new(
+            Height::new(1),
+            Round::new(round),
+            Value::new(value),
+            Round::from(pol_round),
+            address,
+        );
+        block_on(signer.sign_proposal(proposal)).unwrap()
+    }
+
+    #[test]
+    fn matching_only_value_completes_proposal_without_growing_source_bucket() {
+        let [(v, sk)] = make_validators([1]);
+        let signer = Ed25519Signer::new(sk);
+        let address = v.address;
+        let height = Height::new(1);
+        let source_round = Round::new(0);
+        let proposal_round = Round::new(1);
+        let value = MAX_PROPOSALS_PER_ROUND as u64;
+        let mut keeper = FullProposalKeeper::<TestContext>::new();
+
+        for source_value in 0..MAX_PROPOSALS_PER_ROUND as u64 {
+            let _ = keeper.store_proposal(
+                signed_proposal(&signer, address, 0, source_value, -1),
+                false,
+            );
+        }
+        let _ = keeper.store_proposal(signed_proposal(&signer, address, 1, value, 0), false);
+
+        let proposed_value = ProposedValue {
+            height,
+            round: source_round,
+            valid_round: Round::Nil,
+            proposer: address,
+            value: Value::new(value),
+            validity: Validity::Valid,
+        };
+        keeper.store_value_in_matching_entries(&proposed_value);
+
+        let buckets = keeper
+            .entries_at(height)
+            .map(|((_, round), entries)| (*round, entries.len()))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            buckets,
+            vec![(source_round, MAX_PROPOSALS_PER_ROUND), (proposal_round, 1)]
+        );
+        assert!(keeper
+            .full_proposal_at_round_and_value(&height, proposal_round, &Value::new(value).id())
+            .is_some());
     }
 
     // --- entries_at ---

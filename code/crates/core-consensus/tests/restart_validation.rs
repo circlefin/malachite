@@ -17,7 +17,7 @@ use std::vec::Vec;
 
 use arc_malachitebft_core_consensus::{
     process, Effect, Error, Input, Params, ProposedValue, Resumable, Resume, SignedConsensusMsg,
-    State, ValuePayload,
+    State, ValuePayload, MAX_FUTURE_ROUND_LOOKAHEAD,
 };
 use malachitebft_core_types::{
     NilOrVal, PolkaCertificate, Round, RoundCertificate, RoundCertificateType, SignedProposal,
@@ -63,7 +63,7 @@ fn handle_effect(
             }
             r.resume_with(())
         }
-        ExtendVote(_, _, _, r) => r.resume_with(None),
+        ExtendVote(_, _, _, _, r) => r.resume_with(None),
         VerifyVoteExtension(_, _, _, _, _, _, r) => r.resume_with(Ok(())),
         _ => Resume::Continue,
     })
@@ -100,6 +100,40 @@ fn make_state(validators: &[Validator], my_addr: Address) -> State<TestContext> 
         1000,
         1000,
     )
+}
+
+/// Replay `wal` against a fresh state the way the engine does: restart the height, index
+/// the log before feeding any of it back in, and drop the index once it is exhausted.
+/// Inputs that only arrive after recovery must be driven separately, on the returned
+/// state, so that they are subject to the live-path bounds again.
+fn replay(
+    validators: &[Validator],
+    my_addr: Address,
+    vs: ValidatorSet,
+    wal: Vec<Input<TestContext>>,
+    cap: &mut Captured,
+    metrics: &Metrics,
+) -> State<TestContext> {
+    let mut state = make_state(validators, my_addr);
+
+    drive(
+        &mut state,
+        vec![Input::StartHeight(
+            Height::new(1),
+            vs,
+            true,
+            None,
+            Default::default(),
+        )],
+        cap,
+        metrics,
+    );
+
+    state.index_wal_entries(wal.iter());
+    drive(&mut state, wal, cap, metrics);
+    state.reset_entries_index();
+
+    state
 }
 
 fn prevote(addr: Address, round: u32, value_id: NilOrVal<ValueId>) -> SignedVote<TestContext> {
@@ -205,21 +239,24 @@ fn restart_with_polka_certificate() {
     );
 
     // Recovery phase: replay the captured WAL entries to a fresh state.
-    let mut replay_inputs: Vec<Input<TestContext>> = vec![Input::StartHeight(
-        Height::new(1),
-        vs,
-        true,
-        None,
-        Default::default(),
-    )];
-    replay_inputs.append(&mut cap_normal.wal);
-    // The propose timer for r=1 was scheduled when v3 entered r=1 during replay.
-    replay_inputs.push(Input::TimeoutElapsed(Timeout::propose(Round::new(1))));
-
     let metrics = Metrics::new();
-    let mut state_replay = make_state(&validators, v3);
     let mut cap_replay = Captured::default();
-    drive(&mut state_replay, replay_inputs, &mut cap_replay, &metrics);
+    let mut state_replay = replay(
+        &validators,
+        v3,
+        vs,
+        std::mem::take(&mut cap_normal.wal),
+        &mut cap_replay,
+        &metrics,
+    );
+
+    // The propose timer for r=1 was scheduled when v3 entered r=1 during replay.
+    drive(
+        &mut state_replay,
+        vec![Input::TimeoutElapsed(Timeout::propose(Round::new(1)))],
+        &mut cap_replay,
+        &metrics,
+    );
 
     // The published-vote sets must be equal: WAL replay deterministically
     // re-derives every pre-crash vote (timeouts are WAL'd, so on replay they
@@ -308,19 +345,16 @@ fn restart_with_round_certificate() {
     );
 
     // Replay WAL entries against a fresh state.
-    let mut replay_inputs: Vec<Input<TestContext>> = vec![Input::StartHeight(
-        Height::new(1),
-        vs,
-        true,
-        None,
-        Default::default(),
-    )];
-    replay_inputs.append(&mut cap_normal.wal);
-
     let metrics = Metrics::new();
-    let mut state_replay = make_state(&validators, v3);
     let mut cap_replay = Captured::default();
-    drive(&mut state_replay, replay_inputs, &mut cap_replay, &metrics);
+    let state_replay = replay(
+        &validators,
+        v3,
+        vs,
+        std::mem::take(&mut cap_normal.wal),
+        &mut cap_replay,
+        &metrics,
+    );
 
     // The replayed driver must hold the same round_certificate as the live one
     // (identical height/round/cert_type) — proof that the certificate was
@@ -337,4 +371,167 @@ fn restart_with_round_certificate() {
     assert_eq!(live.certificate.round, replayed.certificate.round);
     assert_eq!(live.certificate.cert_type, replayed.certificate.cert_type);
     assert_eq!(live.enter_round, replayed.enter_round);
+}
+
+/// A Skip `RoundCertificate` can move a node more rounds ahead than the future-round
+/// lookahead allows for individual votes. The certificate's votes are WAL'd at that
+/// far round while replay starts back at round 0, so recovery must still re-enter the
+/// round and restore everything the node held there: the polka, its own votes, and the
+/// value it locked.
+#[test]
+fn restart_with_far_ahead_round_certificate() {
+    let validators: Vec<_> = make_validators([2, 3, 2])
+        .into_iter()
+        .map(|(v, _)| v)
+        .collect();
+    let v1 = validators[0].address;
+    let v2 = validators[1].address;
+    let v3 = validators[2].address;
+    let vs = ValidatorSet::new(validators.clone());
+    let value = Value::new(0x5eed);
+    let value_id = value.id();
+
+    // Beyond `MAX_FUTURE_ROUND_LOOKAHEAD`, so the certificate's votes are out of range
+    // for the round replay starts from.
+    let far_round = Round::new(MAX_FUTURE_ROUND_LOOKAHEAD + 2);
+    let far = far_round.as_u32().expect("far round is not nil");
+
+    let metrics = Metrics::new();
+    let mut state_normal = make_state(&validators, v3);
+    let mut cap_normal = Captured::default();
+
+    drive(
+        &mut state_normal,
+        vec![
+            Input::StartHeight(Height::new(1), vs.clone(), false, None, Default::default()),
+            // Propose timer at r=0 fires: v3 prevotes nil at r=0.
+            Input::TimeoutElapsed(Timeout::propose(Round::new(0))),
+            // f+1 prevotes at the far round skip v3 straight there from r=0.
+            Input::RoundCertificate(RoundCertificate::new_from_votes(
+                Height::new(1),
+                far_round,
+                RoundCertificateType::Skip,
+                vec![
+                    prevote(v1, far, NilOrVal::Val(value_id)),
+                    prevote(v2, far, NilOrVal::Val(value_id)),
+                ],
+            )),
+        ],
+        &mut cap_normal,
+        &metrics,
+    );
+
+    assert_eq!(
+        state_normal.round(),
+        far_round,
+        "the skip certificate should have moved the live node to the far round",
+    );
+
+    let proposer = *state_normal.get_proposer(Height::new(1), far_round);
+
+    drive(
+        &mut state_normal,
+        vec![
+            // 2f+1 prevotes for the value at the far round.
+            Input::PolkaCertificate(PolkaCertificate::new(
+                Height::new(1),
+                far_round,
+                value_id,
+                vec![
+                    prevote(v1, far, NilOrVal::Val(value_id)),
+                    prevote(v2, far, NilOrVal::Val(value_id)),
+                ],
+            )),
+            Input::Proposal(SignedProposal::new(
+                Proposal::new(
+                    Height::new(1),
+                    far_round,
+                    value.clone(),
+                    Round::Nil,
+                    proposer,
+                ),
+                Signature::test(),
+            )),
+            Input::ProposedValue(
+                ProposedValue {
+                    height: Height::new(1),
+                    round: far_round,
+                    valid_round: Round::Nil,
+                    proposer,
+                    value: value.clone(),
+                    validity: Validity::Valid,
+                },
+                ValueOrigin::Consensus,
+            ),
+        ],
+        &mut cap_normal,
+        &metrics,
+    );
+
+    // Sanity: the node locked the value at the far round before crashing, and the
+    // certificate's votes reached the WAL carrying that round.
+    assert_eq!(
+        state_normal
+            .driver
+            .round_state()
+            .locked
+            .as_ref()
+            .map(|l| l.round),
+        Some(far_round),
+        "the live node should have locked a value at the far round",
+    );
+    assert!(
+        cap_normal
+            .wal
+            .iter()
+            .any(|e| matches!(e, Input::Vote(v) if v.message.round == far_round)),
+        "expected votes at the far round in the WAL, got {:?}",
+        cap_normal.wal,
+    );
+
+    // Recovery phase: replay the captured WAL entries to a fresh state.
+    let metrics = Metrics::new();
+    let mut cap_replay = Captured::default();
+    let state_replay = replay(
+        &validators,
+        v3,
+        vs,
+        std::mem::take(&mut cap_normal.wal),
+        &mut cap_replay,
+        &metrics,
+    );
+
+    // The round the certificate put the node in is restored.
+    assert_eq!(state_replay.round(), state_normal.round());
+
+    let live = state_normal
+        .driver
+        .round_certificate()
+        .expect("live round_certificate");
+    let replayed = state_replay
+        .driver
+        .round_certificate()
+        .expect("replayed round_certificate");
+    assert_eq!(live.certificate.height, replayed.certificate.height);
+    assert_eq!(live.certificate.round, replayed.certificate.round);
+    assert_eq!(live.certificate.cert_type, replayed.certificate.cert_type);
+    assert_eq!(live.enter_round, replayed.enter_round);
+
+    // The polka, the node's own votes, and the locked value survive the restart.
+    assert_eq!(
+        state_replay.driver.last_prevote(),
+        state_normal.driver.last_prevote(),
+    );
+    assert_eq!(
+        state_replay.driver.last_precommit(),
+        state_normal.driver.last_precommit(),
+    );
+    assert_eq!(
+        state_replay.driver.round_state().locked,
+        state_normal.driver.round_state().locked,
+    );
+    assert_eq!(
+        state_replay.driver.round_state().valid,
+        state_normal.driver.round_state().valid,
+    );
 }

@@ -241,12 +241,13 @@ where
     ///
     /// Used by upstream layers that detect equivocation but filter the conflicting proposal
     /// before it reaches the normal proposal-handling path.
+    /// Returns whether the evidence pair was newly retained.
     pub fn record_proposal_evidence(
         &mut self,
         existing: SignedProposal<Ctx>,
         conflicting: SignedProposal<Ctx>,
-    ) {
-        self.proposal_keeper.record_evidence(existing, conflicting);
+    ) -> bool {
+        self.proposal_keeper.record_evidence(existing, conflicting)
     }
 
     /// Remove and return recorded evidence of vote equivocation.

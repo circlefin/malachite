@@ -1,6 +1,7 @@
 use crate::handle::driver::apply_driver_input;
 use crate::handle::signature::verify_signature;
 use crate::input::Input;
+use crate::params::exceeds_future_round_lookahead;
 use crate::prelude::*;
 use crate::types::{ConsensusMsg, ProposedValue};
 use crate::util::pretty::PrettyProposal;
@@ -84,6 +85,30 @@ where
         return Ok(());
     }
 
+    // Drop proposals whose round is too far ahead of the current consensus round.
+    // This bounds per-height proposal-keeper state, signature verification work,
+    // and WAL I/O when proposals carry arbitrarily high round numbers.
+    //
+    // Replayed proposals are exempt: they were admitted and applied by an earlier run,
+    // and a round certificate can carry them arbitrarily far ahead of the round replay
+    // has reached.
+    if !state.is_replaying_wal() && exceeds_future_round_lookahead(consensus_round, proposal_round)
+    {
+        debug!(
+            consensus.height = %consensus_height,
+            consensus.round = %consensus_round,
+            proposal.height = %proposal_height,
+            proposal.round = %proposal_round,
+            proposer = %proposer_address,
+            "Received proposal for round beyond the future-round lookahead, dropping"
+        );
+
+        #[cfg(feature = "metrics")]
+        metrics.dropped_future_round_proposals.inc();
+
+        return Ok(());
+    }
+
     if !verify_signed_proposal(co, state, &signed_proposal).await? {
         return Ok(());
     }
@@ -100,7 +125,8 @@ where
 
     // Drop proposals that would grow the keeper, and therefore the WAL, past the
     // per-(height, round) cap, before persisting anything. Proposals for a value that already
-    // holds a polka certificate are exempt: the certificate carries a quorum of signed prevotes.
+    // holds a polka certificate at this round are exempt: the certificate carries a quorum of
+    // signed prevotes.
     if state.exceeds_per_round_cap(
         proposal_height,
         proposal_round,
@@ -120,18 +146,17 @@ where
         return Ok(());
     }
 
-    // Store the proposal in the full proposal keeper
-    state.store_proposal(signed_proposal.clone(), metrics);
-
-    // Persist the proposal in the Write-Ahead Log before sending it over the network.
-    perform!(
-        co,
-        Effect::WalAppend(
-            signed_proposal.height(),
-            Input::Proposal(signed_proposal.clone()),
-            Default::default()
-        )
-    );
+    // Persist only proposals that contribute retained consensus state.
+    if state.store_proposal(signed_proposal.clone(), metrics) == ProposalPersistence::Required {
+        perform!(
+            co,
+            Effect::WalAppend(
+                signed_proposal.height(),
+                Input::Proposal(signed_proposal.clone()),
+                Default::default()
+            )
+        );
+    }
 
     if state.params.value_payload.proposal_only() {
         // TODO - pass the received value up to the host that will verify and give back validity and extension.

@@ -73,24 +73,49 @@ where
     }
 }
 
+/// Maximum number of input Unicode scalar values `sanitize_moniker` considers.
+/// Disallowed characters in that window are dropped, so the output can be shorter.
+pub(crate) const MAX_MONIKER_INPUT_CHARS: usize = 128;
+
 /// Parsed information from a peer's agent_version string
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AgentInfo {
     pub moniker: String,
 }
 
+/// Sanitize a peer-supplied moniker for safe use as a Prometheus label value.
+///
+/// Keeps ASCII alphanumeric characters plus `-`, `_`, and `.`. Drops everything
+/// else. Considers at most [`MAX_MONIKER_INPUT_CHARS`] Unicode scalar values.
+/// Empty results become `"unknown"`.
+pub(crate) fn sanitize_moniker(moniker: &str) -> String {
+    let sanitized: String = moniker
+        .chars()
+        .take(MAX_MONIKER_INPUT_CHARS)
+        .filter(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.')
+        })
+        .collect();
+
+    if sanitized.is_empty() {
+        String::from("unknown")
+    } else {
+        sanitized
+    }
+}
+
 /// Parse agent_version string to extract moniker.
 ///
 /// Expected format: "moniker=<name>"
 ///
-/// Returns `AgentInfo` with parsed moniker. Defaults to "unknown" if not found.
+/// Returns `AgentInfo` with a sanitized moniker. Defaults to "unknown" if not found.
 pub fn parse_agent_version(agent_version: &str) -> AgentInfo {
     let mut moniker = String::from("unknown");
 
     for part in agent_version.split(',') {
         let part = part.trim();
         if let Some(mon) = part.strip_prefix("moniker=") {
-            moniker = mon.to_string();
+            moniker = sanitize_moniker(mon);
         }
     }
 
@@ -100,6 +125,67 @@ pub fn parse_agent_version(agent_version: &str) -> AgentInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parse_agent_version_defaults_to_unknown() {
+        assert_eq!(parse_agent_version("").moniker, "unknown");
+        assert_eq!(parse_agent_version("version=1.0").moniker, "unknown");
+        assert_eq!(parse_agent_version("moniker=").moniker, "unknown");
+        assert_eq!(parse_agent_version("moniker=   ").moniker, "unknown");
+    }
+
+    #[test]
+    fn parse_agent_version_happy_path() {
+        assert_eq!(parse_agent_version("moniker=node-1").moniker, "node-1");
+    }
+
+    #[test]
+    fn parse_agent_version_drops_disallowed_characters() {
+        let info = parse_agent_version("moniker=evil\"}\nnode_safety_failure 0");
+        assert_eq!(info.moniker, "evilnode_safety_failure0");
+        assert!(!info.moniker.contains('"'));
+        assert!(!info.moniker.contains('\n'));
+        assert!(!info.moniker.contains(' '));
+    }
+
+    #[test]
+    fn parse_agent_version_keeps_ascii_identifier_chars() {
+        assert_eq!(
+            parse_agent_version("moniker=node-1_foo.bar").moniker,
+            "node-1_foo.bar"
+        );
+    }
+
+    #[test]
+    fn parse_agent_version_drops_other_controls() {
+        let info = parse_agent_version("moniker=a\rb\tc");
+        assert_eq!(info.moniker, "abc");
+    }
+
+    #[test]
+    fn parse_agent_version_truncates_long_moniker() {
+        let long = "a".repeat(MAX_MONIKER_INPUT_CHARS + 50);
+        let info = parse_agent_version(&format!("moniker={long}"));
+        assert_eq!(info.moniker.chars().count(), MAX_MONIKER_INPUT_CHARS);
+    }
+
+    #[test]
+    fn sanitize_moniker_all_disallowed_becomes_unknown() {
+        assert_eq!(sanitize_moniker(r#"\"} 日本語"#), "unknown");
+    }
+
+    #[test]
+    fn parse_agent_version_last_moniker_wins() {
+        assert_eq!(
+            parse_agent_version("moniker=first,moniker=second").moniker,
+            "second"
+        );
+    }
+
+    #[test]
+    fn sanitize_moniker_drops_backslash() {
+        assert_eq!(sanitize_moniker(r"a\b"), "ab");
+    }
 
     #[test]
     fn test_initial_state() {

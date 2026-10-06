@@ -2,7 +2,7 @@ use libp2p::{identify, swarm::ConnectionId, PeerId, Swarm};
 use tracing::{debug, info, warn};
 
 use crate::{
-    config::BootstrapProtocol, request::RequestData, util::strip_peer_id_from_multiaddr, Discovery,
+    config::BootstrapProtocol, request::RequestData, util::eq_ignore_peer_id, Discovery,
     DiscoveryClient, OutboundState, State,
 };
 
@@ -95,11 +95,9 @@ where
                 // Note: This only matches if peer uses port reuse (source port == listen port).
                 // With ephemeral source ports, peer gets identified as bootstrap when we
                 // later dial their configured listen address.
-                let remote_addr_stripped = strip_peer_id_from_multiaddr(remote_addr);
-                listen_addrs.iter().any(|bootstrap_addr| {
-                    let bootstrap_stripped = strip_peer_id_from_multiaddr(bootstrap_addr);
-                    remote_addr_stripped == bootstrap_stripped
-                })
+                listen_addrs
+                    .iter()
+                    .any(|bootstrap_addr| eq_ignore_peer_id(remote_addr, bootstrap_addr))
             } else {
                 // No connection info available, cannot verify
                 debug!(
@@ -144,15 +142,13 @@ where
         // Match peer against bootstrap nodes
         self.update_bootstrap_node_peer_id(connection_id, peer_id);
 
-        if self.config.persistent_peers_only && !self.is_persistent_peer(&peer_id) {
+        if !self.allows_peer_under_policy(&peer_id) {
             warn!(
                 peer = %peer_id, %connection_id,
                 "Rejecting connection from non-persistent peer as persistent_peers_only mode is on"
             );
 
-            self.controller
-                .close
-                .add_to_queue((peer_id, connection_id), None);
+            self.reject_unaccepted_connection(swarm, peer_id, connection_id);
 
             return is_already_connected;
         }
@@ -280,7 +276,12 @@ where
                     .dial
                     .is_done_on(&crate::controller::PeerData::PeerId(peer_id));
 
-            if we_dialed {
+            // Check if the peer previously occupied a slot (either inbound or outbound)
+            if self.outbound_peers.contains_key(&peer_id) {
+                debug!(peer = %peer_id, %connection_id, "Connection is outbound");
+            } else if self.inbound_peers.contains(&peer_id) {
+                debug!(peer = %peer_id, %connection_id, "Connection is inbound");
+            } else if we_dialed {
                 // Accept all peers we dial (no capacity check)
                 // When discovery is disabled, these are explicitly configured peers
                 debug!(peer = %peer_id, %connection_id, "Connection is outbound");

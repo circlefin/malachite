@@ -113,7 +113,9 @@ pub enum NetworkEvent<Ctx: Context> {
     Vote(PeerId, SignedVote<Ctx>),
 
     Proposal(PeerId, SignedProposal<Ctx>),
-    ProposalPart(PeerId, StreamMessage<Ctx::ProposalPart>),
+    /// A proposal part, with the peer that delivered it and the publisher
+    /// declared in the message, when the transport provides one.
+    ProposalPart(PeerId, Option<PeerId>, StreamMessage<Ctx::ProposalPart>),
 
     PolkaCertificate(PeerId, PolkaCertificate<Ctx>),
 
@@ -130,6 +132,7 @@ pub enum NetworkEvent<Ctx: Context> {
     SyncRequest(InboundRequestId, PeerId, Request<Ctx>),
     SyncResponse(OutboundRequestId, PeerId, Option<Response<Ctx>>),
     SyncRequestFailed(OutboundRequestId, PeerId, sync::OutboundFailureReason),
+    SyncInboundRequestFailed(InboundRequestId, PeerId),
 }
 
 pub enum State<Ctx: Context> {
@@ -193,7 +196,11 @@ pub enum Msg<Ctx: Context> {
     /// Drop a pending inbound request without sending a response.
     ///
     /// Used when the request will never be answered: the requesting peer
-    /// disconnected, or the host stalled past the inbound request budget.
+    /// disconnected, the connection carrying the request closed, or the host
+    /// stalled past the inbound request budget.
+    ///
+    /// Implementations must release the transport's response channel for the
+    /// request, not only their own request-id bookkeeping.
     CancelInboundRequest(InboundRequestId),
 
     /// Request to dump the current network state
@@ -386,30 +393,28 @@ where
             }
 
             Msg::OutgoingResponse(request_id, response) => {
-                let response = self.codec.encode(&response);
+                // Drop the map entry on both encode outcomes so a response
+                // that cannot be encoded does not leak the inbound slot.
+                // The inbound request may already have been evicted (e.g. it
+                // timed out); if so, skip rather than fail the actor.
+                let Some(libp2p_request_id) = inbound_requests.remove(&request_id) else {
+                    error!(%request_id, "Unknown inbound request ID, dropping response");
+                    return Ok(());
+                };
 
-                match response {
-                    Ok(data) => {
-                        // The inbound request may already have been evicted (e.g. it
-                        // timed out); if so, skip the reply rather than fail the actor
-                        // (which would restart the Node).
-                        let Some(request_id) = inbound_requests.remove(&request_id) else {
-                            error!(%request_id, "Unknown inbound request ID, dropping response");
-                            return Ok(());
-                        };
-
-                        ctrl_handle.sync_reply(request_id, data).await?
-                    }
+                match self.codec.encode(&response) {
+                    Ok(data) => ctrl_handle.sync_reply(libp2p_request_id, data).await?,
                     Err(e) => {
                         error!(%request_id, "Failed to encode response message: {e:?}");
-                        return Ok(());
+                        ctrl_handle.sync_cancel_reply(libp2p_request_id).await?;
                     }
                 };
             }
 
             Msg::CancelInboundRequest(request_id) => {
-                if inbound_requests.remove(&request_id).is_some() {
+                if let Some(libp2p_request_id) = inbound_requests.remove(&request_id) {
                     debug!(%request_id, "Dropped pending inbound request");
+                    ctrl_handle.sync_cancel_reply(libp2p_request_id).await?;
                 }
             }
 
@@ -430,8 +435,11 @@ where
             }
 
             Msg::NewEvent(Event::PeerSubscribed(peer_id, channel)) => {
-                subscriptions.insert((peer_id, channel));
-                output_port.send(NetworkEvent::PeerSubscribed(peer_id, channel));
+                // On the pair's first subscription to this channel, emit NetworkEvent::PeerSubscribed,
+                // which triggers a sync status broadcast to every peer.
+                if subscriptions.insert((peer_id, channel)) {
+                    output_port.send(NetworkEvent::PeerSubscribed(peer_id, channel));
+                }
             }
 
             Msg::NewEvent(Event::PeerUnsubscribed(peer_id, channel)) => {
@@ -465,7 +473,7 @@ where
                 return Ok(());
             }
 
-            Msg::NewEvent(Event::ConsensusMessage(Channel::Consensus, from, data)) => {
+            Msg::NewEvent(Event::ConsensusMessage(Channel::Consensus, from, _, data)) => {
                 let msg = match self.codec.decode(data) {
                     Ok(msg) => msg,
                     Err(e) => {
@@ -484,7 +492,12 @@ where
                 output_port.send(event);
             }
 
-            Msg::NewEvent(Event::ConsensusMessage(Channel::ProposalParts, from, data)) => {
+            Msg::NewEvent(Event::ConsensusMessage(
+                Channel::ProposalParts,
+                from,
+                published_by,
+                data,
+            )) => {
                 let msg: StreamMessage<Ctx::ProposalPart> = match self.codec.decode(data) {
                     Ok(stream_msg) => stream_msg,
                     Err(e) => {
@@ -500,10 +513,10 @@ where
                     "Received proposal part"
                 );
 
-                output_port.send(NetworkEvent::ProposalPart(from, msg));
+                output_port.send(NetworkEvent::ProposalPart(from, published_by, msg));
             }
 
-            Msg::NewEvent(Event::ConsensusMessage(Channel::Sync, from, data)) => {
+            Msg::NewEvent(Event::ConsensusMessage(Channel::Sync, from, _, data)) => {
                 let status: sync::Status<Ctx> = match self.codec.decode(data) {
                     Ok(status) => status,
                     Err(e) => {
@@ -525,7 +538,7 @@ where
                 ));
             }
 
-            Msg::NewEvent(Event::ConsensusMessage(channel, from, _)) => {
+            Msg::NewEvent(Event::ConsensusMessage(channel, from, _, _)) => {
                 error!(%from, "Unexpected consensus message on {channel} channel");
                 return Ok(());
             }
@@ -614,6 +627,16 @@ where
                     peer,
                     reason,
                 ));
+            }
+
+            Msg::NewEvent(Event::SyncInboundRequestFailed { request_id, peer }) => {
+                let request_id = InboundRequestId::new(request_id);
+
+                // The sync actor casts `CancelInboundRequest` only for a request
+                // it still holds.
+                inbound_requests.remove(&request_id);
+
+                output_port.send(NetworkEvent::SyncInboundRequestFailed(request_id, peer));
             }
 
             Msg::UpdateValidatorSet(validator_set) => {

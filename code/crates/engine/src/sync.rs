@@ -1,6 +1,8 @@
-use std::cmp::Ordering;
+use std::cmp::{max, Ordering};
 use std::collections::HashMap;
+use std::hash::Hash;
 use std::ops::RangeInclusive;
+use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -9,8 +11,9 @@ use bytesize::ByteSize;
 use derive_where::derive_where;
 use eyre::eyre;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
-use rand::SeedableRng;
-use tokio::task::JoinHandle;
+use rand::{Rng, SeedableRng};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use tokio::task::{AbortHandle, JoinHandle};
 use tracing::{debug, error, info, warn, Instrument};
 
 use malachitebft_codec as codec;
@@ -111,13 +114,40 @@ pub struct InflightRequest<Ctx: Context> {
 
 pub type InflightRequests<Ctx> = HashMap<OutboundRequestId, InflightRequest<Ctx>>;
 
-/// Pending inbound sync requests and the peer that issued each.
-pub type InboundRequests = HashMap<InboundRequestId, PeerId>;
+/// State for a pending inbound sync request: the peer that issued it and,
+/// once the host-call task has been spawned, an `AbortHandle` for cancelling
+/// the task on eviction so its admission and execution permits release
+/// without waiting on `request_timeout`.
+pub struct InboundRequest {
+    pub peer_id: PeerId,
+    pub abort_handle: Option<AbortHandle>,
+}
+
+impl InboundRequest {
+    fn new(peer_id: PeerId) -> Self {
+        Self {
+            peer_id,
+            abort_handle: None,
+        }
+    }
+
+    fn abort_task(&mut self) {
+        if let Some(handle) = self.abort_handle.take() {
+            handle.abort();
+        }
+    }
+}
+
+/// Pending inbound sync requests keyed by request id.
+pub type InboundRequests = HashMap<InboundRequestId, InboundRequest>;
 
 #[derive_where(Clone, Debug)]
 pub enum Msg<Ctx: Context> {
     /// Internal tick
     Tick,
+
+    /// Internal periodic trigger for a value-sync request pass
+    RetrySync,
 
     /// Receive an even from gossip layer
     NetworkEvent(NetworkEvent<Ctx>),
@@ -142,12 +172,18 @@ pub enum Msg<Ctx: Context> {
 
     /// A fault in a synced value (its certificate or its bytes) is attributable
     /// to the peer that served it: penalize and re-request from another peer.
-    PeerFault(PeerId, Ctx::Height),
+    /// The request id is the one that delivered the faulty value.
+    PeerFault(PeerId, Ctx::Height, OutboundRequestId),
 
     /// Processing a synced value hit a local/transient failure (e.g. the
     /// execution layer being temporarily unavailable). No peer is to blame, so
     /// no peer is carried — re-request without penalizing or excluding anyone.
     LocalTransientError(Ctx::Height),
+
+    /// Periodic tick to prune stale entries from the inbound rate limiter.
+    /// Fires regardless of [`Params::status_update_interval`] so the keyed
+    /// limiter's per-peer state stays bounded in `Eager` status-update mode.
+    PruneInboundRateLimiter,
 }
 
 impl<Ctx: Context> From<NetworkEvent<Ctx>> for Msg<Ctx> {
@@ -184,20 +220,28 @@ impl Default for Params {
 }
 
 /// A sync value buffered in the queue, tagged with the request that produced it.
-#[derive_where(Clone, Debug)]
-struct BufferedValue<Ctx: Context> {
+#[derive(Clone, Debug)]
+struct BufferedValue<V> {
     request_id: OutboundRequestId,
-    value: CoreValueResponse<Ctx>,
+    value: V,
 }
 
-impl<Ctx: Context> BufferedValue<Ctx> {
-    fn new(request_id: OutboundRequestId, value: CoreValueResponse<Ctx>) -> Self {
+impl<V> BufferedValue<V> {
+    fn new(request_id: OutboundRequestId, value: V) -> Self {
         Self { request_id, value }
     }
 }
 
 /// A queue of buffered sync values for heights ahead of consensus, keyed by height.
-type SyncQueue<Ctx> = BoundedQueue<<Ctx as Context>::Height, BufferedValue<Ctx>>;
+type SyncQueue<Ctx> = BoundedQueue<<Ctx as Context>::Height, BufferedValue<CoreValueResponse<Ctx>>>;
+
+/// Drop everything still buffered from the request that served a faulty value.
+fn purge_values_from_request<H: Ord, V>(
+    sync_queue: &mut BoundedQueue<H, BufferedValue<V>>,
+    request_id: &OutboundRequestId,
+) -> usize {
+    sync_queue.retain(|_, buffered| &buffered.request_id != request_id)
+}
 
 fn sync_queue_capacity(config: &sync::Config) -> usize {
     let read_ahead_window = config.read_ahead_window();
@@ -240,6 +284,22 @@ pub struct State<Ctx: Context> {
 
     /// Status update mode
     status_update_mode: StatusUpdateMode,
+
+    /// Background ticker that periodically starts a value-sync request pass.
+    /// Independent from the status-update ticker, so its cadence follows
+    /// `request_timeout` rather than `status_update_interval`.
+    retry_ticker: JoinHandle<()>,
+
+    /// Background ticker that periodically prunes the inbound rate limiter.
+    /// Independent from the status-update ticker so pruning runs even when
+    /// `status_update_interval == 0` (Eager mode).
+    rate_limiter_pruner: JoinHandle<()>,
+
+    /// Admission permits: capacity for `max_concurrent + max_pending`.
+    inbound_admission_permits: Arc<Semaphore>,
+
+    /// Execution permits: capacity for `max_concurrent` concurrent host calls.
+    inbound_execution_permits: Arc<Semaphore>,
 }
 
 struct HandlerState<'a, Ctx: Context> {
@@ -254,6 +314,12 @@ struct HandlerState<'a, Ctx: Context> {
     sync_queue: &'a mut SyncQueue<Ctx>,
     /// The current consensus height according to the last processed input.
     consensus_height: Ctx::Height,
+    /// Lowest height this node will serve.
+    history_min_height: Ctx::Height,
+    /// Admission-permits handle (concurrent + pending capacity).
+    inbound_admission_permits: Arc<Semaphore>,
+    /// Execution-permits handle (concurrent capacity), acquired inside spawned tasks.
+    inbound_execution_permits: Arc<Semaphore>,
 }
 
 #[allow(dead_code)]
@@ -342,20 +408,30 @@ where
             inbound: &mut state.inbound,
             sync_queue: &mut state.sync_queue,
             consensus_height: state.sync.consensus_height,
+            history_min_height: state.sync.history_min_height,
+            inbound_admission_permits: state.inbound_admission_permits.clone(),
+            inbound_execution_permits: state.inbound_execution_permits.clone(),
         };
 
-        malachitebft_sync::process!(
-            input: input,
-            state: &mut state.sync,
-            metrics: &self.metrics,
-            with: effect => {
-                self.handle_effect(
-                    myself,
-                    &mut handler_state,
-                    effect,
-                ).await
-            }
-        )
+        let result = async {
+            malachitebft_sync::process!(
+                input: input,
+                state: &mut state.sync,
+                metrics: &self.metrics,
+                with: effect => {
+                    self.handle_effect(
+                        myself,
+                        &mut handler_state,
+                        effect,
+                    ).await
+                }
+            )
+        }
+        .await;
+
+        state.sync.history_min_height = handler_state.history_min_height;
+
+        result
     }
 
     async fn get_history_min_height(&self) -> Result<Ctx::Height, ActorProcessingErr> {
@@ -363,6 +439,41 @@ where
             reply_to
         })
         .map_err(|e| eyre!("Failed to get earliest history height: {e:?}").into())
+    }
+
+    /// Release a pending inbound request: abort its in-flight host call, cancel
+    /// its stall timer, release the per-peer in-flight slot, drop the network
+    /// layer's response channel, and record `reason`. Returns `true` if the
+    /// request was pending.
+    async fn evict_inbound_request(
+        &self,
+        myself: &ActorRef<Msg<Ctx>>,
+        state: &mut State<Ctx>,
+        request_id: &InboundRequestId,
+        reason: InboundFailureReason,
+    ) -> Result<bool, ActorProcessingErr> {
+        if !take_inbound_request(&mut state.inbound, request_id) {
+            return Ok(false);
+        }
+
+        state
+            .timers
+            .cancel(&Timeout::InboundRequest(request_id.clone()));
+
+        self.process_input(
+            myself,
+            state,
+            sync::Input::InboundRequestEvicted(request_id.clone()),
+        )
+        .await?;
+
+        self.network
+            .cast(NetworkMsg::CancelInboundRequest(request_id.clone()))?;
+
+        self.metrics
+            .value_inbound_request_failed(request_id, reason);
+
+        Ok(true)
     }
 
     async fn handle_effect(
@@ -375,11 +486,36 @@ where
 
         match effect {
             Effect::BroadcastStatus(height, r) => {
-                let history_min_height = self.get_history_min_height().await?;
+                let history_min_height = match tokio::time::timeout(
+                    self.params.request_timeout,
+                    self.get_history_min_height(),
+                )
+                .await
+                {
+                    Ok(Ok(history_min_height)) => history_min_height,
+                    Ok(Err(error)) => {
+                        warn!(
+                            ?error,
+                            "Failed to get earliest history height, broadcasting status with last known floor"
+                        );
+                        state.history_min_height
+                    }
+                    Err(_) => {
+                        warn!(
+                            timeout = ?self.params.request_timeout,
+                            "Timed out getting earliest history height, broadcasting status with last known floor"
+                        );
+                        state.history_min_height
+                    }
+                };
+
+                // Host fetches can complete after the serve floor has advanced.
+                // Never reopen a range that the host has already pruned.
+                state.history_min_height = max(state.history_min_height, history_min_height);
 
                 self.network.cast(NetworkMsg::BroadcastStatus(Status::new(
                     height,
-                    history_min_height,
+                    state.history_min_height,
                 )))?;
 
                 Ok(r.resume_with(()))
@@ -437,15 +573,75 @@ where
             }
 
             Effect::GetDecidedValues(request_id, range, r) => {
-                self.host.call_and_forward(
-                    {
-                        let range = range.clone();
-                        |reply_to| HostMsg::GetDecidedValues { range, reply_to }
-                    },
-                    myself,
-                    |values| Msg::<Ctx>::GotDecidedValues(request_id, range, values),
-                    None,
-                )?;
+                let Some(admission_permit) =
+                    try_acquire_request_permit(&state.inbound_admission_permits)
+                else {
+                    warn!(
+                        %request_id,
+                        range = %DisplayRange(&range),
+                        max_concurrent = self.sync_config.max_concurrent_inbound_requests,
+                        max_pending = self.sync_config.max_pending_inbound_requests,
+                        "Rejecting inbound value request: admission capacity exhausted"
+                    );
+                    // Route the empty response through `GotDecidedValues` so the
+                    // sync handle releases the per-peer in-flight slot it took
+                    // at admission time.
+                    myself.cast(Msg::<Ctx>::GotDecidedValues(request_id, range, Vec::new()))?;
+                    return Ok(r.resume_with(()));
+                };
+
+                let execution_permits = state.inbound_execution_permits.clone();
+                let host = self.host.clone();
+                let actor_ref = myself.clone();
+                let request_timeout = self.params.request_timeout;
+                let spawn_request_id = request_id.clone();
+
+                let join_handle = tokio::spawn(
+                    async move {
+                        let _admission = admission_permit;
+
+                        let Ok(_execution) = execution_permits.acquire_owned().await else {
+                            // Execution semaphore closed: actor shutting down.
+                            // Cast an empty response so the sync handle releases
+                            // the per-peer in-flight slot taken at admission
+                            // time, matching the admission-rejection path.
+                            let _ = actor_ref.cast(Msg::<Ctx>::GotDecidedValues(
+                                spawn_request_id,
+                                range,
+                                Vec::new(),
+                            ));
+                            return;
+                        };
+
+                        let values = match host
+                            .call(
+                                |reply_to| HostMsg::GetDecidedValues {
+                                    range: range.clone(),
+                                    reply_to,
+                                },
+                                Some(request_timeout),
+                            )
+                            .await
+                        {
+                            Ok(ractor::rpc::CallResult::Success(values)) => values,
+                            _ => Vec::new(),
+                        };
+
+                        let _ = actor_ref.cast(Msg::<Ctx>::GotDecidedValues(
+                            spawn_request_id,
+                            range,
+                            values,
+                        ));
+                    }
+                    .in_current_span(),
+                );
+
+                // Attach the task's abort handle so eviction paths can cancel
+                // it and release the permit guards without waiting on the
+                // ractor timeout.
+                if let Some(entry) = state.inbound.get_mut(&request_id) {
+                    entry.abort_handle = Some(join_handle.abort_handle());
+                }
 
                 Ok(r.resume_with(()))
             }
@@ -456,6 +652,13 @@ where
             }
 
             Effect::CancelValueRequest(request_id, r) => {
+                // Cancel the request timer and drop the in-flight entry.
+                abandon_outbound_request(
+                    state.timers,
+                    Timeout::Request(request_id.clone()),
+                    state.inflight,
+                    &request_id,
+                );
                 self.network.cast(NetworkMsg::CancelRequest(request_id))?;
 
                 Ok(r.resume_with(()))
@@ -500,7 +703,7 @@ where
 
                     if let Err(e) = self
                         .consensus
-                        .cast(ConsensusMsg::ProcessSyncResponse(value))
+                        .cast(ConsensusMsg::ProcessSyncResponse(request_id.clone(), value))
                     {
                         error!("Failed to forward value response to consensus: {e}");
                     }
@@ -538,6 +741,15 @@ where
                     .await?;
             }
 
+            Msg::RetrySync => {
+                self.process_input(&myself, state, sync::Input::TryRequestValues)
+                    .await?;
+            }
+
+            Msg::PruneInboundRateLimiter => {
+                state.sync.inbound_rate_limiter.retain_recent();
+            }
+
             Msg::NetworkEvent(NetworkEvent::PeerDisconnected(peer_id)) => {
                 info!(%peer_id, "Disconnected from peer");
 
@@ -563,22 +775,20 @@ where
                     );
                 }
 
-                // Drop any pending inbound requests issued by this peer: cancel
-                // their stall timers and evict them from the network layer
-                // before the host reply path runs.
-                let inbound_request_ids =
-                    drain_inbound_requests_for_peer(&mut state.inbound, peer_id);
+                // Drop any pending inbound requests issued by this peer before
+                // the host reply path runs.
+                let inbound_request_ids = inbound_request_ids_for_peer(&state.inbound, peer_id);
 
                 for request_id in &inbound_request_ids {
-                    state
-                        .timers
-                        .cancel(&Timeout::InboundRequest(request_id.clone()));
-                    self.network
-                        .cast(NetworkMsg::CancelInboundRequest(request_id.clone()))?;
-                    self.metrics.value_inbound_request_failed(
-                        request_id,
-                        InboundFailureReason::RequesterDisconnected,
-                    );
+                    // Every id came from `state.inbound`, so each is pending.
+                    let _ = self
+                        .evict_inbound_request(
+                            &myself,
+                            state,
+                            request_id,
+                            InboundFailureReason::RequesterDisconnected,
+                        )
+                        .await?;
                 }
 
                 if !inbound_request_ids.is_empty() {
@@ -606,7 +816,9 @@ where
 
             Msg::NetworkEvent(NetworkEvent::SyncRequest(request_id, from, request)) => {
                 // Track the request against its requester and arm its stall timer.
-                state.inbound.insert(request_id.clone(), from);
+                state
+                    .inbound
+                    .insert(request_id.clone(), InboundRequest::new(from));
                 state.timers.start_timer(
                     Timeout::InboundRequest(request_id.clone()),
                     self.params.request_timeout,
@@ -648,6 +860,22 @@ where
                     sync::Input::ValueResponse(request_id, peer, response),
                 )
                 .await?;
+            }
+
+            Msg::NetworkEvent(NetworkEvent::SyncInboundRequestFailed(request_id, peer)) => {
+                if self
+                    .evict_inbound_request(
+                        &myself,
+                        state,
+                        &request_id,
+                        InboundFailureReason::ConnectionClosed,
+                    )
+                    .await?
+                {
+                    debug!(%request_id, %peer, "Evicted inbound sync request whose connection closed");
+                } else {
+                    debug!(%request_id, %peer, "Inbound sync request failure for unknown request");
+                }
             }
 
             Msg::NetworkEvent(NetworkEvent::SyncRequestFailed(request_id, peer, reason)) => {
@@ -698,10 +926,10 @@ where
 
                 // Drain buffered sync responses for this height
                 for buffered in state.sync_queue.shift_and_take(&height) {
-                    if let Err(e) = self
-                        .consensus
-                        .cast(ConsensusMsg::ProcessSyncResponse(buffered.value))
-                    {
+                    if let Err(e) = self.consensus.cast(ConsensusMsg::ProcessSyncResponse(
+                        buffered.request_id,
+                        buffered.value,
+                    )) {
                         error!("Failed to forward buffered sync response to consensus: {e}");
                         break;
                     }
@@ -750,10 +978,15 @@ where
             // If it does, we truncate the response accordingly.
             // This is to prevent sending overly large messages that could lead to network issues.
             Msg::GotDecidedValues(request_id, range, mut values) => {
-                // Drop late host replies for inbound requests that were already
-                // evicted (requester disconnected, or the stall timer fired).
+                // Late reply for an evicted request: drop and release the slot.
                 if !state.inbound.contains_key(&request_id) {
                     debug!(%request_id, "Dropping decided values for evicted inbound request");
+                    self.process_input(
+                        &myself,
+                        state,
+                        sync::Input::InboundRequestEvicted(request_id),
+                    )
+                    .await?;
                     return Ok(());
                 }
 
@@ -776,25 +1009,27 @@ where
                 .await?;
             }
 
-            Msg::PeerFault(peer, height) => {
-                // Remove buffered values that came from the same request as the faulty value.
-                // This prevents stale values from a bad peer from being drained to consensus
-                // when the height advances.
-                if let Some((request_id, _)) = state.sync.get_request_id_by(height) {
-                    let removed = state.sync_queue.retain(|_, bv| bv.request_id != request_id);
+            Msg::PeerFault(peer, height, request_id) => {
+                // Drop the values still buffered from the request that supplied the faulty
+                // one, so the height advance does not drain them to consensus. Requests
+                // that have since taken over any of those heights keep their values.
+                let removed = purge_values_from_request(&mut state.sync_queue, &request_id);
 
-                    if removed > 0 {
-                        debug!(
-                            %peer, %height, %request_id, removed,
-                            "Removed buffered values from invalidated request"
-                        );
-                        self.metrics
-                            .sync_queue_updated(state.sync_queue.len(), state.sync_queue.size());
-                    }
+                if removed > 0 {
+                    debug!(
+                        %peer, %height, %request_id, removed,
+                        "Removed buffered values from invalidated request"
+                    );
+                    self.metrics
+                        .sync_queue_updated(state.sync_queue.len(), state.sync_queue.size());
                 }
 
-                self.process_input(&myself, state, sync::Input::PeerFault(peer, height))
-                    .await?
+                self.process_input(
+                    &myself,
+                    state,
+                    sync::Input::PeerFault(peer, height, request_id),
+                )
+                .await?
             }
 
             Msg::LocalTransientError(height) => {
@@ -844,16 +1079,17 @@ where
                         }
                     }
 
-                    // The host did not answer within the inbound request budget:
-                    // drop it from the network layer and record the reason.
+                    // Host did not answer within the inbound request budget.
                     Timeout::InboundRequest(request_id) => {
-                        if state.inbound.remove(&request_id).is_some() {
-                            self.network
-                                .cast(NetworkMsg::CancelInboundRequest(request_id.clone()))?;
-                            self.metrics.value_inbound_request_failed(
+                        if self
+                            .evict_inbound_request(
+                                &myself,
+                                state,
                                 &request_id,
                                 InboundFailureReason::HostStallTimeout,
-                            );
+                            )
+                            .await?
+                        {
                             debug!(%request_id, "Inbound sync request timed out waiting on host");
                         } else {
                             debug!(%request_id, "Inbound request timeout for unknown request");
@@ -880,6 +1116,50 @@ where
     }
 }
 
+/// Cancel the outbound request timer and drop the in-flight entry.
+///
+/// Shared by [`Effect::CancelValueRequest`].
+fn abandon_outbound_request<Key, V>(
+    timers: &mut TimerScheduler<Key>,
+    timeout_key: Key,
+    inflight: &mut HashMap<OutboundRequestId, V>,
+    request_id: &OutboundRequestId,
+) where
+    Key: Clone + Eq + Hash + Send + 'static,
+{
+    timers.cancel(&timeout_key);
+    inflight.remove(request_id);
+}
+
+/// One-time uniform adjustment factor [-1%, +1%] applied to a ticker interval.
+const TICKER_ADJ_RATE: f64 = 0.01;
+
+/// Floor for the retry ticker. Its interval is derived from `request_timeout`,
+/// which a config may set to `0`; `ticker` clamps a zero sleep to ~1ns and
+/// would spin the actor in a hot message loop.
+const MIN_RETRY_INTERVAL: Duration = Duration::from_secs(1);
+
+/// This interval controls the fallback value-sync request pass. Explicit
+/// failures retry immediately. A request with no response waits for this ticker.
+fn retry_interval(request_timeout: Duration) -> Duration {
+    request_timeout.max(MIN_RETRY_INTERVAL)
+}
+
+fn spawn_retry_ticker<Ctx, R>(
+    request_timeout: Duration,
+    sync: &ActorRef<Msg<Ctx>>,
+    rng: &mut R,
+) -> JoinHandle<()>
+where
+    Ctx: Context,
+    R: rand::Rng,
+{
+    let interval = retry_interval(request_timeout);
+    let adjustment = rng.gen_range(-TICKER_ADJ_RATE..=TICKER_ADJ_RATE);
+
+    tokio::spawn(ticker(interval, sync.clone(), adjustment, || Msg::RetrySync).in_current_span())
+}
+
 fn status_update_mode<Ctx, R>(
     interval: Duration,
     sync: &ActorRef<Msg<Ctx>>,
@@ -891,20 +1171,21 @@ where
 {
     if interval == Duration::ZERO {
         info!("Using status update mode: Eager");
-        StatusUpdateMode::Eager
-    } else {
-        info!("Using status update mode: Interval");
 
-        // One-time uniform adjustment factor [-1%, +1%]
-        const ADJ_RATE: f64 = 0.01;
-        let adjustment = rng.gen_range(-ADJ_RATE..=ADJ_RATE);
-
-        let ticker = tokio::spawn(
-            ticker(interval, sync.clone(), adjustment, || Msg::Tick).in_current_span(),
-        );
-
-        StatusUpdateMode::Interval(ticker)
+        return StatusUpdateMode::Eager;
     }
+
+    info!("Using status update mode: Interval");
+
+    let adjustment = rng.gen_range(-TICKER_ADJ_RATE..=TICKER_ADJ_RATE);
+    let ticker =
+        tokio::spawn(ticker(interval, sync.clone(), adjustment, || Msg::Tick).in_current_span());
+
+    StatusUpdateMode::Interval(ticker)
+}
+
+fn try_acquire_request_permit(permits: &Arc<Semaphore>) -> Option<OwnedSemaphorePermit> {
+    permits.clone().try_acquire_owned().ok()
 }
 
 fn truncate_values_to_size_limit<Ctx, Codec>(
@@ -948,24 +1229,28 @@ fn truncate_values_to_size_limit<Ctx, Codec>(
     values.truncate(keep_count);
 }
 
-/// Remove and return the IDs of all pending inbound requests issued by
-/// `peer_id`.
-fn drain_inbound_requests_for_peer(
-    inbound: &mut InboundRequests,
+/// Return the IDs of all pending inbound requests issued by `peer_id`.
+fn inbound_request_ids_for_peer(
+    inbound: &InboundRequests,
     peer_id: PeerId,
 ) -> Vec<InboundRequestId> {
-    let mut request_ids = Vec::new();
+    inbound
+        .iter()
+        .filter(|(_, entry)| entry.peer_id == peer_id)
+        .map(|(request_id, _)| request_id.clone())
+        .collect()
+}
 
-    inbound.retain(|request_id, requester| {
-        if *requester == peer_id {
-            request_ids.push(request_id.clone());
-            false
-        } else {
+/// Remove a pending inbound request, aborting its host-call task if one has
+/// been spawned. Returns `true` if the request was pending.
+fn take_inbound_request(inbound: &mut InboundRequests, request_id: &InboundRequestId) -> bool {
+    match inbound.remove(request_id) {
+        Some(mut entry) => {
+            entry.abort_task();
             true
         }
-    });
-
-    request_ids
+        None => false,
+    }
 }
 
 #[async_trait]
@@ -991,9 +1276,31 @@ where
         let status_update_mode =
             status_update_mode(self.params.status_update_interval, &myself, &mut rng);
 
+        let retry_ticker = spawn_retry_ticker(self.params.request_timeout, &myself, &mut rng);
+
         // A batch may start at the end of the read-ahead window and extend by
         // one batch less one height. Twice the window covers that full range.
         let queue_capacity = sync_queue_capacity(&self.sync_config);
+
+        let inbound_admission_permits = Arc::new(Semaphore::new(
+            self.sync_config
+                .max_concurrent_inbound_requests
+                .saturating_add(self.sync_config.max_pending_inbound_requests),
+        ));
+        let inbound_execution_permits = Arc::new(Semaphore::new(
+            self.sync_config.max_concurrent_inbound_requests,
+        ));
+
+        // Prune once per rate-limit window (governor only evicts entries whose
+        // quota has fully replenished).
+        let prune_interval = self.sync_config.inbound_request_rate_limit_window;
+        let prune_adjustment = rng.gen_range(-TICKER_ADJ_RATE..=TICKER_ADJ_RATE);
+        let rate_limiter_pruner = tokio::spawn(
+            ticker(prune_interval, myself.clone(), prune_adjustment, || {
+                Msg::PruneInboundRateLimiter
+            })
+            .in_current_span(),
+        );
 
         Ok(State {
             sync: sync::State::new(rng, self.sync_config),
@@ -1003,6 +1310,10 @@ where
             inbound: HashMap::new(),
             sync_queue: SyncQueue::new(queue_capacity, queue_capacity),
             status_update_mode,
+            retry_ticker,
+            rate_limiter_pruner,
+            inbound_admission_permits,
+            inbound_execution_permits,
         })
     }
 
@@ -1037,13 +1348,147 @@ where
             ticker.abort();
         }
 
+        state.retry_ticker.abort();
+        state.rate_limiter_pruner.abort();
+
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::marker::PhantomData;
+
+    use malachitebft_test::codec::json::JsonCodec;
+    use malachitebft_test::TestContext;
+
     use super::*;
+    use tokio::sync::oneshot;
+
+    struct IgnoreActor<Msg> {
+        _marker: PhantomData<fn(Msg)>,
+    }
+
+    #[async_trait]
+    impl<Msg> Actor for IgnoreActor<Msg>
+    where
+        Msg: ractor::Message,
+    {
+        type Msg = Msg;
+        type State = ();
+        type Arguments = ();
+
+        async fn pre_start(
+            &self,
+            _myself: ActorRef<Msg>,
+            _args: (),
+        ) -> Result<(), ActorProcessingErr> {
+            Ok(())
+        }
+
+        async fn handle(
+            &self,
+            _myself: ActorRef<Msg>,
+            _msg: Msg,
+            _state: &mut (),
+        ) -> Result<(), ActorProcessingErr> {
+            Ok(())
+        }
+    }
+
+    async fn spawn_ignore_actor<Msg>() -> ActorRef<Msg>
+    where
+        Msg: ractor::Message,
+    {
+        IgnoreActor::<Msg>::spawn(
+            None,
+            IgnoreActor {
+                _marker: PhantomData,
+            },
+            (),
+        )
+        .await
+        .unwrap()
+        .0
+    }
+
+    struct RetryObserver;
+
+    #[async_trait]
+    impl Actor for RetryObserver {
+        type Msg = Msg<TestContext>;
+        type State = Option<oneshot::Sender<()>>;
+        type Arguments = oneshot::Sender<()>;
+
+        async fn pre_start(
+            &self,
+            _myself: ActorRef<Self::Msg>,
+            sender: Self::Arguments,
+        ) -> Result<Self::State, ActorProcessingErr> {
+            Ok(Some(sender))
+        }
+
+        async fn handle(
+            &self,
+            _myself: ActorRef<Self::Msg>,
+            msg: Self::Msg,
+            state: &mut Self::State,
+        ) -> Result<(), ActorProcessingErr> {
+            if matches!(msg, Msg::RetrySync) {
+                if let Some(sender) = state.take() {
+                    let _ = sender.send(());
+                }
+            }
+
+            Ok(())
+        }
+    }
+
+    type TestSyncQueue = BoundedQueue<u64, BufferedValue<&'static str>>;
+
+    /// One peer served the range twice because a no-blame retry selected it again.
+    fn queue_with_original_and_retry() -> TestSyncQueue {
+        let mut queue = TestSyncQueue::new(16, 16);
+
+        for height in [12, 13] {
+            assert!(queue.push(
+                height,
+                BufferedValue::new(OutboundRequestId::new("original"), "original"),
+            ));
+            assert!(queue.push(
+                height,
+                BufferedValue::new(OutboundRequestId::new("retry"), "retry"),
+            ));
+        }
+
+        queue
+    }
+
+    #[test]
+    fn purging_the_originating_request_keeps_the_retry() {
+        let mut queue = queue_with_original_and_retry();
+
+        let removed = purge_values_from_request(&mut queue, &OutboundRequestId::new("original"));
+
+        assert_eq!(removed, 2);
+
+        assert_eq!(queue.size(), 2);
+        for height in [12u64, 13] {
+            let remaining: Vec<_> = queue.shift_and_take(&height).collect();
+            assert_eq!(remaining.len(), 1);
+            assert_eq!(remaining[0].request_id, OutboundRequestId::new("retry"));
+        }
+    }
+
+    #[test]
+    fn purging_an_unknown_request_keeps_the_queue() {
+        let mut queue = queue_with_original_and_retry();
+
+        let removed = purge_values_from_request(&mut queue, &OutboundRequestId::new("unknown"));
+
+        assert_eq!(removed, 0);
+        assert_eq!(queue.size(), 4);
+    }
 
     #[test]
     fn sync_queue_capacity_covers_read_ahead_ranges() {
@@ -1068,38 +1513,385 @@ mod tests {
     }
 
     #[test]
-    fn drain_inbound_requests_for_peer_evicts_only_that_peers_requests() {
+    fn inbound_request_ids_for_peer_lists_only_that_peers_requests() {
         let peer_a = PeerId::random();
         let peer_b = PeerId::random();
 
         let mut inbound = InboundRequests::new();
-        inbound.insert(InboundRequestId::new("a1"), peer_a);
-        inbound.insert(InboundRequestId::new("a2"), peer_a);
-        inbound.insert(InboundRequestId::new("b1"), peer_b);
+        inbound.insert(InboundRequestId::new("a1"), InboundRequest::new(peer_a));
+        inbound.insert(InboundRequestId::new("a2"), InboundRequest::new(peer_a));
+        inbound.insert(InboundRequestId::new("b1"), InboundRequest::new(peer_b));
 
-        let mut evicted = drain_inbound_requests_for_peer(&mut inbound, peer_a);
-        evicted.sort();
+        let mut listed = inbound_request_ids_for_peer(&inbound, peer_a);
+        listed.sort();
 
         assert_eq!(
-            evicted,
+            listed,
             vec![InboundRequestId::new("a1"), InboundRequestId::new("a2")]
         );
-        // Only the disconnected peer's requests are removed.
-        assert_eq!(inbound.len(), 1);
-        assert_eq!(inbound.get(&InboundRequestId::new("b1")), Some(&peer_b));
+        // Listing leaves the map untouched; removal happens per request.
+        assert_eq!(inbound.len(), 3);
     }
 
     #[test]
-    fn drain_inbound_requests_for_peer_is_noop_for_unknown_peer() {
+    fn inbound_request_ids_for_peer_is_empty_for_unknown_peer() {
         let peer_a = PeerId::random();
         let unknown = PeerId::random();
 
         let mut inbound = InboundRequests::new();
-        inbound.insert(InboundRequestId::new("a1"), peer_a);
+        inbound.insert(InboundRequestId::new("a1"), InboundRequest::new(peer_a));
 
-        let evicted = drain_inbound_requests_for_peer(&mut inbound, unknown);
+        let listed = inbound_request_ids_for_peer(&inbound, unknown);
 
-        assert!(evicted.is_empty());
+        assert!(listed.is_empty());
         assert_eq!(inbound.len(), 1);
+    }
+
+    #[test]
+    fn take_inbound_request_reports_absent_request() {
+        let mut inbound = InboundRequests::new();
+        inbound.insert(
+            InboundRequestId::new("r1"),
+            InboundRequest::new(PeerId::random()),
+        );
+
+        assert!(!take_inbound_request(
+            &mut inbound,
+            &InboundRequestId::new("other")
+        ));
+        assert_eq!(inbound.len(), 1);
+
+        assert!(take_inbound_request(
+            &mut inbound,
+            &InboundRequestId::new("r1")
+        ));
+        assert!(inbound.is_empty());
+    }
+
+    #[test]
+    fn inbound_request_abort_task_cancels_the_spawned_task() {
+        // Direct coverage of the helper `take_inbound_request` relies on.
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        runtime.block_on(async {
+            let task = tokio::spawn(async {
+                tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+            });
+            let mut entry = InboundRequest::new(PeerId::random());
+            entry.abort_handle = Some(task.abort_handle());
+
+            entry.abort_task();
+
+            assert!(entry.abort_handle.is_none());
+            let outcome = task.await;
+            assert!(
+                outcome.is_err() && outcome.err().unwrap().is_cancelled(),
+                "abort_task must cancel the spawned task",
+            );
+        });
+    }
+
+    #[test]
+    fn inbound_request_abort_task_is_noop_when_no_handle_attached() {
+        let mut entry = InboundRequest::new(PeerId::random());
+        entry.abort_task();
+        assert!(entry.abort_handle.is_none());
+    }
+
+    #[test]
+    fn take_inbound_request_aborts_the_spawned_task() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        runtime.block_on(async {
+            let peer = PeerId::random();
+            let mut inbound = InboundRequests::new();
+
+            let task = tokio::spawn(async {
+                // Long enough that only abort will end this task.
+                tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+            });
+            let abort_handle = task.abort_handle();
+            let mut entry = InboundRequest::new(peer);
+            entry.abort_handle = Some(abort_handle);
+            inbound.insert(InboundRequestId::new("r1"), entry);
+
+            assert!(take_inbound_request(
+                &mut inbound,
+                &InboundRequestId::new("r1")
+            ));
+            assert!(inbound.is_empty());
+
+            let outcome = task.await;
+            assert!(
+                outcome.is_err() && outcome.err().unwrap().is_cancelled(),
+                "the spawned task must be cancelled when the request is taken"
+            );
+        });
+    }
+
+    #[test]
+    fn try_acquire_request_permit_returns_some_when_a_permit_is_available() {
+        let permits = Arc::new(Semaphore::new(1));
+
+        let permit = try_acquire_request_permit(&permits);
+
+        assert!(permit.is_some());
+        assert_eq!(permits.available_permits(), 0);
+    }
+
+    #[test]
+    fn try_acquire_request_permit_returns_none_when_fully_saturated() {
+        let permits = Arc::new(Semaphore::new(1));
+        let _held = try_acquire_request_permit(&permits).expect("first permit");
+
+        let second = try_acquire_request_permit(&permits);
+
+        assert!(second.is_none());
+    }
+
+    #[test]
+    fn try_acquire_request_permit_returns_none_for_zero_capacity() {
+        let permits = Arc::new(Semaphore::new(0));
+
+        assert!(try_acquire_request_permit(&permits).is_none());
+    }
+
+    #[test]
+    fn the_retry_interval_follows_the_request_timeout() {
+        assert_eq!(
+            retry_interval(Duration::from_secs(10)),
+            Duration::from_secs(10)
+        );
+    }
+
+    #[test]
+    fn a_zero_request_timeout_is_floored_to_the_minimum_retry_interval() {
+        assert_eq!(
+            retry_interval(Duration::ZERO),
+            MIN_RETRY_INTERVAL,
+            "A zero interval would make `ticker` spin the actor in a hot loop"
+        );
+    }
+
+    #[test]
+    fn a_request_timeout_below_the_floor_is_raised_to_it() {
+        assert_eq!(retry_interval(Duration::from_millis(1)), MIN_RETRY_INTERVAL);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn retry_ticker_fires_in_both_status_update_modes() {
+        let network = spawn_ignore_actor::<NetworkMsg<TestContext>>().await;
+        let host = spawn_ignore_actor::<HostMsg<TestContext>>().await;
+        let consensus = spawn_ignore_actor::<ConsensusMsg<TestContext>>().await;
+
+        for status_update_interval in [Duration::ZERO, Duration::from_secs(60)] {
+            let (sender, receiver) = oneshot::channel();
+            let retry_observer = RetryObserver::spawn(None, RetryObserver, sender)
+                .await
+                .unwrap()
+                .0;
+            let actor = Sync::new(
+                TestContext::new(),
+                network.clone(),
+                host.clone(),
+                consensus.clone(),
+                Params {
+                    status_update_interval,
+                    request_timeout: Duration::ZERO,
+                },
+                JsonCodec,
+                sync::Config::default(),
+                sync::Metrics::default(),
+                tracing::Span::none(),
+            );
+
+            let mut state = actor.pre_start(retry_observer.clone(), ()).await.unwrap();
+
+            tokio::task::yield_now().await;
+            tokio::time::advance(MIN_RETRY_INTERVAL + Duration::from_millis(20)).await;
+
+            let received = tokio::time::timeout(Duration::from_millis(1), receiver).await;
+            assert!(
+                matches!(received, Ok(Ok(()))),
+                "retry ticker did not fire with status_update_interval={status_update_interval:?}"
+            );
+
+            actor
+                .post_stop(retry_observer.clone(), &mut state)
+                .await
+                .unwrap();
+            retry_observer.stop(None);
+        }
+
+        network.stop(None);
+        host.stop(None);
+        consensus.stop(None);
+    }
+
+    struct RecordStatus;
+
+    #[async_trait]
+    impl Actor for RecordStatus {
+        type Msg = NetworkMsg<TestContext>;
+        type State = Option<oneshot::Sender<Status<TestContext>>>;
+        type Arguments = oneshot::Sender<Status<TestContext>>;
+
+        async fn pre_start(
+            &self,
+            _myself: ActorRef<Self::Msg>,
+            sender: Self::Arguments,
+        ) -> Result<Self::State, ActorProcessingErr> {
+            Ok(Some(sender))
+        }
+
+        async fn handle(
+            &self,
+            _myself: ActorRef<Self::Msg>,
+            msg: Self::Msg,
+            state: &mut Self::State,
+        ) -> Result<(), ActorProcessingErr> {
+            if let NetworkMsg::BroadcastStatus(status) = msg {
+                if let Some(sender) = state.take() {
+                    let _ = sender.send(status);
+                }
+            }
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn status_broadcast_falls_back_when_the_host_drops_the_history_fetch() {
+        let (status_tx, status_rx) = oneshot::channel();
+        let network = RecordStatus::spawn(None, RecordStatus, status_tx)
+            .await
+            .unwrap()
+            .0;
+        let host = spawn_ignore_actor::<HostMsg<TestContext>>().await;
+        let consensus = spawn_ignore_actor::<ConsensusMsg<TestContext>>().await;
+
+        let sync = Sync::spawn(
+            TestContext::new(),
+            network.clone(),
+            host.clone(),
+            consensus.clone(),
+            Params {
+                status_update_interval: Duration::ZERO,
+                request_timeout: Duration::from_secs(30),
+            },
+            JsonCodec,
+            sync::Config::default(),
+            sync::Metrics::default(),
+            tracing::Span::none(),
+        )
+        .await
+        .unwrap();
+
+        sync.cast(Msg::StartedHeight(
+            malachitebft_test::Height::new(10),
+            sync::HeightStartType::Start,
+        ))
+        .unwrap();
+
+        let status = tokio::time::timeout(Duration::from_secs(2), status_rx)
+            .await
+            .expect("host dropped the history fetch and no status was broadcast")
+            .expect("status recorder dropped");
+
+        assert_eq!(status.tip_height, malachitebft_test::Height::new(9));
+        assert_eq!(status.history_min_height, malachitebft_test::Height::new(0));
+
+        sync.stop(None);
+        network.stop(None);
+        host.stop(None);
+        consensus.stop(None);
+    }
+
+    #[test]
+    fn try_acquire_request_permit_releases_the_permit_when_dropped() {
+        let permits = Arc::new(Semaphore::new(1));
+
+        {
+            let _permit = try_acquire_request_permit(&permits).expect("permit");
+            assert_eq!(permits.available_permits(), 0);
+        }
+
+        assert_eq!(permits.available_permits(), 1);
+        assert!(try_acquire_request_permit(&permits).is_some());
+    }
+
+    /// Stand-in for [`Timeout::Request`]: the abandon helper is generic over the
+    /// timer key so this module can cover timer/`inflight` bookkeeping without
+    /// constructing a full [`Context`].
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+    struct RequestTimeoutKey(OutboundRequestId);
+
+    #[derive(Debug)]
+    struct AbandonTimerMsg(#[allow(dead_code)] TimeoutElapsed<RequestTimeoutKey>);
+
+    impl From<TimeoutElapsed<RequestTimeoutKey>> for AbandonTimerMsg {
+        fn from(timer_msg: TimeoutElapsed<RequestTimeoutKey>) -> Self {
+            AbandonTimerMsg(timer_msg)
+        }
+    }
+
+    struct AbandonTimerActor;
+
+    #[async_trait]
+    impl Actor for AbandonTimerActor {
+        type State = ();
+        type Arguments = ();
+        type Msg = AbandonTimerMsg;
+
+        async fn pre_start(
+            &self,
+            _myself: ActorRef<AbandonTimerMsg>,
+            _args: (),
+        ) -> Result<(), ActorProcessingErr> {
+            Ok(())
+        }
+
+        async fn handle(
+            &self,
+            _myself: ActorRef<AbandonTimerMsg>,
+            _msg: AbandonTimerMsg,
+            _state: &mut (),
+        ) -> Result<(), ActorProcessingErr> {
+            Ok(())
+        }
+    }
+
+    async fn abandon_timer_scheduler() -> TimerScheduler<RequestTimeoutKey> {
+        let actor_ref = AbandonTimerActor::spawn(None, AbandonTimerActor, ())
+            .await
+            .unwrap()
+            .0;
+        TimerScheduler::new(Box::new(actor_ref))
+    }
+
+    #[tokio::test]
+    async fn abandon_outbound_request_cancels_timer_and_removes_inflight() {
+        let mut timers = abandon_timer_scheduler().await;
+        let request_id = OutboundRequestId::new("req1");
+        let key = RequestTimeoutKey(request_id.clone());
+
+        timers.start_timer(key.clone(), Duration::from_secs(60));
+        let mut inflight = HashMap::from([(request_id.clone(), "peer-a")]);
+
+        abandon_outbound_request(&mut timers, key.clone(), &mut inflight, &request_id);
+
+        assert!(
+            !timers.is_timer_active(&key),
+            "CancelValueRequest must cancel Timeout::Request"
+        );
+        assert!(
+            !inflight.contains_key(&request_id),
+            "CancelValueRequest must remove the inflight entry"
+        );
     }
 }

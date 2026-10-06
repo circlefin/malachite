@@ -981,6 +981,15 @@ pub async fn skipped_early_commit_does_not_break_sync(#[case] status_update_inte
         .await
 }
 
+/// Decrement `counter` if it is above zero, and return whether it was decremented.
+// `try_update` replaces the deprecated `fetch_update`, but the 1.88 MSRV does not have it.
+#[allow(deprecated)]
+fn take_one(counter: &AtomicU32) -> bool {
+    counter
+        .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
+        .is_ok()
+}
+
 /// Middleware that fails synced value decode a configurable number of times.
 #[derive(Debug, Clone)]
 struct FailSyncDecode {
@@ -989,15 +998,7 @@ struct FailSyncDecode {
 
 impl Middleware for FailSyncDecode {
     fn fail_synced_value_decode(&self, _ctx: &TestContext, _height: Height, _round: Round) -> bool {
-        self.remaining_failures
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
-                if n > 0 {
-                    Some(n - 1)
-                } else {
-                    None
-                }
-            })
-            .is_ok()
+        take_one(&self.remaining_failures)
     }
 }
 
@@ -1081,15 +1082,7 @@ impl Middleware for FailSyncProcessing {
         _height: Height,
         _round: Round,
     ) -> bool {
-        self.remaining_failures
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
-                if n > 0 {
-                    Some(n - 1)
-                } else {
-                    None
-                }
-            })
-            .is_ok()
+        take_one(&self.remaining_failures)
     }
 }
 
@@ -1155,6 +1148,92 @@ pub async fn sync_recovers_from_processing_error_ok(
     #[case] status_update_interval: Duration,
 ) {
     sync_recovers_from_processing_error(TestParams {
+        value_payload,
+        status_update_interval,
+        ..Default::default()
+    })
+    .await
+}
+
+/// Middleware that records the largest number of vote extensions the
+/// application was asked to verify in a single call.
+#[derive(Debug, Clone)]
+struct RecordVoteExtensionBatchSize {
+    largest_batch: Arc<AtomicU32>,
+}
+
+impl Middleware for RecordVoteExtensionBatchSize {
+    fn on_verify_vote_extensions(&self, _ctx: &TestContext, count: usize) {
+        self.largest_batch
+            .fetch_max(count.try_into().unwrap_or(u32::MAX), Ordering::SeqCst);
+    }
+}
+
+/// The extensions on a commit certificate obtained through sync must reach the
+/// application, in one call covering all of them.
+///
+/// A live precommit carries exactly one extension, so a batch larger than one
+/// can only have come from a synced certificate. Asserting on the batch size
+/// therefore pins both halves: that the synced extensions are handed over at
+/// all, and that they are handed over together.
+pub async fn sync_asks_application_about_certificate_extensions(params: TestParams) {
+    const HEIGHT: u64 = 6;
+    const CRASH_HEIGHT: u64 = 3;
+
+    let largest_batch = Arc::new(AtomicU32::new(0));
+
+    let mut test = TestBuilder::<()>::new();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .success();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .success();
+
+    test.add_node()
+        .with_voting_power(5)
+        .with_middleware(RecordVoteExtensionBatchSize {
+            largest_batch: Arc::clone(&largest_batch),
+        })
+        .start()
+        .wait_until(CRASH_HEIGHT)
+        .crash()
+        .reset_db()
+        .restart_after(Duration::from_secs(5))
+        .wait_until(HEIGHT)
+        .success();
+
+    test.build()
+        .run_with_params(
+            Duration::from_secs(60),
+            TestParams {
+                enable_value_sync: true,
+                ..params
+            }
+            .enable_vote_extensions(ByteSize::b(64)),
+        )
+        .await;
+
+    assert!(
+        largest_batch.load(Ordering::SeqCst) > 1,
+        "the application was never asked about the extensions on a synced certificate"
+    );
+}
+
+#[rstest]
+#[case::proposal_and_parts_eager(ValuePayload::ProposalAndParts, Duration::ZERO)]
+#[tokio::test]
+pub async fn sync_asks_application_about_certificate_extensions_ok(
+    #[case] value_payload: ValuePayload,
+    #[case] status_update_interval: Duration,
+) {
+    sync_asks_application_about_certificate_extensions(TestParams {
         value_payload,
         status_update_interval,
         ..Default::default()

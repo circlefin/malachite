@@ -119,14 +119,17 @@ where
             1,
         ) {
             Selection::Exactly(peers) => {
-                if let Some(peer_id) = peers.first() {
-                    debug!("Trying to connect to peer {peer_id} to repair outbound peers");
-                    self.outbound_peers.insert(*peer_id, OutboundState::Pending);
+                let Some(peer_id) = peers.into_iter().next() else {
+                    warn!("No available peers to repair outbound peers");
+                    self.initiate_extension_with_target(swarm, 1);
+                    return;
+                };
+                debug!("Trying to connect to peer {peer_id} to repair outbound peers");
+                self.outbound_peers.insert(peer_id, OutboundState::Pending);
 
-                    self.controller
-                        .connect_request
-                        .add_to_queue(RequestData::new(*peer_id), None);
-                }
+                self.controller
+                    .connect_request
+                    .add_to_queue(RequestData::new(peer_id), None);
             }
             _ => {
                 // If no candidate is available, then trigger the discovery extension

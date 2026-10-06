@@ -31,9 +31,6 @@ pub struct TestParams {
     pub shared_key_group: HashSet<usize>,
     /// Target time for heights. If present Finalized effect will be emitted.
     pub target_time: Option<Duration>,
-    /// Delay before replaying the WAL on restart, to give sync a chance to
-    /// retrieve a certificate first. `None` keeps the node config's default.
-    pub wal_replay_delay: Option<Duration>,
 }
 
 impl Default for TestParams {
@@ -58,7 +55,6 @@ impl Default for TestParams {
             exclude_from_persistent_peers: Vec::new(),
             shared_key_group: HashSet::new(),
             target_time: None,
-            wal_replay_delay: None,
         }
     }
 }
@@ -77,10 +73,6 @@ impl TestParams {
         config.value_sync.status_update_interval = self.status_update_interval;
 
         config.consensus.enabled = self.consensus_enabled;
-
-        if let Some(wal_replay_delay) = self.wal_replay_delay {
-            config.consensus.wal_replay_delay = wal_replay_delay;
-        }
 
         config.consensus.p2p.protocol = self.protocol;
         config.consensus.p2p.rpc_max_size = self.rpc_max_size;

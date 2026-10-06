@@ -51,6 +51,10 @@ where
             while let Some(msg) = rx.recv().await {
                 if let Err(e) = actor_ref.cast(msg.into()) {
                     tracing::error!("Failed to send message to network actor: {e}");
+                    // Match the engine recv-task: a failed cast means the
+                    // actor is stopping. Break so `Channels::network` senders
+                    // see `Err` instead of `Ok` for a dropped `PublishProposalPart`.
+                    break;
                 }
             }
         }

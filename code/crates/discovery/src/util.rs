@@ -33,6 +33,11 @@ pub fn is_peer_id_only(addr: &Multiaddr) -> bool {
     strip_peer_id_from_multiaddr(addr).is_empty()
 }
 
+/// Compare two multiaddrs ignoring a trailing `/p2p/<peer_id>` component.
+pub fn eq_ignore_peer_id(left: &Multiaddr, right: &Multiaddr) -> bool {
+    strip_peer_id_from_multiaddr(left) == strip_peer_id_from_multiaddr(right)
+}
+
 #[derive(Debug, Clone)]
 struct FibonacciBackoff {
     current: u64,

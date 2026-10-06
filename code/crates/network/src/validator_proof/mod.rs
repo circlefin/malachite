@@ -17,19 +17,21 @@
 //!
 //! ## Sending Proof
 //!
-//! The proof is set once at startup and sent on the first connection to a peer:
+//! The proof is set once at startup and sent on every new connection to a peer:
 //!
 //! ```text
 //! Startup:
 //!   └─► behaviour.set_proof(proof_bytes)  — once
 //!
-//! ConnectionEstablished (other_established == 0):
-//!   └─► inner.send_request(peer, proof_bytes)
+//! ConnectionEstablished (every new connection):
+//!   └─► send_request once per established connection
+//!       (request_response picks a connection with request_id % n)
 //! ```
 //!
-//! `ProofSent` marks local send completion, not confirmed remote delivery. There
-//! is no same-session retry; a genuinely new connection starts a fresh session
-//! and sends the proof again.
+//! `ProofSent` marks local send completion, not confirmed remote delivery.
+//! Each side counts its own connections, so a later connection is how a
+//! restarted peer gets the proof again. A receiver that already accepted a
+//! proof this session ignores the extra copy.
 //!
 //! The proof is a static binding of (public_key, peer_id) and does not change
 //! with validator set membership. Whether the receiver classifies us as a
@@ -50,7 +52,7 @@
 //! ### 1. `validator_proof/behaviour.rs` (Network Layer)
 //! - **Message size**: Max 1KB enforced by codec
 //! - **Inbound read failure**: behaviour emits `CloseConnection` → DISCONNECT
-//! - **Anti-spam**: a second proof from a peer this session → `CloseConnection`
+//! - **Anti-spam**: a second proof from a peer this session is ignored
 //!
 //! ### 2. `network/lib.rs` (Network Layer - Event Handling)
 //! - Forwards proof to engine (anti-spam already handled by behaviour)
@@ -77,7 +79,8 @@
 //!   which the behaviour turns into `CloseConnection` → DISCONNECT
 //!
 //! **Anti-spam** (behaviour level):
-//! - A second proof from a peer this session → `CloseConnection` → DISCONNECT
+//! - A second proof from a peer this session is ignored (the sender re-sends
+//!   on every new connection)
 //! - Tracked via `proofs_received`, cleared when the last connection closes
 //!
 //! **Decode failures** (application codec):

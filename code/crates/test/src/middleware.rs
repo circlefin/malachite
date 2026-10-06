@@ -118,6 +118,11 @@ pub trait Middleware: fmt::Debug + Send + Sync {
     ) -> bool {
         false
     }
+
+    /// Called whenever the application is asked to verify vote extensions, with
+    /// how many arrived in the batch. A live precommit carries exactly one; a
+    /// commit certificate carries one per validator that signed it.
+    fn on_verify_vote_extensions(&self, _ctx: &TestContext, _count: usize) {}
 }
 
 #[derive(Copy, Clone, Debug)]

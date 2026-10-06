@@ -86,9 +86,20 @@ pub enum InboundFailureReason {
     /// The peer that issued the request disconnected before the response was
     /// sent.
     RequesterDisconnected,
+    /// The connection carrying the request closed before the response was sent,
+    /// while the peer itself remained connected over another connection.
+    ConnectionClosed,
     /// The host did not return the requested values within the inbound request
     /// budget.
     HostStallTimeout,
+    /// The peer exceeded its per-peer inbound request rate limit.
+    RateLimited,
+    /// The peer already had the maximum number of inbound requests in flight.
+    PerPeerInFlightCap,
+    /// The requested range failed validation: it is empty, starts above our
+    /// tip height, or starts below our history min height. A range longer than
+    /// our batch size is served short instead, so it does not land here.
+    InvalidRange,
 }
 
 pub type ResponseChannel = request_response::ResponseChannel<RawResponse>;

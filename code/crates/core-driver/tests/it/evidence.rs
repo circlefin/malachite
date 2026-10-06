@@ -1,8 +1,8 @@
 use malachitebft_core_types::{Round, SignedProposal, Validity};
-use malachitebft_test::{Address, Height, PrivateKey, Proposal, TestContext, Value};
+use malachitebft_test::{Address, Height, PrivateKey, Proposal, Signature, TestContext, Value};
 
 use arc_malachitebft_core_driver::proposal_keeper::{
-    EvidenceMap, ProposalKeeper, StoreProposalResult,
+    EvidenceMap, ProposalKeeper, StoreProposalResult, MAX_EVIDENCE_PER_VALIDATOR,
 };
 
 fn pk(id: &str) -> PrivateKey {
@@ -107,6 +107,44 @@ fn test_proposal_evidence_deduplication() {
 }
 
 #[test]
+fn proposal_evidence_is_capped_per_validator_and_reports_retention() {
+    let mut evidence = EvidenceMap::<TestContext>::new();
+
+    for round in 0..MAX_EVIDENCE_PER_VALIDATOR + 2 {
+        let (first, conflicting) = make_proposal_pair("Alice", round as u32, [100, 200]);
+        assert_eq!(
+            evidence.add(first, conflicting),
+            round < MAX_EVIDENCE_PER_VALIDATOR
+        );
+    }
+
+    let (duplicate_first, duplicate_conflicting) = make_proposal_pair("Alice", 0, [100, 200]);
+    assert!(!evidence.add(duplicate_first, duplicate_conflicting));
+    assert_eq!(
+        evidence.get(&addr("Alice")).map(Vec::len),
+        Some(MAX_EVIDENCE_PER_VALIDATOR)
+    );
+
+    let (bob_first, bob_conflicting) = make_proposal_pair("Bob", 0, [100, 200]);
+    assert!(evidence.add(bob_first, bob_conflicting));
+    assert_eq!(evidence.get(&addr("Bob")).map(Vec::len), Some(1));
+}
+
+#[test]
+fn proposal_evidence_deduplicates_signature_variants() {
+    let mut evidence = EvidenceMap::<TestContext>::new();
+    let (first, conflicting) = make_proposal_pair("Alice", 0, [100, 200]);
+
+    assert!(evidence.add(first.clone(), conflicting.clone()));
+
+    let first_variant = SignedProposal::new(first.message.clone(), Signature::from_bytes([1; 64]));
+    let conflicting_variant =
+        SignedProposal::new(conflicting.message.clone(), Signature::from_bytes([2; 64]));
+    assert!(!evidence.add(conflicting_variant, first_variant));
+    assert_eq!(evidence.get(&addr("Alice")).map(Vec::len), Some(1));
+}
+
+#[test]
 fn test_proposal_evidence_into_iterator_and_len() {
     let mut evidence = EvidenceMap::<TestContext>::new();
 
@@ -155,7 +193,7 @@ fn store_proposal_surfaces_equivocation_to_caller() {
         StoreProposalResult::Stored
     ));
 
-    // An exact duplicate is ignored, still reported as stored.
+    // A duplicate proposal message is ignored, still reported as stored.
     assert!(matches!(
         keeper.store_proposal(first.clone(), Validity::Valid),
         StoreProposalResult::Stored
@@ -176,6 +214,30 @@ fn store_proposal_surfaces_equivocation_to_caller() {
     // The keeper does not record evidence on its own; the caller drives that.
     assert!(keeper.evidence().is_empty());
 
-    keeper.record_evidence(first, conflicting);
+    assert!(keeper.record_evidence(first.clone(), conflicting.clone()));
+    assert!(!keeper.record_evidence(first, conflicting));
     assert_eq!(keeper.evidence().len(), 1);
+}
+
+#[test]
+fn store_proposal_ignores_signature_variant_duplicates() {
+    let mut keeper = ProposalKeeper::<TestContext>::new();
+    let (first, _) = make_proposal_pair("Alice", 0, [100, 200]);
+    let variant = SignedProposal::new(first.message.clone(), Signature::from_bytes([1; 64]));
+
+    assert!(matches!(
+        keeper.store_proposal(first, Validity::Valid),
+        StoreProposalResult::Stored
+    ));
+    assert!(matches!(
+        keeper.store_proposal(variant, Validity::Valid),
+        StoreProposalResult::Stored
+    ));
+    assert_eq!(
+        keeper
+            .get_proposals_and_validities_for_round(Round::new(0))
+            .len(),
+        1
+    );
+    assert!(keeper.evidence().is_empty());
 }

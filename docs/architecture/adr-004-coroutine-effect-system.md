@@ -255,7 +255,13 @@ where
     /// Only emitted if vote extensions are enabled.
     ///
     /// Resume with: [`resume::VoteExtension`]
-    ExtendVote(Ctx::Height, Round, ValueId<Ctx>, resume::VoteExtension),
+    ExtendVote(
+        Ctx::Height,
+        Round,
+        ValueId<Ctx>,
+        VoteExtensionPolicy,
+        resume::VoteExtension,
+    ),
 
     /// Verify a vote extension.
     ///

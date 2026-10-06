@@ -303,6 +303,19 @@ impl<Ctx: Context> PolkaCertificate<Ctx> {
             polka_signatures,
         }
     }
+
+    /// Reconstruct the signed prevotes this certificate is composed of.
+    pub fn votes<'a>(&'a self, ctx: &'a Ctx) -> impl Iterator<Item = SignedVote<Ctx>> + 'a {
+        self.polka_signatures.iter().map(move |polka_signature| {
+            let vote = ctx.new_prevote(
+                self.height,
+                self.round,
+                NilOrVal::Val(self.value_id.clone()),
+                polka_signature.address.clone(),
+            );
+            SignedVote::new(vote, polka_signature.signature.clone())
+        })
+    }
 }
 
 /// Represents an error that can occur when verifying a certificate.
@@ -325,6 +338,11 @@ pub enum CertificateError<Ctx: Context> {
     /// invalid signature for its precommit scope.
     #[error("Invalid vote extension signature from validator: {0}")]
     InvalidVoteExtensionSignature(Ctx::Address),
+
+    /// The application rejected a vote extension carried by an
+    /// [`ExtendedCommitCertificate`].
+    #[error("Invalid vote extension from validator: {0}")]
+    InvalidVoteExtension(Ctx::Address),
 
     /// A commit signature in an [`ExtendedCommitCertificate`] is missing its
     /// required vote extension.
@@ -460,6 +478,30 @@ impl<Ctx: Context> RoundCertificate<Ctx> {
                 })
                 .collect(),
         }
+    }
+
+    /// Reconstruct the signed votes this certificate is composed of.
+    ///
+    /// Unlike a commit or polka certificate, a round certificate carries votes of both
+    /// types and for any value, so each signature supplies its own vote type and value.
+    pub fn votes<'a>(&'a self, ctx: &'a Ctx) -> impl Iterator<Item = SignedVote<Ctx>> + 'a {
+        self.round_signatures.iter().map(move |round_signature| {
+            let vote = match round_signature.vote_type {
+                VoteType::Prevote => ctx.new_prevote(
+                    self.height,
+                    self.round,
+                    round_signature.value_id.clone(),
+                    round_signature.address.clone(),
+                ),
+                VoteType::Precommit => ctx.new_precommit(
+                    self.height,
+                    self.round,
+                    round_signature.value_id.clone(),
+                    round_signature.address.clone(),
+                ),
+            };
+            SignedVote::new(vote, round_signature.signature.clone())
+        })
     }
 }
 

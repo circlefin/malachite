@@ -277,6 +277,8 @@ impl Metrics {
     /// - If labels changed: removes the old entry from the metric family and
     ///   creates a new entry under the updated labels.
     /// - If labels unchanged: just updates the score.
+    /// - If the moniker changed: also refreshes mesh-membership and explicit-peer
+    ///   series whose identity includes `peer_moniker`.
     ///
     /// Returns true if labels changed.
     pub(crate) fn update_peer_labels(
@@ -290,6 +292,7 @@ impl Metrics {
         };
 
         let labels_changed = !old_peer_info.labels_match(new_peer_info);
+        let moniker_changed = old_peer_info.moniker != new_peer_info.moniker;
 
         if labels_changed {
             // Remove the old entry so it does not leak as a permanent stale
@@ -304,6 +307,32 @@ impl Metrics {
         self.discovered_peers
             .get_or_create(&new_labels)
             .set(new_peer_info.score as i64);
+
+        if moniker_changed {
+            // Mesh membership and explicit-peer series also key on peer_moniker.
+            for topic in &new_peer_info.topics {
+                let old_mesh = MeshMembershipLabels {
+                    peer_id: peer_id.to_string(),
+                    peer_moniker: old_peer_info.moniker.clone(),
+                    topic: topic.clone(),
+                };
+                self.peer_mesh_membership.remove(&old_mesh);
+
+                let new_mesh = MeshMembershipLabels {
+                    peer_id: peer_id.to_string(),
+                    peer_moniker: new_peer_info.moniker.clone(),
+                    topic: topic.clone(),
+                };
+                self.peer_mesh_membership.get_or_create(&new_mesh).set(1);
+            }
+
+            if old_peer_info.is_explicit || new_peer_info.is_explicit {
+                self.mark_explicit_peer_stale(peer_id, &old_peer_info.moniker);
+                if new_peer_info.is_explicit {
+                    self.record_explicit_peer(peer_id, &new_peer_info.moniker);
+                }
+            }
+        }
 
         labels_changed
     }
@@ -516,6 +545,132 @@ mod tests {
             metric_series_count(&registry, "explicit_peers"),
             0,
             "marking an explicit peer stale must prune the entry"
+        );
+    }
+
+    #[test]
+    fn discovered_peers_sanitized_moniker_cannot_inject_metric_lines() {
+        let mut registry = Registry::default();
+        let mut metrics = Metrics::new(&mut registry);
+        let peer_id = libp2p::PeerId::random();
+
+        let malicious = crate::utils::parse_agent_version(
+            "moniker=evil\"}\nnode_safety_failure{peer=\"x\"} 0\n# ",
+        )
+        .moniker;
+        let info = peer_info(&malicious, "/ip4/10.0.0.1/tcp/26656");
+        metrics.record_new_peer(&peer_id, &info);
+
+        let mut buf = String::new();
+        encode(&mut buf, &registry).unwrap();
+
+        // The injected line must not appear as a free-standing metric sample.
+        assert!(
+            !buf.lines()
+                .any(|line| line.starts_with("node_safety_failure")),
+            "peer moniker must not inject a node_safety_failure sample line:\n{buf}"
+        );
+        assert!(
+            buf.contains("peer_moniker=\"evilnode_safety_failurepeerx0\""),
+            "sanitized moniker must remain inside the label value:\n{buf}"
+        );
+        assert_eq!(
+            discovered_peers_series_count(&registry),
+            1,
+            "malicious moniker must still produce exactly one discovered_peers series"
+        );
+    }
+
+    #[test]
+    fn explicit_peers_single_series_when_moniker_changes_while_explicit() {
+        let mut registry = Registry::default();
+        let mut metrics = Metrics::new(&mut registry);
+        let peer_id = libp2p::PeerId::random();
+
+        let mut old = peer_info("old-moniker", "/ip4/10.0.0.1/tcp/26656");
+        old.is_explicit = true;
+        metrics.record_new_peer(&peer_id, &old);
+        metrics.record_explicit_peer(&peer_id, &old.moniker);
+
+        let mut new = peer_info("new-moniker", "/ip4/10.0.0.1/tcp/26656");
+        new.is_explicit = true;
+        metrics.update_peer_labels(&peer_id, &old, &new);
+
+        assert_eq!(
+            metric_series_count(&registry, "explicit_peers"),
+            1,
+            "moniker change while explicit must replace the series, not leave a stale one"
+        );
+
+        let mut buf = String::new();
+        encode(&mut buf, &registry).unwrap();
+        assert!(
+            buf.contains("peer_moniker=\"new-moniker\""),
+            "explicit_peers must use the updated moniker:\n{buf}"
+        );
+        assert!(
+            !buf.contains("peer_moniker=\"old-moniker\""),
+            "stale explicit_peers moniker must be removed:\n{buf}"
+        );
+    }
+
+    #[test]
+    fn explicit_peers_pruned_when_moniker_changes_and_explicit_clears() {
+        let mut registry = Registry::default();
+        let mut metrics = Metrics::new(&mut registry);
+        let peer_id = libp2p::PeerId::random();
+
+        let mut old = peer_info("old-moniker", "/ip4/10.0.0.1/tcp/26656");
+        old.is_explicit = true;
+        metrics.record_new_peer(&peer_id, &old);
+        metrics.record_explicit_peer(&peer_id, &old.moniker);
+
+        let mut new = peer_info("new-moniker", "/ip4/10.0.0.1/tcp/26656");
+        new.is_explicit = false;
+        metrics.update_peer_labels(&peer_id, &old, &new);
+
+        assert_eq!(
+            metric_series_count(&registry, "explicit_peers"),
+            0,
+            "moniker change that also clears is_explicit must prune the old series"
+        );
+    }
+
+    #[test]
+    fn peer_mesh_membership_updates_moniker_without_topic_change() {
+        let mut registry = Registry::default();
+        let mut metrics = Metrics::new(&mut registry);
+        let peer_id = libp2p::PeerId::random();
+
+        let topics: HashSet<String> = ["/consensus".to_string()].into_iter().collect();
+        let mut old = peer_info("old-moniker", "/ip4/10.0.0.1/tcp/26656");
+        metrics.record_new_peer(&peer_id, &old);
+        metrics
+            .update_peer_metrics(&peer_id, &old, old.score, Some(topics.clone()))
+            .unwrap();
+        old.topics = topics.clone();
+
+        assert_eq!(metric_series_count(&registry, "peer_mesh_membership"), 1);
+
+        let mut new = peer_info("new-moniker", "/ip4/10.0.0.1/tcp/26656");
+        new.topics = topics;
+        metrics.update_peer_labels(&peer_id, &old, &new);
+
+        assert_eq!(
+            metric_series_count(&registry, "peer_mesh_membership"),
+            1,
+            "moniker change must move mesh membership to the new label set"
+        );
+
+        let mut buf = String::new();
+        encode(&mut buf, &registry).unwrap();
+        assert!(
+            buf.contains("peer_moniker=\"new-moniker\""),
+            "mesh membership must use the updated moniker:\n{buf}"
+        );
+        assert!(
+            !buf.contains("peer_moniker=\"old-moniker\""),
+            "stale mesh membership moniker must be removed:\n{buf}"
         );
     }
 }

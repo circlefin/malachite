@@ -5,8 +5,10 @@ use std::time::Duration;
 use derive_where::derive_where;
 use ractor::{ActorRef, RpcReplyPort};
 
-use malachitebft_core_consensus::{MisbehaviorEvidence, Role, VoteExtensionError};
-use malachitebft_core_types::{CommitCertificate, Context, Round, ValueId, VoteExtensions};
+use malachitebft_core_consensus::{MisbehaviorEvidence, Role, VoteExtensionVerdicts};
+use malachitebft_core_types::{
+    CommitCertificate, Context, Round, ValueId, VoteExtensionPolicy, VoteExtensions,
+};
 use malachitebft_sync::{PeerId, RawDecidedValue};
 
 use crate::util::streaming::StreamMessage;
@@ -108,6 +110,7 @@ pub enum HostMsg<Ctx: Context> {
     /// The application then returns a blob of data called a vote extension.
     /// This data is opaque to the consensus algorithm but can contain application-specific information.
     /// The proposer of the next block will receive all vote extensions along with the commit certificate.
+    ///
     ExtendVote {
         /// The height at which the vote is being extended.
         height: Ctx::Height,
@@ -115,25 +118,42 @@ pub enum HostMsg<Ctx: Context> {
         round: Round,
         /// The ID of the value that is being voted on.
         value_id: ValueId<Ctx>,
-        /// The vote extension to be added to the vote, if any.
+        /// Whether this height requires a vote extension.
+        vote_extension_policy: VoteExtensionPolicy,
+        /// The vote extension to be added to the vote.
+        /// Must be `Some` when `vote_extension_policy` is [`VoteExtensionPolicy::Required`].
         reply_to: RpcReplyPort<Option<Ctx::Extension>>,
     },
 
-    /// Verify a vote extension
+    /// Verify a batch of vote extensions, all for the same height, round and
+    /// value.
     ///
-    /// If the vote extension is deemed invalid, the vote it was part of
-    /// will be discarded altogether.
-    VerifyVoteExtension {
-        /// The height for which the vote is.
+    /// A live precommit carries a single extension; a synced commit certificate
+    /// carries one per validator that signed it. Both arrive here, so the
+    /// application applies one rule to both and cannot accept on one path what
+    /// it rejects on the other.
+    ///
+    /// Each extension's signature has already been verified against the
+    /// validator's public key. What is asked here is whether the contents are
+    /// acceptable.
+    ///
+    /// A rejected extension discards the vote it was part of, or rejects the
+    /// certificate that carried it. A reply that does not line up with the
+    /// request is not applied: the live vote is dropped, and a synced
+    /// certificate is left unstored so the height is requested again without
+    /// treating the peer as faulty.
+    VerifyVoteExtensions {
+        /// The height for which the votes are.
         height: Ctx::Height,
-        /// The round for which the vote is.
+        /// The round for which the votes are.
         round: Round,
-        /// The ID of the value that the vote extension is for.
+        /// The ID of the value that the vote extensions are for.
         value_id: ValueId<Ctx>,
-        /// The vote extension to verify.
-        extension: Ctx::Extension,
-        /// Use this reply port to send the result of the verification.
-        reply_to: RpcReplyPort<Result<(), VoteExtensionError>>,
+        /// The vote extensions to verify, by the validator that produced each.
+        extensions: Vec<(Ctx::Address, Ctx::Extension)>,
+        /// Use this reply port to send one result per extension, each carrying
+        /// the address it answers for, in the order the extensions were given.
+        reply_to: RpcReplyPort<VoteExtensionVerdicts<Ctx>>,
     },
 
     /// Requests the application to re-stream a proposal that it has already seen.
@@ -164,7 +184,15 @@ pub enum HostMsg<Ctx: Context> {
     /// If this part completes the full proposal, the application MUST respond
     /// with the complete proposed value. Otherwise, it MUST respond with `None`.
     ReceivedProposalPart {
+        /// Peer that delivered this part.
+        ///
+        /// Use this for per-peer resource limits. Do not use it to group parts
+        /// of a multi-part stream: those parts can arrive through different
+        /// neighbors.
         from: PeerId,
+        /// Publisher declared in the message, when the transport provides one.
+        /// The parts of one proposal share it whichever peer relays each part.
+        published_by: Option<PeerId>,
         part: StreamMessage<Ctx::ProposalPart>,
         reply_to: RpcReplyPort<ProposedValue<Ctx>>,
     },

@@ -1,4 +1,5 @@
 use core::fmt;
+use std::collections::HashSet;
 
 use libp2p::gossipsub;
 use libp2p_broadcast as broadcast;
@@ -75,6 +76,16 @@ impl Channel {
             .any(|channel| &channel.to_gossipsub_topic(channel_names).hash() == topic_hash)
     }
 
+    /// Topic hashes gossipsub will accept inbound subscriptions for.
+    ///
+    /// Matches the channels subscribed over gossipsub (`Channel::consensus()`).
+    pub fn gossipsub_topic_hashes(channel_names: &ChannelNames) -> HashSet<gossipsub::TopicHash> {
+        Self::consensus()
+            .iter()
+            .map(|channel| channel.to_gossipsub_topic(channel_names).hash())
+            .collect()
+    }
+
     pub fn has_broadcast_topic(topic: &broadcast::Topic, channel_names: &ChannelNames) -> bool {
         Self::all()
             .iter()
@@ -119,5 +130,43 @@ impl Channel {
 impl fmt::Display for Channel {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{self:?}")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use libp2p::gossipsub::TopicSubscriptionFilter;
+
+    use super::*;
+
+    #[test]
+    fn gossipsub_topic_hashes_covers_consensus_channels() {
+        let names = ChannelNames::default();
+        let hashes = Channel::gossipsub_topic_hashes(&names);
+
+        assert_eq!(hashes.len(), Channel::consensus().len());
+        for channel in Channel::consensus() {
+            assert!(
+                hashes.contains(&channel.to_gossipsub_topic(&names).hash()),
+                "missing {channel:?}"
+            );
+        }
+        assert!(!hashes.contains(&Channel::Sync.to_gossipsub_topic(&names).hash()));
+    }
+
+    #[test]
+    fn whitelist_rejects_unknown_and_sync_gossipsub_topics() {
+        let names = ChannelNames::default();
+        let mut filter =
+            gossipsub::WhitelistSubscriptionFilter(Channel::gossipsub_topic_hashes(&names));
+
+        let unknown = gossipsub::IdentTopic::new("/not-a-channel").hash();
+        assert!(!filter.can_subscribe(&unknown));
+
+        let sync = Channel::Sync.to_gossipsub_topic(&names).hash();
+        assert!(!filter.can_subscribe(&sync));
+
+        let consensus = Channel::Consensus.to_gossipsub_topic(&names).hash();
+        assert!(filter.can_subscribe(&consensus));
     }
 }

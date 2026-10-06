@@ -35,6 +35,42 @@ impl TimePerStep {
     }
 }
 
+/// Label set for the `dropped_buffered_messages` metric.
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+pub struct DropReasonLabel {
+    reason: DropReason,
+}
+
+impl DropReasonLabel {
+    pub fn new(reason: DropReason) -> Self {
+        Self { reason }
+    }
+}
+
+/// Why a message was dropped from the buffer.
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+pub enum DropReason {
+    /// The buffer was already at capacity.
+    BufferFull,
+
+    /// The buffer was cleared because the height was restarted.
+    Restart,
+}
+
+/// Encoded by hand rather than derived: the derive emits the variant name
+/// verbatim, which would render label values in CamelCase.
+impl EncodeLabelValue for DropReason {
+    fn encode(
+        &self,
+        encoder: &mut prometheus_client::encoding::LabelValueEncoder,
+    ) -> Result<(), std::fmt::Error> {
+        encoder.write_str(match self {
+            DropReason::BufferFull => "buffer_full",
+            DropReason::Restart => "restart",
+        })
+    }
+}
+
 /// This wrapper allows us to derive `AsLabelValue` for `Step` without
 /// running into Rust orphan rules, cf. <https://rust-lang.github.io/chalk/book/clauses/coherence.html>
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -106,11 +142,19 @@ pub struct Inner {
     /// Number of votes dropped because their round exceeded the future-round lookahead
     pub dropped_future_round_votes: Counter,
 
+    /// Number of proposals dropped because their round exceeded the future-round lookahead
+    pub dropped_future_round_proposals: Counter,
+
     /// Number of proposals dropped because the per-(height, round) cap was reached
     pub dropped_capped_proposals: Counter,
 
     /// Number of proposed values dropped because the per-(height, round) cap was reached
     pub dropped_capped_proposed_values: Counter,
+
+    /// Number of messages that were discarded instead of being delivered to
+    /// consensus, either because the buffer was full when they arrived or
+    /// because the height they were buffered for was restarted
+    pub dropped_buffered_messages: Family<DropReasonLabel, Counter>,
 
     /// Internal state for measuring time taken for consensus
     instant_consensus_started: Arc<AtomicInstant>,
@@ -149,8 +193,10 @@ impl Metrics {
             additional_precommits: Counter::default(),
             node_safety_failure: Gauge::default(),
             dropped_future_round_votes: Counter::default(),
+            dropped_future_round_proposals: Counter::default(),
             dropped_capped_proposals: Counter::default(),
             dropped_capped_proposed_values: Counter::default(),
+            dropped_buffered_messages: Family::default(),
             instant_consensus_started: Arc::new(AtomicInstant::empty()),
             instant_block_started: Arc::new(AtomicInstant::empty()),
             instant_step_started: Arc::new(Mutex::new((Step::Unstarted, Instant::now()))),
@@ -264,6 +310,12 @@ impl Metrics {
             );
 
             registry.register(
+                "dropped_future_round_proposals",
+                "Number of proposals dropped because their round exceeded the future-round lookahead",
+                metrics.dropped_future_round_proposals.clone(),
+            );
+
+            registry.register(
                 "dropped_capped_proposals",
                 "Number of proposals dropped because the per-(height, round) cap was reached",
                 metrics.dropped_capped_proposals.clone(),
@@ -273,6 +325,12 @@ impl Metrics {
                 "dropped_capped_proposed_values",
                 "Number of proposed values dropped because the per-(height, round) cap was reached",
                 metrics.dropped_capped_proposed_values.clone(),
+            );
+
+            registry.register(
+                "dropped_buffered_messages",
+                "Number of messages that were discarded instead of being delivered to consensus, by drop reason: the buffer was full when the message arrived, or the height it was buffered for was restarted",
+                metrics.dropped_buffered_messages.clone(),
             );
 
             registry.register(

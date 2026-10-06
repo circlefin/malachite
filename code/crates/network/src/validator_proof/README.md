@@ -59,10 +59,10 @@ The validator proof state is split between two locations:
 | `proof_bytes` | `Option<Bytes>` | Our proof to send (set once at startup if the node has a consensus key) |
 | `proofs_received` | `HashSet<PeerId>` | Peers we've received from (anti-spam, cleared when last connection closes) |
 
-Connection tracking uses libp2p's built-in `other_established` (on `ConnectionEstablished`)
-and `remaining_established` (on `ConnectionClosed`) instead of maintaining a separate map.
-Proof is sent only on first connection (`other_established == 0`); state is cleaned up when the
-last connection closes (`remaining_established == 0`).
+Connection tracking uses libp2p's built-in `remaining_established` (on `ConnectionClosed`)
+instead of maintaining a separate map. Proof is sent on every new connection so a peer
+whose connection count diverged can still receive it; session state is cleaned up when
+the last connection closes (`remaining_established == 0`).
 
 All session state is cleared when the last connection to a peer closes, allowing fresh
 exchange on reconnect.
@@ -74,7 +74,7 @@ exchange on reconnect.
 | `PeerInfo::consensus_public_key` | `Option<Vec<u8>>` | Stored public key from a verified proof. Used to re-evaluate validator status on validator set changes without needing a new proof. |
 | `PeerInfo::consensus_address` | `Option<String>` | Derived address (set if public key matches a validator in the set, cleared if not). Used for display/metrics. |
 | `PeerInfo::peer_type` | `PeerType` | Updated to `Validator` when proof is verified and key is in set. Updated on every validator set change via `reclassify_peers()`. |
-| `pending_verified_proofs` | `HashMap<PeerId, Vec<u8>>` | Buffer for proofs verified before Identify completes (proof and Identify arrive in either order). Applied when `update_peer()` creates the `PeerInfo`. |
+| `pending_verified_proofs` | `HashMap<PeerId, Vec<u8>>` | Buffer for proofs verified before Identify completes (proof and Identify arrive in either order). Applied when `update_peer()` creates the `PeerInfo`. Dropped on the peer's last close; a verdict that arrives after that close is not stored. |
 
 The split is because the **behaviour** handles the protocol mechanics
 (when to send, what we've seen, anti-spam), while the **network state** handles the
@@ -99,9 +99,9 @@ durable classification (has this peer's proof been verified? are they in the val
   behaviour.rs
   ┌──────────────────────────────────────────────────────────────────────────┐
   │ on_swarm_event(ConnectionEstablished)                                    │
-  │   ├─ Check: other_established == 0? (first connection to peer)           │
   │   ├─ Check: proof_bytes.is_some()?                                       │
-  │   └─ inner.send_request(peer, proof_bytes)                               │
+  │   └─ send_request once per established connection                        │
+  │      (request_response picks a connection with request_id % n)           │
   └──────────────────────────────────────────────────────────────────────────┘
                                   │
                                   ▼
@@ -121,12 +121,13 @@ durable classification (has this peer's proof been verified? are they in the val
   ┌──────────────────────────────────────────────────────────────────────────┐
   │ behaviour.set_proof(proof_bytes)  — once at startup                      │
   │                                                                          │
-  │ On first connection to a peer (other_established == 0):                   │
-  │   └─ inner.send_request(peer, proof_bytes)                               │
+  │ On every new connection to a peer:                                        │
+  │   └─ send_request once per established connection                        │
   └──────────────────────────────────────────────────────────────────────────┘
 
-  ProofSent marks local send completion, not confirmed delivery. There is no
-  same-session retry; a genuinely new connection sends the proof again.
+  ProofSent marks local send completion, not confirmed delivery. Every new
+  connection sends the proof again so a peer whose connection count diverged
+  still receives it.
 
   The proof is a static binding of (public_key, peer_id) and does not change
   with validator set membership. Whether the receiver classifies the sender
@@ -151,7 +152,7 @@ durable classification (has this peer's proof been verified? are they in the val
   │ poll() - translate inner events (drains inner.poll())                    │
   │   └─ Message{Request} → classify_request:                               │
   │        └─ Malformed → CloseConnection (DISCONNECT)                       │
-  │        └─ Proof, peer already recorded → CloseConnection (ANTI-SPAM)     │
+  │        └─ Proof, peer already recorded → ignore extra copy               │
   │        └─ Proof, first this session → record, send empty resp, ProofRecv │
   │   └─ Message{Response} → ProofSent                                       │
   │   └─ OutboundFailure   → ProofSendFailed                                 │
@@ -192,7 +193,7 @@ durable classification (has this peer's proof been verified? are they in the val
   │ CtrlMsg::ValidatorProofVerified                                          │
   │   ├─ Check: result.is_verified()?                                        │
   │   │    └─ If invalid → DISCONNECT                                        │
-  │   └─ If valid → record_verified_proof()                                  │
+  │   └─ If valid and still connected → record_verified_proof()              │
   └──────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -200,11 +201,10 @@ durable classification (has this peer's proof been verified? are they in the val
 
 | Check | Location | On Failure |
 |-------|----------|------------|
-| First connection (send) | behaviour.rs (`other_established == 0`) | Skip send |
 | proof_bytes set (send) | behaviour.rs | Skip send |
 | Message size (1KB max) | codec.rs → behaviour.rs | Disconnect (delivered as `ProofRequest::Malformed`) |
 | Read failure (framing / truncated / timeout) | codec.rs → behaviour.rs | Disconnect (delivered as `ProofRequest::Malformed`) |
-| Anti-spam (duplicate) | behaviour.rs | Disconnect |
+| Anti-spam (duplicate) | behaviour.rs | Ignore (already accepted this session) |
 | Decode proof | engine/network.rs | Log + ignore |
 | PeerId matches sender | engine/network.rs | Disconnect |
 | Signature valid | engine/consensus.rs | Disconnect |
@@ -223,8 +223,8 @@ Connection-session state in `behaviour.rs`:
 Cleared when the last connection to a peer closes (`remaining_established == 0`), allowing
 fresh exchange on reconnect.
 
-Connection counting uses libp2p's built-in counters (`other_established` and
-`remaining_established`) rather than maintaining a separate map.
+Connection counting uses libp2p's built-in `remaining_established` counter
+rather than maintaining a separate map.
 
 ## Scenario Diagrams
 
@@ -277,9 +277,8 @@ Connection counting uses libp2p's built-in counters (`other_established` and
          |<------- Validator Proof (duplicate) -------|
          |                                            |
          |  [A detects duplicate in behaviour,        |
-         |   peer already in proofs_received]         |
-         |                                            |
-         |======== Disconnect (anti-spam) ============|
+         |   peer already in proofs_received,         |
+         |   ignores the extra copy]                  |
          |                                            |
 ```
 
@@ -422,7 +421,7 @@ one-directional verification (new nodes can verify old validators) during the up
 | Stream read failure | Yes | No (read error) | Disconnect (misbehavior or network error) |
 | Application codec | Yes | No (decode error) | Log + ignore, peer stays connected |
 | Invalid signature | Yes | Yes | Disconnect (forgery or signing scheme mismatch — use different protocol name or codec versions to avoid) |
-| Duplicate proof | Yes | Yes | Disconnect (anti-spam) |
+| Duplicate proof | Yes | Yes | Ignore (already accepted this session) |
 | PeerId mismatch | Yes | Yes | Disconnect (proof forgery) |
 
 ### Design Rationale
@@ -446,7 +445,7 @@ by a protocol name or codec version change to avoid this (see "When to Change Wh
 
 - The protocol is enabled when `config.enable_consensus = true`
 - Sync-only nodes do not enable the protocol
-- The proof is set once at startup and sent to every new peer on `ConnectionEstablished`
+- The proof is set once at startup and sent on every new connection (`ConnectionEstablished`)
 - The proof is a static binding; validator set membership is evaluated by the receiver
 - When the validator set changes, all peers with stored proofs are re-evaluated (`reclassify_peers`).
   Peers whose public key is no longer in the set are demoted (peer type and GossipSub score updated).
