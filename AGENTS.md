@@ -72,7 +72,7 @@ Malachite's consensus logic is **pure and stateless** — it performs no I/O. In
 
 ## Conventions
 
-- Commit messages: conventional commits with Jira references, e.g., `feat: Discovery peers request rate limiter`
+- Commit messages: conventional commits, e.g., `feat: Discovery peers request rate limiter`
 - Rust edition 2021, MSRV 1.88
 - Workspace lints: `clippy::disallowed_types = "deny"` — check `code/clippy.toml` for the disallowed types list
 
@@ -116,7 +116,7 @@ ADRs in `docs/architecture/` document key design decisions. Consult these when w
 
 - [ADR-001](docs/architecture/adr-001-architecture.md) — **High-level architecture**: repository layout, component overview (networking, host, consensus driver, state machine, vote keeper), and how they compose
 - [ADR-002](docs/architecture/adr-002-node-actor.md) — **Actor system design**: why ractor was chosen, actor decomposition (Consensus, Gossip, Mempool, WAL, Persistence, Timers, Host), and message flow between actors
-- [ADR-003](docs/architecture/adr-003-values-propagation.md) — **Value propagation modes**: three modes for disseminating proposed values (`ProposalOnly`, `PartsOnly`, `ProposalAndParts`) and when to use each
+- [ADR-003](docs/architecture/adr-003-values-propagation.md) — **Value propagation modes**: two modes for disseminating proposed values (`ProposalOnly`, `ProposalAndParts`) and when to use each
 - [ADR-004](docs/architecture/adr-004-coroutine-effect-system.md) — **Coroutine-based effect system**: the `process!`/`perform!` macro design, why coroutines were chosen over callbacks/traits/message-passing, and the Effect→Resume contract
 - [ADR-005](docs/architecture/adr-005-value-sync.md) — **Value sync protocol**: how nodes catch up on decided values, peer management, request/response protocol, and integration with the consensus engine
 - [ADR-006](docs/architecture/adr-006-proof-of-validator.md) — **Proof-of-Validator protocol**: cryptographic validator identity proofs for connection prioritization and mesh optimization
