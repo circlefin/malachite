@@ -2,9 +2,20 @@
 
 ## Unreleased
 
+## 0.8.2
+
+*October 19th, 2026*
+
+### `engine`
+- Use the round of the commit certificate as the round of a synced value. Consensus looks up the certificate by the round of the value. If the host replied to `HostMsg::ProcessSyncedValue` with a different round, the lookup failed and the node stopped at that height. The engine now sets the certificate round and logs the mismatch at debug level
+
+### `network`
+- Send the validator proof once per session again, on the first connection to a peer, as in 0.8.0. In 0.8.1 a node also sent the proof on every later connection to the same peer. A 0.8.0 peer treats a second proof as spam and closes every connection to the sender, so two persistent peers on different versions kept disconnecting and redialing each other. A node still ignores a duplicate proof in the same session instead of disconnecting, so it stays compatible with 0.8.0 peers during a rolling upgrade. Do not run 0.8.1 next to 0.8.0
+- Known limitation: a peer that restarts while this node holds a dead connection to it gets no proof and treats this node as a full node until that connection fails. Unlike 0.8.0, this also happens between validators. Consensus and sync are unaffected
+
 ## 0.8.1
 
-*September 24th, 2026*
+*October 6th, 2026*
 
 ### `discovery`
 - With discovery off, keep a peer already counted as inbound from also being inserted into `outbound_peers` when a later dial reaches it. Close looks at outbound first, so the inbound slot used to leak and shrink usable inbound capacity
@@ -59,6 +70,8 @@
 - Ignore a `DecisionCommitted` acknowledgement captured before a `RestartHeight`, so a failed commit followed by `Next::Restart` cannot advance the value-sync tip past an uncommitted height. `Msg::DecisionCommitted` now carries the `CommitGeneration` stamped when `HostMsg::Decided` was sent
 - Drop the inbound sync request slot when encoding an `OutgoingResponse` fails, and cancel the pending reply, so a host answer that cannot be encoded no longer leaks `inbound_requests`
 - Index the node's own messages from the write-ahead log before replaying it, so consensus can cross-check each re-derived vote and proposal against its record instead of signing a fresh one. Embedders that drive `malachitebft-core-consensus` directly and never call `State::index_wal_entries` are unaffected
+- Release a pending inbound sync request as soon as the connection carrying it closes, instead of waiting out the inbound stall timer. The request's host call is aborted, its per-peer in-flight slot and semaphore permits are released, and the network layer drops its response channel. Requests lost this way are recorded under a new `connection_closed` reason on `value_inbound_request_failures`, distinct from `host_stall_timeout`, which continues to mean the local host was slow. A peer resetting an individual substream while remaining connected stays undetectable at the pinned libp2p and yamux versions, and is still covered by the stall timer
+- Remove the WAL-replay delay: a restarting validator now replays its WAL immediately instead of first waiting for value sync to fetch a certificate for the crash height. This deletes the `WaitingForSync` phase, its timer, its pending-entry buffer and the sync-message buffer bypass, along with the `consensus.wal_replay_delay` config option. Two consequences of the removed path are gone with it: the driver reset that preceded the deferred replay could report a round going backwards to the application, and the same path could make a validator equivocate against its own earlier votes. Recovery from a chain halt is also no longer delayed by the configured amount, since in that situation no peer can serve the certificate the delay was waiting for
 
 ### `discovery`
 - Clear the dial-history record in the form `dial_bootstrap_nodes` wrote it when a persistent peer is removed, including the `/p2p/` component. Stripping that component first left the record in place, so a later re-add was skipped every second until restart
@@ -82,6 +95,7 @@
 - Free a Pending outbound slot if a Connect request is skipped because `done_on` is already set and nothing is in flight, so a still-connected refused peer cannot hold one of the configured outbound slots unused
 - Grant inbound slots only after Identify completes, routing connect-request accepts through `promote_to_inbound` instead of inserting directly into the inbound set. A peer that received a slot before Identify finished was counted as inbound without appearing in `active_connections`, so it was invisible to eviction and could permanently fill the inbound budget, blocking validator and persistent peer promotion. Inbound eviction now prefers unidentified slot holders — peers in the inbound set with no `PeerInfo` — over the lowest-scoring identified non-priority peer
 - Report both peer identities for inbound GossipSub messages. `Event::ConsensusMessage` carries the delivering neighbor (`propagation_source`) alongside the declared publisher (`message.source`), so resource limits can charge the connection while the parts of one proposal group are by publisher. `Event::LivenessMessage` carries only the delivering peer, since each liveness message stands alone. Messages with no declared source, previously dropped, are now attributed to the deliverer
+- Emit `Event::SyncInboundRequestFailed` when libp2p reports that the connection carrying a pending inbound sync request closed, and drop the request's response channel on `CtrlMsg::SyncCancelReply`. A custom network layer that emits neither keeps the previous behaviour, where the engine's inbound stall timer releases the request
 
 ### `discovery`
 - Clear the peers-request "already asked" mark when the last connection to a peer closes, matching the existing connect-request cleanup, so a reconnecting peer can be asked for its peer list again
@@ -126,8 +140,6 @@
   bundled libp2p network actor logs and no-ops (no public cancel API in
   `libp2p::request_response`); downstream network actors that own the
   transport can use this to free transport resources eagerly
-- Release a pending inbound sync request as soon as the connection carrying it closes, instead of waiting out the inbound stall timer. The request's host call is aborted, its per-peer in-flight slot and semaphore permits are released, and the network layer drops its response channel. Requests lost this way are recorded under a new `connection_closed` reason on `value_inbound_request_failures`, distinct from `host_stall_timeout`, which continues to mean the local host was slow. A peer resetting an individual substream while remaining connected stays undetectable at the pinned libp2p and yamux versions, and is still covered by the stall timer
-- Remove the WAL-replay delay: a restarting validator now replays its WAL immediately instead of first waiting for value sync to fetch a certificate for the crash height. This deletes the `WaitingForSync` phase, its timer, its pending-entry buffer and the sync-message buffer bypass, along with the `consensus.wal_replay_delay` config option. Two consequences of the removed path are gone with it: the driver reset that preceded the deferred replay could report a round going backwards to the application, and the same path could make a validator equivocate against its own earlier votes. Recovery from a chain halt is also no longer delayed by the configured amount, since in that situation no peer can serve the certificate the delay was waiting for
 
 ### `driver`
 - Add `IntoIterator` impls and `len()` to `EvidenceMap` in `core-driver` and `core-votekeeper`
@@ -135,7 +147,6 @@
 ### `network`
 - Support peer-only multiaddrs (`/p2p/<peer_id>`) in `persistent_peers`: entries without a transport component are used for inbound identity filtering and are never dialed
 - Make GossipSub topic / broadcast channel names configurable via `P2pConfig.channel_names`; channel names are validated for non-emptiness and uniqueness before the network actor is spawned
-- Emit `Event::SyncInboundRequestFailed` when libp2p reports that the connection carrying a pending inbound sync request closed, and drop the request's response channel on `CtrlMsg::SyncCancelReply`. A custom network layer that emits neither keeps the previous behaviour, where the engine's inbound stall timer releases the request
 
 ### `signing`
 - Bind vote-extension signatures to their precommit scope `(height, round, value_id, validator_address)` so an extension blob cannot be relayed across heights, rounds, values, or validators

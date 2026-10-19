@@ -291,11 +291,15 @@ where
     }
 
     /// Store the polka certificate and multiplex the proposal.
-    /// Returns the round and the input to the round state machine.
-    /// The round is:
-    /// - the round of the Proposal with a pol_round matching the certificate's round (L28), or
-    /// - the matching proposal is at the same round (L36), or
-    /// - the round of the certificate if there is no matching proposal (L44)
+    /// Returns the round and the input to the round state machine, based on our proposal in the
+    /// current round for the certificate's value:
+    /// - its pol_round is the certificate's round: `ProposalAndPolkaPrevious` if it is valid,
+    ///   `InvalidProposalAndPolkaPrevious` if not, at the proposal's round (L28, L32)
+    /// - it is valid and at the certificate's round: `ProposalAndPolkaCurrent` (L36)
+    /// - it is invalid and at the certificate's round, or there is no such proposal:
+    ///   `PolkaAny` (L34)
+    ///
+    /// A certificate from a future round gives `SkipRound`. Any other case gives `None`.
     pub(crate) fn store_and_multiplex_polka_certificate(
         &mut self,
         certificate: PolkaCertificate<Ctx>,
@@ -349,6 +353,9 @@ where
                     proposal.round(),
                     RoundInput::InvalidProposalAndPolkaPrevious(proposal.clone()),
                 ))
+            } else if proposal.round() == certificate_round {
+                // L34
+                Some((certificate_round, RoundInput::PolkaAny))
             } else {
                 None
             }

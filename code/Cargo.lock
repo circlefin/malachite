@@ -192,7 +192,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-app"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "arc-malachitebft-codec",
  "arc-malachitebft-config",
@@ -219,7 +219,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-app-channel"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "arc-malachitebft-app",
  "arc-malachitebft-config",
@@ -239,14 +239,14 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-codec"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "bytes",
 ]
 
 [[package]]
 name = "arc-malachitebft-config"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "bytesize",
  "humantime-serde",
@@ -260,7 +260,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-core-consensus"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "arc-malachitebft-core-driver",
  "arc-malachitebft-core-types",
@@ -284,7 +284,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-core-driver"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "arc-malachitebft-core-state-machine",
  "arc-malachitebft-core-types",
@@ -299,7 +299,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-core-state-machine"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "arc-malachitebft-core-types",
  "derive-where",
@@ -309,7 +309,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-core-types"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "arc-malachitebft-peer",
  "async-trait",
@@ -323,7 +323,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-core-votekeeper"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "arc-malachitebft-core-types",
  "arc-malachitebft-test",
@@ -335,7 +335,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-discovery"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "arc-malachitebft-metrics",
  "either",
@@ -349,7 +349,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-discovery-test"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "arc-malachitebft-config",
  "arc-malachitebft-discovery-test",
@@ -368,7 +368,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-engine"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "arc-malachitebft-codec",
  "arc-malachitebft-config",
@@ -403,7 +403,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-engine-byzantine"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "arc-malachitebft-core-consensus",
  "arc-malachitebft-core-types",
@@ -421,7 +421,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-metrics"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "arc-malachitebft-core-state-machine",
  "prometheus-client",
@@ -429,7 +429,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-network"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "arc-malachitebft-discovery",
  "arc-malachitebft-metrics",
@@ -457,7 +457,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-peer"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "borsh",
  "bs58",
@@ -469,7 +469,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-proto"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "prost",
  "prost-types",
@@ -478,7 +478,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-signing"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "arc-malachitebft-core-types",
  "async-trait",
@@ -487,7 +487,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-signing-ecdsa"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "arc-malachitebft-core-types",
  "base64",
@@ -502,7 +502,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-signing-ed25519"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "arc-malachitebft-core-types",
  "base64",
@@ -515,7 +515,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-sync"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "arbtest",
  "arc-malachitebft-core-types",
@@ -541,7 +541,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-test"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "arc-malachitebft-app",
  "arc-malachitebft-codec",
@@ -585,7 +585,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-test-app"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "arc-malachitebft-app-channel",
  "arc-malachitebft-engine-byzantine",
@@ -616,7 +616,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-test-cli"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "arc-malachitebft-app",
  "arc-malachitebft-config",
@@ -642,7 +642,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-test-framework"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "arc-malachitebft-app",
  "arc-malachitebft-config",
@@ -666,7 +666,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-test-mbt"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "arc-malachitebft-core-state-machine",
  "arc-malachitebft-core-types",
@@ -689,7 +689,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-test-mempool"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "arc-malachitebft-metrics",
  "arc-malachitebft-proto",
@@ -708,7 +708,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-test-store"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "arc-malachitebft-app-channel",
  "arc-malachitebft-proto",
@@ -726,7 +726,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-test-streaming"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "arc-malachitebft-app-channel",
  "arc-malachitebft-test",
@@ -735,7 +735,7 @@ dependencies = [
 
 [[package]]
 name = "arc-malachitebft-wal"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "advisory-lock",
  "bytes",

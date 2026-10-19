@@ -442,10 +442,17 @@ pub async fn run(state: &mut State, channels: &mut Channels<TestContext>) -> eyr
                             validity: Validity::Valid,
                         };
 
+                        let reply_round = middleware.map_or(round, |m| {
+                            m.synced_value_reply_round(&state.ctx, height, round)
+                        });
+
                         // TODO: We plan to add some validation here in the future.
                         state.store_synced_value(proposal.clone()).await?;
 
-                        SyncedValueOutcome::Verdict(proposal)
+                        SyncedValueOutcome::Verdict(ProposedValue {
+                            round: reply_round,
+                            ..proposal
+                        })
                     } else {
                         error!(%height, %round, "Failed to decode synced value");
                         SyncedValueOutcome::PeerFault

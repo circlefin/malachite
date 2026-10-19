@@ -40,6 +40,7 @@ where
     let consensus_round = state.round();
     let proposal_height = signed_proposal.height();
     let proposal_round = signed_proposal.round();
+    let pol_round = signed_proposal.pol_round();
     let proposer_address = signed_proposal.validator_address();
 
     // Discard proposals for heights lower than the current height.
@@ -105,6 +106,26 @@ where
 
         #[cfg(feature = "metrics")]
         metrics.dropped_future_round_proposals.inc();
+
+        return Ok(());
+    }
+
+    // A correct proposer never sends a pol_round that is not lower than its round (L19).
+    // Keeping one would make the driver read a polka in its own round as a polka from an
+    // earlier round (L28), so the node could stall in prevote.
+    //
+    // Replayed proposals are exempt: an earlier version may have stored one and signed votes
+    // based on it, and replay must derive the same votes.
+    if !state.is_replaying_wal() && pol_round.is_defined() && pol_round >= proposal_round {
+        debug!(
+            consensus.height = %consensus_height,
+            consensus.round = %consensus_round,
+            proposal.height = %proposal_height,
+            proposal.round = %proposal_round,
+            proposal.pol_round = %pol_round,
+            proposer = %proposer_address,
+            "Received proposal with pol_round not lower than its round, dropping"
+        );
 
         return Ok(());
     }

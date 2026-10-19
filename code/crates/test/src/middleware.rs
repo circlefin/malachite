@@ -119,6 +119,12 @@ pub trait Middleware: fmt::Debug + Send + Sync {
         false
     }
 
+    /// Round the application replies with for a synced value. The application
+    /// still stores the value at the round of the commit certificate.
+    fn synced_value_reply_round(&self, _ctx: &TestContext, _height: Height, round: Round) -> Round {
+        round
+    }
+
     /// Called whenever the application is asked to verify vote extensions, with
     /// how many arrived in the batch. A live precommit carries exactly one; a
     /// commit certificate carries one per validator that signed it.

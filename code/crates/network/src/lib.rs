@@ -474,7 +474,7 @@ pub async fn spawn(
     let consensus_address = validator.as_ref().map(|v| v.address.clone());
     let proof_bytes = validator.as_ref().and_then(|v| v.proof_bytes.clone());
 
-    // Set proof on the validator_proof behaviour so it is sent on every new connection
+    // Set proof on the validator_proof behaviour so it is sent on the first connection to each peer
     if let Some(ref proof_bytes) = proof_bytes {
         if let Some(vp) = swarm.behaviour_mut().validator_proof.as_mut() {
             vp.set_proof(proof_bytes.clone());
@@ -548,7 +548,7 @@ async fn run(
     tx_event: mpsc::Sender<Event>,
 ) {
     // The validator proof is already set on the behaviour before run() is called
-    // (see set_proof above), so it will be sent on every ConnectionEstablished.
+    // (see set_proof above), so it will be sent on the first connection to each peer.
 
     if let Err(e) = swarm.listen_on(config.listen_addr.clone()) {
         error!("Error listening on {}: {e}", config.listen_addr);

@@ -12,9 +12,10 @@ use async_trait::async_trait;
 use asynchronous_codec::{FramedRead, FramedWrite};
 use bytes::Bytes;
 use libp2p::futures::channel::oneshot;
-use libp2p::futures::io::{AsyncRead, AsyncWrite};
+use libp2p::futures::io::{AsyncRead, AsyncReadExt, AsyncWrite};
 use libp2p::futures::{SinkExt, StreamExt};
 use libp2p::request_response::{self, ProtocolSupport};
+use libp2p::swarm::dial_opts::{DialOpts, PeerCondition};
 use libp2p::swarm::{ConnectionError, SwarmEvent};
 use libp2p::{noise, tcp, yamux, Multiaddr, Stream, StreamProtocol, Swarm, SwarmBuilder};
 use unsigned_varint::codec::UviBytes;
@@ -409,4 +410,443 @@ async fn fixed_sender_to_legacy_stream_receiver() {
         .expect("timed out reading the proof frame");
 
     assert_eq!(received, proof);
+}
+
+// ── Session semantics across several connections to the same peer ──
+//
+// Two nodes that list each other as persistent peers dial each other, so the
+// pair holds two connections at once. The tests below use a raw
+// `request_response` peer on the `/v1` protocol to observe what goes over the
+// wire, and to model a receiver that disconnects a peer which sends a second
+// proof in the same session.
+
+/// How long to keep driving both swarms after the exchange settles, to catch
+/// late extra proofs or disconnects.
+const SETTLE: Duration = Duration::from_secs(2);
+
+/// Dial `peer` on a fresh local port, even if a connection to it is already
+/// open. Reusing the listen port would collide with the existing connection.
+fn dial_new_connection(peer: libp2p::PeerId, addr: &Multiaddr) -> DialOpts {
+    DialOpts::peer_id(peer)
+        .addresses(vec![addr.clone()])
+        .condition(PeerCondition::Always)
+        .allocate_new_port()
+        .build()
+}
+
+fn build_raw_swarm() -> Swarm<request_response::Behaviour<PlainCodec>> {
+    SwarmBuilder::with_new_identity()
+        .with_tokio()
+        .with_tcp(
+            tcp::Config::default(),
+            noise::Config::new,
+            yamux::Config::default,
+        )
+        .expect("tcp transport")
+        .with_behaviour(|_| {
+            request_response::Behaviour::with_codec(
+                PlainCodec,
+                [(proto(), ProtocolSupport::Full)],
+                request_response::Config::default(),
+            )
+        })
+        .expect("behaviour")
+        .with_swarm_config(|c| c.with_idle_connection_timeout(IDLE_TIMEOUT))
+        .build()
+}
+
+/// What a [`StrictPeer`] observed from one swarm event.
+enum StrictPeerEvent {
+    ProofReceived(libp2p::PeerId),
+    Other,
+}
+
+/// A peer that sends its proof once, on the first connection to a peer, and
+/// disconnects a peer that sends a second proof in the same session. The
+/// session ends when the last connection to the peer closes.
+struct StrictPeer {
+    swarm: Swarm<request_response::Behaviour<PlainCodec>>,
+    proof: Bytes,
+    proofs_received: HashSet<libp2p::PeerId>,
+}
+
+impl StrictPeer {
+    fn new(proof: Bytes) -> Self {
+        Self {
+            swarm: build_raw_swarm(),
+            proof,
+            proofs_received: HashSet::new(),
+        }
+    }
+
+    fn on_event(
+        &mut self,
+        event: SwarmEvent<request_response::Event<Bytes, ()>>,
+    ) -> StrictPeerEvent {
+        match event {
+            SwarmEvent::ConnectionEstablished {
+                peer_id,
+                num_established,
+                ..
+            } if num_established.get() == 1 => {
+                self.swarm
+                    .behaviour_mut()
+                    .send_request(&peer_id, self.proof.clone());
+            }
+            SwarmEvent::ConnectionClosed {
+                peer_id,
+                num_established: 0,
+                ..
+            } => {
+                self.proofs_received.remove(&peer_id);
+            }
+            SwarmEvent::Behaviour(request_response::Event::Message {
+                peer,
+                message: request_response::Message::Request { channel, .. },
+                ..
+            }) => {
+                let _ = self.swarm.behaviour_mut().send_response(channel, ());
+                if self.proofs_received.insert(peer) {
+                    return StrictPeerEvent::ProofReceived(peer);
+                }
+                let _ = self.swarm.disconnect_peer_id(peer);
+            }
+            _ => {}
+        }
+        StrictPeerEvent::Other
+    }
+}
+
+/// A second connection to a peer that is already connected must not carry
+/// another proof: one proof per session.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn proof_sent_once_per_session_when_second_connection_opens() {
+    let mut sender = build_swarm();
+    sender
+        .behaviour_mut()
+        .set_proof(Bytes::from_static(b"validator-proof-bytes"));
+    let sender_id = *sender.local_peer_id();
+
+    let mut receiver = build_raw_swarm();
+    receiver
+        .listen_on("/ip4/127.0.0.1/tcp/0".parse().unwrap())
+        .unwrap();
+    let receiver_id = *receiver.local_peer_id();
+    let addr = wait_listen_addr(&mut receiver).await;
+
+    sender.dial(addr.clone()).unwrap();
+
+    let mut proofs = 0usize;
+    let mut second_dialed = false;
+    let mut connections = 0u32;
+    tokio::time::timeout(Duration::from_secs(20), async {
+        loop {
+            tokio::select! {
+                event = sender.select_next_some() => {
+                    if let SwarmEvent::ConnectionEstablished { num_established, .. } = event {
+                        connections = num_established.get();
+                        if !second_dialed {
+                            sender.dial(dial_new_connection(receiver_id, &addr)).unwrap();
+                            second_dialed = true;
+                        }
+                    }
+                }
+                event = receiver.select_next_some() => {
+                    if let SwarmEvent::Behaviour(request_response::Event::Message {
+                        peer,
+                        message: request_response::Message::Request { channel, .. },
+                        ..
+                    }) = event
+                    {
+                        assert_eq!(peer, sender_id);
+                        let _ = receiver.behaviour_mut().send_response(channel, ());
+                        proofs += 1;
+                    }
+                }
+            }
+            if connections == 2 && proofs >= 1 {
+                break;
+            }
+        }
+    })
+    .await
+    .expect("timed out waiting for two connections and the first proof");
+
+    // Keep both connections up and count any further proof.
+    let _ = tokio::time::timeout(SETTLE, async {
+        loop {
+            tokio::select! {
+                _ = sender.select_next_some() => {}
+                event = receiver.select_next_some() => {
+                    if let SwarmEvent::Behaviour(request_response::Event::Message {
+                        message: request_response::Message::Request { channel, .. },
+                        ..
+                    }) = event
+                    {
+                        let _ = receiver.behaviour_mut().send_response(channel, ());
+                        proofs += 1;
+                    }
+                }
+            }
+        }
+    })
+    .await;
+
+    assert_eq!(proofs, 1, "expected exactly one proof for the session");
+}
+
+/// A second proof from the same peer in the same session is ignored: the
+/// connection stays open and the proof is delivered once.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn duplicate_proof_in_same_session_keeps_connection_open() {
+    let mut sender = build_raw_swarm();
+    let sender_id = *sender.local_peer_id();
+
+    let mut receiver = build_swarm();
+    receiver
+        .listen_on("/ip4/127.0.0.1/tcp/0".parse().unwrap())
+        .unwrap();
+    let receiver_id = *receiver.local_peer_id();
+    let addr = wait_listen_addr(&mut receiver).await;
+
+    sender.dial(addr).unwrap();
+
+    let mut delivered = 0usize;
+    let mut responses = 0usize;
+    let result = tokio::time::timeout(Duration::from_secs(20), async {
+        loop {
+            tokio::select! {
+                event = sender.select_next_some() => {
+                    match event {
+                        SwarmEvent::ConnectionEstablished { .. } => {
+                            for _ in 0..2 {
+                                sender
+                                    .behaviour_mut()
+                                    .send_request(&receiver_id, Bytes::from_static(b"proof"));
+                            }
+                        }
+                        SwarmEvent::Behaviour(request_response::Event::Message {
+                            message: request_response::Message::Response { .. },
+                            ..
+                        }) => responses += 1,
+                        _ => {}
+                    }
+                }
+                event = receiver.select_next_some() => {
+                    match event {
+                        SwarmEvent::Behaviour(Event::ProofReceived { peer, .. }) => {
+                            assert_eq!(peer, sender_id);
+                            delivered += 1;
+                        }
+                        SwarmEvent::ConnectionClosed { cause, .. } => {
+                            panic!("connection closed after a duplicate proof: {cause:?}");
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            // The receiver has handled both proofs and delivered the first.
+            if responses == 2 && delivered == 1 {
+                break;
+            }
+        }
+    })
+    .await;
+    result.expect("timed out waiting for the receiver to handle both proofs");
+
+    // Keep driving both swarms to catch a late delivery or disconnect.
+    let _ = tokio::time::timeout(SETTLE, async {
+        loop {
+            tokio::select! {
+                _ = sender.select_next_some() => {}
+                event = receiver.select_next_some() => match event {
+                    SwarmEvent::Behaviour(Event::ProofReceived { .. }) => delivered += 1,
+                    SwarmEvent::ConnectionClosed { cause, .. } => {
+                        panic!("connection closed after a duplicate proof: {cause:?}");
+                    }
+                    _ => {}
+                },
+            }
+        }
+    })
+    .await;
+
+    assert_eq!(delivered, 1, "the proof must be delivered once per session");
+}
+
+/// A node and a [`StrictPeer`] that are connected to each other, with what
+/// each side has observed so far.
+struct MutualPair {
+    node: Swarm<Behaviour>,
+    strict: StrictPeer,
+    node_connections: u32,
+    strict_connections: u32,
+    node_got_proof: bool,
+    strict_got_proof: bool,
+}
+
+impl MutualPair {
+    fn is_exchanged(&self) -> bool {
+        self.node_connections == 2
+            && self.strict_connections == 2
+            && self.node_got_proof
+            && self.strict_got_proof
+    }
+
+    /// Process one event from either swarm. Panics if a connection closes.
+    async fn step(&mut self) {
+        let strict_id = *self.strict.swarm.local_peer_id();
+        let node_id = *self.node.local_peer_id();
+        tokio::select! {
+            event = self.node.select_next_some() => match event {
+                SwarmEvent::ConnectionEstablished { num_established, .. } => {
+                    self.node_connections = num_established.get();
+                }
+                SwarmEvent::ConnectionClosed { cause, .. } => {
+                    panic!("node lost a connection to the strict peer: {cause:?}");
+                }
+                SwarmEvent::Behaviour(Event::ProofReceived { peer, .. }) => {
+                    assert_eq!(peer, strict_id);
+                    self.node_got_proof = true;
+                }
+                _ => {}
+            },
+            event = self.strict.swarm.select_next_some() => {
+                match &event {
+                    SwarmEvent::ConnectionEstablished { num_established, .. } => {
+                        self.strict_connections = num_established.get();
+                    }
+                    SwarmEvent::ConnectionClosed { cause, .. } => {
+                        panic!("strict peer lost a connection to the node: {cause:?}");
+                    }
+                    _ => {}
+                }
+                if let StrictPeerEvent::ProofReceived(peer) = self.strict.on_event(event) {
+                    assert_eq!(peer, node_id);
+                    self.strict_got_proof = true;
+                }
+            }
+        }
+    }
+}
+
+/// Two persistent peers dial each other, so they hold two connections. The
+/// other peer disconnects on a second proof in the same session. The proof
+/// exchange must complete in both directions and both connections must stay
+/// open.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn mutual_dial_with_strict_duplicate_peer_keeps_connections_open() {
+    let mut node = build_swarm();
+    node.behaviour_mut()
+        .set_proof(Bytes::from_static(b"node-proof"));
+    node.listen_on("/ip4/127.0.0.1/tcp/0".parse().unwrap())
+        .unwrap();
+    let node_id = *node.local_peer_id();
+    let node_addr = wait_listen_addr(&mut node).await;
+
+    let mut strict = StrictPeer::new(Bytes::from_static(b"strict-peer-proof"));
+    strict
+        .swarm
+        .listen_on("/ip4/127.0.0.1/tcp/0".parse().unwrap())
+        .unwrap();
+    let strict_id = *strict.swarm.local_peer_id();
+    let strict_addr = wait_listen_addr(&mut strict.swarm).await;
+
+    node.dial(dial_new_connection(strict_id, &strict_addr))
+        .unwrap();
+    strict
+        .swarm
+        .dial(dial_new_connection(node_id, &node_addr))
+        .unwrap();
+
+    let mut pair = MutualPair {
+        node,
+        strict,
+        node_connections: 0,
+        strict_connections: 0,
+        node_got_proof: false,
+        strict_got_proof: false,
+    };
+
+    tokio::time::timeout(Duration::from_secs(20), async {
+        while !pair.is_exchanged() {
+            pair.step().await;
+        }
+    })
+    .await
+    .expect("timed out waiting for two connections and both proofs");
+
+    // Keep driving both swarms to catch a late extra proof and the disconnect
+    // it would cause.
+    let _ = tokio::time::timeout(SETTLE, async {
+        loop {
+            pair.step().await;
+        }
+    })
+    .await;
+
+    assert!(pair.is_exchanged());
+}
+
+/// The validator-proof wire format, with the request read back as raw bytes.
+#[derive(Clone, Default)]
+struct PlainCodec;
+
+#[async_trait]
+impl request_response::Codec for PlainCodec {
+    type Protocol = libp2p::StreamProtocol;
+    type Request = Bytes;
+    type Response = ();
+
+    async fn read_request<T>(&mut self, _: &Self::Protocol, io: &mut T) -> io::Result<Self::Request>
+    where
+        T: AsyncRead + Unpin + Send,
+    {
+        let mut framed = FramedRead::new(io, uvi_framing());
+        match framed.next().await {
+            Some(frame) => Ok(frame?.into()),
+            None => Err(io::ErrorKind::UnexpectedEof.into()),
+        }
+    }
+
+    /// Wait until the receiver closes the stream. The receiver sends its empty
+    /// response only after it has handled the request, so a response here
+    /// means the request was processed, not only written.
+    async fn read_response<T>(
+        &mut self,
+        _: &Self::Protocol,
+        io: &mut T,
+    ) -> io::Result<Self::Response>
+    where
+        T: AsyncRead + Unpin + Send,
+    {
+        io.read_to_end(&mut Vec::new()).await?;
+        Ok(())
+    }
+
+    async fn write_request<T>(
+        &mut self,
+        _: &Self::Protocol,
+        io: &mut T,
+        req: Self::Request,
+    ) -> io::Result<()>
+    where
+        T: AsyncWrite + Unpin + Send,
+    {
+        let mut framed = FramedWrite::new(io, uvi_framing());
+        framed.send(req).await?;
+        framed.close().await
+    }
+
+    async fn write_response<T>(
+        &mut self,
+        _: &Self::Protocol,
+        _: &mut T,
+        _: Self::Response,
+    ) -> io::Result<()>
+    where
+        T: AsyncWrite + Unpin + Send,
+    {
+        Ok(())
+    }
 }

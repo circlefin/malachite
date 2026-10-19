@@ -205,6 +205,22 @@ fn proposal_evidence_count(state: &State<TestContext>, addr: Address) -> usize {
         .unwrap_or(0)
 }
 
+/// A round 1 proposal for `value` from `proposer`.
+///
+/// A same-value equivocation needs two proposals that differ only in `pol_round`. Consensus
+/// drops a proposal whose `pol_round` is not lower than its round. In round 0, the only
+/// well-formed `pol_round` is `Nil`. In round 1, `Nil` and `0` are both well-formed.
+fn round_one_proposal(
+    proposer: Address,
+    value: Value,
+    pol_round: Round,
+) -> SignedProposal<TestContext> {
+    SignedProposal::new(
+        Proposal::new(Height::new(1), Round::new(1), value, pol_round, proposer),
+        Signature::test(),
+    )
+}
+
 struct TestCase {
     name: &'static str,
     make_input: fn(Address) -> Input<TestContext>,
@@ -225,31 +241,25 @@ fn same_value_proposal_with_different_pol_round_is_recorded_as_evidence() {
     let mut state = make_state(&validators, proposer);
     drive_to_finalization(&mut state, &metrics, &validators, proposer, value.clone());
 
-    // The first proposal — fed inside `drive_to_finalization` — has `pol_round = Nil`.
-    // Feed a second proposal from the same proposer for the same `(height, round, value)`
-    // but with a different `pol_round`. The two proposals share a value id, so they
-    // are filtered as a "same value" pair at the full-proposal keeper; evidence must
-    // still be recorded.
-    let equivocating = Input::Proposal(SignedProposal::new(
-        Proposal::new(
-            Height::new(1),
-            Round::new(0),
-            value,
-            Round::new(0),
-            proposer,
-        ),
-        Signature::test(),
-    ));
+    // Feed two round 1 proposals from the same proposer for the same value, one with
+    // `pol_round` `Nil` and one with `pol_round` 0. The two proposals share a value id, so
+    // the full-proposal keeper filters them as a "same value" pair. Evidence must still be
+    // recorded.
+    let round_one_proposer = *state.get_proposer(Height::new(1), Round::new(1));
+    let first = round_one_proposal(round_one_proposer, value.clone(), Round::Nil);
+    let equivocating = round_one_proposal(round_one_proposer, value, Round::new(0));
 
-    run(process!(
-        input: equivocating,
-        state: &mut state,
-        metrics: &metrics,
-        with: effect => handle_effect(effect)
-    ));
+    for proposal in [first, equivocating] {
+        run(process!(
+            input: Input::Proposal(proposal),
+            state: &mut state,
+            metrics: &metrics,
+            with: effect => handle_effect(effect)
+        ));
+    }
 
     assert_eq!(
-        proposal_evidence_count(&state, proposer),
+        proposal_evidence_count(&state, round_one_proposer),
         1,
         "proposal equivocation should be detected even when the two proposals \
          carry the same value id"
@@ -409,16 +419,16 @@ fn repeated_same_value_equivocating_proposal_is_deduplicated() {
     let mut state = make_state(&validators, proposer);
     drive_to_finalization(&mut state, &metrics, &validators, proposer, value.clone());
 
-    let equivocating = SignedProposal::new(
-        Proposal::new(
-            Height::new(1),
-            Round::new(0),
-            value,
-            Round::new(0),
-            proposer,
-        ),
-        Signature::test(),
-    );
+    let round_one_proposer = *state.get_proposer(Height::new(1), Round::new(1));
+    let first = round_one_proposal(round_one_proposer, value.clone(), Round::Nil);
+    let equivocating = round_one_proposal(round_one_proposer, value, Round::new(0));
+
+    run(process!(
+        input: Input::Proposal(first),
+        state: &mut state,
+        metrics: &metrics,
+        with: effect => handle_effect(effect)
+    ));
 
     for _ in 0..3 {
         run(process!(
@@ -430,7 +440,7 @@ fn repeated_same_value_equivocating_proposal_is_deduplicated() {
     }
 
     assert_eq!(
-        proposal_evidence_count(&state, proposer),
+        proposal_evidence_count(&state, round_one_proposer),
         1,
         "receiving the same equivocating proposal multiple times should still record \
          exactly one evidence entry"
