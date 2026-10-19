@@ -159,7 +159,7 @@ serde              = { version = "1.0", default-features = false }
 serde_json         = "1.0"
 serde_with         = "3.9"
 sha3               = "0.10"
-signature          = "2.2.0"
+signature          = "3.0.0"
 k256               = { version = "0.13", default-features = false }
 p256               = { version = "0.13", default-features = false }
 p384               = { version = "0.13", default-features = false }
