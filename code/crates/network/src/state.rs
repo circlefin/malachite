@@ -909,7 +909,8 @@ pub(crate) mod tests {
     fn test_state_with_local_addr(consensus_address: Option<&str>) -> State {
         let mut registry = malachitebft_metrics::Registry::default();
         let discovery =
-            discovery::Discovery::<Behaviour>::new(Config::new(false), vec![], &mut registry);
+            discovery::Discovery::<Behaviour>::new(Config::new(false), vec![], &mut registry)
+                .expect("default discovery config should be valid");
         let metrics = NetworkMetrics::new(&mut registry);
 
         let local_node = LocalNodeInfo {

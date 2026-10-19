@@ -17,26 +17,27 @@ where
         is_enabled: bool,
         bootstrap_protocol: config::BootstrapProtocol,
         selector: config::Selector,
-    ) -> Box<dyn Selector<C>> {
+    ) -> Result<Box<dyn Selector<C>>, config::ConfigError> {
         if !is_enabled {
-            return Box::new(RandomSelector::new());
+            return Ok(Box::new(RandomSelector::new()));
         }
 
         match selector {
             config::Selector::Kademlia => {
                 if bootstrap_protocol != config::BootstrapProtocol::Kademlia {
-                    panic!(
-                        "Kademlia selector is only available with the Kademlia bootstrap protocol"
-                    );
+                    return Err(config::ConfigError::SelectorProtocolMismatch {
+                        selector,
+                        bootstrap_protocol,
+                    });
                 }
 
                 info!("Using Kademlia selector");
-                Box::new(KademliaSelector::new())
+                Ok(Box::new(KademliaSelector::new()))
             }
 
             config::Selector::Random => {
                 info!("Using Random selector");
-                Box::new(RandomSelector::new())
+                Ok(Box::new(RandomSelector::new()))
             }
         }
     }

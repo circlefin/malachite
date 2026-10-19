@@ -14,7 +14,7 @@ mod dial;
 use dial::DialData;
 
 pub mod config;
-pub use config::Config;
+pub use config::{Config, ConfigError};
 
 mod controller;
 use controller::Controller;
@@ -100,7 +100,11 @@ impl<C> Discovery<C>
 where
     C: DiscoveryClient,
 {
-    pub fn new(config: Config, bootstrap_nodes: Vec<Multiaddr>, registry: &mut Registry) -> Self {
+    pub fn new(
+        config: Config,
+        bootstrap_nodes: Vec<Multiaddr>,
+        registry: &mut Registry,
+    ) -> Result<Self, config::ConfigError> {
         info!(
             "Discovery is {}",
             if config.enabled {
@@ -141,7 +145,7 @@ where
             State::Idle
         };
 
-        Self {
+        Ok(Self {
             config,
             state,
 
@@ -149,7 +153,7 @@ where
                 config.enabled,
                 config.bootstrap_protocol,
                 config.selector,
-            ),
+            )?,
 
             bootstrap_nodes: bootstrap_nodes
                 .clone()
@@ -167,7 +171,7 @@ where
 
             controller: Controller::new(),
             metrics: Metrics::new(registry, !config.enabled || bootstrap_nodes.is_empty()),
-        }
+        })
     }
 
     pub fn is_enabled(&self) -> bool {
