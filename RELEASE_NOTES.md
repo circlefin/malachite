@@ -7,7 +7,7 @@
 *October 19th, 2026*
 
 ### `engine`
-- Use the round of the commit certificate as the round of a synced value. Consensus looks up the certificate by the round of the value. If the host replied to `HostMsg::ProcessSyncedValue` with a different round, the lookup failed and the node stopped at that height. The engine now sets the certificate round and logs the mismatch at debug level
+- Use the round of the commit certificate as the round of a synced value. Consensus looks up the certificate by the round of the value. If the host replied to `HostMsg::ProcessSyncedValue` with a different round, the lookup failed and the node stopped at that height. The engine now sets the certificate round and logs the mismatch at warn level
 
 ### `network`
 - Send the validator proof once per session again, on the first connection to a peer, as in 0.8.0. In 0.8.1 a node also sent the proof on every later connection to the same peer. A 0.8.0 peer treats a second proof as spam and closes every connection to the sender, so two persistent peers on different versions kept disconnecting and redialing each other. A node still ignores a duplicate proof in the same session instead of disconnecting, so it stays compatible with 0.8.0 peers during a rolling upgrade. Do not run 0.8.1 next to 0.8.0
