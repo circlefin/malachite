@@ -6,6 +6,12 @@
 
 *October 19th, 2026*
 
+### `consensus`
+- Drop a proposal from the network when its `pol_round` is not lower than its round. A correct proposer never sends such a proposal.
+
+### `driver`
+- Start the prevote timer when a polka certificate arrives for a value whose proposal in the certificate's round is invalid and has no `pol_round`. The driver now sends `PolkaAny` (L34) instead of no input, so the node can precommit nil instead of waiting in the prevote step with no timer.
+
 ### `engine`
 - Use the round of the commit certificate as the round of a synced value. Consensus looks up the certificate by the round of the value. If the host replied to `HostMsg::ProcessSyncedValue` with a different round, the lookup failed and the node stopped at that height. The engine now sets the certificate round and logs the mismatch at warn level
 
