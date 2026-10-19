@@ -59,10 +59,10 @@ The validator proof state is split between two locations:
 | `proof_bytes` | `Option<Bytes>` | Our proof to send (set once at startup if the node has a consensus key) |
 | `proofs_received` | `HashSet<PeerId>` | Peers we've received from (anti-spam, cleared when last connection closes) |
 
-Connection tracking uses libp2p's built-in `remaining_established` (on `ConnectionClosed`)
-instead of maintaining a separate map. Proof is sent on every new connection so a peer
-whose connection count diverged can still receive it; session state is cleaned up when
-the last connection closes (`remaining_established == 0`).
+Connection tracking uses libp2p's built-in `other_established` (on `ConnectionEstablished`)
+and `remaining_established` (on `ConnectionClosed`) instead of maintaining a separate map.
+Proof is sent only on first connection (`other_established == 0`); state is cleaned up when the
+last connection closes (`remaining_established == 0`).
 
 All session state is cleared when the last connection to a peer closes, allowing fresh
 exchange on reconnect.
@@ -99,9 +99,9 @@ durable classification (has this peer's proof been verified? are they in the val
   behaviour.rs
   ┌──────────────────────────────────────────────────────────────────────────┐
   │ on_swarm_event(ConnectionEstablished)                                    │
+  │   ├─ Check: other_established == 0? (first connection to peer)           │
   │   ├─ Check: proof_bytes.is_some()?                                       │
-  │   └─ send_request once per established connection                        │
-  │      (request_response picks a connection with request_id % n)           │
+  │   └─ inner.send_request(peer, proof_bytes)                               │
   └──────────────────────────────────────────────────────────────────────────┘
                                   │
                                   ▼
@@ -121,13 +121,17 @@ durable classification (has this peer's proof been verified? are they in the val
   ┌──────────────────────────────────────────────────────────────────────────┐
   │ behaviour.set_proof(proof_bytes)  — once at startup                      │
   │                                                                          │
-  │ On every new connection to a peer:                                        │
-  │   └─ send_request once per established connection                        │
+  │ On first connection to a peer (other_established == 0):                   │
+  │   └─ inner.send_request(peer, proof_bytes)                               │
   └──────────────────────────────────────────────────────────────────────────┘
 
-  ProofSent marks local send completion, not confirmed delivery. Every new
-  connection sends the proof again so a peer whose connection count diverged
-  still receives it.
+  ProofSent marks local send completion, not confirmed delivery. There is no
+  same-session retry; the proof is sent again in the next session, after the
+  last connection closes and the peer reconnects.
+
+  The receiver ignores a second proof from the same peer in the same session
+  instead of disconnecting, so a sender that sends more than one copy keeps
+  its connections.
 
   The proof is a static binding of (public_key, peer_id) and does not change
   with validator set membership. Whether the receiver classifies the sender
@@ -201,6 +205,7 @@ durable classification (has this peer's proof been verified? are they in the val
 
 | Check | Location | On Failure |
 |-------|----------|------------|
+| First connection (send) | behaviour.rs (`other_established == 0`) | Skip send |
 | proof_bytes set (send) | behaviour.rs | Skip send |
 | Message size (1KB max) | codec.rs → behaviour.rs | Disconnect (delivered as `ProofRequest::Malformed`) |
 | Read failure (framing / truncated / timeout) | codec.rs → behaviour.rs | Disconnect (delivered as `ProofRequest::Malformed`) |
@@ -223,8 +228,8 @@ Connection-session state in `behaviour.rs`:
 Cleared when the last connection to a peer closes (`remaining_established == 0`), allowing
 fresh exchange on reconnect.
 
-Connection counting uses libp2p's built-in `remaining_established` counter
-rather than maintaining a separate map.
+Connection counting uses libp2p's built-in counters (`other_established` and
+`remaining_established`) rather than maintaining a separate map.
 
 ## Scenario Diagrams
 
@@ -445,7 +450,7 @@ by a protocol name or codec version change to avoid this (see "When to Change Wh
 
 - The protocol is enabled when `config.enable_consensus = true`
 - Sync-only nodes do not enable the protocol
-- The proof is set once at startup and sent on every new connection (`ConnectionEstablished`)
+- The proof is set once at startup and sent once per session, on the first connection to a peer
 - The proof is a static binding; validator set membership is evaluated by the receiver
 - When the validator set changes, all peers with stored proofs are re-evaluated (`reclassify_peers`).
   Peers whose public key is no longer in the set are demoted (peer type and GossipSub score updated).

@@ -4809,6 +4809,67 @@ fn commit_certificate_without_proposal_stores_round_certificate() {
     }
 }
 
+// We prevote nil for an invalid proposal for X with no pol_round. Then a current-round polka
+// certificate for X arrives. Applying the certificate discards the vote keeper's outputs, so the
+// multiplexer must send `PolkaAny`. The state machine then starts the prevote timer (L34), and we
+// precommit nil when it fires instead of stalling.
+#[test]
+fn polka_certificate_with_invalid_proposal_and_no_pol_round_starts_prevote_timer() {
+    let value_x = Value::new(9999);
+
+    let [(v1, _sk1), (v2, _sk2), (v3, _sk3), (v4, _sk4)] = make_validators([1, 1, 1, 1]);
+    let my_addr = v4.address;
+
+    let height = Height::new(1);
+    let ctx = TestContext::new();
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone(), v4.clone()]);
+
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
+
+    let steps = vec![
+        TestStep {
+            desc: "Start round 0, we, v4, are not the proposer",
+            input: new_round_input(Round::new(0), v1.address),
+            expected_outputs: vec![start_propose_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Receive invalid proposal for X with no pol_round, prevote nil",
+            input: proposal_input(
+                Round::new(0),
+                value_x.clone(),
+                Round::Nil,
+                Validity::Invalid,
+                v1.address,
+            ),
+            expected_outputs: vec![prevote_nil_output(Round::new(0), &my_addr)],
+            expected_round: Round::new(0),
+            new_state: prevote_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Receive polka certificate for X in round 0, start prevote timer",
+            input: polka_certificate_input_at(
+                Round::new(0),
+                value_x,
+                &[v1.address, v2.address, v3.address],
+            ),
+            expected_outputs: vec![start_prevote_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: prevote_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Timeout prevote, precommit nil",
+            input: timeout_prevote_input(Round::new(0)),
+            expected_outputs: vec![precommit_nil_output(Round::new(0), &my_addr)],
+            expected_round: Round::new(0),
+            new_state: precommit_state(Round::new(0)),
+        },
+    ];
+
+    run_steps(&mut driver, steps);
+}
+
 fn run_steps(driver: &mut Driver<TestContext>, steps: Vec<TestStep>) {
     let mut last_step = Step::Unstarted;
     for step in steps {

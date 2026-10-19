@@ -1764,8 +1764,20 @@ where
                         reply_to,
                     },
                     move |result| match result {
-                        Ok(SyncedValueOutcome::Verdict(proposed)) => {
+                        Ok(SyncedValueOutcome::Verdict(mut proposed)) => {
                             if proposed.value.id() == value.certificate.value_id {
+                                if let Some(host_round) =
+                                    set_certificate_round(&mut proposed, certificate_round)
+                                {
+                                    warn!(
+                                        height = %certificate_height,
+                                        host_round = %host_round,
+                                        certificate_round = %certificate_round,
+                                        value_id = %value.certificate.value_id,
+                                        "Host replied to a synced value with a round that differs from the commit certificate, using the certificate round"
+                                    );
+                                }
+
                                 // Id matches the certificate — forward to consensus.
                                 // A locally-invalid validity is still forwarded so the
                                 // downstream `maybe_sync_decision` path can surface the
@@ -2004,6 +2016,23 @@ where
     None
 }
 
+/// Set the round of a synced value to the round of its commit certificate.
+///
+/// Consensus looks up the commit certificate by the round of the value, so the
+/// value reaches the sync decision path only if it carries the certificate round.
+///
+/// Returns the round the host replied with if it differs from the certificate round.
+fn set_certificate_round<Ctx: Context>(
+    proposed: &mut ProposedValue<Ctx>,
+    certificate_round: Round,
+) -> Option<Round> {
+    if proposed.round == certificate_round {
+        return None;
+    }
+
+    Some(core::mem::replace(&mut proposed.round, certificate_round))
+}
+
 /// Whether `msg` carries a value obtained through the sync protocol.
 ///
 /// Matches exhaustively so that a new [`Msg`] variant has to be classified here
@@ -2042,7 +2071,159 @@ fn span_round<Ctx: Context>(round: Round, msg: &Msg<Ctx>) -> Round {
 
 #[cfg(test)]
 mod tests {
-    use super::vote_extension_reply_mismatch;
+    use std::cell::Cell;
+
+    use bytes::Bytes;
+    use malachitebft_core_consensus::{
+        process, Effect, Error, Input, Params, Resumable, Resume, State,
+    };
+    use malachitebft_core_types::{
+        ExtendedCommitCertificate, Round, Validity, ValueOrigin, ValuePayload, ValueResponse,
+        VoteExtensionPolicy,
+    };
+    use malachitebft_metrics::Metrics;
+    use malachitebft_peer::PeerId;
+    use malachitebft_test::utils::validators::make_validators;
+    use malachitebft_test::{Height, TestContext, ValidatorSet, Value};
+
+    use super::{set_certificate_round, vote_extension_reply_mismatch, ProposedValue};
+
+    fn processed(result: Result<(), Error<TestContext>>) {
+        result.expect("consensus processes the input");
+    }
+
+    fn synced_value(round: Round) -> ProposedValue<TestContext> {
+        let (validator, _) = make_validators([1])[0].clone();
+
+        ProposedValue {
+            height: Height::new(1),
+            round,
+            valid_round: Round::Nil,
+            proposer: validator.address,
+            value: Value::new(42),
+            validity: Validity::Valid,
+        }
+    }
+
+    #[test]
+    fn set_certificate_round_replaces_a_different_host_round() {
+        let mut proposed = synced_value(Round::new(0));
+
+        let host_round = set_certificate_round(&mut proposed, Round::new(1));
+
+        assert_eq!(host_round, Some(Round::new(0)));
+        assert_eq!(proposed, synced_value(Round::new(1)));
+    }
+
+    #[test]
+    fn set_certificate_round_keeps_a_value_at_the_certificate_round() {
+        let mut proposed = synced_value(Round::new(1));
+
+        let host_round = set_certificate_round(&mut proposed, Round::new(1));
+
+        assert_eq!(host_round, None);
+        assert_eq!(proposed, synced_value(Round::new(1)));
+    }
+
+    /// The host replies to a value certified at round 1 with the same value at
+    /// round 0. Consensus must still decide the value through the sync path.
+    #[test]
+    fn synced_value_with_a_different_host_round_reaches_the_sync_decision() {
+        let validators: Vec<_> = make_validators([25, 25, 25, 25])
+            .into_iter()
+            .map(|(v, _)| v)
+            .collect();
+        let validator_set = ValidatorSet::new(validators.clone());
+
+        let height = Height::new(1);
+        let certificate_round = Round::new(1);
+        let value = Value::new(42);
+
+        let mut state = State::new(
+            TestContext::new(),
+            height,
+            validator_set.clone(),
+            Params {
+                address: validators[0].address,
+                threshold_params: Default::default(),
+                value_payload: ValuePayload::ProposalOnly,
+                enabled: true,
+            },
+            1000,
+            500,
+        );
+        let metrics = Metrics::new();
+
+        let verified = Cell::new(None);
+        let decided = Cell::new(None);
+
+        // Accept the certificate without checking signatures: this test is
+        // about how the synced value is routed, not about verification.
+        let handle_effect = |effect| -> Result<Resume<TestContext>, ()> {
+            Ok(match effect {
+                Effect::VerifyExtendedCommitCertificate(_, _, _, _, r) => r.resume_with(Ok(())),
+                Effect::CertVerifiedSyncValue(value, proposer, r) => {
+                    verified.set(Some((value, proposer)));
+                    r.resume_with(())
+                }
+                Effect::Decide(certificate, _, r) => {
+                    decided.set(Some(certificate));
+                    r.resume_with(())
+                }
+                _ => Resume::Continue,
+            })
+        };
+
+        processed(process!(
+            input: Input::StartHeight(height, validator_set, false, None, VoteExtensionPolicy::Disabled),
+            state: &mut state,
+            metrics: &metrics,
+            with: effect => handle_effect(effect)
+        ));
+
+        let certificate = ExtendedCommitCertificate {
+            height,
+            round: certificate_round,
+            value_id: value.id(),
+            commit_signatures: Vec::new(),
+        };
+
+        processed(process!(
+            input: Input::SyncValueResponse(ValueResponse::new(
+                PeerId::random(),
+                Bytes::from_static(b"value-bytes"),
+                certificate,
+            )),
+            state: &mut state,
+            metrics: &metrics,
+            with: effect => handle_effect(effect)
+        ));
+
+        let (response, proposer) = verified.take().expect("certificate is verified");
+
+        // The host replies with the certified value, but at an earlier round.
+        let mut proposed = ProposedValue {
+            height,
+            round: Round::new(0),
+            valid_round: Round::Nil,
+            proposer,
+            value: value.clone(),
+            validity: Validity::Valid,
+        };
+
+        set_certificate_round(&mut proposed, response.certificate.round);
+
+        processed(process!(
+            input: Input::ProposedValue(proposed, ValueOrigin::Sync),
+            state: &mut state,
+            metrics: &metrics,
+            with: effect => handle_effect(effect)
+        ));
+
+        let decided = decided.take().expect("synced value is decided");
+        assert_eq!(decided.round, certificate_round);
+        assert_eq!(decided.value_id, value.id());
+    }
 
     #[test]
     fn vote_extension_reply_accepts_matching_addresses_in_order() {

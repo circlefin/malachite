@@ -1068,6 +1068,90 @@ pub async fn sync_recovers_from_decode_failure_ok(
     .await
 }
 
+/// Middleware that replies to every synced value with the round after the round
+/// of its commit certificate, and counts the replies.
+#[derive(Debug, Clone)]
+struct ReplyWithNextRound {
+    replies: Arc<AtomicU32>,
+}
+
+impl Middleware for ReplyWithNextRound {
+    fn synced_value_reply_round(&self, _ctx: &TestContext, _height: Height, round: Round) -> Round {
+        self.replies.fetch_add(1, Ordering::SeqCst);
+        round.increment()
+    }
+}
+
+/// Verifies that a node decides synced values at the round of their commit
+/// certificate, even when the application replies with a different round.
+pub async fn sync_decides_at_certificate_round(params: TestParams) {
+    const HEIGHT: u64 = 6;
+    const CRASH_HEIGHT: u64 = 3;
+
+    let mut test = TestBuilder::<()>::new();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .success();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .success();
+
+    // Node 3 crashes, resets DB, and restarts with a middleware that replies to
+    // every synced value with a round that differs from the certificate round.
+    let replies = Arc::new(AtomicU32::new(0));
+    let middleware = ReplyWithNextRound {
+        replies: Arc::clone(&replies),
+    };
+
+    test.add_node()
+        .with_voting_power(5)
+        .with_middleware(middleware)
+        .start()
+        .wait_until(CRASH_HEIGHT)
+        .crash()
+        .reset_db()
+        .restart_after(Duration::from_secs(5))
+        .wait_until(HEIGHT)
+        .success();
+
+    test.build()
+        .run_with_params(
+            Duration::from_secs(60),
+            TestParams {
+                enable_value_sync: true,
+                ..params
+            },
+        )
+        .await;
+
+    assert!(
+        replies.load(Ordering::SeqCst) > 0,
+        "the node must sync at least one value"
+    );
+}
+
+#[rstest]
+#[case::proposal_and_parts_eager(ValuePayload::ProposalAndParts, Duration::ZERO)]
+#[case::proposal_and_parts_interval(ValuePayload::ProposalAndParts, Duration::from_secs(1))]
+#[tokio::test]
+pub async fn sync_decides_at_certificate_round_ok(
+    #[case] value_payload: ValuePayload,
+    #[case] status_update_interval: Duration,
+) {
+    sync_decides_at_certificate_round(TestParams {
+        value_payload,
+        status_update_interval,
+        ..Default::default()
+    })
+    .await
+}
+
 /// Middleware that reports a transient processing failure a configurable number
 /// of times before succeeding.
 #[derive(Debug, Clone)]
