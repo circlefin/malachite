@@ -293,7 +293,10 @@ where
             );
             debug_trace!(state, Line::L18);
 
-            debug_assert!(state.check_timeout(TimeoutKind::Propose));
+            // `check_timeout` mutates the scheduled-timeout bookkeeping, so it
+            // must run in release builds too; only the assertion is debug-only.
+            let newly_scheduled = state.check_timeout(TimeoutKind::Propose);
+            debug_assert!(newly_scheduled);
             Transition::to(state.with_step(Step::Propose)).with_output(output)
         }
     }
@@ -493,7 +496,10 @@ where
 {
     debug_trace!(state, Line::L21ProposeTimeoutScheduled);
 
-    debug_assert!(state.check_timeout(TimeoutKind::Propose));
+    // `check_timeout` mutates the scheduled-timeout bookkeeping, so it must
+    // run in release builds too; only the assertion is debug-only.
+    let newly_scheduled = state.check_timeout(TimeoutKind::Propose);
+    debug_assert!(newly_scheduled);
     let timeout = Output::schedule_timeout(state.round, TimeoutKind::Propose);
     Transition::to(state.with_step(Step::Propose)).with_output(timeout)
 }
